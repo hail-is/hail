@@ -1,62 +1,58 @@
 # Tutorial
 
-For this tutorial, we will be analyzing data from the final phase of the [1000 Genomes Project](http://www.internationalgenome.org/about). 
-The dataset is thoroughly described in [A global reference for human genetic variation. Nature 2015.](http://www.nature.com/nature/journal/v526/n7571/full/nature15393.html) 
-The original data was down sampled to approximately 10,000 variants consisting of both rare and common variants. 
-Sample information (population, super-population, sex) was obtained from the [1000 Genomes website](http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/working/20130606_sample_info/20130606_sample_info.xlsx).
+In this tutorial, we will analyze data from the final phase of the [1000 Genomes Project](http://www.internationalgenome.org/about), as described in [A global reference for human genetic variation (Nature 2015)](http://www.nature.com/nature/journal/v526/n7571/full/nature15393.html). We have downsampled the dataset to approximately 10,000 variants consisting of both rare and common variants. We obtained sample information (population, super-population, sex) from the [1000 Genomes website](http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/working/20130606_sample_info/20130606_sample_info.xlsx).
 
-### Prerequisites
+Before getting started, read the [Overview](overview.html) section of the docs.
 
-(1) Read the [Overview page](overview.html) in the Documentation
+### Install dependencies
 
-(2) Install the following dependencies:
+In the tutorial, we will run Hail in local mode (using all cores on your laptop, VM, ...) rather than on a Spark cluster. Ensure the following dependencies are installed:
 
-  - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-  - [Java 1.8](https://www.google.com/search?q=download+java+8+jdk) (use `java -version` to see which version you currently have.  )
-  - [Anaconda2 with Python 2.7](https://www.continuum.io/downloads)
-  - [Spark 2.0.2](https://spark.apache.org/downloads.html)
-  
-If you are setting up a fresh Linux VM with Ubuntu installed (e.g. GCP or AWS), [this wiki](https://github.com/hail-is/hail/wiki/Install-Hail-dependencies-on-a-fresh-Ubuntu-VM) may help.
+  - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git). We recommend the latest version.
+  - [Java 1.8](https://www.google.com/search?q=download+java+8+jdk). Use `java -version` to see which version you currently have.
+  - Python 2.7 and IPython. We recommend the free [Anaconda distribution](https://www.continuum.io/downloads) and will assume this is what's installed below.
+  - [Spark 2](https://spark.apache.org/downloads.html). We recommend the latest version.
 
-### Download and Install Hail    
+If you are setting up a fresh Linux VM with Ubuntu installed (e.g., on GCP or AWS), [this wiki](https://github.com/hail-is/hail/wiki/Install-Hail-dependencies-on-a-fresh-Ubuntu-VM) may help.
 
-Download and build Hail by entering the following commands (this will take a minute or two!): 
+### Install Hail
+
+We recommend installation in your home directory. On the command line, download and build Hail by running:
 
 ```
 git clone https://github.com/hail-is/hail.git hail
-cd hail/
+cd hail
 ./gradlew clean shadowJar
 ```
 
-### Download Supplementary Data Files
+This will take a few minutes as additional dependencies are downloaded and Hail is compiled.
 
-Download the zip file (**Hail_Tutorial_Data-v1.tgz**) with [`wget`](https://www.google.com/search?q=install+wget) or [`curl`](https://www.google.com/search?q=install+curl):
+### Download tutorial data files
+
+Download the zip file *Hail_Tutorial_Data-v1.tgz* using [`wget`](https://www.google.com/search?q=install+wget) or [`curl`](https://www.google.com/search?q=install+curl):
  
 ```
 wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial_Data-v1.tgz
 ```
 
-Unzip the file with the following command:
+Unzip the file:
 
 ```
 tar -xvzf Hail_Tutorial_Data-v1.tgz --strip 1
 ```
       
-The contents of the tar file are as follows:
+The contents are as follows:
   
-  - 1000 Genomes Compressed VCF (down-sampled to 10K variants) -- **1000Genomes.ALL.coreExome10K-v1.vcf.bgz**
-  - Sample Annotations -- **1000Genomes.ALL.coreExome10K-v1.sample_annotations**
-  - LD-pruned SNP List -- **purcell5k.interval_list**
-
+  - 1000 Genomes Compressed VCF (downsampled to 10K variants) -- *1000Genomes.ALL.coreExome10K-v1.vcf.bgz*
+  - Sample Annotations -- *1000Genomes.ALL.coreExome10K-v1.sample_annotations*
+  - LD-pruned SNP List -- *purcell5k.interval_list*
 
 ### Setting up the Spark / Hail ecosystem
 
-The following commands need to be entered on the command line after installing Anaconda, downloading and unzipping the Spark installation, and installing java.
-
-The below two commands may require modification based on where you cloned Hail and downloaded Spark.
+Enter these commands, modified to reflect where you cloned Hail and unzipped Spark:
 ```
-export HAIL_HOME=~/hail  # or wherever you cloned Hail
-export SPARK_HOME=~/spark-2.0.2-bin-hadoop2.7  # or wherever you unzipped Spark
+export HAIL_HOME=~/hail
+export SPARK_HOME=~/spark-2.0.2-bin-hadoop2.7
 ```
 
 These commands should require no modification.
@@ -67,7 +63,7 @@ export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
 
 ### Start an IPython interactive shell
 
-Using the command `ipython` from the same directory where you extracted the tutorial files, start an IPython shell. You should see a window similar to the one shown below. If this doesn't work, Anaconda is not installed properly.
+Start an IPython shell by running the command `ipython` from the directory containing the tutorial files. You should see a window similar to the one shown below. Otherwise, Anaconda is not installed properly.
 
 ```text
 hail@tutorial-vm:~$ ipython
@@ -88,28 +84,34 @@ In this window, enter two commands:
     >>> from pyhail import *
     >>> hc = HailContext()
 
-These two commands will run without error if everything is set up properly. If you see an error, make sure that the `export` variables are set correctly, that java is installed properly, and that Spark is the right version. If this step triggers a `Exception in thread "main" java.net.BindException`, check the [FAQ](https://hail.is/faq.html#how-do-i-fix-exception-in-thread-main-java.net.bindexception-cant-assign-requested-address-...) for a fix to this issue.
+If there is no error, you're ready to start using Hail! Otherwise, make sure that the `export` variables are correctly set and appropriate versions of all dependencies are installed. If this step triggers a `Exception in thread "main" java.net.BindException`, see [here](https://hail.is/faq.html#how-do-i-fix-exception-in-thread-main-java.net.bindexception-cant-assign-requested-address-...) for a fix.
 
+## Import data
 
-### Set Environment Variables
+For cleanliness, let's first assign the names of data files to Python variables:
 
     >>> vcf = '1000Genomes.ALL.coreExome10K-v1.vcf.bgz'
     >>> sample_annotations = '1000Genomes.ALL.coreExome10K-v1.sample_annotations'
     >>> pruned_variants = 'purcell5k.interval_list'
 
-## Import Data
 
-Hail uses a fast and storage-efficient internal representation called a VDS (variant dataset). In order to use Hail for data analysis, data must first be imported to the VDS format. To do this, use the `import_vcf` method on `HailContext` to load the downsampled 1000 Genomes VCF (**1000Genomes.ALL.coreExome10K-v1.vcf.bgz**) into Hail. The VCF file is block-compressed (`.vcf.bgz`) which enables Hail to read the file in parallel. Reading a file that has not been block-compressed (`.vcf`, `.vcf.gz`) is _significantly_ slower and should be avoided. 
+We must first import variant data into Hail's internal format of Variant Dataset (VDS). We use the `import_vcf` method on `HailContext` to load the downsampled 1000 Genomes VCF into Hail. The VCF file is block-compressed (`.vcf.bgz`) which enables Hail to read the file in parallel. Reading files that has not been block-compressed (`.vcf`, `.vcf.gz`) is _significantly_ slower and should be avoided (though often `.vcf.gz` files are in fact block-compressed, so that renaming to `.vcf.bgz` solves the problem). 
 
     >>> vds = hc.import_vcf(vcf)
 
-Next, we use the `split_multi` method on `dataset` to split multi-allelic variants into biallelic variants. For example, the variant `1:1000:A:T,C` would become two variants: `1:1000:A:T` and `1:1000:A:C`.
+We next use the `split_multi` method on `dataset` to split multi-allelic variants into biallelic variants. For example, the variant `1:1000:A:T,C` would become two variants: `1:1000:A:T` and `1:1000:A:C`.
 
     >>> vds = vds.split_multi()
 
-Third, we use the `annotate_samples_table` method to load phenotypic information for each sample from the sample annotations file (**1000Genomes.ALL.coreExome10K-v1.sample_annotations**).
+We next use the `annotate_samples_table` method to load phenotypic information on each sample from the sample annotations file.
 
-The first few lines of this file are reproduced below:
+    >>> vds = vds.annotate_samples_table(sample_annotations, 
+    >>>                                  root='sa.pheno', 
+    >>>                                  sample_expr='Sample', 
+    >>>                                  config=TextTableConfig(impute=True))
+
+Let's dig into command. `sample_annotations` refers to the sample annotation data file, whose first few lines are:
+
 ```
 Sample  Population      SuperPopulation isFemale        PurpleHair      CaffeineConsumption
 HG00096 GBR     EUR     False   False   77.0
@@ -121,26 +123,28 @@ HG00101 GBR     EUR     False   True    77.0
 HG00102 GBR     EUR     True    True    67.0
 ```
 
-The `root` flag tells Hail where to put the data read in from the file. When annotating samples, the first part of the root name should be `sa`. The second part can be anything you like. Here we have chosen `sa.pheno`. The `sample_expr` flag tells Hail how to select the sample ID. In this case, the column name containing the sample ID is `Sample`.
+The `root` argument says where to put this data. For sample annotations, the root must start with `sa` followed by a `.` and the rest is up to you, so let's use `sa.pheno`.
 
-Finally, we need to pass configuration options. This is done using an object called `TextTableConfig`, which allows users to provide information about the data type of different columns, as well as set properties like header existence, comment character, or field delimiter. Here we need to read columns 'isFemale' and 'PurpleHair' as boolean values, and the 'CaffeineConsumption' column as a floating-point number. We can do this by passing an explicit type string to the `TextTableConfig` of the form 'isFemale: Boolean, PurpleHair: Boolean, CaffeineConsumption: Boolean', or we can pass the argument `impute=True` which enables Hail to guess the column types.
+The `sample_expr` argument defines how to select the sample ID. In this case, the column name containing the sample ID is `Sample`.
 
-    >>> vds = vds.annotate_samples_table(sample_annotations, 
-    >>>                                  root='sa.pheno', 
-    >>>                                  sample_expr='Sample', 
-    >>>                                  config=TextTableConfig(impute=True))
+The object `TextTableConfig` allows users to provide information about column data types, header existence, comment characters, and field delimiters. Here we'd like to store columns 'isFemale' and 'PurpleHair' as Booleans and the 'CaffeineConsumption' column as Doubles (floating-point). We could do so by passing an explicit type string to `TextTableConfig` of the form 'isFemale: Boolean, PurpleHair: Boolean, CaffeineConsumption: Boolean'.  Instead, we pass `impute=True` to infer column types automatically.
 
-Lastly, we will `write` this dataset to disk so that we can read and process it more quickly (remember that the Hail representation is much faster than VCF!)  We'll then `read` this dataset, so that all future computations willbegin from the fast VDS rather than slow VCF.
+Lastly, we'll write the dataset to disk so that all future computations begin by reading in the fast VDS rather than the slow VCF.
 
     >>> out_path = '1kg.vds'
     >>> vds.write(out_path)
+
+## Start exploring
+
+Now we're ready to start exploring! Let's practice reading the vds back in:
+
     >>> vds = hc.read(out_path)
-    
-Now we're ready to start exploring!  First, we'll print some simple statistics about the size of the dataset:
+
+First, we'll print some statistics about the size of the dataset using `count`:
 
     >>> vds.count()
-    
-This method also takes an option `genotypes`, which can compute total call rate across all genotypes as well:
+
+If the Boolean parameter `genotypes` is set to `True`, the overall call rate across all genotypes is computed as well:
 
     >>> vds.count(genotypes=True)
     
@@ -148,15 +152,15 @@ This method also takes an option `genotypes`, which can compute total call rate 
 Out[8]: {u'nGenotypes': 27786135L, u'nVariants': 10961L, u'nSamples': 2535, u'nCalled': 27417806L, u'callRate': 98.6744144156789}
 </pre>
 
-Note that the call rate is around 98.7% -- this will be revisited soon.  
+So the call rate before any QC filtering is about 98.7%.
 
-We can also start by printing the types of all the annotations contained in the VDS. Many annotations came with the VCF, but we also added sample annotations above. Notice how the 6 sample annotation variables we loaded above are nested inside `sa.pheno` as defined by the `root` option in `annotate_samples table`.
+Let's print the types of all annotations.
 
     >>> vds.print_schema()
 
-Next, we will list the populations that are present in our dataset and count the number of samples by phenotype using the Hail expression language and the `annotate_global_expr_by_sample` method.
+Note the annotations imported from the original VCF, as well as the sample annotations added above. Notice how those six sample annotations loaded above are nested inside `sa.pheno` as defined by the `root` option in `annotate_samples table`.
 
-The 1000 Genomes Super-Population codings are:
+Next, we'll add some global annotations including the list the populations that are present in our dataset and counts of the number of samples in each population, using the Hail expression language and the `annotate_global_expr_by_sample` method. The 1000 Genomes Super-Population codings are:
 
   - SAS = South Asian
   - AMR = Americas
@@ -164,7 +168,7 @@ The 1000 Genomes Super-Population codings are:
   - AFR = African
   - EAS = East Asian
 
-We'll first build up a list of annotation expressions, evaluate them on the dataset, and finally print the resulting global annotations.
+We'll first build up a list of annotation expressions, evaluate them on the dataset, and print the resulting global annotations.
 
     >>> expressions = [ 
     >>>   'global.populations = samples.map(s => sa.pheno.Population).collect().toSet',
@@ -184,59 +188,58 @@ Global annotations: `global' = {
 }
 </pre>
 
-It's also easy to count by population:
+Now it's easy to count samples by population using the `counter()` aggregator:
 
     >>> vds.annotate_global_expr_by_sample('global.count_by_pop = samples.map(s => sa.pheno.SuperPopulation).counter()').show_globals()
 
-## QC
+## Quality control (QC)
 
-Before testing whether there is a genetic association for a given trait, the raw data must be filtered to remove genotypes that don't have strong evidence supporting the genotype call, samples that are outliers on key summary statistics across the dataset, and variants that have low mean genotype quality scores or don't follow a [Hardy Weinberg Equilibrium](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle) distribution of genotype calls.
+Before testing whether there is a genetic association for a given trait, let's clean up the raw data by filtering out genotypes that don't have strong evidence supporting the genotype call, samples that are outliers on key summary statistics across the dataset, and variants with low mean genotype quality or out of [Hardy-Weinberg equilibrium](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle).
 
+The QC procedures below are a sampler covering various features of Hail, not an optimal pipeline for your research.
 
-##### Filter Genotypes
+For filtering, we make extensive use of the [Hail expression language](reference.html#HailExpressionLanguage). Here `g` is genotype, `v` is variant, `s` is sample, and annotations are accessible via `va`, `sa`, and `global`. 
 
-We begin with an example of filtering genotypes based on allelic balance with the `filter_genotypes` method. Real data may require more complicated filtering expressions. To use this method, we must construct a **boolean expression** using the [Hail Expression Language](reference.html#HailExpressionLanguage). In this expression, `g` means the genotype, `v` is the variant, `s` is the sample, and annotations are accessible with `va`, `sa`, and `global`. 
+##### Filter genotypes
 
-We used the 'let ... in' functionality to define a new temporary variable `ab` for the allelic balance which is calculated from the allelic depth (`g.ad`) for each allele. Depending on the genotype call, we want the allelic balance to be between a given range. For example for heterozygote calls (`g.isHet`), we want the allelic balance to be between 0.25 and 0.75. Likewise, for a homozygote call (`g.isHomRef`), the allelic balance should be close to 0 indicating no evidence of the alternate allele. 
-
-Additional methods on [Genotype](reference.html#genotype) are listed in the documentation.
+Let's filter genotypes based on allelic balance using the `filter_genotypes` method.
 
     >>> filter_condition = '''let ab = g.ad[1] / g.ad.sum in
-    >>>                     ((g.isHomRef && ab <= 0.1) || 
-    >>>                     (g.isHet && ab >= 0.25 && ab <= 0.75) || 
-    >>>                     (g.isHomVar && ab >= 0.9))'''
+    >>>                          ((g.isHomRef && ab <= 0.1) || 
+    >>>                           (g.isHet && ab >= 0.25 && ab <= 0.75) || 
+    >>>                           (g.isHomVar && ab >= 0.9))'''
     >>> filtered_vds = vds.filter_genotypes(filter_condition)
+
+In this code, we first construct a expression `filter_condition` that evaluates to a Boolean using the . We use `let ... in` to define a temporary variable `ab` for the allelic balance which is calculated from the allelic depth `g.ad`, a zero-indexed array (so `g.ad[0]` and `g.ad[1]` are read counts for reference allele and alternate allele, respectively). We require for homozygous call that the allelic balance be within `.1` of the expected mode, and that for heterozygote calls (`g.isHet`) the allelic balance be between 0.25 and 0.75. Additional methods on genotype are documented [here](reference.html#genotype).
+
     >>> filtered_vds.count(genotypes=True)
 
-Notice that the call rate is just above 95%, whereas pre-filter it was 98.7%. Nearly 4% of genotypes failed this filter.
+Now the call rate is about 95%, so nearly 4% of genotypes failed the filter (filtering out a genotype is equivalent to setting the genotype call to missing).
 
 <pre class="tutorial output" style="color: red">
   nSamples             2,535
   nVariants           10,961
   nCalled         26,404,807
   callRate           95.029%
- </pre>
-  
-#### Filter Samples
+</pre>
 
-Now that unreliable genotype calls have been filtered out, we can remove variants that have a low call rate before calculating summary statistics per sample with the `sample_qc` method. 
-By removing poor-performing variants due to call rate, we can get a better picture of which samples are outliers on key quality control measures compared to what is expected.
-The call rate was calculated by using Hail [aggregable](reference.html#aggregables) functionality to calculate the fraction of genotypes called per variant.
-A description of all summary statistics that are calculated by the `sampleqc` command are available in the [documentation](commands.html#sampleqc).
+#### Filter samples
 
+Having removed suspect genotypes, let's next remove variants with low call rate and then calculate summary statistics per sample with the `sample_qc` method.
+ 
     >>> filtered_vds_2 = (filtered_vds
     >>>     .filter_variants_expr('gs.fraction(g => g.isCalled) > 0.95')
     >>>     .sample_qc())
 
-The sample QC method created more sample annotations. Let's print the schema again, and only the sample annotations this time:
+The call rate for each variant is calculated using the `fraction` [aggregable](reference.html#aggregables) on the genotypes `gs`. `sampleqc` adds a number of statistics to sample annotations documented [here](commands.html#sampleqc). Let's print the new sample annotation schema schema:
 
     >>> filtered_vds_2.print_schema(sa=True)
 
-It's very easy to export annotations to text files, as well. We will do that now:
+Let's export these sample annotations to a text file:
 
     >>> filtered_vds_2.export_samples('sampleqc.txt', 'Sample = s.id, sa.qc.*')
 
-There is a handy IPython magic command `%%sh` for a shell interpreter, which makes it very easy to peek at this file without leaving the IPython interpreter.
+`%%sh` is a handy IPython magic command that allows you to peek at this file without leaving the IPython interpreter.
 
     >>> %%sh
     >>> head sampleqc.txt | cut -f 1,2,3,4,5,6,7,8,9,10
@@ -254,14 +257,13 @@ HG02635	9.82337e-01	5506	99	3927	927	652	2231	0	0
 NA19660	9.45049e-01	5297	308	3910	685	702	2089	0	0
 </pre>
 
-We can also analyze the results further using R. 
-Below is an example of two variables that have been plotted (call rate and meanGQ). The red lines are cutoffs for filtering samples based on these two variables.
+We can further analyze these results locally using tools like Python or R. Below is an example plot of two variables (call rate and meanGQ).
 
 <img src="test.sampleqc.png">
 
-We want to remove the samples that are outliers in the plots above, and we want to remove these from the VDS we had before variants were filtered -- it's possible that poor-quality samples decreased the call rate on variants we want to keep. There are many ways we can do this step, and we will demonstrate two. 
+Let's remove the samples that are outliers in the plots above (where cutoffs are given the red lines). We will remove these samples from `filtered_vds` (after filtering genotypes but before filtering variants) because it's possible that poor-quality samples decreased the call rate on variants we'd actually like to keep. Here are two of the many ways we could do this step: 
 
-**Method 1:** export list of samples to keep from `filtered_vds_2`, and filter samples from `filtered_vds` based on this list.
+**Method 1:** Export a list of samples to keep from `filtered_vds_2`, and filter samples from `filtered_vds` based on this list.
 
     >>> (filtered_vds_2
     >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20')
@@ -271,7 +273,7 @@ We want to remove the samples that are outliers in the plots above, and we want 
     >>> print 'after filter: %d samples' % filtered_vds_3.num_samples()
     >>> method_1_kept_ids = filtered_vds_3.sample_ids()
     
-**Method 2:** annotate the first VDS with the sample QC metrics we exported, and filter based on these metrics.
+**Method 2:** Annotate and filter `filtered_vds` using the exported sample QC metrics:
 
     >>> filtered_vds_3 = (filtered_vds
     >>>     .annotate_samples_table('sampleqc.txt', sample_expr='Sample', 
@@ -285,7 +287,7 @@ Let's make sure these two methods give us the same samples:
 
     >>> method_1_kept_ids == method_2_kept_ids
 
-Like we did when we first loaded the dataset, we can use the `annotate_global_expr_by_sample` method to count the number of samples by phenotype that remain in the dataset after filtering.
+As before, let's use the `annotate_global_expr_by_sample` method to count the number of samples by phenotype that remain in the dataset after filtering.
 
     >>> post_qc_exprs = [
     >>>     'global.postQC.nCases = samples.filter(s => sa.pheno.PurpleHair).count()',
@@ -301,26 +303,24 @@ Global annotations: `global' = {
 }
 </pre>
 
-#### Filter Variants
+#### Filter variants
 
-We now have `filtered_vds_3`, a VDS where both poor-performing genotypes and samples have been removed. We can start exploring variant metrics using the `variant_qc` method, which computes generates QC summary statistics as annotations per variant. We will also export these annotations to a text file.
+We now have `filtered_vds_3`, a VDS where both poor genotypes and samples have been removed.
 
-We use the string `va.qc.*` to specify that all annotations in the struct `va.qc` should be included as columns. We could also have written the export expression above as `Variant = v, va.qc.*` in which case the Variant column would have the form "Chrom:Pos:Ref:Alt".
+Let's use the `variant_qc` method to start exploring variant metrics and `export_variants` to exports the resulting variant annotations as a text file:
 
     >>> filtered_vds_3 = filtered_vds_3.variant_qc()
     >>> filtered_vds_3.print_schema(va=True)
     >>> filtered_vds_3.export_variants('variantqc.tsv',
     >>>                                'Chrom=v.contig, Pos=v.start, Ref=v.ref, Alt=v.alt, va.qc.*')
 
-We've used R to make histograms of 4 summary statistics (call rate, minor allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated includes all populations.
+The string `va.qc.*` specifies that all annotations in the struct `va.qc` should be included as columns. We could also have written the export expression above as `Variant = v, va.qc.*` in which case the `Variant` column would have the format "Contig:Pos:Ref:Alt".
+
+We've used R to make histograms of four summary statistics (call rate, allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated is based on all populations together.
 <img src="test.variantqc.png">
 
-To compute the HWE p-value by population, we use the `annotate_variants expr` method to programmatically compute Hardy Weinberg Equilibrium for each population.
-For each variant, we filter the genotypes to only those genotypes from the population of interest using a filter function on the [genotype aggregable](reference.html#aggregables) and then calculate the Hardy-Weinberg Equilibrium p-value using the [`hardyWeinberg`](reference.html#aggreg_hwe) function on the filtered genotype aggregable. 
+Let's use the `annotate_variants_expr` method to programmatically compute Hardy Weinberg Equilibrium for each population.
 
-The `persist` method we've added caches the dataset in its current state on memory/disk, so that downstream processing will be faster.
-
-The results of `print_schema` show we have added new fields in the variant annotations for HWE p-values for each population.
 
     >>> hwe_expressions = [
     >>>     'va.hweByPop.hweEUR = gs.filter(g => sa.pheno.SuperPopulation == "EUR").hardyWeinberg()',
@@ -332,7 +332,11 @@ The results of `print_schema` show we have added new fields in the variant annot
     >>> filtered_vds_3.persist()
     >>> filtered_vds_3.print_schema(va=True)
 
-We've got quite a few variant annotations now! Notice that the results of these annotation statements are structs containing two elements:
+Above, for each variant, we filter the genotypes to only those genotypes from the population of interest using a filter function on the [genotype aggregable](reference.html#aggregables) and then calculate the Hardy-Weinberg Equilibrium p-value using the [`hardyWeinberg`](reference.html#aggreg_hwe) function on the filtered genotype aggregable.
+
+The `persist` method caches the dataset in its current state on memory/disk, so that downstream processing will be faster. 
+
+`print_schema` reveals that we've added new fields to the variant annotations for HWE p-values for each population. We've got quite a few variant annotations now! Notice that the results of these annotation statements are structs containing two elements:
 
 <pre class="tutorial output" style="color: red">
 Variant annotation schema:
@@ -361,9 +365,7 @@ Variant annotation schema:
 }
 </pre>
  
-Now that the variant annotations contain a population-specific p-value for HWE, we can filter variants based on passing HWE in each population. The results of the `count` method confirms that by calculating HWE p-values in each population separately, we only filter out 826 variants compared to 7098 variants before.
-
-The `persist` method we've added before `count` caches the dataset in its current state on memory/disk, so that downstream processing will be faster.
+We can now filter variants based on HWE p-values with respect to each population:
 
     >>> hwe_filter_expression = '''
     >>>     va.hweByPop.hweEUR.pHWE > 1e-6 && 
@@ -374,6 +376,7 @@ The `persist` method we've added before `count` caches the dataset in its curren
     >>> hwe_filtered_vds = filtered_vds_3.filter_variants_expr(hwe_filter_expression)
     >>> hwe_filtered_vds.count()
 
+We see from `count` that by calculating HWE p-values in each population separately, we only filter out 826 variants (before it would have been 7098 variants!).
 
 <pre class="tutorial output" style="color: red">
 Out[49]: {u'nSamples': 1646, u'nVariants': 10135L, u'nGenotypes': 16682210L}
@@ -390,20 +393,19 @@ Lastly we use the `filter_variants expr`method to keep variants with a mean GQ g
   
 We can see we have filtered out 1,012 total variants from the dataset.
 
-#### Sex Check
+#### Sex check
 
-One of the most important QC metrics is to ensure that the reported sex of the samples is consistent with sex chromosome ploidy estimated from the genetic data. 
-A high sex check failure rate can indicate that sample swaps may have occurred.
+It's *always* a good idea to check that the reported sex of samples is consistent with sex chromosome ploidy estimated from the genetic data. A high sex-check failure rate suggests that sample swaps may have occurred.
 
-First, we count how many X chromosome variants are in the original dataset, and find there are 273.
+There are 273 many X chromosome variants are in the original dataset:
 
     >>> vds.filter_variants_expr('v.contig == "X"').num_variants()
   
-However, after variant QC, the number of X chromosome variants went from 273 to 10 (not enough for a sex check!)
+However, after variant QC, the number of X chromosome variants drops to 10, not enough for a sex check!
 
     >>> final_filtered_vds.filter_variants_expr('v.contig == "X"').num_variants()
 
-This happened because the HWE p-values for the X chromosome should not include male samples in the calculation as they only have two possible genotypes (HomRef or HomVar). We're going to have to go back to the pre-hwe-filtered `filtered_vds_3` and modify how we calculate HWE. We use a conditional expression so that when a variant is on the X chromosome, we only include female samples in the calculation. We can also use the same `hwe_filter_expression` from above.
+Oops! HWE statistics on the X chromosome should ignore male samples, since males have only two possible genotypes (HomRef or HomVar). We're going to have to go back to `filtered_vds_3` and modify how we calculate HWE. We use a conditional expression so that variants on the X chromosome will only include female samples in the calculation. We can also use the same `hwe_filter_expression` from above.
 
     >>> sex_aware_hwe_exprs = [ 
     >>>      '''va.hweByPop.hweEUR = 
@@ -439,9 +441,8 @@ This happened because the HWE p-values for the X chromosome should not include m
     >>> print 'total variants = %s' % hwe_filtered_vds_fixed.num_variants()
     >>> print 'X chromosome variants = %s' % hwe_filtered_vds_fixed.filter_variants_expr('v.contig == "X"').num_variants()
   
-To do a sex check, first we use the `impute_sex` method with a minimum minor allele frequency threshold `maf_threshold` argument of 0.05 to determine the genetic sex of a sample based on the inbreeding coefficient.
-`impute_sex` adds new sample annotations for whether a sample is predicted to be female to `sa.imputesex.isFemale`. 
-We can then create a new sample annotation (`sa.sexcheck`) which compares whether the imputed sex (`sa.imputesex.isFemale`) is the same as the reported sex (`sa.pheno.isFemale`).
+For sex check, we first use the `impute_sex` method with a minimum minor allele frequency threshold `maf_threshold` argument of 0.05 to determine the genetic sex of a sample based on the inbreeding coefficient. `impute_sex` adds the Boolean sample annotation `sa.imputesex.isFemale` and we then create a new Boolean sample annotation `sa.sexcheck` which indicates whether the imputed sex `sa.imputesex.isFemale` is the same as the reported sex `sa.pheno.isFemale`.
+
 
     >>> sex_check_vds = (hwe_filtered_vds_fixed
     >>>     .impute_sex(maf_threshold=0.05)
@@ -451,21 +452,22 @@ We can then create a new sample annotation (`sa.sexcheck`) which compares whethe
     >>> print 'total samples: %s' % total_samples
     >>> print 'sex_check_passes: %s' % sex_check_passes
     
-We removed 567 samples where the genetic sex does not match the reported sex. This is an extremely high sex check failure rate! To figure out why this happened, we can use a Hail expression to look at the values that `sa.sexcheck` takes.
+We see that the genetic sex does not match the reported sex for 567 samples, an extremely high sex check failure rate! To figure out why this happened, we can use a Hail expression to look at the values that `sa.sexcheck` takes.
 
-    >>> sex_check_vds.annotate_global_expr_by_sample(
-    >>>     'global.sexcheckCounter = samples.map(s => sa.sexcheck).counter()').show_globals()
+    >>> (sex_check_vds.annotate_global_expr_by_sample(
+    >>>     'global.sexcheckCounter = samples.map(s => sa.sexcheck).counter()')
+    >>>     .show_globals())
 
-Aha! While we only have 3 'false' sexcheck values (which means that the samples were imputed as male but reported as female, or the reverse), we have 564 missing sexcheck values. Since `pheno.isFemale` is never missing (see the sample annotations file), this means that there were 564 samples that could not be imputed as male or female. This is probably because our vcf has so few variants -- ~200 variants is not sufficient to impute reliably. Instead of filtering out samples whose sexcheck is missing, we should probably keep them. We can write a filter expression that does this:
+Aha! While we only have 3 'false' sex-check values, we have 564 missing sex-check values. Since `pheno.isFemale` is never missing (see the sample annotations file), this means that there were 564 samples that could not be imputed as male or female. This is because in our small dataset the number of variants on the X chromosome (about 200) is not sufficient to impute sex reliably. Let's instead keep those samples with missing sex-check using:
  
     >>> sex_check_filtered_vds = sex_check_vds.filter_samples_expr('sa.sexcheck || isMissing(sa.sexcheck)').persist()
     >>> print 'samples after filter: %s' % sex_check_filtered_vds.num_samples()
 
 ## PCA
 
-To account for population stratification in association testing, we use principal component analysis to compute covariates that are proxies for genetic similarity.
-For PCA to work, we need an independent set of SNPs. The text file **purcell5k.interval_list** contains a list of independent variants.
-To calculate principal components, we first use the `filter_variants_intervals` method to only keep SNPs from the **purcell5k.interval_list**. Next, we use the `pca` method to calculate the first 10 principal components. The results are stored in sample annotations rooted by the `scores` parameter. Lastly, we export the sample annotations to a text file so that we can plot the principal components and color the points by their population group.
+To account for population stratification in association testing, we use principal component analysis to compute features that are proxies for genetic similarity. PCA is typically performed on variants in linkage equilibrium. The text file *purcell5k.interval_list* contains a list of such independent common variants.
+
+To calculate principal components, we first use the `filter_variants_intervals` method to only keep SNPs from this list. Next, we use the `pca` method to calculate the first 10 principal components (10 is the default number). The results are stored as sample annotations with root given by the `scores` parameter. Lastly, we export the sample annotations to a text file.
 
     >>> pca_vds = (sex_check_filtered_vds.filter_variants_intervals('purcell5k.interval_list')
     >>>     .pca(scores='sa.pca'))
@@ -473,16 +475,17 @@ To calculate principal components, we first use the `filter_variants_intervals` 
     >>>     'Sample=s, SuperPopulation=sa.pheno.SuperPopulation,'
     >>>     'Population=sa.pheno.Population, sa.pca.*')
 
-Here are some examples plotted using R:
+Here are some R plots of samples in PC space colored by population group:
+
 <img src="test.pcaPlot.png">
 
-## Association Testing
+## Association testing
 
-Now that we have a QC'd dataset with principal components calculated and phenotype information added, we can test for an association between the genetic variants and the phenotypes of PurpleHair (dichotomous) and CaffeineConsumption (continuous).
+Now that we have a clean dataset with principal components, let's test for association between genetic variation and the phenotypes PurpleHair (dichotomous) and CaffeineConsumption (continuous).
 
-#### Linear Regression with Covariates
+#### Linear regression with covariates
 
-We are going to run linear regression on the `sex_check_filtered_vds` VDS. First, we will filter out variants with a minor allele frequency less than 5% (also include 95% as it's possible for the minor allele to be the reference allele). Next, we use the `linreg` method, specifying the response variable `y` to be the sample annotation for CaffeineConsumption `sa.pheno.CaffeineConsumption`. We also define 4 covariates to correct for: `sa.pca.PC1`, `sa.pca.PC2`, `sa.pca.PC3`, `sa.pheno.isFemale`. The results of linear regression are stored as variant annotations and can be accessed with the root name `va.linreg`. Lastly we export these results to a text file for making a Q-Q plot in R.
+Let's run linear regression on `sex_check_filtered_vds`. First, we will filter out variants with a allele frequency less than 5% or greater than 95%. Next, we use the `linreg` method, specifying the response variable `y` to be the sample annotation for CaffeineConsumption `sa.pheno.CaffeineConsumption`. We also use 4 sample covariates `sa.pca.PC1`, `sa.pca.PC2`, `sa.pca.PC3`, `sa.pheno.isFemale` in addition to the intercept. The results of linear regression are stored as variant annotations and can be accessed with the root name `va.linreg`. Lastly we export these results to a text file and make a Q-Q plot in R.
 
     >>> analysis_ready_vds = (sex_check_filtered_vds
     >>>     .filter_variants_expr('va.qc.AF > 0.05 && va.qc.AF < 0.95')
@@ -494,9 +497,9 @@ We are going to run linear regression on the `sex_check_filtered_vds` VDS. First
     
 <img src="test.linreg.qq.png">
 
-#### Logistic Regression with Covariates
+#### Logistic regression with covariates
 
-We can start from our `analysis_read_vds` once again. The logistic regression method is similar, but it also takes a test type argument. We will use the Wald test.
+We start from our `analysis_ready_vds`. The logistic regression method also takes a test type argument. We will use the Wald test.
 
     >>> (analysis_ready_vds
     >>>     .logreg(test='wald', y='sa.pheno.PurpleHair',
@@ -507,8 +510,7 @@ We can start from our `analysis_read_vds` once again. The logistic regression me
 
 #### Fisher's Exact Test for Rare Variants
 
-We'll start with `sex_check_filtered_vds` here (our `analysis_ready_vds` isn't so analysis-ready for rare variant tests because we filtered them all out!). This time we will filter out common variants with a minor allele frequency greater than 5% and less than 95%, so we're left with rare variants. Next we will annotate variants with 4 metrics about the aggregate statistics of the samples at each position. These new variant annotations can be used as inputs to the `fet`, or Fisher Exact Test, function which takes 4 integers representing a 2x2 contingency table. We define the output of the [`fet`](reference.html#fet) function will go into the variant annotations keyed by `va.fet`.
-Lastly, we export the results to a text file and make a Q-Q plot in R. 
+We'll start with `sex_check_filtered_vds` here (our `analysis_ready_vds` isn't appropriate for rare variant tests because we filtered them all out!). This time we filter to rare variants (allele frequency less than 5% or greater than 95%). Next we annotate variants with 4 metrics about the aggregate statistics of the samples at each position. These new variant annotations can be used as inputs to the `fet` (Fisher Exact Test) function which takes 4 integers representing a 2x2 contingency table. We define the variant annotation `va.fet` to be the output of the [`fet`](reference.html#fet) function. Finally, we export the results to a text file and make a Q-Q plot in R. 
 
     >>> rare_variant_annotations = [
     >>>     '''va.minorCase = 
