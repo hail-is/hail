@@ -38,7 +38,7 @@ class HailContext(object):
     :param str tmp_dir: Temporary directory for file merging.
     """
 
-    def __init__(self, appName="PyHail", master=None, local='local[*]',
+    def __init__(self, sc=None, appName="PyHail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
                  block_size=1, branching_factor=50, tmp_dir='/tmp'):
         from pyspark import SparkContext
@@ -47,13 +47,21 @@ class HailContext(object):
         self.gateway = SparkContext._gateway
         self.jvm = SparkContext._jvm
 
-        self.jsc = scala_package_object(self.jvm.org.broadinstitute.hail.driver).configureAndCreateSparkContext(
-            appName, joption(self.jvm, master), local,
-            log, quiet, append, parquet_compression,
-            block_size, branching_factor, tmp_dir)
-        self.sc = SparkContext(gateway=self.gateway, jsc=self.jvm.JavaSparkContext(self.jsc))
+        driver = scala_package_object(self.jvm.org.broadinstitute.hail.driver)
 
-        self.jsql_context = scala_package_object(self.jvm.org.broadinstitute.hail.driver).createSQLContext(self.jsc)
+        if not sc:
+            self.jsc = driver.configureAndCreateSparkContext(
+                appName, joption(self.jvm, master), local, parquet_compression, block_size)
+            self.sc = SparkContext(gateway=self.gateway, jsc=self.jvm.JavaSparkContext(self.jsc))
+        else:
+            self.sc = sc
+            # sc._jsc is a JavaSparkContext
+            self.jsc = sc._jsc.sc()
+
+        driver.configureHail(branching_factor, tmp_dir)
+        driver.configureLogging(log, quiet, append)
+
+        self.jsql_context = driver.createSQLContext(self.jsc)
         self.sql_context = SQLContext(self.sc, self.jsql_context)
 
     def _jstate(self, jvds):

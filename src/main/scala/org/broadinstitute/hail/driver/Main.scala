@@ -224,9 +224,9 @@ object Main {
       }
 
     val sc = configureAndCreateSparkContext("Hail", Option(options.master), local = "local[*]",
-      logFile = options.logFile, quiet = options.logQuiet, append = options.logAppend,
-      parquetCompression = options.parquetCompression, blockSize = options.blockSize,
-      branchingFactor = options.branchingFactor, tmpDir = options.tmpDir)
+      parquetCompression = options.parquetCompression, blockSize = options.blockSize)
+    configureLogging(logFile = options.logFile, quiet = options.logQuiet, append = options.logAppend)
+    configureHail(branchingFactor = options.branchingFactor, tmpDir = options.tmpDir)
 
     val sqlContext = createSQLContext(sc)
 
