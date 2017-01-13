@@ -563,7 +563,16 @@ class HailContext(object):
 
         **Examples**
 
-        EXAMPLES GO HERE
+        Creating a VDS with 30 samples that can be in one of 3 populations, 100 variants, and 4 partitions.
+
+        balding_nichols_model(3, 30, 100, 4)
+
+        In this example, the chances of a particular sample being from any one population are equal, the Fst values for
+        each population are .1, and a random seed is chosen. This is the default behavior.
+
+
+
+
 
         **Details**
 
