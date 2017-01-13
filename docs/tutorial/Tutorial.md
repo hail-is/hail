@@ -501,4 +501,4 @@ We'll start with `sex_check_filtered_vds` here (our `analysis_ready_vds` isn't a
 
 ## Eplilogue
 
-Congrats! If you've made it this far, you're perfectly primed to read the [Overview](pyhail/overview.html), look through the [Hail objects](pyhail/hail_objects.html) represent many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/pyhail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter Chat](https://gitter.im/hail-is/hail) or the [Discussion Forum](http://discuss.hail.is).
+Congrats! If you've made it this far, you're perfectly primed to read the [Overview](pyhail/overview.html), look through the [Hail objects](pyhail/hail_objects.html) representing many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/pyhail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter Chat](https://gitter.im/hail-is/hail) or the [Discussion Forum](http://discuss.hail.is).
