@@ -8,6 +8,7 @@ You'll need:
 
 - The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
 - The latest version of `Spark 2 <http://spark.apache.org/downloads.html>`_.
+- Python 2.7 and IPython. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads)>`_.
 - `CMake <http://cmake.org>`_ and a C++ compiler.
 
   On a Debian-based Linux like Ubuntu, run::
@@ -25,6 +26,8 @@ You'll need:
 
   You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
 
+To install all dependencies for running locally on a fresh Ubuntu installation, use this `script <https://github.com/hail-is/hail/wiki/Install-Hail-dependencies-on-a-fresh-Ubuntu-VM>`_.
+
 The following commands are relative to the ``hail`` directory.
 
 -------------------------
@@ -32,7 +35,6 @@ Building and running Hail
 -------------------------
 
 Hail may be built to run locally or on a Spark cluster. Running locally is useful for getting started, analyzing or experimenting with small datasets, and Hail development.
-
 
 Running locally
 ===============
@@ -49,7 +51,7 @@ Add the following environmental variables and make an alias for Hail by filling 
     $ HAIL_HOME=/path/to/hail
     $ alias hail="PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$HAIL_HOME/python SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar python"
 
-Running ``hail`` on the command line will open an interactive python shell.
+Running ``hail`` on the command line will open an interactive Python shell.
 
 Here are a few simple things to try in order. To import the ``pyhail`` module and start a :py:class:`~pyhail.HailContext`, run::
 
@@ -92,15 +94,7 @@ Note that during each run Hail writes a ``hail.log`` file in the current directo
 Running on a Spark cluster and in the cloud
 ===========================================
 
-In order to run Hail on a Spark cluster, we must first create a Hail JAR. A Hail JAR is specialized to a version of Spark. The Hail Team currently builds against and supports Spark versions `1.5` and `1.6`. The following builds a Hail JAR for use on a cluster with Spark version `1.6.2`::
-
-    $ patch -p0 < spark1.patch
-    $ ./gradlew -Dspark.version=1.6.2 shadowJar
-
-
-Note that this modifies the local repository so that it compiles for Spark ``1.x``. If you later want to build for Spark ``2.x``, you must remove this patch, for example, by ``git reset --hard master``.
-
-The resulting JAR ``build/libs/hail-all-spark.jar`` can be submitted using ``spark-submit``. See the `Spark documentation <http://spark.apache.org/docs/1.6.2/cluster-overview.html>`_ for details.
+The ``build/libs/hail-all-spark.jar`` can be submitted using ``spark-submit``. See the `Spark documentation <http://spark.apache.org/docs/latest/cluster-overview.html>`_ for details.
 
 `Google <https://cloud.google.com/dataproc/>`_ and `Amazon <https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance and exceptional scalability to tens of thousands of cores without the overhead of installing and managing an on-prem cluster.
 To get started running Hail on the Google Cloud Platform, see this `forum post <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_.
