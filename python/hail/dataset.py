@@ -2054,11 +2054,10 @@ class VariantDataset(object):
 
         """
 
-        pargs = ['linreg', '-y', y, '-c', covariates, '-r', root, '--mac', str(minac)]
-        if minaf:
-            pargs.append('--maf')
-            pargs.append(str(minaf))
-        return self.hc.run_command(self, pargs)
+        try:
+            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.LinearMixedModelCommand.lmm(self.jvds, kinship_vds.jvds, y, covariates, root, minac, minaf))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def logreg(self, test, y, covariates=None, root='va.logreg'):
         """Test each variant for association using the logistic regression
