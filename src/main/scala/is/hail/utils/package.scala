@@ -103,6 +103,13 @@ package object utils extends Logging
     if (!p) throw new AssertionError
   }
 
+  def makeArrayList[T](it: Iterable[T]): java.util.ArrayList[T] = {
+    val list = new java.util.ArrayList[T]()
+    for (elem <- it)
+      list.add(elem)
+    list
+  }
+
   def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A]): Unit =
     if (ord.lt(a, low) || ord.gt(a, high)) {
       fatal(s"$name cannot lie outside [$low, $high]: $a")

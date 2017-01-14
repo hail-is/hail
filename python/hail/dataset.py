@@ -27,6 +27,24 @@ class VariantDataset(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
+    def sample_annotations(self):
+        """Return a dict of sample annotations.
+
+        The keys of this dictionary are the sample IDs (strings).
+        The values are sample annotations.
+
+        :return: dict
+        """
+
+        schema = self.jvds.saSignature()
+        zipped_annotations = scala_package_object(self.hc.jvm.org.broadinstitute.hail.utils).makeArrayList(
+            self.jvds.sampleIdsAndAnnotations()
+        )
+        r = {}
+        for element in zipped_annotations:
+            r[element._1()] = schema.makePy4jConvertible(element._2())
+        return r
+
     def num_partitions(self):
         """Number of RDD partitions.
 
@@ -1822,6 +1840,13 @@ class VariantDataset(object):
                  '-i', input]
         return self.hc.run_command(self, pargs)
 
+    def global_annotations(self):
+        """return global annotation
+
+        :return: annotation
+        """
+        return self.jvds.globalSignature().makePy4jConvertible(self.jvds.globalAnnotation)
+
     def grm(self, format, output, id_file=None, n_file=None):
         """Compute the Genetic Relatedness Matrix (GMR).
 
@@ -2451,6 +2476,88 @@ class VariantDataset(object):
         if print_global:
             pargs.append('--global')
         return self.hc.run_command(self, pargs)
+
+    def query_samples(self, exprs):
+        """Perform aggregation queries over samples and sample annotations.
+
+        **Example**
+
+        >>> low_callrate_samples = vds.query_samples(
+        >>>     'samples.filter(s => sa.qc.callRate < 0.95).collect()')
+
+        **Details**
+
+        This method evaluates Hail expressions over samples and sample
+        annotations.  The ``exprs`` argument requires either a single
+        string, in which case the method will return the result for
+        that one query, or a list of strings, in which case the method
+        will return a list of results.  The latter functionality can
+        be used to improve performance by evaluating multiple queries
+        at once.
+
+        The namespace of the expressions includes:
+
+        - ``global``: global annotations
+        - ``samples`` (*Aggregable[Sample]*): aggregable of :ref:`sample`
+
+        Map and filter expressions on this aggregable have the additional
+        namespace:
+
+        - ``global``: global annotations
+        - ``s``: sample
+        - ``sa``: sample annotations
+
+
+        :param exprs: str or list of str
+        :return: annotation or list of annotation
+        """
+        if (isinstance(exprs, list)):
+            result_list = self.jvds.querySamples(jarray(self.hc.gateway, self.hc.jvm.java.lang.String, exprs))
+            return [x._2().makePy4jConvertible(x._1()) for x in result_list]
+        else:
+            result = self.jvds.querySamples(exprs)
+            return result._2().makePy4jConvertible(result._1())
+
+    def query_variants(self, exprs):
+        """Perform aggregation queries over variants and variant annotations.
+
+        **Example**
+
+        >>> lof_variant_count = vds.query_variants(
+        >>>     'variants.filter(v => va.csq == "LOF").count()')
+
+        **Details**
+
+        This method evaluates Hail expressions over variants and variant
+        annotations.  The ``exprs`` argument requires either a single
+        string, in which case the method will return the result for
+        that one query, or a list of strings, in which case the method
+        will return a list of results.  The latter functionality can
+        be used to improve performance by evaluating multiple queries
+        at once.
+
+        The namespace of the expressions includes:
+
+        - ``global``: global annotations
+        - ``variants`` (*Aggregable[Variant]*): aggregable of :ref:`variant`
+
+        Map and filter expressions on this aggregable have the additional
+        namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant`
+        - ``va``: variant annotations
+
+
+        :param exprs: str or list of str
+        :return: annotation or list of annotation
+        """
+        if (isinstance(exprs, list)):
+            result_list = self.jvds.queryVariants(jarray(self.hc.gateway, self.hc.jvm.java.lang.String, exprs))
+            return [x._2().makePy4jConvertible(x._1()) for x in result_list]
+        else:
+            result = self.jvds.queryVariants(exprs)
+            return result._2().makePy4jConvertible(result._1())
 
     def rename_samples(self, input):
         """Rename samples.

@@ -9,7 +9,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.{SparkContext, SparkEnv}
 import is.hail.utils._
-import is.hail.driver.Main
+import is.hail.driver.{HailConfiguration, Main}
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.{EvalContext, _}
@@ -991,6 +991,67 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
         "s" -> TSample,
         "sa" -> saSignature),
       Array("s"))
+  }
+
+  def querySamples(expr: String): (Annotation, Type) = {
+    val qs = querySamples(Array(expr))
+    assert(qs.length == 1)
+    qs.head
+  }
+
+  def querySamples(exprs: Array[String]): Array[(Annotation, Type)] = {
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "s" -> (1, TSample),
+      "sa" -> (2, saSignature))
+    val ec = EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "samples" -> (1, TAggregable(TSample, aggregationST))))
+
+    val ts = exprs.map(e => Parser.parseExpr(e, ec))
+
+    val localGlobalAnnotation = globalAnnotation
+    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[(String, Annotation)](ec, { case (ec, (s, sa)) =>
+      ec.setAll(localGlobalAnnotation, s, sa)
+    })
+
+    val results = sampleIdsAndAnnotations
+      .aggregate(zVal)(seqOp, combOp)
+    resOp(results)
+    ec.set(0, localGlobalAnnotation)
+
+    ts.map { case (t, f) => (f().orNull, t) }.toArray
+  }
+
+  def queryVariants(expr: String): (Annotation, Type) = {
+    val qv = queryVariants(Array(expr))
+    assert(qv.length == 1)
+    qv.head
+  }
+
+  def queryVariants(exprs: Array[String]): Array[(Annotation, Type)] = {
+
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature))
+    val ec = EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "variants" -> (1, TAggregable(TVariant, aggregationST))))
+
+    val ts = exprs.map(e => Parser.parseExpr(e, ec))
+
+    val localGlobalAnnotation = globalAnnotation
+    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[(Variant, Annotation)](ec, { case (ec, (v, va)) =>
+      ec.setAll(localGlobalAnnotation, v, va)
+    })
+
+    val result = variantsAndAnnotations
+      .treeAggregate(zVal)(seqOp, combOp, depth = HailConfiguration.treeAggDepth(nPartitions))
+    resOp(result)
+
+    ec.setAll(localGlobalAnnotation)
+    ts.map { case (t, f) => (f().orNull, t) }.toArray
   }
 }
 

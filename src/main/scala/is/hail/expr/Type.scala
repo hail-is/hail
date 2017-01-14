@@ -15,6 +15,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
+import scala.collection.JavaConverters._
 
 object Type {
   val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
@@ -139,6 +140,8 @@ sealed abstract class Type {
   def isRealizable: Boolean = children.forall(_.isRealizable)
 
   def typeCheck(a: Any): Boolean
+
+  def makePy4jConvertible(a: Annotation): Any = a
 
   /* compare values for equality, but compare Float and Double values using D_== */
   def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
@@ -415,6 +418,17 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def genValue: Gen[Annotation] =
     Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x : IndexedSeq[Annotation])
+
+  override def makePy4jConvertible(a: Annotation): Any = {
+    if (a == null)
+      a
+    else {
+      var list = new java.util.ArrayList[Any]()
+      for (elem <- a.asInstanceOf[IndexedSeq[_]])
+        list.add(elementType.makePy4jConvertible(elem))
+      list
+    }
+  }
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -437,6 +451,13 @@ case class TSet(elementType: Type) extends TIterable {
   }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+
+  override def makePy4jConvertible(a: Annotation): Any = {
+    if (a == null)
+      a
+    else
+      a.asInstanceOf[Set[_]].map { elem => elementType.makePy4jConvertible(elem) }.asJava
+  }
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
 }
@@ -475,6 +496,13 @@ case class TDict(elementType: Type) extends TContainer {
         .forall { case (_, (o1, o2)) =>
           o1.liftedZip(o2).exists { case (v1, v2) => elementType.valuesSimilar(v1, v2, tolerance) }
         }
+
+  override def makePy4jConvertible(a: Annotation): Any = {
+    if (a == null)
+      a
+    else
+      a.asInstanceOf[Map[_, _]].map { case (k, elem) => (k, elementType.makePy4jConvertible(elem)) }.asJava
+  }
 }
 
 case object TSample extends Type {
@@ -878,4 +906,12 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       .forall { case ((f, x1), x2) =>
         f.`type`.valuesSimilar(x1, x2, tolerance)
       })
+
+  override def makePy4jConvertible(a: Annotation): Any = {
+    if (a == null)
+      a
+    else
+      a.asInstanceOf[Row].toSeq.zip(fields).map { case (elem, f) => (f.name, f.`type`.makePy4jConvertible(elem)) }.toMap.asJava
+  }
+
 }
