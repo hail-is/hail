@@ -732,8 +732,8 @@ class VariantDataset(object):
           - ``global``: global annotations
           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
 
-        For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
-        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
+        For more information, see the documentation on writing `expressions <overview.html#expressions>`_
+        and using the `Hail Expression Language <../expr_lang.html>`_.
 
         :param condition: Annotation expression or list of annotation expressions.
         :type condition: str or list of str
@@ -1577,8 +1577,8 @@ class VariantDataset(object):
         - ``va``: variant annotations
         - ``global``: global annotations
 
-        For more information, see the documentation on `data representation, annotations <../overview.html#>`_, and
-        the `expression language <../reference.html#HailExpressionLanguage>`_.
+        For more information, see the documentation on `data representation, annotations <overview.html#>`_, and
+        the `expression language <../expr_lang.html>`_.
 
         .. caution::
             When ``condition`` evaluates to missing, the genotype will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -1648,8 +1648,8 @@ class VariantDataset(object):
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
-        For more information, see the documentation on `data representation, annotations <../overview.html#>`_, and
-        the `expression language <../reference.html#HailExpressionLanguage>`_.
+        For more information, see the documentation on `data representation, annotations <overview.html#>`_, and
+        the `expression language <../expr_lang.html>`_.
 
         .. caution::
             When ``condition`` evaluates to missing, the sample will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -1729,8 +1729,8 @@ class VariantDataset(object):
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
 
-        For more information, see the documentation on `data representation, annotations <../overview.html#>`_, and
-        the `expression language <../reference.html#HailExpressionLanguage>`_.
+        For more information, see the documentation on `data representation, annotations <overview.html#>`_, and
+        the `expression language <../expr_lang.html>`_.
 
         .. caution::
            When ``condition`` evaluates to missing, the variant will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -1999,7 +1999,7 @@ class VariantDataset(object):
         samples.
 
         Phenotype and covariate sample annotations may also be specified using
-        `programmatic expressions <../reference.html#HailExpressionLanguage>`_
+        `programmatic expressions <../expr_lang.html>`_
         without identifiers, such as:
 
         .. code-block:: text
@@ -2157,7 +2157,7 @@ class VariantDataset(object):
 
         The resulting p-values for the genotype coefficient are 0.991, 0.00085, and 0.0016, respectively. The erroneous value 0.991 is due to quasi-complete separation. Moving one of the 10 hets from case to control eliminates this quasi-complete separation; the p-values from R are then 0.0373, 0.0111, and 0.0116, respectively, as expected for a less significant association.
 
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <../reference.html#HailExpressionLanguage>`_ without identifiers, such as:
+        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <../expr_lang.html>`_ without identifiers, such as:
 
         .. code-block:: text
 

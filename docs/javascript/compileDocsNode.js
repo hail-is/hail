@@ -32,11 +32,8 @@ buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
 buildSinglePage(template, "#body", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html",
     '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#tutorial").addClass("active");});});</script>');
 
-buildSinglePage(template, "#body", pandocOutputDir + "overview/Overview.html",  __dirname + "/overview.html",
-    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#overview").addClass("active");});});</script>');
-
-buildSinglePage(template, "#body", pandocOutputDir + "reference/GettingStarted.html", __dirname + "/getting_started.html",
-    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#getting_started").addClass("active");});});</script>');
+buildSinglePage(template, "#body", pandocOutputDir + "reference/HailExpressionLanguage.html",  __dirname + "/expr_lang.html",
+    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#exprlang").addClass("active");});});</script>');
 
 buildIndex(template, "#body", "README.html", __dirname + "/index.html");
 

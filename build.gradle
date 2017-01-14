@@ -459,6 +459,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/tutorial.html'
     from 'build/tmp/docs/overview.html'
     from 'build/tmp/docs/getting_started.html'
+    from 'build/tmp/docs/expr_lang.html'
     from 'build/tmp/docs/index.html'
     into 'build/www'
 }

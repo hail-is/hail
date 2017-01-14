@@ -15,6 +15,7 @@ Contents
     Overview <overview>
     Hail Objects <hail_objects>
     Python API <api>
+    SQL <sql>
 
 ==================
 Indices and tables
