@@ -7,11 +7,11 @@
  - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count
  - generate sample annotations like mean depth, imputed sex, and TiTv ratio
  - load variant and sample annotations from text tables, JSON, VCF, VEP, and locus interval files
- - produce new annotations computed from existing annotations and the genotypes, and use these to filter samples, variants, and genotypes
- - compute sample scores and variant loadings using principal compenent analysis, or project your cohort onto ancestry coordinates of reference datasets
+ - generate new annotations using existing annotations and the genotypes, and use these to filter samples, variants, and genotypes
+ - find Mendelian violations in trios, analyze genetic similarity between samples via the GRM and IBD matrix, and compute sample scores and variant loadings using PCA
  - perform association analyses with phenotypes and covariates using linear and logistic regression
 
-All this functionality is backed by distributed algorithms built on top of [Apache Spark](http://spark.apache.org/) to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on an on-prem cluster or in the cloud.
+All this functionality is exposed through **Python** and backed by distributed algorithms built on top of [Apache Spark](http://spark.apache.org/) to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on an on-prem cluster or in the cloud.
 
 Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06/050195) and as the core analysis platform of large-scale genomics efforts including [ExAC v2](http://exac.broadinstitute.org/) and [gnomAD](http://gnomad.broadinstitute.org/). The project began in Fall 2015 and is under very active development as we work toward a stable release, so we do not guarantee forward compatibility of formats and interfaces. Want to get involved in development? Check out the [Github repo](https://github.com/hail-is/hail) and chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev).
 
