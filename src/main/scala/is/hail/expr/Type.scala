@@ -1,21 +1,19 @@
 package is.hail.expr
 
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.DataType
-import is.hail.utils._
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
-import is.hail.keytable.KeyTable
+import is.hail.driver.ExportVCF
 import is.hail.utils
-import is.hail.utils.{Interval, StringEscapeUtils}
+import is.hail.utils.{Interval, StringEscapeUtils, _}
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.DataType
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
-import scala.collection.mutable.ArrayBuffer
-import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
 
 object Type {
   val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
@@ -141,7 +139,9 @@ sealed abstract class Type {
 
   def typeCheck(a: Any): Boolean
 
-  def makePy4jConvertible(a: Annotation): Any = a
+  def makePy4jConvertibleNonNull(a: Annotation): Any = a
+
+  private[expr] def makePy4jConvertible(a: Annotation): Any = if (a == null) a else makePy4jConvertibleNonNull(a)
 
   /* compare values for equality, but compare Float and Double values using D_== */
   def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
@@ -452,11 +452,8 @@ case class TSet(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def makePy4jConvertible(a: Annotation): Any = {
-    if (a == null)
-      a
-    else
-      a.asInstanceOf[Set[_]].map { elem => elementType.makePy4jConvertible(elem) }.asJava
+  override def makePy4jConvertibleNonNull(a: Annotation): Any = {
+    a.asInstanceOf[Set[_]].map { elem => elementType.makePy4jConvertible(elem) }.asJava
   }
 
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
@@ -497,11 +494,8 @@ case class TDict(elementType: Type) extends TContainer {
           o1.liftedZip(o2).exists { case (v1, v2) => elementType.valuesSimilar(v1, v2, tolerance) }
         }
 
-  override def makePy4jConvertible(a: Annotation): Any = {
-    if (a == null)
-      a
-    else
-      a.asInstanceOf[Map[_, _]].map { case (k, elem) => (k, elementType.makePy4jConvertible(elem)) }.asJava
+  override def makePy4jConvertibleNonNull(a: Annotation): Any = {
+    a.asInstanceOf[Map[_, _]].map { case (k, elem) => (k, elementType.makePy4jConvertible(elem)) }.asJava
   }
 }
 
@@ -518,6 +512,12 @@ case object TGenotype extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
+  override def makePy4jConvertibleNonNull(a: Annotation): Any = {
+    val sb = new StringBuilder
+    ExportVCF.writeGenotype(sb, a.asInstanceOf[Genotype])
+    sb.result()
+  }
+
   override def genValue: Gen[Annotation] = Genotype.genArb
 }
 
@@ -527,6 +527,10 @@ case object TAltAllele extends Type {
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 
   override def genValue: Gen[Annotation] = AltAllele.gen
+
+  override def makePy4jConvertibleNonNull(a: Annotation) = {
+    a.asInstanceOf[AltAllele].alt
+  }
 }
 
 case object TVariant extends Type {
@@ -535,6 +539,19 @@ case object TVariant extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
   override def genValue: Gen[Annotation] = Variant.gen
+
+  override def makePy4jConvertibleNonNull(a: Annotation) = {
+    val v = a.asInstanceOf[Variant]
+    val sb = new StringBuilder
+    sb.append(v.contig)
+    sb += ':'
+    sb.append(v.start)
+    sb += ':'
+    sb.append(v.ref)
+    sb += ':'
+    v.altAlleles.foreachBetween(a => sb.append(a.alt))(sb += ',')
+    sb.result()
+  }
 }
 
 case object TLocus extends Type {
@@ -543,6 +560,15 @@ case object TLocus extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
 
   override def genValue: Gen[Annotation] = Locus.gen
+
+  override def makePy4jConvertibleNonNull(a: Annotation) = {
+    val l = a.asInstanceOf[Locus]
+    val sb = new StringBuilder
+    sb.append(l.contig)
+    sb += ':'
+    sb.append(l.position)
+    sb.result()
+  }
 }
 
 case object TInterval extends Type {
@@ -551,6 +577,19 @@ case object TInterval extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 
   override def genValue: Gen[Annotation] = Interval.gen(Locus.gen)
+
+  override def makePy4jConvertibleNonNull(a: Annotation) = {
+    val interval = a.asInstanceOf[Interval[Locus]]
+    val sb = new StringBuilder
+    sb.append(interval.start.contig)
+    sb += ':'
+    sb.append(interval.start.position)
+    sb += '-'
+    sb.append(interval.end.contig)
+    sb += ':'
+    sb.append(interval.end.position)
+    sb.result()
+  }
 }
 
 case class Field(name: String, `type`: Type,
@@ -907,11 +946,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         f.`type`.valuesSimilar(x1, x2, tolerance)
       })
 
-  override def makePy4jConvertible(a: Annotation): Any = {
-    if (a == null)
-      a
-    else
-      a.asInstanceOf[Row].toSeq.zip(fields).map { case (elem, f) => (f.name, f.`type`.makePy4jConvertible(elem)) }.toMap.asJava
+  override def makePy4jConvertibleNonNull(a: Annotation): Any = {
+    a.asInstanceOf[Row].toSeq.zip(fields).map { case (elem, f) => (f.name, f.`type`.makePy4jConvertible(elem)) }.toMap.asJava
   }
 
 }
