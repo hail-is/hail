@@ -7,7 +7,7 @@
  - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count
  - generate sample annotations like mean depth, imputed sex, and TiTv ratio
  - load variant and sample annotations from text tables, JSON, VCF, VEP, and locus interval files
- - generate new annotations using existing annotations and the genotypes, and use these to filter samples, variants, and genotypes
+ - generate new annotations from existing annotations and the genotypes, and use these to filter samples, variants, and genotypes
  - find Mendelian violations in trios, analyze genetic similarity between samples via the GRM and IBD matrix, and compute sample scores and variant loadings using PCA
  - perform association analyses with phenotypes and covariates using linear and logistic regression
 
