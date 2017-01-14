@@ -118,24 +118,27 @@ Several Hail commands provide the ability to perform a broad array of computatio
  - Struct Operations:
      - constructor: `{key1: 1, key2: "Hello", key3: 0.99, ...}` -- Create a new struct from specified field names and values in the format shown.
      - select: `struct.field` -- returns the value of the given field of a struct.  For example, `va.info.AC` selects the struct `info` from the struct `va`, and then selects the array `AC` from the struct `info`.
-     - index: `index(Array[Struct], fieldname)` -- returns a dictionary keyed by the string field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
-
-            For example, `global.gene_info` is the following `Array[Struct]`:
-
-                 [{PLI: 0.998, genename: "gene1", hits_in_exac: 1},
-                 {PLI: 0.0015, genename: "gene2", hits_in_exac: 10},
-                 {PLI: 0.9045, genename: "gene3", hits_in_exac: 2}]
-
-            We can index it by gene:
-
-                global.gene_dict = index(global.gene_info, genename)
-
-            Now the following equality is true:
-
-                global.gene_dict["gene1"] == {PLI: 0.998, hits_in_exac: 1}
-
       - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
       - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
+      - index: `index(Array[Struct], fieldname)` -- returns a dictionary keyed by the string field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
+           
+           For example, `global.gene_info` is the following `Array[Struct]`:
+           
+           ```
+           [{PLI: 0.998, genename: "gene1", hits_in_exac: 1},
+           {PLI: 0.0015, genename: "gene2", hits_in_exac: 10},
+           {PLI: 0.9045, genename: "gene3", hits_in_exac: 2}]
+           ```
+           
+           We can index it by gene:
+           ```
+           global.gene_dict = index(global.gene_info, genename)
+           ```
+           
+           Now the following equality is true:
+           ```
+           global.gene_dict["gene1"] == {PLI: 0.998, hits_in_exac: 1}
+           ```
 
   - Object constructors:
 
@@ -216,28 +219,26 @@ The result of `count` is a `Long` (integer).
 
 One can replicate `qc.nHet` for either samples or variants by counting:
 ```
-annotatesamples expr -c 'sa.nHet = gs.filter(g => g.isHet).count()'
-annotatevariants expr -c 'va.nHet = gs.filter(g => g.isHet).count()'
+vds.annotate_samples_expr('sa.nHet = gs.filter(g => g.isHet).count()')
+annotate_variants_expr('va.nHet = gs.filter(g => g.isHet).count()')
 ```
 
 One can also compute more complicated counts.  Here we compute the number of non-ref cases and controls per variant (Assuming that `sa.pheno.isCase` is a boolean sample annotation)
 ```
-annotatevariants expr -c 'va.caseCount = gs.filter(g => sa.pheno.isCase && g.isCalledNonRef).count(), va.controlCount = gs.filter(g => !(sa.pheno.isCase) && g.isCalledNonRef).count()'
+vds.annotate_variants_expr(['va.caseCount = gs.filter(g => sa.pheno.isCase && g.isCalledNonRef).count()', 'va.controlCount = gs.filter(g => !(sa.pheno.isCase) && g.isCalledNonRef).count()'])
 ```
 
 Here we count the number of singleton non-ref LOFs and the number of homozygous alternate LOFs per sample, assuming that one has previously annotated variant consequence into `va.consequence`:
 ```
-annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1' \
-annotatesamples expr -c 'sa.singletonLOFs = gs.filter(g => va.isSingleton && g.isCalledNonRef && va.consequence == "LOF").count(),
-                    sa.homVarLOFs = gs.filter(g => g.isHomVar && va.consequence == "LOF").count()
+vds.annotate_variants_expr(['va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1'])
+vds.annotate_samples_expr(['sa.singletonLOFs = gs.filter(g => va.isSingleton && g.isCalledNonRef && va.consequence == "LOF").count()', 'sa.homVarLOFs = gs.filter(g => g.isHomVar && va.consequence == "LOF").count()'])
 ```
 
 This can also be used to calculate statistics from sample/variant annotations in `annotateglobal`:
 ```
-annotatevariants expr -c 'va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1'
-annotatesamples expr -c 'sa.callrate = gs.fraction(g => g.isCalled)'
-annotateglobal expr -c 'global.lowQualSamples = samples.filter(s => sa.callrate < 0.95).count(),
-              global.totalNSingleton = variants.filter(v => va.isSingleton).count()'
+vds.annotate_variants_expr('va.isSingleton = gs.filter(g => g.isCalledNonRef).count() == 1')
+vds.annotate_samples_expr('sa.callrate = gs.fraction(g => g.isCalled)')
+vds.annotate_global_expr(['global.lowQualSamples = samples.filter(s => sa.callrate < 0.95).count()', 'global.totalNSingleton = variants.filter(v => va.isSingleton).count()')]
 ```
 
 ### Fraction
@@ -254,14 +255,13 @@ The result of `fraction` is a `Double` (floating-point)
 
 One can replicate call rate, or calculate missingness:
 ```
-filtervariants expr --keep -c 'gs.fraction(g => g.isCalled) > 0.90'
-filtersamples expr --keep -c 'gs.fraction(g => g.isCalled) > 0.95'
+vds1 = vds.filter_variants_expr('gs.fraction(g => g.isCalled) > 0.90')
+vds2 = vds1.filter_samples_expr('gs.fraction(g => g.isCalled) > 0.95')
 ```
 
 One can also extend this thinking to compute the differential missingness at SNPs and indels:
 ```
-annotatesamples expr -c 'sa.SNPmissingness = gs.filter(g => v.altAllele.isSNP).fraction(g => g.isNotCalled),
-                    sa.indelmissingness = gs.filter(g => v.altAllele.isIndel).fraction(g => g.isNotCalled)
+vds.annotate_samples_expr('sa.SNPmissingness = gs.filter(g => v.altAllele.isSNP).fraction(g => g.isNotCalled)', 'sa.indelmissingness = gs.filter(g => v.altAllele.isIndel).fraction(g => g.isNotCalled)')
 ```
 
 ### Sum
@@ -273,15 +273,14 @@ annotatesamples expr -c 'sa.SNPmissingness = gs.filter(g => v.altAllele.isSNP).f
 This aggregator function can be used to compute counts of each allele per variant.  The result will be an "R"-numbered array (one element per allele, including the reference):
 
 ```
-annotatevariants expr -c 'va.AC = gs.map(g => g.oneHotAlleles(v)).sum()
+vds.annotate_variants_expr('va.AC = gs.map(g => g.oneHotAlleles(v)).sum()'
 ```
 
 Count the number of total LOF heterozygous calls in the dataset:
 
 ```
-annotatevariants expr -c 'va.hets = gs.filter(g => g.isHet).count()' \
-annotateglobal expr -c 'global.total_LOFs = 
-    variants.filter(v => va.isLOF).map(v => va.hets).sum()'
+vds.annotate_variants_expr('va.hets = gs.filter(g => g.isHet).count()')
+vds.annotate_global_expr('global.total_LOFs = variants.filter(v => va.isLOF).map(v => va.hets).sum()')
 ```
 
 
@@ -309,32 +308,32 @@ Struct {
 
 One can replicate the calculations in `<va / sa>.qc.gqMean` and `<va / sa>.qc.gqStDev` with the command below.  After this command, `va.gqstats.mean` is equal to the result of running `variantqc` and querying `va.qc.gqMean`, and this equivalence holds for the other values.
 ```
-annotatevariants expr -c 'va.gqstats = gs.map(g => g.gq).stats()'
-annotatesamples expr -c 'sa.gqstats = g.map(g => g.gq).stats()'
+vds.annotate_variants_expr('va.gqstats = gs.map(g => g.gq).stats()')
+vds.annotate_samples_expr('sa.gqstats = g.map(g => g.gq).stats()')
 ```
 
 One can use `stats` to compute statistics on annotations as well:
 ```
-sampleqc
-annotateglobal expr -c 'global.singletonStats = samples.map(s => sa.qc.nSingleton).stats()'
+vds.sample_qc()
+vds.annotate_global_expr('global.singletonStats = samples.map(s => sa.qc.nSingleton).stats()')
 ```
 
 Compute gq/dp statistics stratified by genotype call:
 ```
-annotatevariants expr -c '
-    va.homrefGQ = gs.filter(g => g.isHomRef).map(g => g.gq).stats(),
-    va.hetGQ = gs.filter(g => g.isHet).map(g => g.gq).stats(),
-    va.homvarGQ = gs.filter(g => g.isHomVar).map(g => g.gq).stats(),
-    va.homrefDP = gs.filter(g => g.isHomRef).map(g => g.dp).stats(),
-    va.hetDP = gs.filter(g => g.isHet).map(g => g.dp).stats(),
-    va.homvarDP = gs.filter(g => g.isHomVar).map(g => g.dp).stats()'
+gq_dp = [
+    'va.homrefGQ = gs.filter(g => g.isHomRef).map(g => g.gq).stats()',
+    'va.hetGQ = gs.filter(g => g.isHet).map(g => g.gq).stats()',
+    'va.homvarGQ = gs.filter(g => g.isHomVar).map(g => g.gq).stats()',
+    'va.homrefDP = gs.filter(g => g.isHomRef).map(g => g.dp).stats()',
+    'va.hetDP = gs.filter(g => g.isHet).map(g => g.dp).stats()',
+    'va.homvarDP = gs.filter(g => g.isHomVar).map(g => g.dp).stats()' ]
+vds.annotate_variants_expr(gq_dp)
 ```
 
 Compute statistics on number of singletons stratified by case/control:
 ```
- sampleqc
- annotateglobal expr -c 'global.caseSingletons = samples.filter(s => sa.fam.isCase).map(s => sa.qc.nSingleton).stats(),
-     global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()'
+vds.sample_qc()
+vds.annotate_global_expr(['global.caseSingletons = samples.filter(s => sa.fam.isCase).map(s => sa.qc.nSingleton).stats()', 'global.controlSingletons = samples.filter(s => !sa.fam.isCase).map(s => sa.qc.nSingleton).stats()']
 ```
 
 ### Counter
@@ -359,11 +358,7 @@ The resulting array is sorted by count in descending order (the most common elem
 **Example:** compute the number of indels in each chromosome:
 
 ```
-    annotateglobal expr -c 
-      'global.chr_indels = variants
-        .filter(v => v.altAllele.isIndel)
-        .map(v => v.contig)
-        .counter()'
+vds.annotate_global_expr('global.chr_indels = variants.filter(v => v.altAllele.isIndel).map(v => v.contig).counter()')
 ```
 
 ### Hist
@@ -398,14 +393,14 @@ Important properties:
 Compute GQ-distributions per variant:
 
 ```
-annotatevariants expr -c 'va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)'
+vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
 ```
 
 Or, extend the above to compute a global gq histogram:
 
 ```
-annotatevariants expr -c 'va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)'
-annotateglobal expr -c 'global.gqHist = variants.map(v => va.gqHist.binFrequencies).sum()'
+vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
+vds.annotate_global_expr('global.gqHist = variants.map(v => va.gqHist.binFrequencies).sum()')
 ```
 
 ### Collect
@@ -417,10 +412,7 @@ annotateglobal expr -c 'global.gqHist = variants.map(v => va.gqHist.binFrequenci
 `collect()` is an aggregator that allows a set of elements of an aggregator to be collected into an `Array`.  For example, one can collect the list of non-ref sample IDs per variant with the following:
 
 ```
-annotatevariants expr \
-  -c 'va.hetSamples = gs.filter(g => g.isCalledNonRef)
-                        .map(g => s.id)
-                        .collect()'
+vds.annotate_variants_expr('va.hetSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()')
 ```
 
 The above example is updating the value of the `va.hetSamples` annotation. The value is calculated by transforming the array of genotypes, `gs`, in three steps.
@@ -456,9 +448,11 @@ In the above schema, the types mean the following:
 **Example:** compute population-specific call statistics.  After the below command, `va.eur_stats.AC` will be the AC computed from individuals marked as "EUR".
 
 ```
-annotatevariants expr -c "va.eur_stats = gs.filter(g => sa.pop == "EUR").callStats(g => v),
-                          va.afr_stats = gs.filter(g => sa.pop == "AFR").callStats(g => v),
-                          va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(g => v)"
+pop_stats = [
+    'va.eur_stats = gs.filter(g => sa.pop == "EUR").callStats(g => v)',
+    'va.afr_stats = gs.filter(g => sa.pop == "AFR").callStats(g => v)',
+    'va.eas_stats = gs.filter(g => sa.pop == "EAS").callStats(g => v)' ]
+vds.annotate_variants_expr(pop_stats)
 ```
 
 ### <a class="jumptarget" name="aggreg_hwe"></a> HardyWeinberg
@@ -485,8 +479,7 @@ In the above schema, `rExpectedHetFrequency` is the expected rHeterozygosity bas
 Add a new variant annotation that calculates HWE p-value by phenotype
 
 ```
-annotatevariants expr -c 'va.hweCase = gs.filter(g => sa.pheno == "Case").hardyWeinberg(),
-                          va.hweControl = gs.filter(g => sa.pheno == "Control").hardyWeinberg()'
+vds.annotate_variants_expr('va.hweCase = gs.filter(g => sa.pheno == "Case").hardyWeinberg()', 'va.hweControl = gs.filter(g => sa.pheno == "Control").hardyWeinberg()']
 ```
 
 
@@ -520,19 +513,18 @@ It only makes sense to compute info score for an `Aggregable[Genotype]` per vari
 Calculate the info score per variant and export the resulting annotations to a TSV file:
 
 ```
-hail importgen -s /my/path/example.sample /my/path/example.gen 
-    annotatevariants expr -c 'va.infoScore = gs.infoScore()' 
-    exportvariants -c 'v, va.infoScore.score, va.infoScore.nIncluded' 
-                   -o infoScores.tsv
+(hc.import_gen('example.gen', 'example.sample')
+   .annotate_variants_expr('va.infoScore = gs.infoScore()')
+   .export_variants('infoScores.tsv', 'v, va.infoScore.score, va.infoScore.nIncluded'))
 ```
 
 Calculate group-specific info scores per variant:
 
 ```
-hail importgen -s /my/path/example.sample /my/path/example.gen
-    annotatesamples table -i phenotypes.tsv -r "sa.pheno"    
-    annotatevariants expr -c 'va.infoScoreCase = gs.filter(g => sa.pheno.Pheno1 == "Case").infoScore()'
-    annotatevariants expr -c 'va.infoScoreControl = gs.filter(g => sa.pheno.Pheno1 == "Control").infoScore()'    
+(hc.import_gen('example.gen', 'example.sample')
+    .annotate_samples_table('phenotypes.tsv', 'sa.pheno')    
+    .annotate_variants_expr('va.infoScoreCase = gs.filter(g => sa.pheno.Pheno1 == "Case").infoScore()')
+    .annotate_variants_expr('va.infoScoreControl = gs.filter(g => sa.pheno.Pheno1 == "Control").infoScore()'))
 ```
 
 ### <a class="jumptarget" name="aggreg_ibc"></a> Inbreeding
@@ -564,31 +556,26 @@ In the above schema, `fStat` is the inbreeding coefficient produced, `nTotal` is
 Calculate the inbreeding metrics per sample and export the resulting annotations to a TSV file:
 
 ```
-hail read ... 
-    variantqc
-    annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(g => va.qc.AF)' 
-    exportsamples -c 'Sample = s, sa.inbreeding.*' -o ib_stats.tsv
+(vds.variant_qc()
+    .annotate_samples_expr('sa.inbreeding = gs.inbreeding(g => va.qc.AF)')
+    .export_samples('ib_stats.tsv', 'Sample = s, sa.inbreeding.*'))
 ```
 
 Calculate the inbreeding metrics per variant and export these metrics to a TSV file:
 
 ```
-hail read ...
-    variantqc
-    annotatevariants expr -c 'va.inbreeding = gs.inbreeding(g => va.qc.AF)'
-    exportvariants -c 'Variant = v, va.inbreeding.*' -o ib_stats_variants.tsv
+(vds.variant_qc()
+    .annotate_variants_expr('va.inbreeding = gs.inbreeding(g => va.qc.AF)')
+    .export_variants('ib_stats_variants.tsv', 'Variant = v, va.inbreeding.*'))
 
 ```
 
 To obtain the same answer as [PLINK](https://www.cog-genomics.org/plink2), use the following series of commands:
 
 ```
-read ... 
-variantqc 
-filtervariants expr --keep -c 'va.qc.AC > 1 && va.qc.AF >= 1e-8 && 
-    va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 &&
-    v.isAutosomal' 
-annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(g => va.qc.AF)'
+(vds.variant_qc()
+    .filter_variants_expr('va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 && v.isAutosomal')
+    .annotate_samples_expr('sa.inbreeding = gs.inbreeding(g => va.qc.AF)'))
 ```
 
 
@@ -597,24 +584,24 @@ annotatesamples expr -c 'sa.inbreeding = gs.inbreeding(g => va.qc.AF)'
 Filtering requires an expression that evaluates to a boolean.
 
 ```
-filtersamples expr --keep -c '"PT-1234" ~ s.id'
+vds.filter_samples_expr('"PT-1234" ~ s.id')
 ```
 
 
 ```
-filtersamples expr --keep -c 'sa.qc.callRate > 0.99'
+vds.filter_samples_expr('sa.qc.callRate > 0.99')
 ```
 
 In the below expression, we will use a different cutoff for samples with European and non-European ancestry.  This can be done with an if/else statement.
 
 ```
-filtersamples expr --keep -c 'if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200'
+vds.filter_samples_expr('if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200')
 ```
 
 The below expression assumes a VDS was split from a VCF, and filters down to sites which were singletons on import.  `va.aIndex - 1` (NB: `va.aIndex` is the allele index, not the alternate allele index) indexes into the originally-multiallelic array `va.info.AC` with the original position of each variant.
 
 ```
-filtervariants expr --keep -c 'if (va.info.AC[va.aIndex - 1]) == 1'
+vds.filter_variants_expr('if (va.info.AC[va.aIndex - 1]) == 1')
 ```
 
 See documentation on [exporting to TSV](commands.html#ExportTSV) for more examples of what Hail's language can do.
@@ -628,7 +615,7 @@ Hail's expression language exposes the `fet` function to calculate the p-value, 
 
 The `fet` function takes four non-negative arguments of type Int.
 ```
-annotatevariants expr -c 'va.fet = fet(a, b, c, d)'
+vds.annotate_variants_expr('va.fet = fet(a, b, c, d)')
 ```
 
 The function adds four annotations of type Double to the annotation root specified on the left-hand side of the equation:
@@ -641,14 +628,14 @@ Note that the aggregator function `count()` creates annotation of type Long, whi
 
 **Example Workflow to Perform a Single-Variant Association Test Using FET:**
 ```
-annotatesamples table -i /path/my/annotations.tsv -r "sa.pheno"
-annotatevariants expr -c 'va.minorCase = gs.filter(g => sa.pheno.Pheno1 == "Case" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "Case" && g.isHomVar).count()'
-annotatevariants expr -c 'va.majorCase = gs.filter(g => sa.pheno.Pheno1 == "Case" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "Case" && g.isHomRef).count()'
-annotatevariants expr -c 'va.minorControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHomVar).count()'
-annotatevariants expr -c 'va.majorControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHomRef).count()'
-annotatevariants expr -c 'va.fet = fet(va.minorCase.toInt, va.majorCase.toInt, va.minorControl.toInt, va.majorControl.toInt)'
-filtervariants expr --keep -c 'va.fet.pValue < 1e-4'
-exportvariants -o /path/my/results.tsv -c 'v, va.minorCase, va.majorCase, va.minorControl, va.majorControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'
+(vds.annotate_samples_table('annotations.tsv', 'sa.pheno')
+    .annotate_variants_expr('va.minorCase = gs.filter(g => sa.pheno.Pheno1 == "Case" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "Case" && g.isHomVar).count()')
+    .annotate_variants_expr('va.majorCase = gs.filter(g => sa.pheno.Pheno1 == "Case" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "Case" && g.isHomRef).count()')
+    .annotate_variants_expr('va.minorControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHomVar).count()')
+    .annotate_variants_expr('va.majorControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHomRef).count()')
+    .annotate_variants_expr('va.fet = fet(va.minorCase.toInt, va.majorCase.toInt, va.minorControl.toInt, va.majorControl.toInt)')
+    .filter_variants_expr('va.fet.pValue < 1e-4')
+    .export_variants('results.tsv', 'v, va.minorCase, va.majorCase, va.minorControl, va.majorControl, va.fet.pValue, va.fet.oddsRatio, va.fet.ci95Lower, va.fet.ci95Upper'))
 ```
 
 
@@ -659,7 +646,7 @@ The `infoScore` aggregator can be used to calculate the IMPUTE info score from a
 **Example:**
 
 ```
-annotatevariants expr -c 'va.infoScore = gs.infoScore()'
+vds.annotate_variants_expr('va.infoScore = gs.infoScore()')
 ```
 
 We implemented the IMPUTE info measure as described in the [supplementary information from Marchini & Howie. Genotype imputation for genome-wide association studies. Nature Reviews Genetics (2010)](http://www.nature.com/nrg/journal/v11/n7/extref/nrg2796-s3.pdf).
@@ -684,9 +671,9 @@ Hail will not generate identical results as [QCTOOL](http://www.well.ox.ac.uk/~g
  - The floating point number Hail stores for each dosage is slightly different than the original data due to rounding and normalization of probabilities.
  - Hail automatically removes dosages that [do not meet certain requirements](commands.html#dosagefilters) on data import with [`importgen`](commands.html#importgen) and [`importbgen`](commands.html#importbgen).
  - Hail does not use the population frequency to impute dosages when a dosage has been set to missing.
- - **Hail calculates the same statistic for sex chromosomes as autosomes while QCTOOL incorporates sex information**
+ - Hail calculates the same statistic for sex chromosomes as autosomes while QCTOOL incorporates sex information
 
-**Warning!!! The info score Hail reports will be extremely different from qctool when a SNP has a high missing rate.**
+**Warning:** the info score Hail reports will be extremely different from qctool when a SNP has a high missing rate.
 
 ### <a class="jumptarget" name="ibc_doc"></a> Inbreeding Coefficient
 
