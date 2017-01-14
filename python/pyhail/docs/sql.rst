@@ -15,8 +15,7 @@ SQL at the current time.
 Impala
 ------
 
-Each VDS should be registered in the Hive metastore to allow Impala to query it.
-(Impala uses Hive's metastore to store table metadata.) This is done by creating an external table in Hive, the "external" part means that the data is managed by an entity outside Hive (and Impala). The table schema is read from the *_metadata* file in the VDS file
+Each VDS should be registered in the Hive metastore to allow Impala to query it (Impala uses Hive's metastore to store table metadata). This is done by creating an external table in Hive, the "external" part means that the data is managed by an entity outside Hive (and Impala). The table schema is read from the *_metadata* file in the VDS file
 hierarchy.
 
 To generate a Hive file:
