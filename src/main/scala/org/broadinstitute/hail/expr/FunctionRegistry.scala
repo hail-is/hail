@@ -1,5 +1,6 @@
 package org.broadinstitute.hail.expr
 
+import breeze.linalg.DenseVector
 import org.broadinstitute.hail.annotations.Annotation
 import org.broadinstitute.hail.stats._
 import org.broadinstitute.hail.utils._
@@ -544,6 +545,16 @@ object FunctionRegistry {
   registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Long]) => x.max })
   registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Float]) => x.max })
   registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Double]) => x.max })
+
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Int]) => breeze.stats.median(DenseVector(x.toArray)) })
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Long]) => breeze.stats.median(DenseVector(x.toArray)) })
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Float]) => breeze.stats.median(DenseVector(x.toArray)) })
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Double]) => breeze.stats.median(DenseVector(x.toArray)) })
+
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Int]) => x.sum / x.size.toDouble })
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Long]) => x.sum / x.size.toDouble })
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Float]) => x.sum / x.size.toDouble })
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Double]) => x.sum / x.size })
 
   register("range", { (x: Int) => 0 until x: IndexedSeq[Int] })
   register("range", { (x: Int, y: Int) => x until y: IndexedSeq[Int] })
