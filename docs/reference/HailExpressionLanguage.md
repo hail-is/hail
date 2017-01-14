@@ -255,8 +255,8 @@ The result of `fraction` is a `Double` (floating-point)
 
 One can replicate call rate, or calculate missingness:
 ```
-vds1 = vds.filter_variants_expr('gs.fraction(g => g.isCalled) > 0.90')
-vds2 = vds1.filter_samples_expr('gs.fraction(g => g.isCalled) > 0.95')
+vds1 = (vds.filter_variants_expr('gs.fraction(g => g.isCalled) > 0.90')
+           .filter_samples_expr('gs.fraction(g => g.isCalled) > 0.95'))
 ```
 
 One can also extend this thinking to compute the differential missingness at SNPs and indels:
@@ -584,24 +584,24 @@ To obtain the same answer as [PLINK](https://www.cog-genomics.org/plink2), use t
 Filtering requires an expression that evaluates to a boolean.
 
 ```
-vds.filter_samples_expr('"PT-1234" ~ s.id')
+vds1 = vds.filter_samples_expr('"PT-1234" ~ s.id')
 ```
 
 
 ```
-vds.filter_samples_expr('sa.qc.callRate > 0.99')
+vds1 = vds.filter_samples_expr('sa.qc.callRate > 0.99')
 ```
 
 In the below expression, we will use a different cutoff for samples with European and non-European ancestry.  This can be done with an if/else statement.
 
 ```
-vds.filter_samples_expr('if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200')
+vds1 = vds.filter_samples_expr('if (sa.ancestry == "EUR") sa.qc.nSingleton < 100 else sa.qc.nSingleton < 200')
 ```
 
 The below expression assumes a VDS was split from a VCF, and filters down to sites which were singletons on import.  `va.aIndex - 1` (NB: `va.aIndex` is the allele index, not the alternate allele index) indexes into the originally-multiallelic array `va.info.AC` with the original position of each variant.
 
 ```
-vds.filter_variants_expr('if (va.info.AC[va.aIndex - 1]) == 1')
+vds1 = vds.filter_variants_expr('if (va.info.AC[va.aIndex - 1]) == 1')
 ```
 
 See documentation on [exporting to TSV](commands.html#ExportTSV) for more examples of what Hail's language can do.
