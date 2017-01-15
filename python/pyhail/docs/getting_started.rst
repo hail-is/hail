@@ -53,7 +53,7 @@ To :func:`import <pyhail.HailContext.import_vcf>` the included *sample.vcf* into
 
 To :func:`split <pyhail.VariantDataset.split_multi>` multi-allelic variants, compute a panel of :func:`sample <pyhail.VariantDataset.sample_qc>` and :func:`variant <pyhail.VariantDataset.sample_qc>` quality control statistics, write these statistics to files, and save an annotated version of the vds, run::
 
-    >>> vds = (hc.read('sample.vds`)
+    >>> vds = (hc.read('sample.vds')
     >>>     .split_multi()
     >>>     .sample_qc()
     >>>     .variant_qc()
@@ -128,4 +128,3 @@ Other recent versions of QCTOOL and R should suffice, but PLINK 1.7 will not.
 To execute all Hail tests, run::
 
     $ ./gradlew -Dspark.home=$SPARK_HOME test
-
