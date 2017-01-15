@@ -2054,7 +2054,7 @@ class VariantDataset(object):
         """
 
         try:
-            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.LinearRegressionCommand.run(self.jvds, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), root, minac, minaf))
+            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.LinearRegression.apply(self.jvds, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), root, minac, minaf))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -2183,7 +2183,7 @@ class VariantDataset(object):
         """
 
         try:
-            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.LogisticRegressionCommand.run(self.jvds, test, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), root))
+            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.LogisticRegression.apply(self.jvds, test, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), root))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 

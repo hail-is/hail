@@ -18,7 +18,7 @@ object RegressionUtils {
   def getPhenoCovCompleteSamples(
     vds: VariantDataset,
     ySA: String,
-    covSA: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[String]) = {
+    covSA: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Boolean]) = {
 
     val symTab = Map(
       "s" -> (0, TSample),
@@ -67,6 +67,26 @@ object RegressionUtils {
     if (r < k)
       fatal(s"Covariates and intercept are not linearly independent: total rank is $r (less than 1 + $k)")
 
-    (y, cov, completeSamples)
+    val completeSamplesSet = completeSamples.toSet
+    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
+
+    assert(completeSamplesSet.size == completeSamples.size)
+    assert(y.size == completeSamples.size)
+    assert(cov.rows == completeSamples.size)
+
+    (y, cov, sampleMask)
+  }
+
+  def buildGtColumn(gts: Iterable[Option[Int]]): Option[DenseMatrix[Double]] = {
+    val (nCalled, gtSum, allHet) = gts.flatten.foldLeft((0, 0, true))((acc, gt) => (acc._1 + 1, acc._2 + gt, acc._3 && (gt == 1) ))
+
+    // allHomRef || allHet || allHomVar || allNoCall
+    if (gtSum == 0 || allHet || gtSum == 2 * nCalled || nCalled == 0 )
+      None
+    else {
+      val gtMean = gtSum.toDouble / nCalled
+      val gtArray = gts.map(_.map(_.toDouble).getOrElse(gtMean)).toArray
+      Some(new DenseMatrix(gtArray.length, 1, gtArray))
+    }
   }
 }

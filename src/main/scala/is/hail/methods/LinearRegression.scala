@@ -5,7 +5,9 @@ import org.apache.commons.math3.distribution.TDistribution
 import is.hail.utils._
 import is.hail.annotations.Annotation
 import is.hail.expr._
+import is.hail.stats.RegressionUtils.getPhenoCovCompleteSamples
 import is.hail.variant._
+
 import scala.collection.mutable
 
 class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
@@ -85,9 +87,17 @@ object LinearRegression {
     ("tstat", TDouble),
     ("pval", TDouble))
 
-  def apply(vds: VariantDataset, pathVA: List[String], completeSamples: IndexedSeq[String], y: DenseVector[Double], cov: DenseMatrix[Double], minAC: Int): VariantDataset = {
-    require(cov.rows == y.size)
-    require(completeSamples.size == y.size)
+  def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, minAC: Int, minAF: Double): VariantDataset = {
+
+    val (y, cov, sampleMask) = getPhenoCovCompleteSamples(vds, ySA, covSA)
+
+    if (minAC < 1)
+      fatal(s"Minumum alternate allele count must be a positive integer, got $minAC")
+    if (minAF < 0d || minAF > 1d)
+      fatal(s"Minumum alternate allele frequency must lie in [0.0, 1.0], got $minAF")
+    val combinedMinAC = math.max(minAC, (math.ceil(2 * y.size * minAF) + 0.5).toInt)
+
+    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
     val n = y.size
     val k = cov.cols
@@ -97,10 +107,6 @@ object LinearRegression {
       fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
     info(s"Running linreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
-
-    val completeSamplesSet = completeSamples.toSet
-    assert(completeSamplesSet.size == completeSamples.size)
-    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
@@ -119,7 +125,7 @@ object LinearRegression {
       val lrb = new LinRegBuilder(yBc.value)
       gs.iterator.zipWithIndex.foreach { case (g, i) => if (sampleMaskBc.value(i)) lrb.merge(g) }
 
-      val linRegAnnot = lrb.stats(yBc.value, n, minAC).map { stats =>
+      val linRegAnnot = lrb.stats(yBc.value, n, combinedMinAC).map { stats =>
         val (x, xx, xy) = stats
 
         val qtx = QtBc.value * x

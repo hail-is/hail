@@ -30,7 +30,7 @@ class LinearRegressionSuite extends SparkSuite {
       "--types", "Pheno: Double",
       "--missing", "0"))
 
-    val vds = LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", 1, 0.0)
+    val vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
@@ -117,7 +117,7 @@ class LinearRegressionSuite extends SparkSuite {
       "--types", "Pheno: Int",
       "--missing", "0"))
 
-    val vds = LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.0)
+    val vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
@@ -189,7 +189,7 @@ class LinearRegressionSuite extends SparkSuite {
     s = AnnotateSamplesFam.run(s, Array(
       "-i", "src/test/resources/regressionLinear.fam"))
 
-    val vds = LinearRegressionCommand.run(s.vds, "sa.fam.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
+    val vds = LinearRegression(s.vds, "sa.fam.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
@@ -269,7 +269,7 @@ class LinearRegressionSuite extends SparkSuite {
       "-q",
       "-m", "0"))
 
-    val vds = LinearRegressionCommand.run(s.vds, "sa.fam.qPheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
+    val vds = LinearRegression(s.vds, "sa.fam.qPheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
@@ -352,7 +352,7 @@ class LinearRegressionSuite extends SparkSuite {
       "--missing", "0"))
 
     interceptFatal("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
-      LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
+      LinearRegression(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
     }
   }
 
@@ -377,7 +377,7 @@ class LinearRegressionSuite extends SparkSuite {
       "--missing", "0"))
 
     interceptFatal("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
-      LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
+      LinearRegression(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
     }
   }
 
@@ -404,29 +404,29 @@ class LinearRegressionSuite extends SparkSuite {
       .collect()
       .toMap
 
-    vds = LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 4, 0.0)
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 4, 0.0)
     def qBeta = vds.queryVA("va.linreg.beta")._2
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
 
     // only 6 samples are included, so 12 alleles total
-    vds = LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.3)
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.3)
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
 
-    vds = LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.4)
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.4)
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isEmpty)
 
-    vds = LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.3)
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.3)
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
 
-    vds = LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 5, 0.1)
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 5, 0.1)
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isEmpty)
@@ -447,11 +447,11 @@ class LinearRegressionSuite extends SparkSuite {
       "--missing", "0"))
 
     interceptFatal("Minumum alternate allele count must be a positive integer, got 0") {
-      LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 0, 0.0)
+      LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 0, 0.0)
     }
 
     interceptFatal("Minumum alternate allele frequency must lie in") {
-      LinearRegressionCommand.run(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 2.0)
+      LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 2.0)
     }
   }
 }
