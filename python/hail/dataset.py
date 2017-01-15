@@ -1958,7 +1958,7 @@ class VariantDataset(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def linreg(self, y, covariates='', root='va.linreg', minac=1, minaf=None):
+    def linreg(self, y, covariates=[], root='va.linreg', minac=1, minaf=0.0):
         r"""Test each variant for association using the linear regression
         model.
 
@@ -1974,7 +1974,7 @@ class VariantDataset(object):
         Assuming there are sample annotations ``sa.pheno.height``,
         ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the command:
 
-        >>> vds.linreg('sa.pheno.height', covariates='sa.cov.age, sa.cov.isFemale, sa.cov.PC1')
+        >>> vds.linreg('sa.pheno.height', covariates=['sa.cov.age', 'sa.cov.isFemale', 'sa.cov.PC1'])
 
         considers a model of the form
 
@@ -2039,27 +2039,26 @@ class VariantDataset(object):
 
         :param str y: Response sample annotation.
 
-        :param str covariates: Covariant sample annotations, comma separated.
+        :param covariates: list of covariant sample annotations
+        :type covariates: list of str
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param float minac: Minimum alternate allele count.
+        :param int minac: Minimum alternate allele count.
 
-        :param minaf: Minimum alternate allele frequency.
-        :type minaf: float or None
+        :param float minaf: Minimum alternate allele frequency.
 
-        :return: A Variant Dataset with the aforementioned linear regression annotations
-
+        :return: A Variant Dataset with linear regression annotations
         :rtype: :py:class:`.VariantDataset`
 
         """
 
         try:
-            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.LinearMixedModelCommand.lmm(self.jvds, kinship_vds.jvds, y, covariates, root, minac, minaf))
+            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.LinearRegressionCommand.run(self.jvds, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), root, minac, minaf))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
-    def logreg(self, test, y, covariates=None, root='va.logreg'):
+    def logreg(self, test, y, covariates=[], root='va.logreg'):
         """Test each variant for association using the logistic regression
         model.
 
@@ -2070,7 +2069,7 @@ class VariantDataset(object):
         >>> (hc.read('data/example.vds')
         >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno',
         >>>     config=TextTableConfig(impute=True))
-        >>>   .logreg('wald', 'sa.pheno.isCase', covariates='sa.pheno.age, sa.pheno.isFemale'))
+        >>>   .logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
 
         **Notes**
 
@@ -2087,7 +2086,7 @@ class VariantDataset(object):
         ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the
         command:
 
-        >>> vds.logreg('sa.pheno.isCase', covariates='sa.cov.age,sa.cov.isFemale,sa.cov.PC1')
+        >>> vds.logreg('sa.pheno.isCase', covariates=['sa.cov.age,sa.cov.isFemale', 'sa.cov.PC1'])
 
         considers a model of the form
 
@@ -2173,17 +2172,20 @@ class VariantDataset(object):
         :param str y: Response sample annotation.  Must be Boolean or
             numeric with all values 0 or 1.
 
-        :param str covariates: Covariant sample annotations, comma separated.
+        :param covariates: list of covariant sample annotations
+        :type covariates: list of str
 
         :param str root: Variant annotation path to store result of linear regression.
 
+        :return: A Variant Dataset with logistic regression annotations
+        :rtype: :py:class:`.VariantDataset`
+
         """
 
-        pargs = ['logreg', '-t', test, '-y', y, '-r', root]
-        if covariates:
-            pargs.append('-c')
-            pargs.append(covariates)
-        return self.hc.run_command(self, pargs)
+        try:
+            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.LogisticRegressionCommand.run(self.jvds, test, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), root))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
 
     def mendel_errors(self, output, fam):
         """Find Mendel errors; count per variant, individual and nuclear

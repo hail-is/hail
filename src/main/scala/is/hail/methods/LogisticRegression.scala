@@ -10,26 +10,21 @@ import is.hail.expr._
 
 object LogisticRegression {
 
-  def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]], logRegTest: LogisticRegressionTest): LogisticRegression = {
-    require(cov.forall(_.rows == y.length))
+  def apply(vds: VariantDataset, y: DenseVector[Double], cov: DenseMatrix[Double], logRegTest: LogisticRegressionTest): LogisticRegression = {
+    require(cov.rows == y.size)
     require(y.forall(yi => yi == 0 || yi == 1))
     require {val sumY = sum(y); sumY > 0 && sumY < y.size}
 
-    val n = y.length
-    val k = cov.map(_.cols).getOrElse(0)
-    val d = n - k - 2
+    val n = y.size
+    val k = cov.cols
+    val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${plural(k, "covariate")} with intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
-    info(s"Running logreg on $n samples with $k sample ${plural(k, "covariate")}...")
+    info(s"Running logreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
 
-    val C: DenseMatrix[Double] = cov match {
-      case Some(dm) => DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), dm)
-      case None => DenseMatrix.ones[Double](n, 1)
-    }
-
-    val nullModel = new LogisticRegressionModel(C, y)
+    val nullModel = new LogisticRegressionModel(cov, y)
     val nullFit = nullModel.nullFit(nullModel.bInterceptOnly())
 
     if (!nullFit.converged)
@@ -41,7 +36,7 @@ object LogisticRegression {
 
     val sc = vds.sparkContext
     val yBc = sc.broadcast(y)
-    val CBc = sc.broadcast(C)
+    val CBc = sc.broadcast(cov)
     val nullFitBc = sc.broadcast(nullFit)
     val logRegTestBc = sc.broadcast(logRegTest) // Is this worth broadcasting?
 

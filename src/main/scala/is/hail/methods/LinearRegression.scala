@@ -85,29 +85,24 @@ object LinearRegression {
     ("tstat", TDouble),
     ("pval", TDouble))
 
-  def apply(vds: VariantDataset, pathVA: List[String], completeSamples: IndexedSeq[String], y: DenseVector[Double], cov: Option[DenseMatrix[Double]], minAC: Int): VariantDataset = {
-    require(cov.forall(_.rows == y.size))
+  def apply(vds: VariantDataset, pathVA: List[String], completeSamples: IndexedSeq[String], y: DenseVector[Double], cov: DenseMatrix[Double], minAC: Int): VariantDataset = {
+    require(cov.rows == y.size)
 
     val n = y.size
-    val k = if (cov.isDefined) cov.get.cols else 0
-    val d = n - k - 2
+    val k = cov.cols
+    val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${plural(k, "covariate")} with intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg on $n samples with $k sample ${plural(k, "covariate")}...")
+    info(s"Running linreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
 
     val completeSamplesSet = completeSamples.toSet
     val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
 
     val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
 
-    val covAndOnes: DenseMatrix[Double] = cov match {
-      case Some(dm) => DenseMatrix.horzcat(dm, DenseMatrix.ones[Double](n, 1))
-      case None => DenseMatrix.ones[Double](n, 1)
-    }
-
-    val Qt = qr.reduced.justQ(covAndOnes).t
+    val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
 
     val sc = vds.sparkContext
