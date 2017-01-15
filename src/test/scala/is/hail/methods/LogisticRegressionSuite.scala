@@ -29,7 +29,7 @@ class LogisticRegressionSuite extends SparkSuite {
       "--types", "isCase: Boolean",
       "--missing", "0"))
 
-    val vds = LogisticRegressionCommand.run(s.vds, "wald", "sa.pheno.isCase", List("sa.cov.Cov1","sa.cov.Cov2"), "va.logreg")
+    val vds = LogisticRegressionCommand.run(s.vds, "wald", "sa.pheno.isCase", Array("sa.cov.Cov1","sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
@@ -123,7 +123,7 @@ class LogisticRegressionSuite extends SparkSuite {
       "--types", "isCase: Boolean",
       "--missing", "0"))
 
-    val vds = LogisticRegressionCommand.run(s.vds, "lrt", "sa.pheno.isCase", List("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+    val vds = LogisticRegressionCommand.run(s.vds, "lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
@@ -214,7 +214,7 @@ class LogisticRegressionSuite extends SparkSuite {
       "--types", "isCase: Boolean",
       "--missing", "0"))
 
-    val vds = LogisticRegressionCommand.run(s.vds, "score", "sa.pheno.isCase", List("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+    val vds = LogisticRegressionCommand.run(s.vds, "score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
@@ -292,9 +292,9 @@ class LogisticRegressionSuite extends SparkSuite {
       "-t", "PC1: Double, PC2: Double",
       "-e", "IND_ID"))
 
-    val vds = LogisticRegressionCommand.run(s.vds, "wald", "sa.fam.isCase", List("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg")
-    val vds2 = LogisticRegressionCommand.run(vds, "lrt", "sa.fam.isCase", List("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg2")
-    val vds3 = LogisticRegressionCommand.run(vds2, "score", "sa.fam.isCase", List("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg3")
+    val vds = LogisticRegressionCommand.run(s.vds, "wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg")
+    val vds2 = LogisticRegressionCommand.run(vds, "lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg2")
+    val vds3 = LogisticRegressionCommand.run(vds2, "score", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg3")
 
     // 2535 samples from 1K Genomes Project
     val v1 = Variant("22", 16060511, "T", "TTC") // MAC  623

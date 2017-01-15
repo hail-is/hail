@@ -10,8 +10,9 @@ import is.hail.expr._
 
 object LogisticRegression {
 
-  def apply(vds: VariantDataset, y: DenseVector[Double], cov: DenseMatrix[Double], logRegTest: LogisticRegressionTest): LogisticRegression = {
+  def apply(vds: VariantDataset, pathVA: List[String], completeSamples: IndexedSeq[String], y: DenseVector[Double], cov: DenseMatrix[Double], logRegTest: LogisticRegressionTest): VariantDataset = {
     require(cov.rows == y.size)
+    require(completeSamples.size == y.size)
     require(y.forall(yi => yi == 0 || yi == 1))
     require {val sumY = sum(y); sumY > 0 && sumY < y.size}
 
@@ -34,34 +35,41 @@ object LogisticRegression {
         else
          "Newton iteration failed to converge"))
 
+    val completeSamplesSet = completeSamples.toSet
+    assert(completeSamplesSet.size == completeSamples.size)
+    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
+
     val sc = vds.sparkContext
+    val sampleMaskBc = sc.broadcast(sampleMask)
     val yBc = sc.broadcast(y)
-    val CBc = sc.broadcast(cov)
+    val covBc = sc.broadcast(cov)
     val nullFitBc = sc.broadcast(nullFit)
     val logRegTestBc = sc.broadcast(logRegTest) // Is this worth broadcasting?
 
-    val rdd = vds.rdd.map { case (v, (_, gs)) =>
-      (v, buildGtColumn(gs)
-          .map { gts =>
-            val X = DenseMatrix.horzcat(gts, CBc.value)
-            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
-          }
-          .getOrElse(Annotation.empty)
-      )
-    }
+    val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
 
-    new LogisticRegression(rdd, logRegTest.`type`)
+    vds.mapAnnotations{ case (v, va, gs) =>
+      val maskedGts = gs.zipWithIndex.filter{ case (g, i) => sampleMaskBc.value(i) }.map(_._1.gt)
+
+      val logRegAnnot =
+        buildGtColumn(maskedGts).map { gts =>
+          val X = DenseMatrix.horzcat(gts, covBc.value)
+          logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
+        }
+
+      inserter(va, logRegAnnot)
+    }.copy(vaSignature = newVAS)
   }
 
-  def buildGtColumn(gs: Iterable[Genotype]): Option[DenseMatrix[Double]] = {
-    val (nCalled, gtSum, allHet) = gs.flatMap(_.gt).foldLeft((0, 0, true))((acc, gt) => (acc._1 + 1, acc._2 + gt, acc._3 && (gt == 1) ))
+  def buildGtColumn(gts: Iterable[Option[Int]]): Option[DenseMatrix[Double]] = {
+    val (nCalled, gtSum, allHet) = gts.flatten.foldLeft((0, 0, true))((acc, gt) => (acc._1 + 1, acc._2 + gt, acc._3 && (gt == 1) ))
 
     // allHomRef || allHet || allHomVar || allNoCall
     if (gtSum == 0 || allHet || gtSum == 2 * nCalled || nCalled == 0 )
       None
     else {
       val gtMean = gtSum.toDouble / nCalled
-      val gtArray = gs.map(_.gt.map(_.toDouble).getOrElse(gtMean)).toArray
+      val gtArray = gts.map(_.map(_.toDouble).getOrElse(gtMean)).toArray
       Some(new DenseMatrix(gtArray.length, 1, gtArray))
     }
   }

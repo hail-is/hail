@@ -79,7 +79,7 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
 }
 
 object LinearRegression {
-  def schema: Type = TStruct(
+  def `type`: Type = TStruct(
     ("beta", TDouble),
     ("se", TDouble),
     ("tstat", TDouble),
@@ -87,6 +87,7 @@ object LinearRegression {
 
   def apply(vds: VariantDataset, pathVA: List[String], completeSamples: IndexedSeq[String], y: DenseVector[Double], cov: DenseMatrix[Double], minAC: Int): VariantDataset = {
     require(cov.rows == y.size)
+    require(completeSamples.size == y.size)
 
     val n = y.size
     val k = cov.cols
@@ -98,9 +99,8 @@ object LinearRegression {
     info(s"Running linreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
 
     val completeSamplesSet = completeSamples.toSet
+    assert(completeSamplesSet.size == completeSamples.size)
     val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
-
-    val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
@@ -113,11 +113,13 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
+    val (newVAS, inserter) = vds.insertVA(LinearRegression.`type`, pathVA)
+
     vds.mapAnnotations{ case (v, va, gs) =>
       val lrb = new LinRegBuilder(yBc.value)
       gs.iterator.zipWithIndex.foreach { case (g, i) => if (sampleMaskBc.value(i)) lrb.merge(g) }
 
-      val linRegStat = lrb.stats(yBc.value, n, minAC).map { stats =>
+      val linRegAnnot = lrb.stats(yBc.value, n, minAC).map { stats =>
         val (x, xx, xy) = stats
 
         val qtx = QtBc.value * x
@@ -134,7 +136,7 @@ object LinearRegression {
         Annotation(b, se, t, p)
       }
 
-      inserter(va, linRegStat)
+      inserter(va, linRegAnnot)
     }.copy(vaSignature = newVAS)
   }
 }

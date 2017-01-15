@@ -16,29 +16,14 @@ object LogisticRegressionCommand {
 
     val (y, cov, completeSamples) = getPhenoCovCompleteSamples(vds, ySA, covSA)
 
-    val completeSampleSet = completeSamples.toSet
-    val vdsForCompleteSamples = vds.filterSamples((s, sa) => completeSampleSet(s))
-
     if (! y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all values equal to 0 or 1")
 
     if (!tests.isDefinedAt(test))
-      fatal(s"Supported tests are ${tests.keys.mkString(", ")}, got: ${test}")
-
-    val logreg = LogisticRegression(vdsForCompleteSamples, y, cov, tests(test))
+      fatal(s"Supported tests are ${tests.keys.mkString(", ")}, got: $test")
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
-    val (newVAS, inserter) = vdsForCompleteSamples.insertVA(logreg.`type`, pathVA)
-
-    vds.copy(
-      rdd = vds.rdd.zipPartitions(logreg.rdd, preservesPartitioning = true) { case (it, jt) =>
-        it.zip(jt).map { case ((v, (va, gs)), (v2, comb)) =>
-          assert(v == v2)
-          (v, (inserter(va, Some(comb)), gs))
-        }
-      }.asOrderedRDD,
-      vaSignature = newVAS
-    )
+    LogisticRegression(vds, pathVA, completeSamples, y, cov, tests(test))
   }
 }
