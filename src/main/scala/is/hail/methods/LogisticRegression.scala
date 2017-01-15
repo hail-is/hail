@@ -26,7 +26,7 @@ object LogisticRegression {
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all values equal to 0 or 1")
 
     if (!tests.isDefinedAt(test))
-      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
+      fatal(s"Supported tests are ${tests.keys.mkString(", ")}, got: $test")
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 

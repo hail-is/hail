@@ -5,7 +5,7 @@ import org.apache.commons.math3.distribution.TDistribution
 import is.hail.utils._
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.stats.RegressionUtils.getPhenoCovCompleteSamples
+import is.stats.RegressionUtils.getPhenoCovCompleteSamples
 import is.hail.variant._
 
 import scala.collection.mutable
@@ -110,6 +110,10 @@ object LinearRegression {
       fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
     info(s"Running linreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
+
+    val completeSamplesSet = completeSamples.toSet
+    assert(completeSamplesSet.size == completeSamples.size)
+    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y

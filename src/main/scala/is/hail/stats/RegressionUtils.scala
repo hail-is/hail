@@ -1,9 +1,9 @@
-package is.hail.stats
+package org.broadinstitute.hail.stats
 
-import breeze.linalg.{DenseMatrix, DenseVector}
-import is.hail.expr._
-import is.hail.utils._
-import is.hail.variant.VariantDataset
+import breeze.linalg.{DenseMatrix, DenseVector, rank}
+import org.broadinstitute.hail.expr._
+import org.broadinstitute.hail.variant.VariantDataset
+import org.broadinstitute.hail.utils._
 
 object RegressionUtils {
   def toDouble(t: Type, code: String): Any => Double = t match {
@@ -63,6 +63,9 @@ object RegressionUtils {
           offset = 0,
           majorStride = 1 + k,
           isTranspose = true)
+    val r = rank(cov)
+    if (r < k)
+      fatal(s"Covariates and intercept are not linearly independent: total rank is $r (less than 1 + $k)")
 
     val completeSamplesSet = completeSamples.toSet
     val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
