@@ -2,13 +2,38 @@ package org.broadinstitute.hail.methods
 
 import org.broadinstitute.hail.SparkSuite
 import org.broadinstitute.hail.annotations._
-import org.broadinstitute.hail.driver._
 import org.broadinstitute.hail.expr._
 import org.broadinstitute.hail.keytable.KeyTable
 import org.broadinstitute.hail.utils._
 import org.testng.annotations.Test
 
 class KeyTableSuite extends SparkSuite {
+  def sampleKT1: KeyTable = {
+    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
+    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
+    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val keyNames = Array("Sample")
+
+    KeyTable(rdd, signature, keyNames)
+  }
+
+  def sampleKT2: KeyTable = {
+    val data = Array(Array("Sample1", IndexedSeq(9, 1), 5), Array("Sample2", IndexedSeq(3), 5),
+      Array("Sample3", IndexedSeq(2, 3, 4), 5), Array("Sample4", IndexedSeq.empty[Int], 5))
+    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
+    val signature = TStruct(("Sample", TString), ("field1", TArray(TInt)), ("field2", TInt))
+    val keyNames = Array("Sample")
+    KeyTable(rdd, signature, keyNames)
+  }
+
+  def sampleKT3: KeyTable = {
+    val data = Array(Array("Sample1", IndexedSeq(IndexedSeq(9, 10), IndexedSeq(1)), IndexedSeq(5, 6)), Array("Sample2", IndexedSeq(IndexedSeq(3), IndexedSeq.empty[Int]), IndexedSeq(5, 3)),
+      Array("Sample3", IndexedSeq(IndexedSeq(2, 3, 4), IndexedSeq(3), IndexedSeq(4, 10)), IndexedSeq.empty[Int]), Array("Sample4", IndexedSeq.empty[Int], IndexedSeq(5)))
+    val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
+    val signature = TStruct(("Sample", TString), ("field1", TArray(TArray(TInt))), ("field2", TArray(TInt)))
+    val keyNames = Array("Sample")
+    KeyTable(rdd, signature, keyNames)
+  }
 
   @Test def testSingleToPairRDD() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
@@ -100,6 +125,8 @@ class KeyTableSuite extends SparkSuite {
     val ktOuterJoin = ktLeft.outerJoin(ktRight)
 
     val nExpectedValues = ktLeft.nValues + ktRight.nValues
+
+    val i: IndexedSeq[Int] = Array(1,2,3)
 
     val (_, leftKeyQuery) = ktLeft.query("Sample")
     val (_, rightKeyQuery) = ktRight.query("Sample")
@@ -217,5 +244,25 @@ class KeyTableSuite extends SparkSuite {
     intercept[FatalException](kt.select(Array.empty[String], Array("Sample")))
 
     intercept[FatalException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
+  }
+
+  @Test def testExplode() {
+    val kt1 = sampleKT1
+    val kt2 = sampleKT2
+    val kt3 = sampleKT3
+
+    val result2 = Array(Array("Sample1", 9, 5), Array("Sample1", 1, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5),
+      Array("Sample3", 3, 5), Array("Sample3", 4, 5))
+    val resRDD2 = sc.parallelize(result2.map(Annotation.fromSeq(_)))
+    val ktResult2 = KeyTable(resRDD2, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
+
+    val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
+      Array("Sample1", 1, 5), Array("Sample1", 1, 6), Array("Sample2", 3, 5), Array("Sample2", 3, 3))
+    val resRDD3 = sc.parallelize(result3.map(Annotation.fromSeq(_)))
+    val ktResult3 = KeyTable(resRDD3, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
+
+    intercept[FatalException](kt1.explode(Array("Sample")))
+    assert(ktResult2.same(kt2.explode(Array("field1"))))
+    assert(ktResult3.same(kt3.explode(Array("field1", "field2", "field1"))))
   }
 }

@@ -318,3 +318,5 @@ class ContextTests(unittest.TestCase):
         kt.expand_types()
 
         kt.to_dataframe()
+
+        kt.annotate("newField = [0, 1, 2]").explode(["newField"])

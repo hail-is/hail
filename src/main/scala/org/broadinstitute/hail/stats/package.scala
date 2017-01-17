@@ -44,11 +44,11 @@ package object stats {
 
         if (math.abs(fc) < math.abs(fb)) {
           // swap endpoints so b is best approx
-          a = b;
-          b = c;
+          a = b
+          b = c
           c = a
-          fa = fb;
-          fb = fc;
+          fa = fb
+          fb = fc
           fc = fa
         }
 
@@ -91,7 +91,7 @@ package object stats {
             newStep = -1 * toleranceActual
         }
 
-        a = b;
+        a = b
         fa = fb
         b += newStep
         fb = fn(b)
