@@ -201,10 +201,10 @@ class ContextTests(unittest.TestCase):
                                           code = 'sa.pheno.isCase = table.isCase',
                                           config=TextTableConfig(types='isCase: Boolean', missing='0')))
 
-        (linreg.linreg('sa.pheno.Pheno', covariates = 'sa.cov.Cov1, sa.cov.Cov2 + 1 - 1')
+        (linreg.linreg('sa.pheno.Pheno', covariates = ['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
-        (linreg.logreg('wald', 'sa.pheno.isCase', covariates = 'sa.cov.Cov1, sa.cov.Cov2 + 1 - 1')
+        (linreg.logreg('wald', 'sa.pheno.isCase', covariates = ['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
         sample_split.mendel_errors('/tmp/sample.mendel', test_resources + '/sample.fam')
