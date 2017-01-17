@@ -63,9 +63,10 @@ object RegressionUtils {
           offset = 0,
           majorStride = 1 + k,
           isTranspose = true)
-    val r = rank(cov)
-    if (r < k + 1)
-      fatal(s"Covariates and intercept are not linearly independent: total rank is $r (less than 1 + $k covariates)")
+
+//    val r = rank(cov)
+//    if (r < k + 1)
+//      fatal(s"Covariates and intercept are not linearly independent: total rank is $r (less than 1 + $k covariates)")
 
     val completeSamplesSet = completeSamples.toSet
     val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
