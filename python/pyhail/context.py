@@ -1,3 +1,5 @@
+from __future__ import print_function # Python 2 and 3 print compatibility
+
 from pyspark.java_gateway import launch_gateway
 from pyspark import SparkConf, SparkContext
 from pyspark.sql import SQLContext

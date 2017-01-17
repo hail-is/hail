@@ -1,3 +1,5 @@
+from __future__ import print_function # Python 2 and 3 print compatibility
+
 from pyhail.java import scala_package_object, jarray
 from pyhail.keytable import KeyTable
 from pyhail.utils import TextTableConfig
