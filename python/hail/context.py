@@ -49,7 +49,10 @@ class HailContext(object):
         self.gateway = SparkContext._gateway
         self.jvm = SparkContext._jvm
 
-        driver = scala_package_object(self.jvm.org.broadinstitute.hail.driver)
+        # hail package
+        self.hail = getattr(self.jvm, 'is').hail
+
+        driver = scala_package_object(self.hail.driver)
 
         if not sc:
             self.jsc = driver.configureAndCreateSparkContext(
@@ -67,16 +70,16 @@ class HailContext(object):
         self.sql_context = SQLContext(self.sc, self.jsql_context)
 
     def _jstate(self, jvds):
-        return self.jvm.org.broadinstitute.hail.driver.State(
+        return self.hail.driver.State(
             self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
 
     def _raise_py4j_exception(self, e):
-        msg = scala_package_object(self.jvm.org.broadinstitute.hail.utils).getMinimalMessage(e.java_exception)
+        msg = scala_package_object(self.hail.utils).getMinimalMessage(e.java_exception)
         raise FatalError(msg, e.java_exception)
 
     def run_command(self, vds, pargs):
         jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
-        t = self.jvm.org.broadinstitute.hail.driver.ToplevelCommands.lookup(jargs)
+        t = self.hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
         cmd_args = t._2()
         jstate = self._jstate(vds.jvds if vds != None else None)
@@ -337,7 +340,7 @@ class HailContext(object):
         if not config:
             config = TextTableConfig()
 
-        return KeyTable(self, self.jvm.org.broadinstitute.hail.keytable.KeyTable.importTextTable(
+        return KeyTable(self, self.hail.keytable.KeyTable.importTextTable(
             self.jsc, jarray(self.gateway, self.jvm.java.lang.String, path_args), key_names, npartitions, config.to_java(self)))
 
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):

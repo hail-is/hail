@@ -36,7 +36,7 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-mainClassName = "org.broadinstitute.hail.driver.Main"
+mainClassName = "is.hail.driver.Main"
 
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
@@ -231,15 +231,15 @@ tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
                 'Implementation-Version': '0.0.1-SNAPSHOT',
-                'Main-Class': 'org.broadinstitute.hail.driver.Main'
+                'Main-Class': 'is.hail.driver.Main'
     }
     baseName = project.name + '-all'
     mergeServiceFiles()
     zip64 true
     // conflict with version in default Hadoop/Spark install
-    relocate 'org.apache.http', 'org.broadinstitute.hail.relocated.org.apache.http'
-    relocate 'com.google.common', 'org.broadinstitute.hail.relocated.com.google.common'
-    relocate 'org.objectweb', 'org.broadinstitute.hail.relocated.org.objectweb'
+    relocate 'org.apache.http', 'is.hail.relocated.org.apache.http'
+    relocate 'com.google.common', 'is.hail.relocated.com.google.common'
+    relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
 }
 
 shadowJar {
@@ -413,7 +413,7 @@ task makeTutorial(type: Exec, dependsOn: setupDocsDirs) {
 }
 
 task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
-    main 'org.broadinstitute.hail.driver.Main'
+    main 'is.hail.driver.Main'
     args ('commandmeta', '-o', 'build/tmp/docs/commandOptions.json')
     classpath sourceSets.main.runtimeClasspath
 }
