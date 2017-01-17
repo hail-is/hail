@@ -556,7 +556,7 @@ class HailContext(object):
     def balding_nichols_model(self, populations, samples, variants, npartitions,
                               population_dist=None,
                               fst=None,
-                              #root="bn",
+                              root="bn",
                               seed=None):
         """
         Generate a VariantDataset using the Balding-Nichols model.
@@ -568,10 +568,13 @@ class HailContext(object):
         balding_nichols_model(3, 30, 100, 4)
 
         In this example, the chances of a particular sample being from any one population are equal, the Fst values for
-        each population are .1, and a random seed is chosen. This is the default behavior.
+        each population are .1, the root for annotations is "bn", and a random seed is chosen. This is the default behavior.
 
 
+        Creating a VDS with 40 samples, 2 populations, 150 variants, 3 partitions, a population distribution of [.9, .1] Fst values of .1 and
+        .3 respectively, root "balding", and seed 37
 
+        balding_nichols_model(2, 40, 150, 3, [.9, .1], [.1, .3], "balding", 37)
 
 
         **Details**
@@ -636,8 +639,8 @@ class HailContext(object):
         if population_dist is None:
             population_dist = [1/populations] * populations
         else:
-            sum = sum(population_dist)
-            population_dist = [i / sum for i in population_dist]
+            total = sum(population_dist)
+            population_dist = [i / total for i in population_dist]
 
         if fst is None:
             fst = [.1 for i in range(populations)]
@@ -649,7 +652,7 @@ class HailContext(object):
         return VariantDataset(self, scala_object(self.jvm.org.broadinstitute.hail.driver, "BaldingNicholsModelCommand").\
             balding_nichols(self.jsc, populations, samples, variants,
                             jarray(self.gateway, self.jvm.double, population_dist),
-                            jarray(self.gateway, self.jvm.double, fst), seed, npartitions))
+                            jarray(self.gateway, self.jvm.double, fst), seed, npartitions, root))
 
     def stop(self):
         self.sc.stop()
