@@ -4,10 +4,10 @@ from pyspark.java_gateway import launch_gateway
 from pyspark import SparkConf, SparkContext
 from pyspark.sql import SQLContext
 
-from pyhail.dataset import VariantDataset
-from pyhail.java import jarray, scala_object, scala_package_object, joption
-from pyhail.keytable import KeyTable
-from pyhail.utils import TextTableConfig
+from hail.dataset import VariantDataset
+from hail.java import jarray, scala_object, scala_package_object, joption
+from hail.keytable import KeyTable
+from hail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
 
 class FatalError(Exception):
@@ -22,7 +22,7 @@ class FatalError(Exception):
         return self.msg
 
 class HailContext(object):
-    """:class:`.HailContext` is the main entrypoint for PyHail
+    """:class:`.HailContext` is the main entrypoint for Hail
     functionality.
 
     :param str log: Log file.
@@ -40,7 +40,7 @@ class HailContext(object):
     :param str tmp_dir: Temporary directory for file merging.
     """
 
-    def __init__(self, sc=None, appName="PyHail", master=None, local='local[*]',
+    def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
                  block_size=1, branching_factor=50, tmp_dir='/tmp'):
         from pyspark import SparkContext
@@ -103,7 +103,7 @@ class HailContext(object):
 
         **Background**
 
-        :py:meth:`~pyhail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`_.
+        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`_.
 
         :param str regex: The regular expression to match.
 
@@ -245,15 +245,15 @@ class HailContext(object):
 
         **Dosage representation**
 
-        Since dosages are understood as genotype probabilities, :py:meth:`~pyhail.HailContext.import_gen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` paramater from 1.0.  The default tolerance is 0.02, so a genotypes with sum .97 or 1.03 is filtered out, whereas a genotype with sum .98 or 1.02 remains.
+        Since dosages are understood as genotype probabilities, :py:meth:`~hail.HailContext.import_gen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` paramater from 1.0.  The default tolerance is 0.02, so a genotypes with sum .97 or 1.03 is filtered out, whereas a genotype with sum .98 or 1.02 remains.
 
-        :py:meth:`~pyhail.HailContext.import_gen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+        :py:meth:`~hail.HailContext.import_gen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
 
         Even when the dosages sum to 1.0, Hail may store slightly different values than the original GEN file (maximum observed difference is 3E-4).
 
         **Annotations**
 
-        :py:meth:`~pyhail.HailContext.import_gen` adds the following variant annotations:
+        :py:meth:`~hail.HailContext.import_gen` adds the following variant annotations:
 
          - **va.varid** (*String*) -- 2nd column of .gen file if chromosome present, otherwise 1st column.
 
@@ -374,7 +374,7 @@ class HailContext(object):
 
         **Annotations**
 
-        :py:meth:`~pyhail.HailContext.import_plink` adds the following annotations:
+        :py:meth:`~hail.HailContext.import_plink` adds the following annotations:
 
          - **va.rsid** (*String*) -- Column 2 in the BIM file.
          - **sa.famID** (*String*) -- Column 1 in the FAM file. Set to missing if ID equals "0".

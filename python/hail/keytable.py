@@ -2,8 +2,8 @@ from __future__ import print_function # Python 2 and 3 print compatibility
 
 from py4j.protocol import Py4JJavaError
 from pyspark.sql import DataFrame
-from pyhail.java import scala_package_object
-from pyhail.type import Type
+from hail.java import scala_package_object
+from hail.type import Type
 
 class KeyTable(object):
     """:class:`.KeyTable` is Hail's version of a SQL table where columns

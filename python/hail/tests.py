@@ -1,13 +1,13 @@
 
 """
-Unit tests for PyHail.
+Unit tests for Hail.
 """
 from __future__ import print_function # Python 2 and 3 print compatibility
 
 import unittest
 
 from pyspark import SparkContext
-from pyhail import HailContext, TextTableConfig
+from hail import HailContext, TextTableConfig
 
 hc = None
 

@@ -106,8 +106,8 @@ Genotype
 - **g.nNonRefAlleles** (*Int*) -- the number of called alternate alleles
 - **g.pAB** (*Double*)  -- p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Missing if the call is not heterozygous.
 - **g.fractionReadsRef** (*Double*) -- the ratio of ref reads to the sum of all *informative* reads
-- **g.fakeRef** (*Boolean*) -- true if this genotype was downcoded in :py:meth:`~pyhail.VariantDataset.split_multi`.  This can happen if a ``1/2`` call is split to ``0/1``, ``0/1``
-- **g.isDosage** (*Boolean*) -- true if the data was imported from :py:meth:`~pyhail.HailContext.import_gen` or :py:meth:`~pyhail.HailContext.import_bgen`
+- **g.fakeRef** (*Boolean*) -- true if this genotype was downcoded in :py:meth:`~hail.VariantDataset.split_multi`.  This can happen if a ``1/2`` call is split to ``0/1``, ``0/1``
+- **g.isDosage** (*Boolean*) -- true if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`
 - **g.oneHotAlleles(Variant)** (*Array[Int]*) -- Produces an array of called counts for each allele in the variant (including reference).  For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
 - **g.oneHotGenotype(Variant)** (*Array[Int]*) -- Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0.  For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
 - **g.gtj** (*Int*) -- the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.)

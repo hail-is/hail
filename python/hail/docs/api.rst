@@ -18,7 +18,7 @@ introduction to using this API to analyze genetic data.
     :toctree: ./
     :template: class.rst
 
-    pyhail.HailContext
-    pyhail.VariantDataset
-    pyhail.KeyTable
-    pyhail.TextTableConfig
+    hail.HailContext
+    hail.VariantDataset
+    hail.KeyTable
+    hail.TextTableConfig

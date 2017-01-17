@@ -85,7 +85,7 @@ done by calling ``DESCRIBE`` on the table:
     +-------------+----------------------------------+-----------------------------+
 
 
-Notice that the schema is nested. The ``annotations`` type corresponds to the variant annotation schema that is displayed using :py:meth:`~pyhail.VariantDataset.print_schema`:
+Notice that the schema is nested. The ``annotations`` type corresponds to the variant annotation schema that is displayed using :py:meth:`~hail.VariantDataset.print_schema`:
 
 .. code-block:: python
 

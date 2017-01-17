@@ -2,7 +2,7 @@
 
 In this tutorial, we will analyze data from the final phase of the [1000 Genomes Project](http://www.internationalgenome.org/about), as described in [A global reference for human genetic variation (Nature 2015)](http://www.nature.com/nature/journal/v526/n7571/full/nature15393.html). We have downsampled the dataset to approximately 10,000 variants consisting of both rare and common variants. We obtained sample information (population, super-population, sex) from the [1000 Genomes website](http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/working/20130606_sample_info/20130606_sample_info.xlsx).
 
-If you haven't already installed Hail, go to [Getting Started](pyhail/getting_started.html) for instructions.
+If you haven't already installed Hail, go to [Getting Started](hail/getting_started.html) for instructions.
 
 ## Download tutorial data files
 
@@ -44,7 +44,7 @@ In [1]:
 
 In this window, enter two commands:
 
-    >>> from pyhail import *
+    >>> from hail import *
     >>> hc = HailContext()
 
 If there is no error, you're ready to start using Hail! Otherwise, make sure that the `export` variables are correctly set and appropriate versions of all dependencies are installed. If this step triggers a `Exception in thread "main" java.net.BindException`, see [here](https://hail.is/faq.html#how-do-i-fix-exception-in-thread-main-java.net.bindexception-cant-assign-requested-address-...) for a fix.
@@ -501,4 +501,4 @@ We'll start with `sex_check_filtered_vds` here (our `analysis_ready_vds` isn't a
 
 ## Eplilogue
 
-Congrats! If you've made it this far, you're perfectly primed to read the [Overview](pyhail/overview.html), look through the [Hail objects](pyhail/hail_objects.html) representing many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/pyhail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter Chat](https://gitter.im/hail-is/hail) or the [Discussion Forum](http://discuss.hail.is).
+Congrats! If you've made it this far, you're perfectly primed to read the [Overview](hail/overview.html), look through the [Hail objects](hail/hail_objects.html) representing many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/hail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter Chat](https://gitter.im/hail-is/hail) or the [Discussion Forum](http://discuss.hail.is).
