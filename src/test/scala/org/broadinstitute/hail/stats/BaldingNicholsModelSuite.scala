@@ -7,7 +7,8 @@ import org.testng.annotations.Test
 
 class BaldingNicholsModelSuite extends SparkSuite {
 
-  /*@Test def baldingNicholsTest() = {
+  //FIXME This test needs to be reformulated.
+  /*@Test def testDeterminism() = {
     val K = 3
     val N = 10
     val M = 100
@@ -15,11 +16,12 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val FstOfPop = DenseVector[Double](.1, .2, .3)
     val seed = 0
 
-    val bnm = BaldingNicholsModelDist(sc, K, N, M, popDist, FstOfPop, seed)
-    val bnm1 = BaldingNicholsModelDist(sc, K, N, M, popDist, FstOfPop, seed)
+    val bnm1 = BaldingNicholsModel(sc, K, N, M, 4, popDist, FstOfPop, "bn", seed)
+    val bnm2 = BaldingNicholsModel(sc, K, N, M, 4, popDist, FstOfPop, "bn", seed)
 
-    assert()
+
   }*/
+
 
   @Test def testDimensions() = {
     val K = 5
@@ -29,7 +31,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val FstOfPop = DenseVector[Double](.1, .2, .3, .2, .2)
     val seed = 0
 
-    val bnm: VariantDataset = BaldingNicholsModelDist(sc, K, N, M, popDist, FstOfPop, seed)
+    val bnm: VariantDataset = BaldingNicholsModel(sc, K, N, M, 4, popDist, FstOfPop, "bn", seed)
 
     //Check right number of samples
     val allCorrectSize = bnm.rdd.collect.map(x => x._2._2).forall(x => x.size == 10)
