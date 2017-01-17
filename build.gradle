@@ -40,36 +40,18 @@ mainClassName = "is.hail.driver.Main"
 
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
-Boolean spark2 = sparkVersion ==~ /^2.*/
-
-String mongoVersion
-String kuduSpark
-String scalaVersion
-String scalaMajorVersion
-String py4jVersion
+String scalaVersion = '2.11.8'
+String scalaMajorVersion = '2.11'
 String breezeVersion = '0.11.2'
 
-if (spark2) {
-    kuduSpark = 'spark2'
-    scalaVersion = '2.11.8'
-    scalaMajorVersion = '2.11'
-    if (sparkVersion ==~ /^2\.1.*/)
-        py4jVersion = '0.10.4'
-    else
-        py4jVersion = '0.10.3'
-    mongoVersion = '2.0.0'
-} else {
-    scalaVersion = '2.10.4'
-    scalaMajorVersion = '2.10'
-    kuduSpark = 'spark'
-    if (sparkVersion ==~ /^1\.5.*/) {
-        py4jVersion = '0.8.2.1'
-        mongoVersion = '1.0.0'
-    } else {
-        py4jVersion = '0.9' // 1.6
-        mongoVersion = '1.1.0'
-    }
-}
+String py4jVersion
+if (sparkVersion ==~ /^2\.1.*/)
+    py4jVersion = '0.10.4'
+else
+    py4jVersion = '0.10.3'
+
+String kuduSpark = 'spark2'
+String mongoVersion = '2.0.0'
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
@@ -113,22 +95,7 @@ compileJava {
 }
 
 compileScala {
-    if (spark2)
-        // until we drop Spark 1 support, we need to rely on deprecated features
-        scalaCompileOptions.additionalParameters = ["-feature"]
-    else
-        scalaCompileOptions.additionalParameters = ["-feature", "-Xfatal-warnings"]
-}
-
-if (!spark2) {
-    configurations.all {
-        resolutionStrategy {
-            // override new version pulled in by solrj
-            // http://stackoverflow.com/questions/31039367/spark-parallelize-could-not-find-creator-property-with-name-id
-
-            force 'com.fasterxml.jackson.core:jackson-databind:2.4.4'
-        }
-    }
+    scalaCompileOptions.additionalParameters = ["-feature"] // , "-Xfatal-warnings"]
 }
 
 dependencies {
