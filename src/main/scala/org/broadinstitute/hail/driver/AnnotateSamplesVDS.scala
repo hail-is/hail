@@ -41,10 +41,11 @@ object AnnotateSamplesVDS extends Command with JoinAnnotator {
         "sa" -> (0, vds.saSignature),
         "vds" -> (1, other.saSignature)))
       buildInserter(code, vds.saSignature, ec, Annotation.SAMPLE_HEAD)
-    } else vds.insertSA(other.vaSignature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD))
+    } else vds.insertSA(other.saSignature, Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD))
 
+    val m = other.sampleIdsAndAnnotations.toMap
     vds
-      .annotateSamples(other.sampleIdsAndAnnotations.toMap.get(_), finalType, inserter)
+      .annotateSamples(m.get _, finalType, inserter)
   }
 
   def run(state: State, options: Options): State = {
