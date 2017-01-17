@@ -1,9 +1,9 @@
-package org.broadinstitute.hail.stats
+package is.hail.stats
 
 import breeze.linalg.{DenseMatrix, DenseVector, rank}
-import org.broadinstitute.hail.expr._
-import org.broadinstitute.hail.variant.VariantDataset
-import org.broadinstitute.hail.utils._
+import is.hail.expr._
+import is.hail.variant.VariantDataset
+import is.hail.utils._
 
 object RegressionUtils {
   def toDouble(t: Type, code: String): Any => Double = t match {
