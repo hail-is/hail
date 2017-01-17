@@ -87,7 +87,7 @@ object BaldingNicholsModelDist {
     val sampleIds = (1 to N).map(_.toString).toArray
     val sampleAnnotations = popOfSample_n.toArray: IndexedSeq[Int]
     val globalAnnotation = Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], seed)
-    val saSignature = TInt
+    val saSignature = TStruct("pop" -> TInt)
     val vaSignature = TStruct("ancestralAF" -> TDouble, "AF" -> TArray(TDouble))
     val globalSignature = TStruct("nPops" -> TInt, "nSamples" -> TInt, "nVariants" -> TInt,
       "popDist" -> TArray(TDouble), "Fst" -> TArray(TDouble), "seed" -> TInt)
