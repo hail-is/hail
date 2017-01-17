@@ -1,8 +1,8 @@
 from __future__ import print_function # Python 2 and 3 print compatibility
 
-from pyhail.java import scala_package_object, jarray
-from pyhail.keytable import KeyTable
-from pyhail.utils import TextTableConfig
+from hail.java import scala_package_object, jarray
+from hail.keytable import KeyTable
+from hail.utils import TextTableConfig
 
 from py4j.protocol import Py4JJavaError
 
