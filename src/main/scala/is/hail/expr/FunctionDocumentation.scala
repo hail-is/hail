@@ -1,6 +1,21 @@
 package is.hail.expr
 
+import java.io._
+
 object FunctionDocumentation {
+
+  def apply(filename: String) = {
+    val sb = new StringBuilder
+    sb.append(header1Rst("Functions"))
+
+    sb.append(FunctionRegistry.generateDocumentation())
+
+    val file = new File(filename)
+    val bw = new BufferedWriter(new FileWriter(file))
+    bw.write(sb.result())
+    bw.close()
+  }
+
   def headerRst(title: String, topChar: Option[String], botChar: Option[String]) = {
     val sb = new StringBuilder()
 
@@ -16,6 +31,7 @@ object FunctionDocumentation {
       sb.append(ch * title.length + "\n")
     }
 
+    sb.append("\n")
     sb.result()
   }
 

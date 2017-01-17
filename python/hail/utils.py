@@ -63,3 +63,10 @@ class TextTableConfig(object):
                                                               self.noheader, self.impute)
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
+
+class FunctionDocumentation(object):
+    def __init__(self, hc, file_name):
+        try:
+            return hc.hail.expr.FunctionDocumentation.apply(file_name)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)

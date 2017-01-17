@@ -14,6 +14,7 @@ Contents
     Getting Started <getting_started>
     Overview <overview>
     Hail Objects <hail_objects>
+    Functions <functions>
     Python API <api>
     SQL <sql>
 

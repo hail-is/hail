@@ -18,6 +18,12 @@ case class FunctionMetadata(docstring: Option[String] = None, category: Option[S
 
 object FunctionRegistry {
 
+  def generateDocumentation() = {
+    registry.flatMap { case (name, funs) =>
+      funs.map { case (tt, fun, md) => FunctionDocumentation.methodToRst(name, tt, fun, md) }
+    }.mkString("\n")
+  }
+
   sealed trait LookupError {
     def message: String
   }
