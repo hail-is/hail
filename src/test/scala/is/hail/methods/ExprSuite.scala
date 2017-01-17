@@ -99,9 +99,9 @@ class ExprSuite extends SparkSuite {
       (t, Option(f()).map(_.asInstanceOf[T]))
     }
 
-    assert(eval[Int]("is.toInt").contains(-37))
+    assert(eval[Int]("is.toInt()").contains(-37))
 
-    assert(eval[Boolean]("!gs.het.isHomRef").contains(true))
+    assert(eval[Boolean]("!gs.het.isHomRef()").contains(true))
 
     assert(eval[Boolean]("1 / 2 == 0.5").contains(true))
     assert(eval[Boolean]("1.0 / 2.0 == 0.5").contains(true))
@@ -145,11 +145,11 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("isMissing(gs.noCall.gt)").contains(true))
     assert(eval[Boolean]("gs.noCall.gt").isEmpty)
 
-    assert(eval[Boolean]("isMissing(gs.noCall.gtj)").contains(true))
-    assert(eval[Boolean]("gs.noCall.gtj").isEmpty)
+    assert(eval[Boolean]("isMissing(gs.noCall.gtj())").contains(true))
+    assert(eval[Boolean]("gs.noCall.gtj()").isEmpty)
 
-    assert(eval[Boolean]("isMissing(gs.noCall.gtk)").contains(true))
-    assert(eval[Boolean]("gs.noCall.gtk").isEmpty)
+    assert(eval[Boolean]("isMissing(gs.noCall.gtk())").contains(true))
+    assert(eval[Boolean]("gs.noCall.gtk()").isEmpty)
 
     assert(eval[Int]("let a = i and b = j in a + b").contains(-2))
     assert(eval[Int]("let a = i and b = a + j in b").contains(-2))
@@ -161,17 +161,17 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("isMissing(false || mb)").contains(true))
     assert(eval[Boolean]("isMissing(mb || false)").contains(true))
 
-    assert(eval[Int]("gs.homRef.gtj").contains(0)
-      && eval[Int]("gs.homRef.gtk").contains(0))
-    assert(eval[Int]("gs.het.gtj").contains(0)
-      && eval[Int]("gs.het.gtk").contains(1))
-    assert(eval[Int]("gs.homVar.gtj").contains(1)
-      && eval[Int]("gs.homVar.gtk").contains(1))
-    assert(eval[Int]("gs.hetNonRef35.gtj").contains(3)
-      && eval[Int]("gs.hetNonRef35.gtk").contains(5))
+    assert(eval[Int]("gs.homRef.gtj()").contains(0)
+      && eval[Int]("gs.homRef.gtk()").contains(0))
+    assert(eval[Int]("gs.het.gtj()").contains(0)
+      && eval[Int]("gs.het.gtk()").contains(1))
+    assert(eval[Int]("gs.homVar.gtj()").contains(1)
+      && eval[Int]("gs.homVar.gtk()").contains(1))
+    assert(eval[Int]("gs.hetNonRef35.gtj()").contains(3)
+      && eval[Int]("gs.hetNonRef35.gtk()").contains(5))
 
-    assert(eval[Int]("i.orElse(3)").contains(5))
-    assert(eval[Int]("m.orElse(3)").contains(3))
+    assert(eval[Int]("orElse(i, 3)").contains(5))
+    assert(eval[Int]("orElse(m, 3)").contains(3))
 
     assert(eval[Boolean]("isMissing(i)").contains(false))
     assert(eval[Boolean]("isDefined(i)").contains(true))
@@ -210,7 +210,7 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("1 == 1.0").contains(true))
 
-    assert(eval[Int]("as.length").contains(2))
+    assert(eval[Int]("as.length()").contains(2))
     assert(eval[Int]("as[0].a").contains(23))
     assert(eval[Boolean]("isMissing(as[1].b)").contains(true))
     assert(eval[Boolean]("as[1].b").isEmpty)
@@ -221,7 +221,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("i.min(j)").contains(-7))
     assert(eval[Double]("d").exists(D_==(_, 3.14)))
     assert(eval[IndexedSeq[String]]("""s.split(",")""").contains(IndexedSeq("12", "34", "56", "78")))
-    assert(eval[Int]("s2.length").contains(62))
+    assert(eval[Int]("s2.length()").contains(62))
 
     assert(eval[Int]("""a.find(x => x < 0)""").contains(-1))
 
@@ -236,18 +236,18 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""[[0], nullarr, [2]].flatMap(x => x)""").isEmpty)
     assert(eval[IndexedSeq[_]]("""[[0], [1], nullarr].flatMap(x => x)""").isEmpty)
 
-    assert(eval[Set[_]]("""iset.flatMap(x => [x].toSet)""").contains(Set(0, 1, 2)))
-    assert(eval[Set[_]]("""iset.flatMap(x => [x, x + 1].toSet)""").contains(Set(0, 1, 2, 3)))
+    assert(eval[Set[_]]("""iset.flatMap(x => [x].toSet())""").contains(Set(0, 1, 2)))
+    assert(eval[Set[_]]("""iset.flatMap(x => [x, x + 1].toSet())""").contains(Set(0, 1, 2, 3)))
 
-    assert(eval[Set[_]]("""nullset.flatMap(x => [x].toSet)""").isEmpty)
-    assert(eval[Set[_]]("""emptyset.flatMap(x => [x].toSet)""").contains(Set[Int]()))
+    assert(eval[Set[_]]("""nullset.flatMap(x => [x].toSet())""").isEmpty)
+    assert(eval[Set[_]]("""emptyset.flatMap(x => [x].toSet())""").contains(Set[Int]()))
     assert(eval[Set[_]]("""emptyset.flatMap(x => nullset)""").contains(Set[Int]()))
     assert(eval[Set[_]]("""iset.flatMap(x => nullset)""").isEmpty)
-    assert(eval[Set[_]]("""[nullset, [1].toSet, [2].toSet].toSet.flatMap(x => x)""").isEmpty)
-    assert(eval[Set[_]]("""[[0].toSet, nullset, [2].toSet].toSet.flatMap(x => x)""").isEmpty)
-    assert(eval[Set[_]]("""[[0].toSet, [1].toSet, nullset].toSet.flatMap(x => x)""").isEmpty)
+    assert(eval[Set[_]]("""[nullset, [1].toSet(), [2].toSet()].toSet().flatMap(x => x)""").isEmpty)
+    assert(eval[Set[_]]("""[[0].toSet(), nullset, [2].toSet()].toSet().flatMap(x => x)""").isEmpty)
+    assert(eval[Set[_]]("""[[0].toSet(), [1].toSet(), nullset].toSet().flatMap(x => x)""").isEmpty)
 
-    assert(eval[Set[_]]("""[[0].toSet, [1].toSet, nullset].filter(s => isDefined(s)).toSet.flatMap(x => x)""").contains(Set(0, 1)))
+    assert(eval[Set[_]]("""[[0].toSet(), [1].toSet(), nullset].filter(s => isDefined(s)).toSet().flatMap(x => x)""").contains(Set(0, 1)))
 
     TestUtils.interceptFatal("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(0)"""))
@@ -259,12 +259,12 @@ class ExprSuite extends SparkSuite {
       eval[Set[_]]("""iset.flatMap(x => [x])"""))
 
     TestUtils.interceptFatal("""No function found.*flatMap""")(
-      eval[IndexedSeq[_]]("""a.flatMap(x => [x].toSet)"""))
+      eval[IndexedSeq[_]]("""a.flatMap(x => [x].toSet())"""))
 
     assert(eval[IndexedSeq[_]](""" [[1], [2, 3], [4, 5, 6]].flatten() """).contains(IndexedSeq(1, 2, 3, 4, 5, 6)))
     assert(eval[IndexedSeq[_]](""" [a, [1]].flatten() """).contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8, 1)))
 
-    assert(eval[Set[_]](""" [[1], [2]].flatten().toSet """).contains(Set(1, 2)))
+    assert(eval[Set[_]](""" [[1], [2]].flatten().toSet() """).contains(Set(1, 2)))
 
     assert(eval[IndexedSeq[_]](""" [nullarr].flatten() """).isEmpty)
     assert(eval[IndexedSeq[_]](""" [[0], nullarr].flatten() """).isEmpty)
@@ -272,17 +272,17 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[IndexedSeq[_]](""" [[1], nullarr, [2, 3]].filter(a => isDefined(a)).flatten() """).contains(IndexedSeq(1, 2, 3)))
 
-    assert(eval[Set[_]](""" [iset, [2, 3, 4].toSet].toSet.flatten() """).contains(Set(0, 1, 2, 3, 4)))
+    assert(eval[Set[_]](""" [iset, [2, 3, 4].toSet()].toSet().flatten() """).contains(Set(0, 1, 2, 3, 4)))
 
-    assert(eval[Set[_]](""" [nullset].toSet.flatten() """).isEmpty)
-    assert(eval[Set[_]](""" [[0].toSet, nullset].toSet.flatten() """).isEmpty)
-    assert(eval[Set[_]](""" [nullset, [1].toSet].toSet.flatten() """).isEmpty)
-
-    TestUtils.interceptFatal("""No function found.*flatten""")(
-      eval[Set[_]](""" [iset, [2, 3, 4].toSet].flatten() """))
+    assert(eval[Set[_]](""" [nullset].toSet().flatten() """).isEmpty)
+    assert(eval[Set[_]](""" [[0].toSet(), nullset].toSet().flatten() """).isEmpty)
+    assert(eval[Set[_]](""" [nullset, [1].toSet()].toSet().flatten() """).isEmpty)
 
     TestUtils.interceptFatal("""No function found.*flatten""")(
-      eval[Set[_]](""" [[1], [2, 3, 4]].toSet.flatten() """))
+      eval[Set[_]](""" [iset, [2, 3, 4].toSet()].flatten() """))
+
+    TestUtils.interceptFatal("""No function found.*flatten""")(
+      eval[Set[_]](""" [[1], [2, 3, 4]].toSet().flatten() """))
 
     TestUtils.interceptFatal("""No function found.*flatten""")(
       eval[Set[_]](""" [0].flatten() """))
@@ -322,29 +322,29 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean](""" a.filter(x => x < 4).map(x => x * 100).exists(x => x == -100)   """)
       .contains(true))
 
-    assert(eval[Int]("""a.min""").contains(-1))
-    assert(eval[Int]("""a.max""").contains(8))
-    assert(eval[Int]("""a.median""").contains(3))
+    assert(eval[Int]("""a.min()""").contains(-1))
+    assert(eval[Int]("""a.max()""").contains(8))
+    assert(eval[Int]("""a.median()""").contains(3))
 
-    assert(eval[Int]("""emptyarr.sum""").contains(0))
-    assert(eval[Int]("""emptyarr.mean""").isEmpty)
-    assert(eval[Int]("""emptyarr.min""").isEmpty)
-    assert(eval[Int]("""emptyarr.max""").isEmpty)
-    assert(eval[Int]("""emptyarr.median""").isEmpty)
+    assert(eval[Int]("""emptyarr.sum()""").contains(0))
+    assert(eval[Int]("""emptyarr.mean()""").isEmpty)
+    assert(eval[Int]("""emptyarr.min()""").isEmpty)
+    assert(eval[Int]("""emptyarr.max()""").isEmpty)
+    assert(eval[Int]("""emptyarr.median()""").isEmpty)
 
-    assert(eval[Int]("""emptyset.sum""").contains(0))
-    assert(eval[Int]("""emptyset.mean""").isEmpty)
-    assert(eval[Int]("""emptyset.min""").isEmpty)
-    assert(eval[Int]("""emptyset.max""").isEmpty)
-    assert(eval[Int]("""emptyset.median""").isEmpty)
+    assert(eval[Int]("""emptyset.sum()""").contains(0))
+    assert(eval[Int]("""emptyset.mean()""").isEmpty)
+    assert(eval[Int]("""emptyset.min()""").isEmpty)
+    assert(eval[Int]("""emptyset.max()""").isEmpty)
+    assert(eval[Int]("""emptyset.median()""").isEmpty)
 
-    assert(eval[Double]("""a.mean""").contains(22 / 7.0))
-    assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
+    assert(eval[Double]("""a.mean()""").contains(22 / 7.0))
+    assert(eval[Int]("""a.sum()""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
     assert(eval[String](""" "" + 5 + "5" """) == eval[String](""" "5" + 5 """))
-    assert(eval[Int]("""iset.min""").contains(0))
-    assert(eval[Int]("""iset.max""").contains(2))
-    assert(eval[Int]("""iset.sum""").contains(3))
+    assert(eval[Int]("""iset.min()""").contains(0))
+    assert(eval[Int]("""iset.max()""").contains(2))
+    assert(eval[Int]("""iset.sum()""").contains(3))
 
     assert(eval[String](""" "\t\t\t" """).contains("\t\t\t"))
     assert(eval[String](""" "\"\"\"" """).contains("\"\"\""))
@@ -372,7 +372,7 @@ class ExprSuite extends SparkSuite {
 
 
     assert(eval[IndexedSeq[Any]]("""[1, 2, 3.0, 4]""").contains(IndexedSeq(1, 2, 3.0, 4)))
-    assert(eval[Double]("""[1, 2, 3.0, 4].max""").contains(4.0))
+    assert(eval[Double]("""[1, 2, 3.0, 4].max()""").contains(4.0))
 
     intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
     intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
@@ -501,7 +501,7 @@ class ExprSuite extends SparkSuite {
     TestUtils.interceptFatal("""invalid escape character.*backtick identifier.*\\i""")(eval[String](""" let `bad\identifier` = 0 in 0 """))
     TestUtils.interceptFatal("""unterminated backtick identifier""")(eval[String](""" let `bad\identifier = 0 in 0 """))
 
-    assert(D_==(eval[Double]("log(56.toLong)").get, math.log(56)))
+    assert(D_==(eval[Double]("log(56.toLong())").get, math.log(56)))
     assert(D_==(eval[Double]("exp(5.6)").get, math.exp(5.6)))
     assert(D_==(eval[Double]("log10(5.6)").get, math.log10(5.6)))
     assert(D_==(eval[Double]("log10(5.6)").get, eval[Double]("log(5.6, 10)").get))
@@ -542,13 +542,13 @@ class ExprSuite extends SparkSuite {
       eval[Double](""" log(Variant("22", 123, "A", "T")) """)
     }
 
-    assert(eval[Int]("[0, 0.toLong][0].toInt").contains(0))
-    assert(eval[Int]("[0, 0.toFloat][0].toInt").contains(0))
-    assert(eval[Int]("[0, 0.toDouble][0].toInt").contains(0))
+    assert(eval[Int]("[0, 0.toLong()][0].toInt()").contains(0))
+    assert(eval[Int]("[0, 0.toFloat()][0].toInt()").contains(0))
+    assert(eval[Int]("[0, 0.toDouble()][0].toInt()").contains(0))
     assert(eval[Boolean]("[NA:Int] == [0]").contains(false))
-    assert(eval[Boolean]("[NA:Long] == [0.toLong]").contains(false))
-    assert(eval[Boolean]("[NA:Float] == [0.toFloat]").contains(false))
-    assert(eval[Boolean]("[NA:Double] == [0.toDouble]").contains(false))
+    assert(eval[Boolean]("[NA:Long] == [0.toLong()]").contains(false))
+    assert(eval[Boolean]("[NA:Float] == [0.toFloat()]").contains(false))
+    assert(eval[Boolean]("[NA:Double] == [0.toDouble()]").contains(false))
 
     assert(eval[IndexedSeq[Int]]("range(5)").contains(IndexedSeq(0, 1, 2, 3, 4)))
     assert(eval[IndexedSeq[Int]]("range(1)").contains(IndexedSeq(0)))
@@ -557,14 +557,14 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Boolean]("pcoin(2.0)").contains(true))
     assert(eval[Boolean]("pcoin(-1.0)").contains(false))
-    assert(eval[Boolean]("pcoin(2.0.toFloat)").contains(true))
-    assert(eval[Boolean]("pcoin(-1.0.toFloat)").contains(false))
+    assert(eval[Boolean]("pcoin(2.0.toFloat())").contains(true))
+    assert(eval[Boolean]("pcoin(-1.0.toFloat())").contains(false))
 
     assert(eval[Boolean]("runif(2.0, 3.0) > -1.0").contains(true))
     assert(eval[Boolean]("runif(2.0, 3.0) < 3.0").contains(true))
     assert(eval[Boolean]("runif(2, 3) < 3.0").contains(true))
 
-    assert(eval[Boolean]("rnorm(2.0, 4.0).abs > -1.0").contains(true))
+    assert(eval[Boolean]("rnorm(2.0, 4.0).abs() > -1.0").contains(true))
 
     assert(D_==(eval[Double]("pnorm(qnorm(0.5))").get, 0.5))
     assert(D_==(eval[Double]("qnorm(pnorm(0.5))").get, 0.5))
@@ -620,13 +620,13 @@ class ExprSuite extends SparkSuite {
       x.get(false) should contain theSameElementsAs Seq(1,3,5)
     }
 
-    (eval[Map[String,IndexedSeq[Int]]]("[1].tail.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+    (eval[Map[String,IndexedSeq[Int]]]("[1].tail().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
       shouldBe empty)
 
-    (eval[Map[Int,IndexedSeq[Int]]]("[1].tail.groupBy(k => k % 2)").get
+    (eval[Map[Int,IndexedSeq[Int]]]("[1].tail().groupBy(k => k % 2)").get
       shouldBe empty)
 
-    (eval[Map[Boolean,IndexedSeq[Int]]]("[1].tail.groupBy(k => k % 2 == 0)").get
+    (eval[Map[Boolean,IndexedSeq[Int]]]("[1].tail().groupBy(k => k % 2 == 0)").get
       shouldBe empty)
 
     {
@@ -644,25 +644,25 @@ class ExprSuite extends SparkSuite {
     }
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("even", "odd")
       x.get("even") should contain theSameElementsAs Seq(2,4)
       x.get("odd") should contain theSameElementsAs Seq(1,3,5)
     }
 
-    (eval[Map[String,IndexedSeq[Int]]]("[1].tail.toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+    (eval[Map[String,IndexedSeq[Int]]]("[1].tail().toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
       shouldBe empty)
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[1].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("odd")
       x.get("odd") should contain theSameElementsAs Seq(1)
     }
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[2].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String,IndexedSeq[Int]]]("[2].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("even")
       x.get("even") should contain theSameElementsAs Seq(2)
@@ -769,7 +769,7 @@ class ExprSuite extends SparkSuite {
     assert(Parser.parseExpr("if (c) 0 else l", ec)._1 == TLong)
     assert(Parser.parseExpr("if (c) f else 0", ec)._1 == TFloat)
     assert(Parser.parseExpr("if (c) 0 else 0.0", ec)._1 == TDouble)
-    assert(eval[Int]("(if (true) 0 else 0.toLong).toInt") == (TInt, Some(0)))
-    assert(eval[Int]("(if (true) 0 else 0.toFloat).toInt") == (TInt, Some(0)))
+    assert(eval[Int]("(if (true) 0 else 0.toLong()).toInt()") == (TInt, Some(0)))
+    assert(eval[Int]("(if (true) 0 else 0.toFloat()).toInt()") == (TInt, Some(0)))
   }
 }

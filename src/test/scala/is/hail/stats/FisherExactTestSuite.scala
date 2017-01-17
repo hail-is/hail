@@ -97,19 +97,19 @@ class FisherExactTestSuite extends SparkSuite {
 
         val vds2 = vds.annotateSamplesTable(phenotypeFile, "Sample", root = Some("sa.pheno"))
           .annotateVariantsExpr(
-            """va.macCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet).count() +
-              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar).count()""".stripMargin)
+            """va.macCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet()).count() +
+              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar()).count()""".stripMargin)
           .annotateVariantsExpr(
-            """va.majCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet).count() +
-              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef).count()""".stripMargin)
+            """va.majCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet()).count() +
+              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef()).count()""".stripMargin)
           .annotateVariantsExpr(
-            """va.macControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() +
-              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar).count()""".stripMargin)
+            """va.macControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet()).count() +
+              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar()).count()""".stripMargin)
           .annotateVariantsExpr(
-            """va.majControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() +
-              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef).count()""".stripMargin)
+            """va.majControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet()).count() +
+              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef()).count()""".stripMargin)
           .annotateVariantsExpr(
-            """va.fet = fet(va.macCase.toInt, va.majCase.toInt, va.macControl.toInt, va.majControl.toInt)""")
+            """va.fet = fet(va.macCase.toInt(), va.majCase.toInt(), va.macControl.toInt(), va.majControl.toInt())""")
 
 
         val (_, q1) = vds2.queryVA("va.macCase")

@@ -57,6 +57,8 @@ sealed abstract class Type {
 
   def clear(): Unit = children.foreach(_.clear())
 
+  def desc: String = ""
+
   def unify(concrete: Type): Boolean = {
     this == concrete
   }
@@ -319,6 +321,8 @@ case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends 
     assert(st != null)
     TAggregable(elementType.subst(), st.get)
   }
+
+  override def desc: String = TAggregable.desc
 }
 
 case class TVariable(name: String, var t: Type = null) extends Type {
@@ -349,6 +353,8 @@ case class TVariable(name: String, var t: Type = null) extends Type {
 }
 
 object TAggregable {
+  val desc = """An ``Aggregable`` is a Hail data type representing a distributed row or column of a matrix. Hail exposes a number of methods to compute on aggregables depending on the data type."""
+
   def apply(elementType: Type, symTab: SymbolTable): TAggregable = {
     val agg = TAggregable(elementType)
     agg.symTab = symTab
@@ -376,6 +382,8 @@ case class TAggregable(elementType: Type) extends TContainer {
   def typeCheck(a: Any) = ???
 
   override def toString: String = s"Aggregable[${ elementType.toString }]"
+
+  override def desc: String = TAggregable.desc
 }
 
 abstract class TContainer extends Type {
@@ -417,6 +425,27 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
+
+  override def desc: String =
+    """
+    An ``Array`` is a collection of items that all have the same data type (ex: Int, String) and are indexed. Arrays can be constructed by specifying ``[item1, item2, ...]`` and they are 0-indexed.
+
+    An example of constructing an array and accessing an element is:
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [1, 10, 3, 7] in a[1]
+        result: 10
+
+    They can also be nested such as Array[Array[Int]]:
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [[1, 2, 3], [4, 5], [], [6, 7]] in a[1]
+        result: [4, 5]
+    """
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -441,6 +470,25 @@ case class TSet(elementType: Type) extends TIterable {
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
+
+  override def desc: String =
+    """
+    A ``Set`` is an unordered collection with no repeated values of a given data type (ex: Int, String). Sets can be constructed by specifying ``[item1, item2, ...].toSet()``.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = ["rabbit", "cat", "dog", "dog"].toSet()
+        result: Set("cat", "dog", "rabbit")
+
+    They can also be nested such as Set[Set[Int]]:
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [[1, 2, 3].toSet(), [4, 5, 5].toSet()].toSet()
+        result: Set(Set(1, 2, 3), Set(4, 5))
+    """
 }
 
 case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -485,6 +533,11 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
         .forall { case (_, (o1, o2)) =>
           o1.liftedZip(o2).exists { case (v1, v2) => valueType.valuesSimilar(v1, v2, tolerance) }
         }
+
+  override def desc: String =
+    """
+    A ``Dict`` is an unordered collection of key-value pairs. Each key can only appear once in the collection.
+    """
 }
 
 case object TSample extends Type {
@@ -493,6 +546,8 @@ case object TSample extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
   override def genNonmissingValue: Gen[Annotation] = Gen.identifier
+
+  override def desc: String = "A ``Sample`` is a Hail data type representing a sample in the Variant Dataset. It is referred to as ``s`` in the expression language."
 }
 
 case object TGenotype extends Type {
@@ -501,6 +556,8 @@ case object TGenotype extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
   override def genNonmissingValue: Gen[Annotation] = Genotype.genArb
+
+  override def desc: String = "A ``Genotype`` is a Hail data type representing a genotype in the Variant Dataset. It is referred to as ``g`` in the expression language."
 }
 
 case object TAltAllele extends Type {
@@ -509,6 +566,8 @@ case object TAltAllele extends Type {
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 
   override def genNonmissingValue: Gen[Annotation] = AltAllele.gen
+
+  override def desc: String = "An ``AltAllele`` is a Hail data type representing an alternate allele in the Variant Dataset."
 }
 
 case object TVariant extends Type {
@@ -517,6 +576,18 @@ case object TVariant extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
   override def genNonmissingValue: Gen[Annotation] = Variant.gen
+
+  override def desc: String =
+    """
+    A ``Variant`` is a Hail data type representing a variant in the Variant Dataset. It is referred to as ``v`` in the expression language.
+
+    The `pseudoautosomal region <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`_ (PAR) is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
+
+    - X: 60001 - 2699520, 154931044 - 155260560
+    - Y: 10001 - 2649520, 59034050 - 59363566
+
+    Most callers assign variants in PAR to X.
+    """
 }
 
 case object TLocus extends Type {
@@ -525,6 +596,8 @@ case object TLocus extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
 
   override def genNonmissingValue: Gen[Annotation] = Locus.gen
+
+  override def desc: String = "A ``Locus`` is a Hail data type representing a specific genomic location in the Variant Dataset."
 }
 
 case object TInterval extends Type {
@@ -533,6 +606,8 @@ case object TInterval extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(Locus.gen)
+
+  override def desc: String = "An ``Interval`` is a Hail data type representing a range of genomic locations in the Variant Dataset."
 }
 
 case class Field(name: String, typ: Type,
@@ -907,4 +982,18 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
           f.typ.valuesSimilar(x1, x2, tolerance)
       })
 
+  override def desc: String =
+    """
+    A ``Struct`` is like a Python tuple where the fields are named and the set of fields is fixed.
+
+    An example of constructing and accessing the fields in a ``Struct`` is
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = {gene: "ACBD", function: "LOF", nHet: 12} in s.gene
+        result: "ACBD"
+
+    A field of the ``Struct`` can also be another ``Struct``. For example, ``va.info.AC`` selects the struct ``info`` from the struct ``va``, and then selects the array ``AC`` from the struct ``info``.
+    """
 }

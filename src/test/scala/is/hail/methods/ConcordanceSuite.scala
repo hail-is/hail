@@ -138,8 +138,8 @@ class ConcordanceSuite extends SparkSuite {
 
       val (globals, samples, variants) = vds1.concordance(vds2)
 
-      val (_, queryUnique1Sum) = samples.querySA("sa.concordance[0].sum")
-      val (_, queryUnique2Sum) = samples.querySA("sa.concordance.map(x => x[0]).sum")
+      val (_, queryUnique1Sum) = samples.querySA("sa.concordance[0].sum()")
+      val (_, queryUnique2Sum) = samples.querySA("sa.concordance.map(x => x[0]).sum()")
       val (_, innerJoinQuery) = samples.querySA("sa.concordance.map(x => x[1:])[1:]")
 
       samples.sampleIdsAndAnnotations.foreach { case (s, sa) =>

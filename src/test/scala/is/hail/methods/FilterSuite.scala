@@ -72,7 +72,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds2.filterGenotypes("g.ad[0] < 30").expand().collect().count(_._3.isCalled) == 3)
 
-    assert(vds2.filterGenotypes("g.ad[1].toDouble / g.dp > 0.05").expand().collect().count(_._3.isCalled) == 3)
+    assert(vds2.filterGenotypes("g.ad[1].toDouble() / g.dp > 0.05").expand().collect().count(_._3.isCalled) == 3)
 
     val highGQ2 = vds2.filterGenotypes("g.gq < 20", keep = false)
 
@@ -84,13 +84,13 @@ class FilterSuite extends SparkSuite {
 
     assert(chr1.expand().collect().count(_._3.isCalled) == 9 * 11 - 2)
 
-    val hetOrHomVarOnChr1 = chr1.filterGenotypes("g.isHomRef", keep = false)
+    val hetOrHomVarOnChr1 = chr1.filterGenotypes("g.isHomRef()", keep = false)
       .expand()
       .collect()
 
     assert(hetOrHomVarOnChr1.count(_._3.isCalled) == 9 + 3 + 3) // remove does not retain the 2 missing genotypes
 
-    val homRefOnChr1 = chr1.filterGenotypes("g.isHomRef")
+    val homRefOnChr1 = chr1.filterGenotypes("g.isHomRef()")
       .expand()
       .collect()
 
@@ -158,7 +158,7 @@ class FilterSuite extends SparkSuite {
   @Test def testPAB() {
     hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
-      .filterGenotypes("g.isHet && g.pAB > 0.0005")
+      .filterGenotypes("g.isHet() && g.pAB() > 0.0005")
       .expand()
       .collect()
       .foreach { case (v, s, g) =>

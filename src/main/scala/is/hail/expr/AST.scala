@@ -247,13 +247,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
                |  Available fields: [ ${ t.fields.map(x => prettyIdentifier(x.name)).mkString("\n  ") } ]""".stripMargin)
         }
 
-      case (t, name) => FunctionRegistry.lookupMethodReturnType(t, Seq(), name)
+      case (t, name) => FunctionRegistry.lookupFieldReturnType(t, Seq(), name)
         .valueOr {
           case FunctionRegistry.NotFound(name, typ) =>
             parseError(
               s"""`$t' has no field `$rhs'
                  |  Hint: Don't forget empty-parentheses in a method call, e.g.
-                 |    gs.filter(g => g.isCalledHomVar).collect()""".stripMargin)
+                 |    gs.filter(g => g.isCalledHomVar()).collect()""".stripMargin)
           case otherwise => parseError(otherwise.message)
         }
     }
@@ -265,7 +265,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       val i = f.index
       AST.evalCompose[Row](ec, lhs)(_.get(i))
 
-    case (t, name) => FunctionRegistry.lookupMethod(ec)(t, Seq(), name)(lhs, Seq())
+    case (t, name) => FunctionRegistry.lookupField(ec)(t, Seq(), name)(lhs, Seq())
       .valueOr {
         case FunctionRegistry.NotFound(name, typ) =>
           fatal(

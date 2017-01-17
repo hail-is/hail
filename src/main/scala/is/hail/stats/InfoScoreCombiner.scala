@@ -1,12 +1,15 @@
 package is.hail.stats
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{TDouble, TInt, TStruct}
+import is.hail.expr.{Field, TDouble, TInt, TStruct}
 import is.hail.utils._
 import is.hail.variant.Genotype
 
 object InfoScoreCombiner {
-  def signature = TStruct("score" -> TDouble, "nIncluded" -> TInt)
+  def signature = TStruct(Array(
+    ("score", TDouble, "IMPUTE info score"),
+    ("nIncluded", TInt, "Number of samples with non-missing dosages")
+  ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 }
 
 class InfoScoreCombiner extends Serializable {

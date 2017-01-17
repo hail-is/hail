@@ -343,8 +343,8 @@ task copyJavascript(type: Copy, dependsOn: setupDocsDirs) {
     into 'build/tmp/docs'
 }
 
-task copyTex(type: Copy, dependsOn: setupDocsDirs) {
-    from 'docs/LeveneHaldane.tex'
+task copyPDF(type: Copy, dependsOn: setupDocsDirs) {
+    from 'docs/LeveneHaldane.pdf'
     into 'build/www'
 }
 
@@ -362,6 +362,13 @@ task setupTutorial(type: Exec) {
     workingDir 'python/hail/docs'
     args tutorialFileLoc
     executable 'scripts/setupTutorial.sh'
+}
+
+task makeFunctionsRst(type: Exec, dependsOn: ['setupDocsDirs', 'shadowJar']) {
+    commandLine 'python', '-c', 'from hail import *; from hail.utils import *; hc = HailContext(); fd = FunctionDocumentation(); fd.types_rst("python/hail/docs/types.rst"); fd.functions_rst("python/hail/docs/functions.rst")'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment SPARK_HOME: sparkHome
+    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
 task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
@@ -385,7 +392,7 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copy
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial']) {
+task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst']) {
     workingDir 'python/hail/docs'
     commandLine 'make', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
@@ -411,7 +418,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     into 'build/www'
 }
 
-task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocs']) {
+task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocs']) {
 }
 
 task createDocs(dependsOn: createWebsite)

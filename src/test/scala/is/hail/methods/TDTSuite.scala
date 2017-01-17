@@ -14,7 +14,7 @@ class TDTSuite extends SparkSuite {
       .splitMulti()
       .tdt("src/test/resources/tdt.fam")
       .filterVariantsExpr("v.contig != \"Y\" && v.contig != \"MT\"")
-      .exportVariants(out, "CHROM=v.contig, POSITION=v.start, REF=v.ref, ALT=v.alt, " +
+      .exportVariants(out, "CHROM=v.contig, POSITION=v.start, REF=v.ref, ALT=v.alt(), " +
         "T = va.tdt.nTransmitted, U = va.tdt.nUntransmitted, Chi2 = va.tdt.chi2, Pval = va.tdt.pval")
 
     def parse(file: String) = {

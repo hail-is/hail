@@ -11,6 +11,9 @@ import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import scala.collection.mutable
 import scala.language.higherKinds
 
+case class MetaData(docstring: Option[String], args: Seq[(String, String)] = Seq.empty[(String, String)])
+
+
 object FunctionRegistry {
 
   sealed trait LookupError {
@@ -29,7 +32,7 @@ object FunctionRegistry {
 
   type Err[T] = Either[LookupError, T]
 
-  private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun)]]().withDefaultValue(Seq.empty)
+  private val registry = mutable.HashMap[String, Seq[(TypeTag, Fun, MetaData)]]().withDefaultValue(Seq.empty)
 
   private val conversions = new mutable.HashMap[(Type, Type), (Int, UnaryFun[Any, Any])]
 
@@ -49,9 +52,9 @@ object FunctionRegistry {
 
   private def lookup(name: String, typ: TypeTag): Err[Fun] = {
 
-    val matches = registry(name).flatMap { case (tt, f) =>
+    val matches = registry(name).flatMap { case (tt, f, _) =>
       tt.clear()
-      if (tt.xs.size == typ.xs.size) {
+      if (tt.getClass == typ.getClass && tt.xs.size == typ.xs.size) {
         val conversions = (tt.xs, typ.xs).zipped.map { case (l, r) =>
           if (l.isBound) {
             if (l.unify(r))
@@ -92,8 +95,25 @@ object FunctionRegistry {
       }
   }
 
-  private def bind(name: String, typ: TypeTag, f: Fun) = {
-    registry.updateValue(name, Seq.empty, (typ, f) +: _)
+  private def bind(name: String, typ: TypeTag, f: Fun, md: MetaData) = {
+    registry.updateValue(name, Seq.empty, (typ, f, md) +: _)
+  }
+
+  def getRegistry() = registry
+
+  def lookupFieldReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
+    lookup(name, FieldType(typ +: typs: _*)).map(_.retType)
+
+  def lookupField(ec: EvalContext)(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): Err[() => Any] = {
+    require(args.isEmpty)
+
+    val m = lookup(name, FieldType(typ +: typs: _*))
+    m.map {
+      case f: UnaryFun[_, _] =>
+        AST.evalCompose(ec, lhs)(f)
+      case fn =>
+        throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
+    }
   }
 
   def lookupMethodReturnType(typ: Type, typs: Seq[Type], name: String): Err[Type] =
@@ -314,135 +334,140 @@ object FunctionRegistry {
   def lookupFunReturnType(name: String, typs: Seq[Type]): Err[Type] =
     lookup(name, FunType(typs: _*)).map(_.retType)
 
-  def registerMethod[T, U](name: String, impl: T => U)
+  def registerField[T, U](name: String, impl: T => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), UnaryFun[T, U](hru.typ, impl))
+    bind(name, FieldType(hrt.typ), UnaryFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def registerMethod[T, U, V](name: String, impl: (T, U) => V)
+  def registerMethod[T, U](name: String, impl: T => U, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, MethodType(hrt.typ), UnaryFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerMethod[T, U, V](name: String, impl: (T, U) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl))
+    bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def registerMethodSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V)
+  def registerMethodSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl))
+    bind(name, MethodType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def registerLambdaMethod[T, U, V](name: String, impl: (T, (Any) => Any) => V)
+  def registerLambdaMethod[T, U, V](name: String, impl: (T, (Any) => Any) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     val m = BinaryLambdaFun[T, U, V](hrv.typ, impl)
-    bind(name, MethodType(hrt.typ, hru.typ), m)
+    bind(name, MethodType(hrt.typ, hru.typ), m, MetaData(Option(docstring), argNames))
   }
 
-  def registerLambdaMethod[T, U, V, W](name: String, impl: (T, (Any) => Any, V) => W)
+  def registerLambdaMethod[T, U, V, W](name: String, impl: (T, (Any) => Any, V) => W, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
     val m = Arity3LambdaFun[T, U, V, W](hrw.typ, impl)
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m)
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), m, MetaData(Option(docstring), argNames))
   }
 
-  def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V])
+  def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     val m = BinaryLambdaAggregatorTransformer[T, U, V](hrv.typ, impl)
-    bind(name, MethodType(hrt.typ, hru.typ), m)
+    bind(name, MethodType(hrt.typ, hru.typ), m, MetaData(Option(docstring), argNames))
   }
 
-  def registerMethod[T, U, V, W](name: String, impl: (T, U, V) => W)
+  def registerMethod[T, U, V, W](name: String, impl: (T, U, V) => W, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ, impl))
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def register[T, U](name: String, impl: T => U)
+  def register[T, U](name: String, impl: T => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FunType(hrt.typ), UnaryFun[T, U](hru.typ, impl))
+    bind(name, FunType(hrt.typ), UnaryFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def registerSpecial[T, U](name: String, impl: (() => Any) => U)
+  def registerSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FunType(hrt.typ), UnarySpecial[T, U](hru.typ, impl))
+    bind(name, FunType(hrt.typ), UnarySpecial[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def registerUnaryNAFilteredCollectionMethod[T, U](name: String, impl: TraversableOnce[T] => U)
+  def registerUnaryNAFilteredCollectionMethod[T, U](name: String, impl: TraversableOnce[T] => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, MethodType(TArray(hrt.typ)), UnaryFun[IndexedSeq[_], U](hru.typ, { (ts: IndexedSeq[_]) =>
       impl(ts.filter(t => t != null).map(_.asInstanceOf[T]))
-    }))
+    }), MetaData(Option(docstring), argNames))
     bind(name, MethodType(TSet(hrt.typ)), UnaryFun[Set[_], U](hru.typ, { (ts: Set[_]) =>
       impl(ts.filter(t => t != null).map(_.asInstanceOf[T]))
-    }))
+    }), MetaData(Option(docstring), argNames))
   }
 
-  def register[T, U, V](name: String, impl: (T, U) => V)
+  def register[T, U, V](name: String, impl: (T, U) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, FunType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def registerSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V)
+  def registerSpecial[T, U, V](name: String, impl: (() => Any, () => Any) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, FunType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ), BinarySpecial[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def register[T, U, V, W](name: String, impl: (T, U, V) => W)
+  def register[T, U, V, W](name: String, impl: (T, U, V) => W, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def register[T, U, V, W, X](name: String, impl: (T, U, V, W) => X)
+  def register[T, U, V, W, X](name: String, impl: (T, U, V, W) => X, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4Fun[T, U, V, W, X](hrx.typ, impl))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4Fun[T, U, V, W, X](hrx.typ, impl), MetaData(Option(docstring), argNames))
   }
 
-  def registerAnn[T](name: String, t: TStruct, impl: T => Annotation)
+  def registerAnn[T](name: String, t: TStruct, impl: T => Annotation, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T]) = {
-    register(name, impl)(hrt, new HailRep[Annotation] {
+    register(name, impl, docstring, argNames: _*)(hrt, new HailRep[Annotation] {
       def typ = t
     })
   }
 
-  def registerAnn[T, U](name: String, t: TStruct, impl: (T, U) => Annotation)
+  def registerAnn[T, U](name: String, t: TStruct, impl: (T, U) => Annotation, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    register(name, impl)(hrt, hru, new HailRep[Annotation] {
+    register(name, impl, docstring, argNames: _*)(hrt, hru, new HailRep[Annotation] {
       def typ = t
     })
   }
 
-  def registerAnn[T, U, V](name: String, t: TStruct, impl: (T, U, V) => Annotation)
+  def registerAnn[T, U, V](name: String, t: TStruct, impl: (T, U, V) => Annotation, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    register(name, impl)(hrt, hru, hrv, new HailRep[Annotation] {
+    register(name, impl, docstring, argNames: _*)(hrt, hru, hrv, new HailRep[Annotation] {
       def typ = t
     })
   }
 
-  def registerAnn[T, U, V, W](name: String, t: TStruct, impl: (T, U, V, W) => Annotation)
+  def registerAnn[T, U, V, W](name: String, t: TStruct, impl: (T, U, V, W) => Annotation, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    register(name, impl)(hrt, hru, hrv, hrw, new HailRep[Annotation] {
+    register(name, impl, docstring, argNames: _*)(hrt, hru, hrv, hrw, new HailRep[Annotation] {
       def typ = t
     })
   }
 
-  def registerAggregator[T, U](name: String, ctor: () => TypedAggregator[U])
+  def registerAggregator[T, U](name: String, ctor: () => TypedAggregator[U], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), Arity0Aggregator[T, U](hru.typ, ctor))
+    bind(name, MethodType(hrt.typ), Arity0Aggregator[T, U](hru.typ, ctor), MetaData(Option(docstring), argNames))
   }
 
-  def registerLambdaAggregator[T, U, V](name: String, ctor: ((Any) => Any) => TypedAggregator[V])
+  def registerLambdaAggregator[T, U, V](name: String, ctor: ((Any) => Any) => TypedAggregator[V], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), UnaryLambdaAggregator[T, U, V](hrv.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ), UnaryLambdaAggregator[T, U, V](hrv.typ, ctor), MetaData(Option(docstring), argNames))
   }
 
-  def registerLambdaAggregator[T, U, V, W](name: String, ctor: ((Any) => Any, V) => TypedAggregator[W])
+  def registerLambdaAggregator[T, U, V, W](name: String, ctor: ((Any) => Any, V) => TypedAggregator[W], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), BinaryLambdaAggregator[T, U, V, W](hrw.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ), BinaryLambdaAggregator[T, U, V, W](hrw.typ, ctor), MetaData(Option(docstring), argNames))
   }
 
-  def registerAggregator[T, U, V](name: String, ctor: (U) => TypedAggregator[V])
+  def registerAggregator[T, U, V](name: String, ctor: (U) => TypedAggregator[V], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
-    bind(name, MethodType(hrt.typ, hru.typ), Arity1Aggregator[T, U, V](hrv.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ), Arity1Aggregator[T, U, V](hrv.typ, ctor), MetaData(Option(docstring), argNames))
   }
 
-  def registerAggregator[T, U, V, W, X](name: String, ctor: (U, V, W) => TypedAggregator[X])
+  def registerAggregator[T, U, V, W, X](name: String, ctor: (U, V, W) => TypedAggregator[X], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity3Aggregator[T, U, V, W, X](hrx.typ, ctor))
+    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity3Aggregator[T, U, V, W, X](hrx.typ, ctor), MetaData(Option(docstring), argNames))
   }
 
   val TT = TVariable("T")
@@ -459,70 +484,70 @@ object FunctionRegistry {
     def typ = TV
   }
 
-  registerMethod("gt", { (x: Genotype) =>
+  registerField("gt", { (x: Genotype) =>
     val gt = x.unboxedGT
     if (gt == -1)
       null
     else
       box(gt)
-  })
+  }, "the call, ``gt = k\\*(k+1)/2+j`` for call ``j/k``.")
   registerMethod("gtj", { (x: Genotype) =>
     val gt = x.unboxedGT
     if (gt == -1)
       null
     else
       box(Genotype.gtPair(gt).j)
-  })
+  }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
   registerMethod("gtk", { (x: Genotype) =>
     val gt = x.unboxedGT
     if (gt == -1)
       null
     else
       box(Genotype.gtPair(gt).k)
-  })
-  registerMethod("ad", { (x: Genotype) => x.unboxedAD: IndexedSeq[Int] })
-  registerMethod("dp", { (x: Genotype) =>
+  }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
+  registerField("ad", { (x: Genotype) => x.unboxedAD: IndexedSeq[Int] }, "allelic depth for each allele.")
+  registerField("dp", { (x: Genotype) =>
     val dp = x.unboxedDP
     if (dp == -1)
       null
     else
       box(dp)
-  })
+  }, "the total number of informative reads.")
   registerMethod("od", { (x: Genotype) =>
     if (x.hasOD)
       box(x.od_)
     else
       null
-  })
-  registerMethod("gq", { (x: Genotype) =>
+  }, "``od = dp - ad.sum``.")
+  registerField("gq", { (x: Genotype) =>
     val gq = x.unboxedGQ
     if (gq == -1)
       null
     else
       box(gq)
-  })
-  registerMethod("pl", { (x: Genotype) => x.unboxedPL: IndexedSeq[Int] })
-  registerMethod("dosage", { (x: Genotype) => x.unboxedDosage: IndexedSeq[Double] })
-  registerMethod("isHomRef", { (x: Genotype) => x.isHomRef })
-  registerMethod("isHet", { (x: Genotype) => x.isHet })
-  registerMethod("isHomVar", { (x: Genotype) => x.isHomVar })
-  registerMethod("isCalledNonRef", { (x: Genotype) => x.isCalledNonRef })
-  registerMethod("isHetNonRef", { (x: Genotype) => x.isHetNonRef })
-  registerMethod("isHetRef", { (x: Genotype) => x.isHetRef })
-  registerMethod("isCalled", { (x: Genotype) => x.isCalled })
-  registerMethod("isNotCalled", { (x: Genotype) => x.isNotCalled })
+  }, "the difference between the two smallest PL entries.")
+  registerField("pl", { (x: Genotype) => x.unboxedPL: IndexedSeq[Int] }, "phred-scaled normalized genotype likelihood values. The conversion between ``g.pl`` (Phred-scaled likelihoods) and ``g.dosage`` (linear-scaled probabilities) assumes a uniform prior.")
+  registerField("dosage", { (x: Genotype) => x.unboxedDosage: IndexedSeq[Double] }, "the linear-scaled probabilities.")
+  registerMethod("isHomRef", { (x: Genotype) => x.isHomRef }, "True if this call is ``0/0``.")
+  registerMethod("isHet", { (x: Genotype) => x.isHet }, "True if this call is heterozygous.")
+  registerMethod("isHomVar", { (x: Genotype) => x.isHomVar }, "True if this call is ``j/j`` with ``j>0``.")
+  registerMethod("isCalledNonRef", { (x: Genotype) => x.isCalledNonRef }, "True if either ``g.isHet`` or ``g.isHomVar`` is true.")
+  registerMethod("isHetNonRef", { (x: Genotype) => x.isHetNonRef }, "True if this call is ``j/k`` with ``j>0``.")
+  registerMethod("isHetRef", { (x: Genotype) => x.isHetRef }, "True if this call is ``0/k`` with ``k>0``.")
+  registerMethod("isCalled", { (x: Genotype) => x.isCalled }, "True if the genotype is not ``./.``.")
+  registerMethod("isNotCalled", { (x: Genotype) => x.isNotCalled }, "True if the genotype is ``./.``.")
   registerMethod("nNonRefAlleles", { (x: Genotype) =>
     if (x.hasNNonRefAlleles)
       box(x.nNonRefAlleles_)
     else
       null
-  })(genotypeHr, boxedintHr)
+  }, "the number of called alternate alleles.")(genotypeHr, boxedintHr)
   registerMethod("pAB", { (x: Genotype) =>
     if (x.hasPAB)
       box(x.pAB_())
     else
       null
-  })
+  }, "p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Missing if the call is not heterozygous.")
   registerMethod("fractionReadsRef", { (x: Genotype) =>
     if (x.unboxedAD != null) {
       val s = intArraySum(x.unboxedAD)
@@ -532,85 +557,192 @@ object FunctionRegistry {
         null
     } else
       null
-  })
-  registerMethod("fakeRef", { (x: Genotype) => x.fakeRef })
-  registerMethod("isDosage", { (x: Genotype) => x.isDosage })
-  registerMethod("contig", { (x: Variant) => x.contig })
-  registerMethod("start", { (x: Variant) => x.start })
-  registerMethod("ref", { (x: Variant) => x.ref })
-  registerMethod("altAlleles", { (x: Variant) => x.altAlleles })
-  registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles })
-  registerMethod("nAlleles", { (x: Variant) => x.nAlleles })
-  registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic })
-  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes })
-  registerMethod("inXPar", { (x: Variant) => x.inXPar })
-  registerMethod("inYPar", { (x: Variant) => x.inYPar })
-  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar })
-  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar })
+  }, "the ratio of ref reads to the sum of all *informative* reads.")
+  registerField("fakeRef", { (x: Genotype) => x.fakeRef }, "True if this genotype was downcoded in :py:meth:`~hail.VariantDataset.split_multi`.  This can happen if a ``1/2`` call is split to ``0/1``, ``0/1``.")
+  registerField("isDosage", { (x: Genotype) => x.isDosage }, "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
+  registerField("contig", { (x: Variant) => x.contig }, "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")
+  registerField("start", { (x: Variant) => x.start }, "SNP position or start of an indel.")
+  registerField("ref", { (x: Variant) => x.ref }, "Reference allele sequence.")
+  registerField("altAlleles", { (x: Variant) => x.altAlleles }, "The :ref:`alternate alleles <altallele>`.")
+  registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles }, "Number of alternate alleles, equal to ``nAlleles - 1``.")
+  registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, "Number of alleles.")
+  registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, "True if `v` has one alternate allele.")
+  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, "Number of genotypes.")
+  registerMethod("inXPar", { (x: Variant) => x.inXPar }, "True if chromosome is X and start is in pseudoautosomal region of X.")
+  registerMethod("inYPar", { (x: Variant) => x.inYPar }, "True if chromosome is Y and start is in pseudoautosomal region of Y. *NB: most callers assign variants in PAR to X.*")
+  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar }, "True if chromosome is X and start is not in pseudoautosomal region of X.")
+  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar }, "True if chromosome is Y and start is not in pseudoautosomal region of Y.")
   // assumes biallelic
-  registerMethod("alt", { (x: Variant) => x.alt })
-  registerMethod("altAllele", { (x: Variant) => x.altAllele })
-  registerMethod("locus", { (x: Variant) => x.locus })
-  registerMethod("contig", { (x: Locus) => x.contig })
-  registerMethod("position", { (x: Locus) => x.position })
-  registerMethod("start", { (x: Interval[Locus]) => x.start })
-  registerMethod("end", { (x: Interval[Locus]) => x.end })
-  registerMethod("ref", { (x: AltAllele) => x.ref })
-  registerMethod("alt", { (x: AltAllele) => x.alt })
-  registerMethod("isSNP", { (x: AltAllele) => x.isSNP })
-  registerMethod("isMNP", { (x: AltAllele) => x.isMNP })
-  registerMethod("isIndel", { (x: AltAllele) => x.isIndel })
-  registerMethod("isInsertion", { (x: AltAllele) => x.isInsertion })
-  registerMethod("isDeletion", { (x: AltAllele) => x.isDeletion })
-  registerMethod("isComplex", { (x: AltAllele) => x.isComplex })
-  registerMethod("isTransition", { (x: AltAllele) => x.isTransition })
-  registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion })
-  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal })
+  registerMethod("alt", { (x: Variant) => x.alt }, "Alternate allele sequence.  **Assumes biallelic.**")
+  registerMethod("altAllele", { (x: Variant) => x.altAllele }, "The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**")
+  registerMethod("locus", { (x: Variant) => x.locus }, "Chromosomal locus (chr, pos) of this variant")
+  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal }, "True if chromosome is not X, not Y, and not MT.")
+  registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")
+  registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")
+  registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus` at the start of the interval (inclusive).")
+  registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus` at the end of the interval (exclusive).")
+  registerField("ref", { (x: AltAllele) => x.ref }, "Reference allele base sequence.")
+  registerField("alt", { (x: AltAllele) => x.alt }, "Alternate allele base sequence.")
+  registerMethod("isSNP", { (x: AltAllele) => x.isSNP }, "True if ``v.ref`` and ``v.alt`` are the same length and differ in one position.")
+  registerMethod("isMNP", { (x: AltAllele) => x.isMNP }, "True if ``v.ref`` and ``v.alt`` are the same length and differ in more than one position.")
+  registerMethod("isIndel", { (x: AltAllele) => x.isIndel }, "True if an insertion or a deletion.")
+  registerMethod("isInsertion", { (x: AltAllele) => x.isInsertion }, "True if ``v.alt`` begins with and is longer than ``v.ref``.")
+  registerMethod("isDeletion", { (x: AltAllele) => x.isDeletion }, "True if ``v.ref`` begins with and is longer than ``v.alt``.")
+  registerMethod("isComplex", { (x: AltAllele) => x.isComplex }, "True if not a SNP, MNP, insertion, or deletion.")
+  registerMethod("isTransition", { (x: AltAllele) => x.isTransition }, "True if a purine-purine or pyrimidine-pyrimidine SNP.")
+  registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion }, "True if a purine-pyrimidine SNP.")
 
-  registerMethod("length", { (x: String) => x.length })
+  registerMethod("length", { (x: String) => x.length }, "Length of the string.")
 
-  registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Int]) => x.sum })
-  registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Long]) => x.sum })
-  registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Float]) => x.sum })
-  registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Double]) => x.sum })
+  val sumDocstring = "Sum of all elements in the collection."
+  registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Int]) => x.sum }, sumDocstring)
+  registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Long]) => x.sum }, sumDocstring)
+  registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Float]) => x.sum }, sumDocstring)
+  registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Double]) => x.sum }, sumDocstring)
 
-  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.min) else null })(intHr, boxedintHr)
-  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.min) else null })(longHr, boxedlongHr)
-  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.min) else null })(floatHr, boxedfloatHr)
-  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.min) else null })(doubleHr, boxeddoubleHr)
+  val minDocstring = "Smallest element in the collection."
+  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.min) else null }, minDocstring)(intHr, boxedintHr)
+  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.min) else null }, minDocstring)(longHr, boxedlongHr)
+  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.min) else null }, minDocstring)(floatHr, boxedfloatHr)
+  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.min) else null }, minDocstring)(doubleHr, boxeddoubleHr)
 
-  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.max) else null })(intHr, boxedintHr)
-  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.max) else null })(longHr, boxedlongHr)
-  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.max) else null })(floatHr, boxedfloatHr)
-  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.max) else null })(doubleHr, boxeddoubleHr)
+  val maxDocstring = "Largest element in the collection."
+  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.max) else null }, maxDocstring)(intHr, boxedintHr)
+  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.max) else null }, maxDocstring)(longHr, boxedlongHr)
+  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.max) else null }, maxDocstring)(floatHr, boxedfloatHr)
+  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.max) else null }, maxDocstring)(doubleHr, boxeddoubleHr)
 
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null })(intHr, boxedintHr)
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null })(longHr, boxedlongHr)
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null })(floatHr, boxedfloatHr)
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null })(doubleHr, boxeddoubleHr)
+  val medianDocstring = "Median value of the collection."
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null }, medianDocstring)(intHr, boxedintHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null }, medianDocstring)(longHr, boxedlongHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null }, medianDocstring)(floatHr, boxedfloatHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null }, medianDocstring)(doubleHr, boxeddoubleHr)
 
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null })(intHr, boxeddoubleHr)
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null })(longHr, boxeddoubleHr)
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null })(floatHr, boxeddoubleHr)
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null })(doubleHr, boxeddoubleHr)
+  val meanDocstring = "Mean value of the collection."
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null }, meanDocstring)(intHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null }, meanDocstring)(longHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null }, meanDocstring)(floatHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null }, meanDocstring)(doubleHr, boxeddoubleHr)
 
-  register("range", { (x: Int) => 0 until x: IndexedSeq[Int] })
-  register("range", { (x: Int, y: Int) => x until y: IndexedSeq[Int] })
-  register("range", { (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int] })
+  register("range", { (x: Int) => 0 until x: IndexedSeq[Int] },
+    """
+    Generate an ``Array`` with values in the interval ``[0, stop)``.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let r = range(3) in r
+        result: [0, 1, 2]
+    """,
+    "stop" -> "Number of integers (whole numbers) to generate, starting from zero.")
+  register("range", { (x: Int, y: Int) => x until y: IndexedSeq[Int] },
+    """
+    Generate an ``Array`` with values in the interval ``[start, stop)``.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let r = range(5, 8) in r
+        result: [5, 6, 7]
+    """,
+    "start" -> "Starting number of the sequence.",
+    "stop" -> "Generate numbers up to, but not including this number.")
+  register("range", { (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int] },
+    """
+    Generate an ``Array`` with values in the interval ``[start, stop)`` in increments of step.
+    
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let r = range(0, 5, 2) in r
+        result: [0, 2, 4]
+    """,
+    "start" -> "Starting number of the sequence.",
+    "stop" -> "Generate numbers up to, but not including this number.",
+    "step" -> "Difference between each number in the sequence.")
+
   register("Variant", { (x: String) =>
     val Array(chr, pos, ref, alts) = x.split(":")
     Variant(chr, pos.toInt, ref, alts.split(","))
-  })
-  register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) })
-  register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) })
+  },
+    """
+    Construct a :ref:`variant` object.
+    
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let v = Variant("7:76324539:A:G") in v.contig
+        result: "7"
+    """,
+    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")
+  register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) },
+    """
+    Construct a :ref:`variant` object.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let v = Variant("2", 13427, "T", "G") in v.ref
+        result: "T"
+    """,
+    "contig" -> "String representation of contig.",
+    "pos" -> "SNP position or start of an indel.",
+    "ref" -> "Reference allele sequence.",
+    "alt" -> "Alternate allele sequence.")
+  register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) },
+    """
+    Construct a :ref:`variant` object.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let v = Variant("1", 25782743, "A", Array("T", "TA")) in v.ref
+        result: "A"
+    """,
+    "contig" -> "String representation of contig.",
+    "pos" -> "SNP position or start of an indel.",
+    "ref" -> "Reference allele sequence.",
+    "alts" -> "Array of alternate allele sequences."
+  )
 
   register("Locus", { (x: String) =>
     val Array(chr, pos) = x.split(":")
     Locus(chr, pos.toInt)
-  })
-  register("Locus", { (x: String, y: Int) => Locus(x, y) })
-  register("Interval", { (x: Locus, y: Locus) => Interval(x, y) })
-  registerAnn("hwe", TStruct(("rExpectedHetFrequency", TDouble), ("pHWE", TDouble)), { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
+  },
+    """
+    Construct a :ref:`locus` object.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let l = Locus("1:10040532") in l.position
+        result: 10040532
+    """,
+    ("s", "String of the form ``CHR:POS``")
+  )
+  register("Locus", { (x: String, y: Int) => Locus(x, y) },
+    """
+    Construct a :ref:`locus` object.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let l = Locus("1", 10040532) in l.position
+        result: 10040532
+    """,
+    "contig" -> "String representation of contig.",
+    "pos" -> "SNP position or start of an indel.")
+  register("Interval", { (x: Locus, y: Locus) => Interval(x, y) },
+    """
+    Construct a :ref:`interval` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
+    """,
+    "startLocus" -> "Start position of interval",
+    "endLocus" -> "End position of interval")
+
+  val hweStruct = TStruct(Array(("rExpectedHetFrequency", TDouble, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
+    ("pHWE", TDouble, "P-value")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+
+  registerAnn("hwe", hweStruct, { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
       fatal(s"got invalid (negative) argument to function `hwe': hwe($nHomRef, $nHet, $nHomVar)")
     val n = nHomRef + nHet + nHomVar
@@ -619,32 +751,132 @@ object FunctionRegistry {
 
     val LH = LeveneHaldane(n, nA)
     Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
-  })
-  registerAnn("fet", TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble)), { (c1: Int, c2: Int, c3: Int, c4: Int) =>
+  },
+    """
+    Compute Hardy Weinberg Equilbrium (HWE) p-value.
+
+    **Examples**
+
+    Compute HWE p-value per variant:
+
+    >>> (vds.annotate_variants_expr('va.hwe = '
+    ...     'let nHomRef = gs.filter(g => g.isHomRef()).count().toInt() and '
+    ...     'nHet = gs.filter(g => g.isHet()).count().toInt() and '
+    ...     'nHomVar = gs.filter(g => g.isHomVar()).count().toInt() in '
+    ...     'hwe(nHomRef, nHet, nHomVar)'))
+
+    **Notes**
+
+    See this `document <../LeveneHaldane.pdf>`_ for more information on how HWE p-values are computed.
+    """,
+    "nHomRef" -> "Number of samples that are homozygous for the reference allele.",
+    "nHet" -> "Number of samples that are heterozygotes.",
+    "nHomVar" -> "Number of samples that are homozygous for the alternate allele."
+  )
+
+  val fetStruct = TStruct(Array(("pValue", TDouble, "p-value"), ("oddsRatio", TDouble, "odds ratio"),
+    ("ci95Lower", TDouble, "lower bound for 95% confidence interval"), ("ci95Upper", TDouble, "upper bound for 95% confidence interval")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+
+  registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
     val fet = FisherExactTest(c1, c2, c3, c4)
     Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
-  })
+  },
+    """
+    Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test (FET) for 2x2 tables.
+    
+    **Examples**
+    
+    Annotate each variant with Fisher's exact test association results (assumes minor/major allele count variant annotations have been computed):
+
+    >>> (vds.annotate_variants_expr(
+    ...   'va.fet = let macCase = gs.filter(g => sa.pheno.isCase).map(g => g.nNonRefAlleles()).sum() and '
+    ...   'macControl = gs.filter(g => !sa.pheno.isCase).map(g => g.nNonRefAlleles()).sum() and '
+    ...   'majCase = gs.filter(g => sa.pheno.isCase).map(g => 2 - g.nNonRefAlleles()).sum() and '
+    ...   'majControl = gs.filter(g => !sa.pheno.isCase).map(g => 2 - g.nNonRefAlleles()).sum() in '
+    ...   'fet(macCase, macControl, majCase, majControl)'))
+    
+    **Notes**
+    
+    ``fet`` is identical to the version implemented in `R <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html>`_ with default parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
+    """,
+    "a" -> "value for cell 1", "b" -> "value for cell 2", "c" -> "value for cell 3", "d" -> "value for cell 4")
   // NB: merge takes two structs, how do I deal with structs?
-  register("exp", { (x: Double) => math.exp(x) })
-  register("log10", { (x: Double) => math.log10(x) })
-  register("sqrt", { (x: Double) => math.sqrt(x) })
-  register("log", (x: Double) => math.log(x))
-  register("log", (x: Double, b: Double) => math.log(x) / math.log(b))
-  register("pow", (b: Double, x: Double) => math.pow(b, x))
+  register("exp", { (x: Double) => math.exp(x) },
+    """
+    Returns Euler's number ``e`` raised to the power of the given value ``x``.
+    """,
+    "x" -> "the exponent to raise ``e`` to.")
+  register("log10", { (x: Double) => math.log10(x) },
+    """
+    Returns the base 10 logarithm of the given value ``x``.
+    """,
+    "x" -> "the number to take the base 10 logarithm of.")
+  register("sqrt", { (x: Double) => math.sqrt(x) },
+    """
+    Returns the square root of the given value ``x``.
+    """,
+    "x" -> "the number to take the square root of.")
+  register("log", (x: Double) => math.log(x),
+    """
+    Returns the natural logarithm of the given value ``x``.
+    """,
+    "x" -> "the number to take the natural logarithm of.")
+  register("log", (x: Double, b: Double) => math.log(x) / math.log(b),
+    """
+    Returns the base ``b`` logarithm of the given value ``x``.
+    """,
+    "x" -> "the number to take the base ``b`` logarithm of.",
+    "b" -> "the base.")
+  register("pow", (b: Double, x: Double) => math.pow(b, x),
+    """
+    Returns ``b`` raised to the power of ``x``.
+    """,
+    "b" -> "the base.",
+    "x" -> "the exponent.")
 
-  register("pcoin", { (p: Double) => math.random < p })
-  register("runif", { (min: Double, max: Double) => min + (max - min) * math.random })
-  register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() })
+  register("pcoin", { (p: Double) => math.random < p },
+    """
+    Returns true with probability ``p``.
+    """,
+    "p" -> "Probability. Should be between 0.0 and 1.0.")
+  register("runif", { (min: Double, max: Double) => min + (max - min) * math.random },
+    """
+    Returns a random draw from a uniform distribution on [``min``, ``max``). ``min`` should be less than or equal to ``max``.
+    """,
+    "min" -> "Minimum value of interval.",
+    "max" -> "Maximum value of interval, non-inclusive.")
+  register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() },
+    """
+    Returns a random draw from a normal distribution with mean ``mean`` and standard deviation ``sd``. ``sd`` should be non-negative.
+    """,
+    "mean" -> "Mean value of normal distribution.",
+    "sd" -> "Standard deviation of normal distribution.")
 
-  register("pnorm", { (x: Double) => pnorm(x) })
-  register("qnorm", { (p: Double) => qnorm(p) })
+  register("pnorm", { (x: Double) => pnorm(x) },
+    """
+    Returns left-tail probability p for which p = Prob(:math:`Z` < ``x``) with :math:`Z` a standard normal random variable.
+    """,
+    "x" -> "Number at which to compute the probability.")
+  register("qnorm", { (p: Double) => qnorm(p) },
+    """
+    Returns left-quantile x for which p = Prob(:math:`Z` < x) with :math:`Z` a standard normal random variable. ``p`` must satisfy 0 < ``p`` < 1. Inverse of pnorm.
+    """,
+    "p" -> "Probability")
 
-  register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(df, x) })
-  register("qchisqtail", { (p: Double, df: Double) => inverseChiSquaredTail(df, p) })
+  register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(df, x) },
+    """
+    Returns right-tail probability p for which p = Prob(:math:`Z^2` > x) with :math:`Z^2` a chi-squared random variable with degrees of freedom specified by ``df``. ``x`` must be positive.
+    """,
+    "x" -> "Number at which to compute the probability.", "df" -> "Degrees of freedom.")
+  register("qchisqtail", { (p: Double, df: Double) => inverseChiSquaredTail(df, p) },
+    """
+    Returns right-quantile x for which p = Prob(:math:`Z^2` > x) with :math:`Z^2` a chi-squared random variable with degrees of freedom specified by ``df``. ``p`` must satisfy 0 < p <= 1. Inverse of pchisq1tail.
+    """,
+    "p" -> "Probability", "df" -> "Degrees of freedom.")
 
-  register("!", (a: Boolean) => !a)
+  register("!", (a: Boolean) => !a, "Negates a boolean variable.")
 
   registerConversion((x: Int) => x.toDouble, priority = 2)
   registerConversion { (x: Long) => x.toDouble }
@@ -679,9 +911,22 @@ object FunctionRegistry {
       box(xi.toDouble)
   })(arrayHr(boxedfloatHr), arrayHr(boxeddoubleHr))
 
-  register("gtj", (i: Int) => Genotype.gtPair(i).j)
-  register("gtk", (i: Int) => Genotype.gtPair(i).k)
-  register("gtIndex", (j: Int, k: Int) => Genotype.gtIndex(j, k))
+  register("gtj", (i: Int) => Genotype.gtPair(i).j,
+    """
+    Convert from genotype index (triangular numbers) to ``j/k`` pairs. Returns ``j``.
+    """,
+    "i" -> "Genotype index.")
+  register("gtk", (i: Int) => Genotype.gtPair(i).k,
+    """
+    Convert from genotype index (triangular numbers) to ``j/k`` pairs. Returns ``k``.
+    """,
+    "k" -> "Genotype index.")
+  register("gtIndex", (j: Int, k: Int) => Genotype.gtIndex(j, k),
+    """
+    Convert from ``j/k`` pair to genotype index (triangular numbers).
+    """,
+    "j" -> "j in ``j/k`` pairs.",
+    "k" -> "k in ``j/k`` pairs.")
 
   registerConversion((x: java.lang.Integer) =>
     if (x != null)
@@ -709,92 +954,245 @@ object FunctionRegistry {
       null
   }(aggregableHr(boxedfloatHr), aggregableHr(boxeddoubleHr))
 
-  registerMethod("split", (s: String, p: String) => s.split(p): IndexedSeq[String])
-  registerMethod("split", (s: String, p: String, n:Int) => s.split(p, n): IndexedSeq[String])
+  registerMethod("split", (s: String, p: String) => s.split(p): IndexedSeq[String],
+    """
+    Returns an array of strings, split on the given regular expression delimiter. See the documentation on `regular expression syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_ delimiter. If you need to split on special characters, escape them with double backslash (\\\\).
 
-  registerMethod("oneHotAlleles", (g: Genotype, v: Variant) => g.oneHotAlleles(v).orNull)
+    .. code-block:: text
+        :emphasize-lines: 2
 
-  registerMethod("oneHotGenotype", (g: Genotype, v: Variant) => g.oneHotGenotype(v).orNull)
+        let s = "1kg-NA12878" in s.split("-")
+        result: ["1kg", "NA12878"]
+    """,
+    "delim" -> "Regular expression delimiter.")
+
+  registerMethod("split", (s: String, p: String, n:Int) => s.split(p, n): IndexedSeq[String],
+    """
+    Returns an array of strings, split on the given regular expression delimiter with the pattern applied ``n`` times. See the documentation on `regular expression syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_ delimiter. If you need to split on special characters, escape them with double backslash (\\\\).
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = "1kg-NA12878" in s.split("-")
+        result: ["1kg", "NA12878"]
+    """,
+    "delim" -> "Regular expression delimiter.", "n" -> "Number of times the pattern is applied. See the `Java documentation <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#split-java.lang.String-int->`_ for more information."
+  )
+
+  registerMethod("oneHotAlleles", (g: Genotype, v: Variant) => g.oneHotAlleles(v).orNull,
+    """
+    Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
+    """,
+    "v" -> ":ref:`variant`")
+
+  registerMethod("oneHotGenotype", (g: Genotype, v: Variant) => g.oneHotGenotype(v).orNull,
+    """
+    Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
+    """,
+    "v" -> ":ref:`variant`"
+  )
 
   registerMethod("replace", (str: String, pattern1: String, pattern2: String) =>
-    str.replaceAll(pattern1, pattern2))
+    str.replaceAll(pattern1, pattern2),
+    """
+    Replaces each substring of this string that matches the given `regular expression <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_ (``pattern1``) with the given replacement (``pattern2``).
 
-  registerMethod("contains", (interval: Interval[Locus], locus: Locus) => interval.contains(locus))
+    .. code-block:: text
+        :emphasize-lines: 2
 
-  registerMethod("length", (a: IndexedSeq[Any]) => a.length)(arrayHr(TTHr), intHr)
-  registerMethod("size", (a: IndexedSeq[Any]) => a.size)(arrayHr(TTHr), intHr)
-  registerMethod("size", (s: Set[Any]) => s.size)(setHr(TTHr), intHr)
-  registerMethod("size", (d: Map[Any, Any]) => d.size)(dictHr(TTHr, TUHr), intHr)
+        let s = "1kg-NA12878" in a.replace("1kg-", "")
+        result: "NA12878"
+    """,
+    "pattern1" -> "Substring to replace.",
+    "pattern2" -> "Replacement string.")
 
-  registerMethod("id", (s: String) => s)(sampleHr, stringHr)
+  registerMethod("contains", (interval: Interval[Locus], locus: Locus) => interval.contains(locus),
+    """
+    Returns true if the ``locus`` is in the interval.
 
-  registerMethod("isEmpty", (a: IndexedSeq[Any]) => a.isEmpty)(arrayHr(TTHr), boolHr)
-  registerMethod("isEmpty", (s: Set[Any]) => s.isEmpty)(setHr(TTHr), boolHr)
-  registerMethod("isEmpty", (d: Map[Any, Any]) => d.isEmpty)(dictHr(TTHr, TUHr), boolHr)
+    .. code-block:: text
+        :emphasize-lines: 2
 
-  registerMethod("toSet", (a: IndexedSeq[Any]) => a.toSet)(arrayHr(TTHr), setHr(TTHr))
-  registerMethod("toSet", (a: Set[Any]) => a)(setHr(TTHr), setHr(TTHr))
-  registerMethod("toArray", (a: Set[Any]) => a.toArray[Any]: IndexedSeq[Any])(setHr(TTHr), arrayHr(TTHr))
-  registerMethod("toArray", (a: IndexedSeq[Any]) => a)(arrayHr(TTHr), arrayHr(TTHr))
+        let i = Interval(Locus("1", 1000), Locus("1", 2000)) in i.contains(Locus("1", 1500))
+        result: true
+    """,
+    "locus" -> ":ref:`locus`")
 
-  registerMethod("head", (a: IndexedSeq[Any]) => a.head)(arrayHr(TTHr), TTHr)
-  registerMethod("tail", (a: IndexedSeq[Any]) => a.tail)(arrayHr(TTHr), arrayHr(TTHr))
+  val sizeDocstring = "Number of elements in the collection."
+  registerMethod("length", (a: IndexedSeq[Any]) => a.length, sizeDocstring)(arrayHr(TTHr), intHr)
+  registerMethod("size", (a: IndexedSeq[Any]) => a.size, sizeDocstring)(arrayHr(TTHr), intHr)
+  registerMethod("size", (s: Set[Any]) => s.size, sizeDocstring)(setHr(TTHr), intHr)
+  registerMethod("size", (d: Map[Any, Any]) => d.size, sizeDocstring)(dictHr(TTHr, TUHr), intHr)
 
-  registerMethod("head", (a: Set[Any]) => a.head)(setHr(TTHr), TTHr)
-  registerMethod("tail", (a: Set[Any]) => a.tail)(setHr(TTHr), setHr(TTHr))
+  registerField("id", (s: String) => s, "The ID of this sample, as read at import-time.")(sampleHr, stringHr)
+
+  val isEmptyDocstring = "Returns true if the number of elements is equal to 0. false otherwise."
+  registerMethod("isEmpty", (a: IndexedSeq[Any]) => a.isEmpty, isEmptyDocstring)(arrayHr(TTHr), boolHr)
+  registerMethod("isEmpty", (s: Set[Any]) => s.isEmpty, isEmptyDocstring)(setHr(TTHr), boolHr)
+  registerMethod("isEmpty", (d: Map[Any, Any]) => d.isEmpty, isEmptyDocstring)(dictHr(TTHr, TUHr), boolHr)
+
+  registerMethod("toSet", (a: IndexedSeq[Any]) => a.toSet, "Convert collection to a Set.")(arrayHr(TTHr), setHr(TTHr))
+  registerMethod("toSet", (a: Set[Any]) => a, "Convert collection to a Set.")(setHr(TTHr), setHr(TTHr))
+  registerMethod("toArray", (a: Set[Any]) => a.toArray[Any]: IndexedSeq[Any], "Convert collection to an Array.")(setHr(TTHr), arrayHr(TTHr))
+  registerMethod("toArray", (a: IndexedSeq[Any]) => a, "Convert collection to an Array.")(arrayHr(TTHr), arrayHr(TTHr))
+
+  registerMethod("head", (a: IndexedSeq[Any]) => a.head, "Selects the first element.")(arrayHr(TTHr), TTHr)
+  registerMethod("tail", (a: IndexedSeq[Any]) => a.tail, "Selects all elements except the first.")(arrayHr(TTHr), arrayHr(TTHr))
+
+  registerMethod("head", (a: Set[Any]) => a.head, "Select one element.")(setHr(TTHr), TTHr)
+  registerMethod("tail", (a: Set[Any]) => a.tail, "Select all elements except the element returned by ``head``.")(setHr(TTHr), setHr(TTHr))
 
   registerMethod("flatten", (a: IndexedSeq[IndexedSeq[Any]]) =>
-    flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any], a)
+    flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any], a),
+    """
+    Flattens a nested array by concatenating all its rows into a single array.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [[1, 3], [2, 4]] in a.flatten()
+        result: [1, 3, 2, 4]
+    """
   )(arrayHr(arrayHr(TTHr)), arrayHr(TTHr))
 
   registerMethod("flatten", (s: Set[Set[Any]]) =>
-    flattenOrNull[Set, Any](Set.newBuilder[Any], s)
+    flattenOrNull[Set, Any](Set.newBuilder[Any], s),
+    """
+    Flattens a nested set by concatenating all its elements into a single set.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [[1, 2].toSet(), [3, 4].toSet()].toSet() in s.flatten()
+        result: Set(1, 2, 3, 4)
+    """
   )(setHr(setHr(TTHr)), setHr(TTHr))
 
   registerMethod("keys", (m: Map[Any, Any]) =>
-    m.keysIterator.toArray[Any]: IndexedSeq[Any]
+    m.keysIterator.toArray[Any]: IndexedSeq[Any], null
   )(dictHr(TTHr, TUHr), arrayHr(TTHr))
 
   registerMethod("keySet", (m: Map[Any, Any]) =>
-    m.keySet
+    m.keySet, null
   )(dictHr(TTHr, TUHr), setHr(TTHr))
 
   registerMethod("get", (m: Map[Any, Any], key: Any) =>
-    m.get(key).orNull
+    m.get(key).orNull, null
   )(dictHr(TTHr, TUHr), TTHr, TUHr)
 
-  registerMethod("mkString", (a: IndexedSeq[String], d: String) => a.mkString(d))(
+  registerMethod("mkString", (a: IndexedSeq[String], d: String) => a.mkString(d),
+    """
+    Concatenates all elements of this array into a single string where each element is separated by the ``delimiter``.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = ["a", "b", "c"] in a.mkString("::")
+        result: "a::b::c"
+
+    """,
+    "delimiter" -> "String that separates each element.")(
     arrayHr(stringHr), stringHr, stringHr)
-  registerMethod("mkString", (s: Set[String], d: String) => s.mkString(d))(
+  registerMethod("mkString", (s: Set[String], d: String) => s.mkString(d),
+    """
+    Concatenates all elements of this set into a single string where each element is separated by the ``delimiter``.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [1, 2, 3].toSet() in s.mkString(",")
+        result: "1,2,3"
+    """,
+    "delimiter" -> "String that separates each element.")(
     setHr(stringHr), stringHr, stringHr)
 
-  registerMethod("contains", (s: Set[Any], x: Any) => s.contains(x))(setHr(TTHr), TTHr, boolHr)
-  registerMethod("contains", (d: Map[Any, Any], x: Any) => d.contains(x))(dictHr(TTHr, TUHr), TTHr, boolHr)
+  registerMethod("contains", (s: Set[Any], x: Any) => s.contains(x),
+    """
+    Returns true if the element ``x`` is contained in the set, otherwise false.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [1, 2, 3].toSet() in s.contains(5)
+        result: false
+    """,
+    "x" -> "Value to test."
+  )(setHr(TTHr), TTHr, boolHr)
+  registerMethod("contains", (d: Map[Any, Any], x: Any) => d.contains(x),
+    """
+    Returns true if the Dict has a key equal to ``k``, otherwise false.
+    """,
+    "k" -> "Key name to query."
+  )(dictHr(TTHr, TUHr), TTHr, boolHr)
 
   registerLambdaMethod("find", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.find { elt =>
       val r = f(elt)
       r != null && r.asInstanceOf[Boolean]
-    }.orNull
+    }.orNull,
+    """
+    Returns the first non-missing element of the array for which expr is true. If no element satisfies the predicate, find returns NA.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = ["cat", "dog", "rabbit"] in a.find(e => 'bb' ~ e)
+        result: "rabbit"
+    """,
+    "expr" -> "Lambda expression."
   )(arrayHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
 
   registerLambdaMethod("find", (s: Set[Any], f: (Any) => Any) =>
     s.find { elt =>
       val r = f(elt)
       r != null && r.asInstanceOf[Boolean]
-    }.orNull
+    }.orNull,
+    """
+    Returns the first non-missing element of the array for which expr is true. If no element satisfies the predicate, find returns NA.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [1, 2, 3].toSet() in s.find(e => e % 3 == 0)
+        result: 3
+    """,
+    "expr" -> "Lambda expression."
   )(setHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
 
   registerLambdaMethod("map", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    a.map(f)
+    a.map(f),
+    """
+    Returns a new array produced by applying ``expr`` to each element.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 1, 2, 3] in a.map(e => pow(2, e))
+        result: [1, 2, 4, 8]
+    """,
+    "expr" -> "Lambda expression."
   )(arrayHr(TTHr), unaryHr(TTHr, TUHr), arrayHr(TUHr))
 
   registerLambdaMethod("map", (s: Set[Any], f: (Any) => Any) =>
-    s.map(f)
+    s.map(f),
+    """
+    Returns a new set produced by applying ``expr`` to each element.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [1, 2, 3].toSet() in s.map(e => e * 3)
+        result: Set(3, 6, 9)
+    """,
+    "expr" -> "Lambda expression."
   )(setHr(TTHr), unaryHr(TTHr, TUHr), setHr(TUHr))
 
   registerLambdaMethod("mapValues", (a: Map[Any, Any], f: (Any) => Any) =>
-    a.map { case (k, v) => (k, f(v)) }
+    a.map { case (k, v) => (k, f(v)) },
+    """
+    Returns a new Dict produced by applying ``expr`` to each value. The keys are unmodified.
+    """,
+    "expr" -> "Lambda expression."
   )(dictHr[Any, Any](TTHr, TUHr), unaryHr(TUHr, TVHr), dictHr[Any, Any](TTHr, TVHr))
 
   //  registerMapLambdaMethod("mapValues", (a: Map[Any, Any], f: (Any) => Any) =>
@@ -803,103 +1201,341 @@ object FunctionRegistry {
 
   registerLambdaMethod("flatMap", (a: IndexedSeq[Any], f: (Any) => Any) =>
     flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any],
-      a.map(f).asInstanceOf[IndexedSeq[IndexedSeq[Any]]])
+      a.map(f).asInstanceOf[IndexedSeq[IndexedSeq[Any]]]),
+    """
+    Returns a new array by applying a function to each subarray and concatenating the resulting arrays.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [[1, 2, 3], [4, 5], [6]] in a.flatMap(e => e + 1)
+        result: [2, 3, 4, 5, 6, 7]
+    """,
+    "expr" -> "Lambda expression."
   )(arrayHr(TTHr), unaryHr(TTHr, arrayHr(TUHr)), arrayHr(TUHr))
 
   registerLambdaMethod("flatMap", (s: Set[Any], f: (Any) => Any) =>
     flattenOrNull[Set, Any](Set.newBuilder[Any],
-      s.map(f).asInstanceOf[Set[Set[Any]]])
+      s.map(f).asInstanceOf[Set[Set[Any]]]),
+    """
+    Returns a new set by applying a function to each subset and concatenating the resulting sets.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [["a", "b", "c"].toSet(), ["d", "e"].toSet(), ["f"].toSet()].toSet() in s.flatMap(e => e + "1")
+        result: Set("a1", "b1", "c1", "d1", "e1", "f1")
+    """,
+    "expr" -> "Lambda expression."
   )(setHr(TTHr), unaryHr(TTHr, setHr(TUHr)), setHr(TUHr))
 
   registerLambdaMethod("groupBy", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    a.groupBy(f)
+    a.groupBy(f), null
   )(arrayHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr, arrayHr(TTHr)))
 
   registerLambdaMethod("groupBy", (a: Set[Any], f: (Any) => Any) =>
-    a.groupBy(f)
+    a.groupBy(f), null
   )(setHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr, setHr(TTHr)))
 
   registerLambdaMethod("exists", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.exists { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }
+    },
+    """
+    Returns a boolean which is true if **any** element in the array satisfies the condition given by ``expr``. false otherwise.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [1, 2, 3, 4, 5, 6] in a.exists(e => e > 4)
+        result: true
+    """,
+    "expr" -> "Lambda expression."
   )(arrayHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
   registerLambdaMethod("exists", (s: Set[Any], f: (Any) => Any) =>
     s.exists { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }
+    },
+    """
+    Returns a boolean which is true if **any** element in the set satisfies the condition given by ``expr`` and false otherwise.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [0, 2, 4, 6, 8, 10].toSet() in s.exists(e => e % 2 == 1)
+        result: false
+    """,
+    "expr" -> "Lambda expression."
   )(setHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
   registerLambdaMethod("forall", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.forall { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }
+    },
+    """
+    Returns a boolean which is true if **all** elements in the array satisfies the condition given by ``expr`` and false otherwise.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6, 8, 10] in a.forall(e => e % 2 == 0)
+        result: true
+    """,
+    "expr" -> "Lambda expression."
   )(arrayHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
   registerLambdaMethod("forall", (s: Set[Any], f: (Any) => Any) =>
     s.forall { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }
+    },
+    """
+    Returns a boolean which is true if **all** elements in the set satisfies the condition given by ``expr`` and false otherwise.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [0.1, 0.5, 0.3, 1.0, 2.5, 3.0].toSet() in s.forall(e => e > 1.0 == 0)
+        result: false
+    """,
+    "expr" -> "Lambda expression."
   )(setHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
   registerLambdaMethod("filter", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.filter { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }
+    },
+    """
+    Returns a new array subsetted to the elements where ``expr`` evaluates to true.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [1, 4, 5, 6, 10] in a.filter(e => e % 2 == 0)
+        result: [4, 6, 10]
+    """,
+    "expr" -> "Lambda expression."
   )(arrayHr(TTHr), unaryHr(TTHr, boolHr), arrayHr(TTHr))
 
   registerLambdaMethod("filter", (s: Set[Any], f: (Any) => Any) =>
     s.filter { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }
+    },
+    """
+    Returns a new set subsetted to the elements where ``expr`` evaluates to true.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = [1, 4, 5, 6, 10].toSet() in s.filter(e => e >= 5)
+        result: Set(5, 6, 10)
+    """,
+    "expr" -> "Lambda expression."
   )(setHr(TTHr), unaryHr(TTHr, boolHr), setHr(TTHr))
 
-  registerAggregator[Any, Long]("count", () => new CountAggregator())(aggregableHr(TTHr), longHr)
+  registerAggregator[Any, Long]("count", () => new CountAggregator(),
+    """
+    Counts the number of elements in an aggregable.
 
-  registerAggregator[Any, IndexedSeq[Any]]("collect", () => new CollectAggregator())(aggregableHr(TTHr), arrayHr(TTHr))
+    **Examples**
 
-  registerAggregator[Int, Int]("sum", () => new SumAggregator[Int]())(aggregableHr(intHr), intHr)
+    Count the number of heterozygote genotype calls in an aggregable of genotypes (``gs``):
 
-  registerAggregator[Long, Long]("sum", () => new SumAggregator[Long]())(aggregableHr(longHr), longHr)
+    >>> vds_result = vds.annotate_variants_expr('va.nHets = gs.filter(g => g.isHet()).count()')
+    """
+  )(aggregableHr(TTHr), longHr)
 
-  registerAggregator[Float, Float]("sum", () => new SumAggregator[Float]())(aggregableHr(floatHr), floatHr)
+  registerAggregator[Any, IndexedSeq[Any]]("collect", () => new CollectAggregator(),
+    """
+    Return an array with all of the elements in the aggregable. Missing values are removed.
 
-  registerAggregator[Double, Double]("sum", () => new SumAggregator[Double]())(aggregableHr(doubleHr), doubleHr)
+    **Examples**
 
-  registerAggregator[IndexedSeq[Int], IndexedSeq[Int]]("sum", () => new SumArrayAggregator[Int]())(aggregableHr(arrayHr(intHr)), arrayHr(intHr))
+    Collect the list of sample IDs with heterozygote genotype calls per variant:
 
-  registerAggregator[IndexedSeq[Long], IndexedSeq[Long]]("sum", () => new SumArrayAggregator[Long]())(aggregableHr(arrayHr(longHr)), arrayHr(longHr))
+    >>> vds_result = vds.annotate_variants_expr('va.hetSamples = gs.filter(g => g.isHet()).map(g => s.id).collect()')
 
-  registerAggregator[IndexedSeq[Float], IndexedSeq[Float]]("sum", () => new SumArrayAggregator[Float]())(aggregableHr(arrayHr(floatHr)), arrayHr(floatHr))
+    ``va.hetSamples`` will have the type ``Array[String]``.
+    """
+  )(aggregableHr(TTHr), arrayHr(TTHr))
 
-  registerAggregator[IndexedSeq[Double], IndexedSeq[Double]]("sum", () => new SumArrayAggregator[Double]())(aggregableHr(arrayHr(doubleHr)), arrayHr(doubleHr))
+  val sumAggDocstring = """Compute the sum of all elements."""
+  registerAggregator[Int, Int]("sum", () => new SumAggregator[Int](), sumAggDocstring)(aggregableHr(intHr), intHr)
 
-  registerAggregator[Genotype, Any]("infoScore", () => new InfoScoreAggregator())(aggregableHr(genotypeHr),
+  registerAggregator[Long, Long]("sum", () => new SumAggregator[Long](), sumAggDocstring)(aggregableHr(longHr), longHr)
+
+  registerAggregator[Float, Float]("sum", () => new SumAggregator[Float](), sumAggDocstring)(aggregableHr(floatHr), floatHr)
+
+  registerAggregator[Double, Double]("sum", () => new SumAggregator[Double](), sumAggDocstring)(aggregableHr(doubleHr), doubleHr)
+
+  registerAggregator[IndexedSeq[Int], IndexedSeq[Int]]("sum", () => new SumArrayAggregator[Int](),
+    """
+    Compute the sum by index. All elements in the aggregable must have the same length.
+
+    **Examples**
+
+    Compute the counts of each allele per variant:
+
+    >>> vds_result = vds.annotate_variants_expr('va.AC = gs.map(g => g.oneHotAlleles(v)).sum()')
+    """
+  )(aggregableHr(arrayHr(intHr)), arrayHr(intHr))
+
+  registerAggregator[IndexedSeq[Long], IndexedSeq[Long]]("sum", () => new SumArrayAggregator[Long](),
+    "Compute the sum by index. All elements in the aggregable must have the same length."
+  )(aggregableHr(arrayHr(longHr)), arrayHr(longHr))
+
+  registerAggregator[IndexedSeq[Float], IndexedSeq[Float]]("sum", () => new SumArrayAggregator[Float](),
+    "Compute the sum by index. All elements in the aggregable must have the same length."
+  )(aggregableHr(arrayHr(floatHr)), arrayHr(floatHr))
+
+  registerAggregator[IndexedSeq[Double], IndexedSeq[Double]]("sum", () => new SumArrayAggregator[Double](),
+    "Compute the sum by index. All elements in the aggregable must have the same length."
+  )(aggregableHr(arrayHr(doubleHr)), arrayHr(doubleHr))
+
+  registerAggregator[Genotype, Any]("infoScore", () => new InfoScoreAggregator(),
+    """
+    Compute the IMPUTE information score.
+
+    **Examples**
+
+    Calculate the info score per variant:
+
+    >>> (hc.import_gen("data/example.gen", "data/example.sample")
+    ...    .annotate_variants_expr('va.infoScore = gs.infoScore()'))
+
+    Calculate group-specific info scores per variant:
+
+    >>> vds_result = (hc.import_gen("data/example.gen", "data/example.sample")
+    ...    .annotate_samples_expr("sa.isCase = pcoin(0.5)")
+    ...    .annotate_variants_expr(["va.infoScore.case = gs.filter(g => sa.isCase).infoScore()",
+    ...                             "va.infoScore.control = gs.filter(g => !sa.isCase).infoScore()"]))
+
+    **Notes**
+
+    We implemented the IMPUTE info measure as described in the `supplementary information from Marchini & Howie. Genotype imputation for genome-wide association studies. Nature Reviews Genetics (2010) <http://www.nature.com/nrg/journal/v11/n7/extref/nrg2796-s3.pdf>`_.
+
+    To calculate the info score :math:`I_{A}` for one SNP:
+
+    .. math::
+
+        I_{A} =
+        \begin{cases}
+        1 - \frac{\sum_{i=1}^{N}(f_{i} - e_{i}^2)}{2N\hat{\theta}(1 - \hat{\theta})} & \text{when } \hat{\theta} \in (0, 1) \\
+        1 & \text{when } \hat{\theta} = 0, \hat{\theta} = 1\\
+        \end{cases}
+
+    - :math:`N` is the number of samples with imputed genotype probabilities [:math:`p_{ik} = P(G_{i} = k)` where :math:`k \in \{0, 1, 2\}`]
+    - :math:`e_{i} = p_{i1} + 2p_{i2}` is the expected genotype per sample
+    - :math:`f_{i} = p_{i1} + 4p_{i2}`
+    - :math:`\hat{\theta} = \frac{\sum_{i=1}^{N}e_{i}}{2N}` is the MLE for the population minor allele frequency
+
+
+    Hail will not generate identical results as `QCTOOL <http://www.well.ox.ac.uk/~gav/qctool/#overview>`_ for the following reasons:
+
+      - The floating point number Hail stores for each dosage is slightly different than the original data due to rounding and normalization of probabilities.
+      - Hail automatically removes dosages that do not meet certain requirements on data import with :py:meth:`~hail.HailContext.import_gen` and :py:meth:`~hail.HailContext.import_bgen`.
+      - Hail does not use the population frequency to impute dosages when a dosage has been set to missing.
+      - Hail calculates the same statistic for sex chromosomes as autosomes while QCTOOL incorporates sex information
+
+    .. warning::
+
+        - The info score Hail reports will be extremely different from qctool when a SNP has a high missing rate.
+        - If the genotype data was not imported using the :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen` commands, then the results for all variants will be ``score = NA`` and ``nIncluded = 0``.
+        - It only makes sense to compute the info score for an Aggregable[Genotype] per variant. While a per-sample info score will run, the result is meaningless.
+    """)(aggregableHr(genotypeHr),
     new HailRep[Any] {
       def typ = InfoScoreCombiner.signature
     })
 
-  registerAggregator[Genotype, Any]("hardyWeinberg", () => new HWEAggregator())(aggregableHr(genotypeHr),
+  registerAggregator[Genotype, Any]("hardyWeinberg", () => new HWEAggregator(),
+    """
+    Compute Hardy-Weinberg equilibrium p-value.
+
+    **Examples**
+
+    Add a new variant annotation that calculates HWE p-value by phenotype:
+
+    >>> vds_result = vds.annotate_variants_expr([
+    ...   'va.hweCase = gs.filter(g => sa.pheno == "Case").hardyWeinberg()',
+    ...   'va.hweControl = gs.filter(g => sa.pheno == "Control").hardyWeinberg()'])
+
+    **Notes**
+
+    See this `document <../LeveneHaldane.pdf>`_ for more information on how HWE p-values are computed.
+    """
+  )(aggregableHr(genotypeHr),
     new HailRep[Any] {
       def typ = HWECombiner.signature
     })
 
-  registerAggregator[Any, Any]("counter", () => new CounterAggregator())(aggregableHr(TTHr),
+  registerAggregator[Any, Any]("counter", () => new CounterAggregator(),
+    """
+    Counts the number of occurrences of each element in an aggregable.
+
+    **Examples**
+
+    Compute the number of indels in each chromosome:
+
+    >>> indels_per_chr = vds.query_variants('variants.filter(v => v.altAllele().isIndel()).map(v => v.contig).counter()')
+
+    **Notes**
+
+    We recommend this function is used with the `Python counter object <https://docs.python.org/2/library/collections.html#collections.Counter>`_.
+
+    >>> from collections import Counter
+    >>> counter = Counter(vds.query_variants('variants.flatMap(v => v.altAlleles).counter()')[0])
+    >>> print(counter.most_common(5))
+    [(AltAllele(C, T), 129L),
+     (AltAllele(G, A), 112L),
+     (AltAllele(C, A), 60L),
+     (AltAllele(A, G), 46L),
+     (AltAllele(T, C), 44L)]
+    """)(aggregableHr(TTHr),
     new HailRep[Any] {
       def typ = TDict(TTHr.typ, TLong)
     })
 
-  registerAggregator[Double, Any]("stats", () => new StatAggregator())(aggregableHr(doubleHr),
+  registerAggregator[Double, Any]("stats", () => new StatAggregator(),
+    """
+    Compute summary statistics about a numeric aggregable.
+
+    **Examples**
+
+    Compute the mean genotype quality score per variant:
+
+    >>> vds_result = vds.annotate_variants_expr('va.gqMean = gs.map(g => g.gq).stats().mean')
+
+    Compute summary statistics on the number of singleton calls per sample:
+
+    >>> singleton_stats = (vds.sample_qc()
+    ...     .query_samples('samples.map(s => sa.qc.nSingleton).stats()'))
+
+    Compute GQ and DP statistics stratified by genotype call:
+
+    >>> gq_dp = [
+    ... 'va.homrefGQ = gs.filter(g => g.isHomRef()).map(g => g.gq).stats()',
+    ... 'va.hetGQ = gs.filter(g => g.isHet()).map(g => g.gq).stats()',
+    ... 'va.homvarGQ = gs.filter(g => g.isHomVar()).map(g => g.gq).stats()',
+    ... 'va.homrefDP = gs.filter(g => g.isHomRef()).map(g => g.dp).stats()',
+    ... 'va.hetDP = gs.filter(g => g.isHet()).map(g => g.dp).stats()',
+    ... 'va.homvarDP = gs.filter(g => g.isHomVar()).map(g => g.dp).stats()']
+    >>> vds_result = vds.annotate_variants_expr(gq_dp)
+
+    **Notes**
+
+    The ``stats()`` aggregator can be used to replicate some of the values computed by :py:meth:`~hail.VariantDataset.variant_qc` and :py:meth:`~hail.VariantDataset.sample_qc` such as ``dpMean`` and ``dpStDev``.
+    """)(aggregableHr(doubleHr),
     new HailRep[Any] {
-      def typ = TStruct(("mean", TDouble), ("stdev", TDouble), ("min", TDouble),
-        ("max", TDouble), ("nNotMissing", TLong), ("sum", TDouble))
+      def typ = TStruct(Array(
+        ("mean", TDouble, "Mean value"), ("stdev", TDouble, "Standard deviation"), ("min", TDouble, "Minimum value"),
+        ("max", TDouble, "Maximum value"), ("nNotMissing", TLong, "Number of non-missing values"), ("sum", TDouble, "Sum of all elements")
+      ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
     })
 
   registerAggregator[Double, Double, Double, Int, Any]("hist", (start: Double, end: Double, bins: Int) => {
@@ -916,35 +1552,150 @@ object FunctionRegistry {
     val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
 
     new HistAggregator(indices)
-  })(aggregableHr(doubleHr), doubleHr, doubleHr, intHr, new HailRep[Any] {
+  },
+    """
+    Compute frequency distributions of numeric parameters.
+
+    **Examples**
+
+    Compute GQ-distributions per variant:
+
+    >>> vds_result = vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
+
+    Compute global GQ-distribution:
+
+    >>> gq_dist = (vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
+    ...    .query_variants('variants.map(v => va.gqHist.binFrequencies).sum()'))
+
+    **Notes**
+
+    - The start, end, and bins params are no-scope parameters, which means that while computations like 100 / 4 are acceptable, variable references like ``global.nBins`` are not.
+    - Bin size is calculated from (``end`` - ``start``) / ``bins``
+    - (``bins`` + 1) breakpoints are generated from the range (start to end by binsize)
+    - Each bin is left-inclusive, right-exclusive except the last bin, which includes the maximum value. This means that if there are N total bins, there will be N + 1 elements in ``binEdges``. For the invocation ``hist(0, 3, 3)``, ``binEdges`` would be ``[0, 1, 2, 3]`` where the bins are ``[0, 1), [1, 2), [2, 3]``.
+    """, "start" -> "Starting point of first bin", "end" -> "End point of last bin", "bins" -> "Number of bins to create.")(aggregableHr(doubleHr), doubleHr, doubleHr, intHr, new HailRep[Any] {
     def typ = HistogramCombiner.schema
   })
 
-  registerLambdaAggregator[Genotype, (Any) => Any, Any]("callStats", (vf: (Any) => Any) => new CallStatsAggregator(vf))(
+  registerLambdaAggregator[Genotype, (Any) => Any, Any]("callStats", (vf: (Any) => Any) => new CallStatsAggregator(vf),
+    """
+    Compute four commonly-used metrics over a set of genotypes in a variant.
+
+    **Examples**
+
+    Compute phenotype-specific call statistics:
+
+    >>> pheno_stats = [
+    ...   'va.case_stats = gs.filter(g => sa.pheno.isCase).callStats(g => v)',
+    ...   'va.control_stats = gs.filter(g => !sa.pheno.isCase).callStats(g => v)']
+    >>> vds_result = vds.annotate_variants_expr(pheno_stats)
+
+    ``va.eur_stats.AC`` will be the allele count (AC) computed from individuals marked as "EUR".
+    """, "f" -> "Variant lambda expression such as ``g => v``."
+  )(
     aggregableHr(genotypeHr), unaryHr(genotypeHr, variantHr), new HailRep[Any] {
       def typ = CallStats.schema
     })
 
-  registerLambdaAggregator[Genotype, (Any) => Any, Any]("inbreeding", (af: (Any) => Any) => new InbreedingAggregator(af))(
+  registerLambdaAggregator[Genotype, (Any) => Any, Any]("inbreeding", (af: (Any) => Any) => new InbreedingAggregator(af),
+    """
+    Compute inbreeding metric. This aggregator is equivalent to the `\`--het\` method in PLINK <https://www.cog-genomics.org/plink2/basic_stats#ibc>`_.
+
+    **Examples**
+
+    Calculate the inbreeding metric per sample:
+
+    >>> vds_result = (vds.variant_qc()
+    ...     .annotate_samples_expr('sa.inbreeding = gs.inbreeding(g => va.qc.AF)'))
+
+    To obtain the same answer as `PLINK <https://www.cog-genomics.org/plink2>`_, use the following series of commands:
+
+    >>> vds_result = (vds.variant_qc()
+    ...     .filter_variants_expr('va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8 && v.isAutosomal()')
+    ...     .annotate_samples_expr('sa.inbreeding = gs.inbreeding(g => va.qc.AF)'))
+
+    **Notes**
+
+    The Inbreeding Coefficient (F) is computed as follows:
+
+    #. For each variant and sample with a non-missing genotype call, ``E``, the expected number of homozygotes (computed from user-defined expression for minor allele frequency), is computed as ``1.0 - (2.0*maf*(1.0-maf))``
+    #. For each variant and sample with a non-missing genotype call, ``O``, the observed number of homozygotes, is computed as ``0 = heterozygote; 1 = homozygote``
+    #. For each variant and sample with a non-missing genotype call, ``N`` is incremented by 1
+    #. For each sample, ``E``, ``O``, and ``N`` are combined across variants
+    #. ``F`` is calculated by ``(O - E) / (N - E)``
+    """, "af" -> "Lambda expression for the alternate allele frequency.")(
     aggregableHr(genotypeHr), unaryHr(genotypeHr, doubleHr), new HailRep[Any] {
       def typ = InbreedingCombiner.signature
     })
 
-  registerLambdaAggregator[Any, (Any) => Any, java.lang.Double]("fraction", (f: (Any) => Any) => new FractionAggregator(f))(
+  registerLambdaAggregator[Any, (Any) => Any, java.lang.Double]("fraction", (f: (Any) => Any) => new FractionAggregator(f),
+    """
+    Computes the ratio of the number of occurrences for which a boolean condition evaluates to true, divided by the number of included elements in the aggregable.
+
+    **Examples**
+
+    Filter variants with a call rate less than 95%:
+
+    >>> vds_result = vds.filter_variants_expr('gs.fraction(g => g.isCalled()) > 0.90')
+
+    Compute the differential missingness at SNPs and indels:
+
+    >>> exprs = ['sa.SNPmissingness = gs.filter(g => v.altAllele().isSNP()).fraction(g => g.isNotCalled())',
+    ...          'sa.indelmissingness = gs.filter(g => v.altAllele().isIndel()).fraction(g => g.isNotCalled())']
+    >>> vds_result = vds.annotate_samples_expr(exprs)
+    """)(
     aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boxeddoubleHr)
 
-  registerAggregator("take", (n: Int) => new TakeAggregator(n))(
+  registerAggregator("take", (n: Int) => new TakeAggregator(n),
+    """
+    Take the first ``n`` items of an aggregable.
+
+    **Examples**
+
+    Collect the first 5 sample IDs with at least one alternate allele per variant:
+
+    >>> vds_result = vds.annotate_variants_expr("va.nonRefSamples = gs.filter(g => g.nNonRefAlleles() > 0).map(g => s.id).take(5)")
+    """, "n" -> "Number of items to take.")(
     aggregableHr(TTHr), intHr, arrayHr(TTHr))
 
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Int](f, n))(
+  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Int](f, n),
+    """
+    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
+
+    **Examples**
+
+    Return the 10 samples with the largest number of singletons:
+
+    >>> samplesMostSingletons = (vds
+    ...   .sample_qc()
+    ...   .query_samples('samples.takeBy(s => sa.qc.nSingleton, 10)'))
+
+    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(
     aggregableHr(TTHr), unaryHr(TTHr, boxedintHr), intHr, arrayHr(TTHr))
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Long](f, n))(
+  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Long](f, n),
+    """
+    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
+    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(
     aggregableHr(TTHr), unaryHr(TTHr, boxedlongHr), intHr, arrayHr(TTHr))
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Float](f, n))(
+  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Float](f, n),
+    """
+    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
+    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(
     aggregableHr(TTHr), unaryHr(TTHr, boxedfloatHr), intHr, arrayHr(TTHr))
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Double](f, n))(
+  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Double](f, n),
+    """
+    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
+    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(
     aggregableHr(TTHr), unaryHr(TTHr, boxeddoubleHr), intHr, arrayHr(TTHr))
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[String](f, n))(
+  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[String](f, n),
+    """
+    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
+    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(
     aggregableHr(TTHr), unaryHr(TTHr, stringHr), intHr, arrayHr(TTHr))
 
   val aggST = Box[SymbolTable]()
@@ -959,10 +1710,28 @@ object FunctionRegistry {
       }
     }
   }
-  })(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
+  },
+    """
+    Returns a new aggregable by applying a function ``f`` to each element and concatenating the resulting arrays.
+
+    **Examples**
+
+    Compute a list of genes per sample with loss of function variants (result may have duplicate entries):
+
+    >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.nNonRefAlleles() > 0).flatMap(g => va.genes).collect()')
+    """
+  )(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
 
   registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
-  })(aggregableHr(TTHr, aggST), unaryHr(TTHr, setHr(TUHr)), aggregableHr(TUHr, aggST))
+  },
+    """
+    Returns a new aggregable by applying a function ``f`` to each element and concatenating the resulting sets.
+
+    Compute a list of genes per sample with loss of function variants (result does not have duplicate entries):
+
+    >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.nNonRefAlleles() > 0).flatMap(g => va.genes.toSet()).collect()')
+    """, "f" -> "Lambda expression."
+  )(aggregableHr(TTHr, aggST), unaryHr(TTHr, setHr(TUHr)), aggregableHr(TUHr, aggST))
 
   registerLambdaAggregatorTransformer("filter", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) =>
     a { x =>
@@ -971,10 +1740,30 @@ object FunctionRegistry {
         k(x)
     }
   }
-  })(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
+  },
+    """
+    Subsets an aggregable by evaluating ``f`` for each element and keeping those elements that evaluate to true.
+
+    **Examples**
+
+    Compute Hardy Weinberg Equilibrium for cases only:
+
+    >>> vds_result = vds.annotate_variants_expr("va.hweCase = gs.filter(g => sa.isCase).hardyWeinberg()")
+    """, "f" -> "Boolean lambda expression."
+  )(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 
   registerLambdaAggregatorTransformer("map", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => k(f(x)) } }
-  })(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
+  },
+    """
+    Change the type of an aggregable by evaluating ``f`` for each element.
+
+    **Examples**
+
+    Convert an aggregable of genotypes (``gs``) to an aggregable of genotype quality scores and then compute summary statistics:
+
+    >>> vds_result = vds.annotate_variants_expr("va.gqStats = gs.map(g => g.gq).stats()")
+    """, "f" -> "Lambda expression."
+  )(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
 
   type Id[T] = T
 
@@ -986,7 +1775,7 @@ object FunctionRegistry {
       def typ: Type = hrs.typ
     }
 
-    register(name, f)
+    register(name, f, null)
 
     register(name, (x: IndexedSeq[Any], y: T) =>
       x.map { xi =>
@@ -994,14 +1783,14 @@ object FunctionRegistry {
           null
         else
           f(xi.asInstanceOf[T], y)
-      })(arrayHr(hrboxedt), hrt, arrayHr(hrboxeds))
+      }, null)(arrayHr(hrboxedt), hrt, arrayHr(hrboxeds))
 
     register(name, (x: T, y: IndexedSeq[Any]) => y.map { yi =>
       if (yi == null)
         null
       else
         f(x, yi.asInstanceOf[T])
-    })(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
+    }, null)(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
 
     register(name, { (x: IndexedSeq[Any], y: IndexedSeq[Any]) =>
       if (x.length != y.length) fatal(
@@ -1014,18 +1803,18 @@ object FunctionRegistry {
         else
           f(xi.asInstanceOf[T], yi.asInstanceOf[T])
       }
-    })(arrayHr(hrboxedt), arrayHr(hrboxedt), arrayHr(hrboxeds))
+    }, null)(arrayHr(hrboxedt), arrayHr(hrboxedt), arrayHr(hrboxeds))
   }
 
-  registerMethod("toInt", (s: String) => s.toInt)
-  registerMethod("toLong", (s: String) => s.toLong)
-  registerMethod("toFloat", (s: String) => s.toFloat)
-  registerMethod("toDouble", (s: String) => s.toDouble)
+  registerMethod("toInt", (s: String) => s.toInt, "Convert value to an Integer.")
+  registerMethod("toLong", (s: String) => s.toLong, "Convert value to a Long.")
+  registerMethod("toFloat", (s: String) => s.toFloat, "Convert value to a Float.")
+  registerMethod("toDouble", (s: String) => s.toDouble, "Convert value to a Double.")
 
-  registerMethod("toInt", (b: Boolean) => b.toInt)
-  registerMethod("toLong", (b: Boolean) => b.toLong)
-  registerMethod("toFloat", (b: Boolean) => b.toFloat)
-  registerMethod("toDouble", (b: Boolean) => b.toDouble)
+  registerMethod("toInt", (b: Boolean) => b.toInt, "Convert value to an Integer. Returns 1 if true, else 0.")
+  registerMethod("toLong", (b: Boolean) => b.toLong, "Convert value to a Long. Returns 1L if true, else 0L.")
+  registerMethod("toFloat", (b: Boolean) => b.toFloat, "Convert value to a Float. Returns 1.0 if true, else 0.0.")
+  registerMethod("toDouble", (b: Boolean) => b.toDouble, "Convert value to a Double. Returns 1.0 if true, else 0.0.")
 
   def registerNumericType[T]()(implicit ev: Numeric[T], hrt: HailRep[T]) {
     registerNumeric("+", ev.plus)
@@ -1033,16 +1822,16 @@ object FunctionRegistry {
     registerNumeric("*", ev.times)
     registerNumeric("/", (x: T, y: T) => ev.toDouble(x) / ev.toDouble(y))
 
-    registerMethod("abs", ev.abs _)
-    registerMethod("signum", ev.signum _)
+    registerMethod("abs", ev.abs _, "Return the absolute value of a number.")
+    registerMethod("signum", ev.signum _, "Return the sign of a number (1, 0, or -1).")
 
-    register("-", ev.negate _)
-    register("fromInt", ev.fromInt _)
+    register("-", ev.negate _, "Returns the negation of this value.")
+    register("fromInt", ev.fromInt _, null)
 
-    registerMethod("toInt", ev.toInt _)
-    registerMethod("toLong", ev.toLong _)
-    registerMethod("toFloat", ev.toFloat _)
-    registerMethod("toDouble", ev.toDouble _)
+    registerMethod("toInt", ev.toInt _, "Convert value to an Integer.")
+    registerMethod("toLong", ev.toLong _, "Convert value to a Long.")
+    registerMethod("toFloat", ev.toFloat _, "Convert value to a Float.")
+    registerMethod("toDouble", ev.toDouble _, "Convert value to a Double.")
   }
 
   registerNumericType[Int]()
@@ -1050,33 +1839,33 @@ object FunctionRegistry {
   registerNumericType[Float]()
   registerNumericType[Double]()
 
-  register("==", (a: Any, b: Any) => a == b)(TTHr, TUHr, boolHr)
-  register("!=", (a: Any, b: Any) => a != b)(TTHr, TUHr, boolHr)
+  register("==", (a: Any, b: Any) => a == b, null)(TTHr, TUHr, boolHr)
+  register("!=", (a: Any, b: Any) => a != b, null)(TTHr, TUHr, boolHr)
 
   def registerOrderedType[T]()(implicit ord: Ordering[T], hrt: HailRep[T]) {
     val hrboxedt = new HailRep[Any] {
       def typ: Type = hrt.typ
     }
 
-    register("<", ord.lt _)
-    register("<=", ord.lteq _)
-    register(">", ord.gt _)
-    register(">=", ord.gteq _)
+    register("<", ord.lt _, null)
+    register("<=", ord.lteq _, null)
+    register(">", ord.gt _, null)
+    register(">=", ord.gteq _, null)
 
-    registerMethod("min", ord.min _)
-    registerMethod("max", ord.max _)
+    registerMethod("min", ord.min _, "Return the minimum value.")
+    registerMethod("max", ord.max _, "Return the maximum value.")
 
-    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extendOrderingToNull(ord)))(arrayHr(hrboxedt), arrayHr(hrboxedt))
+    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extendOrderingToNull(ord)), "Sort the collection in ascending order.")(arrayHr(hrboxedt), arrayHr(hrboxedt))
     registerMethod("sort", (a: IndexedSeq[Any], ascending: Boolean) =>
       a.sorted(extendOrderingToNull(
         if (ascending)
           ord
         else
-          ord.reverse))
+          ord.reverse)), "Sort the collection with the ordering specified by ``ascending``.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
     )(arrayHr(hrboxedt), boolHr, arrayHr(hrboxedt))
 
     registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any) =>
-      a.sortBy(f)(extendOrderingToNull(ord))
+      a.sortBy(f)(extendOrderingToNull(ord)), "Sort the collection in ascending order after evaluating ``f`` for each element.", "f" -> "Lambda expression."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), arrayHr(TTHr))
 
     registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any, ascending: Boolean) =>
@@ -1084,7 +1873,8 @@ object FunctionRegistry {
         if (ascending)
           ord
         else
-          ord.reverse))
+          ord.reverse)), "Sort the collection with the ordering specified by ``ascending`` after evaluating ``f`` for each element.",
+      "f" -> "Lambda expression.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), boolHr, arrayHr(TTHr))
   }
 
@@ -1095,28 +1885,28 @@ object FunctionRegistry {
   registerOrderedType[Double]()
   registerOrderedType[String]()
 
-  registerMethod("//", (x: Int, y: Int) => java.lang.Math.floorDiv(x, y))
-  registerMethod("//", (x: Long, y: Long) => java.lang.Math.floorDiv(x, y))
-  registerMethod("//", (x: Float, y: Float) => math.floor(x / y).toFloat)
-  registerMethod("//", (x: Double, y: Double) => math.floor(x / y))
+  register("//", (x: Int, y: Int) => java.lang.Math.floorDiv(x, y), null)
+  register("//", (x: Long, y: Long) => java.lang.Math.floorDiv(x, y), null)
+  register("//", (x: Float, y: Float) => math.floor(x / y).toFloat, null)
+  register("//", (x: Double, y: Double) => math.floor(x / y), null)
 
-  register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y))
-  register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x, y))
+  register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y), null)
+  register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x, y), null)
   register("%", (x: Float, y: Float) => {
     val t = x % y
     if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
-  })
+  }, null)
   register("%", (x: Double, y: Double) => {
     val t = x % y
     if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
-  })
+  }, null)
 
-  register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
+  register("+", (x: String, y: Any) => x + y, null)(stringHr, TTHr, stringHr)
 
-  register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined)
+  register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined, null)
 
-  registerSpecial("isMissing", (g: () => Any) => g() == null)(TTHr, boolHr)
-  registerSpecial("isDefined", (g: () => Any) => g() != null)(TTHr, boolHr)
+  registerSpecial("isMissing", (g: () => Any) => g() == null, "Returns true if item is missing. Otherwise, false.")(TTHr, boolHr)
+  registerSpecial("isDefined", (g: () => Any) => g() != null, "Returns true if item is non-missing. Otherwise, false.")(TTHr, boolHr)
 
   registerSpecial("||", { (f1: () => Any, f2: () => Any) =>
     val x1 = f1()
@@ -1133,7 +1923,7 @@ object FunctionRegistry {
       else
         null
     }
-  })(boolHr, boolHr, boxedboolHr)
+  }, null)(boolHr, boolHr, boxedboolHr)
 
   registerSpecial("&&", { (f1: () => Any, f2: () => Any) =>
     val x = f1()
@@ -1150,22 +1940,99 @@ object FunctionRegistry {
       else
         null
     }
-  })(boolHr, boolHr, boxedboolHr)
+  }, null)(boolHr, boolHr, boxedboolHr)
 
-  registerMethodSpecial("orElse", { (f1: () => Any, f2: () => Any) =>
+  registerSpecial("orElse", { (f1: () => Any, f2: () => Any) =>
     val v = f1()
     if (v == null)
       f2()
     else
       v
-  })(TTHr, TTHr, TTHr)
+  },
+    """
+    If ``a`` does not evaluate to missing, return the result. Otherwise, evaluate ``b`` and return the result.
 
-  registerMethod("[]", (a: IndexedSeq[Any], i: Int) => if (i >= 0) a(i) else a(a.length + i))(arrayHr(TTHr), intHr, TTHr)
-  registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i))(dictHr(TTHr, TUHr), TTHr, TUHr)
-  registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString)(stringHr, intHr, charHr)
+    **Examples**
 
-  registerMethod("[:]", (a: IndexedSeq[Any]) => a)(arrayHr(TTHr), arrayHr(TTHr))
-  registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(i, a.length))(arrayHr(TTHr), intHr, arrayHr(TTHr))
-  registerMethod("[:*]", (a: IndexedSeq[Any], i: Int) => a.slice(0, i))(arrayHr(TTHr), intHr, arrayHr(TTHr))
-  registerMethod("[*:*]", (a: IndexedSeq[Any], i: Int, j: Int) => a.slice(i, j))(arrayHr(TTHr), intHr, intHr, arrayHr(TTHr))
+    Replace missing phenotype values with the mean value:
+
+    ::
+
+        >>> mean_height = vds.query_samples('samples.map(s => sa.pheno.height).stats()')['mean']
+        >>> vds.annotate_samples_expr('sa.pheno.heightImputed = orElse(sa.pheno.height, %d)' % mean_height)
+    """
+  )(TTHr, TTHr, TTHr)
+
+  registerMethod("[]", (a: IndexedSeq[Any], i: Int) => if (i >= 0) a(i) else a(a.length + i),
+    """
+    Return the i*th*-indexed element of the Array or NA if array or index is missing. Arrays are 0-indexed.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6, 8, 10] in a[2]
+        result: 4
+    """, "i" -> "Index of the element to return."
+  )(arrayHr(TTHr), intHr, TTHr)
+  registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i),
+    """
+    Return the value for ``k`` or NA if the map or key is missing.
+    """, "k" -> "Key in the Dict to query."
+  )(dictHr(TTHr, TUHr), TTHr, TUHr)
+  registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString,
+    """
+    Return the *i*th-indexed character in the String or NA if the string or index is missing. Strings are 0-indexed.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let s = "genetics" in s[6]
+        result: "c"
+    """, "i" -> "Index of the character to return."
+  )(stringHr, intHr, charHr)
+
+  registerMethod("[:]", (a: IndexedSeq[Any]) => a,
+    """
+    Return a copy of the entire Array.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6] in a[:]
+        result: [0, 2, 4, 6]
+    """
+  )(arrayHr(TTHr), arrayHr(TTHr))
+  registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(i, a.length),
+    """
+    Return a slice of the array from the i*th*-indexed element to the end.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6, 8, 10] in a[3:]
+        result: [6, 8, 10]
+    """, "i" -> "Starting index of the slice."
+  )(arrayHr(TTHr), intHr, arrayHr(TTHr))
+  registerMethod("[:*]", (a: IndexedSeq[Any], i: Int) => a.slice(0, i),
+    """
+    Return a slice of the array from the 0*th*-indexed element **until** the j*th*-indexed element.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6, 8, 10] in a[:4]
+        result: [0, 2, 4, 6]
+    """, "j" -> "End index of the slice (not included in result)."
+  )(arrayHr(TTHr), intHr, arrayHr(TTHr))
+  registerMethod("[*:*]", (a: IndexedSeq[Any], i: Int, j: Int) => a.slice(i, j),
+    """
+    Return a slice of the array from the i*th*-indexed element **until** the j*th*-indexed element.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6, 8, 10] in a[2:4]
+        result: [4, 6]
+    """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
+  )(arrayHr(TTHr), intHr, intHr, arrayHr(TTHr))
 }

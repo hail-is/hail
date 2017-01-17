@@ -14,7 +14,7 @@ Contents
     Getting Started <getting_started>
     Overview <overview>
     Tutorial <tutorial.ipynb>
-    Hail Objects <hail_objects>
+    Expression Language <exprlang>
     Python API <api>
     Other Resources <other_resources>
 

@@ -165,8 +165,8 @@ class VariantDataset(object):
         the intervals specified by *data/capture_intervals.txt*:
 
         >>> vds_result = vds.aggregate_intervals('data/capture_intervals.txt',
-        ...   'n_SNP = variants.filter(v => v.altAllele.isSNP).count(), ' +
-        ...   'n_indel = variants.filter(v => v.altAllele.isIndel).count(), ' +
+        ...   'n_SNP = variants.filter(v => v.altAllele().isSNP()).count(), ' +
+        ...   'n_indel = variants.filter(v => v.altAllele().isIndel()).count(), ' +
         ...   'n_total = variants.count()',
         ...   'output/out.txt')
 
@@ -195,7 +195,7 @@ class VariantDataset(object):
         Count the number of LOF, missense, and synonymous non-reference calls
         per interval:
 
-        >>> vds_result = (vds.annotate_variants_expr('va.n_calls = gs.filter(g => g.isCalledNonRef).count()')
+        >>> vds_result = (vds.annotate_variants_expr('va.n_calls = gs.filter(g => g.isCalledNonRef()).count()')
         ...     .aggregate_intervals('data/intervals.txt',
         ...            'LOF_CALLS = variants.filter(v => va.consequence == "LOF").map(v => va.n_calls).sum(), ' +
         ...            'MISSENSE_CALLS = variants.filter(v => va.consequence == "missense").map(v => va.n_calls).sum(), ' +
@@ -261,7 +261,7 @@ class VariantDataset(object):
         To create a variant annotation ``va.nNonRefSamples: Array[Int]`` where the ith entry of
         the array is the number of samples carrying the ith alternate allele:
 
-        >>> vds_result = vds.annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.isCalledNonRef).count()')
+        >>> vds_result = vds.annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.isCalledNonRef()).count()')
 
         **Notes**
 
@@ -426,14 +426,14 @@ class VariantDataset(object):
 
         Compute per-sample GQ statistics for hets:
 
-        >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()')
+        >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet()).map(g => g.gq).stats()')
         ...     .export_samples('output/samples.txt', 'sample = s, het_gq_mean = sa.gqHetStats.mean'))
 
         Compute the list of genes with a singleton LOF per sample:
 
         >>> vds_result = (vds.annotate_variants_table('data/consequence.tsv', 'Variant', code='va.consequence = table.Consequence', config=TextTableConfig(impute=True))
-        ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles).sum() == 1')
-        ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet && va.consequence == "LOF").map(g => va.gene).collect()'))
+        ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles()).sum() == 1')
+        ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
 
         To create an annotation for only a subset of samples based on an existing annotation:
 
@@ -762,15 +762,15 @@ class VariantDataset(object):
 
         Compute GQ statistics about heterozygotes per variant:
 
-        >>> vds_result = vds.annotate_variants_expr('va.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()')
+        >>> vds_result = vds.annotate_variants_expr('va.gqHetStats = gs.filter(g => g.isHet()).map(g => g.gq).stats()')
 
         Collect a list of sample IDs with non-ref calls in LOF variants:
 
-        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()')
+        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef()).map(g => s.id).collect()')
 
         Substitute a custom string for the rsID field:
 
-        >>> vds_result = vds.annotate_variants_expr('va.rsid = v.contig + "_" + v.start + "_" + v.ref + "_" + v.alt')
+        >>> vds_result = vds.annotate_variants_expr('va.rsid = str(v)')
 
         **Notes**
 
@@ -782,7 +782,7 @@ class VariantDataset(object):
           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
 
         For more information, see the documentation on writing `expressions <overview.html#expressions>`_
-        and using the `Hail Expression Language <../expr_lang.html>`_.
+        and using the `Hail Expression Language <exprlang.html>`_.
 
         :param expr: Annotation expression or list of annotation expressions.
         :type expr: str or list of str
@@ -1649,10 +1649,10 @@ class VariantDataset(object):
 
         Filter genotypes by allele balance dependent on genotype call:
 
-        >>> vds_result = vds.filter_genotypes('let ab = g.ad[1] / g.ad.sum in ' +
-        ...                      '((g.isHomRef && ab <= 0.1) || ' +
-        ...                      '(g.isHet && ab >= 0.25 && ab <= 0.75) || ' +
-        ...                      '(g.isHomVar && ab >= 0.9))')
+        >>> vds_result = vds.filter_genotypes('let ab = g.ad[1] / g.ad.sum() in ' +
+        ...                      '((g.isHomRef() && ab <= 0.1) || ' +
+        ...                      '(g.isHet() && ab >= 0.25 && ab <= 0.75) || ' +
+        ...                      '(g.isHomVar() && ab >= 0.9))')
 
         **Notes**
 
@@ -1665,7 +1665,7 @@ class VariantDataset(object):
         - ``global``: global annotations
 
         For more information, see the documentation on `data representation, annotations <overview.html#>`_, and
-        the `expression language <../expr_lang.html>`_.
+        the `expression language <exprlang.html>`_.
 
         .. caution::
             When ``condition`` evaluates to missing, the genotype will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -1739,7 +1739,7 @@ class VariantDataset(object):
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
         For more information, see the documentation on `data representation, annotations <overview.html#>`_, and
-        the `expression language <../expr_lang.html>`_.
+        the `expression language <exprlang.html>`_.
 
         .. caution::
             When ``condition`` evaluates to missing, the sample will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -1820,7 +1820,7 @@ class VariantDataset(object):
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
 
-        For more information, see the `Overview <overview.html#>`_ and the `Expression Language <../expr_lang.html>`_.
+        For more information, see the `Overview <overview.html#>`_ and the `Expression Language <exprlang.html>`_.
 
         .. caution::
            When ``condition`` evaluates to missing, the variant will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -2135,7 +2135,7 @@ class VariantDataset(object):
         stringent of the two, as AF equals AC over twice the number of included
         samples.
 
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <../expr_lang.html>`_ without identifiers, such as:
+        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`_ without identifiers, such as:
 
         .. code-block:: text
 
@@ -2497,7 +2497,7 @@ class VariantDataset(object):
 
         See `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`_ for an empirical comparison of the logistic Wald, LRT, score, and Firth tests. The theoretical foundations of the Wald, likelihood ratio, and score tests may be found in Chapter 3 of Gesine Reinert's notes `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`_.  Firth introduced his approach in `Bias reduction of maximum likelihood estimates, 1993 <http://www2.stat.duke.edu/~scs/Courses/Stat376/Papers/GibbsFieldEst/BiasReductionMLE.pdf>`_. Heinze and Schemper further analyze Firth's approach in `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`_.
 
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <../expr_lang.html>`_ without identifiers, such as:
+        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`_ without identifiers, such as:
 
         .. code-block:: text
 
@@ -2764,11 +2764,6 @@ class VariantDataset(object):
         """
         Returns the signature of the global annotations contained in this VDS.
 
-        .. doctest::
-            :options: +SKIP
-
-            print(vds.global_schema)
-
         >>> print(vds.global_schema)
 
         :rtype: :class:`.Type`
@@ -2939,11 +2934,11 @@ class VariantDataset(object):
         to execute multiple query methods.  This:
 
         >>> result1 = vds.query_variants('variants.count()')
-        >>> result2 = vds.query_variants('variants.filter(v => v.altAllele.isSNP()).count()')
+        >>> result2 = vds.query_variants('variants.filter(v => v.altAllele().isSNP()).count()')
 
         will be nearly twice as slow as this:
 
-        >>> exprs = ['variants.count()', 'variants.filter(v => v.altAllele.isSNP()).count()']
+        >>> exprs = ['variants.count()', 'variants.filter(v => v.altAllele().isSNP()).count()']
         >>> results = vds.query_variants(exprs)
 
         :param exprs: one or more query expressions
