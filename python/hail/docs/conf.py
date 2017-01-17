@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# PyHail documentation build configuration file, created by
+# Hail documentation build configuration file, created by
 # sphinx-quickstart on Fri Nov  4 10:55:10 2016.
 #
 # This file is execfile()d with the current directory set to its
@@ -59,7 +59,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'PyHail'
+project = u'Hail'
 copyright = u'2016, Hail Team'
 author = u'Hail Team'
 
@@ -177,7 +177,7 @@ html_static_path = ['_static']
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
 #
-html_extra_path = ['_static/navbar_pyhail.html', '../../../www/hail-logo-cropped.png',
+html_extra_path = ['_static/navbar_hail.html', '../../../www/hail-logo-cropped.png',
                    '../../../www/navbar.css', '../../../www/hail_logo_sq.png']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
@@ -254,7 +254,7 @@ html_sidebars = {
 # html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'PyHaildoc'
+htmlhelp_basename = 'haildoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -280,7 +280,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'PyHail.tex', u'PyHail Documentation',
+    (master_doc, 'Hail.tex', u'Hail Documentation',
      u'Hail Team', 'manual'),
 ]
 
@@ -322,7 +322,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'pyhail', u'PyHail Documentation',
+    (master_doc, 'hail', u'Hail Documentation',
      [author], 1)
 ]
 
@@ -337,8 +337,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'PyHail', u'PyHail Documentation',
-     author, 'PyHail', 'One line description of project.',
+    (master_doc, 'Hail', u'Hail Documentation',
+     author, 'Hail', 'One line description of project.',
      'Miscellaneous'),
 ]
 

@@ -53,16 +53,16 @@ Add the following environmental variables and make an alias for Hail by filling 
 
 Running ``hail`` on the command line will open an interactive Python shell.
 
-Here are a few simple things to try in order. To import the ``pyhail`` module and start a :py:class:`~pyhail.HailContext`, run::
+Here are a few simple things to try in order. To import the ``hail`` module and start a :py:class:`~hail.HailContext`, run::
 
-    >>> import pyhail
-    >>> hc = pyhail.HailContext()
+    >>> import hail
+    >>> hc = hail.HailContext()
 
-To :func:`import <pyhail.HailContext.import_vcf>` the included *sample.vcf* into Hail's **.vds** format, run::
+To :func:`import <hail.HailContext.import_vcf>` the included *sample.vcf* into Hail's **.vds** format, run::
 
     >>> hc.import_vcf('src/test/resources/sample.vcf').write('sample.vds')
 
-To :func:`split <pyhail.VariantDataset.split_multi>` multi-allelic variants, compute a panel of :func:`sample <pyhail.VariantDataset.sample_qc>` and :func:`variant <pyhail.VariantDataset.sample_qc>` quality control statistics, write these statistics to files, and save an annotated version of the vds, run::
+To :func:`split <hail.VariantDataset.split_multi>` multi-allelic variants, compute a panel of :func:`sample <hail.VariantDataset.sample_qc>` and :func:`variant <hail.VariantDataset.sample_qc>` quality control statistics, write these statistics to files, and save an annotated version of the vds, run::
 
     >>> vds = (hc.read('sample.vds')
     >>>     .split_multi()
@@ -72,11 +72,11 @@ To :func:`split <pyhail.VariantDataset.split_multi>` multi-allelic variants, com
     >>>     .write('sample.qc.vds'))
 
 
-To :func:`count <pyhail.VariantDataset.count>` the number of samples, variants, and genotypes, run::
+To :func:`count <hail.VariantDataset.count>` the number of samples, variants, and genotypes, run::
 
     >>> vds.count(genotypes=True)
 
-Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <../reference.html#Annotations>`_, and `expression language <../reference.html#HailExpressionLanguage>`_. To :func:`print <pyhail.VariantDataset.print_schema>` the current annotation schema and use these annotations to filter variants, samples, and genotypes, run::
+Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <../reference.html#Annotations>`_, and `expression language <../reference.html#HailExpressionLanguage>`_. To :func:`print <hail.VariantDataset.print_schema>` the current annotation schema and use these annotations to filter variants, samples, and genotypes, run::
 
     >>> (vds.print_schema('schema.txt')
     >>>     .filter_variants_expr('v.altAllele.isSNP && va.qc.gqMean >= 20')
@@ -87,7 +87,7 @@ Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotati
     >>>                       ' (g.isHomVar && ab >= 0.9))')
     >>>     .write('sample.filtered.vds')
 
-Try running :py:meth:`~pyhail.VariantDataset.count` on *sample.filtered.vds* to see how the numbers have changed. For further background and examples, continue to the :ref:`sec-overview` and :ref:`API reference <sec-api>`.
+Try running :py:meth:`~hail.VariantDataset.count` on *sample.filtered.vds* to see how the numbers have changed. For further background and examples, continue to the :ref:`sec-overview` and :ref:`API reference <sec-api>`.
 
 Note that during each run Hail writes a ``hail.log`` file in the current directory; this is useful to developers for debugging.
 

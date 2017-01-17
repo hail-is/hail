@@ -1,8 +1,8 @@
 from __future__ import print_function # Python 2 and 3 print compatibility
 
-from pyhail.java import scala_package_object, jarray
-from pyhail.keytable import KeyTable
-from pyhail.utils import TextTableConfig
+from hail.java import scala_package_object, jarray
+from hail.keytable import KeyTable
+from hail.utils import TextTableConfig
 
 from py4j.protocol import Py4JJavaError
 
@@ -63,9 +63,9 @@ class VariantDataset(object):
     def was_split(self):
         """Multiallelic variants have been split into multiple biallelic variants.
 
-        Result is True if :py:meth:`~pyhail.VariantDataset.split_multi` has been called on this dataset
-        or the dataset was imported with :py:meth:`~pyhail.HailContext.import_plink`, :py:meth:`~pyhail.HailContext.import_gen`,
-        or :py:meth:`~pyhail.HailContext.import_bgen`.
+        Result is True if :py:meth:`~hail.VariantDataset.split_multi` has been called on this dataset
+        or the dataset was imported with :py:meth:`~hail.HailContext.import_plink`, :py:meth:`~hail.HailContext.import_gen`,
+        or :py:meth:`~hail.HailContext.import_bgen`.
 
         :rtype: bool
 
@@ -78,8 +78,8 @@ class VariantDataset(object):
     def is_dosage(self):
         """Genotype probabilities are dosages.
 
-        The result of ``is_dosage()`` will be True if the dataset was imported with :py:meth:`~pyhail.HailContext.import_gen` or
-        :py:meth:`~pyhail.HailContext.import_bgen`.
+        The result of ``is_dosage()`` will be True if the dataset was imported with :py:meth:`~hail.HailContext.import_gen` or
+        :py:meth:`~hail.HailContext.import_bgen`.
 
         :rtype: bool
 
@@ -495,7 +495,7 @@ class VariantDataset(object):
 
         To annotates samples using `samples1.tsv` with type imputation::
 
-        >>> conf = pyhail.TextTableConfig(impute=True)
+        >>> conf = hail.TextTableConfig(impute=True)
         >>> vds = (hc.read('data/example.vds')
         >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.pheno', config=conf))
 
@@ -972,7 +972,7 @@ class VariantDataset(object):
                 self.jvds, other.jvds, code, root))
 
     def cache(self):
-        """Mark this dataset to be cached in memory. :py:meth:`~pyhail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <pyhail.VariantDataset.persist>`.
+        """Mark this dataset to be cached in memory. :py:meth:`~hail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.
 
         :return:  This dataset, marked to be cached in memory.
 
@@ -1060,7 +1060,7 @@ class VariantDataset(object):
         - 3 probabilities per sample ``(pHomRef, pHet, pHomVar)``.
         - Any filtered genotypes will be output as ``(0.0, 0.0, 0.0)``.
         - If the input data contained Phred-scaled likelihoods, the probabilities in the GEN file will be the normalized genotype probabilities assuming a uniform prior.
-        - If the input data did not have genotype probabilities such as data imported using :py:meth:`~pyhail.HailContext.import_plink`, all genotype probabilities will be ``(0.0, 0.0, 0.0)``.
+        - If the input data did not have genotype probabilities such as data imported using :py:meth:`~hail.HailContext.import_plink`, all genotype probabilities will be ``(0.0, 0.0, 0.0)``.
 
         The sample file has 3 columns:
 
@@ -1091,7 +1091,7 @@ class VariantDataset(object):
 
         **Details**
 
-        :py:meth:`~pyhail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
+        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
 
         The ``condition`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
 
@@ -1203,7 +1203,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        One line per sample will be exported.  As :py:meth:`~pyhail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
+        One line per sample will be exported.  As :py:meth:`~hail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
 
         - ``s`` (*Sample*): :ref:`sample`
         - ``sa``: sample annotations
@@ -1493,7 +1493,7 @@ class VariantDataset(object):
         Similarly, the depth for the filtered allele in the AD field
         is added to that of the reference.  If an allele is filtered,
         this algorithm acts similarly to
-        :py:meth:`~pyhail.VariantDataset.split_multi`.
+        :py:meth:`~hail.VariantDataset.split_multi`.
 
         The downcoding algorithm would produce the following:
 
@@ -1692,7 +1692,7 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def filter_variants_all(self):
-        """Discard all variants, variant annotations and genotypes.  Samples, sample annotations and global annotations are retained. This is the same as :func:`filter_variants_expr('false') <pyhail.VariantDataset.filter_variants_expr>`, except faster.
+        """Discard all variants, variant annotations and genotypes.  Samples, sample annotations and global annotations are retained. This is the same as :func:`filter_variants_expr('false') <hail.VariantDataset.filter_variants_expr>`, except faster.
 
         **Example**
 
@@ -1871,7 +1871,7 @@ class VariantDataset(object):
 
         The implementation is based on the IBD algorithm described in the `PLINK paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`_.
 
-        :py:meth:`~pyhail.VariantDataset.ibd` requires the dataset to be bi-allelic (otherwise run :py:meth:`~pyhail.VariantDataset.split_multi`) and does not perform LD pruning. Linkage disequilibrium may bias the result so consider filtering variants first.
+        :py:meth:`~hail.VariantDataset.ibd` requires the dataset to be bi-allelic (otherwise run :py:meth:`~hail.VariantDataset.split_multi`) and does not perform LD pruning. Linkage disequilibrium may bias the result so consider filtering variants first.
 
         Conceptually, the output is a symmetric, sample-by-sample matrix. The output .tsv has the following form
 
@@ -2077,7 +2077,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The :py:meth:`~pyhail.VariantDataset.logreg` command performs,
+        The :py:meth:`~hail.VariantDataset.logreg` command performs,
         for each variant, a significance test of the genotype in
         predicting a binary (case-control) phenotype based on the
         logistic regression model. Hail supports the Wald test,
@@ -2335,7 +2335,7 @@ class VariantDataset(object):
 
         **Annotations**
 
-        Given root ``scores='sa.scores'`` and ``as_array=False``, :py:meth:`~pyhail.VariantDataset.pca` adds a Struct to sample annotations:
+        Given root ``scores='sa.scores'`` and ``as_array=False``, :py:meth:`~hail.VariantDataset.pca` adds a Struct to sample annotations:
 
          - **sa.scores** (*Struct*) -- Struct of sample scores
 
@@ -2349,7 +2349,7 @@ class VariantDataset(object):
 
         Analogous variant and global annotations of type Struct are added by specifying the ``loadings`` and ``eigenvalues`` arguments, respectively.
 
-        Given roots ``scores='sa.scores'``, ``loadings='va.loadings'``, and ``eigenvalues='global.evals'``, and ``as_array=True``, :py:meth:`~pyhail.VariantDataset.pca` adds the following annotations:
+        Given roots ``scores='sa.scores'``, ``loadings='va.loadings'``, and ``eigenvalues='global.evals'``, and ``as_array=True``, :py:meth:`~hail.VariantDataset.pca` adds the following annotations:
 
          - **sa.scores** (*Array[Double]*) -- Array of sample scores from the top k PCs
 
@@ -2398,10 +2398,10 @@ class VariantDataset(object):
 
         **Notes**
 
-        The :py:meth:`~pyhail.VariantDataset.persist` and :py:meth:`~pyhail.VariantDataset.cache` commands allow you to store the current dataset on disk
+        The :py:meth:`~hail.VariantDataset.persist` and :py:meth:`~hail.VariantDataset.cache` commands allow you to store the current dataset on disk
         or in memory to avoid redundant computation and improve the performance of Hail pipelines.
 
-        :py:meth:`~pyhail.VariantDataset.cache` is an alias for :func:`persist("MEMORY_ONLY") <pyhail.VariantDataset.persist>`.  Most users will want "MEMORY_AND_DISK".
+        :py:meth:`~hail.VariantDataset.cache` is an alias for :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.  Most users will want "MEMORY_AND_DISK".
         See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ for a more in-depth discussion of persisting data.
 
         :param storage_level: Storage level.  One of: NONE, DISK_ONLY,
@@ -2467,7 +2467,7 @@ class VariantDataset(object):
         appear in the first column will not be renamed.  Lines in the input that
         do not correspond to any sample in the current dataset will be ignored.
 
-        :py:meth:`~pyhail.VariantDataset.export_samples` can be used to generate a template for renaming
+        :py:meth:`~hail.VariantDataset.export_samples` can be used to generate a template for renaming
         samples. For example, suppose you want to rename samples to remove
         spaces.  First, run:
 
@@ -2659,7 +2659,7 @@ class VariantDataset(object):
 
         **Annotations**
 
-        :py:meth:`~pyhail.VariantDataset.split_multi` adds the
+        :py:meth:`~hail.VariantDataset.split_multi` adds the
         following annotations:
 
          - **va.wasSplit** (*Boolean*) -- true if this variant was
@@ -2759,7 +2759,7 @@ class VariantDataset(object):
         +--------+--------+--------+------------+---+---+
 
 
-        :py:meth:`~pyhail.VariantDataset.tdt` only considers complete trios (two parents and a proband) with defined sex.
+        :py:meth:`~hail.VariantDataset.tdt` only considers complete trios (two parents and a proband) with defined sex.
 
         PAR is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
 
@@ -2768,11 +2768,11 @@ class VariantDataset(object):
         - Y: 10001-2649520
         - Y: 59034050-59363566
 
-        :py:meth:`~pyhail.VariantDataset.tdt` assumes all contigs apart from X and Y are fully autosomal; decoys, etc. are not given special treatment.
+        :py:meth:`~hail.VariantDataset.tdt` assumes all contigs apart from X and Y are fully autosomal; decoys, etc. are not given special treatment.
 
         **Annotations**
 
-        :py:meth:`~pyhail.VariantDataset.tdt` adds the following annotations:
+        :py:meth:`~hail.VariantDataset.tdt` adds the following annotations:
 
          - **tdt.nTransmitted** (*Int*) -- Number of transmitted alternate alleles.
 
@@ -2816,7 +2816,7 @@ class VariantDataset(object):
 
         **Annotations**
 
-        :py:meth:`~pyhail.VariantDataset.variant_qc` computes 16 variant statistics from the genotype data and stores the results as variant annotations that can be accessed with ``va.qc.<identifier>``:
+        :py:meth:`~hail.VariantDataset.variant_qc` computes 16 variant statistics from the genotype data and stores the results as variant annotations that can be accessed with ``va.qc.<identifier>``:
 
         +---------------------------+--------+----------------------------------------------------+
         | Name                      | Type   | Description                                        |
@@ -2867,7 +2867,7 @@ class VariantDataset(object):
     def vep(self, config, block_size=1000, root='va.vep', force=False, csq=False):
         """Annotate variants with VEP.
 
-        :py:meth:`~pyhail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`_ with
+        :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`_ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`_
         on the current dataset and adds the result as a variant annotation.
 
@@ -2882,7 +2882,7 @@ class VariantDataset(object):
 
         **Configuration**
 
-        :py:meth:`~pyhail.VariantDataset.vep` needs a configuration file to tell it how to run
+        :py:meth:`~hail.VariantDataset.vep` needs a configuration file to tell it how to run
         VEP. The format is a `.properties file <https://en.wikipedia.org/wiki/.properties>`_.
         Roughly, each line defines a property as a key-value pair of the form `key = value`. `vep` supports the following properties:
 
@@ -2927,7 +2927,7 @@ class VariantDataset(object):
         **Annotations**
 
         Annotations with the following schema are placed in the location specified by ``root``.
-        The schema can be confirmed with :py:meth:`~pyhail.VariantDataset.print_schema`.
+        The schema can be confirmed with :py:meth:`~hail.VariantDataset.print_schema`.
 
         .. code-block:: text
 

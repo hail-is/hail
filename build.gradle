@@ -217,15 +217,15 @@ test {
 
 test.dependsOn(checkSettings)
 
-task testPyHail(type: Exec, dependsOn: shadowJar) {
-     commandLine 'python', '-m', 'unittest', 'pyhail.tests'
+task testHail(type: Exec, dependsOn: shadowJar) {
+     commandLine 'python', '-m', 'unittest', 'hail.tests'
 
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-test.dependsOn(testPyHail)
+test.dependsOn(testHail)
 
 tasks.withType(ShadowJar) {
     manifest {
@@ -439,20 +439,20 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepar
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task makePyHailDocs(type: Exec) {
-     workingDir 'python/pyhail/docs'
+task makeHailDocs(type: Exec) {
+     workingDir 'python/hail/docs'
 
      commandLine 'make', 'html'
 
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task cleanPyHailDocs(type: Exec) {
-    commandLine 'rm', '-rf', 'build/www/pyhail'
+task cleanHailDocs(type: Exec) {
+    commandLine 'rm', '-rf', 'build/www/hail'
 }
 
-task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs', 'cleanPyHailDocs']) {
-    commandLine 'mv', 'python/pyhail/docs/_build/html', 'build/www/pyhail'
+task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs', 'cleanHailDocs']) {
+    commandLine 'mv', 'python/hail/docs/_build/html', 'build/www/hail'
 }
 
 task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
@@ -467,7 +467,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     into 'build/www'
 }
 
-task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial', 'copyPyHailDocs']) {
+task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial', 'copyHailDocs']) {
 }
 
 task createDocs(dependsOn: createWebsite)
