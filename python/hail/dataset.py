@@ -650,7 +650,7 @@ class VariantDataset(object):
 
         return VariantDataset(
             self.hc,
-            self.hc.jvm.org.broadinstitute.hail.driver.AnnotateSamplesVDS.annotate(
+            self.hc.hail.driver.AnnotateSamplesVDS.annotate(
                 self.jvds, right.jvds, code, root))
 
     def annotate_variants_bed(self, input, root, all=False):
@@ -968,7 +968,7 @@ class VariantDataset(object):
 
         return VariantDataset(
             self.hc,
-            self.hc.jvm.org.broadinstitute.hail.driver.AnnotateVariantsVDS.annotate(
+            self.hc.hail.driver.AnnotateVariantsVDS.annotate(
                 self.jvds, other.jvds, code, root))
 
     def cache(self):
@@ -994,7 +994,7 @@ class VariantDataset(object):
 
         """
 
-        result = self.hc.jvm.org.broadinstitute.hail.driver.Concordance.calculate(
+        result = self.hc.hail.driver.Concordance.calculate(
             self.jvds, right.jvds)
         return (VariantDataset(self.hc, result._1()),
                 VariantDataset(self.hc, result._2()))
@@ -1008,7 +1008,7 @@ class VariantDataset(object):
         """
 
         try:
-            return (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+            return (scala_package_object(self.hc.hail.driver)
                     .count(self.jvds, genotypes)
                     .toJavaMap())
         except Py4JJavaError as e:
@@ -1956,7 +1956,7 @@ class VariantDataset(object):
 
         """
         try:
-            return VariantDataset(self.hc, self.hc.jvm.org.broadinstitute.hail.driver.Join.join(self.jvds, right.jvds))
+            return VariantDataset(self.hc, self.hc.hail.driver.Join.join(self.jvds, right.jvds))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -3176,7 +3176,7 @@ class VariantDataset(object):
         if isinstance(genotype_condition, list):
             genotype_condition = ','.join(genotype_condition)
 
-        jkt = (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+        jkt = (scala_package_object(self.hc.hail.driver)
                .makeKT(self.jvds, variant_condition, genotype_condition,
                        jarray(self.hc.gateway, self.hc.jvm.java.lang.String, key_names)))
         return KeyTable(self.hc, jkt)
