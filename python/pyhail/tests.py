@@ -2,6 +2,7 @@
 """
 Unit tests for PyHail.
 """
+from __future__ import print_function # Python 2 and 3 print compatibility
 
 import unittest
 

@@ -1,3 +1,5 @@
+from __future__ import print_function # Python 2 and 3 print compatibility
+
 from py4j.protocol import Py4JJavaError
 from pyspark.sql import DataFrame
 from pyhail.java import scala_package_object
@@ -86,7 +88,7 @@ class KeyTable(object):
         >>> kt1 = hc.import_keytable("data/example1.tsv")
         >>> kt2 = hc.import_keytable("data/example2.tsv")
         >>> if kt1.same(kt2):
-        >>>     print "KeyTables are the same!"
+        >>>     print_function("KeyTables are the same!")
 
         :param other: KeyTable to compare to
         :type other: :class:`.KeyTable` 
@@ -105,9 +107,9 @@ class KeyTable(object):
 
         Rename column names of KeyTable and export to file:
 
-        >>> kt = (hc.import_keytable("data/example.tsv")
-        >>>         .rename({'column1' : 'newColumn1'})
-        >>>         .export("data/kt1_renamed.tsv"))
+        >>> (hc.import_keytable("data/example.tsv")
+        >>>    .rename({'column1' : 'newColumn1'})
+        >>>    .export("data/kt1_renamed.tsv"))
 
         :param str output: Output file path.
 
@@ -297,7 +299,7 @@ class KeyTable(object):
 
         >>> kt = hc.import_keytable('data/example.tsv')
         >>> if kt.forall("C1 == 5"):
-        >>>     print "All rows have C1 equal 5."
+        >>>     print_function("All rows have C1 equal 5.")
 
         :param str code: Boolean expression.
 
@@ -317,7 +319,7 @@ class KeyTable(object):
 
         >>> kt = hc.import_keytable('data/example.tsv')
         >>> if kt.exists("C1 == 5"):
-        >>>     print "At least one row has C1 equal 5."
+        >>>     print_function("At least one row has C1 equal 5.")
 
         :param str code: Boolean expression.
 
