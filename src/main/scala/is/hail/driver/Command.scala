@@ -54,7 +54,6 @@ object ToplevelCommands {
   register(BGZipBlocks)
   register(Cache)
   register(Clear)
-  register(CommandMetadata)
   register(CompareVDS)
   register(Concordance)
   register(Count)
