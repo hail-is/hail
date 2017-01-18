@@ -36,37 +36,22 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-mainClassName = "org.broadinstitute.hail.driver.Main"
+mainClassName = "is.hail.driver.Main"
 
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
-Boolean spark2 = sparkVersion ==~ /^2.*/
-
-String mongoVersion
-String kuduSpark
-String scalaVersion
-String scalaMajorVersion
-String py4jVersion
+String scalaVersion = '2.11.8'
+String scalaMajorVersion = '2.11'
 String breezeVersion = '0.11.2'
 
-if (spark2) {
-    kuduSpark = 'spark2'
-    scalaVersion = '2.11.8'
-    scalaMajorVersion = '2.11'
+String py4jVersion
+if (sparkVersion ==~ /^2\.1.*/)
+    py4jVersion = '0.10.4'
+else
     py4jVersion = '0.10.3'
-    mongoVersion = '2.0.0'
-} else {
-    scalaVersion = '2.10.4'
-    scalaMajorVersion = '2.10'
-    kuduSpark = 'spark'
-    if (sparkVersion ==~ /^1\.5.*/) {
-        py4jVersion = '0.8.2.1'
-        mongoVersion = '1.0.0'
-    } else {
-        py4jVersion = '0.9' // 1.6
-        mongoVersion = '1.1.0'
-    }
-}
+
+String kuduSpark = 'spark2'
+String mongoVersion = '2.0.0'
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
@@ -110,22 +95,7 @@ compileJava {
 }
 
 compileScala {
-    if (spark2)
-        // until we drop Spark 1 support, we need to rely on deprecated features
-        scalaCompileOptions.additionalParameters = ["-feature"]
-    else
-        scalaCompileOptions.additionalParameters = ["-feature", "-Xfatal-warnings"]
-}
-
-if (!spark2) {
-    configurations.all {
-        resolutionStrategy {
-            // override new version pulled in by solrj
-            // http://stackoverflow.com/questions/31039367/spark-parallelize-could-not-find-creator-property-with-name-id
-
-            force 'com.fasterxml.jackson.core:jackson-databind:2.4.4'
-        }
-    }
+    scalaCompileOptions.additionalParameters = ["-feature"] // , "-Xfatal-warnings"]
 }
 
 dependencies {
@@ -214,29 +184,29 @@ test {
 
 test.dependsOn(checkSettings)
 
-task testPyHail(type: Exec, dependsOn: shadowJar) {
-     commandLine 'python', '-m', 'unittest', 'pyhail.tests'
+task testHail(type: Exec, dependsOn: shadowJar) {
+     commandLine 'python', '-m', 'unittest', 'hail.tests'
 
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-test.dependsOn(testPyHail)
+test.dependsOn(testHail)
 
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
                 'Implementation-Version': '0.0.1-SNAPSHOT',
-                'Main-Class': 'org.broadinstitute.hail.driver.Main'
+                'Main-Class': 'is.hail.driver.Main'
     }
     baseName = project.name + '-all'
     mergeServiceFiles()
     zip64 true
     // conflict with version in default Hadoop/Spark install
-    relocate 'org.apache.http', 'org.broadinstitute.hail.relocated.org.apache.http'
-    relocate 'com.google.common', 'org.broadinstitute.hail.relocated.com.google.common'
-    relocate 'org.objectweb', 'org.broadinstitute.hail.relocated.org.objectweb'
+    relocate 'org.apache.http', 'is.hail.relocated.org.apache.http'
+    relocate 'com.google.common', 'is.hail.relocated.com.google.common'
+    relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
 }
 
 shadowJar {
@@ -410,7 +380,7 @@ task makeTutorial(type: Exec, dependsOn: setupDocsDirs) {
 }
 
 task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
-    main 'org.broadinstitute.hail.driver.Main'
+    main 'is.hail.driver.Main'
     args ('commandmeta', '-o', 'build/tmp/docs/commandOptions.json')
     classpath sourceSets.main.runtimeClasspath
 }
@@ -436,20 +406,20 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepar
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task makePyHailDocs(type: Exec) {
-     workingDir 'python/pyhail/docs'
+task makeHailDocs(type: Exec) {
+     workingDir 'python/hail/docs'
 
      commandLine 'make', 'html'
 
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task cleanPyHailDocs(type: Exec) {
-    commandLine 'rm', '-rf', 'build/www/pyhail'
+task cleanHailDocs(type: Exec) {
+    commandLine 'rm', '-rf', 'build/www/hail'
 }
 
-task copyPyHailDocs(type: Exec, dependsOn: ['makePyHailDocs', 'setupDocsDirs', 'cleanPyHailDocs']) {
-    commandLine 'mv', 'python/pyhail/docs/_build/html', 'build/www/pyhail'
+task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs', 'cleanHailDocs']) {
+    commandLine 'mv', 'python/hail/docs/_build/html', 'build/www/hail'
 }
 
 task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
@@ -464,7 +434,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     into 'build/www'
 }
 
-task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial', 'copyPyHailDocs']) {
+task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial', 'copyHailDocs']) {
 }
 
 task createDocs(dependsOn: createWebsite)
