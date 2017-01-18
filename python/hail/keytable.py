@@ -535,7 +535,7 @@ class KeyTable(object):
             self._raise_py4j_exception(e)
 
     def export_mongodb(self, mode='append'):
-        (scala_package_object(self.hc.jvm.org.broadinstitute.hail.driver)
+        (scala_package_object(self.hc.hail.driver)
          .exportMongoDB(self.hc.jsql_context, self.jkt, mode))
 
     def explode(self, column_names):

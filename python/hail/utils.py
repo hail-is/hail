@@ -58,8 +58,8 @@ class TextTableConfig(object):
         :param :class:`.HailContext` The Hail context.
         """
         try:
-            return hc.jvm.org.broadinstitute.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
-                                                             self.delimiter, self.missing,
-                                                             self.noheader, self.impute)
+            return hc.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
+                                                              self.delimiter, self.missing,
+                                                              self.noheader, self.impute)
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
