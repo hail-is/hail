@@ -1,6 +1,5 @@
 package is.hail.stats
 
-import breeze.linalg.DenseVector
 import is.hail.SparkSuite
 import is.hail.variant.VariantDataset
 import org.testng.annotations.Test
@@ -18,25 +17,21 @@ class BaldingNicholsModelSuite extends SparkSuite {
 
     val bnm1 = BaldingNicholsModel(sc, K, N, M, 4, popDist, FstOfPop, "bn", seed)
     val bnm2 = BaldingNicholsModel(sc, K, N, M, 4, popDist, FstOfPop, "bn", seed)
-
-
   }*/
-
 
   @Test def testDimensions() = {
     val K = 5
     val N = 10
     val M = 100
-    val popDist = DenseVector[Double](1, 2, 3, 4, 5)
-    val FstOfPop = DenseVector[Double](.1, .2, .3, .2, .2)
+    val popDist = Array(1.0, 2.0, 3.0, 4.0, 5.0)
+    val FstOfPop = Array(0.1, 0.2, 0.3, 0.2, 0.2)
     val seed = 0
 
-    val bnm: VariantDataset = BaldingNicholsModel(sc, K, N, M, 4, popDist, FstOfPop, "bn", seed)
+    val bnm: VariantDataset = BaldingNicholsModel(sc, K, N, M, popDist, FstOfPop, seed, 2, "bn")
 
     //Check right number of samples
     val allCorrectSize = bnm.rdd.collect.map(x => x._2._2).forall(x => x.size == 10)
     assert(allCorrectSize)
-
 
     //Check right number of variants
     assert(bnm.rdd.count() == 100)
