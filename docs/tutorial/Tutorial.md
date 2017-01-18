@@ -171,11 +171,11 @@ Let's filter genotypes based on allelic balance using the `filter_genotypes` met
     >>>                          ((g.isHomRef && ab <= 0.1) || 
     >>>                           (g.isHet && ab >= 0.25 && ab <= 0.75) || 
     >>>                           (g.isHomVar && ab >= 0.9))'''
-    >>> filtered_vds = vds.filter_genotypes(filter_condition)
+    >>> vds_gAB = vds.filter_genotypes(filter_condition)
 
 In this code, we first construct a expression `filter_condition` that evaluates to a Boolean using the . We use `let ... in` to define a temporary variable `ab` for the allelic balance which is calculated from the allelic depth `g.ad`, a zero-indexed array (so `g.ad[0]` and `g.ad[1]` are read counts for reference allele and alternate allele, respectively). We require for homozygous call that the allelic balance be within `.1` of the expected mode, and that for heterozygote calls (`g.isHet`) the allelic balance be between 0.25 and 0.75. Additional methods on genotype are documented [here](reference.html#genotype).
 
-    >>> filtered_vds.count(genotypes=True)
+    >>> vds_gAB.count(genotypes=True)
 
 Now the call rate is about 95%, so nearly 4% of genotypes failed the filter (filtering out a genotype is equivalent to setting the genotype call to missing).
 
@@ -190,17 +190,17 @@ Now the call rate is about 95%, so nearly 4% of genotypes failed the filter (fil
 
 Having removed suspect genotypes, let's next remove variants with low call rate and then calculate summary statistics per sample with the `sample_qc` method.
  
-    >>> filtered_vds_2 = (filtered_vds
+    >>> vds_gAB_vCR = (vds_gAB
     >>>     .filter_variants_expr('gs.fraction(g => g.isCalled) > 0.95')
     >>>     .sample_qc())
 
 The call rate for each variant is calculated using the `fraction` [aggregable](reference.html#aggregables) on the genotypes `gs`. `sampleqc` adds a number of statistics to sample annotations documented [here](commands.html#sampleqc). Let's print the new sample annotation schema schema:
 
-    >>> filtered_vds_2.print_schema(sa=True)
+    >>> vds_gAB_vCR.print_schema(sa=True)
 
 Let's export these sample annotations to a text file:
 
-    >>> filtered_vds_2.export_samples('sampleqc.txt', 'Sample = s.id, sa.qc.*')
+    >>> vds_gAB_vCR.export_samples('sampleqc.txt', 'Sample = s.id, sa.qc.*')
 
 `%%sh` is a handy IPython magic command that allows you to peek at this file without leaving the IPython interpreter.
 
@@ -224,27 +224,29 @@ We can further analyze these results locally using tools like Python or R. Below
 
 <img src="test.sampleqc.png">
 
-Let's remove the samples that are outliers in the plots above (where cutoffs are given the red lines). We will remove these samples from `filtered_vds` (after filtering genotypes but before filtering variants) because it's possible that poor-quality samples decreased the call rate on variants we'd actually like to keep. Here are two of the many ways we could do this step: 
+Let's remove the samples that are outliers in the plots above (where cutoffs are given the red lines). We will remove these samples from `vds_gAB` (after filtering genotypes but before filtering variants) because it's possible that poor-quality samples decreased the call rate on variants we'd actually like to keep. Here are two of the many ways we could do this step: 
 
-**Method 1:** Export a list of samples to keep from `filtered_vds_2`, and filter samples from `filtered_vds` based on this list.
+**Method 1:** Export a list of samples to keep from `vds_gAB_vCR`, and filter samples from `vds_gAB` based on this list.
 
-    >>> (filtered_vds_2
+    >>> (vds_gAB_vCR
     >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20')
     >>>     .export_samples('included_samples.txt', 's.id'))
-    >>> filtered_vds_3 = filtered_vds.filter_samples_list('included_samples.txt')
-    >>> print 'before filter: %d samples' % filtered_vds.num_samples()
-    >>> print 'after filter: %d samples' % filtered_vds_3.num_samples()
-    >>> method_1_kept_ids = filtered_vds_3.sample_ids()
+    >>> vds_gAB_sCR_sGQ = vds_gAB.filter_samples_list('included_samples.txt')
+    >>>
+    >>> print 'before filter: %d samples' % vds_gAB.num_samples()
+    >>> print 'after filter: %d samples' % vds_gAB_sCR_sGQ.num_samples()
+    >>> method_1_kept_ids = vds_gAB_sCR_sGQ.sample_ids()
     
-**Method 2:** Annotate and filter `filtered_vds` using the exported sample QC metrics:
+**Method 2:** Annotate and filter `vds_gAB` using the exported sample QC metrics:
 
-    >>> filtered_vds_3 = (filtered_vds
+    >>> vds_gAB_sCR_sGQ = (vds_gAB
     >>>     .annotate_samples_table('sampleqc.txt', sample_expr='Sample', 
     >>>                             root='sa.qc', config=TextTableConfig(impute=True))
     >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20'))
+    >>>
     >>> print 'before filter: %d samples' % filtered_vds.num_samples()
-    >>> print 'after filter: %d samples' % filtered_vds_3.num_samples()
-    >>> method_2_kept_ids = filtered_vds_3.sample_ids()
+    >>> print 'after filter: %d samples' % vds_gAB_sCR_sGQ.num_samples()
+    >>> method_2_kept_ids = vds_gAB_sCR_sGQ.sample_ids()
     
 Let's make sure these two methods give us the same samples:
 
@@ -255,7 +257,7 @@ As before, let's use the `annotate_global_expr_by_sample` method to count the nu
     >>> post_qc_exprs = [
     >>>     'global.postQC.nCases = samples.filter(s => sa.pheno.PurpleHair).count()',
     >>>     'global.postQC.nControls = samples.filter(s => !sa.pheno.PurpleHair).count()' ]
-    >>> filtered_vds_3.annotate_global_expr_by_sample(post_qc_exprs).show_globals()     
+    >>> vds_gAB_sCR_sGQ.annotate_global_expr_by_sample(post_qc_exprs).show_globals()     
 
 <pre class="tutorial output" style="color: red">
 Global annotations: `global' = {
@@ -268,13 +270,13 @@ Global annotations: `global' = {
 
 #### Filter variants
 
-We now have `filtered_vds_3`, a VDS where both poor genotypes and samples have been removed.
+We now have `vds_gAB_sCR_sGQ`, a VDS where both poor genotypes and samples have been removed.
 
 Let's use the `variant_qc` method to start exploring variant metrics and `export_variants` to exports the resulting variant annotations as a text file:
 
-    >>> filtered_vds_3 = filtered_vds_3.variant_qc()
-    >>> filtered_vds_3.print_schema(va=True)
-    >>> filtered_vds_3.export_variants('variantqc.tsv',
+    >>> vds_gAB_sCR_sGQ = vds_gAB_sCR_sGQ.variant_qc()
+    >>> vds_gAB_sCR_sGQ.print_schema(va=True)
+    >>> vds_gAB_sCR_sGQ.export_variants('variantqc.tsv',
     >>>                                'Chrom=v.contig, Pos=v.start, Ref=v.ref, Alt=v.alt, va.qc.*')
 
 The string `va.qc.*` specifies that all annotations in the struct `va.qc` should be included as columns. We could also have written the export expression above as `Variant = v, va.qc.*` in which case the `Variant` column would have the format "Contig:Pos:Ref:Alt".
@@ -282,8 +284,7 @@ The string `va.qc.*` specifies that all annotations in the struct `va.qc` should
 We've used R to make histograms of four summary statistics (call rate, allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated is based on all populations together.
 <img src="test.variantqc.png">
 
-Let's use the `annotate_variants_expr` method to programmatically compute Hardy Weinberg Equilibrium for each population.
-
+Let's use the `annotate_variants_expr` method to programmatically compute Hardy Weinberg Equilibrium for each population. First, we construct `hwe-expressions`.
 
     >>> hwe_expressions = [
     >>>     'va.hweByPop.hweEUR = gs.filter(g => sa.pheno.SuperPopulation == "EUR").hardyWeinberg()',
@@ -291,9 +292,18 @@ Let's use the `annotate_variants_expr` method to programmatically compute Hardy 
     >>>     'va.hweByPop.hweAMR = gs.filter(g => sa.pheno.SuperPopulation == "AMR").hardyWeinberg()',
     >>>     'va.hweByPop.hweAFR = gs.filter(g => sa.pheno.SuperPopulation == "AFR").hardyWeinberg()',
     >>>     'va.hweByPop.hweEAS = gs.filter(g => sa.pheno.SuperPopulation == "EAS").hardyWeinberg()' ]
-    >>> filtered_vds_3 = filtered_vds_3.annotate_variants_expr(hwe_expressions)
-    >>> filtered_vds_3.persist()
-    >>> filtered_vds_3.print_schema(va=True)
+
+
+Using Python's list comprehensions, we can do this a bit more tersely. A format like this will be prefered for the remainder of the tutorial. 
+
+    >>> populations = ['EUR', 'SAS', 'AMR', 'AFR', 'EAS']
+    >>> hwe_expressions = ['va.hweByPop.hwe' + pop + ' = gs.filter(g => sa.pheno.SuperPopulation == "' + pop + '").hardyWeinberg()' for pop in populations]
+
+Then we go ahead and use `annotate_variants_expr`.
+
+    >>> vds_gAB_sCR_sGQ = vds_gAB_sCR_sGQ.annotate_variants_expr(hwe_expressions)
+    >>> vds_gAB_sCR_sGQ.persist()
+    >>> vds_gAB_sCR_sGQ.print_schema(va=True)
 
 Above, for each variant, we filter the genotypes to only those genotypes from the population of interest using a filter function on the [genotype aggregable](reference.html#aggregables) and then calculate the Hardy-Weinberg Equilibrium p-value using the [`hardyWeinberg`](reference.html#aggreg_hwe) function on the filtered genotype aggregable.
 
@@ -328,16 +338,14 @@ Variant annotation schema:
 }
 </pre>
  
+************************COMBINE FILTERS*********************
+
 We can now filter variants based on HWE p-values with respect to each population:
 
-    >>> hwe_filter_expression = '''
-    >>>     va.hweByPop.hweEUR.pHWE > 1e-6 && 
-    >>>     va.hweByPop.hweSAS.pHWE > 1e-6 && 
-    >>>     va.hweByPop.hweAMR.pHWE > 1e-6 && 
-    >>>     va.hweByPop.hweAFR.pHWE > 1e-6 && 
-    >>>     va.hweByPop.hweEAS.pHWE > 1e-6 '''
-    >>> hwe_filtered_vds = filtered_vds_3.filter_variants_expr(hwe_filter_expression)
-    >>> hwe_filtered_vds.count()
+    >>> hwe_filter_expression = "&&\n".join(['va.hweByPop.hwe' + pop + '.pHWE > 1e-6 ' for pop in populations])
+    >>> vds_gAD_sCR_sGQ_vGQ_vHWE = vds_gAB_sCR_sGQ.filter_variants_expr(hwe_filter_expression)
+    >>>                                           .filter_variants_expr('va.qc.gqMean >= 20')
+    >>> vds_gAD_sCR_sGQ_vGQ_vHWE.count()
 
 We see from `count` that by calculating HWE p-values in each population separately, we only filter out 826 variants (before it would have been 7098 variants!).
 
@@ -345,10 +353,13 @@ We see from `count` that by calculating HWE p-values in each population separate
 Out[49]: {u'nSamples': 1646, u'nVariants': 10135L, u'nGenotypes': 16682210L}
 </pre>
 
+
+*******
 Lastly we use the `filter_variants expr`method to keep variants with a mean GQ greater than or equal to 20.
 
     >>> final_filtered_vds = hwe_filtered_vds.filter_variants_expr('va.qc.gqMean >= 20')
     >>> final_filtered_vds.count()
+********
 
 <pre class="tutorial output" style="color: red">
 {u'nSamples': 1646, u'nVariants': 9949L, u'nGenotypes': 16376054L}
@@ -366,65 +377,50 @@ There are 273 many X chromosome variants are in the original dataset:
   
 However, after variant QC, the number of X chromosome variants drops to 10, not enough for a sex check!
 
-    >>> final_filtered_vds.filter_variants_expr('v.contig == "X"').num_variants()
+    >>> vds_gAD_sCR_sGQ_vGQ_vHWE.filter_variants_expr('v.contig == "X"').num_variants()
 
-Oops! HWE statistics on the X chromosome should ignore male samples, since males have only two possible genotypes (HomRef or HomVar). We're going to have to go back to `filtered_vds_3` and modify how we calculate HWE. We use a conditional expression so that variants on the X chromosome will only include female samples in the calculation. We can also use the same `hwe_filter_expression` from above.
+Oops! HWE statistics on the X chromosome should ignore male samples, since males have only two possible genotypes (HomRef or HomVar). We're going to have to go back to `vds_gAB_sCR_sGQ` and modify how we calculate HWE. We use a conditional expression so that variants on the X chromosome will only include female samples in the calculation. We can also use the same `hwe_filter_expression` from above.
 
-    >>> sex_aware_hwe_exprs = [ 
-    >>>      '''va.hweByPop.hweEUR = 
-    >>>         if (v.contig != "X") 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "EUR").hardyWeinberg() 
-    >>>         else 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "EUR" && sa.pheno.isFemale).hardyWeinberg()''',
-    >>>      '''va.hweByPop.hweSAS = 
-    >>>         if (v.contig != "X") 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "SAS").hardyWeinberg() 
-    >>>         else 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "SAS" && sa.pheno.isFemale).hardyWeinberg()''',
-    >>>      '''va.hweByPop.hweAMR = 
-    >>>         if (v.contig != "X") 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "AMR").hardyWeinberg() 
-    >>>         else 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "AMR" && sa.pheno.isFemale).hardyWeinberg()''',
-    >>>      '''va.hweByPop.hweAFR = 
-    >>>         if (v.contig != "X") 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "AFR").hardyWeinberg() 
-    >>>         else 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "AFR" && sa.pheno.isFemale).hardyWeinberg()''',
-    >>>      '''va.hweByPop.hweEAS = 
-    >>>         if (v.contig != "X") 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "EAS").hardyWeinberg() 
-    >>>         else 
-    >>>           gs.filter(g => sa.pheno.SuperPopulation == "EAS" && sa.pheno.isFemale).hardyWeinberg()''' ]
-    >>> hwe_filtered_vds_fixed = (filtered_vds_3
+**************************COMBINE FILTERS**********************
+
+    >>> sex_aware_hwe_exprs = [
+    >>> '''va.hweByPop.hwe{pop} = 
+    >>> if (v.contig.isAutsomal)
+    >>>  gs.filter(g => sa.pheno.SuperPopulation == "{pop}").hardyWeinberg()
+    >>> else
+    >>>   gs.filter(g => sa.pheno.SuperPopulation == "{pop}" && sa.pheno.isFemale).hardyWeinberg()'''.format(pop = p) for p in populations]
+    >>> 
+    >>> vds_filtered = (vds_gAB_sCR_sGQ
     >>>     .annotate_variants_expr(sex_aware_hwe_exprs)
     >>>     .filter_variants_expr(hwe_filter_expression)
+    >>>     .filter_variants_expr('va.qc.gqMean >= 20')
     >>>     .persist())
     >>>
-    >>> print 'total variants = %s' % hwe_filtered_vds_fixed.num_variants()
-    >>> print 'X chromosome variants = %s' % hwe_filtered_vds_fixed.filter_variants_expr('v.contig == "X"').num_variants()
+    >>> print 'total variants = %s' % vds_filtered.num_variants()
+    >>> print 'X chromosome variants = %s' % vds_filtered.filter_variants_expr('v.contig == "X"').num_variants()
   
 For sex check, we first use the `impute_sex` method with a minimum minor allele frequency threshold `maf_threshold` argument of 0.05 to determine the genetic sex of a sample based on the inbreeding coefficient. `impute_sex` adds the Boolean sample annotation `sa.imputesex.isFemale` and we then create a new Boolean sample annotation `sa.sexcheck` which indicates whether the imputed sex `sa.imputesex.isFemale` is the same as the reported sex `sa.pheno.isFemale`.
 
 
-    >>> sex_check_vds = (hwe_filtered_vds_fixed
+    >>> vds_sex_check = (vds_filtered
     >>>     .impute_sex(maf_threshold=0.05)
     >>>     .annotate_samples_expr('sa.sexcheck = sa.pheno.isFemale == sa.imputesex.isFemale'))
-    >>> total_samples = sex_check_vds.num_samples()
-    >>> sex_check_passes = sex_check_vds.filter_samples_expr('sa.sexcheck').num_samples()
+    >>> total_samples = vds_sex_check.num_samples()
+    >>> sex_check_passes = vds_sex_check.filter_samples_expr('sa.sexcheck').num_samples()
+    >>>
     >>> print 'total samples: %s' % total_samples
     >>> print 'sex_check_passes: %s' % sex_check_passes
     
 We see that the genetic sex does not match the reported sex for 567 samples, an extremely high sex check failure rate! To figure out why this happened, we can use a Hail expression to look at the values that `sa.sexcheck` takes.
 
-    >>> (sex_check_vds.annotate_global_expr_by_sample(
+    >>> (vds_sex_check.annotate_global_expr_by_sample(
     >>>     'global.sexcheckCounter = samples.map(s => sa.sexcheck).counter()')
     >>>     .show_globals())
 
 Aha! While we only have 3 'false' sex-check values, we have 564 missing sex-check values. Since `pheno.isFemale` is never missing (see the sample annotations file), this means that there were 564 samples that could not be imputed as male or female. This is because in our small dataset the number of variants on the X chromosome (about 200) is not sufficient to impute sex reliably. Let's instead keep those samples with missing sex-check using:
  
-    >>> sex_check_filtered_vds = sex_check_vds.filter_samples_expr('sa.sexcheck || isMissing(sa.sexcheck)').persist()
-    >>> print 'samples after filter: %s' % sex_check_filtered_vds.num_samples()
+    >>> vds_QCed = vds_sex_check.filter_samples_expr('sa.sexcheck || isMissing(sa.sexcheck)').persist()
+    >>> print 'samples after filter: %s' % vds_QCed.num_samples()
 
 ## PCA
 
@@ -432,9 +428,9 @@ To account for population stratification in association testing, we use principa
 
 To calculate principal components, we first use the `filter_variants_intervals` method to only keep SNPs from this list. Next, we use the `pca` method to calculate the first 10 principal components (10 is the default number). The results are stored as sample annotations with root given by the `scores` parameter. Lastly, we export the sample annotations to a text file.
 
-    >>> pca_vds = (sex_check_filtered_vds.filter_variants_intervals('purcell5k.interval_list')
+    >>> vds_pca = (vds_QCed.filter_variants_intervals('purcell5k.interval_list')
     >>>     .pca(scores='sa.pca'))
-    >>> pca_vds.export_samples('pcaPlusPopulation.tsv', 
+    >>> vds_pca.export_samples('pcaPlusPopulation.tsv', 
     >>>     'Sample=s, SuperPopulation=sa.pheno.SuperPopulation,'
     >>>     'Population=sa.pheno.Population, sa.pca.*')
 
@@ -448,12 +444,12 @@ Now that we have a clean dataset with principal components, let's test for assoc
 
 #### Linear regression with covariates
 
-Let's run linear regression on `sex_check_filtered_vds`. First, we will filter out variants with a allele frequency less than 5% or greater than 95%. Next, we use the `linreg` method, specifying the response variable `y` to be the sample annotation for CaffeineConsumption `sa.pheno.CaffeineConsumption`. We also use 4 sample covariates `sa.pca.PC1`, `sa.pca.PC2`, `sa.pca.PC3`, `sa.pheno.isFemale` in addition to the intercept. The results of linear regression are stored as variant annotations and can be accessed with the root name `va.linreg`. Lastly we export these results to a text file and make a Q-Q plot in R.
+Let's run linear regression on `vds_QCed`. First, we will filter out variants with a allele frequency less than 5% or greater than 95%. Next, we use the `linreg` method, specifying the response variable `y` to be the sample annotation for CaffeineConsumption `sa.pheno.CaffeineConsumption`. We also use 4 sample covariates `sa.pca.PC1`, `sa.pca.PC2`, `sa.pca.PC3`, `sa.pheno.isFemale` in addition to the intercept. The results of linear regression are stored as variant annotations and can be accessed with the root name `va.linreg`. Lastly we export these results to a text file and make a Q-Q plot in R.
 
-    >>> analysis_ready_vds = (sex_check_filtered_vds
+    >>> vds_gwas = (vds_QCed
     >>>     .filter_variants_expr('va.qc.AF > 0.05 && va.qc.AF < 0.95')
-    >>>     .annotate_samples_vds(pca_vds, code='sa.pca = vds.pca'))
-    >>> (analysis_ready_vds
+    >>>     .annotate_samples_vds(vds_pca, code='sa.pca = vds.pca'))
+    >>> (vds_gwas
     >>>     .linreg('sa.pheno.CaffeineConsumption', 
     >>>             covariates='sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale')
     >>>     .export_variants('linreg.tsv', 'Variant=v, va.linreg.*'))
@@ -462,9 +458,9 @@ Let's run linear regression on `sex_check_filtered_vds`. First, we will filter o
 
 #### Logistic regression with covariates
 
-We start from our `analysis_ready_vds`. The logistic regression method also takes a test type argument. We will use the Wald test.
+We start from our `vds_gwas`. The logistic regression method also takes a test type argument. We will use the Wald test.
 
-    >>> (analysis_ready_vds
+    >>> (vds_gwas
     >>>     .logreg(test='wald', y='sa.pheno.PurpleHair',
     >>>             covariates='sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale')
     >>>     .export_variants('logreg.tsv', 'Variant=v, PVAL = va.logreg.wald.pval'))
@@ -473,7 +469,7 @@ We start from our `analysis_ready_vds`. The logistic regression method also take
 
 #### Fisher's Exact Test for Rare Variants
 
-We'll start with `sex_check_filtered_vds` here (our `analysis_ready_vds` isn't appropriate for rare variant tests because we filtered them all out!). This time we filter to rare variants (allele frequency less than 5% or greater than 95%). Next we annotate variants with 4 metrics about the aggregate statistics of the samples at each position. These new variant annotations can be used as inputs to the `fet` (Fisher Exact Test) function which takes 4 integers representing a 2x2 contingency table. We define the variant annotation `va.fet` to be the output of the [`fet`](reference.html#fet) function. Finally, we export the results to a text file and make a Q-Q plot in R. 
+We'll start with `vds_QCed` here (our `vds_gwas` isn't appropriate for rare variant tests because we filtered them all out!). This time we filter to rare variants (allele frequency less than 5% or greater than 95%). Next we annotate variants with 4 metrics about the aggregate statistics of the samples at each position. These new variant annotations can be used as inputs to the `fet` (Fisher Exact Test) function which takes 4 integers representing a 2x2 contingency table. We define the variant annotation `va.fet` to be the output of the [`fet`](reference.html#fet) function. Finally, we export the results to a text file and make a Q-Q plot in R. 
 
     >>> rare_variant_annotations = [
     >>>     '''va.minorCase = 
@@ -489,7 +485,7 @@ We'll start with `sex_check_filtered_vds` here (our `analysis_ready_vds` isn't a
     >>>         gs.filter(g => !sa.pheno.PurpleHair && g.isHet).count() +
     >>>         2 * gs.filter(g => !sa.pheno.PurpleHair && g.isHomRef).count()''' ]
     >>>
-    >>> (sex_check_filtered_vds
+    >>> (vds_QCed
     >>>     .filter_variants_expr('va.qc.AF <= 0.05 || va.qc.AF >= 0.95')
     >>>     .annotate_variants_expr(rare_variant_annotations)
     >>>     .annotate_variants_expr('''va.fet = 
