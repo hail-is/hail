@@ -13,7 +13,6 @@ Contents
 
     Getting Started <getting_started>
     Overview <overview>
-    Hail Objects <hail_objects>
     Object Methods <methods>
     Functions <functions>
     Python API <api>

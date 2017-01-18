@@ -419,7 +419,7 @@ task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
 }
 
 task makeFunctionsRst(type: Exec, dependsOn: ['setupDocsDirs', 'shadowJar']) {
-    commandLine 'python', '-c', 'from hail import *; hc = HailContext(); FunctionDocumentation(hc, "python/hail/docs/functions.rst")'
+    commandLine 'python', '-c', 'from hail import *; hc = HailContext(); fd = FunctionDocumentation(hc); fd.methods_rst("python/hail/docs/methods.rst"); fd.functions_rst("python/hail/docs/functions.rst")'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
@@ -446,7 +446,7 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepar
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task makeHailDocs(type: Exec) { //, dependsOn: ['makeFunctionsRst']
+task makeHailDocs(type: Exec, dependsOn: ['makeFunctionsRst']) {
      workingDir 'python/hail/docs'
 
      commandLine 'make', 'html'

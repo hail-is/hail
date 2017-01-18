@@ -65,8 +65,17 @@ class TextTableConfig(object):
             self._raise_py4j_exception(e)
 
 class FunctionDocumentation(object):
-    def __init__(self, hc, file_name):
+    def __init__(self, hc):
+        self.hc = hc
+
+    def methods_rst(self, file_name):
         try:
-            return hc.hail.expr.FunctionDocumentation.apply(file_name)
+            self.hc.hail.expr.FunctionDocumentation.makeMethodsDocs(file_name)
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
+    def functions_rst(self, file_name):
+        try:
+            self.hc.hail.expr.FunctionDocumentation.makeFunctionsDocs(file_name)
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
