@@ -186,6 +186,7 @@ object VariantSampleMatrix {
           })
         } catch {
           case _: InvalidClassException => None
+          case _: ClassNotFoundException => None
           case _: FileNotFoundException => None
         }
       }
