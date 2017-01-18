@@ -1,5 +1,6 @@
 package is.hail.stats
 
+import breeze.linalg._
 import breeze.stats.distributions._
 import breeze.linalg.{DenseVector, sum}
 import org.apache.spark.SparkContext
@@ -78,7 +79,7 @@ object BaldingNicholsModel {
         val ancestralAF = Uniform(.1, .9).draw()
 
         val popAF_k = (0 until K).map{k =>
-          new Beta((1 - ancestralAF) * Fst1_kBc.value(k), ancestralAF * Fst1_kBc.value(k)).draw()
+          new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k)).draw()
         }
 
         (Variant("1", m + 1, "A", "C"),
@@ -89,9 +90,9 @@ object BaldingNicholsModel {
               val x = unif.draw()
               val genotype_num =
                 if (x < pSq)
-                  0
-                else if (x > 2 * p - pSq)
                   2
+                else if (x > 2 * p - pSq)
+                  0
                 else
                   1
               Genotype(genotype_num)
@@ -102,7 +103,7 @@ object BaldingNicholsModel {
       nPartitions
     ).toOrderedRDD
 
-    val sampleIds = (1 to N).map(_.toString).toArray
+    val sampleIds = (0 until N).map(_.toString).toArray
     val sampleAnnotations = popOfSample_n.toArray: IndexedSeq[Int]
     val globalAnnotation = Annotation(
       Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], seed))
