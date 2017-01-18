@@ -15,26 +15,36 @@ import scala.language.higherKinds
 
 sealed trait Metadata {
   def docstring: Option[String]
-  def argNames: Array[String]
+  def args: Array[(String, String)]
   def category: String
 }
 
 case class MethodMetadata(docstring: Option[String] = None, 
-  argNames: Array[String] = Array.empty[String]) extends Metadata {
+  args: Array[(String, String)] = Array.empty[(String, String)]) extends Metadata {
   def category = "method"
 }
 
 case class FunctionMetadata(docstring: Option[String] = None,
-  argNames: Array[String] = Array.empty[String]) extends Metadata {
+  args: Array[(String, String)] = Array.empty[(String, String)]) extends Metadata {
   def category = "function"
 }
 
 object FunctionRegistry {
 
-  def generateDocumentation() = {
-    registry.flatMap { case (name, funs) =>
-      funs.map { case (tt, fun, md) => FunctionDocumentation.methodToRst(name, tt, fun, md) }
-    }.mkString("\n")
+  def methods = {
+    registry
+      .toArray
+      .flatMap{ case (n, fns) => fns.map{ case (tt, f, md) => (tt.xs.head, n, tt, f, md)}}
+      .filter{case (_, _, _, _, md) => md.category == "method"}
+      .groupBy{ case (obj, _, _, _, _) => obj.toString }
+      .toArray
+  }
+
+  def functions = {
+    registry
+      .toArray
+      .flatMap{ case (n, fns) => fns.map{ case (tt, f, md) => (n, tt, f, md)}}
+      .filter{case (_, _, _, md) => md.category == "function"}
   }
 
   sealed trait LookupError {
@@ -519,37 +529,69 @@ object FunctionRegistry {
   registerOptionMethod("fractionReadsRef", { (x: Genotype) => x.fractionReadsRef() }, MethodMetadata())
   registerMethod("fakeRef", { (x: Genotype) => x.fakeRef }, MethodMetadata())
   registerMethod("isDosage", { (x: Genotype) => x.isDosage }, MethodMetadata())
-  registerMethod("contig", { (x: Variant) => x.contig }, MethodMetadata())
-  registerMethod("start", { (x: Variant) => x.start }, MethodMetadata())
-  registerMethod("ref", { (x: Variant) => x.ref }, MethodMetadata())
-  registerMethod("altAlleles", { (x: Variant) => x.altAlleles }, MethodMetadata())
-  registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles }, MethodMetadata())
-  registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, MethodMetadata())
-  registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, MethodMetadata())
-  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, MethodMetadata())
-  registerMethod("inXPar", { (x: Variant) => x.inXPar }, MethodMetadata())
-  registerMethod("inYPar", { (x: Variant) => x.inYPar }, MethodMetadata())
-  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar }, MethodMetadata())
-  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar }, MethodMetadata())
+
+  registerMethod("contig", { (x: Variant) => x.contig },
+    MethodMetadata(docstring = Option("""String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality*""")))
+  registerMethod("start", { (x: Variant) => x.start },
+    MethodMetadata(docstring = Option("""SNP position or start of an indel""")))
+  registerMethod("ref", { (x: Variant) => x.ref },
+    MethodMetadata(docstring = Option("""Reference allele sequence""")))
+  registerMethod("altAlleles", { (x: Variant) => x.altAlleles },
+    MethodMetadata(docstring = Option("""The :ref:`alternate alleles <altallele>`""")))
+  registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles },
+    MethodMetadata(docstring = Option("""Number of alternate alleles, equal to ``nAlleles - 1``""")))
+  registerMethod("nAlleles", { (x: Variant) => x.nAlleles },
+    MethodMetadata(docstring = Option("""Number of alleles""")))
+  registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic },
+    MethodMetadata(docstring = Option("""True if `v` has one alternate allele""")))
+  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes },
+    MethodMetadata(docstring = Option("""Number of genotypes""")))
+  registerMethod("inXPar", { (x: Variant) => x.inXPar },
+    MethodMetadata(Option("""True if chromosome is X and start is in pseudo-autosomal region of X""")))
+  registerMethod("inYPar", { (x: Variant) => x.inYPar },
+    MethodMetadata(docstring = Option("""True if chromosome is Y and start is in pseudo-autosomal region of Y. *NB: most callers assign variants in PAR to X*""")))
+  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar },
+    MethodMetadata(docstring = Option("""True if chromosome is X and start is not in pseudo-autosomal region of X""")))
+  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar },
+    MethodMetadata(docstring = Option("""True if chromosome is Y and start is not in pseudo-autosomal region of Y""")))
   // assumes biallelic
-  registerMethod("alt", { (x: Variant) => x.alt }, MethodMetadata())
-  registerMethod("altAllele", { (x: Variant) => x.altAllele }, MethodMetadata())
-  registerMethod("locus", { (x: Variant) => x.locus }, MethodMetadata())
-  registerMethod("contig", { (x: Locus) => x.contig }, MethodMetadata())
-  registerMethod("position", { (x: Locus) => x.position }, MethodMetadata())
-  registerMethod("start", { (x: Interval[Locus]) => x.start }, MethodMetadata())
-  registerMethod("end", { (x: Interval[Locus]) => x.end }, MethodMetadata())
-  registerMethod("ref", { (x: AltAllele) => x.ref }, MethodMetadata())
-  registerMethod("alt", { (x: AltAllele) => x.alt }, MethodMetadata())
-  registerMethod("isSNP", { (x: AltAllele) => x.isSNP }, MethodMetadata())
-  registerMethod("isMNP", { (x: AltAllele) => x.isMNP }, MethodMetadata())
-  registerMethod("isIndel", { (x: AltAllele) => x.isIndel }, MethodMetadata())
-  registerMethod("isInsertion", { (x: AltAllele) => x.isInsertion }, MethodMetadata())
-  registerMethod("isDeletion", { (x: AltAllele) => x.isDeletion }, MethodMetadata())
-  registerMethod("isComplex", { (x: AltAllele) => x.isComplex }, MethodMetadata())
-  registerMethod("isTransition", { (x: AltAllele) => x.isTransition }, MethodMetadata())
-  registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion }, MethodMetadata())
-  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal }, MethodMetadata())
+  registerMethod("alt", { (x: Variant) => x.alt },
+    MethodMetadata(docstring = Option("""Alternate allele sequence.  **Assumes biallelic.**""")))
+  registerMethod("altAllele", { (x: Variant) => x.altAllele },
+    MethodMetadata(docstring = Option("""The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**""")))
+  registerMethod("locus", { (x: Variant) => x.locus },
+    MethodMetadata(docstring = Option("""Chromosomal locus (chr, pos) of this variant""")))
+  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal },
+    MethodMetadata(Option("""True if chromosome is not X, not Y, and not MT""")))
+
+  registerMethod("contig", { (x: Locus) => x.contig },
+    MethodMetadata())
+  registerMethod("position", { (x: Locus) => x.position },
+    MethodMetadata())
+  registerMethod("start", { (x: Interval[Locus]) => x.start },
+    MethodMetadata())
+  registerMethod("end", { (x: Interval[Locus]) => x.end },
+    MethodMetadata())
+  registerMethod("ref", { (x: AltAllele) => x.ref },
+    MethodMetadata())
+  registerMethod("alt", { (x: AltAllele) => x.alt },
+    MethodMetadata())
+  registerMethod("isSNP", { (x: AltAllele) => x.isSNP },
+    MethodMetadata())
+  registerMethod("isMNP", { (x: AltAllele) => x.isMNP },
+    MethodMetadata())
+  registerMethod("isIndel", { (x: AltAllele) => x.isIndel },
+    MethodMetadata())
+  registerMethod("isInsertion", { (x: AltAllele) => x.isInsertion },
+    MethodMetadata())
+  registerMethod("isDeletion", { (x: AltAllele) => x.isDeletion },
+    MethodMetadata())
+  registerMethod("isComplex", { (x: AltAllele) => x.isComplex },
+    MethodMetadata())
+  registerMethod("isTransition", { (x: AltAllele) => x.isTransition },
+    MethodMetadata())
+  registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion },
+    MethodMetadata())
 
   registerMethod("length", { (x: String) => x.length }, MethodMetadata())
 
@@ -604,12 +646,32 @@ object FunctionRegistry {
     val LH = LeveneHaldane(n, nA)
     Annotation(divOption(LH.getNumericalMean, n).orNull, LH.exactMidP(nAB))
   }, FunctionMetadata())
-  registerAnn("fet", TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble)), { (c1: Int, c2: Int, c3: Int, c4: Int) =>
+
+  val fetStruct = TStruct(Array(("pValue", TDouble, "p-value"), ("oddsRatio", TDouble, "odds ratio"),
+    ("ci95Lower", TDouble, "lower bound for 95% confidence interval"), ("ci95Upper", TDouble, "upper bound for 95% confidence interval")).zipWithIndex.map{ case ((n, t, d), i) => Field(n, t, i, Map(("desc", d)))}) //TStruct(("pValue", TDouble), ("oddsRatio", TDouble), ("ci95Lower", TDouble), ("ci95Upper", TDouble))
+
+  registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `fet': fet($c1, $c2, $c3, $c4)")
     val fet = FisherExactTest(c1, c2, c3, c4)
     Annotation(fet(0).orNull, fet(1).orNull, fet(2).orNull, fet(3).orNull)
-  }, FunctionMetadata())
+  }, FunctionMetadata(args = Array(("a", "value for cell 1"), ("b", "value for cell 2"), ("c", "value for cell 3"), ("d", "value for cell 4")), docstring = Option(
+    """Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test (FET) for 2x2 tables.
+      |
+      |**Examples**
+      |
+      |Annotate each variant with Fisher's exact test association results (assumes minor/major allele count variant annotations have been computed):
+      |
+      |::
+      |
+      |   >>> (hc.read("data/example.vds")
+      |   >>>    .annotate_variants_expr('va.fet = fet(va.macCase, va.macControl, va.majCase, va.majControl)'))
+      |
+      |**Notes**
+      |
+      |``fet`` is identical to the version implemented in `R <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html>`_ with default parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
+    """.stripMargin)))
+
   // NB: merge takes two structs, how do I deal with structs?
   register("exp", { (x: Double) => math.exp(x) }, FunctionMetadata())
   register("log10", { (x: Double) => math.log10(x) }, FunctionMetadata())
@@ -757,67 +819,67 @@ object FunctionRegistry {
   )(setHr(TTHr), unaryHr(TTHr, boolHr), TTHr)
 
   registerLambdaMethod("map", (a: IndexedSeq[Any], f: (Any) => Any) =>
-    a.map(f), MethodMetadata(argNames = Array("f"))
+    a.map(f), MethodMetadata(args = Array(("f", "function")))
   )(arrayHr(TTHr), unaryHr(TTHr, TUHr), arrayHr(TUHr))
 
   registerLambdaMethod("map", (s: Set[Any], f: (Any) => Any) =>
-    s.map(f), MethodMetadata(argNames = Array("f"))
+    s.map(f), MethodMetadata(args = Array(("f", "function")))
   )(setHr(TTHr), unaryHr(TTHr, TUHr), setHr(TUHr))
 
   registerLambdaMethod("mapValues", (a: Map[String, Any], f: (Any) => Any) =>
-    a.map { case (k, v) => (k, f(v)) }, MethodMetadata(argNames = Array("f"))
+    a.map { case (k, v) => (k, f(v)) }, MethodMetadata(args = Array(("f", "function")))
   )(dictHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr))
 
   registerLambdaMethod("flatMap", (a: IndexedSeq[Any], f: (Any) => Any) =>
     flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any],
-      a.map(f).asInstanceOf[IndexedSeq[IndexedSeq[Any]]]), MethodMetadata(argNames = Array("f"))
+      a.map(f).asInstanceOf[IndexedSeq[IndexedSeq[Any]]]), MethodMetadata(args = Array(("f", "function")))
   )(arrayHr(TTHr), unaryHr(TTHr, arrayHr(TUHr)), arrayHr(TUHr))
 
   registerLambdaMethod("flatMap", (s: Set[Any], f: (Any) => Any) =>
     flattenOrNull[Set, Any](Set.newBuilder[Any],
-      s.map(f).asInstanceOf[Set[Set[Any]]]), MethodMetadata(argNames = Array("f"))
+      s.map(f).asInstanceOf[Set[Set[Any]]]), MethodMetadata(args = Array(("f", "function")))
   )(setHr(TTHr), unaryHr(TTHr, setHr(TUHr)), setHr(TUHr))
 
   registerLambdaMethod("exists", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.exists { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }, MethodMetadata(argNames = Array("f"))
+    }, MethodMetadata(args = Array(("f", "function")))
   )(arrayHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
   registerLambdaMethod("exists", (s: Set[Any], f: (Any) => Any) =>
     s.exists { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }, MethodMetadata(argNames = Array("f"))
+    }, MethodMetadata(args = Array(("f", "function")))
   )(setHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
   registerLambdaMethod("forall", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.forall { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }, MethodMetadata(argNames = Array("f"))
+    }, MethodMetadata(args = Array(("f", "function")))
   )(arrayHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
   registerLambdaMethod("forall", (s: Set[Any], f: (Any) => Any) =>
     s.forall { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }, MethodMetadata(argNames = Array("f"))
+    }, MethodMetadata(args = Array(("f", "function")))
   )(setHr(TTHr), unaryHr(TTHr, boolHr), boolHr)
 
   registerLambdaMethod("filter", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.filter { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }, MethodMetadata(argNames = Array("f"))
+    }, MethodMetadata(args = Array(("f", "function")))
   )(arrayHr(TTHr), unaryHr(TTHr, boolHr), arrayHr(TTHr))
 
   registerLambdaMethod("filter", (s: Set[Any], f: (Any) => Any) =>
     s.filter { x =>
       val r = f(x)
       r != null && r.asInstanceOf[Boolean]
-    }, MethodMetadata(argNames = Array("f"))
+    }, MethodMetadata(args = Array(("f", "function")))
   )(setHr(TTHr), unaryHr(TTHr, boolHr), setHr(TTHr))
 
   registerAggregator[Any, Long]("count", () => new CountAggregator(), MethodMetadata())(aggregableHr(TTHr), longHr)

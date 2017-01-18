@@ -446,7 +446,7 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepar
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task makeHailDocs(type: Exec, dependsOn: ['makeFunctionsRst']) {
+task makeHailDocs(type: Exec) { //, dependsOn: ['makeFunctionsRst']
      workingDir 'python/hail/docs'
 
      commandLine 'make', 'html'
