@@ -49,7 +49,7 @@ object FunctionDocumentation {
 
   def header4Md(title: String) = "#### " + title
 
-  def methodToRst(name: String, tt: TypeTag, fun: Fun, md: FunctionMetadata): String = {
+  def methodToRst(name: String, tt: TypeTag, fun: Fun, md: Metadata): String = { // Fixme: Should be MethodMetadata
     val sb = new StringBuilder()
     sb.append(s" - **$name")
 
@@ -78,7 +78,7 @@ object FunctionDocumentation {
     sb.result()
   }
 
-  def functionToRst(name: String, tt: TypeTag, md: FunctionMetadata): String = ???
+  def functionToRst(name: String, tt: TypeTag, md: Metadata): String = ??? // Fixme: Should be FunctionMetadata
 
   def annotationToRst(fun: Fun): String = {
     val sb = new StringBuilder()
