@@ -157,7 +157,7 @@ class VariantDataset(object):
         Count the number of LOF, missense, and synonymous non-reference calls
         per interval:
 
-        >>> (vds.annotate_variants_expr('va.n_calls = gs.filter(g.isCalledNonRef).count()')
+        >>> (vds.annotate_variants_expr('va.n_calls = gs.filter(g => g.isCalledNonRef).count()')
         >>>     .aggregate_intervals('data/intervals.txt'
         >>>        """LOF_CALLS = variants.filter(v => va.consequence == "LOF").map(v => va.n_calls).sum(),
         >>>           MISSENSE_CALLS = variants.filter(v => va.consequence == "missense").map(v => va.n_calls).sum(),
