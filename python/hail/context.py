@@ -554,7 +554,7 @@ class HailContext(object):
         self.run_command(None, pargs)
 
     def balding_nichols_model(self, populations, samples, variants, partitions = None,
-                              population_dist=None,
+                              pop_dist=None,
                               fst=None,
                               root="bn",
                               seed=0):
@@ -563,24 +563,28 @@ class HailContext(object):
 
         **Examples**
 
-        Creating a VDS with 30 samples that can be in one of 3 populations, 100 variants, and 4 partitions.
+        To generate a VDS with 3 populations, 100 samples in total, and 1000 variants:
 
-        balding_nichols_model(3, 30, 100, 4)
+        >>> vds = hc.balding_nichols_model(3, 100, 1000)
 
-        In this example, the chances of a particular sample being from any one population are equal, the Fst values for
-        each population are .1, the root for annotations is "bn", and a random seed is chosen. This is the default behavior.
+        To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], Fst values [.02, .06, .04, .12],  and root "balding", and random seed 1:
 
-        Creating a VDS with 40 samples, 2 populations, 150 variants, 3 partitions, a population distribution of [.9, .1] Fst values of .1 and
-        .3 respectively, root "balding", and seed 37
-
-        balding_nichols_model(2, 40, 150, 3, [.9, .1], [.1, .3], "balding", 37)
-
+        >>> vds = hc.balding_nichols_model(4, 40, 150, 10, pop_dist=[0.1, 0.2, 0.3, 0.4], fst=[.02, .06, .04, .12], root="balding", seed=1)
 
         **Details**
 
-        Hail provides the ability to randomly generate a VariantDataset based on the Balding-Nichols model.
+        Hail is able to randomly generate a VDS using the Balding-Nichols model.
+
+        - `K` populations are labeled by the integers `0`, `1`, ..., `K - 1`
+        - `N` samples are named by the strings `"0"`, `"1"`, ..., `"N - 1"`
+        - `M` variants are defined as `1:1:A:C`, `1:2:A:C`, ..., `1:M:A:C`
+        - The ancestral frequency distribution is uniform on [.1, .9]
+        - The population distribution defaults to uniform.
+        - The F_st values default to 0.1.
+        - The number of partitions defaults to one partition per million genotypes (i.e. samples * variants / 10^6) or 8, whichever is larger.
+
         Balding-Nichols models genotypes of individuals from a structured population comprising :math:`K` homogeneous subpopulations
-        that have each diverged from a single ancestral population (star phylogeny). We take :math:`N` samples and :math:`M` bi-allelic variants in perfect
+        that have each diverged from a single ancestral population (a star phylogeny). We take :math:`N` samples and :math:`M` bi-allelic variants in perfect
         linkage equilibrium. The relative sizes of the subpopulations are given by a probability vector :math:`\pi`; the ancestral allele frequencies are
         drawn independently from a frequency spectrum :math:`P_0`; the subpopulations have diverged with possibly different :math:`F_{ST}` parameters :math:`F_k`
         (here and below, lowercase indices run over a range bounded by the corresponding uppercase parameter, e.g. :math:`k = 1, \ldots, K`).
@@ -594,7 +598,7 @@ class HailContext(object):
 
           \pi &\in \mathcal{P}(\{1,\ldots,K\})
 
-          P_0 &\in \mathcal{P}([0,1])
+          P_0 &\in \mathcal{P}([0.1,0.9])
 
           F_k &\in [0,1]
 
@@ -609,9 +613,21 @@ class HailContext(object):
 
             g_{n,m}\mid k_n, p_{k, m} \,&\sim\, \mathrm{Binomial}(2, p_{k_n, m}).
 
-        Notes: $\mathcal{P}(\Omega)$ indicates the set of probability measures on a sample space :math:`\Omega` (more precisely,
-        :math:`\Omega` typically has a natural topology and we mean the Borel probability measures). We have parametrized
-        the Beta distribution by its mean and variance; the usual (natural) parameters are :math:`a = (1 - p)(1 - F)/F,\; b = p(1-F)/F` with :math:`F = F_k,\; p = p_{0,m}`.
+        We have parametrized the Beta distribution by its mean and variance; the usual (natural) parameters are :math:`a = (1 - p)(1 - F)/F,\; b = p(1-F)/F` with :math:`F = F_k,\; p = p_{0,m}`.
+
+        **Annotations**
+
+        Given the default root ``bn``, :py:meth:`~hail.HailContext.baldingnichols` adds the following global, variant, and sample annotations:
+
+         - **global.bn.nPops** (*Int*) -- Number of populations
+         - **global.bn.nSamples** (*Int*) -- Number of samples
+         - **global.bn.nVariants** (*Int*) -- Number of variants
+         - **global.bn.popDist** (*Array[Double]*) -- Normalized population distribution indexed by population
+         - **global.bn.Fst** (*Array[Double]*) -- F_st values indexed by population
+         - **global.bn.seed** (*Int*) -- Random seed
+         - **sa.bn.pop** (*Int*) -- Population of sample
+         - **va.bn.ancestralAF** (*Double*) -- Ancestral allele frequency
+         - **va.bn.AF** (*Array[Double]*) -- Allele frequency indexed by population
 
         :param int populations: Number of populations.
 
@@ -621,8 +637,8 @@ class HailContext(object):
 
         :param int partitions: Number of partitions.
 
-        :param population_dist: Unnormalized population distributed
-        :type population_dist: array of float or None
+        :param pop_dist: Unnormalized population distribution
+        :type pop_dist: array of float or None
 
         :param fst: F_st values
         :type fst: array of float or None
@@ -636,11 +652,11 @@ class HailContext(object):
 
         """
 
-        if population_dist is None:
-            population_dist = [1.0 / populations] * populations
+        if pop_dist is None:
+            pop_dist = [1.0 / populations] * populations
         else:
-            total = float(sum(population_dist))
-            population_dist = [i / total for i in population_dist]
+            total = float(sum(pop_dist))
+            pop_dist = [i / total for i in pop_dist]
 
         if fst is None:
             fst = [0.1] * populations
@@ -650,7 +666,7 @@ class HailContext(object):
 
         return VariantDataset(self, scala_object(self.jvm.org.broadinstitute.hail.driver, "BaldingNicholsModelCommand").\
             balding_nichols(self.jsc, populations, samples, variants,
-                            jarray(self.gateway, self.jvm.double, population_dist),
+                            jarray(self.gateway, self.jvm.double, pop_dist),
                             jarray(self.gateway, self.jvm.double, fst), seed, partitions, root))
 
     def stop(self):
