@@ -664,8 +664,7 @@ class HailContext(object):
         if partitions is None:
             partitions = max(variants * samples // 1000000, 8)
 
-        return VariantDataset(self, scala_object(self.jvm.org.broadinstitute.hail.driver, "BaldingNicholsModelCommand").\
-            balding_nichols(self.jsc, populations, samples, variants,
+        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
                             jarray(self.gateway, self.jvm.double, pop_dist),
                             jarray(self.gateway, self.jvm.double, fst), seed, partitions, root))
 
