@@ -12,13 +12,13 @@ class BaldingNicholsModelSuite extends SparkSuite {
 
   @Test def testDeterminism() = {
     val K = 3
-    val N = 10
-    val M = 10
+    val N = 100
+    val M = 100
     val popDist = Array(1d, 2d, 3d)
     val FstOfPop = Array(0.1, 0.2, 0.3)
     val seed = 0
 
-    val bnm1 = BaldingNicholsModel(sc, K, N, M, popDist, FstOfPop, seed, 2, "bn")
+    val bnm1 = BaldingNicholsModel(sc, K, N, M, popDist, FstOfPop, seed, 3, "bn")
     val bnm2 = BaldingNicholsModel(sc, K, N, M, popDist, FstOfPop, seed, 2, "bn")
 
     assert(bnm1.rdd.collect().toSeq == bnm2.rdd.collect().toSeq)
