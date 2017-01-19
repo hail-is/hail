@@ -34,7 +34,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case TArray(elementType) => requiresConversion(elementType)
     case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant | TLocus | TInterval => true
     case TStruct(fields) =>
-      fields.exists(f => requiresConversion(f.`type`))
+      fields.isEmpty || fields.exists(f => requiresConversion(f.`type`))
     case _ => false
   }
 
@@ -93,10 +93,14 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           val r = a.asInstanceOf[Row]
           Interval(importAnnotation(r.get(0), TLocus).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus).asInstanceOf[Locus])
         case TStruct(fields) =>
-          val r = a.asInstanceOf[Row]
-          Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
-            importAnnotation(v, f.`type`)
-          })
+          if (fields.isEmpty)
+            null
+          else {
+            val r = a.asInstanceOf[Row]
+            Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
+              importAnnotation(v, f.`type`)
+            })
+          }
         case _ => a
       }
   }
@@ -163,10 +167,14 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           val i = a.asInstanceOf[Interval[_]]
           Row(exportAnnotation(i.start, TLocus), exportAnnotation(i.end, TLocus))
         case TStruct(fields) =>
-          val r = a.asInstanceOf[Row]
-          Annotation.fromSeq(r.toSeq.zip(fields).map {
-            case (v, f) => exportAnnotation(v, f.`type`)
-          })
+          if (fields.isEmpty)
+            false
+          else {
+            val r = a.asInstanceOf[Row]
+            Annotation.fromSeq(r.toSeq.zip(fields).map {
+              case (v, f) => exportAnnotation(v, f.`type`)
+            })
+          }
         case _ => a
       }
   }
