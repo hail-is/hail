@@ -10,9 +10,6 @@ import is.hail.expr.{TArray, TDouble, TInt, TStruct}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
 
-/**
-  * Generates a VariantDataSet based on Balding Nichols Model
-  */
 object BaldingNicholsModel {
 
   def apply(sc: SparkContext, nPops: Int, nSamples: Int, nVariants: Int,
