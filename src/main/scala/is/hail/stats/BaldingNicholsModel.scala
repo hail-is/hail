@@ -13,8 +13,8 @@ import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
 object BaldingNicholsModel {
 
   def apply(sc: SparkContext, nPops: Int, nSamples: Int, nVariants: Int,
-    popDistArrayOpt: Option[Array[Double]], FstOfPopArray: Array[Double],
-    seed: Int, nPartitions: Int, root: String): VariantDataset = {
+    popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
+    seed: Int, nPartitionsOpt: Option[Int], root: String): VariantDataset = {
 
     if (nPops < 1)
       fatal(s"Number of populations must be positive, got ${ nPops }")
@@ -33,6 +33,8 @@ object BaldingNicholsModel {
       if (p < 0d)
         fatal(s"Population probabilities must be non-negative, got $p"))
 
+    val FstOfPopArray = FstOfPopArrayOpt.getOrElse(Array.fill(nPops)(.1))
+
     if (FstOfPopArray.size != nPops)
       fatal(s"Got ${ nPops } populations but ${ FstOfPopArray.size } ${ plural(FstOfPopArray.size, "value") }")
 
@@ -40,6 +42,7 @@ object BaldingNicholsModel {
       if (f <= 0d || f >= 1d)
         fatal(s"F_st values must satisfy 0.0 < F_st < 1.0, got $f"))
 
+    val nPartitions = nPartitionsOpt.getOrElse(Math.max(nSamples * nVariants / 1000000, 8))
     if (nPartitions <= 1)
       fatal(s"Number of partitions must be positive, got $nPartitions")
 
