@@ -25,7 +25,7 @@ object BaldingNicholsModel {
     if (nVariants < 1)
       fatal(s"Number of variants must be positive, got ${ nVariants }")
 
-    val popDistArray = popDistArrayOpt.getOrElse(Array.fill[Double](nPops)(1.0 / nPops))
+    val popDistArray = popDistArrayOpt.getOrElse(Array.fill[Double](nPops)(1d))
 
     if (popDistArray.size != nPops)
       fatal(s"Got ${ nPops } populations but ${ popDistArray.size } population ${ plural(popDistArray.size, "probability", "probabilities") }")
@@ -33,7 +33,7 @@ object BaldingNicholsModel {
       if (p < 0d)
         fatal(s"Population probabilities must be non-negative, got $p"))
 
-    val FstOfPopArray = FstOfPopArrayOpt.getOrElse(Array.fill(nPops)(.1))
+    val FstOfPopArray = FstOfPopArrayOpt.getOrElse(Array.fill(nPops)(0.1))
 
     if (FstOfPopArray.size != nPops)
       fatal(s"Got ${ nPops } populations but ${ FstOfPopArray.size } ${ plural(FstOfPopArray.size, "value") }")
