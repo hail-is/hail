@@ -10,8 +10,6 @@ from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
 
-from random import randint
-
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
 
