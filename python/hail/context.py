@@ -669,9 +669,8 @@ class HailContext(object):
             partitions = max(variants * samples // 1000000, 8)
 
         return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
-            jarray(self.gateway, self.jvm.double, pop_dist),
-            jarray(self.gateway, self.jvm.double, fst), seed, partitions, root))
-
+                            jarray(self.gateway, self.jvm.double, pop_dist),
+                            jarray(self.gateway, self.jvm.double, fst), seed, partitions, root))
 
     def stop(self):
         self.sc.stop()
