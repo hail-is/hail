@@ -106,7 +106,7 @@ object BaldingNicholsModel {
     ).toOrderedRDD
 
     val sampleIds = (0 until N).map(_.toString).toArray
-    val sampleAnnotations = popOfSample_n.toArray: IndexedSeq[Int]
+    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(Annotation(_))
     val globalAnnotation = Annotation(
       Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], seed))
 
