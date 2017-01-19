@@ -53,7 +53,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val popDist: Array[Double] = popDistOpt.getOrElse(Array.fill(K)(1.0))
 
     //Test population distribution
-    val popArray = bnm.sampleAnnotations.toArray.map(_.toString.toInt)
+    val popArray = bnm.sampleAnnotations.toArray.map(_.asInstanceOf[GenericRow](0).asInstanceOf[GenericRow](0).toString.toDouble)
     val popCounts = popArray.groupBy(x => x).values.toSeq.sortBy(_(0)).map(_.size)
 
     popCounts.indices.foreach(index => {
