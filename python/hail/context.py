@@ -652,11 +652,15 @@ class HailContext(object):
 
         """
 
+        #if pop_dist is None:
+        #    pop_dist = [1.0 / populations] * populations
+        #else:
+        #    total = float(sum(pop_dist))
+        #    pop_dist = [i / total for i in pop_dist]
         if pop_dist is None:
-            pop_dist = [1.0 / populations] * populations
+            jvm_pop_dist_opt = joption(self.jvm, pop_dist)
         else:
-            total = float(sum(pop_dist))
-            pop_dist = [i / total for i in pop_dist]
+            jvm_pop_dist_opt = joption(jarray(self.gateway, self.jvm.double, pop_dist))
 
         if fst is None:
             fst = [0.1] * populations
@@ -664,10 +668,10 @@ class HailContext(object):
         if partitions is None:
             partitions = max(variants * samples // 1000000, 8)
 
-        return VariantDataset(self, scala_object(self.jvm.org.broadinstitute.hail.driver, "BaldingNicholsModelCommand").\
-            balding_nichols(self.jsc, populations, samples, variants,
-                            jarray(self.gateway, self.jvm.double, pop_dist),
-                            jarray(self.gateway, self.jvm.double, fst), seed, partitions, root))
+        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
+            jarray(self.gateway, self.jvm.double, pop_dist),
+            jarray(self.gateway, self.jvm.double, fst), seed, partitions, root))
+
 
     def stop(self):
         self.sc.stop()
