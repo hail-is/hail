@@ -168,7 +168,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Row(exportAnnotation(i.start, TLocus), exportAnnotation(i.end, TLocus))
         case TStruct(fields) =>
           if (fields.isEmpty)
-            false
+            null
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map {
