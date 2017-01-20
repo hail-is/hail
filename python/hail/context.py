@@ -576,7 +576,7 @@ class HailContext(object):
         - :math:`K` populations are labeled by integers 0, 1, ..., K - 1
         - :math:`N` samples are named by strings 0, 1, ..., N - 1
         - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ..., ``1:M:A:C``
-        - The ancestral frequency distribution is uniform on [0.1, 0.9]
+        - The ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]
         - The population distribution defaults to uniform
         - The :math:`F_{st}` values default to 0.1
         - The number of partitions defaults to one partition per million genotypes (i.e., samples * variants / 10^6) or 8, whichever is larger
@@ -588,19 +588,7 @@ class HailContext(object):
         (here and below, lowercase indices run over a range bounded by the corresponding uppercase parameter, e.g. :math:`k = 1, \ldots, K`).
         For each variant, the subpopulation allele frequencies are drawn a `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`_, a useful continuous approximation of
         the effect of genetic drift. We denote the individual subpopulation memberships by :math:`k_n`, the ancestral allele frequences by :math:`p_{0, m}`,
-        the subpopulation allele frequencies by :math:`p_{k, m}`, and the genotypes by :math:`g_{n, m}`. We also define:
-
-        .. math::
-
-          K, N, M &\in \mathbb N
-
-          \pi &\in \mathcal{P}(\{1,\ldots,K\})
-
-          P_0 &\in \mathcal{P}([0.1,0.9])
-
-          F_k &\in [0,1]
-
-        and the generative model in then given by:
+        the subpopulation allele frequencies by :math:`p_{k, m}`, and the genotypes by :math:`g_{n, m}`. The generative model in then given by:
 
         .. math::
             k_n \,&\sim\, \pi
@@ -609,7 +597,7 @@ class HailContext(object):
 
             p_{k,m}\mid p_{0,m}\,&\sim\, \mathrm{Beta}(\mu = p_{0,m},\, \sigma^2 = F_k p_{0,m}(1 - p_{0,m}))
 
-            g_{n,m}\mid k_n, p_{k, m} \,&\sim\, \mathrm{Binomial}(2, p_{k_n, m}).
+            g_{n,m}\mid k_n, p_{k, m} \,&\sim\, \mathrm{Binomial}(2, p_{k_n, m})
 
         We have parametrized the beta distribution by its mean and variance; the usual parameters are :math:`a = (1 - p)(1 - F)/F,\; b = p(1-F)/F` with :math:`F = F_k,\; p = p_{0,m}`.
 
