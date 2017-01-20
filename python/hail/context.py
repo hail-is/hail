@@ -551,13 +551,69 @@ class HailContext(object):
 
         self.run_command(None, pargs)
 
-    def balding_nichols_model(self, populations, samples, variants, npartitions,
-                              population_dist=None,
+    def balding_nichols_model(self, populations, samples, variants, partitions = None,
+                              pop_dist=None,
                               fst=None,
                               root="bn",
-                              seed=None):
+                              seed=0):
         """
-        Generate a VariantDataset using the Balding-Nichols model
+        Generate a VariantDataset using the Balding-Nichols model.
+
+        **Examples**
+
+        To generate a VDS with 3 populations, 100 samples in total, and 1000 variants:
+
+        >>> vds = hc.balding_nichols_model(3, 100, 1000)
+
+        To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12],  and root "balding", and random seed 1:
+
+        >>> vds = hc.balding_nichols_model(4, 40, 150, 10, pop_dist=[0.1, 0.2, 0.3, 0.4], fst=[.02, .06, .04, .12], root="balding", seed=1)
+
+        **Notes**
+
+        Hail is able to randomly generate a VDS using the Balding-Nichols model.
+
+        - :math:`K` populations are labeled by integers 0, 1, ..., K - 1
+        - :math:`N` samples are named by strings 0, 1, ..., N - 1
+        - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ..., ``1:M:A:C``
+        - The ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]
+        - The population distribution defaults to uniform
+        - The :math:`F_{st}` values default to 0.1
+        - The number of partitions defaults to one partition per million genotypes (i.e., samples * variants / 10^6) or 8, whichever is larger
+
+        The Balding-Nichols model models genotypes of individuals from a structured population comprising :math:`K` homogeneous subpopulations
+        that have each diverged from a single ancestral population (a `star phylogeny`). We take :math:`N` samples and :math:`M` bi-allelic variants in perfect
+        linkage equilibrium. The relative sizes of the subpopulations are given by a probability vector :math:`\pi`; the ancestral allele frequencies are
+        drawn independently from a frequency spectrum :math:`P_0`; the subpopulations have diverged with possibly different :math:`F_{ST}` parameters :math:`F_k`
+        (here and below, lowercase indices run over a range bounded by the corresponding uppercase parameter, e.g. :math:`k = 1, \ldots, K`).
+        For each variant, the subpopulation allele frequencies are drawn a `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`_, a useful continuous approximation of
+        the effect of genetic drift. We denote the individual subpopulation memberships by :math:`k_n`, the ancestral allele frequences by :math:`p_{0, m}`,
+        the subpopulation allele frequencies by :math:`p_{k, m}`, and the genotypes by :math:`g_{n, m}`. The generative model in then given by:
+
+        .. math::
+            k_n \,&\sim\, \pi
+
+            p_{0,m}\,&\sim\, P_0
+
+            p_{k,m}\mid p_{0,m}\,&\sim\, \mathrm{Beta}(\mu = p_{0,m},\, \sigma^2 = F_k p_{0,m}(1 - p_{0,m}))
+
+            g_{n,m}\mid k_n, p_{k, m} \,&\sim\, \mathrm{Binomial}(2, p_{k_n, m})
+
+        We have parametrized the beta distribution by its mean and variance; the usual parameters are :math:`a = (1 - p)(1 - F)/F,\; b = p(1-F)/F` with :math:`F = F_k,\; p = p_{0,m}`.
+
+        **Annotations**
+
+        Given the default root ``bn``, :py:meth:`~hail.HailContext.balding_nichols_model` adds the following global, sample, and variant annotations:
+
+         - **global.bn.nPops** (*Int*) -- Number of populations
+         - **global.bn.nSamples** (*Int*) -- Number of samples
+         - **global.bn.nVariants** (*Int*) -- Number of variants
+         - **global.bn.popDist** (*Array[Double]*) -- Normalized population distribution indexed by population
+         - **global.bn.Fst** (*Array[Double]*) -- F_st values indexed by population
+         - **global.bn.seed** (*Int*) -- Random seed
+         - **sa.bn.pop** (*Int*) -- Population of sample
+         - **va.bn.ancestralAF** (*Double*) -- Ancestral allele frequency
+         - **va.bn.AF** (*Array[Double]*) -- Allele frequency indexed by population
 
         :param int populations: Number of populations.
 
@@ -565,36 +621,42 @@ class HailContext(object):
 
         :param int variants: Number of variants.
 
-        :param int npartitions: Number of partitions.
+        :param int partitions: Number of partitions.
 
-        :param population_dist: Unnormalized population distributed, comma-separated
-        :type population_dist: str or None
+        :param pop_dist: Unnormalized population distribution
+        :type pop_dist: array of float or None
 
-        :param fst: F_st values, comma-separated
-        :type fst: str or None
+        :param fst: F_st values
+        :type fst: array of float or None
 
-        :param str root: Annotation path to follow global, sa and va.
+        :param str root: Annotation root to follow global, sa and va.
 
-        :param seed: Random seed.
-        :type seed: int or None
+        :param int seed: Random seed.
 
         :rtype: :class:`.VariantDataset`
+        :return: A VariantDataset generated by the Balding-Nichols model.
+
         """
 
-        pargs = ['baldingnichols', '-k', str(populations), '-n', str(samples), '-m', str(variants), '--npartitions',
-                 str(npartitions),
-                 '--root', root]
-        if population_dist:
-            pargs.append('-d')
-            pargs.append(population_dist)
-        if fst:
-            pargs.append('--fst')
-            pargs.append(fst)
-        if seed:
-            pargs.append('--seed')
-            pargs.append(seed)
 
-        return self.run_command(None, pargs)
+        if pop_dist is None:
+            jvm_pop_dist_opt = joption(self.jvm, pop_dist)
+        else:
+            jvm_pop_dist_opt = joption(self.jvm, jarray(self.gateway, self.jvm.double, pop_dist))
+
+
+        if fst is None:
+            jvm_fst_opt = joption(self.jvm, fst)
+        else:
+            jvm_fst_opt = joption(self.jvm, jarray(self.gateway, self.jvm.double, fst))
+
+
+
+        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
+                            jvm_pop_dist_opt,
+                            jvm_fst_opt,
+                            seed,
+                            joption(self.jvm, partitions), root))
 
     def stop(self):
         self.sc.stop()

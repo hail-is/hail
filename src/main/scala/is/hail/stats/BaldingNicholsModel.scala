@@ -1,122 +1,124 @@
 package is.hail.stats
 
-import breeze.linalg.{DenseMatrix, DenseVector, sum}
+import breeze.linalg._
 import breeze.stats.distributions._
-import org.apache.commons.math3.random.JDKRandomGenerator
-import is.hail.utils.info
-import is.hail.variant.VariantDataset
+import breeze.linalg.{DenseVector, sum}
 import org.apache.spark.SparkContext
+import org.apache.commons.math3.random.JDKRandomGenerator
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TDouble, TInt, TStruct}
-
-import scala.util.Random
+import is.hail.utils._
+import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
 
 object BaldingNicholsModel {
-  // K populations, N samples, M variants
-  // popDist is K-vector proportional to population distribution
-  // FstOfPop is K-vector of F_st values
-  def apply(K: Int, N: Int, M: Int,
-    popDistOpt: Option[DenseVector[Double]] = None,
-    FstOfPopOpt: Option[DenseVector[Double]] = None,
-    seed: Int): BaldingNicholsModel = {
 
-    require(K > 0)
-    require(N > 0)
-    require(M > 0)
-    require(popDistOpt.forall(_.length == K))
-    require(popDistOpt.forall(_.forall(_ >= 0d)))
-    require(FstOfPopOpt.forall(_.length == K))
-    require(FstOfPopOpt.forall(_.forall(f => f > 0d && f < 1d)))
+  def apply(sc: SparkContext, nPops: Int, nSamples: Int, nVariants: Int,
+    popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
+    seed: Int, nPartitionsOpt: Option[Int], root: String): VariantDataset = {
+
+    if (nPops < 1)
+      fatal(s"Number of populations must be positive, got ${ nPops }")
+
+    if (nSamples < 1)
+      fatal(s"Number of samples must be positive, got ${ nSamples }")
+
+    if (nVariants < 1)
+      fatal(s"Number of variants must be positive, got ${ nVariants }")
+
+    val popDistArray = popDistArrayOpt.getOrElse(Array.fill[Double](nPops)(1d))
+
+    if (popDistArray.size != nPops)
+      fatal(s"Got ${ nPops } populations but ${ popDistArray.size } population ${ plural(popDistArray.size, "probability", "probabilities") }")
+    popDistArray.foreach(p =>
+      if (p < 0d)
+        fatal(s"Population probabilities must be non-negative, got $p"))
+
+    val FstOfPopArray = FstOfPopArrayOpt.getOrElse(Array.fill(nPops)(0.1))
+
+    if (FstOfPopArray.size != nPops)
+      fatal(s"Got ${ nPops } populations but ${ FstOfPopArray.size } ${ plural(FstOfPopArray.size, "value") }")
+
+    FstOfPopArray.foreach(f =>
+      if (f <= 0d || f >= 1d)
+        fatal(s"F_st values must satisfy 0.0 < F_st < 1.0, got $f"))
+
+    val nPartitions = nPartitionsOpt.getOrElse(Math.max(nSamples * nVariants / 1000000, 8))
+    if (nPartitions <= 1)
+      fatal(s"Number of partitions must be positive, got $nPartitions")
+
+    val N = nSamples
+    val M = nVariants
+    val K = nPops
+    val popDist = DenseVector(popDistArray)
+    val FstOfPop = DenseVector(FstOfPopArray)
 
     info(s"baldingnichols: generating genotypes for $K populations, $N samples, and $M variants...")
 
     Rand.generator.setSeed(seed)
 
-    val popDist_k = popDistOpt.getOrElse(DenseVector.fill[Double](K)(1d))
+    val popDist_k = popDist
     popDist_k :/= sum(popDist_k)
+
     val popDistRV = Multinomial(popDist_k)
-    val popOfSample_n = DenseVector.fill[Int](N)(popDistRV.draw())
+    val popOfSample_n: DenseVector[Int] = DenseVector.fill[Int](N)(popDistRV.draw())
+    val popOfSample_nBc = sc.broadcast(popOfSample_n)
 
-    val Fst_k = FstOfPopOpt.getOrElse(DenseVector.fill[Double](K)(0.1))
+    val Fst_k = FstOfPop
     val Fst1_k = (1d - Fst_k) :/ Fst_k
+    val Fst1_kBc = sc.broadcast(Fst1_k)
 
-    val ancestralAF = Uniform(0.1, 0.9)
-    val ancestralAF_m = DenseVector.fill[Double](M)(ancestralAF.draw())
+    val variantSeed = Rand.randInt.draw();
+    val variantSeedBc = sc.broadcast(variantSeed)
 
-    val popAF_km = DenseMatrix.zeros[Double](K, M)
-    (0 until K).foreach(k =>
-      (0 until M).foreach(m =>
-        popAF_km(k,m) = new Beta((1 - ancestralAF_m(m)) * Fst1_k(k), ancestralAF_m(m) * Fst1_k(k)).draw()))
+    val rdd = sc.parallelize(
+      (0 until M).map { m =>
+        val perVariantRandomGenerator = new JDKRandomGenerator
+        perVariantRandomGenerator.setSeed(variantSeedBc.value + m)
+        val perVariantRandomBasis = new RandBasis(perVariantRandomGenerator)
 
-    val unif = Rand.uniform
+        val unif = new Uniform(0, 1)(perVariantRandomBasis)
 
-    val genotype_nm = DenseMatrix.zeros[Int](N,M)
-    (0 until N).foreach(n =>
-      (0 until M).foreach { m =>
-        val p = popAF_km(popOfSample_n(n), m)
-        val pSq = p * p
-        val x = unif.draw()
-        genotype_nm(n, m) =
-          if (x < pSq)
-            0
-          else if (x > 2 * p - pSq) // equiv to 1 - (1 - p)^2
-            2
-          else
-            1
-      }
+        val ancestralAF = Uniform(.1, .9).draw()
+
+        val popAF_k = (0 until K).map{k =>
+          new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k)).draw()
+        }
+
+        (Variant("1", m + 1, "A", "C"),
+          (Annotation(Annotation(ancestralAF, popAF_k)),
+            (0 until N).map { n =>
+              val p = popAF_k(popOfSample_nBc.value(n))
+              val pSq = p * p
+              val x = unif.draw()
+              val genotype_num =
+                if (x < pSq)
+                  2
+                else if (x > 2 * p - pSq)
+                  0
+                else
+                  1
+              Genotype(genotype_num)
+            }: Iterable[Genotype]
+          )
+        )
+      },
+      nPartitions
+    ).toOrderedRDD
+
+    val sampleIds = (0 until N).map(_.toString).toArray
+    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(x => Annotation(Annotation(x)))
+    val globalAnnotation = Annotation(
+      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], seed))
+
+    val saSignature = TStruct(root -> TStruct("pop" -> TInt))
+    val vaSignature = TStruct(root -> TStruct("ancestralAF" -> TDouble, "AF" -> TArray(TDouble)))
+    val globalSignature = TStruct(root ->
+      TStruct("nPops" -> TInt, "nSamples" -> TInt, "nVariants" -> TInt,
+        "popDist" -> TArray(TDouble), "Fst" -> TArray(TDouble), "seed" -> TInt))
+
+    new VariantDataset(
+      new VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation, saSignature, vaSignature, globalSignature, wasSplit=true),
+      rdd
     )
-
-    BaldingNicholsModel(K, N, M, genotype_nm, popOfSample_n, ancestralAF_m, popAF_km, popDist_k, Fst_k, seed)
   }
 }
-
-case class BaldingNicholsModel(
-  nPops: Int,
-  nSamples: Int,
-  nVariants: Int,
-  genotypes: DenseMatrix[Int],
-  popOfSample: DenseVector[Int],
-  ancestralAF: DenseVector[Double],
-  popAF: DenseMatrix[Double],
-  popDist: DenseVector[Double],
-  FstOfPop: DenseVector[Double],
-  seed: Int) {
-
-  require(genotypes.rows == nSamples)
-  require(genotypes.cols == nVariants)
-  require(popOfSample.size == nSamples)
-  require(ancestralAF.size == nVariants)
-  require(popAF.rows == nPops)
-  require(popAF.cols == nVariants)
-  require(popDist.size == nPops)
-  require(FstOfPop.size == nPops)
-
-  def toVDS(sc: SparkContext, root: String = "bn", nPartitions: Option[Int]): VariantDataset = {
-    val globalHead = s"${Annotation.GLOBAL_HEAD}.$root"
-    val sampleToPop = (0 until nSamples).map(i => (i.toString, popOfSample(i))).toMap
-
-    val vds = vdsFromMatrix(sc)(genotypes, None, nPartitions.getOrElse(sc.defaultMinPartitions))
-
-    val freqSchema = TStruct(("ancAF", TDouble) +: (0 until nPops).map(i => (s"AF$i", TDouble)): _*)
-
-    val (newVAS, inserter) = vds.insertVA(freqSchema, root)
-
-    val ancestralAFBc = sc.broadcast(ancestralAF)
-    val popAFBc = sc.broadcast(popAF)
-
-    vds
-      .annotateGlobal(nPops, TInt, s"$globalHead.nPops")
-      .annotateGlobal(nSamples, TInt, s"$globalHead.nSamples")
-      .annotateGlobal(nVariants, TInt, s"$globalHead.nVariants")
-      .annotateGlobal(popDist.toArray: IndexedSeq[Double], TArray(TDouble), s"$globalHead.popDist")
-      .annotateGlobal(FstOfPop.toArray: IndexedSeq[Double], TArray(TDouble), s"$globalHead.Fst")
-      .annotateGlobal(seed, TInt, s"$globalHead.seed")
-      .annotateSamples(sampleToPop, TInt, s"${Annotation.SAMPLE_HEAD}.$root.pop")
-      .mapAnnotations{ case (v, va, gs) =>
-        val ancfreq = ancestralAFBc.value(v.start - 1)
-        val freq =  popAFBc.value(::, v.start - 1).toArray
-        inserter(va, Some(Annotation.fromSeq(ancfreq +: freq)))
-    }.copy(vaSignature = newVAS)
-  }
-}
-

@@ -4,7 +4,7 @@ package object annotations {
 
   class AnnotationPathException(msg: String = "") extends Exception(msg)
 
-  type Annotation = Any
+  type  Annotation = Any
 
   type Deleter = (Annotation) => Annotation
 
