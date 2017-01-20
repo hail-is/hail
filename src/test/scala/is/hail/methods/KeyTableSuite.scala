@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.annotations._
+import is.hail.driver.{ImportVCF, State}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
@@ -95,6 +96,9 @@ class KeyTableSuite extends SparkSuite {
       kt4.valueNames.toSet == Set("qPhen2", "X", "Sample", "Status") &&
       kt3data == kt4data
     )
+
+    val outputFile = tmpDir.createTempFile("annotate", "tsv")
+    kt2.export(sc, outputFile, null)
   }
 
   @Test def testFilter() = {
@@ -110,6 +114,9 @@ class KeyTableSuite extends SparkSuite {
     val kt5 = kt1.filter("field1 < -5 && field3 == 100", keep = true)
 
     assert(kt1.nRows == 3 && kt2.nRows == 2 && kt3.nRows == 1 && kt4.nRows == 2 && kt5.nRows == 0)
+
+    val outputFile = tmpDir.createTempFile("filter", "tsv")
+    kt5.export(sc, outputFile, null)
   }
 
   @Test def testJoin() = {
@@ -162,6 +169,9 @@ class KeyTableSuite extends SparkSuite {
     assert(ktInnerJoin.nRows == nIntersectRows &&
       ktInnerJoin.nKeys == nExpectedKeys &&
       ktInnerJoin.nValues == nExpectedValues)
+
+    val outputFile = tmpDir.createTempFile("join", "tsv")
+    ktLeftJoin.export(sc, outputFile, null)
   }
 
   @Test def testAggregate() {
@@ -185,6 +195,9 @@ class KeyTableSuite extends SparkSuite {
     val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
 
     assert(kt2 same ktResult)
+
+    val outputFile = tmpDir.createTempFile("aggregate", "tsv")
+    kt2.export(sc, outputFile, null)
   }
 
   @Test def testForallExists() {
@@ -219,6 +232,9 @@ class KeyTableSuite extends SparkSuite {
     intercept[FatalException](kt.rename(Map("field1" -> "field2")))
 
     intercept[FatalException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
+
+    val outputFile = tmpDir.createTempFile("rename", "tsv")
+    rename2.export(sc, outputFile, null)
   }
 
   @Test def testSelect() {
@@ -244,6 +260,18 @@ class KeyTableSuite extends SparkSuite {
     intercept[FatalException](kt.select(Array.empty[String], Array("Sample")))
 
     intercept[FatalException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
+
+    val outputFile1 = tmpDir.createTempFile("select1", "tsv")
+    select1.export(sc, outputFile1, null)
+
+    val outputFile2 = tmpDir.createTempFile("select2", "tsv")
+    select2.export(sc, outputFile2, null)
+
+    val outputFile3 = tmpDir.createTempFile("select3", "tsv")
+    select3.export(sc, outputFile3, null)
+
+    val outputFile4 = tmpDir.createTempFile("select4", "tsv")
+    select4.export(sc, outputFile4, null)
   }
 
   @Test def testExplode() {
@@ -264,5 +292,22 @@ class KeyTableSuite extends SparkSuite {
     intercept[FatalException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))
     assert(ktResult3.same(kt3.explode(Array("field1", "field2", "field1"))))
+
+    val outputFile = tmpDir.createTempFile("explode", "tsv")
+    kt2.explode(Array("field1")).export(sc, outputFile, null)
+  }
+
+  @Test def testKeyTableToDF() {
+    var s = State(sc, sqlContext, null)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf.bgz"))
+
+    val kt = s.vds
+      .variantsKT()
+      .flatten()
+      .select(Array("va.info.MQRankSum"), Array.empty[String])
+
+    val df = kt.toDF(sqlContext)
+    df.printSchema()
+    df.show()
   }
 }
