@@ -995,7 +995,7 @@ class RichVDS(vds: VariantDataset) {
   def makeSchema(): StructType =
     StructType(Array(
       StructField("variant", Variant.schema, nullable = false),
-      StructField("annotations", vds.vaSignature.schema, nullable = false),
+      StructField("annotations", vds.vaSignature.schema),
       StructField("gs", GenotypeStream.schema, nullable = false)
     ))
 
