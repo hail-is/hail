@@ -112,14 +112,14 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def same(other: KeyTable): Boolean = {
     if (signature != other.signature) {
-      println(
+      info(
         s"""different signatures:
             | left: ${ signature.toPrettyString() }
             | right: ${ other.signature.toPrettyString() }
             |""".stripMargin)
       false
     } else if (keyNames.toSeq != other.keyNames.toSeq) {
-      println(
+      info(
         s"""different key names:
             | left: ${ keyNames.mkString(", ") }
             | right: ${ other.keyNames.mkString(", ") }
@@ -137,10 +137,10 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
             val r2 = y.map(r => otherFieldNames.zip(r.asInstanceOf[Row].toSeq).toMap).toSet
             val res = r1 == r2
             if (!res)
-              println(s"k=$k r1=${ r1.mkString(",") } r2=${ r2.mkString(",") }")
+              info(s"k=$k r1=${ r1.mkString(",") } r2=${ r2.mkString(",") }")
             res
           case _ =>
-            println(s"k=$k v1=$v1 v2=$v2")
+            info(s"k=$k v1=$v1 v2=$v2")
             false
         }
       }
@@ -240,12 +240,13 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
       fatal(s"Selected fields `${ fieldsNotExist.mkString(", ") }' do not exist in KeyTable. Choose from `${ fieldNames.mkString(", ") }'.")
 
     val fieldTransform = fieldsSelect.map(cn => fieldNames.indexOf(cn))
-    val newSignature = TStruct(fieldTransform.map { i => signature.fields(i) })
+
+    val newSignature = TStruct(fieldTransform.zipWithIndex.map { case (oldIndex, newIndex) => signature.fields(oldIndex).copy(index = newIndex) })
     val nFieldsLocal = nFields
 
     val selectF: Annotation => Annotation = { a =>
       val row = KeyTable.annotationToSeq(a, nFieldsLocal)
-      Annotation.fromSeq(fieldTransform.map(i => row(i)))
+      Annotation.fromSeq(fieldTransform.map{ i => row(i)})
     }
 
     KeyTable(mapAnnotations(selectF), newSignature, newKeys)
