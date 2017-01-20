@@ -81,7 +81,7 @@ object BaldingNicholsModel {
         val ancestralAF = Uniform(.1, .9).draw()
 
         val popAF_k = (0 until K).map{k =>
-          new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k)).draw()
+          new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
         }
 
         (Variant("1", m + 1, "A", "C"),
