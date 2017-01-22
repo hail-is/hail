@@ -20,7 +20,7 @@ object GenotypeSuite {
 
     gb.set(g)
     gb.write(ab)
-    val g2 = Genotype.read(nAlleles, isDosage, new ByteIterator(ab.result()))
+    val g2 = GenericGenotype.read(nAlleles, isDosage, new ByteIterator(ab.result()))
 
     g == g2
   }
