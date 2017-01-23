@@ -74,9 +74,7 @@ abstract class Genotype extends Serializable {
     isDosage: Boolean = this.isDosage): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
 
 
-  override def equals(that: Any): Boolean =
-    that match {
-
+  override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
       unboxedGT == g.unboxedGT &&
         ((ad.isEmpty && g.ad.isEmpty) || (ad.isDefined && g.ad.isDefined && ad.get.sameElements(g.ad.get))) &&
@@ -92,10 +90,10 @@ abstract class Genotype extends Serializable {
   override def hashCode: Int =
     new HashCodeBuilder(43, 19)
       .append(unboxedGT)
-      .append(if (ad.isEmpty) null else util.Arrays.hashCode(ad.get))
+      .append(util.Arrays.hashCode(ad.orNull))
       .append(dp)
       .append(gq)
-      .append(if (px.isEmpty) null else util.Arrays.hashCode(px.get))
+      .append(util.Arrays.hashCode(px.orNull))
       .append(fakeRef)
       .append(isDosage)
       .toHashCode
@@ -519,18 +517,18 @@ object Genotype {
     val flags = a.readULEB128()
 
     val gt: Int =
-      if (Genotype.flagHasGT(isBiallelic, flags)) {
-        if (Genotype.flagStoresGT(isBiallelic, flags))
-          Genotype.flagGT(isBiallelic, flags)
+      if (flagHasGT(isBiallelic, flags)) {
+        if (flagStoresGT(isBiallelic, flags))
+          flagGT(isBiallelic, flags)
         else
           a.readULEB128()
       } else
         -1
 
     val ad: Array[Int] =
-      if (Genotype.flagHasAD(flags)) {
+      if (flagHasAD(flags)) {
         val ada = new Array[Int](nAlleles)
-        if (Genotype.flagSimpleAD(flags)) {
+        if (flagSimpleAD(flags)) {
           assert(gt >= 0)
           val p = Genotype.gtPair(gt)
           ada(p.j) = a.readULEB128()
@@ -545,9 +543,9 @@ object Genotype {
         null
 
     val dp =
-      if (Genotype.flagHasDP(flags)) {
-        if (Genotype.flagHasAD(flags)) {
-          if (Genotype.flagSimpleDP(flags))
+      if (flagHasDP(flags)) {
+        if (flagHasAD(flags)) {
+          if (flagSimpleDP(flags))
             ad.sum
           else
             ad.sum + a.readULEB128()
@@ -557,7 +555,7 @@ object Genotype {
         -1 // None
 
     val px: Array[Int] =
-      if (Genotype.flagHasPX(flags)) {
+      if (flagHasPX(flags)) {
         val pxa = new Array[Int](triangle(nAlleles))
         if (gt >= 0) {
           var i = 0
@@ -587,21 +585,21 @@ object Genotype {
         null
 
     val gq: Int =
-      if (Genotype.flagHasGQ(flags)) {
-        if (Genotype.flagSimpleGQ(flags))
-          Genotype.gqFromPL(px)
+      if (flagHasGQ(flags)) {
+        if (flagSimpleGQ(flags))
+          gqFromPL(px)
         else
           a.readULEB128()
       } else
         -1
 
-    new GenericGenotype(gt, ad, dp, gq, px, Genotype.flagFakeRef(flags), isDosage)
+    new GenericGenotype(gt, ad, dp, gq, px, flagFakeRef(flags), isDosage)
   }
 
   def genDosage(nAlleles: Int): Gen[Genotype] = {
     val nGenotypes = triangle(nAlleles)
     for (px <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
-      val gt = px.flatMap(Genotype.gtFromLinear)
+      val gt = px.flatMap(gtFromLinear)
       val g = Genotype(gt = gt, px = px, isDosage = true)
       g.check(nAlleles)
       g
@@ -644,7 +642,7 @@ object Genotype {
         rawWeights.map(_ / sum)
       };
       gt <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
-        .map { case (gti, gtj) => Genotype.gtIndexWithSwap(gti, gtj) }, callRate);
+        .map { case (gti, gtj) => gtIndexWithSwap(gti, gtj) }, callRate);
       ad <- Gen.option(Gen.buildableOfN[Array, Int](nAlleles,
         Gen.choose(0, 50)));
       dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d));
@@ -658,7 +656,7 @@ object Genotype {
             arr.map(_ - min)
         }
       });
-      gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, Genotype.gqFromPL(pls) + i)))
+      gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
     ) yield
       Genotype(gt, ad, dp, gq, pl)
   }
