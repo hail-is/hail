@@ -1421,7 +1421,7 @@ class VariantDataset(object):
 
         >>> (hc.read('example.vds')
         >>>   .filter_alleles('va.info.AC[aIndex - 1] == 0',
-        >>>     'va.info.AC = va.info.AC = aIndices[1:].map(i => va.info.AC[i - 1])',
+        >>>     'va.info.AC = aIndices[1:].map(i => va.info.AC[i - 1])',
         >>>     keep=False))
 
         Note we must skip the first element of ``aIndices`` because
@@ -1432,13 +1432,13 @@ class VariantDataset(object):
 
         There are two algorithms implemented to remove an allele from
         the genotypes: subset, if ``subset`` is true, and downcode, if
-        ``subset`` is false.  In addition to these two modes, if
-        ``filter_altered_genotypes`` is true, any genotype (and thus
-        would change when removing the allele) that contained the
-        filtered allele is set to missing.  The example below
-        illustrate the behavior of these two algorithms when filtering
-        allele 1 in the following example genotype at a site with 3
-        alleles (reference and 2 non-reference alleles).
+        ``subset`` is false.  Furthermore, if
+        ``filter_altered_genotypes`` is true, any genotype that contained
+        the filtered allele (and thus would change when removing the
+        allele) is set to missing.  The example below illustrate the 
+        behavior of these two algorithms when filtering allele 1 in the 
+        following example genotype at a site with 3 alleles (reference 
+        and 2 non-reference alleles).
 
         .. code-block:: text
 
