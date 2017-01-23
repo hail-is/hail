@@ -1,12 +1,12 @@
-package org.broadinstitute.hail.methods
+package is.hail.methods
 
 import breeze.linalg.{Vector => BVector}
-import org.broadinstitute.hail.SparkSuite
-import org.broadinstitute.hail.check.Prop._
-import org.broadinstitute.hail.check.{Gen, Properties}
-import org.broadinstitute.hail.driver._
-import org.broadinstitute.hail.variant._
-import org.broadinstitute.hail.utils._
+import is.hail.SparkSuite
+import is.hail.check.Prop._
+import is.hail.check.{Gen, Properties}
+import is.hail.driver._
+import is.hail.variant._
+import is.hail.utils._
 import org.testng.annotations.Test
 
 class LDPruneSuite extends SparkSuite {

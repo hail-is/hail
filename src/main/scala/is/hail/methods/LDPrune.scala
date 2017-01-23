@@ -1,16 +1,17 @@
-package org.broadinstitute.hail.methods
+package is.hail.methods
 
 import java.util
 
 import breeze.linalg.{Vector => BVector}
+import is.hail.annotations.Annotation
+import is.hail.expr._
+import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
-import org.broadinstitute.hail.annotations.Annotation
-import org.broadinstitute.hail.expr.{TBoolean, TStruct}
-import org.broadinstitute.hail.sparkextras._
-import org.broadinstitute.hail.variant.{Genotype, Locus, Variant, VariantDataset}
-import org.broadinstitute.hail.utils._
+import is.hail.sparkextras._
+import is.hail.variant._
+import is.hail.utils._
 
 case class LocalPruneResult(rdd: OrderedRDD[Locus, Variant, BVector[Double]],
   fractionPruned: Double, index: Int, partitionSizes: Array[Long], pruneDone: Boolean) {
