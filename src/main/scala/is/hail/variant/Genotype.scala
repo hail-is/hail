@@ -64,7 +64,7 @@ abstract class Genotype extends Serializable {
       this.asInstanceOf[GenericGenotype].equals(g)
 
     case (_, g: Genotype) =>
-      gt == g.gt &&
+      unboxedGT == g.unboxedGT &&
         ((ad.isEmpty && g.ad.isEmpty) || (ad.isDefined && g.ad.isDefined && ad.get.sameElements(g.ad.get))) &&
         dp == g.dp &&
         gq == g.gq &&
