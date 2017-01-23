@@ -1,3 +1,4 @@
+from context import scala_object
 
 class Type(object):
     """Type of values."""
@@ -10,3 +11,9 @@ class Type(object):
 
     def __str__(self):
         return self.jtype.toPrettyString(False, False)
+
+class TInt(Type):
+
+    def __init__(self, jvm):
+        super(scala_object(jvm))
+
