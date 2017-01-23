@@ -74,11 +74,10 @@ abstract class Genotype extends Serializable {
     isDosage: Boolean = this.isDosage): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
 
 
-  override def equals(that: Any): Boolean = (this, that) match {
-    case (_: GenericGenotype, g: GenericGenotype) =>
-      this.asInstanceOf[GenericGenotype].equals(g)
+  override def equals(that: Any): Boolean =
+    that match {
 
-    case (_, g: Genotype) =>
+    case g: Genotype =>
       unboxedGT == g.unboxedGT &&
         ((ad.isEmpty && g.ad.isEmpty) || (ad.isDefined && g.ad.isDefined && ad.get.sameElements(g.ad.get))) &&
         dp == g.dp &&
@@ -90,7 +89,16 @@ abstract class Genotype extends Serializable {
     case _ => false
   }
 
-  override def hashCode: Int
+  override def hashCode: Int =
+    new HashCodeBuilder(43, 19)
+      .append(unboxedGT)
+      .append(if (ad.isEmpty) null else util.Arrays.hashCode(ad.get))
+      .append(dp)
+      .append(gq)
+      .append(if (px.isEmpty) null else util.Arrays.hashCode(px.get))
+      .append(fakeRef)
+      .append(isDosage)
+      .toHashCode
 
   def unboxedGT: Int
 
@@ -688,32 +696,6 @@ class GenericGenotype(private val _gt: Int,
       require(_gt == Genotype.gtFromLinear(_px).getOrElse(-1))
     }
   }
-
-  override def equals(that: Any): Boolean = that match {
-    case g: GenericGenotype =>
-      _gt == g._gt &&
-        ((_ad == null && g._ad == null)
-          || (_ad != null && g._ad != null && _ad.sameElements(g._ad))) &&
-        _dp == g._dp &&
-        _gq == g._gq &&
-        fakeRef == g.fakeRef &&
-        isDosage == g.isDosage &&
-        ((_px == null && g._px == null)
-          || (_px != null && g._px != null && _px.sameElements(g._px)))
-
-    case _ => false
-  }
-
-  override def hashCode: Int =
-    new HashCodeBuilder(43, 19)
-      .append(_gt)
-      .append(util.Arrays.hashCode(_ad))
-      .append(_dp)
-      .append(_gq)
-      .append(util.Arrays.hashCode(_px))
-      .append(fakeRef)
-      .append(isDosage)
-      .toHashCode
 
   def unboxedGT: Int = _gt
 
