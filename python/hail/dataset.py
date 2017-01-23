@@ -1536,6 +1536,9 @@ class VariantDataset(object):
         
         :param bool filter_altered_genotypes: If true, genotypes that contain filtered-out alleles are set to missing.
 
+        :return: A Variant Dataset with alleles filtered.
+
+        :rtype: VariantDataset
         """
 
         pargs = ['filteralleles',
