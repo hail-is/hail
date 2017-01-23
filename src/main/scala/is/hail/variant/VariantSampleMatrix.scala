@@ -329,7 +329,7 @@ object VSMSubgen {
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
-  val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) {
+  val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {
 
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
 
@@ -1053,6 +1053,44 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     ec.setAll(localGlobalAnnotation)
     ts.map { case (t, f) => (f().orNull, t) }.toArray
   }
+
+  def annotateVariantsKT(kt: KeyTable, root: String, code: String) = {
+    val (expr, codeInput) = (Option(code), Option(root)) match {
+      case (Some(c), None) => (true, c)
+      case (None, Some(r)) => (false, r)
+      case _ => fatal("this module requires one of `root' or `code', but not both")
+    }
+
+    val inputKeyTypes = kt.keySignature.fields.map(_.`type`)
+    val expectedKeyTypes = TStruct(("Variant", TVariant)).fields.map(_.`type`)
+    if ( inputKeyTypes != expectedKeyTypes)
+      fatal(s"Key Signature of KeyTable must be 1 field with type `Variant'. Found `${inputKeyTypes.mkString(", ")}'")
+
+    val struct = kt.signature
+
+    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
+      val ec = EvalContext(Map(
+        "va" -> (0, vaSignature),
+        "table" -> (1, struct)))
+      buildInserter(codeInput, vaSignature, ec, Annotation.VARIANT_HEAD)
+    } else insertVA(struct, Parser.parseAnnotationRoot(codeInput, Annotation.VARIANT_HEAD))
+
+    val nKeys = kt.nKeys
+    val nValues = kt.nValues
+    val ec = EvalContext(kt.fields.map(f => (f.name, f.`type`)): _*)
+
+    val keyedRDD = kt.rdd.map {
+      case (k, v) =>
+        KeyTable.setEvalContext(ec, k, v, nKeys, nValues)
+    }.toOrderedRDD(rdd.orderedPartitioner)
+
+    println(s"${kt.keySignature.toPrettyString()}")
+    println(s"${kt.valueSignature.toPrettyString()}")
+//    val keyedRDD = kt.rdd.map { case (v, a) => (v.asInstanceOf[Variant], a) }.toOrderedRDD(rdd.orderedPartitioner)
+//
+//    annotateVariants(keyedRDD, finalType, inserter)
+    this
+  }
 }
 
 // FIXME AnyVal Scala 2.11
@@ -1234,5 +1272,4 @@ class RichVDS(vds: VariantDataset) {
 
     vds.filterVariants(p)
   }
-
 }
