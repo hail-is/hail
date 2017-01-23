@@ -59,13 +59,31 @@ abstract class Genotype extends Serializable {
 
   val isDosage: Boolean
 
-  override def equals(that: Any): Boolean
+  override def equals(that: Any): Boolean = (this, that) match {
+    case (_: GenericGenotype, g: GenericGenotype) =>
+      this.asInstanceOf[GenericGenotype].equals(g)
+
+    case (_, g: Genotype) =>
+      gt == g.gt &&
+        ((ad.isEmpty && g.ad.isEmpty) || (ad.isDefined && g.ad.isDefined && ad.get.sameElements(g.ad.get))) &&
+        dp == g.dp &&
+        gq == g.gq &&
+        ((px.isEmpty && g.px.isEmpty) || (px.isDefined && g.px.isDefined && px.get.sameElements(g.px.get))) &&
+        fakeRef == g.fakeRef &&
+        isDosage == g.isDosage
+
+    case _ => false
+  }
 
   override def hashCode: Int
 
   def unboxedGT: Int
 
-  def gt: Option[Int]
+  def gt: Option[Int] =
+    if (unboxedGT >= 0)
+      Some(unboxedGT)
+    else
+      None
 
   def ad: Option[Array[Int]]
 
@@ -81,33 +99,53 @@ abstract class Genotype extends Serializable {
 
   def dosage: Option[Array[Double]]
 
-  override def toString: String
-
-  def toRow: Row
-
-  def toJSON: JValue
 
 
+  def isHomRef: Boolean = unboxedGT == 0
 
-  def isHomRef: Boolean = Genotype.isHomRef(unboxedGT)
+  def isHet: Boolean = unboxedGT > 0 && {
+    val p = Genotype.gtPair(unboxedGT)
+    p.j != p.k
+  }
 
-  def isHet: Boolean = Genotype.isHet(unboxedGT)
+  def isHomVar: Boolean = unboxedGT > 0 && {
+    val p = Genotype.gtPair(unboxedGT)
+    p.j == p.k
+  }
 
-  def isHomVar: Boolean = Genotype.isHomVar(unboxedGT)
+  def isCalledNonRef: Boolean = unboxedGT > 0
 
-  def isCalledNonRef: Boolean = Genotype.isCalledNonRef(unboxedGT)
+  def isHetNonRef: Boolean = unboxedGT > 0 && {
+    val p = Genotype.gtPair(unboxedGT)
+    p.j > 0 && p.j != p.k
+  }
 
-  def isHetNonRef: Boolean = Genotype.isHetNonRef(unboxedGT)
+  def isHetRef: Boolean = unboxedGT > 0 && {
+    val p = Genotype.gtPair(unboxedGT)
+    p.j == 0 && p.k > 0
+  }
 
-  def isHetRef: Boolean = Genotype.isHetRef(unboxedGT)
+  def isNotCalled: Boolean = unboxedGT == -1
 
-  def isNotCalled: Boolean = Genotype.isNotCalled(unboxedGT)
+  def isCalled: Boolean = unboxedGT >= 0
 
-  def isCalled: Boolean = Genotype.isCalled(unboxedGT)
+  def gtType: GenotypeType =
+    if (isHomRef)
+      GenotypeType.HomRef
+    else if (isHet)
+      GenotypeType.Het
+    else if (isHomVar)
+      GenotypeType.HomVar
+    else {
+      assert(isNotCalled)
+      GenotypeType.NoCall
+    }
 
-  def gtType: GenotypeType = Genotype.gtType(unboxedGT)
-
-  def nNonRefAlleles: Option[Int] = Genotype.nNonRefAlleles(unboxedGT)
+  def nNonRefAlleles: Option[Int] =
+    if (unboxedGT >= 0)
+      Some(Genotype.gtPair(unboxedGT).nNonRefAlleles)
+    else
+      None
 
   def oneHotAlleles(v: Variant): Option[IndexedSeq[Int]] = {
     gt.map { call =>
@@ -153,7 +191,7 @@ abstract class Genotype extends Serializable {
 
   def pAB(theta: Double = 0.5): Option[Double] = ad.flatMap { arr =>
     if (isHet) {
-      val gtPair = Genotype.gtPair(unboxedGT) //FIXME: is this appropriate used of unboxedGT?
+      val gtPair = Genotype.gtPair(unboxedGT)
       val aDepth = arr(gtPair.j)
       val bDepth = arr(gtPair.k)
       val d = new BinomialDistribution(aDepth + bDepth, theta)
@@ -182,6 +220,46 @@ abstract class Genotype extends Serializable {
     px: Option[Array[Int]] = this.px,
     fakeRef: Boolean = this.fakeRef,
     isDosage: Boolean = this.isDosage): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
+
+  override def toString: String = {
+    val b = new StringBuilder
+
+    b.append(gt.map { gt =>
+      val p = Genotype.gtPair(gt)
+      s"${ p.j }/${ p.k }"
+    }.getOrElse("./."))
+
+    if (fakeRef) {
+      b += '*'
+    }
+
+    b += ':'
+    b.append(ad.map(_.mkString(",")).getOrElse("."))
+    b += ':'
+    b.append(dp.map(_.toString).getOrElse("."))
+    b += ':'
+    b.append(gq.map(_.toString).getOrElse("."))
+    b += ':'
+    if (!isDosage) {
+      b.append("PL=" + pl.map(_.mkString(",")).getOrElse("."))
+    } else {
+      b.append("GP=" + dosage.map(_.mkString(",")).getOrElse("."))
+    }
+
+    b.result()
+  }
+
+  def toRow: Row =
+    Row(gt.orNull, ad.map(_.toSeq).orNull, dp.orNull, gq.orNull, px.map(_.toSeq).orNull, fakeRef, isDosage)
+
+  def toJSON: JValue = JObject(
+    ("gt", gt.map(JInt(_)).getOrElse(JNull)),
+    ("ad", ad.map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("dp", dp.map(JInt(_)).getOrElse(JNull)),
+    ("gq", gq.map(JInt(_)).getOrElse(JNull)),
+    ("px", px.map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)),
+    ("fakeRef", JBool(fakeRef)),
+    ("isDosage", JBool(isDosage)))
 }
 
 object Genotype {
@@ -381,51 +459,7 @@ object Genotype {
     transformedProbs.map(_ / s)
   }
 
-  def isHomRef(gt: Int): Boolean = gt == 0
 
-  def isHet(gt: Int): Boolean = gt > 0 && {
-    val p = Genotype.gtPair(gt)
-    p.j != p.k
-  }
-
-  def isHomVar(gt: Int): Boolean = gt > 0 && {
-    val p = Genotype.gtPair(gt)
-    p.j == p.k
-  }
-
-  def isCalledNonRef(gt: Int): Boolean = gt > 0
-
-  def isHetNonRef(gt: Int): Boolean = gt > 0 && {
-    val p = Genotype.gtPair(gt)
-    p.j > 0 && p.j != p.k
-  }
-
-  def isHetRef(gt: Int): Boolean = gt > 0 && {
-    val p = Genotype.gtPair(gt)
-    p.j == 0 && p.k > 0
-  }
-
-  def isNotCalled(gt: Int): Boolean = gt == -1
-
-  def isCalled(gt: Int): Boolean = gt >= 0
-
-  def gtType(gt: Int): GenotypeType =
-    if (isHomRef(gt))
-      GenotypeType.HomRef
-    else if (isHet(gt))
-      GenotypeType.Het
-    else if (isHomVar(gt))
-      GenotypeType.HomVar
-    else {
-      assert(isNotCalled(gt))
-      GenotypeType.NoCall
-    }
-
-  def nNonRefAlleles(gt: Int): Option[Int] =
-    if (gt >= 0)
-      Some(Genotype.gtPair(gt).nNonRefAlleles)
-    else
-      None
 
   val smallGTPair = Array(GTPair(0, 0), GTPair(0, 1), GTPair(1, 1),
     GTPair(0, 2), GTPair(1, 2), GTPair(2, 2),
@@ -552,144 +586,8 @@ object Genotype {
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
-}
 
-class GenericGenotype(private val _gt: Int,
-  private val _ad: Array[Int],
-  private val _dp: Int,
-  private val _gq: Int,
-  private val _px: Array[Int],
-  val fakeRef: Boolean,
-  val isDosage: Boolean) extends Genotype {
-
-  require(_gt >= -1, s"invalid _gt value: ${ _gt }")
-  require(_dp >= -1, s"invalid _dp value: ${ _dp }")
-
-  if (isDosage) {
-    require(_gq == -1)
-    if (_px == null)
-      require(_gt == -1)
-    else {
-      require(_px.sum == 32768)
-      require(_gt == Genotype.gtFromLinear(_px).getOrElse(-1))
-    }
-  }
-
-  override def equals(that: Any): Boolean = that match {
-    case g: GenericGenotype =>
-      _gt == g._gt &&
-        ((_ad == null && g._ad == null)
-          || (_ad != null && g._ad != null && _ad.sameElements(g._ad))) &&
-        _dp == g._dp &&
-        _gq == g._gq &&
-        fakeRef == g.fakeRef &&
-        isDosage == g.isDosage &&
-        ((_px == null && g._px == null)
-          || (_px != null && g._px != null && _px.sameElements(g._px)))
-
-    case _ => false
-  }
-
-  override def hashCode: Int =
-    new HashCodeBuilder(43, 19)
-      .append(_gt)
-      .append(util.Arrays.hashCode(_ad))
-      .append(_dp)
-      .append(_gq)
-      .append(util.Arrays.hashCode(_px))
-      .append(fakeRef)
-      .append(isDosage)
-      .toHashCode
-
-  def unboxedGT: Int = _gt
-
-  def gt: Option[Int] =
-    if (_gt >= 0)
-      Some(_gt)
-    else
-      None
-
-  def ad: Option[Array[Int]] = Option(_ad)
-
-  def dp: Option[Int] =
-    if (_dp >= 0)
-      Some(_dp)
-    else
-      None
-
-  def od: Option[Int] =
-    if (_dp >= 0 && _ad != null)
-      Some(_dp - _ad.sum)
-    else
-      None
-
-  def gq: Option[Int] =
-    if (_gq >= 0)
-      Some(_gq)
-    else
-      None
-
-  def px: Option[Array[Int]] = Option(_px)
-
-  def pl: Option[Array[Int]] =
-    if (_px == null)
-      None
-    else if (!isDosage)
-      Some(_px)
-    else
-      Some(Genotype.linearToPhred(_px))
-
-  def dosage: Option[Array[Double]] =
-    if (_px == null)
-      None
-    else if (isDosage)
-      Some(_px.map(_ / 32768.0))
-    else
-      Some(Genotype.phredToDosage(_px))
-
-  override def toString: String = {
-    val b = new StringBuilder
-
-    b.append(gt.map { gt =>
-      val p = Genotype.gtPair(gt)
-      s"${ p.j }/${ p.k }"
-    }.getOrElse("./."))
-
-    if (fakeRef) {
-      b += '*'
-    }
-
-    b += ':'
-    b.append(ad.map(_.mkString(",")).getOrElse("."))
-    b += ':'
-    b.append(dp.map(_.toString).getOrElse("."))
-    b += ':'
-    b.append(gq.map(_.toString).getOrElse("."))
-    b += ':'
-    if (!isDosage) {
-      b.append("PL=" + pl.map(_.mkString(",")).getOrElse("."))
-    } else {
-      b.append("GP=" + dosage.map(_.mkString(",")).getOrElse("."))
-    }
-
-    b.result()
-  }
-
-  def toRow: Row =
-    Row(gt.orNull, ad.map(_.toSeq).orNull, dp.orNull, gq.orNull, px.map(_.toSeq).orNull, fakeRef, isDosage)
-
-  def toJSON: JValue = JObject(
-    ("gt", gt.map(JInt(_)).getOrElse(JNull)),
-    ("ad", ad.map(ads => JArray(ads.map(JInt(_)).toList)).getOrElse(JNull)),
-    ("dp", dp.map(JInt(_)).getOrElse(JNull)),
-    ("gq", gq.map(JInt(_)).getOrElse(JNull)),
-    ("px", px.map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)),
-    ("fakeRef", JBool(fakeRef)),
-    ("isDosage", JBool(isDosage)))
-}
-
-object GenericGenotype {
-  def read(nAlleles: Int, isDosage: Boolean, a: ByteIterator): GenericGenotype = {
+  def read(nAlleles: Int, isDosage: Boolean, a: ByteIterator): Genotype = {
     val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
@@ -773,6 +671,94 @@ object GenericGenotype {
 
     new GenericGenotype(gt, ad, dp, gq, px, Genotype.flagFakeRef(flags), isDosage)
   }
+}
+
+class GenericGenotype(private val _gt: Int,
+  private val _ad: Array[Int],
+  private val _dp: Int,
+  private val _gq: Int,
+  private val _px: Array[Int],
+  val fakeRef: Boolean,
+  val isDosage: Boolean) extends Genotype {
+
+  require(_gt >= -1, s"invalid _gt value: ${ _gt }")
+  require(_dp >= -1, s"invalid _dp value: ${ _dp }")
+
+  if (isDosage) {
+    require(_gq == -1)
+    if (_px == null)
+      require(_gt == -1)
+    else {
+      require(_px.sum == 32768)
+      require(_gt == Genotype.gtFromLinear(_px).getOrElse(-1))
+    }
+  }
+
+  override def equals(that: Any): Boolean = that match {
+    case g: GenericGenotype =>
+      _gt == g._gt &&
+        ((_ad == null && g._ad == null)
+          || (_ad != null && g._ad != null && _ad.sameElements(g._ad))) &&
+        _dp == g._dp &&
+        _gq == g._gq &&
+        fakeRef == g.fakeRef &&
+        isDosage == g.isDosage &&
+        ((_px == null && g._px == null)
+          || (_px != null && g._px != null && _px.sameElements(g._px)))
+
+    case _ => false
+  }
+
+  override def hashCode: Int =
+    new HashCodeBuilder(43, 19)
+      .append(_gt)
+      .append(util.Arrays.hashCode(_ad))
+      .append(_dp)
+      .append(_gq)
+      .append(util.Arrays.hashCode(_px))
+      .append(fakeRef)
+      .append(isDosage)
+      .toHashCode
+
+  def unboxedGT: Int = _gt
+
+  def ad: Option[Array[Int]] = Option(_ad)
+
+  def dp: Option[Int] =
+    if (_dp >= 0)
+      Some(_dp)
+    else
+      None
+
+  def od: Option[Int] =
+    if (_dp >= 0 && _ad != null)
+      Some(_dp - _ad.sum)
+    else
+      None
+
+  def gq: Option[Int] =
+    if (_gq >= 0)
+      Some(_gq)
+    else
+      None
+
+  def px: Option[Array[Int]] = Option(_px)
+
+  def pl: Option[Array[Int]] =
+    if (_px == null)
+      None
+    else if (!isDosage)
+      Some(_px)
+    else
+      Some(Genotype.linearToPhred(_px))
+
+  def dosage: Option[Array[Double]] =
+    if (_px == null)
+      None
+    else if (isDosage)
+      Some(_px.map(_ / 32768.0))
+    else
+      Some(Genotype.phredToDosage(_px))
 }
 
 class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {

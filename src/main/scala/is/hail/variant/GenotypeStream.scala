@@ -17,7 +17,7 @@ class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) 
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = {
-    GenericGenotype.read(nAlleles, isDosage, b)
+    Genotype.read(nAlleles, isDosage, b)
   }
 }
 
