@@ -8,7 +8,7 @@ You'll need:
 
 - The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
 - `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_. Hail should work with other versions of Spark 2, see below.
-- Python 2.7 and IPython. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads)>`_.
+- Python 2.7 and IPython. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
 - `CMake <http://cmake.org>`_ and a C++ compiler.
 
   On a Debian-based Linux like Ubuntu, run::
@@ -85,7 +85,7 @@ Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotati
     >>>                       '((g.isHomRef && ab <= 0.1) || '
     >>>                       ' (g.isHet && ab >= 0.25 && ab <= 0.75) || '
     >>>                       ' (g.isHomVar && ab >= 0.9))')
-    >>>     .write('sample.filtered.vds')
+    >>>     .write('sample.filtered.vds'))
 
 Try running :py:meth:`~hail.VariantDataset.count` on *sample.filtered.vds* to see how the numbers have changed. For further background and examples, continue to the :ref:`sec-overview` and :ref:`API reference <sec-api>`.
 
