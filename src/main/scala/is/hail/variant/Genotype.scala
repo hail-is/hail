@@ -608,8 +608,8 @@ object Genotype {
       dp <- Gen.option(Gen.choose(0, m));
       gq <- Gen.option(Gen.choose(0, 10000));
       pl <- Gen.oneOfGen(
-            Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, m))),
-            Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, 100))))) yield {
+         Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, m))),
+         Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, 100))))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }
