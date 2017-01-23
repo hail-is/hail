@@ -1408,15 +1408,15 @@ class VariantDataset(object):
 
     def filter_alleles(self, condition, annotation=None, subset=True, keep=True, filter_altered_genotypes=False):
         """Filter a user-defined set of alternate alleles for each variant.
-        If all of a variant's alternate alleles are filtered, the
+        If all alternate alleles of a variant are filtered, the
         variant itself is filtered.  The condition expression is
-        evaluated for each alternate allele.  It is not evaluated for
-        the reference (i.e. ``aIndex`` will never be zero).
+        evaluated for each alternate allele, but not for
+        the reference allele (i.e. ``aIndex`` will never be zero).
 
         **Example**
 
-        Remove alternate alleles whose allele count is zero and
-        updates the alternate allele count annotation with the new
+        To remove alternate alleles with zero allele count and
+        update the alternate allele count annotation with the new
         indices:
 
         >>> (hc.read('example.vds')
@@ -1424,21 +1424,17 @@ class VariantDataset(object):
         >>>     'va.info.AC = aIndices[1:].map(i => va.info.AC[i - 1])',
         >>>     keep=False))
 
-        Note we must skip the first element of ``aIndices`` because
-        it is mapping between the old and new *allele* indices, not
+        Note that we skip the first element of ``aIndices`` because
+        we are mapping between the old and new *allele* indices, not
         the *alternate allele* indices.
 
         **Notes**
 
-        There are two algorithms implemented to remove an allele from
-        the genotypes: subset, if ``subset`` is true, and downcode, if
-        ``subset`` is false.  Furthermore, if
-        ``filter_altered_genotypes`` is true, any genotype that contained
-        the filtered allele (and thus would change when removing the
-        allele) is set to missing.  The example below illustrate the 
-        behavior of these two algorithms when filtering allele 1 in the 
-        following example genotype at a site with 3 alleles (reference 
-        and 2 non-reference alleles).
+        If ``filter_altered_genotypes`` is true, genotypes that contain filtered-out alleles are set to missing.
+
+        :py:meth:`~hail.VariantDataset.filter_alleles` implements two algorithms for filtering alleles: subset and downcode. We will illustrate their 
+        behavior on the example genotype below when filtering the first alternate allele (allele 1) at a site with 1 reference 
+        allele and 2 alternate alleles.
 
         .. code-block:: text
 
@@ -1452,18 +1448,18 @@ class VariantDataset(object):
             +-----------------
                0     1     2
 
-        **Subsetting algorithm**
+        **Subset algorithm**
 
-        The subset method (the default, ``subset=True``) subsets the
-        AD and PL arrays (i.e. remove entries with filtered allele)
-        and sets GT to the genotype with the minimum likelihood.  Note
-        that if the genotype changes (like in the example), the PLs
-        are re-normalized so that the most likely genotype has a PL of
-        0.  The qualitative interpretation of subsetting is a belief
-        that the alternate is not-real and we want to discard any
-        probability mass associated with the alternate.
+        The subset algorithm (the default, ``subset=True``) subsets the
+        AD and PL arrays (i.e. removes entries corresponding to filtered alleles)
+        and then sets GT to the genotype with the minimum PL.  Note
+        that if the genotype changes (as in the example), the PLs
+        are re-normalized (shifted) so that the most likely genotype has a PL of
+        0.  Qualitatively, subsetting corresponds to the belief
+        that the filtered alleles are not real so we should discard any
+        probability mass associated with them.
 
-        The subsetting algorithm would produce the following:
+        The subset algorithm would produce the following:
 
         .. code-block:: text
 
@@ -1479,21 +1475,18 @@ class VariantDataset(object):
         In summary:
 
         - GT: Set to most likely genotype based on the PLs ignoring the filtered allele(s).
-        - AD: The filtered alleles' columns are eliminated, e.g. filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``25,20``.
+        - AD: The filtered alleles' columns are eliminated, e.g., filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``25,20``.
         - DP: No change.
-        - PL: Subsets the PLs to those associated with remaining alleles (and normalize).
-        - GQ: Increasing-sort PL and take ``PL[1] - PL[0]``.
+        - PL: The filtered alleles' columns are eliminated and the remaining columns shifted so the minimum value is 0.
+        - GQ: The second-lowest PL (after shifting).
 
-        **Downcoding algorithm**
+        **Downcode algorithm**
 
-        The downcode method converts occurences of the filtered allele
-        to the reference (e.g. 1 -> 0 in our example).  It takes
-        minimums in the PL array where there are multiple likelihoods
-        for a single genotypef. The genotype is then set accordingly.
-        Similarly, the depth for the filtered allele in the AD field
-        is added to that of the reference.  If an allele is filtered,
-        this algorithm acts similarly to
-        :py:meth:`~hail.VariantDataset.split_multi`.
+        The downcode algorithm (``subset=False``) recodes occurances of filtered alleles
+        to occurances of the reference allele (e.g. 1 -> 0 in our example). So the depths of filtered alleles in the AD field
+        are added to the depth of the reference allele. Where downcodeing filtered alleles merges distinct genotypes, the minimum PL is used (since PL is on a log scale, this roughly corresponds to adding probabilities). The PLs
+        are then re-normalized (shifted) so that the most likely genotype has a PL of 0, and GT is set to this genotype.
+        If an allele is filtered, this algorithm acts similarly to :py:meth:`~hail.VariantDataset.split_multi`.
 
         The downcoding algorithm would produce the following:
 
@@ -1510,21 +1503,21 @@ class VariantDataset(object):
 
         In summary:
 
-        - GT: Downcode the filtered alleles to reference.
-        - AD: The filtered alleles' columns are eliminated and the value is added to the reference, e.g. filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
+        - GT: Downcode filtered alleles to reference.
+        - AD: The filtered alleles' columns are eliminated and their value is added to the reference, e.g., filtering alleles 1 and 2 transforms ``25,5,10,20`` to ``40,20``.
         - DP: No change.
-        - PL: Downcode the filtered alleles and take the minimum of the likelihoods for each genotype.
-        - GQ: Increasing-sort PL and take ``PL[1] - PL[0]``.
+        - PL: Downcode filtered alleles to reference, combine PLs using minimum for each overloaded genotype, and shift so the overall minimum PL is 0.
+        - GQ: The second-lowest PL (after shifting).
 
         **Expression Variables**
 
-        The following symbols are in scope in ``condition``:
+        The following symbols are in scope for ``condition``:
 
         - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
         - ``aIndex`` (*Int*): the index of the allele being tested
 
-        The following symbols are in scope in ``annotation``:
+        The following symbols are in scope for ``annotation``:
 
         - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
@@ -1534,12 +1527,14 @@ class VariantDataset(object):
         :type condition: str
 
         :param annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
-            and aIndices (maps from new to old indices) (default: "va = va")
-        :param bool subset: If true, subsets the PL and AD, otherwise downcodes the PL and AD.
+            and aIndices (maps from new to old indices)
+            
+        :param bool subset: If true, subsets PL and AD, otherwise downcodes the PL and AD.
             Genotype and GQ are set based on the resulting PLs.
-        :param bool keep: Keep variants matching condition
-        :param bool filter_altered_genotypes: If set, any genotype call that would change due to filtering an allele
-            would be set to missing instead.
+            
+        :param bool keep: If true, keep variants matching condition
+        
+        :param bool filter_altered_genotypes: If true, genotypes that contain filtered-out alleles are set to missing.
 
         """
 
