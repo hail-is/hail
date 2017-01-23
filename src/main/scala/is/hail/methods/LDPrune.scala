@@ -148,7 +148,6 @@ object LDPrune {
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
 
     def generalRDDInputs(partitionIndex: Int): (Array[RDD[(Variant, BVector[Double])]], Array[(Int, Int)]) = {
-//      println(s"partitionIndex = $partitionIndex inputs=${computeDependencies(partitionIndex).mkString(",")}")
       val (rdds, inputs) = computeDependencies(partitionIndex).zipWithIndex.map { case (depIndex, i) =>
         if (depIndex == partitionIndex || contigStartPartitions.contains(depIndex))
           (inputRDD, (i, depIndex))
@@ -177,10 +176,6 @@ object LDPrune {
 
     val annotatedRDD = prunedRDD.mapValues(_ => Annotation(true)).persist(StorageLevel.MEMORY_AND_DISK)
     val nVariantsKept = annotatedRDD.count()
-
-    println(debugMemory(annotatedRDD.sparkContext))
-    println(pruneIntermediates.map(pi => (pi.index, pi.persist)).mkString(","))
-
 
     pruneIntermediates.foreach{ gpi => gpi.rdd.unpersist()}
     inputRDD.unpersist()

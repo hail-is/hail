@@ -218,4 +218,16 @@ class LDPruneSuite extends SparkSuite {
     s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000000, 0.003, 50 * 1024 * 1024))
 //    while (true) {}
   }
+
+  @Test def test10K() {
+    var s = State(sc, sqlContext, null)
+    s = Read.run(s, Array("ALL.1KG.10K.vds"))
+    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000000, 0.003, 50 * 1024 * 1024))
+  }
+
+  @Test def testSample() {
+    var s = State(sc, sqlContext, null)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf.bgz"))
+    s = s.copy(vds = LDPrune.ldPrune(s.vds, "va.ldprune", 0.2, 1000000, 0.003, 50 * 1024 * 1024))
+  }
 }

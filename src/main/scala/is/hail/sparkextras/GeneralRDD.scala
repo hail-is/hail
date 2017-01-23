@@ -5,21 +5,26 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
-case class GeneralRDDPartition[T](index: Int, inputs: Array[(Int, Int)], f: (Array[Iterator[T]]) => Iterator[T]) extends Partition
+case class GeneralRDDPartition[T](index: Int, partitionInputs: Array[(Int, Partition)], f: (Array[Iterator[T]]) => Iterator[T]) extends Partition
 
 class GeneralRDD[T](@transient var sc: SparkContext,
   var rdds: Array[RDD[T]],
   var inputs: Array[(Array[(Int, Int)], (Array[Iterator[T]] => Iterator[T]))])(implicit tct: ClassTag[T]) extends RDD[T](sc, Nil) {
 
+  // Do not call getPartitions here!
   override def getPartitions: Array[Partition] = {
-    inputs.zipWithIndex.map { case (input, i) => new GeneralRDDPartition[T](i, input._1, input._2) }
+    val parentPartitions = rdds.zipWithIndex.map{case (rdd, i) => (i, rdd.partitions)}.toMap
+    inputs.zipWithIndex.map { case (input, i) =>
+      val partitionInputs = input._1.map{ case (rddIndex, partitionIndex) => (rddIndex, parentPartitions(rddIndex)(partitionIndex))}
+      new GeneralRDDPartition[T](i, partitionInputs, input._2)
+    }
   }
 
+  // Do not call partitions or getPartitions here!
   override def compute(split: Partition, context: TaskContext): Iterator[T] = {
     val gp = split.asInstanceOf[GeneralRDDPartition[T]]
-    gp.f(gp.inputs.map { case (rddIndex, partitionIndex) =>
+    gp.f(gp.partitionInputs.map { case (rddIndex, partition) =>
       val rdd = rdds(rddIndex)
-      val partition = rdd.partitions(partitionIndex)
       rdd.iterator(partition, context)
     })
   }

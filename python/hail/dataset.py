@@ -2057,8 +2057,7 @@ class VariantDataset(object):
         try:
             memory_per_core = int(memory_per_core * 1024 * 1024)
             return VariantDataset(self.hc,
-                                  self.hc.jvm.org.broadinstitute.hail.methods.LDPrune.ldPrune(self.jvds, root, r2, window,
-                                                                                              local_prune_threshold, memory_per_core))
+                                  self.hc.hail.methods.LDPrune.ldPrune(self.jvds, root, r2, window, local_prune_threshold, memory_per_core))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
