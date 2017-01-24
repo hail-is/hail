@@ -546,15 +546,15 @@ object FunctionRegistry {
   registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Float]) => if (x.nonEmpty) x.max else null })(floatHr, boxedfloatHr)
   registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Double]) => if (x.nonEmpty) x.max else null })(doubleHr, boxeddoubleHr)
 
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Int]) => breeze.stats.median(DenseVector(x.toArray)) })
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Long]) => breeze.stats.median(DenseVector(x.toArray)) })
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Float]) => breeze.stats.median(DenseVector(x.toArray)) })
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Double]) => breeze.stats.median(DenseVector(x.toArray)) })
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Int]) => if (x.nonEmpty) breeze.stats.median(DenseVector(x.toArray)) else null })(intHr, boxedintHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Long]) => if (x.nonEmpty) breeze.stats.median(DenseVector(x.toArray)) else null })(longHr, boxedlongHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Float]) => if (x.nonEmpty) breeze.stats.median(DenseVector(x.toArray)) else null })(floatHr, boxedfloatHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Double]) => if (x.nonEmpty) breeze.stats.median(DenseVector(x.toArray)) else null })(doubleHr, boxeddoubleHr)
 
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Int]) => x.sum / x.size.toDouble })
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Long]) => x.sum / x.size.toDouble })
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Float]) => x.sum / x.size.toDouble })
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Double]) => x.sum / x.size })
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Int]) => if (x.nonEmpty) x.sum / x.size.toDouble else null })(intHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Long]) => if (x.nonEmpty) x.sum / x.size.toDouble else null })(longHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Float]) => if (x.nonEmpty) x.sum / x.size.toDouble else null })(floatHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Double]) => if (x.nonEmpty) x.sum / x.size.toDouble else null })(doubleHr, boxeddoubleHr)
 
   register("range", { (x: Int) => 0 until x: IndexedSeq[Int] })
   register("range", { (x: Int, y: Int) => x until y: IndexedSeq[Int] })

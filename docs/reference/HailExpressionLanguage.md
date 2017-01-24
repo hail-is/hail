@@ -85,21 +85,22 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - sortBy: `arr.sortBy(v => expr[,ascending])` -- Returns a new array with the same elements in ascending order according to the value of `expr`, which must be numeric or string. For descending order, use `arr.sortBy(v => expr, false)`. Elements with missing `expr` values are always placed at the end.
 
  - Numeric Array Operations:
-     - min: `arr.min` -- valid only for numeric arrays, returns the minimum value
-     - max: `arr.max` -- valid only for numeric arrays, returns the minimum value
-     - median: `arr.median` -- valid only for numeric arrays, returns the median value (`NA`'s are ignored). Element type is preserved so the median of `[0, 3]` is `(0 + 3) / 2 = 1`. To get `1.5` instead, use `arr.map(_.toDouble).median`
-     - mean: `arr.mean` -- valid only for numeric arrays, returns the mean as a `Double` (`NA`'s are ignored)
      - arithmetic: `+ - * /`
         - Array with scalar will apply the operation to each element of the array.  `[1, 2, 3] * 2` = `[2, 4, 6]`.
-        - Array with Array will apply the operation positionally.  `[1, 2, 3] * [1, 0, -1]` = `[1, 0, -3]`.  _Fails if the dimension of the two arrays does not match._
+        - Array with Array will apply the operation positionally.  `[1, 2, 3] * [1, 0, -1]` = `[1, 0, -3]`.  _Fails if array dimensions do not match._
 
+ - Numeric Array and Numeric Set Operations (`NA` values are ignored):
+     - sum: `arr.sum` -- returns the sum, 0 if empty
+     - min: `arr.min` -- returns the minimum, missing if empty
+     - max: `arr.max` -- returns the maximum, missing if empty
+     - mean: `arr.mean` -- returns the mean as a `Double`, missing if empty
+     - median: `arr.median` -- returns the median, missing if empty. Element type is preserved so the median of `[0, 3]` is `(0 + 3) / 2 = 1`. To get `1.5` instead, use `arr.map(_.toDouble).median`
+ 
  - Set Operations:
      - contains: `set.contains(elem)` -- returns true if the element is contained in the array, otherwise false
      - size: `set.size` -- returns the number of elements in the set as an integer
      - isEmpty: `set.isEmpty` -- returns true if the set contains 0 elements
      - equals: `set1 == set2` -- returns true if both sets contain the same elements
-     - min: `set.min` -- valid only for numeric sets, returns the minimum value
-     - max: `set.max` -- valid only for numeric sets, returns the minimum value
      - find: `set.find(v => expr)` -- Returns the first non-missing element of `set` for which `expr` is true.  If no element satisfies the predicate, `find` returns NA.
      - map: `set.map(v => expr)` -- Returns a new set produced by applying `expr` to each element
      - flatMap: `set.flatMap(v => expr)` -- valid only for `expr` of type Set. Returns a new set by mapping each element of `set` and taking the union of the resulting sets
