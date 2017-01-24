@@ -243,8 +243,7 @@ object VariantSampleMatrix {
     }.spanByKey().map(kv => {
       // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
-      val annotations = kv._2.head._1
-      // just use first annotation
+      val annotations = kv._2.head._1 // just use first annotation
       val genotypes = kv._2.flatMap(_._2) // combine genotype streams
       (variant, (annotations, genotypes))
     })
