@@ -321,6 +321,12 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""a.min""").contains(-1))
     assert(eval[Int]("""a.max""").contains(8))
     assert(eval[Int]("""a.median""").contains(3))
+    println(eval[Int]("""emptyarr.sum"""))
+    println(eval[Int]("""emptyarr.mean"""))
+    println(eval[Int]("""emptyarr.min"""))
+    println(eval[Int]("""emptyarr.max"""))
+    println(eval[Int]("""emptyarr.median"""))
+
     assert(eval[Double]("""a.mean""").contains(22/7.0))
     assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
