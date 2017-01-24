@@ -301,14 +301,11 @@ Global annotations: `global' = {
 
 We now have `vds_gAB_sCR_sGQ`, a VDS where both poor genotypes and samples have been removed.
 
-Let's use the `variant_qc` method to start exploring variant metrics and `export_variants` to exports the resulting variant annotations as a text file:
+Let's use the `variant_qc` method to start exploring variant metrics:
 
     >>> vds_gAB_sCR_sGQ = vds_gAB_sCR_sGQ.variant_qc()
     >>> vds_gAB_sCR_sGQ.print_schema(va=True)
-    >>> vds_gAB_sCR_sGQ.export_variants('variantqc.tsv',
-    >>>                                'Chrom=v.contig, Pos=v.start, Ref=v.ref, Alt=v.alt, va.qc.*')
-
-The string `va.qc.*` specifies that all annotations in the struct `va.qc` should be included as columns. We could also have written the export expression above as `Variant = v, va.qc.*` in which case the `Variant` column would have the format "Contig:Pos:Ref:Alt".
+    
 
 We've once again used matplotlib to make histograms of four summary statistics (call rate, allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated is based on all populations together.
 
