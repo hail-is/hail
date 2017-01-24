@@ -1,9 +1,9 @@
 package is.hail.stats
 
-import breeze.linalg.{DenseMatrix, DenseVector, rank}
+import breeze.linalg.{DenseMatrix, DenseVector}
 import is.hail.expr._
-import is.hail.variant.VariantDataset
 import is.hail.utils._
+import is.hail.variant.VariantDataset
 
 object RegressionUtils {
   def toDouble(t: Type, code: String): Any => Double = t match {
