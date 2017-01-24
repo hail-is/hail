@@ -139,6 +139,26 @@ object VariantSampleMatrix {
       saSignature, vaSignature, globalSignature, wasSplit, isDosage)
   }
 
+  def writePartitioning(sqlContext: SQLContext, dirname: String): Unit = {
+    val sc = sqlContext.sparkContext
+    val hConf = sc.hadoopConfiguration
+
+    if (!hConf.exists(dirname + "/partitioner.json.gz"))
+      warn("write partitioning: partitioner.json.gz already exists, nothing to do")
+
+    val parquetFile = dirname + "/rdd.parquet"
+
+    val fastKeys = sqlContext.readParquetSorted(parquetFile, Some(Array("variant")))
+      .map(_.getVariant(0))
+    val kvRDD = fastKeys.map(k => (k, ()))
+
+    val ordered = kvRDD.toOrderedRDD(fastKeys)
+
+    sqlContext.sparkContext.hadoopConfiguration.writeTextFile(dirname + "/partitioner.json.gz") { out =>
+      Serialization.write(ordered.orderedPartitioner.toJSON, out)
+    }
+  }
+
   def read(sqlContext: SQLContext, dirname: String,
     skipGenotypes: Boolean = false, skipVariants: Boolean = false): VariantDataset = {
 
@@ -170,38 +190,16 @@ object VariantSampleMatrix {
                 row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
           }
 
-      var p: Option[OrderedPartitioner[Locus, Variant]] = None
-
-      try {
-        val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
-        p = Some(jv.fromJSON[OrderedPartitioner[Locus, Variant]])
-      } catch {
-        case _: FileNotFoundException => None
-      }
-
-      if (p.isEmpty) {
+      val partitioner: OrderedPartitioner[Locus, Variant] =
         try {
-          p = Some(sqlContext.sparkContext.hadoopConfiguration.readObjectFile(dirname + "/partitioner") { in =>
-            OrderedPartitioner.read[Locus, Variant](in, rdd.partitions.length)
-          })
+          val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
+          jv.fromJSON[OrderedPartitioner[Locus, Variant]]
         } catch {
-          case _: InvalidClassException => None
-          case _: ClassNotFoundException => None
-          case _: FileNotFoundException => None
+          case _: FileNotFoundException =>
+            fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
         }
-      }
 
-      p match {
-        case Some(partitioner) =>
-          OrderedRDD(rdd, partitioner)
-        case None =>
-          warn(
-            """No partition information found: VDS is old and will experience poor performance.
-              |  Please `read' and `write' this dataset to update it.""".stripMargin)
-
-          val fastKeys = sqlContext.readParquetSorted(parquetFile, Some(Array("variant"))).map(_.getVariant(0))
-          rdd.toOrderedRDD(fastKeys)
-      }
+      OrderedRDD(rdd, partitioner)
     }
 
     new VariantSampleMatrix[Genotype](
@@ -245,7 +243,8 @@ object VariantSampleMatrix {
     }.spanByKey().map(kv => {
       // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
-      val annotations = kv._2.head._1 // just use first annotation
+      val annotations = kv._2.head._1
+      // just use first annotation
       val genotypes = kv._2.flatMap(_._2) // combine genotype streams
       (variant, (annotations, genotypes))
     })
@@ -469,7 +468,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
-  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) }.asOrderedRDD)
@@ -549,7 +548,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     rdd
       .mapPartitions { (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
+
         def copyZeroValue() = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
+
         val arrayZeroValue = Array.fill[U](localSampleIdsBc.value.length)(copyZeroValue())
 
         localSampleIdsBc.value.iterator
@@ -671,7 +672,9 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     rdd
       .mapPartitions { (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
+
         def copyZeroValue() = serializer.deserialize[T](ByteBuffer.wrap(zeroArray))(localtct)
+
         val arrayZeroValue = Array.fill[T](localSampleIdsBc.value.length)(copyZeroValue())
         localSampleIdsBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, (va, gs))) =>

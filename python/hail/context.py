@@ -465,6 +465,15 @@ class HailContext(object):
             pargs.append("--skip-genotypes")
         return self.run_command(None, pargs)
 
+    def write_partitioning(self, path):
+        """Write partitioning.json.gz file for legacy VDS file.
+
+        :param str path: path to VDS file.
+
+        """
+
+        self.hail.variant.VariantSampleMatrix.writePartitioning(self.jsql_context, path)
+
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
                    sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
         """Import .vcf files as VariantDataset
