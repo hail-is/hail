@@ -178,27 +178,25 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def test100K() {
-    val memory_per_core = 100
     var s = State(sc, sqlContext, null)
     s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, memory_per_core * 1024 * 1024)
+    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 50 * 1024 * 1024)
     prunedVds.nVariants
 //    while (true) {}
   }
 
   @Test def test10K() {
-    val memory_per_core = 100
     var s = State(sc, sqlContext, null)
     s = Read.run(s, Array("ALL.1KG.10K.vds"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, memory_per_core * 1024 * 1024)
+    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 50 * 1024 * 1024)
     prunedVds.nVariants
-    while (true) {}
+    // while (true) {}
   }
 
   @Test def testSample() {
     var s = State(sc, sqlContext, null)
     s = ImportVCF.run(s, Array("src/test/resources/sample.vcf.bgz"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 20 * 1024 * 1024)
+    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 50 * 1024 * 1024)
     prunedVds.nVariants
   }
 }
