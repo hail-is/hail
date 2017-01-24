@@ -534,6 +534,18 @@ class KeyTable(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
+    def to_pandas(self, expand = True, flatten = True):
+        """Converts this KeyTable into a Pandas DataFrame.
+
+        :param bool expand: If true, expand_types before converting to
+          Pandas DataFrame.
+        :param bool flatten: If true, flatten before converting to Pandas
+          DataFrame.  If both are true, flatten is run after expand so
+          that expanded types are flattened.
+        :return: pandas.DataFrame
+        """
+        return self.to_dataframe(expand, flatten).toPandas()
+
     def export_mongodb(self, mode='append'):
         (scala_package_object(self.hc.hail.driver)
          .exportMongoDB(self.hc.jsql_context, self.jkt, mode))
