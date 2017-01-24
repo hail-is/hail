@@ -143,8 +143,10 @@ object VariantSampleMatrix {
     val sc = sqlContext.sparkContext
     val hConf = sc.hadoopConfiguration
 
-    if (!hConf.exists(dirname + "/partitioner.json.gz"))
+    if (hConf.exists(dirname + "/partitioner.json.gz")) {
       warn("write partitioning: partitioner.json.gz already exists, nothing to do")
+      return
+    }
 
     val parquetFile = dirname + "/rdd.parquet"
 
@@ -154,7 +156,7 @@ object VariantSampleMatrix {
 
     val ordered = kvRDD.toOrderedRDD(fastKeys)
 
-    sqlContext.sparkContext.hadoopConfiguration.writeTextFile(dirname + "/partitioner.json.gz") { out =>
+    hConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
       Serialization.write(ordered.orderedPartitioner.toJSON, out)
     }
   }
