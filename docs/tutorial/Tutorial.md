@@ -230,7 +230,26 @@ HG02635	9.82337e-01	5506	99	3927	927	652	2231	0	0
 NA19660	9.45049e-01	5297	308	3910	685	702	2089	0	0
 </pre>
 
-We can further analyze these results locally using tools like Python or R. Below is an example plot of two variables (call rate and meanGQ).
+We can further analyze these results locally using Python's matplotlib. Below is an example plot of two variables (call rate and meanGQ), along with the code that generate the plot.
+
+    >>> sampleqc_table = vds_gAB_vCR.samples_keytable().to_pandas()
+    >>> 
+    >>> plt.subplot(1, 2, 1) 
+    >>> plt.hist(sampleqc_table["sa.qc.callRate"], bins=np.arange(.75, 1.01, .01))
+    >>> plt.xlabel("Call Rate")
+    >>> plt.ylabel("Frequency")
+    >>> plt.xlim(.75, 1)
+    >>> plt.axvline(.97, color='r')
+    >>> 
+    >>> plt.subplot(1, 2, 2)
+    >>> plt.hist(sampleqc_table["sa.qc.gqMean"], bins = np.arange(0, 105, 5))
+    >>> plt.xlabel("Mean Sample GQ")
+    >>> plt.ylabel("Frequency")
+    >>> plt.xlim(0, 105)
+    >>> plt.axvline(20, color = 'r')
+    >>> 
+    >>> plt.tight_layout()
+    >>> plt.show()
 
 <img src="test.sampleqc.png">
 
@@ -291,7 +310,43 @@ Let's use the `variant_qc` method to start exploring variant metrics and `export
 
 The string `va.qc.*` specifies that all annotations in the struct `va.qc` should be included as columns. We could also have written the export expression above as `Variant = v, va.qc.*` in which case the `Variant` column would have the format "Contig:Pos:Ref:Alt".
 
-We've used R to make histograms of four summary statistics (call rate, allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated is based on all populations together.
+We've once again used matplotlib to make histograms of four summary statistics (call rate, allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE does not look as one would expect (most variants should have a p-value close to 1). This is because there are 5 populations represented in this dataset and the p-value we calculated is based on all populations together.
+
+
+    >>> variantqc_table = vds_gAB_sCR_sGQ.variants_keytable().to_pandas()
+    >>> 
+    >>> plt.subplot(2, 2, 1)
+    >>> variantgq_means = variantqc_table["va.qc.gqMean"]
+    >>> plt.hist(variantgq_means, bins = np.arange(0, 85, 5))
+    >>> plt.xlabel("Variant Mean GQ")
+    >>> plt.ylabel("Frequency")
+    >>> plt.xlim(0, 80)
+    >>> plt.axvline(20, color = 'r')
+    >>> 
+    >>> plt.subplot(2, 2, 2)
+    >>> variant_mleaf = variantqc_table["va.qc.AF"]
+    >>> plt.hist(variant_mleaf, bins = np.arange(0, 1.05, .05))
+    >>> plt.xlabel("Minor Allele Frequency")
+    >>> plt.ylabel("Frequency")
+    >>> plt.xlim(0, 1)
+    >>> plt.axvline(0.05, color = 'r')
+    >>> 
+    >>> plt.subplot(2, 2, 3)
+    >>> plt.hist(variantqc_table['va.qc.callRate'], bins = np.arange(0, 1.05, .05))
+    >>> plt.xlabel("Variant Call Rate")
+    >>> plt.ylabel("Frequency")
+    >>> plt.xlim(.5, 1)
+    >>> 
+    >>> plt.subplot(2, 2, 4)
+    >>> plt.hist(variantqc_table['va.qc.pHWE'], bins = np.arange(0, 1.05, .05))
+    >>> plt.xlabel("Hardy-Weinberg Equilibrium p-value")
+    >>> plt.ylabel("Frequency")
+    >>> plt.xlim(0, 1)
+    >>> 
+    >>> plt.tight_layout()
+    >>> plt.show()
+
+
 <img src="test.variantqc.png">
 
 Let's use the `annotate_variants_expr` method to programmatically compute Hardy Weinberg Equilibrium for each population. First, we construct `hwe-expressions`.
