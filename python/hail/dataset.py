@@ -2035,24 +2035,34 @@ class VariantDataset(object):
 
         return VariantDataset(self.hc, self._jvdf.join(right._jvds))
 
-    def ld_prune(self, root='va.ldprune', r2=0.2, window=1000000, local_prune_threshold=0.1, memory_per_core=512):
-        """Prune variants in dataset
+    def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256):
+        """Prune variants in linkage disequilibrium.
+
+        **Examples**
+
+        Run PCA from set of common LD pruned variants:
+
+        >>> vds = hc.read("data/example.vds")
+        >>> vds_pca = (vds.variant_qc()
+        >>>     .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95"))
+        >>>     .ld_prune()
+        >>>     .pca())
+
+        **Notes**
 
         Variants are pruned in each contig from smallest start position to largest.
         A variant is included in the pruned set if the pair-wise correlation with
         all variants within a given ``window`` size in the pruned set is less than ``r2``.
 
-        The set of pruned variants will have a boolean annotation of true in ``<root>.prune``.
-
-        :param str root: Variant annotation path to store whether variant is in the pruned set.
-
         :param float r2: Maximum R^2 threshold between two variants in the pruned set within a given window.
 
         :param int window: Number of base pair window to compute pair-wise R^2 values.
 
-        :param float local_prune_threshold: Fraction of variants that have been pruned since the last local prune step before triggering a global scan.
-
         :param float memory_per_core: Total amount of memory available for each core in MB
+
+        :return: A filtered dataset with only variants that are independent.
+
+        :rtype: VariantDataset
         """
         try:
             memory_per_core = int(memory_per_core * 1024 * 1024)

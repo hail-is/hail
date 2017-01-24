@@ -391,7 +391,8 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
     val n = rdd.partitions.length
-    if (maxPartitions == n || n == 0 || !shuffle && (maxPartitions > n))
+//    if (maxPartitions == n || n == 0 || !shuffle && (maxPartitions > n))
+    if (!shuffle && (maxPartitions == n || maxPartitions == 0 || maxPartitions > n))
       return this
     if (shuffle) {
       val shuffled = super.coalesce(maxPartitions, shuffle)

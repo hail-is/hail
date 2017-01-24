@@ -100,6 +100,7 @@ object LDPrune {
 
     val rangePartitioner = inputRDD.orderedPartitioner
     val rangeBounds = rangePartitioner.rangeBounds
+    info(s"rangeBounds=${rangeBounds.zipWithIndex.mkString(",")}")
     val partitionIndices = inputRDD.getPartitions.map(_.index)
     val nPartitions = inputRDD.partitions.length
 
@@ -174,15 +175,15 @@ object LDPrune {
         (Array((i, gpi.index)), pruneF)
       })
 
-    val annotatedRDD = prunedRDD.mapValues(_ => Annotation(true)).persist(StorageLevel.MEMORY_AND_DISK)
-    val nVariantsKept = annotatedRDD.count()
+    val annotRDD = prunedRDD.mapValues(_ => Annotation(true)).toOrderedRDD.persist(StorageLevel.MEMORY_AND_DISK)
+    val nVariantsKept = annotRDD.count()
 
     pruneIntermediates.foreach{ gpi => gpi.rdd.unpersist()}
     inputRDD.unpersist()
 
-    println(debugMemory(annotatedRDD.sparkContext))
+    info(debugMemory(annotRDD.sparkContext))
 
-    (annotatedRDD, nVariantsKept)
+    (annotRDD, nVariantsKept)
   }
 
   def estimateMemoryRequirements(nVariants: Long, nSamples: Int, memoryPerCore: Long) = {
@@ -197,10 +198,7 @@ object LDPrune {
     (maxQueueSize, numPartitionsRequired)
   }
 
-  def ldPrune(vds: VariantDataset, dest: String,
-    r2Threshold: Double, window: Int,
-    localPruneThreshold: Double, memoryPerCore: Long = 1073741824) = {
-
+  def ldPrune(vds: VariantDataset, r2Threshold: Double, window: Int, memoryPerCore: Long = 1073741824) = {
     val sc = vds.sparkContext
     val nSamples = vds.nSamples
     val partitionSizesInitial = sc.runJob(vds.rdd, getIteratorSize _)
@@ -210,9 +208,6 @@ object LDPrune {
 
     val minMemoryPerCore = math.ceil((1 / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
     val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, memoryPerCore)
-
-    if (localPruneThreshold < 0 || localPruneThreshold > 1)
-      fatal(s"Local prune threshold must be in the range [0,1]. Found `$localPruneThreshold'.")
 
     if (r2Threshold < 0 || r2Threshold > 1)
       fatal(s"R^2 threshold must be in the range [0,1]. Found `$r2Threshold'.")
@@ -275,13 +270,13 @@ object LDPrune {
 
       val result = LocalPruneResult(prunedRDD, fractionPruned, input.index + 1, partitionSizes, pruneDone = true)
 
-      if (repartitionRequired || fractionPruned > localPruneThreshold) {
+      if (repartitionRequired) {
         val nPartitions = estimateMemoryRequirements(nVariantsKept, nSamples, memoryPerCore)._2
-        val repartRDD = prunedRDD.repartition(nPartitions)(null).asOrderedRDD
+        val repartRDD = prunedRDD.coalesce(nPartitions, shuffle = true)(null).asOrderedRDD
         repartRDD.persist(StorageLevel.MEMORY_AND_DISK)
         repartRDD.count()
         val partitionSizesRepart = sc.runJob(repartRDD, getIteratorSize _)
-        println(debugMemory(sc))
+        info(debugMemory(sc))
         prunedRDD.unpersist()
 
         result.copy(rdd = repartRDD, partitionSizes = partitionSizesRepart, pruneDone = false)
@@ -297,23 +292,23 @@ object LDPrune {
     var (newResult, duration) = time(pruneLocal(oldResult, Option(maxQueueSize)))
 
     info(s"Local Prune ${ newResult.index }: fractionPruned=${ newResult.fractionPruned } nVariantsRemaining=${ newResult.nVariants } nPartitions=${newResult.nPartitions} time=${ formatTime(duration) }")
-    println(debugMemory(sc))
+    info(debugMemory(sc))
 
     while (!newResult.pruneDone) {
       oldResult = newResult
       val (result, duration) = time(pruneLocal(oldResult, None))
       newResult = result
       info(s"Local Prune ${ newResult.index }: fractionPruned=${ newResult.fractionPruned } nVariantsRemaining=${ newResult.nVariants } nPartitions=${newResult.nPartitions} time=${ formatTime(duration) }")
-      println(debugMemory(sc))
+      info(debugMemory(sc))
     }
 
     val ((finalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(newResult.rdd, r2Threshold, window))
     info(s"Global Prune: nVariantsRemaining=$nVariantsFinal time=${ formatTime(globalDuration) }")
 
-    val result = vds.annotateVariants(finalPrunedRDD.orderedRepartitionBy(vds.rdd.orderedPartitioner), schema, dest)
+    info(debugMemory(sc))
 
-    println(debugMemory(sc))
-
-    result
+    vds.copy(rdd = vds.rdd.orderedInnerJoinDistinct(finalPrunedRDD)
+      .mapValues{ case ((va, gs), _) => (va, gs)}
+      .asOrderedRDD)
   }
 }
