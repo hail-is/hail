@@ -50,6 +50,7 @@ In this window, enter two commands:
 If there is no error, you're ready to start using Hail! Otherwise, make sure that the `export` variables are correctly set and appropriate versions of all dependencies are installed. If this step triggers a `Exception in thread "main" java.net.BindException`, see [here](https://hail.is/faq.html#how-do-i-fix-exception-in-thread-main-java.net.bindexception-cant-assign-requested-address-...) for a fix.
 
 Before we start using Hail, please import the following python libraries for use throughout the tutorial:
+
     >>> import pandas as pd
     >>> import matplotlib.pyplot as plt
     >>> import matplotlib.patches as mpatches
