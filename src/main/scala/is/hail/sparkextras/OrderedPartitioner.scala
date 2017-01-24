@@ -154,8 +154,11 @@ object OrderedPartitioner {
     val ordering = implicitly[Ordering[K]]
     val ordered = candidates.sortBy(_._1)
     val numCandidates = ordered.size
+    info(s"numCandidates=$numCandidates")
     val sumWeights = ordered.map(_._2.toDouble).sum
+    info(s"sumWeights=$sumWeights")
     val step = sumWeights / partitions
+    info(s"step=$step")
     var cumWeight = 0.0
     var target = step
     val bounds = mutable.ArrayBuffer.empty[K]
@@ -164,8 +167,10 @@ object OrderedPartitioner {
     var previousBound = Option.empty[K]
     while ((i < numCandidates) && (j < partitions - 1)) {
       val (key, weight) = ordered(i)
+//      info(s"key=$key weight=$weight")
       cumWeight += weight
       if (cumWeight > target) {
+//        info(s"cumWeight=$cumWeight target=$target")
         // Skip duplicate values.
         if (previousBound.isEmpty || ordering.gt(key, previousBound.get)) {
           bounds += key
@@ -176,6 +181,7 @@ object OrderedPartitioner {
       }
       i += 1
     }
+    info(s"bounds=${bounds.toArray.take(5).mkString(",")}")
     bounds.toArray
   }
 

@@ -221,6 +221,7 @@ object LDPrune {
     def pruneLocal(input: LocalPruneResult, queueSize: Option[Int]): LocalPruneResult = {
 
       val repartitionRequired = queueSize.isDefined && input.partitionSizes.exists(_ > maxQueueSize)
+      info(s"localPrune index=${input.index} RangeBounds=${input.rdd.orderedPartitioner.rangeBounds.zipWithIndex.mkString(",")}")
 
       val prunedRDD = input.rdd.mapPartitions({ it =>
         val queue = queueSize match {
@@ -275,6 +276,7 @@ object LDPrune {
         val repartRDD = prunedRDD.coalesce(nPartitions, shuffle = true)(null).asOrderedRDD
         repartRDD.persist(StorageLevel.MEMORY_AND_DISK)
         repartRDD.count()
+        sys.exit(1)
         val partitionSizesRepart = sc.runJob(repartRDD, getIteratorSize _)
         info(debugMemory(sc))
         prunedRDD.unpersist()

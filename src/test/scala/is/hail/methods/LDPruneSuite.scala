@@ -188,7 +188,7 @@ class LDPruneSuite extends SparkSuite {
   @Test def test10K() {
     var s = State(sc, sqlContext, null)
     s = Read.run(s, Array("ALL.1KG.10K.vds"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 50 * 1024 * 1024)
+    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 20 * 1024 * 1024)
     prunedVds.nVariants
     // while (true) {}
   }
