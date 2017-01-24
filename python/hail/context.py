@@ -650,13 +650,41 @@ class HailContext(object):
         else:
             jvm_fst_opt = joption(self.jvm, jarray(self.gateway, self.jvm.double, fst))
 
-
-
         return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
                             jvm_pop_dist_opt,
                             jvm_fst_opt,
                             seed,
                             joption(self.jvm, partitions), root))
+
+    def dataframe_to_keytable(self, df, keys=[]):
+        """Convert Spark SQL DataFrame to KeyTable.
+
+        Spark SQL data types are converted to Hail types in the obvious way as follows:
+
+        .. code-block:: text
+
+          BooleanType => Boolean
+          IntegerType => Int
+          LongType => Long
+          FloatType => Float
+          DoubleType => Double
+          StringType => String
+          BinaryType => Binary
+          ArrayType => Array
+          StructType => Struct
+
+        Unlisted Spark SQL data types are currently unsupported.
+
+        :param keys: List of key column names.
+        :type keys: list of string
+
+        :return: The DataFrame as a KeyTable.
+        :rtype: :class:`.KeyTable`
+
+        """
+        
+        jkeys = jarray(self.gateway, self.jvm.java.lang.String, keys)
+        return KeyTable(self, self.hail.keytable.KeyTable.fromDF(df._jdf, jkeys))
 
     def stop(self):
         self.sc.stop()

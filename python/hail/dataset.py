@@ -202,7 +202,7 @@ class VariantDataset(object):
         The ``variants`` aggregator has the following namespace:
 
         - ``v`` (*Variant*): :ref:`variant`
-        - ``va``: Variant annotations
+        - ``va``: variant annotations
         - ``global``: Global annotations
 
         :param str input: Input interval list file.
@@ -3095,7 +3095,20 @@ class VariantDataset(object):
         return self.hc.run_command(self, pargs)
 
     def variants_keytable(self):
-        """Convert variants and variant annotations to a KeyTable."""
+        """Convert variants and variant annotations to a KeyTable.
+
+        The resulting KeyTable has schema:
+
+        .. code-block:: text
+
+          Struct {
+            v: Variant
+            va: variant annotations
+	  }
+
+        with a single key ``v``.
+
+        """
 
         try:
             return KeyTable(self.hc, self.jvds.variantsKT())

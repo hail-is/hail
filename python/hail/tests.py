@@ -320,3 +320,12 @@ class ContextTests(unittest.TestCase):
         kt.to_dataframe()
 
         kt.annotate("newField = [0, 1, 2]").explode(["newField"])
+
+        sample = hc.import_vcf(test_resources + '/sample.vcf')
+        sample_variants = (sample.variants_keytable()
+                           .annotate('v = str(v), va.filters = va.filters.toArray')
+                           .flatten())
+        
+        sample_variants2 = hc.dataframe_to_keytable(
+            sample_variants.to_dataframe(), ['v'])
+        self.assertTrue(sample_variants.same(sample_variants2))

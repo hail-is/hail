@@ -46,6 +46,11 @@ class KeyTable(object):
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
+    def print_schema(self):
+        """Print the schema."""
+
+        self.jkt.printSchema()
+
     def key_names(self):
         """Column names that are keys.
 
