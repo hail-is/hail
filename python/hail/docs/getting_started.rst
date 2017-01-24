@@ -26,6 +26,16 @@ You'll need:
 
   You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
 
+  Please also install "Seaborn", a python library for statistical data visualization. The easiest way to do this is by running:
+
+      $ pip install seaborn
+  or 
+
+      $ conda install seaborn
+  
+  The former will only work if you pip installed, the later will only work if you did install Anaconda above. Seaborn is not technically 
+  necessary, but it helps with the graphs in the tutorial.
+
 To install all dependencies for running locally on a fresh Ubuntu installation, use this `script <https://github.com/hail-is/hail/wiki/Install-Hail-dependencies-on-a-fresh-Ubuntu-VM>`_.
 
 The following commands are relative to the ``hail`` directory.
