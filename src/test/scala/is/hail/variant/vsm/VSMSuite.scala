@@ -12,6 +12,7 @@ import is.hail.io.vcf.LoadVCF
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.sparkextras.OrderedRDD
+import is.hail.TestUtils._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
@@ -365,5 +366,26 @@ class VSMSuite extends SparkSuite {
     TestUtils.interceptFatal("""File already exists""") {
       Write.run(s, "-o", out)
     }
+  }
+
+  @Test def testWritePartitioning() {
+    val path = tmpDir.createTempFile(extension = ".vds")
+
+    var s = State(sc, sqlContext)
+    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf", "-n", "4"))
+    s = Write.run(s, Array("-o", path))
+
+    hadoopConf.delete(path + "/partitioner.json.gz", recursive = true)
+
+    var s2 = State(sc, sqlContext)
+
+    interceptFatal("missing partitioner") {
+      Read.run(s2, Array(path))
+    }
+
+    VariantSampleMatrix.writePartitioning(sqlContext, path)
+
+    s2 = Read.run(s2, Array(path))
+    assert(s.vds.same(s2.vds))
   }
 }
