@@ -1,7 +1,5 @@
 from __future__ import print_function # Python 2 and 3 print compatibility
 
-from pyspark.java_gateway import launch_gateway
-from pyspark import SparkConf, SparkContext
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
@@ -40,6 +38,9 @@ class HailContext(object):
     :param str tmp_dir: Temporary directory for file merging.
     """
 
+    _jvm = None
+    _gateway = None
+
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
                  block_size=1, branching_factor=50, tmp_dir='/tmp'):
@@ -68,6 +69,25 @@ class HailContext(object):
 
         self.jsql_context = driver.createSQLContext(self.jsc)
         self.sql_context = SQLContext(self.sc, self.jsql_context)
+
+        HailContext._jvm = self.jvm
+        HailContext._gateway = self.gateway
+
+    @staticmethod
+    def jvm():
+        if not HailContext._jvm:
+            raise EnvironmentError('no Hail context initialized, create one first')
+        return HailContext._jvm
+
+    @staticmethod
+    def hail_package():
+        return getattr(HailContext.jvm(), 'is').hail
+
+    @staticmethod
+    def gateway():
+        if not HailContext._gateway:
+            raise EnvironmentError('no Hail context initialized, create one first')
+        return HailContext._gateway
 
     def _jstate(self, jvds):
         return self.hail.driver.State(

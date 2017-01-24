@@ -103,12 +103,21 @@ package object utils extends Logging
     if (!p) throw new AssertionError
   }
 
-  def makeArrayList[T](it: Iterable[T]): java.util.ArrayList[T] = {
+  def makeArrayListArray[T](arr: Array[T]): java.util.ArrayList[T] = {
+    val list = new java.util.ArrayList[T]()
+    for (elem <- arr)
+      list.add(elem)
+    list
+  }
+
+  def makeArrayListIterable[T](it: Iterable[T]): java.util.ArrayList[T] = {
     val list = new java.util.ArrayList[T]()
     for (elem <- it)
       list.add(elem)
     list
   }
+
+  def makeIndexedSeq[T](arr: Array[T]): IndexedSeq[T] = arr: IndexedSeq[T]
 
   def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A]): Unit =
     if (ord.lt(a, low) || ord.gt(a, high)) {

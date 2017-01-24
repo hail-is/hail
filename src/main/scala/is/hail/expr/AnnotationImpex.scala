@@ -407,23 +407,9 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case TFloat => a.toFloat
       case TDouble => if (a == "nan") Double.NaN else a.toDouble
       case TBoolean => a.toBoolean
-      case TLocus => a.split(":") match {
-        case Array(chr, pos) => Locus(chr, pos.toInt)
-      }
-      case TInterval => a.split("-") match {
-        case Array(start, end) =>
-          val startLocus = start.split(":") match {
-            case Array(chr, pos) => Locus(chr, pos.toInt)
-          }
-          val endLocus = end.split(":") match {
-            case Array(pos) => Locus(startLocus.contig, pos.toInt)
-            case Array(chr, pos) => Locus(chr, pos.toInt)
-          }
-          Interval(startLocus, endLocus)
-      }
-      case TVariant => a.split(":") match {
-        case Array(chr, pos, ref, alt) => Variant(chr, pos.toInt, ref, alt.split(","))
-      }
+      case TLocus => Locus.parse(a)
+      case TInterval => Locus.parseInterval(a)
+      case TVariant => Variant.parse(a)
       case TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)
       }

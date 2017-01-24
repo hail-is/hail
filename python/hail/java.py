@@ -19,3 +19,6 @@ def jsome(jvm, x):
 
 def joption(jvm, x):
     return jsome(jvm, x) if x else jnone(jvm)
+
+def strip_option(x):
+    return x.get() if x.isDefined() else None

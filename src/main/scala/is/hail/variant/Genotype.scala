@@ -48,8 +48,8 @@ class GTPair(val p: Int) extends AnyVal {
   def nNonRefAlleles: Int =
     (if (j != 0) 1 else 0) + (if (k != 0) 1 else 0)
 
-  def alleleIndices : Array[Int] = {
-    Array(this.j, this.k )
+  def alleleIndices: Array[Int] = {
+    Array(this.j, this.k)
   }
 
 }
@@ -166,12 +166,11 @@ abstract class Genotype extends Serializable {
     else
       None
 
-  def oneHotAlleles(v: Variant): Option[IndexedSeq[Int]] = {
+  def oneHotAlleles(nAlleles: Int): Option[IndexedSeq[Int]] = {
     gt.map { call =>
       val gtPair = Genotype.gtPair(call)
       val j = gtPair.j
       val k = gtPair.k
-      val nAlleles = v.nAlleles
       new IndexedSeq[Int] {
         def length: Int = nAlleles
 
@@ -189,10 +188,12 @@ abstract class Genotype extends Serializable {
     }
   }
 
-  def oneHotGenotype(v: Variant): Option[IndexedSeq[Int]] = {
-    gt.map { call =>
-      val nGenotypes = v.nGenotypes
+  def oneHotAlleles(v: Variant): Option[IndexedSeq[Int]] = oneHotAlleles(v.nAlleles)
 
+  def oneHotGenotype(v: Variant): Option[IndexedSeq[Int]] = oneHotGenotype(v.nGenotypes)
+
+  def oneHotGenotype(nGenotypes: Int): Option[IndexedSeq[Int]] = {
+    gt.map { call =>
       new IndexedSeq[Int] {
         def length: Int = nGenotypes
 
@@ -408,6 +409,7 @@ object Genotype {
       else
         f(i + 1, m, mi, count)
     }
+
     f(0, 0, a(0), 1)
   }
 

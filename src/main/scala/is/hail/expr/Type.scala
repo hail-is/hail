@@ -638,6 +638,15 @@ object TStruct {
       .zipWithIndex
       .map { case ((n, t), i) => Field(n, t, i) }
       .toArray)
+
+  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type]): TStruct = {
+    val sNames = names.asScala.toArray
+    val sTypes = types.asScala.toArray
+    if (sNames.length != sTypes.length)
+      fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
+
+    TStruct(sNames.zip(sTypes): _*)
+  }
 }
 
 case class TStruct(fields: IndexedSeq[Field]) extends Type {
@@ -656,6 +665,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
+
+  def index(str: String): Option[Int] = fieldIdx.get(str)
 
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
 
@@ -807,10 +818,10 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     if (intersect.nonEmpty)
       fatal(
         s"""Invalid merge operation: cannot merge structs with same-name ${ plural(intersect.size, "field") }
-            |  Found these fields in both structs: [ ${
+           |  Found these fields in both structs: [ ${
           intersect.map(s => prettyIdentifier(s)).mkString(", ")
         } ]
-            |  Hint: use `drop' or `select' to remove these fields from one side""".stripMargin)
+           |  Hint: use `drop' or `select' to remove these fields from one side""".stripMargin)
 
     val newStruct = TStruct(fields ++ other.fields.map(f => f.copy(index = f.index + size)))
 
@@ -842,7 +853,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         s"""invalid struct filter operation: ${
           plural(notFound.size, s"field ${ notFound.head }", s"fields [ ${ notFound.mkString(", ") } ]")
         } not found
-            |  Existing struct fields: [ ${ fields.map(f => prettyIdentifier(f.name)).mkString(", ") } ]""".stripMargin)
+           |  Existing struct fields: [ ${ fields.map(f => prettyIdentifier(f.name)).mkString(", ") } ]""".stripMargin)
 
     val fn = (f: Field) =>
       if (include)

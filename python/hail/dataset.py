@@ -37,7 +37,7 @@ class VariantDataset(object):
         """
 
         schema = self.jvds.saSignature()
-        zipped_annotations = scala_package_object(self.hc.jvm.org.broadinstitute.hail.utils).makeArrayList(
+        zipped_annotations = scala_package_object(self.hc.hail.utils).makeArrayList(
             self.jvds.sampleIdsAndAnnotations()
         )
         r = {}

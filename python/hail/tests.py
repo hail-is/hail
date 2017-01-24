@@ -1,30 +1,32 @@
-
 """
 Unit tests for Hail.
 """
-from __future__ import print_function # Python 2 and 3 print compatibility
+from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
 from pyspark import SparkContext
 from hail import HailContext, TextTableConfig
+from hail.representation import *
 
 hc = None
 
+
 def setUpModule():
     global hc
-    hc = HailContext() # master = 'local[2]')
+    hc = HailContext()  # master = 'local[2]')
+
 
 def tearDownModule():
     global hc
     hc.stop()
     hc = None
 
-class ContextTests(unittest.TestCase):
 
+class ContextTests(unittest.TestCase):
     def test_context(self):
         test_resources = 'src/test/resources'
-        
+
         hc.grep('Mom1', test_resources + '/mendel.fam')
 
         annot = hc.import_annotations_table(
@@ -36,11 +38,11 @@ class ContextTests(unittest.TestCase):
         hc.index_bgen(test_resources + '/example.v11.bgen')
 
         bgen = hc.import_bgen(test_resources + '/example.v11.bgen',
-                                   sample_file = test_resources + '/example.sample')
+                              sample_file=test_resources + '/example.sample')
         self.assertEqual(bgen.count()['nVariants'], 199)
 
         gen = hc.import_gen(test_resources + '/example.gen',
-                                 sample_file = test_resources + '/example.sample')
+                            sample_file=test_resources + '/example.sample')
         self.assertEqual(gen.count()['nVariants'], 199)
 
         vcf = hc.import_vcf(test_resources + '/sample2.vcf').split_multi()
@@ -50,9 +52,9 @@ class ContextTests(unittest.TestCase):
         bfile = '/tmp/sample_plink'
         plink = hc.import_plink(
             bfile + '.bed', bfile + '.bim', bfile + '.fam')
-        self.assertEqual(vcf.count(genotypes = True), plink.count(genotypes = True))
-        
-        vcf.write('/tmp/sample.vds', overwrite = True)
+        self.assertEqual(vcf.count(genotypes=True), plink.count(genotypes=True))
+
+        vcf.write('/tmp/sample.vds', overwrite=True)
         vds = hc.read('/tmp/sample.vds')
 
         self.assertTrue(vcf.same(vds))
@@ -64,104 +66,104 @@ class ContextTests(unittest.TestCase):
 
     def test_dataset(self):
         test_resources = 'src/test/resources'
-        
+
         sample = (hc.import_vcf(test_resources + '/sample.vcf')
                   .cache())
         sample_split = sample.split_multi()
-        
+
         sample2 = (hc.import_vcf(test_resources + '/sample2.vcf')
                    .persist())
         sample2_split = sample2.split_multi()
-        
+
         sample2.aggregate_intervals(test_resources + '/annotinterall.interval_list',
                                     'N = variants.count()',
                                     '/tmp/annotinter.tsv')
-        
+
         (sample2.annotate_global_expr_by_variant('global.nVariants = variants.count()')
          .show_globals())
-        
+
         (sample2.annotate_global_expr_by_sample('global.nSamples = samples.count()')
          .show_globals())
-        
+
         (sample2.annotate_global_list(test_resources + '/global_list.txt', 'global.genes',
-                                      as_set = True)
+                                      as_set=True)
          .show_globals())
-        
+
         (sample2.annotate_global_table(test_resources + '/global_table.tsv',
                                        'global.genes')
          .show_globals())
-        
+
         (sample2.annotate_samples_expr('sa.nCalled = gs.filter(g => g.isCalled).count()')
          .export_samples('/tmp/sa.tsv', 's = s, nCalled = sa.nCalled'))
-        
+
         sample2.annotate_samples_list(test_resources + '/sample2.sample_list',
                                       'sa.listed')
-        
+
         sample2_annot = sample2.annotate_samples_table(
             test_resources + '/sampleAnnotations.tsv',
             'Sample',
-            code = 'sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
-        
+            code='sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
+
         sample2.annotate_samples_vds(sample2_annot,
-                                     code = 'sa.isCase = vds.isCase')
+                                     code='sa.isCase = vds.isCase')
 
         (sample.annotate_variants_bed(test_resources + '/example1.bed',
-                                      root = 'va.bed')
+                                      root='va.bed')
          .filter_variants_expr('va.bed')
          .count())
-        
+
         (sample2.annotate_variants_expr('va.nCalled = gs.filter(g => g.isCalled).count()')
          .count())
-        
+
         (sample2.annotate_variants_intervals(test_resources + '/annotinterall.interval_list',
                                              'va.included',
-                                             all = True)
+                                             all=True)
          .count())
-        
+
         (sample2.annotate_variants_loci(test_resources + '/sample2_loci.tsv',
                                         'Locus(chr, pos.toInt)',
                                         'va.locus_annot')
          .count())
-        
+
         (sample.annotate_variants_table(test_resources + '/variantAnnotations.tsv',
                                         'Variant(Chromosome, Position.toInt, Ref, Alt)',
-                                        root = 'va.table')
+                                        root='va.table')
          .count())
 
-        (sample2.annotate_variants_vds(sample2, code = 'va.good = va.info.AF == vds.info.AF')
+        (sample2.annotate_variants_vds(sample2, code='va.good = va.info.AF == vds.info.AF')
          .count())
-        
+
         (concordance1, concordance2) = (sample2_split.concordance(sample2_split))
-        concordance1.write('/tmp/foo.vds', overwrite = True)
-        concordance2.write('/tmp/foo.vds', overwrite = True)
+        concordance1.write('/tmp/foo.vds', overwrite=True)
+        concordance2.write('/tmp/foo.vds', overwrite=True)
 
         downsampled = sample2.downsample_variants(20)
         downsampled.export_variants('/tmp/sample2_loci.tsv', 'chr = v.contig, pos = v.start')
         downsampled.export_variants('/tmp/sample2_variants.tsv', 'v')
-        
+
         (sample2.filter_samples_list(test_resources + '/sample2.sample_list')
          .count()['nSamples'] == 56)
-        
+
         sample2_split.export_gen('/tmp/sample2.gen')
 
         (sample2.filter_genotypes('g.isHet && g.gq > 20')
          .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, g.nNonRefAlleles'))
-        
+
         sample2_split.export_plink('/tmp/sample2')
-        
+
         sample2.export_vcf('/tmp/sample2.vcf.bgz')
 
         sample2.filter_multi().count()
-        
+
         self.assertEqual(sample2.filter_samples_all().count()['nSamples'], 0)
 
         self.assertEqual(sample2.filter_variants_all().count()['nVariants'], 0)
-        
+
         sample2_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
-                                             test_resources + '/sample2.vcf'])
+                                        test_resources + '/sample2.vcf'])
                          .deduplicate())
         self.assertEqual(sample2_dedup.count()['nVariants'], 735)
-        
+
         (sample2.filter_samples_expr('pcoin(0.5)')
          .export_samples('/tmp/sample2.sample_list', 's'))
 
@@ -170,17 +172,17 @@ class ContextTests(unittest.TestCase):
 
         (sample2.filter_variants_intervals(test_resources + '/annotinterall.interval_list')
          .count())
-        
+
         self.assertEqual(sample2.filter_variants_list(
             test_resources + '/sample2_variants.tsv')
                          .count()['nVariants'], 21)
-        
+
         sample2.grm('gcta-grm-bin', '/tmp/sample2.grm')
 
         sample2.hardcalls().count()
 
         sample2_split.ibd('/tmp/sample2.ibd')
-        
+
         sample2.impute_sex().print_schema()
 
         self.assertEqual(sample2.join(sample2.rename_samples(test_resources + '/sample2_rename.tsv'))
@@ -190,21 +192,21 @@ class ContextTests(unittest.TestCase):
                   .split_multi()
                   .annotate_samples_table(test_resources + '/regressionLinear.cov',
                                           'Sample',
-                                          root = 'sa.cov',
+                                          root='sa.cov',
                                           config=TextTableConfig(types='Cov1: Double, Cov2: Double'))
                   .annotate_samples_table(test_resources + '/regressionLinear.pheno',
                                           'Sample',
-                                          code = 'sa.pheno.Pheno = table.Pheno',
+                                          code='sa.pheno.Pheno = table.Pheno',
                                           config=TextTableConfig(types='Pheno: Double', missing='0'))
                   .annotate_samples_table(test_resources + '/regressionLogisticBoolean.pheno',
                                           'Sample',
-                                          code = 'sa.pheno.isCase = table.isCase',
+                                          code='sa.pheno.isCase = table.isCase',
                                           config=TextTableConfig(types='isCase: Boolean', missing='0')))
 
-        (linreg.linreg('sa.pheno.Pheno', covariates = ['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (linreg.linreg('sa.pheno.Pheno', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
-        (linreg.logreg('wald', 'sa.pheno.isCase', covariates = ['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (linreg.logreg('wald', 'sa.pheno.isCase', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
         sample_split.mendel_errors('/tmp/sample.mendel', test_resources + '/sample.fam')
@@ -212,7 +214,7 @@ class ContextTests(unittest.TestCase):
         sample_split.pca('sa.scores')
 
         self.assertTrue(
-            (sample2.repartition(16, shuffle = False)
+            (sample2.repartition(16, shuffle=False)
              .same(sample2)))
 
         sample2.sparkinfo()
@@ -226,16 +228,16 @@ class ContextTests(unittest.TestCase):
         sample2.export_variants('/tmp/variants.tsv', 'v = v, va = va')
         self.assertTrue((sample2.variants_keytable()
                          .annotate('va = json(va)'))
-                        .same(hc.import_keytable('/tmp/variants.tsv', ['v'], config = TextTableConfig(impute = True))))
+                        .same(hc.import_keytable('/tmp/variants.tsv', ['v'], config=TextTableConfig(impute=True))))
 
         sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
         self.assertTrue((sample2.samples_keytable()
                          .annotate('s = s.id, sa = json(sa)'))
-                        .same(hc.import_keytable('/tmp/samples.tsv', ['s'], config = TextTableConfig(impute = True))))
+                        .same(hc.import_keytable('/tmp/samples.tsv', ['s'], config=TextTableConfig(impute=True))))
 
         cols = ['v = v, info = va.info']
         for s in sample2.sample_ids():
-            cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s = s))
+            cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s=s))
 
         (sample2
          .annotate_variants_expr('va.G = index(gs.map(g => { s: s.id, gt: g.gt, gq: g.gq }).collect(), s)')
@@ -246,9 +248,9 @@ class ContextTests(unittest.TestCase):
          .same(hc.import_keytable('/tmp/sample_kt.tsv', ['v'])))
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet).count()")
-        
+
         sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
-        
+
         sample2.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
 
         sample.num_partitions()
@@ -267,11 +269,13 @@ class ContextTests(unittest.TestCase):
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
-        
+
         # Import
         # columns: Sample Status qPhen
-        kt = hc.import_keytable(test_resources + '/sampleAnnotations.tsv', 'Sample', config = TextTableConfig(impute = True))
-        kt2 = hc.import_keytable(test_resources + '/sampleAnnotations2.tsv', 'Sample', config = TextTableConfig(impute = True))
+        kt = hc.import_keytable(test_resources + '/sampleAnnotations.tsv', 'Sample',
+                                config=TextTableConfig(impute=True))
+        kt2 = hc.import_keytable(test_resources + '/sampleAnnotations2.tsv', 'Sample',
+                                 config=TextTableConfig(impute=True))
 
         # Variables
         self.assertEqual(kt.num_columns(), 3)
@@ -303,7 +307,6 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(kt.forall('Status == "CASE"'))
         self.assertTrue(kt.exists('Status == "CASE"'))
 
-
         kt.rename({"Sample": "ID"})
         kt.rename(["Field1", "Field2", "Field3"])
         kt.rename([name + "_a" for name in kt.column_names()])
@@ -325,7 +328,139 @@ class ContextTests(unittest.TestCase):
         sample_variants = (sample.variants_keytable()
                            .annotate('v = str(v), va.filters = va.filters.toArray')
                            .flatten())
-        
+
         sample_variants2 = hc.dataframe_to_keytable(
             sample_variants.to_dataframe(), ['v'])
         self.assertTrue(sample_variants.same(sample_variants2))
+
+    def test_representation(self):
+        v = Variant.parse('1:100:A:T')
+
+        self.assertEqual(v, Variant('1', 100, 'A', 'T'))
+        self.assertEqual(v, Variant(1, 100, 'A', ['T']))
+
+        v2 = Variant.parse('1:100:A:T,C')
+
+        self.assertEqual(v2, Variant('1', 100, 'A', ['T', 'C']))
+
+        l = Locus.parse('1:100')
+
+        self.assertEqual(l, Locus('1', 100))
+        self.assertEqual(l, Locus(1, 100))
+
+        self.assertEqual(l, v.locus())
+
+        self.assertEqual(v2.num_alt_alleles(), 2)
+        self.assertFalse(v2.is_biallelic())
+        self.assertTrue(v.is_biallelic())
+        self.assertEqual(v.alt_allele(), AltAllele('A', 'T'))
+        self.assertEqual(v.allele(0), 'A')
+        self.assertEqual(v.allele(1), 'T')
+        self.assertEqual(v2.num_alleles(), 3)
+        self.assertEqual(v.alt(), 'T')
+        self.assertEqual(v2.alt_alleles[0], AltAllele('A', 'T'))
+        self.assertEqual(v2.alt_alleles[1], AltAllele('A', 'C'))
+
+        self.assertTrue(v2.is_autosomal_or_pseudoautosomal())
+        self.assertTrue(v2.is_autosomal())
+        self.assertFalse(v2.is_mitochondrial())
+        self.assertFalse(v2.in_X_PAR())
+        self.assertFalse(v2.in_Y_PAR())
+        self.assertFalse(v2.in_X_non_PAR())
+        self.assertFalse(v2.in_Y_non_PAR())
+
+        aa1 = AltAllele('A', 'T')
+        aa2 = AltAllele('A', 'AAA')
+        aa3 = AltAllele('TTTT', 'T')
+        aa4 = AltAllele('AT', 'TC')
+        aa5 = AltAllele('AAAT', 'AAAA')
+
+        self.assertEqual(aa1.num_mismatch(), 1)
+        self.assertEqual(aa5.num_mismatch(), 1)
+        self.assertEqual(aa4.num_mismatch(), 2)
+
+        c1, c2 = aa5.stripped_snp()
+
+        self.assertEqual(c1, 'T')
+        self.assertEqual(c2, 'A')
+        self.assertTrue(aa1.is_SNP())
+        self.assertTrue(aa5.is_SNP())
+        self.assertTrue(aa4.is_MNP())
+        self.assertTrue(aa2.is_insertion())
+        self.assertTrue(aa3.is_deletion())
+        self.assertTrue(aa3.is_indel())
+        self.assertTrue(aa1.is_transversion())
+
+        interval = Interval.parse('1:100-110')
+
+        self.assertEqual(interval, Interval.parse('1:100-1:110'))
+        self.assertEqual(interval, Interval(Locus("1", 100), Locus("1", 110)))
+        self.assertTrue(interval.contains(Locus("1", 100)))
+        self.assertTrue(interval.contains(Locus("1", 109)))
+        self.assertFalse(interval.contains(Locus("1", 110)))
+
+        interval2 = Interval.parse("1:109-200")
+        interval3 = Interval.parse("1:110-200")
+        interval4 = Interval.parse("1:90-101")
+        interval5 = Interval.parse("1:90-100")
+
+        self.assertTrue(interval.overlaps(interval2))
+        self.assertTrue(interval.overlaps(interval4))
+        self.assertFalse(interval.overlaps(interval3))
+        self.assertFalse(interval.overlaps(interval5))
+
+        g = Genotype(1, [12, 10], 25, 40, [40, 0, 99])
+        g2 = Genotype(4)
+
+        self.assertEqual(g.gt(), 1)
+        self.assertEqual(g.ad(), [12, 10])
+        self.assertEqual(g.dp(), 25)
+        self.assertEqual(g.gq(), 40)
+        self.assertEqual(g.pl(), [40, 0, 99])
+        self.assertEqual(g2.gt(), 4)
+        self.assertEqual(g2.ad(), None)
+        self.assertEqual(g2.dp(), None)
+        self.assertEqual(g2.gq(), None)
+        self.assertEqual(g2.pl(), None)
+
+        self.assertEqual(g.od(), 3)
+        self.assertFalse(g.is_hom_ref())
+        self.assertFalse(g2.is_hom_ref())
+        self.assertTrue(g.is_het())
+        self.assertTrue(g2.is_het())
+        self.assertTrue(g.is_het_ref())
+        self.assertTrue(g2.is_het_non_ref())
+        self.assertTrue(g.is_called_non_ref())
+        self.assertTrue(g2.is_called_non_ref())
+        self.assertFalse(g.is_hom_var())
+        self.assertFalse(g2.is_hom_var())
+        self.assertFalse(g.is_not_called())
+        self.assertFalse(g2.is_not_called())
+        self.assertTrue(g.is_called())
+        self.assertTrue(g2.is_called())
+        self.assertEqual(g.num_alt_alleles(), 1)
+        self.assertEqual(g2.num_alt_alleles(), 2)
+
+        hom_ref = Genotype(0)
+        het = Genotype(1)
+        hom_var = Genotype(2)
+
+        num_alleles = 2
+        hom_ref.one_hot_alleles(num_alleles) == [2, 0]
+        het.one_hot_alleles(num_alleles) == [1, 1]
+        hom_var.one_hot_alleles(num_alleles) == [0, 2]
+
+        num_genotypes = 3
+        hom_ref.one_hot_genotype(num_genotypes) == [1, 0, 0]
+        het.one_hot_genotype(num_genotypes) == [0, 1, 0]
+        hom_var.one_hot_genotype(num_genotypes) == [0, 0, 1]
+
+        self.assertTrue(0 < g.p_ab() < 1)
+        self.assertEqual(g2.p_ab(), None)
+
+        missing_gt = Genotype(gt=None)
+        self.assertEqual(missing_gt.gt(), None)
+        self.assertEqual(missing_gt.one_hot_alleles(2), None)
+        self.assertEqual(missing_gt.one_hot_genotype(4), None)
+
+        self.assertEqual(g.fraction_reads_ref(), 12.0 / (10 + 12))

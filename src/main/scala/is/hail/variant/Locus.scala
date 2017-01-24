@@ -46,6 +46,29 @@ object Locus {
   def gen: Gen[Locus] = gen(simpleContigs)
 
   implicit val locusJSONRWer: JSONReaderWriter[Locus] = caseClassJSONReaderWriter[Locus]
+
+  def parse(str: String): Locus = {
+    str.split(":") match {
+      case Array(chr, pos) => Locus(chr, pos.toInt)
+      case a => fatal(s"expected 2 colon-delimited fields, but found ${ a.length }")
+    }
+  }
+
+  def parseInterval(str: String): Interval[Locus] = {
+    str.split("-") match {
+      case Array(start, end) =>
+        val startLocus = Locus.parse(start)
+        val endLocus = end.split(":") match {
+          case Array(pos) => Locus(startLocus.contig, pos.toInt)
+          case Array(chr, pos) => Locus(chr, pos.toInt)
+          case a => fatal(s"expected end locus in format CHR:POS or POS, but found ${a.length} colon-delimited fields")
+        }
+        Interval(startLocus, endLocus)
+      case a => fatal(s"expected 2 dash-delimited fields, but found ${a.length}")
+    }
+  }
+
+  def makeInterval(start: Locus, end: Locus): Interval[Locus] = Interval(start, end)
 }
 
 @SerialVersionUID(9197069433877243281L)
