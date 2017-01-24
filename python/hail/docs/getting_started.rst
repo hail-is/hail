@@ -28,10 +28,11 @@ You'll need:
 
   Please also install "Seaborn", a python library for statistical data visualization. The easiest way to do this is by running:
 
-      $ pip install seaborn
+    $ pip install seaborn
+  
   or 
 
-      $ conda install seaborn
+    $ conda install seaborn
   
   The former will only work if you pip installed, the later will only work if you did install Anaconda above. Seaborn is not technically 
   necessary, but it helps with the graphs in the tutorial.
