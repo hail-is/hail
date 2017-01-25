@@ -11,8 +11,8 @@ class GeneralRDD[T](@transient var sc: SparkContext,
   var rdds: Array[RDD[T]],
   var inputs: Array[(Array[(Int, Int)], (Array[Iterator[T]] => Iterator[T]))])(implicit tct: ClassTag[T]) extends RDD[T](sc, Nil) {
 
-  // Do not call getPartitions here!
   override def getPartitions: Array[Partition] = {
+    // Do not call getPartitions here!
     val parentPartitions = rdds.zipWithIndex.map{case (rdd, i) => (i, rdd.partitions)}.toMap
     inputs.zipWithIndex.map { case (input, i) =>
       val partitionInputs = input._1.map{ case (rddIndex, partitionIndex) => (rddIndex, parentPartitions(rddIndex)(partitionIndex))}
@@ -20,8 +20,8 @@ class GeneralRDD[T](@transient var sc: SparkContext,
     }
   }
 
-  // Do not call partitions or getPartitions here!
   override def compute(split: Partition, context: TaskContext): Iterator[T] = {
+    // Do not call partitions or getPartitions here!
     val gp = split.asInstanceOf[GeneralRDDPartition[T]]
     gp.f(gp.partitionInputs.map { case (rddIndex, partition) =>
       val rdd = rdds(rddIndex)

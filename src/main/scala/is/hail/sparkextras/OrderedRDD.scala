@@ -270,32 +270,25 @@ object OrderedRDD {
     */
   def calculateKeyRanges[T](rdd: RDD[T])(implicit ord: Ordering[T], tct: ClassTag[T]): Array[T] = {
     // This is the sample size we need to have roughly balanced output partitions, capped at 1M.
-    info(s"rdd.partitions.length=${rdd.partitions.length}")
     val sampleSize = math.min(20.0 * rdd.partitions.length, 1e6)
     // Assume the input partitions are roughly balanced and over-sample a little bit.
     val sampleSizePerPartition = math.ceil(3.0 * sampleSize / rdd.partitions.length).toInt
-    info(s"sampleSizePerPartition=${sampleSizePerPartition}")
-    info(s"rdd = ${rdd.take(5).mkString(",")}")
     val (numItems, sketched) = OrderedPartitioner.sketch(rdd, sampleSizePerPartition)
-    info(s"numItems=$numItems")
     if (numItems == 0L) {
       Array.empty
     } else {
       // If a partition contains much more than the average number of items, we re-sample from it
       // to ensure that enough items are collected from that partition.
       val fraction = math.min(sampleSize / math.max(numItems, 1L), 1.0)
-      info(s"fraction=$fraction")
       val candidates = ArrayBuffer.empty[(T, Float)]
       val imbalancedPartitions = mutable.Set.empty[Int]
       sketched.foreach {
         case (idx, n, sample) =>
-          info(s"idx=$idx n=$n sample=${sample.take(5).mkString(",")}")
           if (fraction * n > sampleSizePerPartition) {
             imbalancedPartitions += idx
           } else {
             // The weight is 1 over the sampling probability.
             val weight = (n.toDouble / sample.length).toFloat
-//            info(s"weight=$weight")
             for (key <- sample) {
               candidates += ((key, weight))
             }
@@ -303,16 +296,13 @@ object OrderedRDD {
       }
 
       if (imbalancedPartitions.nonEmpty) {
-        info(s"imbalanced partitions")
         // Re-sample imbalanced partitions with the desired sampling probability.
         val imbalanced = new PartitionPruningRDD(rdd, imbalancedPartitions.contains)
         val seed = byteswap32(-rdd.id - 1)
-        info(s"seed=$seed")
         val reSampled = imbalanced.sample(withReplacement = false, fraction, seed).collect()
         val weight = (1.0 / fraction).toFloat
         candidates ++= reSampled.map(x => (x, weight))
       }
-      info(s"length=${rdd.partitions.length} candidates=${candidates.take(5).mkString(",")}")
       OrderedPartitioner.determineBounds(candidates, rdd.partitions.length)
     }
   }

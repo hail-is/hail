@@ -4,48 +4,18 @@ import java.util
 
 import breeze.linalg.{Vector => BVector}
 import is.hail.annotations.Annotation
-import is.hail.expr._
 import is.hail.sparkextras.GeneralRDD
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import is.hail.sparkextras._
 import is.hail.variant._
 import is.hail.utils._
 
-case class LocalPruneResult(rdd: OrderedRDD[Locus, Variant, BVector[Double]],
-  fractionPruned: Double, index: Int, partitionSizes: Array[Long], pruneDone: Boolean) {
-
-  def nVariants = partitionSizes.sum
-
-  def nPartitions = partitionSizes.length
-}
-
 case class GlobalPruneIntermediate(rdd: GeneralRDD[(Variant, BVector[Double])], index: Int, persist: Boolean)
 
 object LDPrune {
   val variantByteOverhead = 50
   val fractionMemoryToUse = 0.25
-  val rt = Runtime.getRuntime
-
-  val schema = TStruct("prune" -> TBoolean)
-
-  private def bytesToMB(n: Long) = math.round(n.toDouble / (1024 * 1024))
-
-  private def debugMemory(sc: SparkContext) = {
-    val persistedRDDs = sc.getPersistentRDDs
-    val executorMemoryStatus = sc.getExecutorMemoryStatus
-    val executorStorageStatus = sc.getExecutorStorageStatus
-    val rddStorageInfo = sc.getRDDStorageInfo
-    val totalMemoryJava = rt.totalMemory()
-    val freeMemoryJava = rt.freeMemory()
-
-    s"""Java: totalMemory=${bytesToMB(totalMemoryJava)} usedMemory=${bytesToMB(totalMemoryJava - freeMemoryJava)} freeMemory=${bytesToMB(freeMemoryJava)}
-        persistedRDDs = ${persistedRDDs.mkString(",")}
-        executorMemoryStatus = ${executorMemoryStatus.map{case (name, (total, remaining)) => (name, (bytesToMB(total - remaining), bytesToMB(total)))} mkString(",")}
-        diskUsed = ${executorStorageStatus.map{ss => (ss.blockManagerId, bytesToMB(ss.diskUsed))}.mkString(",")}
-        rddStorageInfo = ${rddStorageInfo.mkString(",")}"""
-  }
 
   def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
     val a = new Array[Double](nSamples)
@@ -93,14 +63,52 @@ object LDPrune {
     }
   }
 
-  def pruneGlobal(inputRDD: OrderedRDD[Locus, Variant, BVector[Double]], r2Threshold: Double, window: Int) = {
+  private def pruneLocal(inputRDD: OrderedRDD[Locus, Variant, BVector[Double]], r2Threshold: Double, window: Int, queueSize: Option[Int]) = {
+    inputRDD.rdd.mapPartitions({ it =>
+      val queue = queueSize match {
+        case Some(qs) => new util.ArrayDeque[(Variant, BVector[Double])](qs)
+        case None => new util.ArrayDeque[(Variant, BVector[Double])]
+      }
+
+      it.filter { case (v, sgs) =>
+        var keepVariant = true
+        var done = false
+        val qit = queue.descendingIterator()
+
+        while (!done && qit.hasNext) {
+          val (v2, sgs2) = qit.next()
+          if (v.contig != v2.contig || v.start - v2.start > window)
+            done = true
+          else {
+            val r = sgs.dot(sgs2)
+            if ((r * r: Double) >= r2Threshold) {
+              keepVariant = false
+              done = true
+            }
+          }
+        }
+
+        if (keepVariant) {
+          queue.addLast((v, sgs))
+          queueSize.foreach { qs =>
+            if (queue.size() > qs) {
+              queue.pop()
+            }
+          }
+        }
+
+        keepVariant
+      }
+    }, preservesPartitioning = true).asOrderedRDD
+  }
+
+  private def pruneGlobal(inputRDD: OrderedRDD[Locus, Variant, BVector[Double]], r2Threshold: Double, window: Int) = {
     val sc = inputRDD.sparkContext
 
     require(sc.getPersistentRDDs.get(inputRDD.id).isDefined)
 
     val rangePartitioner = inputRDD.orderedPartitioner
     val rangeBounds = rangePartitioner.rangeBounds
-    info(s"rangeBounds=${rangeBounds.zipWithIndex.mkString(",")}")
     val partitionIndices = inputRDD.getPartitions.map(_.index)
     val nPartitions = inputRDD.partitions.length
 
@@ -178,10 +186,8 @@ object LDPrune {
     val annotRDD = prunedRDD.mapValues(_ => Annotation(true)).toOrderedRDD.persist(StorageLevel.MEMORY_AND_DISK)
     val nVariantsKept = annotRDD.count()
 
-    pruneIntermediates.foreach{ gpi => gpi.rdd.unpersist()}
+    pruneIntermediates.foreach { gpi => gpi.rdd.unpersist() }
     inputRDD.unpersist()
-
-    info(debugMemory(annotRDD.sparkContext))
 
     (annotRDD, nVariantsKept)
   }
@@ -218,99 +224,48 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"Memory per core must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB")
 
-    def pruneLocal(input: LocalPruneResult, queueSize: Option[Int]): LocalPruneResult = {
-
-      val repartitionRequired = queueSize.isDefined && input.partitionSizes.exists(_ > maxQueueSize)
-      info(s"localPrune index=${input.index} RangeBounds=${input.rdd.orderedPartitioner.rangeBounds.zipWithIndex.mkString(",")}")
-
-      val prunedRDD = input.rdd.mapPartitions({ it =>
-        val queue = queueSize match {
-          case Some(qs) => new util.ArrayDeque[(Variant, BVector[Double])](qs)
-          case None => new util.ArrayDeque[(Variant, BVector[Double])]
-        }
-
-        it.filter { case (v, sgs) =>
-          var keepVariant = true
-          var done = false
-          val qit = queue.descendingIterator()
-
-          while (!done && qit.hasNext) {
-            val (v2, sgs2) = qit.next()
-            if (v.contig != v2.contig || v.start - v2.start > window)
-              done = true
-            else {
-              val r = sgs.dot(sgs2)
-              if ((r * r: Double) >= r2Threshold) {
-                keepVariant = false
-                done = true
-              }
-            }
-          }
-
-          if (keepVariant) {
-            queue.addLast((v, sgs))
-            queueSize.foreach { qs =>
-              if (queue.size() > qs) {
-                queue.pop()
-              }
-            }
-          }
-
-          keepVariant
-        }
-      }, preservesPartitioning = true).asOrderedRDD.persist(StorageLevel.MEMORY_AND_DISK)
-
-      val partitionSizes = sc.runJob(prunedRDD, getIteratorSize _)
-      prunedRDD.count()
-      val nVariantsKept = partitionSizes.sum
-
-      input.rdd.unpersist()
-
-      val fractionPruned = 1.0 - nVariantsKept.toDouble / input.nVariants
-      assert(fractionPruned >= 0.0 && fractionPruned < 1.0)
-
-      val result = LocalPruneResult(prunedRDD, fractionPruned, input.index + 1, partitionSizes, pruneDone = true)
-
-      if (repartitionRequired) {
-        val nPartitions = estimateMemoryRequirements(nVariantsKept, nSamples, memoryPerCore)._2
-        val repartRDD = prunedRDD.coalesce(nPartitions, shuffle = true)(null).asOrderedRDD
-        repartRDD.persist(StorageLevel.MEMORY_AND_DISK)
-        repartRDD.count()
-        sys.exit(1)
-        val partitionSizesRepart = sc.runJob(repartRDD, getIteratorSize _)
-        info(debugMemory(sc))
-        prunedRDD.unpersist()
-
-        result.copy(rdd = repartRDD, partitionSizes = partitionSizesRepart, pruneDone = false)
-      } else
-        result
-    }
+    val repartitionRequired = partitionSizesInitial.exists(_ > maxQueueSize)
 
     val standardizedRDD = vds.rdd.flatMapValues { case (va, gs) =>
       toNormalizedGtArray(gs, nSamples).map(BVector(_))
     }.asOrderedRDD
 
-    var oldResult = LocalPruneResult(standardizedRDD, 0.0, 0, partitionSizesInitial, pruneDone = false)
-    var (newResult, duration) = time(pruneLocal(oldResult, Option(maxQueueSize)))
+    val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
+      val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, window, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)
+      val nVariantsKept = prunedRDD.count()
+      val nPartitions = prunedRDD.partitions.length
+      assert(nVariantsKept >= 1)
+      standardizedRDD.unpersist()
+      (prunedRDD, nVariantsKept, nPartitions)
+    })
+    info(s"Local Prune 1: nVariantsKept=$nVariantsLP1 nPartitions=$nPartitionsLP1 time=${formatTime(durationLP1)}")
 
-    info(s"Local Prune ${ newResult.index }: fractionPruned=${ newResult.fractionPruned } nVariantsRemaining=${ newResult.nVariants } nPartitions=${newResult.nPartitions} time=${ formatTime(duration) }")
-    info(debugMemory(sc))
+    val localPrunedRDD =
+      if (!repartitionRequired) {
+        rddLP1
+      } else {
+        val ((rddLP2, nVariantsLP2, nPartitionsLP2), durationLP2) = time({
+          val nPartitionsRequired = estimateMemoryRequirements(nVariantsLP1, nSamples, memoryPerCore)._2
+          val repartRDD = rddLP1.coalesce(nPartitionsRequired, shuffle = true)(null).asOrderedRDD
+          repartRDD.persist(StorageLevel.MEMORY_AND_DISK)
+          repartRDD.count()
+          rddLP1.unpersist()
+          val prunedRDD = pruneLocal(repartRDD, r2Threshold, window, None).persist(StorageLevel.MEMORY_AND_DISK)
+          val nVariantsKept = prunedRDD.count()
+          val nPartitions = prunedRDD.partitions.length
+          assert(nVariantsKept >= 1)
+          repartRDD.unpersist()
+          (prunedRDD, nVariantsKept, nPartitions)
+        })
+        info(s"Local Prune 2: nVariantsKept=$nVariantsLP2 nPartitions=$nPartitionsLP2 time=${formatTime(durationLP2)}")
+        rddLP2
+      }
 
-    while (!newResult.pruneDone) {
-      oldResult = newResult
-      val (result, duration) = time(pruneLocal(oldResult, None))
-      newResult = result
-      info(s"Local Prune ${ newResult.index }: fractionPruned=${ newResult.fractionPruned } nVariantsRemaining=${ newResult.nVariants } nPartitions=${newResult.nPartitions} time=${ formatTime(duration) }")
-      info(debugMemory(sc))
-    }
-
-    val ((finalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(newResult.rdd, r2Threshold, window))
+    val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(localPrunedRDD, r2Threshold, window))
     info(s"Global Prune: nVariantsRemaining=$nVariantsFinal time=${ formatTime(globalDuration) }")
 
-    info(debugMemory(sc))
-
-    vds.copy(rdd = vds.rdd.orderedInnerJoinDistinct(finalPrunedRDD)
-      .mapValues{ case ((va, gs), _) => (va, gs)}
+    vds.copy(rdd = vds.rdd.orderedInnerJoinDistinct(globalPrunedRDD)
+      .mapValues { case ((va, gs), _) => (va, gs) }
       .asOrderedRDD)
   }
 }
