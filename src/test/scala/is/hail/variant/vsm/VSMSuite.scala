@@ -395,8 +395,14 @@ class VSMSuite extends SparkSuite {
     s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
 
     val kt = s.vds.variantsKT()
-    val kt2 = KeyTable.importTextTable(sc, Array("src/test/resources/sampleAnnotations.tsv"), "Sample", 2, TextTableConfiguration())
-    s.vds.annotateVariantsKT(kt, null, "va.foo = table.va")
-    ExportVCF.run(s, Array("-o", "foo"))
+    // val kt2 = KeyTable.importTextTable(sc, Array("src/test/resources/sampleAnnotations.tsv"), "Sample", 2, TextTableConfiguration())
+    val result = s.vds.annotateVariantsKT(kt, null, "va.foo = table.va").rdd.collect()
+
+    val (_, getFoo) = s.vds.queryVA("va.foo")
+    val (_, getVa) = s.vds.queryVA("va")
+
+    result.foreach { (v, (va, gs)) =>
+      assert(va = )
+    }
   }
 }
