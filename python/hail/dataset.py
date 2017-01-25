@@ -2036,17 +2036,17 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.join(right._jvds))
 
     def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256):
-        """Prune variants in linkage disequilibrium.
+        """Prune variants in linkage disequilibrium (LD).
 
         **Examples**
 
-        Run PCA from set of common LD pruned variants:
+        Export the set of common LD pruned variants to a file:
 
-        >>> vds = hc.read("data/example.vds")
-        >>> vds_pca = (vds.variant_qc()
-        >>>     .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95"))
-        >>>     .ld_prune()
-        >>>     .pca())
+        >>> vds = (hc.read("data/example.vds")
+        >>>          .variant_qc()
+        >>>          .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
+        >>>          .ld_prune()
+        >>>          .export_variants("data/ldpruned.variants", "v"))
 
         **Notes**
 
@@ -2054,13 +2054,25 @@ class VariantDataset(object):
         A variant is included in the pruned set if the pair-wise correlation with
         all variants within a given ``window`` size in the pruned set is less than ``r2``.
 
+        :py:meth:`.ld_prune` is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``. The results will be slightly different as Hail mean imputes missing values while `PLINK <https://www.cog-genomics.org/plink2/>`_ does not.
+
+        Be sure to provide enough disk space per worker. :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ up to 3 copies of the data to both memory and disk.
+        The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``.
+
+        .. warning::
+
+            :py:meth:`.ld_prune` is non-deterministic. The identity of variants in the pruned set is not guaranteed to be
+            identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
+            :py:meth:`.export_variants` for future use.
+
+
         :param float r2: Maximum R^2 threshold between two variants in the pruned set within a given window.
 
         :param int window: Number of base pair window to compute pair-wise R^2 values.
 
-        :param float memory_per_core: Total amount of memory available for each core in MB
+        :param float memory_per_core: Total amount of memory available for each core in MB. We recommend keeping the default value to avoid
 
-        :return: A filtered dataset with only variants that are independent.
+        :return: A filtered dataset with variants that are independent.
 
         :rtype: VariantDataset
         """
