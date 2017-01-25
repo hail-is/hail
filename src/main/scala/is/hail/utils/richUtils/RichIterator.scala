@@ -60,4 +60,5 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     // Return an iterator that read lines from the process's stdout
     Source.fromInputStream(proc.getInputStream).getLines()
   }
+
 }

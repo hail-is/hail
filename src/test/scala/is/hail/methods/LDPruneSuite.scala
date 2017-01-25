@@ -68,11 +68,11 @@ class LDPruneSuite extends SparkSuite {
         case (Some(x), Some(y)) =>
           val res = math.abs(x - y) < 1e-6
           if (!res)
-            println(s"i=$i j=$j r2Computed=$x r2Expected=$y")
+            info(s"i=$i j=$j r2Computed=$x r2Expected=$y")
           res
         case (None, None) => true
         case _ =>
-          println(s"i=$i j=$j r2Computed=$computed r2Expected=$expected")
+          info(s"i=$i j=$j r2Computed=$computed r2Expected=$expected")
           false
       }
     }
@@ -91,7 +91,7 @@ class LDPruneSuite extends SparkSuite {
   @Test def testMultipleChr() = {
     val r2 = 0.2
     val window = 500
-    
+
     var s = State(sc, sqlContext, null)
     s = ImportVCF.run(s, Array("-i", "src/test/resources/ldprune_multchr.vcf", "-n", "10"))
     s = SplitMulti.run(s, Array.empty[String])
@@ -107,7 +107,6 @@ class LDPruneSuite extends SparkSuite {
 
     property("uncorrelated") =
       forAll(compGen) { case (r2: Double, window: Int, numPartitions: Int) =>
-//        println(s"r2=$r2 window=$window localPruneThreshold=$localPruneThreshold numPartitions=$numPartitions")
         var s = State(sc, sqlContext, null)
         s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz", "-n", s"$numPartitions"))
         s = SplitMulti.run(s, Array.empty[String])
@@ -116,7 +115,7 @@ class LDPruneSuite extends SparkSuite {
       }
   }
 
-  @Test def testLDPrune() {
+  @Test def testRandom() {
     Spec.check()
   }
 
@@ -174,29 +173,5 @@ class LDPruneSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
     val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 100000, 200000)
     assert(uncorrelated(prunedVds, 0.2, 1000))
-//    while (true) {}
-  }
-
-  @Test def test100K() {
-    var s = State(sc, sqlContext, null)
-    s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 50 * 1024 * 1024)
-    prunedVds.nVariants
-//    while (true) {}
-  }
-
-  @Test def test10K() {
-    var s = State(sc, sqlContext, null)
-    s = Read.run(s, Array("ALL.1KG.10K.vds"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 20 * 1024 * 1024)
-    prunedVds.nVariants
-    // while (true) {}
-  }
-
-  @Test def testSample() {
-    var s = State(sc, sqlContext, null)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf.bgz"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 50 * 1024 * 1024)
-    prunedVds.nVariants
   }
 }

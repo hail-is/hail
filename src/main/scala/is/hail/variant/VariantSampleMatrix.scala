@@ -1414,4 +1414,5 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         "va" -> vaSignature),
       Array("v"))
   }
+
 }

@@ -2052,25 +2052,24 @@ class VariantDataset(object):
 
         Variants are pruned in each contig from smallest start position to largest.
         A variant is included in the pruned set if the pair-wise correlation with
-        all variants within a given ``window`` size in the pruned set is less than ``r2``.
+        all variants within a given ``window`` size in the pruned set is less than :math:`R^2`.
 
-        :py:meth:`.ld_prune` is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``. The results will be slightly different as Hail mean imputes missing values while `PLINK <https://www.cog-genomics.org/plink2/>`_ does not.
+        :py:meth:`.ld_prune` is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``. The results will be different because Hail mean-imputes missing values and the order in which variant pairs are tested is not the same as PLINK.
 
         Be sure to provide enough disk space per worker. :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ up to 3 copies of the data to both memory and disk.
         The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``.
 
         .. warning::
 
-            :py:meth:`.ld_prune` is non-deterministic. The identity of variants in the pruned set is not guaranteed to be
-            identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
+            The variants in the pruned set are not guaranteed to be identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
             :py:meth:`.export_variants` for future use.
 
 
-        :param float r2: Maximum R^2 threshold between two variants in the pruned set within a given window.
+        :param float r2: Maximum :math:`R^2` threshold between two variants in the pruned set within a given window.
 
-        :param int window: Number of base pair window to compute pair-wise R^2 values.
+        :param int window: Number of base pair window to compute pair-wise :math:`R^2` values.
 
-        :param float memory_per_core: Total amount of memory available for each core in MB. We recommend keeping the default value to avoid
+        :param float memory_per_core: Total amount of memory available for each core in MB. We strongly recommend using the default value.
 
         :return: A filtered dataset with variants that are independent.
 

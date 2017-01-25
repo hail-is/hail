@@ -238,7 +238,7 @@ object LDPrune {
       standardizedRDD.unpersist()
       (prunedRDD, nVariantsKept, nPartitions)
     })
-    info(s"Local Prune 1: nVariantsKept=$nVariantsLP1 nPartitions=$nPartitionsLP1 time=${formatTime(durationLP1)}")
+    info(s"Local Prune 1: nVariantsKept=$nVariantsLP1 nPartitions=$nPartitionsLP1 time=${ formatTime(durationLP1) }")
 
     val localPrunedRDD =
       if (!repartitionRequired) {
@@ -257,7 +257,7 @@ object LDPrune {
           repartRDD.unpersist()
           (prunedRDD, nVariantsKept, nPartitions)
         })
-        info(s"Local Prune 2: nVariantsKept=$nVariantsLP2 nPartitions=$nPartitionsLP2 time=${formatTime(durationLP2)}")
+        info(s"Local Prune 2: nVariantsKept=$nVariantsLP2 nPartitions=$nPartitionsLP2 time=${ formatTime(durationLP2) }")
         rddLP2
       }
 
