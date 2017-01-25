@@ -53,7 +53,8 @@ class ConcordanceCombiner extends Serializable {
           |  Total concordance: ${ (innerDiagonal.toDouble / innerTotal * 100).formatted("%.2f") }%""".stripMargin)
   }
 
-  def toAnnotation = (0 until 5).map(i => (0 until 5).map(j => mapping(i, j)))
+  def toAnnotation =
+    (0 until 5).map(i => (0 until 5).map(j => mapping(i, j)).toArray : IndexedSeq[Long]).toArray[IndexedSeq[Long]]: IndexedSeq[IndexedSeq[Long]]
 }
 
 object CalculateConcordance {
