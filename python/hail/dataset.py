@@ -1962,7 +1962,15 @@ class VariantDataset(object):
         r"""Test each variant for association using the linear regression
         model.
 
-        **Implementation Details**
+        **Example**
+
+        To run linear regression with response and two covariates imported from a TSV file:
+
+        >>> (hc.read('data/example.vds')
+        >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno', config=TextTableConfig(impute=True))
+        >>>   .linreg(sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+
+        **Notes**
 
         The :py:meth:`.linreg` command computes, for each variant, statistics of
         the :math:`t`-test for the genotype coefficient of the linear function
@@ -1998,18 +2006,13 @@ class VariantDataset(object):
         stringent of the two, as AF equals AC over twice the number of included
         samples.
 
-        Phenotype and covariate sample annotations may also be specified using
-        `programmatic expressions <../expr_lang.html>`_
-        without identifiers, such as:
+        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <../expr_lang.html>`_ without identifiers, such as:
 
         .. code-block:: text
 
-            if (sa.isMale) sa.cov.age else (2 * sa.cov.age + 10)
+          if (sa.isFemale) sa.cov.age else (2 * sa.cov.age + 10)
 
-        For Boolean types, true is coded as :math:`1` and false as :math:`0`. In
-        particular, for the sample annotation ``sa.fam.isCase`` added by
-        importing a `.fam` file with case-control phenotype, case is :math:`1`
-        and control is :math:`0`.
+        For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
 
         Hail's linear regression test corresponds to the ``q.lm`` test in
         `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`_. For
@@ -2037,9 +2040,9 @@ class VariantDataset(object):
         - **va.linreg.tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
         - **va.linreg.pval** (*Double*) -- :math:`p`-value
 
-        :param str y: Response sample annotation.
+        :param str y: Response expression
 
-        :param covariates: list of covariant sample annotations
+        :param covariates: list of covariate expressions
         :type covariates: list of str
 
         :param str root: Variant annotation path to store result of linear regression.
@@ -2064,11 +2067,10 @@ class VariantDataset(object):
 
         **Example**
 
-        Run logistic regression with Wald test with two covariates:
+        To run logistic regression using the Wald test with response and two covariates imported from a TSV file:
 
         >>> (hc.read('data/example.vds')
-        >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno',
-        >>>     config=TextTableConfig(impute=True))
+        >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno', config=TextTableConfig(impute=True))
         >>>   .logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
 
         **Notes**
@@ -2086,7 +2088,7 @@ class VariantDataset(object):
         ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the
         command:
 
-        >>> vds.logreg('sa.pheno.isCase', covariates=['sa.cov.age,sa.cov.isFemale', 'sa.cov.PC1'])
+        >>> vds.logreg('sa.pheno.isCase', covariates=['sa.cov.age' , 'sa.cov.isFemale', 'sa.cov.PC1'])
 
         considers a model of the form
 
@@ -2169,10 +2171,10 @@ class VariantDataset(object):
 
         :param str test: Statistical test, one of: wald, lrt, or score.
 
-        :param str y: Response sample annotation.  Must be Boolean or
+        :param str y: Response expression.  Must evaluate to Boolean or
             numeric with all values 0 or 1.
 
-        :param covariates: list of covariant sample annotations
+        :param covariates: list of covariate expressions
         :type covariates: list of str
 
         :param str root: Variant annotation path to store result of linear regression.
