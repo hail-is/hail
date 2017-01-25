@@ -2,10 +2,13 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import scala_package_object, jarray
 from hail.keytable import KeyTable
-from hail.utils import TextTableConfig
-
-from py4j.protocol import Py4JJavaError
 from hail.type import Type
+from hail.utils import TextTableConfig
+from py4j.protocol import Py4JJavaError
+
+import warnings
+
+warnings.filterwarnings(module=__name__, action='once')
 
 
 class VariantDataset(object):
@@ -269,7 +272,7 @@ class VariantDataset(object):
         ptype.typecheck(annotation)
 
         annotated = self.jvds.annotateGlobal(ptype.convert_to_j(annotation), ptype._jtype, path)
-        assert (annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking')
+        assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
         return VariantDataset(self.hc, annotated)
 
     def annotate_global_expr_by_variant(self, condition):
@@ -1859,10 +1862,8 @@ class VariantDataset(object):
                  '-i', input]
         return self.hc.run_command(self, pargs)
 
-    def global_annotations(self):
-        """return global annotation
-
-        :return: annotation
+    def globals(self):
+        """Return global annotations as a python object.
         """
         return Type._from_java(self.jvds.globalSignature()).convert_to_py(self.jvds.globalAnnotation())
 
@@ -2466,6 +2467,33 @@ class VariantDataset(object):
             pargs.append(storage_level)
         return self.hc.run_command(self, pargs)
 
+    def print_schema(self, output=None, attributes=False, va=False, sa=False, print_global=False):
+        """Shows the schema for global, sample and variant annotations.
+        :param output: Output file.
+        :type output: str or None
+        :param bool attributes: If True, print attributes.
+        :param bool va: If True, print variant annotations schema.
+        :param bool sa: If True, print sample annotations schema.
+        :param bool print_global: If True, print global annotations schema.
+        """
+
+        warnings.warn("the 'print_schema' method is deprecated.  Use 'print(vds.variant_schema())', etc instead.",
+             DeprecationWarning)
+
+        pargs = ['printschema']
+        if output:
+            pargs.append('--output')
+            pargs.append(output)
+        if attributes:
+            pargs.append('--attributes')
+        if va:
+            pargs.append('--va')
+        if sa:
+            pargs.append('--sa')
+        if print_global:
+            pargs.append('--global')
+        return self.hc.run_command(self, pargs)
+
     def global_schema(self):
         return Type._from_java(self.jvds.globalSignature())
 
@@ -2730,6 +2758,20 @@ class VariantDataset(object):
         if branching_factor:
             pargs.append('-b')
             pargs.append(branching_factor)
+        return self.hc.run_command(self, pargs)
+
+    def show_globals(self, output=None):
+        """Print or export all global annotations as JSON
+        :param output: Output file.
+        :type output: str or None
+        """
+
+        warnings.warn('This function is deprecated.  Use the .globals() method instead.', DeprecationWarning)
+
+        pargs = ['showglobals']
+        if output:
+            pargs.append('-o')
+            pargs.append(output)
         return self.hc.run_command(self, pargs)
 
     def sparkinfo(self):

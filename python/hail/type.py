@@ -5,7 +5,7 @@ from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, S
 class TypeCheckError(Exception):
     def __init__(self, message):
         self.msg = message
-        super(TypeCheckError)
+        super(TypeCheckError).__init__(TypeCheckError)
 
     def __str__(self):
         return self.msg
@@ -128,7 +128,7 @@ class TFloat(Type):
         # else:
         #     return annotation
 
-        # This function is unsupported until py4j-0.10.4: https://github.com/bartdag/py4j/issues/255
+        # FIXME: This function is unsupported until py4j-0.10.4: https://github.com/bartdag/py4j/issues/255
         raise NotImplementedError('TFloat is currently unsupported in certain operations, use TDouble instead')
 
     def typecheck(self, annotation):
