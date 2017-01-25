@@ -30,9 +30,7 @@ class LinearRegressionSuite extends SparkSuite {
       "--types", "Pheno: Double",
       "--missing", "0"))
 
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.Pheno",
-      "-c", "sa.cov.Cov1, sa.cov.Cov2 + 1 - 1"))
+    val vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
@@ -43,12 +41,12 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val qBeta = s.vds.queryVA("va.linreg.beta")._2
-    val qSe = s.vds.queryVA("va.linreg.se")._2
-    val qTstat = s.vds.queryVA("va.linreg.tstat")._2
-    val qPval = s.vds.queryVA("va.linreg.pval")._2
+    val qBeta = vds.queryVA("va.linreg.beta")._2
+    val qSe = vds.queryVA("va.linreg.se")._2
+    val qTstat = vds.queryVA("va.linreg.tstat")._2
+    val qPval = vds.queryVA("va.linreg.pval")._2
 
-    val annotationMap = s.vds.variantsAndAnnotations
+    val annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 
@@ -119,8 +117,7 @@ class LinearRegressionSuite extends SparkSuite {
       "--types", "Pheno: Int",
       "--missing", "0"))
 
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.Pheno"))
+    val vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
@@ -130,12 +127,12 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val qBeta = s.vds.queryVA("va.linreg.beta")._2
-    val qSe = s.vds.queryVA("va.linreg.se")._2
-    val qTstat = s.vds.queryVA("va.linreg.tstat")._2
-    val qPval = s.vds.queryVA("va.linreg.pval")._2
+    val qBeta = vds.queryVA("va.linreg.beta")._2
+    val qSe = vds.queryVA("va.linreg.se")._2
+    val qTstat = vds.queryVA("va.linreg.tstat")._2
+    val qPval = vds.queryVA("va.linreg.pval")._2
 
-    val annotationMap = s.vds.variantsAndAnnotations
+    val annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 
@@ -192,9 +189,7 @@ class LinearRegressionSuite extends SparkSuite {
     s = AnnotateSamplesFam.run(s, Array(
       "-i", "src/test/resources/regressionLinear.fam"))
 
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.fam.isCase",
-      "-c", "sa.cov.Cov1,sa.cov.Cov2"))
+    val vds = LinearRegression(s.vds, "sa.fam.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
@@ -204,12 +199,12 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val (_, qBeta) = s.vds.queryVA("va.linreg.beta")
-    val (_, qSe) = s.vds.queryVA("va.linreg.se")
-    val (_, qTstat) = s.vds.queryVA("va.linreg.tstat")
-    val (_, qPval) = s.vds.queryVA("va.linreg.pval")
+    val (_, qBeta) = vds.queryVA("va.linreg.beta")
+    val (_, qSe) = vds.queryVA("va.linreg.se")
+    val (_, qTstat) = vds.queryVA("va.linreg.tstat")
+    val (_, qPval) = vds.queryVA("va.linreg.pval")
 
-    val annotationMap = s.vds.variantsAndAnnotations
+    val annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 
@@ -274,9 +269,7 @@ class LinearRegressionSuite extends SparkSuite {
       "-q",
       "-m", "0"))
 
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.fam.qPheno",
-      "-c", "sa.cov.Cov1,sa.cov.Cov2"))
+    val vds = LinearRegression(s.vds, "sa.fam.qPheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
@@ -286,12 +279,12 @@ class LinearRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-    val qBeta = s.vds.queryVA("va.linreg.beta")._2
-    val qSe = s.vds.queryVA("va.linreg.se")._2
-    val qTstat = s.vds.queryVA("va.linreg.tstat")._2
-    val qPval = s.vds.queryVA("va.linreg.pval")._2
+    val qBeta = vds.queryVA("va.linreg.beta")._2
+    val qSe = vds.queryVA("va.linreg.se")._2
+    val qTstat = vds.queryVA("va.linreg.tstat")._2
+    val qPval = vds.queryVA("va.linreg.pval")._2
 
-    val annotationMap = s.vds.variantsAndAnnotations
+    val annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 
@@ -359,9 +352,7 @@ class LinearRegressionSuite extends SparkSuite {
       "--missing", "0"))
 
     interceptFatal("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
-      LinearRegressionCommand.run(s, Array(
-        "-y", "sa.pheno.Pheno",
-        "-c", "sa.cov.Cov1,sa.cov.Cov2"))
+      LinearRegression(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
     }
   }
 
@@ -386,9 +377,7 @@ class LinearRegressionSuite extends SparkSuite {
       "--missing", "0"))
 
     interceptFatal("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
-      LinearRegressionCommand.run(s, Array(
-        "-y", "sa.pheno.Pheno",
-        "-c", "sa.cov.Cov1,sa.cov.Cov2"))
+      LinearRegression(s.vds, "sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
     }
   }
 
@@ -409,46 +398,35 @@ class LinearRegressionSuite extends SparkSuite {
     val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
 
-    def qBeta = s.vds.queryVA("va.linreg.beta")._2
+    var vds = s.vds
 
-    def annotationMap = s.vds.variantsAndAnnotations
+    def annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.Pheno",
-      "--mac", "4"))
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 4, 0.0)
+    def qBeta = vds.queryVA("va.linreg.beta")._2
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
 
     // only 6 samples are included, so 12 alleles total
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.Pheno",
-      "--maf", "0.3"))
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.3)
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
 
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.Pheno",
-      "--maf", "0.4"))
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.4)
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isEmpty)
 
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.Pheno",
-      "--mac", "1",
-      "--maf", "0.3"))
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.3)
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isDefined)
 
-    s = LinearRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.Pheno",
-      "--mac", "5",
-      "--maf", "0.1"))
+    vds = LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 5, 0.1)
 
     assert(qBeta(annotationMap(v1)).isEmpty)
     assert(qBeta(annotationMap(v2)).isEmpty)
@@ -469,15 +447,11 @@ class LinearRegressionSuite extends SparkSuite {
       "--missing", "0"))
 
     interceptFatal("Minumum alternate allele count must be a positive integer, got 0") {
-      LinearRegressionCommand.run(s, Array(
-        "-y", "sa.pheno.Pheno",
-        "--mac", "0"))
+      LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 0, 0.0)
     }
 
     interceptFatal("Minumum alternate allele frequency must lie in") {
-      LinearRegressionCommand.run(s, Array(
-        "-y", "sa.pheno.Pheno",
-        "--maf", "2.0"))
+      LinearRegression(s.vds, "sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 2.0)
     }
   }
 }

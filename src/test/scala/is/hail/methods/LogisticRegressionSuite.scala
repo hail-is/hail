@@ -29,10 +29,7 @@ class LogisticRegressionSuite extends SparkSuite {
       "--types", "isCase: Boolean",
       "--missing", "0"))
 
-    s = LogisticRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.isCase",
-      "-c", "sa.cov.Cov1, sa.cov.Cov2",
-      "-t", "wald"))
+    val vds = LogisticRegression(s.vds, "wald", "sa.pheno.isCase", Array("sa.cov.Cov1","sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
@@ -43,14 +40,14 @@ class LogisticRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
-    val qBeta = s.vds.queryVA("va.logreg.wald.beta")._2
-    val qSe = s.vds.queryVA("va.logreg.wald.se")._2
-    val qZstat = s.vds.queryVA("va.logreg.wald.zstat")._2
-    val qPVal = s.vds.queryVA("va.logreg.wald.pval")._2
-    val qConverged = s.vds.queryVA("va.logreg.fit.converged")._2
-    val qExploded = s.vds.queryVA("va.logreg.fit.exploded")._2
+    val qBeta = vds.queryVA("va.logreg.wald.beta")._2
+    val qSe = vds.queryVA("va.logreg.wald.se")._2
+    val qZstat = vds.queryVA("va.logreg.wald.zstat")._2
+    val qPVal = vds.queryVA("va.logreg.wald.pval")._2
+    val qConverged = vds.queryVA("va.logreg.fit.converged")._2
+    val qExploded = vds.queryVA("va.logreg.fit.exploded")._2
 
-    val annotationMap = s.vds.variantsAndAnnotations
+    val annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 
@@ -126,10 +123,7 @@ class LogisticRegressionSuite extends SparkSuite {
       "--types", "isCase: Boolean",
       "--missing", "0"))
 
-    s = LogisticRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.isCase",
-      "-c", "sa.cov.Cov1, sa.cov.Cov2",
-      "-t", "lrt"))
+    val vds = LogisticRegression(s.vds, "lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
@@ -140,13 +134,13 @@ class LogisticRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
-    val qBeta = s.vds.queryVA("va.logreg.lrt.beta")._2
-    val qChi2 = s.vds.queryVA("va.logreg.lrt.chi2")._2
-    val qPVal = s.vds.queryVA("va.logreg.lrt.pval")._2
-    val qConverged = s.vds.queryVA("va.logreg.fit.converged")._2
-    val qExploded = s.vds.queryVA("va.logreg.fit.exploded")._2
+    val qBeta = vds.queryVA("va.logreg.lrt.beta")._2
+    val qChi2 = vds.queryVA("va.logreg.lrt.chi2")._2
+    val qPVal = vds.queryVA("va.logreg.lrt.pval")._2
+    val qConverged = vds.queryVA("va.logreg.fit.converged")._2
+    val qExploded = vds.queryVA("va.logreg.fit.exploded")._2
 
-    val annotationMap = s.vds.variantsAndAnnotations
+    val annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 
@@ -220,10 +214,7 @@ class LogisticRegressionSuite extends SparkSuite {
       "--types", "isCase: Boolean",
       "--missing", "0"))
 
-    s = LogisticRegressionCommand.run(s, Array(
-      "-y", "sa.pheno.isCase",
-      "-c", "sa.cov.Cov1, sa.cov.Cov2",
-      "-t", "score"))
+    val vds = LogisticRegression(s.vds, "score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
@@ -234,10 +225,10 @@ class LogisticRegressionSuite extends SparkSuite {
     val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
-    val qChi2 = s.vds.queryVA("va.logreg.score.chi2")._2
-    val qPVal = s.vds.queryVA("va.logreg.score.pval")._2
+    val qChi2 = vds.queryVA("va.logreg.score.chi2")._2
+    val qPVal = vds.queryVA("va.logreg.score.pval")._2
 
-    val annotationMap = s.vds.variantsAndAnnotations
+    val annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 
@@ -301,22 +292,9 @@ class LogisticRegressionSuite extends SparkSuite {
       "-t", "PC1: Double, PC2: Double",
       "-e", "IND_ID"))
 
-    s = LogisticRegressionCommand.run(s, Array(
-      "-y", "sa.fam.isCase",
-      "-c", "sa.fam.isFemale,sa.pc.PC1,sa.pc.PC2",
-      "-t", "wald"))
-
-    s = LogisticRegressionCommand.run(s, Array(
-      "-y", "sa.fam.isCase",
-      "-c", "sa.fam.isFemale,sa.pc.PC1,sa.pc.PC2",
-      "-t", "lrt",
-      "-r", "va.logreg2"))
-
-    s = LogisticRegressionCommand.run(s, Array(
-      "-y", "sa.fam.isCase",
-      "-c", "sa.fam.isFemale,sa.pc.PC1,sa.pc.PC2",
-      "-t", "score",
-      "-r", "va.logreg3"))
+    val vds = LogisticRegression(s.vds, "wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg")
+    val vds2 = LogisticRegression(vds, "lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg2")
+    val vds3 = LogisticRegression(vds2, "score", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg3")
 
     // 2535 samples from 1K Genomes Project
     val v1 = Variant("22", 16060511, "T", "TTC") // MAC  623
@@ -325,14 +303,14 @@ class LogisticRegressionSuite extends SparkSuite {
     val v4 = Variant("22", 16117940, "T", "G")   // MAC    7
     val v5 = Variant("22", 16117953, "G", "C")   // MAC   21
 
-    val qBeta = s.vds.queryVA("va.logreg.wald.beta")._2
-    val qSe = s.vds.queryVA("va.logreg.wald.se")._2
-    val qZstat = s.vds.queryVA("va.logreg.wald.zstat")._2
-    val qPVal = s.vds.queryVA("va.logreg.wald.pval")._2
-    val qPValLR = s.vds.queryVA("va.logreg2.lrt.pval")._2
-    val qPValScore = s.vds.queryVA("va.logreg3.score.pval")._2
+    val qBeta = vds3.queryVA("va.logreg.wald.beta")._2
+    val qSe = vds3.queryVA("va.logreg.wald.se")._2
+    val qZstat = vds3.queryVA("va.logreg.wald.zstat")._2
+    val qPVal = vds3.queryVA("va.logreg.wald.pval")._2
+    val qPValLR = vds3.queryVA("va.logreg2.lrt.pval")._2
+    val qPValScore = vds3.queryVA("va.logreg3.score.pval")._2
 
-    val annotationMap = s.vds.variantsAndAnnotations
+    val annotationMap = vds3.variantsAndAnnotations
       .collect()
       .toMap
 

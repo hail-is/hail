@@ -7,29 +7,36 @@ import is.hail.annotations.Annotation
 import is.hail.stats._
 import is.hail.variant._
 import is.hail.expr._
+import is.hail.stats.RegressionUtils._
 
 object LogisticRegression {
 
-  def apply(vds: VariantDataset, y: DenseVector[Double], cov: Option[DenseMatrix[Double]], logRegTest: LogisticRegressionTest): LogisticRegression = {
-    require(cov.forall(_.rows == y.length))
-    require(y.forall(yi => yi == 0 || yi == 1))
-    require {val sumY = sum(y); sumY > 0 && sumY < y.size}
+  def apply(vds: VariantDataset, test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
 
-    val n = y.length
-    val k = cov.map(_.cols).getOrElse(0)
-    val d = n - k - 2
+    def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest)
+
+    val logRegTest = tests(test)
+
+    val (y, cov, sampleMask) = getPhenoCovCompleteSamples(vds, ySA, covSA)
+
+    if (! y.forall(yi => yi == 0d || yi == 1d))
+      fatal(s"For logistic regression, phenotype must be Boolean or numeric with all values equal to 0 or 1")
+
+    if (!tests.isDefinedAt(test))
+      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
+
+    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
+
+    val n = y.size
+    val k = cov.cols
+    val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${plural(k, "covariate")} with intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
-    info(s"Running logreg on $n samples with $k sample ${plural(k, "covariate")}...")
+    info(s"Running logreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
 
-    val C: DenseMatrix[Double] = cov match {
-      case Some(dm) => DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), dm)
-      case None => DenseMatrix.ones[Double](n, 1)
-    }
-
-    val nullModel = new LogisticRegressionModel(C, y)
+    val nullModel = new LogisticRegressionModel(cov, y)
     val nullFit = nullModel.nullFit(nullModel.bInterceptOnly())
 
     if (!nullFit.converged)
@@ -40,35 +47,25 @@ object LogisticRegression {
          "Newton iteration failed to converge"))
 
     val sc = vds.sparkContext
+    val sampleMaskBc = sc.broadcast(sampleMask)
     val yBc = sc.broadcast(y)
-    val CBc = sc.broadcast(C)
+    val covBc = sc.broadcast(cov)
     val nullFitBc = sc.broadcast(nullFit)
     val logRegTestBc = sc.broadcast(logRegTest) // Is this worth broadcasting?
 
-    val rdd = vds.rdd.map { case (v, (_, gs)) =>
-      (v, buildGtColumn(gs)
-          .map { gts =>
-            val X = DenseMatrix.horzcat(gts, CBc.value)
-            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
-          }
-          .getOrElse(Annotation.empty)
-      )
-    }
+    val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
 
-    new LogisticRegression(rdd, logRegTest.`type`)
-  }
+    vds.mapAnnotations{ case (v, va, gs) =>
+      val maskedGts = gs.zipWithIndex.filter{ case (g, i) => sampleMaskBc.value(i) }.map(_._1.gt)
 
-  def buildGtColumn(gs: Iterable[Genotype]): Option[DenseMatrix[Double]] = {
-    val (nCalled, gtSum, allHet) = gs.flatMap(_.gt).foldLeft((0, 0, true))((acc, gt) => (acc._1 + 1, acc._2 + gt, acc._3 && (gt == 1) ))
+      val logRegAnnot =
+        buildGtColumn(maskedGts).map { gts =>
+          val X = DenseMatrix.horzcat(gts, covBc.value)
+          logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
+        }
 
-    // allHomRef || allHet || allHomVar || allNoCall
-    if (gtSum == 0 || allHet || gtSum == 2 * nCalled || nCalled == 0 )
-      None
-    else {
-      val gtMean = gtSum.toDouble / nCalled
-      val gtArray = gs.map(_.gt.map(_.toDouble).getOrElse(gtMean)).toArray
-      Some(new DenseMatrix(gtArray.length, 1, gtArray))
-    }
+      inserter(va, logRegAnnot)
+    }.copy(vaSignature = newVAS)
   }
 }
 
