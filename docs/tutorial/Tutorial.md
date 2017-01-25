@@ -396,7 +396,7 @@ Out[49]: {u'nSamples': 1646, u'nVariants': 10135L, u'nGenotypes': 16682210L}
 
 Lastly we use the `filter_variants expr`method to keep variants with a mean GQ greater than or equal to 20.
 
-    >>> vds_gAD_sCR_sGQ_vHWE_vGQ = hwe_filtered_vds.filter_variants_expr('va.qc.gqMean >= 20')
+    >>> vds_gAD_sCR_sGQ_vHWE_vGQ = vds_gAD_sCR_sGQ_vHWE.filter_variants_expr('va.qc.gqMean >= 20')
     >>> vds_gAD_sCR_sGQ_vHWE_vGQ.count()
 
 
@@ -564,3 +564,46 @@ We'll start with `vds_QCed` here (our `vds_gwas` isn't appropriate for rare vari
 ## Eplilogue
 
 Congrats! If you've made it this far, you're perfectly primed to read the [Overview](hail/overview.html), look through the [Hail objects](hail/hail_objects.html) representing many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/hail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter Chat](https://gitter.im/hail-is/hail) or the [Discussion Forum](http://discuss.hail.is).
+
+For reference, here's all the work we did throughout the tutorial combined into one script (this does assume that you've already run tutorial though, as some of the map and filter expressions (i.e. hwe_filter_expression) are not defined here. 
+
+>>> vds_gAB_vCR = (hc.import_vcf(vcf)
+>>>          .split_multi()
+>>>          .annotate_samples_table(sample_annotations, 
+>>>                                  root='sa.pheno', 
+>>>                                  sample_expr='Sample', 
+>>>                                  config=TextTableConfig(impute=True))
+>>>          .filter_genotypes(filter_condition)
+>>>          .filter_variants_expr('gs.fraction(g => g.isCalled) > 0.95')
+>>>          .sample_qc())
+>>> 
+>>> vds_QCed = (vds_gAB_vCR
+>>>     .annotate_samples_vds(vds_gAB_vCR, code = 'sa.qc = vds.qc' )
+>>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20')
+>>>     .variant_qc()
+>>>     .annotate_variants_expr(sex_aware_hwe_exprs)
+>>>     .filter_variants_expr(hwe_filter_expression + '&& va.qc.gqMean >= 20')
+>>>     .impute_sex(maf_threshold=0.05)
+>>>     .annotate_samples_expr('sa.sexcheck = sa.pheno.isFemale == sa.imputesex.isFemale')
+>>>     .filter_samples_expr('sa.sexcheck || isMissing(sa.sexcheck)'))
+>>> 
+>>> 
+>>> vds_pca = (vds_QCed.filter_variants_intervals('purcell5k.interval_list')
+>>>     .pca(scores='sa.pca'))
+>>> 
+>>> vds_gwas = (vds_QCed
+>>>     .filter_variants_expr('va.qc.AF > 0.05 && va.qc.AF < 0.95')
+>>>     .annotate_samples_vds(vds_pca, code='sa.pca = vds.pca')
+>>>     .linreg('sa.pheno.CaffeineConsumption', 
+>>>             covariates=['sa.pca.PC1', 'sa.pca.PC2', 'sa.pca.PC3', 'sa.pheno.isFemale'])
+>>>     .logreg(test='wald', y='sa.pheno.PurpleHair',
+>>>             covariates=['sa.pca.PC1', 'sa.pca.PC2', 'sa.pca.PC3', 'sa.pheno.isFemale']))
+>>> 
+>>> 
+>>> 
+>>> vds_fet = (vds_QCed
+>>>     .filter_variants_expr('va.qc.AF <= 0.05 || va.qc.AF >= 0.95')
+>>>     .annotate_variants_expr(rare_variant_annotations)
+>>>     .annotate_variants_expr('''va.fet = 
+>>>                                 fet(va.minorCase.toInt, va.minorControl.toInt,
+>>>                                     va.majorCase.toInt, va.majorControl.toInt)'''))>>> 
