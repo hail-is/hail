@@ -58,6 +58,8 @@ Before we start using Hail, please import the following python libraries for use
     >>> import seaborn
     >>> from math import log, isnan
 
+Note that the import of seaborn is not strictly necessary, as it's main purpose is making the graphs created throughout the tutorial look nicer. 
+
 ## Import data
 
 For cleanliness, let's first assign the names of data files to Python variables:
@@ -524,8 +526,8 @@ To examine this, we can create a Q-Q plot. We are going to be doing this a coupl
     >>>     obs = [-1 * log(p, 10) for p in spvals]
     >>>     plt.scatter(exp, obs)
     >>>     plt.plot(np.arange(0, max(xMax, yMax)), c="red")
-    >>>     plt.xlabel("exp")
-    >>>     plt.ylabel("obs")
+    >>>     plt.xlabel("Expected P-value (-log10 scale)")
+    >>>     plt.ylabel("Observed P-value (-log10 scale)")
     >>>     plt.xlim(0, xMax)
     >>>     plt.ylim(0, yMax)
     >>>     plt.show() 
