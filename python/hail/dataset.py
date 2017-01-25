@@ -5,6 +5,7 @@ from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
 
 from py4j.protocol import Py4JJavaError
+from hail.type import Type
 
 class VariantDataset(object):
     def __init__(self, hc, jvds):
@@ -36,13 +37,13 @@ class VariantDataset(object):
         :return: dict
         """
 
-        schema = self.jvds.saSignature()
+        schema = Type._from_java(self.jvds.saSignature())
         zipped_annotations = scala_package_object(self.hc.hail.utils).makeArrayList(
             self.jvds.sampleIdsAndAnnotations()
         )
         r = {}
         for element in zipped_annotations:
-            r[element._1()] = schema.makePy4jConvertible(element._2())
+            r[element._1()] = schema.convert(element._2())
         return r
 
     def num_partitions(self):
@@ -1845,7 +1846,7 @@ class VariantDataset(object):
 
         :return: annotation
         """
-        return self.jvds.globalSignature().makePy4jConvertible(self.jvds.globalAnnotation)
+        return Type._from_java(self.jvds.globalSignature()).convert(self.jvds.globalAnnotation)
 
     def grm(self, format, output, id_file=None, n_file=None):
         """Compute the Genetic Relatedness Matrix (GMR).
@@ -2447,35 +2448,14 @@ class VariantDataset(object):
             pargs.append(storage_level)
         return self.hc.run_command(self, pargs)
 
-    def print_schema(self, output=None, attributes=False, va=False, sa=False, print_global=False):
-        """Shows the schema for global, sample and variant annotations.
+    def global_schema(self):
+        return Type._from_java(self.jvds.globalSignature())
 
-        :param output: Output file.
-        :type output: str or None
+    def sample_schema(self):
+        return Type._from_java(self.jvds.saSignature())
 
-        :param bool attributes: If True, print attributes.
-
-        :param bool va: If True, print variant annotations schema.
-
-        :param bool sa: If True, print sample annotations schema.
-
-        :param bool print_global: If True, print global annotations schema.
-
-        """
-
-        pargs = ['printschema']
-        if output:
-            pargs.append('--output')
-            pargs.append(output)
-        if attributes:
-            pargs.append('--attributes')
-        if va:
-            pargs.append('--va')
-        if sa:
-            pargs.append('--sa')
-        if print_global:
-            pargs.append('--global')
-        return self.hc.run_command(self, pargs)
+    def variant_schema(self):
+        return Type._from_java(self.jvds.vaSignature())
 
     def query_samples(self, exprs):
         """Perform aggregation queries over samples and sample annotations.
@@ -2512,11 +2492,11 @@ class VariantDataset(object):
         :return: annotation or list of annotation
         """
         if (isinstance(exprs, list)):
-            result_list = self.jvds.querySamples(jarray(self.hc.gateway, self.hc.jvm.java.lang.String, exprs))
-            return [x._2().makePy4jConvertible(x._1()) for x in result_list]
+            result_list = self.jvds.querySamples(jarray(self.hc.jvm.java.lang.String, exprs))
+            return [Type._from_java(x._2()).convert(x._1()) for x in result_list]
         else:
             result = self.jvds.querySamples(exprs)
-            return result._2().makePy4jConvertible(result._1())
+            return Type._from_java(result._2()).convert(result._1())
 
     def query_variants(self, exprs):
         """Perform aggregation queries over variants and variant annotations.
@@ -2553,11 +2533,11 @@ class VariantDataset(object):
         :return: annotation or list of annotation
         """
         if (isinstance(exprs, list)):
-            result_list = self.jvds.queryVariants(jarray(self.hc.gateway, self.hc.jvm.java.lang.String, exprs))
-            return [x._2().makePy4jConvertible(x._1()) for x in result_list]
+            result_list = self.jvds.queryVariants(jarray(self.hc.jvm.java.lang.String, exprs))
+            return [Type._from_java(x._2()).convert(x._1()) for x in result_list]
         else:
             result = self.jvds.queryVariants(exprs)
-            return result._2().makePy4jConvertible(result._1())
+            return Type._from_java(result._2()).convert(result._1())
 
     def rename_samples(self, input):
         """Rename samples.
@@ -3299,5 +3279,5 @@ class VariantDataset(object):
 
         jkt = (scala_package_object(self.hc.hail.driver)
                .makeKT(self.jvds, variant_condition, genotype_condition,
-                       jarray(self.hc.gateway, self.hc.jvm.java.lang.String, key_names)))
+                       jarray(self.hc.jvm.java.lang.String, key_names)))
         return KeyTable(self.hc, jkt)

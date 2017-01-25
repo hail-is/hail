@@ -34,7 +34,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case TArray(elementType) => requiresConversion(elementType)
     case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant | TLocus | TInterval => true
     case TStruct(fields) =>
-      fields.isEmpty || fields.exists(f => requiresConversion(f.`type`))
+      fields.isEmpty || fields.exists(f => requiresConversion(f.typ))
     case _ => false
   }
 
@@ -98,7 +98,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
-              importAnnotation(v, f.`type`)
+              importAnnotation(v, f.typ)
             })
           }
         case _ => a
@@ -134,7 +134,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       else
         StructType(fields
           .map(f =>
-            StructField(escapeColumnName(f.name), f.`type`.schema)))
+            StructField(escapeColumnName(f.name), f.typ.schema)))
   }
 
   def exportAnnotation(a: Annotation, t: Type): Any = {
@@ -172,7 +172,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map {
-              case (v, f) => exportAnnotation(v, f.`type`)
+              case (v, f) => exportAnnotation(v, f.typ)
             })
           }
         case _ => a
@@ -289,7 +289,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         case TStruct(fields) =>
           val row = a.asInstanceOf[Row]
           JObject(fields
-            .map(f => (f.name, exportAnnotation(row.get(f.index), f.`type`)))
+            .map(f => (f.name, exportAnnotation(row.get(f.index), f.typ)))
             .toList)
       }
     }
@@ -338,7 +338,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
           for ((name, jv2) <- jfields) {
             t.selfField(name) match {
               case Some(f) =>
-                a(f.index) = importAnnotation(jv2, f.`type`, parent + "." + name)
+                a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name)
 
               case None =>
                 warn(s"$t has no field $name at $parent")

@@ -1,4 +1,3 @@
-from hail.context import HailContext
 from hail.java import *
 
 
@@ -15,20 +14,20 @@ class Genotype(object):
         :type pl: list of int
         """
 
-        jvm = HailContext.jvm()
-        gt = joption(jvm, gt)
+        jvm = Env.jvm()
+        gt = joption(gt)
         if ad:
-            ad = jsome(jvm, jarray(HailContext.gateway(), jvm.int, ad))
+            ad = jsome(jarray(jvm.int, ad))
         else:
-            ad = jnone(jvm)
-        dp = joption(jvm, dp)
-        gq = joption(jvm, gq)
+            ad = jnone()
+        dp = joption(dp)
+        gq = joption(gq)
         if pl:
-            pl = jsome(jvm, jarray(HailContext.gateway(), jvm.int, pl))
+            pl = jsome(jarray(jvm.int, pl))
         else:
-            pl = jnone(jvm)
+            pl = jnone()
 
-        jrep = scala_object(HailContext.hail_package().variant, 'Genotype').apply(gt, ad, dp, gq, pl, False, False)
+        jrep = scala_object(Env.hail_package().variant, 'Genotype').apply(gt, ad, dp, gq, pl, False, False)
         self._init_from_java(jrep)
 
     def __str__(self):
@@ -65,7 +64,7 @@ class Genotype(object):
 
         result = strip_option(self._jrep.ad())
         if result:
-            result = [x for x in scala_package_object(HailContext.hail_package().utils).makeArrayListArray(result)]
+            result = [x for x in scala_package_object(Env.hail_package().utils).makeArrayListArray(result)]
         return result
 
     def dp(self):
@@ -92,7 +91,7 @@ class Genotype(object):
 
         result = strip_option(self._jrep.pl())
         if result:
-            result = [x for x in scala_package_object(HailContext.hail_package().utils).makeArrayListArray(result)]
+            result = [x for x in scala_package_object(Env.hail_package().utils).makeArrayListArray(result)]
         return result
 
     def od(self):
@@ -217,7 +216,7 @@ class Genotype(object):
 
         result = strip_option(self._jrep.oneHotAlleles(num_alleles))
         if result:
-            result = [x for x in scala_package_object(HailContext.hail_package().utils).makeArrayListIterable(result)]
+            result = [x for x in scala_package_object(Env.hail_package().utils).makeArrayListIterable(result)]
         return result
 
     def one_hot_genotype(self, num_genotypes):
@@ -247,7 +246,7 @@ class Genotype(object):
 
         result = strip_option(self._jrep.oneHotGenotype(num_genotypes))
         if result:
-            result = [x for x in scala_package_object(HailContext.hail_package().utils).makeArrayListIterable(result)]
+            result = [x for x in scala_package_object(Env.hail_package().utils).makeArrayListIterable(result)]
         return result
 
     def p_ab(self, theta=0.5):

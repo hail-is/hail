@@ -103,14 +103,14 @@ package object utils extends Logging
     if (!p) throw new AssertionError
   }
 
-  def makeArrayListArray[T](arr: Array[T]): java.util.ArrayList[T] = {
+  def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
     val list = new java.util.ArrayList[T]()
     for (elem <- arr)
       list.add(elem)
     list
   }
 
-  def makeArrayListIterable[T](it: Iterable[T]): java.util.ArrayList[T] = {
+  def iterableToArrayList[T](it: Iterable[T]): java.util.ArrayList[T] = {
     val list = new java.util.ArrayList[T]()
     for (elem <- it)
       list.add(elem)

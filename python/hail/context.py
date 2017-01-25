@@ -1,12 +1,13 @@
-from __future__ import print_function # Python 2 and 3 print compatibility
+from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
-from hail.java import jarray, scala_object, scala_package_object, joption
+from hail.java import jarray, scala_object, scala_package_object, joption, Env
 from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
+
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -18,6 +19,7 @@ class FatalError(Exception):
 
     def __str__(self):
         return self.msg
+
 
 class HailContext(object):
     """:class:`.HailContext` is the main entrypoint for Hail
@@ -38,9 +40,6 @@ class HailContext(object):
     :param str tmp_dir: Temporary directory for file merging.
     """
 
-    _jvm = None
-    _gateway = None
-
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
                  block_size=1, branching_factor=50, tmp_dir='/tmp'):
@@ -50,6 +49,9 @@ class HailContext(object):
         self.gateway = SparkContext._gateway
         self.jvm = SparkContext._jvm
 
+        Env._jvm = self.jvm
+        Env._gateway = self.gateway
+
         # hail package
         self.hail = getattr(self.jvm, 'is').hail
 
@@ -57,7 +59,7 @@ class HailContext(object):
 
         if not sc:
             self.jsc = driver.configureAndCreateSparkContext(
-                appName, joption(self.jvm, master), local, parquet_compression, block_size)
+                appName, joption(master), local, parquet_compression, block_size)
             self.sc = SparkContext(gateway=self.gateway, jsc=self.jvm.JavaSparkContext(self.jsc))
         else:
             self.sc = sc
@@ -70,25 +72,6 @@ class HailContext(object):
         self.jsql_context = driver.createSQLContext(self.jsc)
         self.sql_context = SQLContext(self.sc, self.jsql_context)
 
-        HailContext._jvm = self.jvm
-        HailContext._gateway = self.gateway
-
-    @staticmethod
-    def jvm():
-        if not HailContext._jvm:
-            raise EnvironmentError('no Hail context initialized, create one first')
-        return HailContext._jvm
-
-    @staticmethod
-    def hail_package():
-        return getattr(HailContext.jvm(), 'is').hail
-
-    @staticmethod
-    def gateway():
-        if not HailContext._gateway:
-            raise EnvironmentError('no Hail context initialized, create one first')
-        return HailContext._gateway
-
     def _jstate(self, jvds):
         return self.hail.driver.State(
             self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
@@ -98,7 +81,7 @@ class HailContext(object):
         raise FatalError(msg, e.java_exception)
 
     def run_command(self, vds, pargs):
-        jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
+        jargs = jarray(self.jvm.java.lang.String, pargs)
         t = self.hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
         cmd_args = t._2()
@@ -361,7 +344,8 @@ class HailContext(object):
             config = TextTableConfig()
 
         return KeyTable(self, self.hail.keytable.KeyTable.importTextTable(
-            self.jsc, jarray(self.gateway, self.jvm.java.lang.String, path_args), key_names, npartitions, config.to_java(self)))
+            self.jsc, jarray(self.jvm.java.lang.String, path_args), key_names, npartitions,
+            config.to_java(self)))
 
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """
@@ -580,7 +564,7 @@ class HailContext(object):
 
         self.run_command(None, pargs)
 
-    def balding_nichols_model(self, populations, samples, variants, partitions = None,
+    def balding_nichols_model(self, populations, samples, variants, partitions=None,
                               pop_dist=None,
                               fst=None,
                               root="bn",
@@ -667,23 +651,21 @@ class HailContext(object):
 
         """
 
-
         if pop_dist is None:
-            jvm_pop_dist_opt = joption(self.jvm, pop_dist)
+            jvm_pop_dist_opt = joption(pop_dist)
         else:
-            jvm_pop_dist_opt = joption(self.jvm, jarray(self.gateway, self.jvm.double, pop_dist))
-
+            jvm_pop_dist_opt = joption(jarray(self.jvm.double, pop_dist))
 
         if fst is None:
-            jvm_fst_opt = joption(self.jvm, fst)
+            jvm_fst_opt = joption(fst)
         else:
-            jvm_fst_opt = joption(self.jvm, jarray(self.gateway, self.jvm.double, fst))
+            jvm_fst_opt = joption(jarray(self.jvm.double, fst))
 
-        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
-                            jvm_pop_dist_opt,
-                            jvm_fst_opt,
-                            seed,
-                            joption(self.jvm, partitions), root))
+        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc, populations, samples, variants,
+                                                                              jvm_pop_dist_opt,
+                                                                              jvm_fst_opt,
+                                                                              seed,
+                                                                              joption(self.jvm, partitions), root))
 
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.
@@ -711,7 +693,7 @@ class HailContext(object):
         :rtype: :class:`.KeyTable`
 
         """
-        
+
         jkeys = jarray(self.gateway, self.jvm.java.lang.String, keys)
         return KeyTable(self, self.hail.keytable.KeyTable.fromDF(df._jdf, jkeys))
 

@@ -139,10 +139,6 @@ sealed abstract class Type {
 
   def typeCheck(a: Any): Boolean
 
-  def makePy4jConvertibleNonNull(a: Annotation): Any = a
-
-  private[expr] def makePy4jConvertible(a: Annotation): Any = if (a == null) a else makePy4jConvertibleNonNull(a)
-
   /* compare values for equality, but compare Float and Double values using D_== */
   def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
 }
@@ -452,10 +448,6 @@ case class TSet(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def makePy4jConvertibleNonNull(a: Annotation): Any = {
-    a.asInstanceOf[Set[_]].map { elem => elementType.makePy4jConvertible(elem) }.asJava
-  }
-
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
 }
 
@@ -493,10 +485,6 @@ case class TDict(elementType: Type) extends TContainer {
         .forall { case (_, (o1, o2)) =>
           o1.liftedZip(o2).exists { case (v1, v2) => elementType.valuesSimilar(v1, v2, tolerance) }
         }
-
-  override def makePy4jConvertibleNonNull(a: Annotation): Any = {
-    a.asInstanceOf[Map[_, _]].map { case (k, elem) => (k, elementType.makePy4jConvertible(elem)) }.asJava
-  }
 }
 
 case object TSample extends Type {
@@ -512,12 +500,6 @@ case object TGenotype extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
-  override def makePy4jConvertibleNonNull(a: Annotation): Any = {
-    val sb = new StringBuilder
-    ExportVCF.writeGenotype(sb, a.asInstanceOf[Genotype])
-    sb.result()
-  }
-
   override def genValue: Gen[Annotation] = Genotype.genArb
 }
 
@@ -527,10 +509,6 @@ case object TAltAllele extends Type {
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 
   override def genValue: Gen[Annotation] = AltAllele.gen
-
-  override def makePy4jConvertibleNonNull(a: Annotation) = {
-    a.asInstanceOf[AltAllele].alt
-  }
 }
 
 case object TVariant extends Type {
@@ -539,19 +517,6 @@ case object TVariant extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
   override def genValue: Gen[Annotation] = Variant.gen
-
-  override def makePy4jConvertibleNonNull(a: Annotation) = {
-    val v = a.asInstanceOf[Variant]
-    val sb = new StringBuilder
-    sb.append(v.contig)
-    sb += ':'
-    sb.append(v.start)
-    sb += ':'
-    sb.append(v.ref)
-    sb += ':'
-    v.altAlleles.foreachBetween(a => sb.append(a.alt))(sb += ',')
-    sb.result()
-  }
 }
 
 case object TLocus extends Type {
@@ -560,15 +525,6 @@ case object TLocus extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
 
   override def genValue: Gen[Annotation] = Locus.gen
-
-  override def makePy4jConvertibleNonNull(a: Annotation) = {
-    val l = a.asInstanceOf[Locus]
-    val sb = new StringBuilder
-    sb.append(l.contig)
-    sb += ':'
-    sb.append(l.position)
-    sb.result()
-  }
 }
 
 case object TInterval extends Type {
@@ -577,29 +533,16 @@ case object TInterval extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 
   override def genValue: Gen[Annotation] = Interval.gen(Locus.gen)
-
-  override def makePy4jConvertibleNonNull(a: Annotation) = {
-    val interval = a.asInstanceOf[Interval[Locus]]
-    val sb = new StringBuilder
-    sb.append(interval.start.contig)
-    sb += ':'
-    sb.append(interval.start.position)
-    sb += '-'
-    sb.append(interval.end.contig)
-    sb += ':'
-    sb.append(interval.end.position)
-    sb.result()
-  }
 }
 
-case class Field(name: String, `type`: Type,
+case class Field(name: String, typ: Type,
   index: Int,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 
   def unify(cf: Field): Boolean =
     name == cf.name &&
-      `type`.unify(cf.`type`) &&
+      typ.unify(cf.typ) &&
       index == cf.index &&
       attrs == cf.attrs
 
@@ -612,7 +555,7 @@ case class Field(name: String, `type`: Type,
       sb.append(prettyIdentifier(name))
       sb.append(": ")
     }
-    `type`.pretty(sb, indent, printAttrs, compact)
+    typ.pretty(sb, indent, printAttrs, compact)
     if (printAttrs) {
       attrs.foreach { case (k, v) =>
         if (!compact) {
@@ -650,7 +593,7 @@ object TStruct {
 }
 
 case class TStruct(fields: IndexedSeq[Field]) extends Type {
-  override def children = fields.map(_.`type`)
+  override def children = fields.map(_.typ)
 
   override def unify(concrete: Type) = concrete match {
     case TStruct(cfields) =>
@@ -661,7 +604,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     case _ => false
   }
 
-  override def subst() = TStruct(fields.map(f => f.copy(`type` = f.`type`.subst().asInstanceOf[Type])))
+  override def subst() = TStruct(fields.map(f => f.copy(typ = f.typ.subst().asInstanceOf[Type])))
 
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
@@ -678,7 +621,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     if (path.isEmpty)
       Some(this)
     else
-      selfField(path.head).map(_.`type`).flatMap(t => t.getOption(path.tail))
+      selfField(path.head).map(_.typ).flatMap(t => t.getOption(path.tail))
 
   override def fieldOption(path: List[String]): Option[Field] =
     if (path.isEmpty)
@@ -688,7 +631,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       if (path.length == 1)
         f
       else
-        f.flatMap(_.`type`.fieldOption(path.tail))
+        f.flatMap(_.typ.fieldOption(path.tail))
     }
 
   override def query(p: List[String]): Querier = {
@@ -697,7 +640,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     else {
       selfField(p.head) match {
         case Some(f) =>
-          val q = f.`type`.query(p.tail)
+          val q = f.typ.query(p.tail)
           val localIndex = f.index
           a =>
             if (a == Annotation.empty)
@@ -719,7 +662,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         case None => throw new AnnotationPathException(s"$key not found")
       }
       val index = f.index
-      val (newFieldType, d) = f.`type`.delete(p.tail)
+      val (newFieldType, d) = f.typ.delete(p.tail)
       val newType: Type =
         if (newFieldType == TStruct.empty)
           deleteKey(key, f.index)
@@ -752,7 +695,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val f = selfField(key)
       val keyIndex = f.map(_.index)
       val (newKeyType, keyF) = f
-        .map(_.`type`)
+        .map(_.typ)
         .getOrElse(TStruct.empty)
         .insert(signature, p.tail)
 
@@ -864,7 +807,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   def parseInStructScope[T](code: String)(implicit hr: HailRep[T]): (Annotation) => Option[T] = {
-    val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val f = Parser.parseTypedExpr[T](code, ec)
 
     (a: Annotation) => {
@@ -881,7 +824,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     val newFields = fields.zip(included)
       .flatMap { case (field, incl) =>
         if (incl)
-          Some(field.name -> field.`type`)
+          Some(field.name -> field.typ)
         else
           None
       }
@@ -936,7 +879,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       a.isInstanceOf[Row] && {
         val r = a.asInstanceOf[Row]
         r.length == fields.length &&
-          r.toSeq.zip(fields).forall { case (v, f) => f.`type`.typeCheck(v) }
+          r.toSeq.zip(fields).forall { case (v, f) => f.typ.typeCheck(v) }
       }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
@@ -947,18 +890,14 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     else
       Gen.size.flatMap(fuel =>
         if (size < fuel) Gen.const(Annotation.empty)
-        else Gen.uniformSequence(fields.map(f => f.`type`.genValue)).map(a => Annotation(a: _*)))
+        else Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null
       && fields.zip(a1.asInstanceOf[Row].toSeq).zip(a2.asInstanceOf[Row].toSeq)
       .forall { case ((f, x1), x2) =>
-        f.`type`.valuesSimilar(x1, x2, tolerance)
+        f.typ.valuesSimilar(x1, x2, tolerance)
       })
-
-  override def makePy4jConvertibleNonNull(a: Annotation): Any = {
-    a.asInstanceOf[Row].toSeq.zip(fields).map { case (elem, f) => (f.name, f.`type`.makePy4jConvertible(elem)) }.toMap.asJava
-  }
 
 }

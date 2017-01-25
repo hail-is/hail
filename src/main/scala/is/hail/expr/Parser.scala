@@ -166,7 +166,7 @@ object Parser extends JavaTokenParsers {
         val s = t.asInstanceOf[TStruct] // checked above
         s.fields.foreach { field =>
           names(j) = concat(n, field.name)
-          types(j) = field.`type`
+          types(j) = field.typ
           j += 1
         }
 
@@ -223,7 +223,7 @@ object Parser extends JavaTokenParsers {
       Map.empty[String, Type]
     else
       parseAll(type_fields, code) match {
-        case Success(result, _) => result.map(f => (f.name, f.`type`)).toMap
+        case Success(result, _) => result.map(f => (f.name, f.typ)).toMap
         case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
       }
   }

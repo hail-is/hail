@@ -59,8 +59,8 @@ object KeyTable extends Serializable with TextExporter {
 
     val nFields = signature.size
 
-    val newKeySignature = TStruct(keyFields.map(fd => (fd.name, fd.`type`)): _*)
-    val newValueSignature = TStruct(valueFields.map(fd => (fd.name, fd.`type`)): _*)
+    val newKeySignature = TStruct(keyFields.map(fd => (fd.name, fd.typ)): _*)
+    val newValueSignature = TStruct(valueFields.map(fd => (fd.name, fd.typ)): _*)
 
     val newRDD = rdd.map { a =>
       val r = annotationToSeq(a, nFields).zipWithIndex
@@ -156,7 +156,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     rdd.map { case (k, v) => f(k, v) }
 
   def query(code: String): (Type, (Annotation, Annotation) => Option[Any]) = {
-    val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
@@ -172,7 +172,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   }
 
   def querySingle(code: String): (Type, Querier) = {
-    val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val nFieldsLocal = nFields
 
     val (t, f) = Parser.parseExpr(code, ec)
@@ -186,7 +186,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   }
 
   def annotate(cond: String): KeyTable = {
-    val ec = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
+    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
 
     val (paths, types, f) = Parser.parseAnnotationExprs(cond, ec, None)
 
@@ -218,7 +218,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     copy(rdd = rdd.filter { case (k, v) => p(k, v) })
 
   def filter(cond: String, keep: Boolean): KeyTable = {
-    val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
@@ -342,7 +342,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   }
 
   def forall(code: String): Boolean = {
-    val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
@@ -355,7 +355,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   }
 
   def exists(code: String): Boolean = {
-    val ec = EvalContext(fields.map(f => (f.name, f.`type`)): _*)
+    val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
@@ -370,16 +370,16 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def export(sc: SparkContext, output: String, typesFile: String) {
     val hConf = sc.hadoopConfiguration
 
-    val ec = EvalContext(fields.map(fd => (fd.name, fd.`type`)): _*)
+    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
 
     Option(typesFile).foreach { file =>
-      KeyTable.exportTypes(file, hConf, fields.map(f => (f.name, f.`type`)).toArray)
+      KeyTable.exportTypes(file, hConf, fields.map(f => (f.name, f.typ)).toArray)
     }
 
     hConf.delete(output, recursive = true)
 
     val localNFields = nFields
-    val localTypes = fields.map(_.`type`)
+    val localTypes = fields.map(_.typ)
 
     KeyTable.toSingleRDD(rdd, nKeys, nValues)
       .mapPartitions { it =>
@@ -409,12 +409,12 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def aggregate(keyCond: String, aggCond: String): KeyTable = {
 
     val aggregationST = fields.zipWithIndex.map {
-      case (fd, i) => (fd.name, (i, fd.`type`))
+      case (fd, i) => (fd.name, (i, fd.typ))
     }.toMap
 
     val keyEC = EvalContext(aggregationST)
     val ec = EvalContext(fields.zipWithIndex.map {
-      case (fd, i) => (fd.name, (i, TAggregable(fd.`type`, aggregationST)))
+      case (fd, i) => (fd.name, (i, TAggregable(fd.typ, aggregationST)))
     }.toMap)
 
     val (keyPaths, keyTypes, keyF) = Parser.parseAnnotationExprs(keyCond, keyEC, None)
@@ -505,9 +505,9 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val index = explodeField.index
 
-    val explodeType = explodeField.`type` match {
+    val explodeType = explodeField.typ match {
       case t: TIterable => t.elementType
-      case _ => fatal(s"Require Array or Set. Column `$columnName' has type `${ explodeField.`type` }'.")
+      case _ => fatal(s"Require Array or Set. Column `$columnName' has type `${ explodeField.typ }'.")
     }
 
     val newSignature = signature.copy(fields = fields.updated(index, Field(columnName, explodeType, index)))

@@ -1,5 +1,4 @@
-from hail.context import HailContext
-from hail.java import scala_object
+from hail.java import scala_object, Env
 
 
 class Variant(object):
@@ -15,14 +14,14 @@ class Variant(object):
         """
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(HailContext.hail_package().variant, 'Variant').apply(contig, start, ref, alts)
+        jrep = scala_object(Env.hail_package().variant, 'Variant').apply(contig, start, ref, alts)
         self._init_from_java(jrep)
 
     def __str__(self):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Variant(%s, %s, %s, %s)' % (self.contig, self.start, self.ref, self.alt_alleles())
+        return 'Variant(%s, %s, %s, %s)' % (self.contig, self.start, self.ref, self.alt_alleles)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
@@ -53,7 +52,7 @@ class Variant(object):
 
         :rtype: :class:`.Variant.`
         """
-        jrep = scala_object(HailContext.hail_package().variant, 'Variant').parse(string)
+        jrep = scala_object(Env.hail_package().variant, 'Variant').parse(string)
         return Variant._from_java(jrep)
 
     def num_alt_alleles(self):
@@ -208,7 +207,7 @@ class AltAllele(object):
         :param str alt: alternate allele
         """
 
-        jaa = scala_object(HailContext.hail_package().variant, 'AltAllele').apply(ref, alt)
+        jaa = scala_object(Env.hail_package().variant, 'AltAllele').apply(ref, alt)
         self._init_from_java(jaa)
 
     def __str__(self):
@@ -336,7 +335,7 @@ class Locus(object):
 
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(HailContext.hail_package().variant, 'Locus').apply(contig, position)
+        jrep = scala_object(Env.hail_package().variant, 'Locus').apply(contig, position)
         self._init_from_java(jrep)
 
     def __str__(self):
@@ -366,4 +365,4 @@ class Locus(object):
         :rtype: :class:`.Locus`
         """
 
-        return Locus._from_java(scala_object(HailContext.hail_package().variant, 'Locus').parse(string))
+        return Locus._from_java(scala_object(Env.hail_package().variant, 'Locus').parse(string))

@@ -42,7 +42,7 @@ class KeyTable(object):
 
         """
         try:
-            return Type(self.jkt.signature())
+            return Type._from_java(self.jkt.signature())
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 

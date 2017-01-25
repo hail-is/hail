@@ -45,7 +45,7 @@ object ExportVCF extends Command {
     if (value == null)
       false
     else
-      f.`type` match {
+      f.typ match {
         case it: TIterable =>
           val arr = value.asInstanceOf[Iterable[_]]
           if (arr.isEmpty) {
@@ -195,9 +195,9 @@ object ExportVCF extends Command {
         sb.append("##INFO=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
-        sb.append(f.attr("Number").getOrElse(infoNumber(f.`type`)))
+        sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
         sb.append(",Type=")
-        sb.append(infoType(f.`type`))
+        sb.append(infoType(f.typ))
         sb.append(",Description=\"")
         sb.append(f.attr("Description").getOrElse(""))
         sb.append("\">\n")

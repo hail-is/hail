@@ -59,7 +59,7 @@ object KuduAnnotationImpex extends AnnotationImpex[DataType, Any] {
   }
 
   private def flattenElements(row: Row, t: expr.TStruct, acc: Seq[Any]): Seq[Any] = {
-    t.fields.flatMap(field => field.`type` match {
+    t.fields.flatMap(field => field.typ match {
       case st: expr.TStruct => flattenElements(row.getStruct(field.index), st, acc)
       case at: expr.TIterable => at.elementType match {
         case st: expr.TStruct => row.getAs[Seq[Row]](field.index)
@@ -78,7 +78,7 @@ object KuduAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case st: expr.TStruct =>
       val row = a.asInstanceOf[Row]
       val it = row.toSeq.iterator
-      Row.fromSeq(st.fields.map(f => consume(it, f.`type`)))
+      Row.fromSeq(st.fields.map(f => consume(it, f.typ)))
   }
 
   def reorder(row: Row, indices: Array[Int]): Row = {
@@ -89,7 +89,7 @@ object KuduAnnotationImpex extends AnnotationImpex[DataType, Any] {
   private def consume(stream: Iterator[Any], t: expr.Type): Any = {
     t match {
       case st: expr.TStruct =>
-        val values = st.fields.map(f => consume(stream, f.`type`))
+        val values = st.fields.map(f => consume(stream, f.typ))
         if (values.forall(_ == null)) null else Row.fromSeq(values)
       case at: expr.TIterable => mutable.WrappedArray.make(
         Range(0, fixedArraySize).toArray
