@@ -534,98 +534,98 @@ class ContextTests(unittest.TestCase):
         i1 = 5
         i2 = None
         itype = TInt()
-        self.assertEqual(vds.annotate_global_py(i1, itype, path).global_annotations().annotation, i1)
-        self.assertEqual(vds.annotate_global_py(i2, itype, path).global_annotations().annotation, i2)
+        self.assertEqual(vds.annotate_global_py(i1, itype, path).globals().annotation, i1)
+        self.assertEqual(vds.annotate_global_py(i2, itype, path).globals().annotation, i2)
 
         l1 = 5L
         l2 = None
         ltype = TLong()
-        self.assertEqual(vds.annotate_global_py(l1, ltype, path).global_annotations().annotation, l1)
-        self.assertEqual(vds.annotate_global_py(l2, ltype, path).global_annotations().annotation, l2)
+        self.assertEqual(vds.annotate_global_py(l1, ltype, path).globals().annotation, l1)
+        self.assertEqual(vds.annotate_global_py(l2, ltype, path).globals().annotation, l2)
 
         # FIXME add these back in when we update py4j, or rip out TFloat altogether.
         # f1 = float(5)
         # f2 = None
         # ftype = TFloat()
-        # self.assertEqual(vds.annotate_global_py(f1, ftype, path).global_annotations().annotation, f1)
-        # self.assertEqual(vds.annotate_global_py(f2, ftype, path).global_annotations().annotation, f2)
+        # self.assertEqual(vds.annotate_global_py(f1, ftype, path).globals().annotation, f1)
+        # self.assertEqual(vds.annotate_global_py(f2, ftype, path).globals().annotation, f2)
 
         d1 = float(5)
         d2 = None
         dtype = TDouble()
-        self.assertEqual(vds.annotate_global_py(d1, dtype, path).global_annotations().annotation, d1)
-        self.assertEqual(vds.annotate_global_py(d2, dtype, path).global_annotations().annotation, d2)
+        self.assertEqual(vds.annotate_global_py(d1, dtype, path).globals().annotation, d1)
+        self.assertEqual(vds.annotate_global_py(d2, dtype, path).globals().annotation, d2)
 
         b1 = True
         b2 = None
         btype = TBoolean()
-        self.assertEqual(vds.annotate_global_py(b1, btype, path).global_annotations().annotation, b1)
-        self.assertEqual(vds.annotate_global_py(b2, btype, path).global_annotations().annotation, b2)
+        self.assertEqual(vds.annotate_global_py(b1, btype, path).globals().annotation, b1)
+        self.assertEqual(vds.annotate_global_py(b2, btype, path).globals().annotation, b2)
 
         arr1 = [1, 2, 3, 4]
         arr2 = [1, 2, None, 4]
         arr3 = None
         arr4 = []
         arrtype = TArray(TInt())
-        self.assertEqual(vds.annotate_global_py(arr1, arrtype, path).global_annotations().annotation, arr1)
-        self.assertEqual(vds.annotate_global_py(arr2, arrtype, path).global_annotations().annotation, arr2)
-        self.assertEqual(vds.annotate_global_py(arr3, arrtype, path).global_annotations().annotation, arr3)
-        self.assertEqual(vds.annotate_global_py(arr4, arrtype, path).global_annotations().annotation, arr4)
+        self.assertEqual(vds.annotate_global_py(arr1, arrtype, path).globals().annotation, arr1)
+        self.assertEqual(vds.annotate_global_py(arr2, arrtype, path).globals().annotation, arr2)
+        self.assertEqual(vds.annotate_global_py(arr3, arrtype, path).globals().annotation, arr3)
+        self.assertEqual(vds.annotate_global_py(arr4, arrtype, path).globals().annotation, arr4)
 
         set1 = set([1, 2, 3, 4])
         set2 = set([1, 2, None, 4])
         set3 = None
         set4 = set()
         settype = TSet(TInt())
-        self.assertEqual(vds.annotate_global_py(set1, settype, path).global_annotations().annotation, set1)
-        self.assertEqual(vds.annotate_global_py(set2, settype, path).global_annotations().annotation, set2)
-        self.assertEqual(vds.annotate_global_py(set3, settype, path).global_annotations().annotation, set3)
-        self.assertEqual(vds.annotate_global_py(set4, settype, path).global_annotations().annotation, set4)
+        self.assertEqual(vds.annotate_global_py(set1, settype, path).globals().annotation, set1)
+        self.assertEqual(vds.annotate_global_py(set2, settype, path).globals().annotation, set2)
+        self.assertEqual(vds.annotate_global_py(set3, settype, path).globals().annotation, set3)
+        self.assertEqual(vds.annotate_global_py(set4, settype, path).globals().annotation, set4)
 
         dict1 = {'a': 'foo', 'b': 'bar'}
         dict2 = {'a': None, 'b': 'bar'}
         dict3 = None
         dict4 = dict()
         dicttype = TDict(TString())
-        self.assertEqual(vds.annotate_global_py(dict1, dicttype, path).global_annotations().annotation, dict1)
-        self.assertEqual(vds.annotate_global_py(dict2, dicttype, path).global_annotations().annotation, dict2)
-        self.assertEqual(vds.annotate_global_py(dict3, dicttype, path).global_annotations().annotation, dict3)
-        self.assertEqual(vds.annotate_global_py(dict4, dicttype, path).global_annotations().annotation, dict4)
+        self.assertEqual(vds.annotate_global_py(dict1, dicttype, path).globals().annotation, dict1)
+        self.assertEqual(vds.annotate_global_py(dict2, dicttype, path).globals().annotation, dict2)
+        self.assertEqual(vds.annotate_global_py(dict3, dicttype, path).globals().annotation, dict3)
+        self.assertEqual(vds.annotate_global_py(dict4, dicttype, path).globals().annotation, dict4)
 
         struct1 = Struct({'field1': 5, 'field2': 10, 'field3': [1, 2]}, ['field1', 'field2', 'field3'])
         struct2 = Struct({'field1': 5, 'field2': None, 'field3': None}, ['field1', 'field2', 'field3'])
         struct3 = None
         structtype = TStruct(['field1', 'field2', 'field3'], [TInt(), TInt(), TArray(TInt())])
-        self.assertEqual(vds.annotate_global_py(struct1, structtype, path).global_annotations().annotation, struct1)
-        self.assertEqual(vds.annotate_global_py(struct2, structtype, path).global_annotations().annotation, struct2)
-        self.assertEqual(vds.annotate_global_py(struct3, structtype, path).global_annotations().annotation, struct3)
+        self.assertEqual(vds.annotate_global_py(struct1, structtype, path).globals().annotation, struct1)
+        self.assertEqual(vds.annotate_global_py(struct2, structtype, path).globals().annotation, struct2)
+        self.assertEqual(vds.annotate_global_py(struct3, structtype, path).globals().annotation, struct3)
 
         variant1 = Variant.parse('1:1:A:T,C')
         variant2 = None
         varianttype = TVariant()
-        self.assertEqual(vds.annotate_global_py(variant1, varianttype, path).global_annotations().annotation, variant1)
-        self.assertEqual(vds.annotate_global_py(variant2, varianttype, path).global_annotations().annotation, variant2)
+        self.assertEqual(vds.annotate_global_py(variant1, varianttype, path).globals().annotation, variant1)
+        self.assertEqual(vds.annotate_global_py(variant2, varianttype, path).globals().annotation, variant2)
 
         altallele1 = AltAllele('T', 'C')
         altallele2 = None
         altalleletype = TAltAllele()
-        self.assertEqual(vds.annotate_global_py(altallele1, altalleletype, path).global_annotations().annotation, altallele1)
-        self.assertEqual(vds.annotate_global_py(altallele2, altalleletype, path).global_annotations().annotation, altallele2)
+        self.assertEqual(vds.annotate_global_py(altallele1, altalleletype, path).globals().annotation, altallele1)
+        self.assertEqual(vds.annotate_global_py(altallele2, altalleletype, path).globals().annotation, altallele2)
 
         locus1 = Locus.parse('1:100')
         locus2 = None
         locustype = TLocus()
-        self.assertEqual(vds.annotate_global_py(locus1, locustype, path).global_annotations().annotation, locus1)
-        self.assertEqual(vds.annotate_global_py(locus2, locustype, path).global_annotations().annotation, locus2)
+        self.assertEqual(vds.annotate_global_py(locus1, locustype, path).globals().annotation, locus1)
+        self.assertEqual(vds.annotate_global_py(locus2, locustype, path).globals().annotation, locus2)
 
         interval1 = Interval.parse('1:1-100')
         interval2 = None
         intervaltype = TInterval()
-        self.assertEqual(vds.annotate_global_py(interval1, intervaltype, path).global_annotations().annotation, interval1)
-        self.assertEqual(vds.annotate_global_py(interval2, intervaltype, path).global_annotations().annotation, interval2)
+        self.assertEqual(vds.annotate_global_py(interval1, intervaltype, path).globals().annotation, interval1)
+        self.assertEqual(vds.annotate_global_py(interval2, intervaltype, path).globals().annotation, interval2)
 
         genotype1 = Genotype(1)
         genotype2 = None
         genotypetype = TGenotype()
-        self.assertEqual(vds.annotate_global_py(genotype1, genotypetype, path).global_annotations().annotation, genotype1)
-        self.assertEqual(vds.annotate_global_py(genotype2, genotypetype, path).global_annotations().annotation, genotype2)
+        self.assertEqual(vds.annotate_global_py(genotype1, genotypetype, path).globals().annotation, genotype1)
+        self.assertEqual(vds.annotate_global_py(genotype2, genotypetype, path).globals().annotation, genotype2)
