@@ -64,7 +64,7 @@ The single command
 
   .. code-block:: text
 
-      $ ./gradlew shadowJar
+    $ ./gradlew shadowJar
 
 creates a Hail JAR file at ``build/libs/hail-all-spark.jar``. The initial build takes time as `Gradle <https://gradle.org/>`_ installs all Hail dependencies.
 
@@ -123,6 +123,7 @@ instructions as follows:
 
  - Set the Spark version in the gradle command
   .. code-block:: text
+      
       $ ./gradlew -Dspark.version=2.1.0 shadowJar
 
  - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.1.0-bin-hadoop2.7*

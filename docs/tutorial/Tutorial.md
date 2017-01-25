@@ -383,7 +383,7 @@ Variant annotation schema:
 
 We can now filter variants based on HWE p-values with respect to each population:
 
-    >>> hwe_filter_expression = "&&\n".join(['va.hweByPop.hwe' + pop + '.pHWE > 1e-6 ' for pop in populations])
+    >>> hwe_filter_expression = " && ".join(['va.hweByPop.hwe' + pop + '.pHWE > 1e-6 ' for pop in populations])
     >>> vds_gAD_sCR_sGQ_vHWE = vds_gAB_sCR_sGQ.filter_variants_expr(hwe_filter_expression)
     >>> vds_gAD_sCR_sGQ_vHWE.count()
 
@@ -430,8 +430,7 @@ Oops! HWE statistics on the X chromosome should ignore male samples, since males
     >>> 
     >>> vds_filtered = (vds_gAB_sCR_sGQ
     >>>     .annotate_variants_expr(sex_aware_hwe_exprs)
-    >>>     .filter_variants_expr(hwe_filter_expression)
-    >>>     .filter_variants_expr('va.qc.gqMean >= 20')
+    >>>     .filter_variants_expr(hwe_filter_expression + '&& va.qc.gqMean >= 20')
     >>>     .persist())
     >>>
     >>> print('total variants = %s' % vds_filtered.num_variants())
