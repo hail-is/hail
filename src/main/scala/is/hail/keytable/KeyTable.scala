@@ -110,6 +110,8 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def typeCheck = rdd.forall { case (k, v) => keySignature.typeCheck(k) && valueSignature.typeCheck(v) }
 
+  def printSchema(): Unit = println(signature.toPrettyString())
+
   def same(other: KeyTable): Boolean = {
     if (signature != other.signature) {
       info(
