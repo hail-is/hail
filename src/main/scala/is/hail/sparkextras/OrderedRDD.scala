@@ -275,6 +275,7 @@ object OrderedRDD {
     // Assume the input partitions are roughly balanced and over-sample a little bit.
     val sampleSizePerPartition = math.ceil(3.0 * sampleSize / rdd.partitions.length).toInt
     info(s"sampleSizePerPartition=${sampleSizePerPartition}")
+    info(s"rdd = ${rdd.take(5).mkString(",")}")
     val (numItems, sketched) = OrderedPartitioner.sketch(rdd, sampleSizePerPartition)
     info(s"numItems=$numItems")
     if (numItems == 0L) {
@@ -404,12 +405,8 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     if (!shuffle && maxPartitions >= n)
       return this
     if (shuffle) {
-      val shuffled = super.coalesce(maxPartitions, shuffle)
-      val partitionSizes = shuffled.sparkContext.runJob(shuffled, getIteratorSize _)
-      info(s"shuffled maxPartitions=$maxPartitions partitionSizes=${partitionSizes.zipWithIndex.mkString(",")}")
-      info(s"shuffled keys=${shuffled.keys.takeOrdered(10).mkString(",")}")
+      val shuffled = super.coalesce(maxPartitions, shuffle).mapPartitions(it => OrderedRDD.localKeySort(it))
       val ranges = OrderedRDD.calculateKeyRanges(shuffled.keys.map(kOk.project))
-      info(s"orderedRDD coalesce ranges=${ranges.mkString(",")}")
       OrderedRDD.shuffle(shuffled, OrderedPartitioner(ranges, ranges.length + 1))
     } else {
 
