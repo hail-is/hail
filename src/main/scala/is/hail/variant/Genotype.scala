@@ -545,10 +545,16 @@ object Genotype {
     val dp =
       if (flagHasDP(flags)) {
         if (flagHasAD(flags)) {
+          var i = 0
+          var adsum = 0
+          while (i < ad.length) {
+            adsum += ad(i)
+            i += 1
+          }
           if (flagSimpleDP(flags))
-            ad.sum
+            adsum
           else
-            ad.sum + a.readULEB128()
+            adsum + a.readULEB128()
         } else
           a.readULEB128()
       } else
