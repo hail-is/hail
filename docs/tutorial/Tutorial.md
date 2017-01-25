@@ -210,7 +210,7 @@ The call rate for each variant is calculated using the `fraction` [aggregable](r
 
     >>> vds_gAB_vCR.print_schema(sa=True)
 
-Let's export these sample annotations to a text file:
+Let's export these sample annotations to a text file and take a look at them:
 
     >>> vds_gAB_vCR.export_samples('sampleqc.txt', 'Sample = s.id, sa.qc.*')
 
@@ -255,33 +255,11 @@ We can further analyze these results locally using Python's matplotlib. Below is
 
 <img src="test.sampleqc.png">
 
-Let's remove the samples that are outliers in the plots above (where cutoffs are given the red lines). We will remove these samples from `vds_gAB` (after filtering genotypes but before filtering variants) because it's possible that poor-quality samples decreased the call rate on variants we'd actually like to keep. Here are two of the many ways we could do this step: 
-
-**Method 1:** Export a list of samples to keep from `vds_gAB_vCR`, and filter samples from `vds_gAB` based on this list.
-
-    >>> (vds_gAB_vCR
-    >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20')
-    >>>     .export_samples('included_samples.txt', 's.id'))
-    >>> vds_gAB_sCR_sGQ = vds_gAB.filter_samples_list('included_samples.txt')
-    >>>
-    >>> print('before filter: %d samples' % vds_gAB.num_samples())
-    >>> print('after filter: %d samples' % vds_gAB_sCR_sGQ.num_samples())
-    >>> method_1_kept_ids = vds_gAB_sCR_sGQ.sample_ids()
-    
-**Method 2:** Annotate and filter `vds_gAB` using the exported sample QC metrics:
+Let's remove the samples that are outliers in the plots above (where cutoffs are given the red lines). We will remove these samples from `vds_gAB` (after filtering genotypes but before filtering variants) because it's possible that poor-quality samples decreased the call rate on variants we'd actually like to keep. Here is one of the many ways we could do this step: 
 
     >>> vds_gAB_sCR_sGQ = (vds_gAB
-    >>>     .annotate_samples_table('sampleqc.txt', sample_expr='Sample', 
-    >>>                             root='sa.qc', config=TextTableConfig(impute=True))
+    >>>     .annotate_samples_vds(vds_gAB_vCR, code = 'sa.qc = vds.qc' )
     >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20'))
-    >>>
-    >>> print('before filter: %d samples' % vds_gAB.num_samples())
-    >>> print('after filter: %d samples' % vds_gAB_sCR_sGQ.num_samples())
-    >>> method_2_kept_ids = vds_gAB_sCR_sGQ.sample_ids()
-    
-Let's make sure these two methods give us the same samples:
-
-    >>> method_1_kept_ids == method_2_kept_ids
 
 As before, let's use the `annotate_global_expr_by_sample` method to count the number of samples by phenotype that remain in the dataset after filtering.
 
@@ -516,7 +494,7 @@ Let's run linear regression on `vds_QCed`. First, we will filter out variants wi
     >>>     .filter_variants_expr('va.qc.AF > 0.05 && va.qc.AF < 0.95')
     >>>     .annotate_samples_vds(vds_pca, code='sa.pca = vds.pca')
     >>>     .linreg('sa.pheno.CaffeineConsumption', 
-    >>>             covariates='sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale'))
+    >>>             covariates=['sa.pca.PC1', 'sa.pca.PC2', 'sa.pca.PC3', 'sa.pheno.isFemale']))
 
 To examine this, we can create a Q-Q plot. We are going to be doing this a couple of times, so let's first define a function for this purpose.
     
@@ -534,7 +512,6 @@ To examine this, we can create a Q-Q plot. We are going to be doing this a coupl
     
 With this new function, we can make a Q-Q plot for our linear regression by simply doing:
 
-
     >>> linreg_pvals = sorted(vds_gwas.variants_keytable().to_pandas()["va.linreg.pval"])
     >>> qqplot(linreg_pvals, 5, 6)
     
@@ -546,7 +523,7 @@ We start from our `vds_gwas`. The logistic regression method also takes a test t
 
     >>> vds_gwas = (vds_gwas
     >>>     .logreg(test='wald', y='sa.pheno.PurpleHair',
-    >>>             covariates='sa.pca.PC1, sa.pca.PC2, sa.pca.PC3, sa.pheno.isFemale'))
+    >>>             covariates=['sa.pca.PC1', 'sa.pca.PC2', 'sa.pca.PC3', 'sa.pheno.isFemale']))
     
 Once again, we can use our Q-Q plot function:
 
