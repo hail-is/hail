@@ -64,7 +64,7 @@ class Genotype(object):
 
         result = strip_option(self._jrep.ad())
         if result:
-            result = [x for x in scala_package_object(Env.hail_package().utils).makeArrayListArray(result)]
+            result = [x for x in scala_package_object(Env.hail_package().utils).arrayToArrayList(result)]
         return result
 
     def dp(self):
@@ -91,7 +91,7 @@ class Genotype(object):
 
         result = strip_option(self._jrep.pl())
         if result:
-            result = [x for x in scala_package_object(Env.hail_package().utils).makeArrayListArray(result)]
+            result = [x for x in scala_package_object(Env.hail_package().utils).arrayToArrayList(result)]
         return result
 
     def od(self):
@@ -216,7 +216,7 @@ class Genotype(object):
 
         result = strip_option(self._jrep.oneHotAlleles(num_alleles))
         if result:
-            result = [x for x in scala_package_object(Env.hail_package().utils).makeArrayListIterable(result)]
+            result = [x for x in scala_package_object(Env.hail_package().utils).iterableToArrayList(result)]
         return result
 
     def one_hot_genotype(self, num_genotypes):
@@ -246,7 +246,7 @@ class Genotype(object):
 
         result = strip_option(self._jrep.oneHotGenotype(num_genotypes))
         if result:
-            result = [x for x in scala_package_object(Env.hail_package().utils).makeArrayListIterable(result)]
+            result = [x for x in scala_package_object(Env.hail_package().utils).iterableToArrayList(result)]
         return result
 
     def p_ab(self, theta=0.5):

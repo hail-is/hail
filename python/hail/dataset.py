@@ -1,4 +1,4 @@
-from __future__ import print_function # Python 2 and 3 print compatibility
+from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import scala_package_object, jarray
 from hail.keytable import KeyTable
@@ -6,6 +6,7 @@ from hail.utils import TextTableConfig
 
 from py4j.protocol import Py4JJavaError
 from hail.type import Type
+
 
 class VariantDataset(object):
     def __init__(self, hc, jvds):
@@ -38,12 +39,12 @@ class VariantDataset(object):
         """
 
         schema = Type._from_java(self.jvds.saSignature())
-        zipped_annotations = scala_package_object(self.hc.hail.utils).makeArrayList(
+        zipped_annotations = scala_package_object(self.hc.hail.utils).iterableToArrayList(
             self.jvds.sampleIdsAndAnnotations()
         )
         r = {}
         for element in zipped_annotations:
-            r[element._1()] = schema.convert(element._2())
+            r[element._1()] = schema.convert_to_py(element._2())
         return r
 
     def num_partitions(self):
@@ -253,6 +254,23 @@ class VariantDataset(object):
         if propagate_gq:
             pargs.append('--propagate-gq')
         return self.hc.run_command(self, pargs)
+
+    def annotate_global_py(self, annotation, ptype, path):
+        """Annotate global from python objects.
+
+        :param annotation: annotation to add to global
+        :param :class:`.Type` ptype: Hail type of annotation
+        :param str path: annotation path starting in 'global'
+        :return: annotated variant dataset
+
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        ptype.typecheck(annotation)
+
+        annotated = self.jvds.annotateGlobal(ptype.convert_to_j(annotation), ptype._jtype, path)
+        assert (annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking')
+        return VariantDataset(self.hc, annotated)
 
     def annotate_global_expr_by_variant(self, condition):
         """Update the global annotations with expression with aggregation over
@@ -1137,7 +1155,7 @@ class VariantDataset(object):
             pargs.append('--print-missing')
         return self.hc.run_command(self, pargs)
 
-    def export_plink(self, output, fam_expr = 'id = s.id'):
+    def export_plink(self, output, fam_expr='id = s.id'):
         """Export dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`_ BED, BIM and FAM.
 
         **Examples**
@@ -1846,7 +1864,7 @@ class VariantDataset(object):
 
         :return: annotation
         """
-        return Type._from_java(self.jvds.globalSignature()).convert(self.jvds.globalAnnotation)
+        return Type._from_java(self.jvds.globalSignature()).convert_to_py(self.jvds.globalAnnotation())
 
     def grm(self, format, output, id_file=None, n_file=None):
         """Compute the Genetic Relatedness Matrix (GMR).
@@ -2457,8 +2475,8 @@ class VariantDataset(object):
     def variant_schema(self):
         return Type._from_java(self.jvds.vaSignature())
 
-    def query_samples(self, exprs):
-        """Perform aggregation queries over samples and sample annotations.
+    def query_samples_typed(self, exprs):
+        """Perform aggregation queries over samples and sample annotations, and returns python object(s) and types.
 
         **Example**
 
@@ -2487,16 +2505,106 @@ class VariantDataset(object):
         - ``s``: sample
         - ``sa``: sample annotations
 
-
-        :param exprs: str or list of str
-        :return: annotation or list of annotation
+        :param exprs: one or more query expressions
+        :type exprs: str or list of str
+        :return: annotation(s) and type(s)
+        :rtype: tuple of annotation or list of annotation, and :class:`.Type` or list of :class:`.Type`
         """
+
         if (isinstance(exprs, list)):
             result_list = self.jvds.querySamples(jarray(self.hc.jvm.java.lang.String, exprs))
-            return [Type._from_java(x._2()).convert(x._1()) for x in result_list]
+            ptypes = [Type._from_java(x._2()) for x in result_list]
+            annotations = [ptypes[i].convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            return annotations, ptypes
         else:
             result = self.jvds.querySamples(exprs)
-            return Type._from_java(result._2()).convert(result._1())
+            ptype = Type._from_java(result._2())
+            return ptype.convert_to_py(result._1()), ptype
+
+    def query_samples(self, exprs):
+        """Perform aggregation queries over samples and sample annotations, and returns python object(s).
+
+        **Example**
+
+        >>> low_callrate_samples = vds.query_samples(
+        >>>     'samples.filter(s => sa.qc.callRate < 0.95).collect()')
+
+        **Details**
+
+        This method evaluates Hail expressions over samples and sample
+        annotations.  The ``exprs`` argument requires either a single
+        string, in which case the method will return the result for
+        that one query, or a list of strings, in which case the method
+        will return a list of results.  The latter functionality can
+        be used to improve performance by evaluating multiple queries
+        at once.
+
+        The namespace of the expressions includes:
+
+        - ``global``: global annotations
+        - ``samples`` (*Aggregable[Sample]*): aggregable of :ref:`sample`
+
+        Map and filter expressions on this aggregable have the additional
+        namespace:
+
+        - ``global``: global annotations
+        - ``s``: sample
+        - ``sa``: sample annotations
+
+        :param exprs: one or more query expressions
+        :type exprs: str or list of str
+        :return: annotation or list of annotations
+        """
+        r, t = self.query_samples_typed(exprs)
+        return r
+
+    def query_variants_typed(self, exprs):
+        """Perform aggregation queries over variants and variant annotations, and returns python object(s) and types.
+
+        **Example**
+
+        >>> lof_variant_count = vds.query_variants(
+        >>>     'variants.filter(v => va.csq == "LOF").count()')
+
+        **Details**
+
+        This method evaluates Hail expressions over variants and variant
+        annotations.  The ``exprs`` argument requires either a single
+        string, in which case the method will return the result for
+        that one query, or a list of strings, in which case the method
+        will return a list of results.  The latter functionality can
+        be used to improve performance by evaluating multiple queries
+        at once.
+
+        The namespace of the expressions includes:
+
+        - ``global``: global annotations
+        - ``variants`` (*Aggregable[Variant]*): aggregable of :ref:`variant`
+
+        Map and filter expressions on this aggregable have the additional
+        namespace:
+
+        - ``global``: global annotations
+        - ``v``: :ref:`variant`
+        - ``va``: variant annotations
+
+
+
+        :param exprs: one or more query expressions
+        :type exprs: str or list of str
+        :return: annotation(s) and type(s)
+        :rtype: tuple of annotation or list of annotation, and :class:`.Type` or list of :class:`.Type`
+        """
+
+        if (isinstance(exprs, list)):
+            result_list = self.jvds.queryVariants(jarray(self.hc.jvm.java.lang.String, exprs))
+            ptypes = [Type._from_java(x._2()) for x in result_list]
+            annotations = [ptypes[i].convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            return annotations, ptypes
+        else:
+            result = self.jvds.queryVariants(exprs)
+            ptype = Type._from_java(result._2())
+            return ptype.convert_to_py(result._1()), ptype
 
     def query_variants(self, exprs):
         """Perform aggregation queries over variants and variant annotations.
@@ -2529,15 +2637,13 @@ class VariantDataset(object):
         - ``va``: variant annotations
 
 
-        :param exprs: str or list of str
-        :return: annotation or list of annotation
+        :param exprs: one or more query expressions
+        :type exprs: str or list of str
+        :return: annotation or list of annotations
         """
-        if (isinstance(exprs, list)):
-            result_list = self.jvds.queryVariants(jarray(self.hc.jvm.java.lang.String, exprs))
-            return [Type._from_java(x._2()).convert(x._1()) for x in result_list]
-        else:
-            result = self.jvds.queryVariants(exprs)
-            return Type._from_java(result._2()).convert(result._1())
+
+        r, t = self.query_variants_typed(exprs)
+        return r
 
     def rename_samples(self, input):
         """Rename samples.
@@ -2624,20 +2730,6 @@ class VariantDataset(object):
         if branching_factor:
             pargs.append('-b')
             pargs.append(branching_factor)
-        return self.hc.run_command(self, pargs)
-
-    def show_globals(self, output=None):
-        """Print or export all global annotations as JSON
-
-        :param output: Output file.
-        :type output: str or None
-
-        """
-
-        pargs = ['showglobals']
-        if output:
-            pargs.append('-o')
-            pargs.append(output)
         return self.hc.run_command(self, pargs)
 
     def sparkinfo(self):

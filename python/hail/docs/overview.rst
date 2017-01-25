@@ -135,7 +135,7 @@ Filter commands take a **boolean expression**. Here are some examples of boolean
 
  - Variant chromosome name ``v.contig`` does not equal "X" or "Y"
 
-    .. highight:: none
+    .. highlight:: none
 
     ::
 

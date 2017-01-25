@@ -19,7 +19,8 @@ import scala.reflect.ClassTag
 
 package object utils extends Logging
   with richUtils.Implicits
-  with utils.NumericImplicits {
+  with utils.NumericImplicits
+  with Py4jUtils {
 
   class FatalException(val msg: String, val logMsg: Option[String] = None) extends RuntimeException(msg)
 
@@ -102,22 +103,6 @@ package object utils extends Logging
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
   }
-
-  def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
-    val list = new java.util.ArrayList[T]()
-    for (elem <- arr)
-      list.add(elem)
-    list
-  }
-
-  def iterableToArrayList[T](it: Iterable[T]): java.util.ArrayList[T] = {
-    val list = new java.util.ArrayList[T]()
-    for (elem <- it)
-      list.add(elem)
-    list
-  }
-
-  def makeIndexedSeq[T](arr: Array[T]): IndexedSeq[T] = arr: IndexedSeq[T]
 
   def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A]): Unit =
     if (ord.lt(a, low) || ord.gt(a, high)) {
