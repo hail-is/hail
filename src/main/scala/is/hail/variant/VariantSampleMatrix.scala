@@ -1079,17 +1079,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val nValues = kt.nValues
     val ec = EvalContext(kt.fields.map(f => (f.name, f.`type`)): _*)
 
-    val keyedRDD = kt.rdd.map {
-      case (k, v) =>
-        KeyTable.setEvalContext(ec, k, v, nKeys, nValues)
-    }.toOrderedRDD(rdd.orderedPartitioner)
+    val keyedRDD = kt.rdd.map { case (k: Row, v) => (k(0).asInstanceOf[Variant], v) }
 
-    println(s"${kt.keySignature.toPrettyString()}")
-    println(s"${kt.valueSignature.toPrettyString()}")
-//    val keyedRDD = kt.rdd.map { case (v, a) => (v.asInstanceOf[Variant], a) }.toOrderedRDD(rdd.orderedPartitioner)
-//
-//    annotateVariants(keyedRDD, finalType, inserter)
-    this
+    val ordRdd = OrderedRDD(keyedRDD, None, None)
+
+    annotateVariants(ordRdd, finalType, inserter)
   }
 }
 
