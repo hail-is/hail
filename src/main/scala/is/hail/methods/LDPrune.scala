@@ -205,21 +205,21 @@ object LDPrune {
   }
 
   def ldPrune(vds: VariantDataset, r2Threshold: Double, window: Int, memoryPerCore: Long = 1073741824) = {
-    val sc = vds.sparkContext
-    val nSamples = vds.nSamples
-    val partitionSizesInitial = sc.runJob(vds.rdd, getIteratorSize _)
-    val nVariantsInitial = partitionSizesInitial.sum
-
-    info(s"InputData: nSamples=$nSamples nVariants=$nVariantsInitial nPartitions=${ partitionSizesInitial.length }")
-
-    val minMemoryPerCore = math.ceil((1 / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
-    val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, memoryPerCore)
-
     if (r2Threshold < 0 || r2Threshold > 1)
       fatal(s"R^2 threshold must be in the range [0,1]. Found `$r2Threshold'.")
 
     if (window < 0)
       fatal(s"Window must be greater than or equal to 0. Found `$window'.")
+
+    val sc = vds.sparkContext
+    val nSamples = vds.nSamples
+    val partitionSizesInitial = sc.runJob(vds.rdd, getIteratorSize _)
+    val nVariantsInitial = partitionSizesInitial.sum
+
+    val minMemoryPerCore = math.ceil((1 / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
+    val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, memoryPerCore)
+
+    info(s"InputData: nSamples=$nSamples nVariants=$nVariantsInitial nPartitions=${ partitionSizesInitial.length } maxQueueSize=$maxQueueSize")
 
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"Memory per core must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB")
