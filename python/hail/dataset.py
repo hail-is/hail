@@ -1968,7 +1968,7 @@ class VariantDataset(object):
 
         >>> (hc.read('data/example.vds')
         >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno', config=TextTableConfig(impute=True))
-        >>>   .linreg(sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+        >>>   .linreg('sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
 
         **Notes**
 
