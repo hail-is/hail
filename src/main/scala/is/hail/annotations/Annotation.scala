@@ -15,7 +15,7 @@ object Annotation {
 
   def empty: Annotation = null
 
-  def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = IndexedSeq.fill[Annotation](n)(Annotation.empty)
+  def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = Array.fill[Annotation](n)(Annotation.empty)
 
   def printAnnotation(a: Any, nSpace: Int = 0): String = {
     val spaces = " " * nSpace
