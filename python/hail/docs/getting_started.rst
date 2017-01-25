@@ -11,15 +11,21 @@ You'll need:
 - Python 2.7 and IPython. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
 - `CMake <http://cmake.org>`_ and a C++ compiler.
 
-  On a Debian-based Linux like Ubuntu, run::
+  On a Debian-based Linux like Ubuntu, run:
+
+  .. code-block:: text
 
     $ sudo apt-get install g++ cmake
 
-  On OSX, install Xcode, available through the App Store, for the C++ compiler.  `CMake <http://cmake.org>`_ can be downloaded from the CMake website or through `Homebrew <http://brew.sh>`_.  To install with Homebrew, run::
+  On OSX, install Xcode, available through the App Store, for the C++ compiler.  `CMake <http://cmake.org>`_ can be downloaded from the CMake website or through `Homebrew <http://brew.sh>`_.  To install with Homebrew, run
+
+  .. code-block:: text
 
     $ brew install cmake
 
-- The Hail source code.  To clone the `Hail repository <https://github.com/broadinstitute/hail>`_ using `Git <https://git-scm.com/>`_, run::
+- The Hail source code.  To clone the `Hail repository <https://github.com/broadinstitute/hail>`_ using `Git <https://git-scm.com/>`_, run
+
+  .. code-block:: text
 
       $ git clone https://github.com/broadinstitute/hail.git
       $ cd hail
@@ -28,11 +34,15 @@ You'll need:
 
   Please also install "Seaborn", a python library for statistical data visualization. The easiest way to do this is by running:
 
-    $ pip install seaborn
+  .. code-block:: text
+
+      $ pip install seaborn
 
   or 
 
-    $ conda install seaborn
+  .. code-block:: text
+
+      $ conda install seaborn
 
   The former will only work if you pip installed, the later will only work if you did install Anaconda above. Seaborn is not technically 
   necessary, but it helps with the graphs in the tutorial.
@@ -50,9 +60,11 @@ Hail may be built to run locally or on a Spark cluster. Running locally is usefu
 Running locally
 ===============
 
-The single command::
+The single command
 
-    $ ./gradlew shadowJar
+  .. code-block:: text
+
+      $ ./gradlew shadowJar
 
 creates a Hail JAR file at ``build/libs/hail-all-spark.jar``. The initial build takes time as `Gradle <https://gradle.org/>`_ installs all Hail dependencies.
 
@@ -109,9 +121,9 @@ Hail should work with other versions of Spark 2.  To build against a
 different version, such as Spark 2.1.0, modify the above
 instructions as follows:
 
- - Set the Spark version in the gradle command:
-
-   $ ./gradlew -Dspark.version=2.1.0 shadowJar
+ - Set the Spark version in the gradle command
+  .. code-block:: text
+      $ ./gradlew -Dspark.version=2.1.0 shadowJar
 
  - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.1.0-bin-hadoop2.7*
 
@@ -129,11 +141,15 @@ To get started running Hail on the Google Cloud Platform, see this `forum post <
 BLAS and LAPACK
 ---------------
 
-Hail uses BLAS and LAPACK optimized linear algebra libraries. On Linux, these must be explicitly installed. On Ubuntu 14.04, run::
+Hail uses BLAS and LAPACK optimized linear algebra libraries. On Linux, these must be explicitly installed. On Ubuntu 14.04, run
+
+.. code-block:: text
 
     $ apt-get install libatlas-base-dev
 
-If natives are not found, ``hail.log`` will contain the warnings::
+If natives are not found, ``hail.log`` will contain the warnings
+
+.. code-block:: text
 
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemLAPACK
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
@@ -154,6 +170,8 @@ Several Hail tests have additional dependencies:
 
 Other recent versions of QCTOOL and R should suffice, but PLINK 1.7 will not.
 
-To execute all Hail tests, run::
+To execute all Hail tests, run
+
+.. code-block:: text
 
     $ ./gradlew -Dspark.home=$SPARK_HOME test
