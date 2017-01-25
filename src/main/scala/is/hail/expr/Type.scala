@@ -414,17 +414,6 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def genValue: Gen[Annotation] =
     Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x : IndexedSeq[Annotation])
-
-  override def makePy4jConvertible(a: Annotation): Any = {
-    if (a == null)
-      a
-    else {
-      var list = new java.util.ArrayList[Any]()
-      for (elem <- a.asInstanceOf[IndexedSeq[_]])
-        list.add(elementType.makePy4jConvertible(elem))
-      list
-    }
-  }
 }
 
 case class TSet(elementType: Type) extends TIterable {
