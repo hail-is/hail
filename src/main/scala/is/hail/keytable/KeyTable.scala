@@ -84,7 +84,7 @@ object KeyTable extends Serializable with TextExporter {
 case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, valueSignature: TStruct) {
   require(fieldNames.areDistinct())
 
-  def signature = keySignature.merge(valueSignature)._1
+  val (signature, mergeKeyAndValue) = keySignature.merge(valueSignature)
 
   def fields = signature.fields
 
