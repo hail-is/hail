@@ -32,7 +32,7 @@ You'll need:
 
   You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
 
-  You may also want to install `Seaborn <http://seaborn.pydata.org>`_, a Python library for statistical data visualization, using ``conda install seaborn`` or ``pip install seaborn``. While not technically necessary, we use Seaborn in the tutorial to make prettier plots.
+  You may also want to install `Seaborn <http://seaborn.pydata.org>`_, a Python library for statistical data visualization, using ``conda install seaborn`` or ``pip install seaborn``. While not technically necessary, Seaborn is used in the tutorial to make prettier plots.
 
 To install all dependencies for running locally on a fresh Ubuntu installation, use this `script <https://github.com/hail-is/hail/wiki/Install-Hail-dependencies-on-a-fresh-Ubuntu-VM>`_.
 
@@ -129,7 +129,7 @@ To get started running Hail on the Google Cloud Platform, see this `forum post <
 BLAS and LAPACK
 ---------------
 
-Hail uses BLAS and LAPACK optimized linear algebra libraries. On Linux, these must be explicitly installed. On Ubuntu 14.04, run
+Hail uses BLAS and LAPACK optimized linear algebra libraries. These should load automatically on recent versions of Mac OS X and Google Dataproc. On Linux, these must be explicitly installed; on Ubuntu 14.04, run
 
 .. code-block:: text
 
