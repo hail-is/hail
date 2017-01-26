@@ -13,7 +13,7 @@ import is.hail.utils._
 
 case class GlobalPruneIntermediate(rdd: GeneralRDD[(Variant, BVector[Double])], index: Int, persist: Boolean)
 
-case class BitVectorInput(gs: Array[Long], nSamples: Int, mean: Double, sdRecip: Double, sum: Int)
+case class BitVectorInput(gs: Array[Long], nSamples: Int, mean: Double, sdRecip: Double)
 
 object LDPrune {
   val variantByteOverhead = 50
@@ -21,13 +21,9 @@ object LDPrune {
   val genotypesPerPack = 32
 
   def pack(nGenotypes: Int, gs: Array[Byte]): Array[Long] = { // Each byte is one person's genotype (0, 1, 2, 3); made sure nGenotypes is mult 32 earlier
-    println(s"nGenotypes=$nGenotypes")
-    println(s"genotypesPerPack=$genotypesPerPack")
     require(nGenotypes % genotypesPerPack == 0)
-    println(s"gs.length = ${gs.length}")
 
     val nPacks = nGenotypes / genotypesPerPack // number of longs
-
     val packedGenotypes = new Array[Long](nPacks)
     var pack = 0
     while (pack != nPacks) {
@@ -48,15 +44,26 @@ object LDPrune {
     packedGenotypes
   }
 
+  def unpack(gs: Array[Long]): Array[Int] = {
+    val shifts = (0 until genotypesPerPack * 2 by 2).reverse
+    gs.flatMap{ l => shifts.map(s => l >> s & 3 match {
+      case 0 => 0
+      case 1 => 1
+      case 2 => -1
+      case 3 => 2
+      case _ => fatal("genotype unpacking not correct")
+    })}
+  }
+
   def r2(x: BitVectorInput, y: BitVectorInput): Double = {
     require(x.nSamples == y.nSamples)
-    val gtsX = x.gs
-    val gtsY = y.gs
+
+    val gtsX = unpack(x.gs)
+    val gtsY = unpack(y.gs)
+
     val N = x.nSamples
     val meanX = x.mean
     val meanY = y.mean
-    val sumX = x.sum
-    val sumY = y.sum
     val sdrecipX = x.sdRecip
     val sdrecipY = y.sdRecip
 
@@ -65,38 +72,23 @@ object LDPrune {
     var YbarCount = 0
     var xySum = 0
 
-    val nPacks = math.ceil(N / genotypesPerPack).toInt
-    var pack = 0
-    while (pack != nPacks) {
-      var gtIdx = 0
-      val x = gtsX(pack)
-      val y = gtsY(pack)
-      while (gtIdx != genotypesPerPack) {
-        (x >> gtIdx & 3, y >> gtIdx & 3) match {
-          case (2, 2) => XbarYbarCount += 1
-          case (2, 1) => XbarCount += 1
-          case (2, 3) => XbarCount += 2
-          case (1, 2) => YbarCount += 1
-          case (3, 2) => YbarCount += 2
-          case (1, 1) => xySum += 1
-          case (1, 3) => xySum += 2
-          case (3, 1) => xySum += 2
-          case (3, 3) => xySum += 4
-          case (_, _) =>
-        }
-        gtIdx += 2
+    gtsX.zip(gtsY).foreach { case (gtX, gtY) =>
+      (gtX, gtY) match {
+        case (-1, -1) => XbarYbarCount += 1
+        case (-1, _) => XbarCount += gtY
+        case (_, -1) => YbarCount += gtX
+        case (_, _) => xySum += gtX * gtY
       }
-      pack += 1
-    }
-    val r = N * sdrecipX * sdrecipY * (meanX * meanY - meanX * sumY - meanY * sumX) +
-      sdrecipX * sdrecipY * (xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY)
+     }
+
+    val r = sdrecipX * sdrecipY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
     r * r
   }
 
   def toByteGtArray(gs: Iterable[Genotype], nSamples: Int): Option[BitVectorInput] = {
     val padding = genotypesPerPack - nSamples % genotypesPerPack
     val nGenotypes = nSamples + padding
-    println(s"padding = $padding")
+
     val gts = new Array[Byte](nGenotypes)
     val it = gs.iterator
 
@@ -113,6 +105,7 @@ object LDPrune {
         case 1 => 1
         case 2 => 3
       }
+
       gts.update(i, gtInt.toByte)
       if (gt >= 0) {
         nPresent += 1
@@ -131,11 +124,10 @@ object LDPrune {
       None
     else {
       val gtMean = gtSum.toDouble / nPresent
-      val gtMeanAll = (gtSum + nMissing * gtMean) / nSamples
-      val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
-      val gtStdDevRec = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
+      val gtMeanSq = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
+      val gtStdDevRec = 1d / math.sqrt((gtMeanSq - gtMean * gtMean) * nSamples)
 
-      Some(BitVectorInput(pack(nGenotypes, gts), nSamples, gtMean, gtStdDevRec, gtSum))
+      Some(BitVectorInput(pack(nGenotypes, gts), nSamples, gtMean, gtStdDevRec))
     }
   }
 
@@ -180,6 +172,17 @@ object LDPrune {
           a.update(i, (gt - gtMean) * gtStdDevRec)
         i += 1
       }
+
+      println(s"gtSum = $gtSum")
+      println(s"gtSumSq = $gtSumSq")
+      println(s"nPresent = $nPresent")
+      println(s"nSamples = $nSamples")
+      println(s"nMissing = $nMissing")
+      println(s"gtMean = $gtMean")
+      println(s"gtMeanAll = $gtMeanAll")
+      println(s"gtMeanAllSq = $gtMeanSqAll")
+      println(s"gtStdDevRec = $gtStdDevRec")
+      println(s"a = ${a.mkString(",")}")
 
       Some(a)
     }
