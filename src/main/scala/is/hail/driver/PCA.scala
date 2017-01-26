@@ -49,6 +49,8 @@ object PCA extends Command {
         s"""requested invalid number of components: $k
             |  Expect componenents >= 1""".stripMargin)
 
+    info(s"Running PCA with $k components...")
+
     val pcSchema = SamplePCA.pcSchema(asArray, k)
 
     val (scores, loadings, eigenvalues) =
