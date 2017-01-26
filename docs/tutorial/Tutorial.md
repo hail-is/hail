@@ -184,9 +184,9 @@ Let's filter genotypes based on allelic balance using the `filter_genotypes` met
     >>>                          ((g.isHomRef && ab <= 0.1) || 
     >>>                           (g.isHet && ab >= 0.25 && ab <= 0.75) || 
     >>>                           (g.isHomVar && ab >= 0.9))'''
-    >>> vds_gAB = vds.filter_genotypes filter_condition_ab)
+    >>> vds_gAB = vds.filter_genotypes(filter_condition_ab)
 
-In this code, we first construct an expression  filter_condition_ab` that evaluates to a Boolean. We use `let ... in` syntax to define a temporary variable `ab` for the allelic balance which is calculated from the allelic depth `g.ad`, a zero-indexed array (so `g.ad[0]` and `g.ad[1]` are read counts for reference allele and unique alternate allele, respectively; this dataset is bi-allelic, but Hail supports multi-allelic variants as well). We require for homozygous calls that the allelic balance be within `.1` of the expected mode, and that for heterozygote calls (`g.isHet`) the allelic balance be between 0.25 and 0.75. Additional methods on genotype are documented [here](reference.html#genotype).
+In this code, we first construct an expression  `filter_condition_ab` that evaluates to a Boolean. We use `let ... in` syntax to define a temporary variable `ab` for the allelic balance which is calculated from the allelic depth `g.ad`, a zero-indexed array (so `g.ad[0]` and `g.ad[1]` are read counts for reference allele and unique alternate allele, respectively; this dataset is bi-allelic, but Hail supports multi-allelic variants as well). We require for homozygous calls that the allelic balance be within `.1` of the expected mode, and that for heterozygote calls (`g.isHet`) the allelic balance be between 0.25 and 0.75. Additional methods on genotype are documented [here](reference.html#genotype).
 
     >>> vds_gAB.count(genotypes=True)
 
@@ -565,7 +565,7 @@ We'll start with `vds_QCed` here (our `vds_gwas` isn't appropriate for rare vari
 
 Congrats! If you've made it this far, you're perfectly primed to read the [Overview](hail/overview.html), look through the [Hail objects](hail/hail_objects.html) representing many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/hail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter chat](https://gitter.im/hail-is/hail) or the [discussion forum](http://discuss.hail.is).
 
-For reference, here's all the work we did throughout the tutorial combined into one script (this does assume that you've already run tutorial though, as some of the map and filter expression strings like  filter_condition_ab` are defined above.
+For reference, here's the full workflow to all tutorial endpoints combined into one script, assuming you've already created the expression strings like `filter_condition_ab` above.
 
     >>> vds_gAB_vCR = (hc.import_vcf(vcf)
     >>>          .split_multi()
@@ -573,7 +573,7 @@ For reference, here's all the work we did throughout the tutorial combined into 
     >>>                                  root='sa.pheno', 
     >>>                                  sample_expr='Sample', 
     >>>                                  config=TextTableConfig(impute=True))
-    >>>          .filter_genotypes filter_condition_ab)
+    >>>          .filter_genotypes(filter_condition_ab)
     >>>          .filter_variants_expr('gs.fraction(g => g.isCalled) > 0.95')
     >>>          .sample_qc())
     >>> 
