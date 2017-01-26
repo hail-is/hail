@@ -55,7 +55,7 @@ class TextTableConfig(object):
     def to_java(self, hc):
         """Convert to Java TextTableConfiguration object.
 
-        :param :class:`.HailContext` The Hail context.
+        :param: :class:`.HailContext` The Hail context.
         """
         try:
             return hc.hail.utils.TextTableConfiguration.apply(self.types, self.comment,

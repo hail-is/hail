@@ -6,8 +6,7 @@ from hail.java import scala_package_object
 from hail.type import Type
 
 class KeyTable(object):
-    """:class:`.KeyTable` is Hail's version of a SQL table where columns
-    can be designated as keys.
+    """Hail's version of a SQL table where columns can be designated as keys.
 
     """
 

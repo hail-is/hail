@@ -2,17 +2,19 @@ from hail.java import *
 
 
 class Genotype(object):
-    def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
-        """Initialize a Genotype object.
+    """An object that represents an individual's genotype at a genomic locus.
 
-        :param int gt: Genotype hard call
-        :param ad: allelic depth
-        :type ad: list of int
-        :param int dp: total depth
-        :param int gq: genotype quality
-        :param pl: phred-scaled posterior genotype likelihoods
-        :type pl: list of int
-        """
+    :ivar int gt: Genotype hard call
+    :ivar ad: allelic depth (1 element per allele including reference)
+    :vartype ad: list of int
+    :ivar int dp: total depth
+    :ivar int gq: genotype quality
+    :ivar pl: phred-scaled posterior genotype likelihoods (1 element per possible genotype)
+    :vartype pl: list of int
+    """
+
+    def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
+        """Initialize a Genotype object."""
 
         jvm = Env.jvm()
         gt = joption(gt)
@@ -109,7 +111,7 @@ class Genotype(object):
     def dosage(self):
         """Returns the linear-scaled genotype probabilities.
 
-        :rtype list of float
+        :rtype: list of float
         """
 
         return strip_option(self._jrep.dosage())
@@ -117,7 +119,7 @@ class Genotype(object):
     def is_hom_ref(self):
         """True if the genotype call is 0/0
 
-        :rtype bool
+        :rtype: bool
         """
 
         return self._jrep.isHomRef()
@@ -125,7 +127,7 @@ class Genotype(object):
     def is_het(self):
         """True if the genotype call contains two different alleles.
 
-        :rtype bool
+        :rtype: bool
         """
 
         return self._jrep.isHet()
@@ -133,7 +135,7 @@ class Genotype(object):
     def is_hom_var(self):
         """True if the genotype call contains two identical alternate alleles.
 
-        :rtype bool
+        :rtype: bool
         """
 
         return self._jrep.isHomVar()
@@ -141,7 +143,7 @@ class Genotype(object):
     def is_called_non_ref(self):
         """True if the genotype call contains any non-reference alleles.
 
-        :rtype bool
+        :rtype: bool
         """
 
         return self._jrep.isCalledNonRef()
@@ -149,7 +151,7 @@ class Genotype(object):
     def is_het_non_ref(self):
         """True if the genotype call contains two different alternate alleles.
 
-        :rtype bool
+        :rtype: bool
         """
 
         return self._jrep.isHetNonRef()
@@ -157,7 +159,7 @@ class Genotype(object):
     def is_het_ref(self):
         """True if the genotype call contains one reference and one alternate allele.
 
-        :rtype bool
+        :rtype: bool
         """
 
         return self._jrep.isHetRef()
@@ -165,7 +167,7 @@ class Genotype(object):
     def is_not_called(self):
         """True if the genotype call is missing.
 
-        :rtype bool
+        :rtype: bool
         """
 
         return self._jrep.isNotCalled()
@@ -173,7 +175,7 @@ class Genotype(object):
     def is_called(self):
         """True if the genotype call is non-missing.
 
-        :rtype bool
+        :rtype: bool
         """
 
         return self._jrep.isCalled()
@@ -183,7 +185,7 @@ class Genotype(object):
 
         This function returns None if the genotype call is missing.
 
-        :rtype int or None
+        :rtype: int or None
         """
 
         return strip_option(self._jrep.nNonRefAlleles())
@@ -257,7 +259,7 @@ class Genotype(object):
         This function returns None if the allelic depth (ad) is missing.
 
         :param float theta: null reference probability for binomial model
-        :rtype float or None
+        :rtype: float or None
         """
 
         return strip_option(self._jrep.pAB(theta))

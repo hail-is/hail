@@ -2,6 +2,15 @@ from hail.java import scala_object, Env
 
 
 class Variant(object):
+    """An object that represents a genomic polymorphism.
+
+    :ivar str contig: chromosome identifier
+    :ivar int start: chromosomal position (1-based)
+    :ivar str ref: reference allele
+    :ivar alt_alleles: alternate alleles
+    :vartype alt_alleles: list of :class:`.AltAllele`
+    """
+
     def __init__(self, contig, start, ref, alts):
         """Initialize a Variant object.
 
@@ -28,9 +37,17 @@ class Variant(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
+
+        #: (str) chromosome identifier
         self.contig = jrep.contig()
+
+        #: (int) chromosomal position
         self.start = jrep.start()
+
+        #: (str) reference allele
         self.ref = jrep.ref()
+
+        #: (list of :class:`.AltAllele`) alternate alleles
         self.alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
 
     @classmethod
@@ -50,7 +67,7 @@ class Variant(object):
         >>> biallelic_variant = Variant.parse('16:20012:A:TT')
         >>> multiallelic_variant = Variant.parse('16:12311:T:C,TTT,A')
 
-        :rtype: :class:`.Variant.`
+        :rtype: :class:`.Variant`
         """
         jrep = scala_object(Env.hail_package().variant, 'Variant').parse(string)
         return Variant._from_java(jrep)
@@ -200,6 +217,12 @@ class Variant(object):
 
 
 class AltAllele(object):
+    """An object that represents the alleles in a polymorphism deviating from the reference.
+
+    :ivar str ref: reference allele
+    :ivar str alt: alternate allele
+    """
+
     def __init__(self, ref, alt):
         """Initialize an AltAllele object.
 
@@ -325,6 +348,12 @@ class AltAllele(object):
 
 
 class Locus(object):
+    """An object that represents a location in the genome.
+
+    :ivar str contig: chromosome identifier
+    :ivar int position: chromosomal position (1-indexed)
+    """
+
     def __init__(self, contig, position):
         """Initialize a Locus object.
 

@@ -1,5 +1,9 @@
 class Struct(object):
-    """Nested annotation structure"""
+    """Nested annotation structure.
+
+    :ivar fields: ordered list of fields
+    :vartype fields: list of str
+    """
 
     def __init__(self, attributes, fields):
         if not len(fields) == len(attributes):

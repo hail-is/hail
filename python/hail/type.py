@@ -13,7 +13,7 @@ class TypeCheckError(Exception):
 
 
 class Type(object):
-    """Type of values."""
+    """Hail type class used for annotations and expression language."""
 
     def __init__(self, jtype):
         self._jtype = jtype
@@ -69,7 +69,7 @@ class Type(object):
 
 class TInt(Type):
     """
-    python type: int
+    Hail type corresponding to int
     """
 
     def __init__(self):
@@ -91,7 +91,7 @@ class TInt(Type):
 
 class TLong(Type):
     """
-    python type: long
+    Hail type corresponding to long
     """
 
     def __init__(self):
@@ -113,7 +113,7 @@ class TLong(Type):
 
 class TFloat(Type):
     """
-    python type: float
+    Hail type corresponding to float
     """
 
     def __init__(self):
@@ -138,7 +138,7 @@ class TFloat(Type):
 
 class TDouble(Type):
     """
-    python type: float
+    Hail type corresponding to float
     """
 
     def __init__(self):
@@ -160,7 +160,7 @@ class TDouble(Type):
 
 class TString(Type):
     """
-    python type: str
+    Hail type corresponding to str
     """
 
     def __init__(self):
@@ -179,7 +179,7 @@ class TString(Type):
 
 class TBoolean(Type):
     """
-    python type: bool
+    Hail type corresponding to bool
     """
 
     def __init__(self):
@@ -198,7 +198,7 @@ class TBoolean(Type):
 
 class TArray(Type):
     """
-    python type: list
+    Hail type corresponding to list
     """
 
     def __init__(self, element_type):
@@ -241,7 +241,7 @@ class TArray(Type):
 
 class TSet(Type):
     """
-    python type: set
+    Hail type corresponding to set
     """
 
     def __init__(self, element_type):
@@ -284,7 +284,7 @@ class TSet(Type):
 
 class TDict(Type):
     """
-    python type: dict
+    Hail type corresponding to dict
     """
 
     def __init__(self, element_type):
@@ -336,7 +336,7 @@ class Field(object):
 
 class TStruct(Type):
     """
-    python type: :class:`hail.representation.Struct`
+    Hail type corresponding to :class:`hail.representation.Struct`
     """
 
     def __init__(self, names, types):
@@ -396,7 +396,7 @@ class TStruct(Type):
 
 class TVariant(Type):
     """
-    python type: :class:`hail.representation.Variant`
+    Hail type corresponding to :class:`hail.representation.Variant`
     """
 
     def __init__(self):
@@ -422,7 +422,7 @@ class TVariant(Type):
 
 class TAltAllele(Type):
     """
-    python type: :class:`hail.representation.AltAllele`
+    Hail type corresponding to :class:`hail.representation.AltAllele`
     """
 
     def __init__(self):
@@ -448,7 +448,7 @@ class TAltAllele(Type):
 
 class TGenotype(Type):
     """
-    python type: :class:`hail.representation.Genotype`
+    Hail type corresponding to :class:`hail.representation.Genotype`
     """
 
     def __init__(self):
@@ -474,7 +474,7 @@ class TGenotype(Type):
 
 class TLocus(Type):
     """
-    python type: :class:`hail.representation.Locus`
+    Hail type corresponding to :class:`hail.representation.Locus`
     """
 
     def __init__(self):
@@ -500,7 +500,7 @@ class TLocus(Type):
 
 class TInterval(Type):
     """
-    python type: :class:`hail.representation.Interval`
+    Hail type corresponding to :class:`hail.representation.Interval`
     """
 
     def __init__(self):

@@ -22,8 +22,5 @@ introduction to using this API to analyze genetic data.
     hail.VariantDataset
     hail.KeyTable
     hail.TextTableConfig
-    hail.representation.Variant
-    hail.representation.Locus
-    hail.representation.AltAllele
-    hail.representation.Interval
-    hail.representation.Genotype
+    representation/index
+    type/index

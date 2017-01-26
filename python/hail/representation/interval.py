@@ -5,7 +5,8 @@ from hail.representation import Locus
 class Interval(object):
     """A genomic interval marked by start and end loci.
 
-    The start and end are :class:`.Locus` objects.
+    :ivar :class:`.Locus` start: inclusive start locus
+    :ivar :class:`.Locus` end: exclusive end locus
     """
 
     def __init__(self, start, end):

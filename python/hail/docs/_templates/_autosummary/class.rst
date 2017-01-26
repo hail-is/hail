@@ -1,7 +1,10 @@
-{{ fullname }}
+{{ objname }}
 {{ underline }}
 
 .. currentmodule:: {{ module }}
+
+.. autoattribute:: {{ objname }}
+    :annotation:
 
 .. autoclass:: {{ objname }}
 

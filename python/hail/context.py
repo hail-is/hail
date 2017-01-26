@@ -22,27 +22,33 @@ class FatalError(Exception):
 
 
 class HailContext(object):
-    """:class:`.HailContext` is the main entrypoint for Hail
-    functionality.
+    """The main entrypoint for Hail functionality.
 
-    :param str log: Log file.
-
-    :param bool quiet: Don't write log file.
-
-    :param bool append: Append to existing log file.
-
-    :param long block_size: Minimum size of file splits in MB.
-
-    :param str parquet_compression: Parquet compression codec.
-
-    :param int branching_factor: Branching factor to use in tree aggregate.
-
-    :param str tmp_dir: Temporary directory for file merging.
+    :ivar gateway: py4j gateway
+    :ivar jvm: JVM object
+    :ivar sc: Spark context
+    :ivar jsc: java Spark context
+    :ivar sql_context: Spark SQL context
+    :ivar jsql_context: java Spark SQL context
     """
 
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
                  block_size=1, branching_factor=50, tmp_dir='/tmp'):
+        """
+
+        :param :class:`.pyspark.SparkContext` sc: spark context, will be auto-generated if None
+        :param appName: Spark application identifier
+        :param master: Spark cluster master
+        :param local: local resources to use
+        :param log: log path
+        :param quiet: suppress log messages
+        :param append: write to end of log file instead of overwriting
+        :param parquet_compression: level of on-disk annotation compression
+        :param block_size: minimum file split size in MB
+        :param branching_factor: branching factor for tree aggregation
+        :param tmp_dir: temporary directory for file merging
+        """
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
 

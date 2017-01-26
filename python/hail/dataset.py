@@ -12,6 +12,12 @@ warnings.filterwarnings(module=__name__, action='once')
 
 
 class VariantDataset(object):
+    """Hail's primary representation of a genomic data matrix keyed by sample and variant.
+
+    :ivar hc: Hail Context
+    :ivar jvds: Java VDS
+    """
+
     def __init__(self, hc, jvds):
         self.hc = hc
         self.jvds = jvds
@@ -274,34 +280,6 @@ class VariantDataset(object):
         annotated = self.jvds.annotateGlobal(ptype.convert_to_j(annotation), ptype._jtype, path)
         assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
         return VariantDataset(self.hc, annotated)
-
-    def annotate_global_expr_by_variant(self, condition):
-        """Update the global annotations with expression with aggregation over
-        variants.
-
-        :param condition: Annotation expression.
-        :type condition: str or list of str
-
-        """
-
-        if isinstance(condition, list):
-            condition = ','.join(condition)
-        pargs = ['annotateglobal', 'exprbyvariant', '-c', condition]
-        return self.hc.run_command(self, pargs)
-
-    def annotate_global_expr_by_sample(self, condition):
-        """Update the global annotations with expression with aggregation over
-        samples.
-
-        :param str condition: Annotation expression.
-        :type condition: str or list of str
-
-        """
-
-        if isinstance(condition, list):
-            condition = ','.join(condition)
-        pargs = ['annotateglobal', 'exprbysample', '-c', condition]
-        return self.hc.run_command(self, pargs)
 
     def annotate_global_list(self, input, root, as_set=False):
         """Load text file into global annotations as Array[String] or
@@ -2102,7 +2080,9 @@ class VariantDataset(object):
         """
 
         try:
-            return VariantDataset(self.hc, self.hc.hail.methods.LinearRegression.apply(self.jvds, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), root, minac, minaf))
+            return VariantDataset(
+                self.hc, self.hc.hail.methods.LinearRegression.apply(
+                    self.jvds, y, jarray(self.hc.jvm.java.lang.String, covariates), root, minac, minaf))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -2230,7 +2210,10 @@ class VariantDataset(object):
         """
 
         try:
-            return VariantDataset(self.hc, self.hc.hail.methods.LogisticRegression.apply(self.jvds, test, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), root))
+            return VariantDataset(self.hc, self.hc.hail.methods.LogisticRegression.apply(self.jvds, test, y,
+                                                                                         jarray(self.hc.gateway,
+                                                                                                self.hc.jvm.java.lang.String,
+                                                                                                covariates), root))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
@@ -2465,33 +2448,6 @@ class VariantDataset(object):
         if storage_level:
             pargs.append('-s')
             pargs.append(storage_level)
-        return self.hc.run_command(self, pargs)
-
-    def print_schema(self, output=None, attributes=False, va=False, sa=False, print_global=False):
-        """Shows the schema for global, sample and variant annotations.
-        :param output: Output file.
-        :type output: str or None
-        :param bool attributes: If True, print attributes.
-        :param bool va: If True, print variant annotations schema.
-        :param bool sa: If True, print sample annotations schema.
-        :param bool print_global: If True, print global annotations schema.
-        """
-
-        warnings.warn("the 'print_schema' method is deprecated.  Use 'print(vds.variant_schema())', etc instead.",
-             DeprecationWarning)
-
-        pargs = ['printschema']
-        if output:
-            pargs.append('--output')
-            pargs.append(output)
-        if attributes:
-            pargs.append('--attributes')
-        if va:
-            pargs.append('--va')
-        if sa:
-            pargs.append('--sa')
-        if print_global:
-            pargs.append('--global')
         return self.hc.run_command(self, pargs)
 
     def global_schema(self):
