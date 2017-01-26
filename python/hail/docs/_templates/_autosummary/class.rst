@@ -3,9 +3,6 @@
 
 .. currentmodule:: {{ module }}
 
-.. autoattribute:: {{ objname }}
-    :annotation:
-
 .. autoclass:: {{ objname }}
 
     {% block methods %}
@@ -35,7 +32,5 @@
     {%- endfor %}
     {% endif %}
     {% endblock %}
-
-    .. automethod:: __init__
 
 

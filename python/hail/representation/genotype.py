@@ -2,15 +2,16 @@ from hail.java import *
 
 
 class Genotype(object):
-    """An object that represents an individual's genotype at a genomic locus.
+    """
+    An object that represents an individual's genotype at a genomic locus.
 
-    :ivar int gt: Genotype hard call
-    :ivar ad: allelic depth (1 element per allele including reference)
-    :vartype ad: list of int
-    :ivar int dp: total depth
-    :ivar int gq: genotype quality
-    :ivar pl: phred-scaled posterior genotype likelihoods (1 element per possible genotype)
-    :vartype pl: list of int
+    :param int gt: Genotype hard call
+    :param ad: allelic depth (1 element per allele including reference)
+    :type ad: list of int
+    :param int dp: total depth
+    :param int gq: genotype quality
+    :param pl: phred-scaled posterior genotype likelihoods (1 element per possible genotype)
+    :type pl: list of int
     """
 
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):

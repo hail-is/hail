@@ -1,5 +1,10 @@
 class Struct(object):
-    """Nested annotation structure.
+    """
+    Nested annotation structure.
+
+    :param dict attributes: struct members, must contain every field in ``fields`` as a key.
+    :param fields: list of field names, used for ordering
+    :type fields: list of str
 
     :ivar fields: ordered list of fields
     :vartype fields: list of str

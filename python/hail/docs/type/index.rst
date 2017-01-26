@@ -22,9 +22,10 @@ type
     hail.type.TArray
     hail.type.TSet
     hail.type.TDict
-    hail.type.TStruct
     hail.type.TVariant
     hail.type.TGenotype
     hail.type.TAltAllele
     hail.type.TLocus
     hail.type.TInterval
+    hail.type.TStruct
+    hail.type.Field

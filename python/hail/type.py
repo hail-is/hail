@@ -11,9 +11,12 @@ class TypeCheckError(Exception):
         return self.msg
 
 
-
 class Type(object):
-    """Hail type class used for annotations and expression language."""
+    """
+    Hail type class used for annotations and expression language.
+
+    :param jtype: equivalent java type
+    """
 
     def __init__(self, jtype):
         self._jtype = jtype
@@ -199,6 +202,12 @@ class TBoolean(Type):
 class TArray(Type):
     """
     Hail type corresponding to list
+
+    :param element_type: type of array elements
+    :type element_type: :class:`.Type`
+
+    :ivar element_type: type of array elements
+    :vartype element_type: :class:`.Type`
     """
 
     def __init__(self, element_type):
@@ -242,6 +251,12 @@ class TArray(Type):
 class TSet(Type):
     """
     Hail type corresponding to set
+
+    :param element_type: type of set elements
+    :type element_type: :class:`.Type`
+
+    :ivar element_type: type of set elements
+    :vartype element_type: :class:`.Type`
     """
 
     def __init__(self, element_type):
@@ -285,6 +300,12 @@ class TSet(Type):
 class TDict(Type):
     """
     Hail type corresponding to dict
+
+    :param element_type: type of dict values
+    :type element_type: :class:`.Type`
+
+    :ivar element_type: type of dict values
+    :vartype element_type: :class:`.Type`
     """
 
     def __init__(self, element_type):
@@ -337,14 +358,18 @@ class Field(object):
 class TStruct(Type):
     """
     Hail type corresponding to :class:`hail.representation.Struct`
+
+    :param names: names of fields
+    :type names: list of str
+    :param types: types of fields
+    :type types: list of :class:`.Type`
+
+    :ivar fields: struct fields
+    :vartype fields: list of :class:`.Field`
     """
 
     def __init__(self, names, types):
         """
-        :param names: names of fields
-        :type names: list of str
-        :param types: types of fields
-        :type types: list of :class:`.Type`
         """
 
         if len(names) != len(types):

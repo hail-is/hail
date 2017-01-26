@@ -12,10 +12,10 @@ warnings.filterwarnings(module=__name__, action='once')
 
 
 class VariantDataset(object):
-    """Hail's primary representation of a genomic data matrix keyed by sample and variant.
+    """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
-    :ivar hc: Hail Context
-    :ivar jvds: Java VDS
+    :param hc: Hail Context
+    :param jvds: Java VDS
     """
 
     def __init__(self, hc, jvds):

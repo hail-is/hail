@@ -24,71 +24,66 @@ class FatalError(Exception):
 class HailContext(object):
     """The main entrypoint for Hail functionality.
 
-    :ivar gateway: py4j gateway
-    :ivar jvm: JVM object
+    :param sc: spark context, will be auto-generated if None
+    :type sc: :class:`.pyspark.SparkContext`
+    :param appName: Spark application identifier
+    :param master: Spark cluster master
+    :param local: local resources to use
+    :param log: log path
+    :param quiet: suppress log messages
+    :param append: write to end of log file instead of overwriting
+    :param parquet_compression: level of on-disk annotation compression
+    :param block_size: minimum file split size in MB
+    :param branching_factor: branching factor for tree aggregation
+    :param tmp_dir: temporary directory for file merging
+
     :ivar sc: Spark context
-    :ivar jsc: java Spark context
-    :ivar sql_context: Spark SQL context
-    :ivar jsql_context: java Spark SQL context
+    :vartype sc: :class:`.pyspark.SparkContext`
     """
 
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
                  block_size=1, branching_factor=50, tmp_dir='/tmp'):
-        """
-
-        :param :class:`.pyspark.SparkContext` sc: spark context, will be auto-generated if None
-        :param appName: Spark application identifier
-        :param master: Spark cluster master
-        :param local: local resources to use
-        :param log: log path
-        :param quiet: suppress log messages
-        :param append: write to end of log file instead of overwriting
-        :param parquet_compression: level of on-disk annotation compression
-        :param block_size: minimum file split size in MB
-        :param branching_factor: branching factor for tree aggregation
-        :param tmp_dir: temporary directory for file merging
-        """
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
 
-        self.gateway = SparkContext._gateway
-        self.jvm = SparkContext._jvm
+        self._gateway = SparkContext._gateway
+        self._jvm = SparkContext._jvm
 
-        Env._jvm = self.jvm
-        Env._gateway = self.gateway
+        Env._jvm = self._jvm
+        Env._gateway = self._gateway
 
         # hail package
-        self.hail = getattr(self.jvm, 'is').hail
+        self._hail = getattr(self._jvm, 'is').hail
 
-        driver = scala_package_object(self.hail.driver)
+        driver = scala_package_object(self._hail.driver)
 
         if not sc:
-            self.jsc = driver.configureAndCreateSparkContext(
+            self._jsc = driver.configureAndCreateSparkContext(
                 appName, joption(master), local, parquet_compression, block_size)
-            self.sc = SparkContext(gateway=self.gateway, jsc=self.jvm.JavaSparkContext(self.jsc))
+            self.sc = SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         else:
             self.sc = sc
             # sc._jsc is a JavaSparkContext
-            self.jsc = sc._jsc.sc()
+            self._jsc = sc._jsc.sc()
 
         driver.configureHail(branching_factor, tmp_dir)
         driver.configureLogging(log, quiet, append)
 
-        self.jsql_context = driver.createSQLContext(self.jsc)
-        self.sql_context = SQLContext(self.sc, self.jsql_context)
+        self._jsql_context = driver.createSQLContext(self._jsc)
+        self._sql_context = SQLContext(self.sc, self._jsql_context)
 
     def _jstate(self, jvds):
-        return self.hail.driver.State(
-            self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
+        return self._hail.driver.State(
+            self._jsc, self._jsql_context, jvds, scala_object(self._jvm.scala.collection.immutable, 'Map').empty())
 
     def _raise_py4j_exception(self, e):
-        msg = scala_package_object(self.hail.utils).getMinimalMessage(e.java_exception)
+        msg = scala_package_object(self._hail.utils).getMinimalMessage(e.java_exception)
         raise FatalError(msg, e.java_exception)
 
     def run_command(self, vds, pargs):
-        jargs = jarray(self.jvm.java.lang.String, pargs)
-        t = self.hail.driver.ToplevelCommands.lookup(jargs)
+        jargs = jarray(self._jvm.java.lang.String, pargs)
+        t = self._hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
         cmd_args = t._2()
         jstate = self._jstate(vds.jvds if vds != None else None)
@@ -349,8 +344,8 @@ class HailContext(object):
         if not config:
             config = TextTableConfig()
 
-        return KeyTable(self, self.hail.keytable.KeyTable.importTextTable(
-            self.jsc, jarray(self.jvm.java.lang.String, path_args), key_names, npartitions,
+        return KeyTable(self, self._hail.keytable.KeyTable.importTextTable(
+            self._jsc, jarray(self._jvm.java.lang.String, path_args), key_names, npartitions,
             config.to_java(self)))
 
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
@@ -482,7 +477,7 @@ class HailContext(object):
 
         """
 
-        self.hail.variant.VariantSampleMatrix.writePartitioning(self.jsql_context, path)
+        self._hail.variant.VariantSampleMatrix.writePartitioning(self._jsql_context, path)
 
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
                    sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
@@ -660,18 +655,19 @@ class HailContext(object):
         if pop_dist is None:
             jvm_pop_dist_opt = joption(pop_dist)
         else:
-            jvm_pop_dist_opt = joption(jarray(self.jvm.double, pop_dist))
+            jvm_pop_dist_opt = joption(jarray(self._jvm.double, pop_dist))
 
         if fst is None:
             jvm_fst_opt = joption(fst)
         else:
-            jvm_fst_opt = joption(jarray(self.jvm.double, fst))
+            jvm_fst_opt = joption(jarray(self._jvm.double, fst))
 
-        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc, populations, samples, variants,
-                                                                              jvm_pop_dist_opt,
-                                                                              jvm_fst_opt,
-                                                                              seed,
-                                                                              joption(self.jvm, partitions), root))
+        return VariantDataset(self,
+                              self._hail.stats.BaldingNicholsModel.apply(self._jsc, populations, samples, variants,
+                                                                         jvm_pop_dist_opt,
+                                                                         jvm_fst_opt,
+                                                                         seed,
+                                                                         joption(partitions), root))
 
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.

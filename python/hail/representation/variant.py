@@ -2,7 +2,15 @@ from hail.java import scala_object, Env
 
 
 class Variant(object):
-    """An object that represents a genomic polymorphism.
+    """
+    An object that represents a genomic polymorphism.
+
+    :param contig: chromosome identifier
+    :type contig: str or int
+    :param int start: chromosomal position (1-based)
+    :param str ref: reference allele
+    :param alts: single alternate allele, or list of alternate alleles
+    :type alts: str or list of str
 
     :ivar str contig: chromosome identifier
     :ivar int start: chromosomal position (1-based)
@@ -12,15 +20,6 @@ class Variant(object):
     """
 
     def __init__(self, contig, start, ref, alts):
-        """Initialize a Variant object.
-
-        :param contig: chromosome identifier
-        :type contig: str or int
-        :param int start: chromosomal position (1-based)
-        :param str ref: reference allele
-        :param alts: single alternate allele, or list of alternate alleles
-        :type alts: str or list of str
-        """
         if isinstance(contig, int):
             contig = str(contig)
         jrep = scala_object(Env.hail_package().variant, 'Variant').apply(contig, start, ref, alts)
@@ -217,19 +216,18 @@ class Variant(object):
 
 
 class AltAllele(object):
-    """An object that represents the alleles in a polymorphism deviating from the reference.
+    """
+    An object that represents the alleles in a polymorphism deviating from the reference.
+
+    :param str ref: reference allele
+    :param str alt: alternate allele
+
 
     :ivar str ref: reference allele
     :ivar str alt: alternate allele
     """
 
     def __init__(self, ref, alt):
-        """Initialize an AltAllele object.
-
-        :param str ref: reference allele
-        :param str alt: alternate allele
-        """
-
         jaa = scala_object(Env.hail_package().variant, 'AltAllele').apply(ref, alt)
         self._init_from_java(jaa)
 
@@ -348,20 +346,18 @@ class AltAllele(object):
 
 
 class Locus(object):
-    """An object that represents a location in the genome.
+    """
+    An object that represents a location in the genome.
+
+    :param contig: chromosome identifier
+    :type contig: str or int
+    :param int position: chromosomal position (1-indexed)
 
     :ivar str contig: chromosome identifier
     :ivar int position: chromosomal position (1-indexed)
     """
 
     def __init__(self, contig, position):
-        """Initialize a Locus object.
-
-        :param contig: chromosome identifier
-        :type contig: str or int
-        :param int position: chromosomal position (1-indexed)
-        """
-
         if isinstance(contig, int):
             contig = str(contig)
         jrep = scala_object(Env.hail_package().variant, 'Locus').apply(contig, position)

@@ -3,19 +3,21 @@ from hail.representation import Locus
 
 
 class Interval(object):
-    """A genomic interval marked by start and end loci.
+    """
+    A genomic interval marked by start and end loci.
 
-    :ivar :class:`.Locus` start: inclusive start locus
-    :ivar :class:`.Locus` end: exclusive end locus
+    :param start: inclusive start locus
+    :type start: :class:`.Locus`
+    :param end: exclusive end locus
+    :type end: :class:`.Locus`
+
+    :ivar start: inclusive start locus
+    :vartype start: :class:`.Locus`
+    :ivar end: exclusive end locus
+    :vartype end: :class:`.Locus`
     """
 
     def __init__(self, start, end):
-        """Create an Interval object from start and end loci.
-
-        :param :class:`.Locus` start: inclusive start locus
-        :param :class:`.Locus` end: exclusive end locus
-        """
-
         if not isinstance(start, Locus) and isinstance(end, Locus):
             raise TypeError('expect arguments of type (Locus, Locus) but found (%s, %s)' % (type(start), type(end)))
         jrep = scala_object(Env.hail_package().variant, 'Locus').makeInterval(start._jrep, end._jrep)
