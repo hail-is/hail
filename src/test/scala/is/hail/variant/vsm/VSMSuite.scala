@@ -391,18 +391,18 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTable() {
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
+      var s = State(sc, sqlContext, vds = vds)
+      s = AnnotateVariantsExpr.run(s, Array("-c", "va.bar = va"))
+      val kt = s.vds.variantsKT()
+      val resultVds = s.vds.annotateVariantsKT(kt, "va.foo = va.bar")
+      val result = resultVds.rdd.collect()
+      val (_, getFoo) = resultVds.queryVA("va.foo")
+      val (_, getBar) = resultVds.queryVA("va.bar")
 
-    val kt = s.vds.variantsKT()
-    // val kt2 = KeyTable.importTextTable(sc, Array("src/test/resources/sampleAnnotations.tsv"), "Sample", 2, TextTableConfiguration())
-    val result = s.vds.annotateVariantsKT(kt, null, "va.foo = table.va").rdd.collect()
-
-    val (_, getFoo) = s.vds.queryVA("va.foo")
-    val (_, getVa) = s.vds.queryVA("va")
-
-    result.foreach { (v, (va, gs)) =>
-      assert(va = )
-    }
+      result.forall { case (v, (va, gs)) =>
+        getFoo(va) == getBar(va)
+      }
+    }.check()
   }
 }
