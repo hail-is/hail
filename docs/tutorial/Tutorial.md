@@ -565,7 +565,7 @@ We'll start with `vds_QCed` here (our `vds_gwas` isn't appropriate for rare vari
 
 Congrats! If you've made it this far, you're perfectly primed to read the [Overview](hail/overview.html), look through the [Hail objects](hail/hail_objects.html) representing many core concepts in genetics, and check out the many Hail functions defined in the [Python API](https://hail.is/hail/api.html). As you use Hail for your own science, we'd love to hear from you on [Gitter chat](https://gitter.im/hail-is/hail) or the [discussion forum](http://discuss.hail.is).
 
-For reference, here's the full workflow to all tutorial endpoints combined into one script, assuming you've already created the expression strings like  `filter_condition_ab` above.
+For reference, here's the full workflow to all tutorial endpoints combined into one script, assuming you've already created the expression strings like `filter_condition_ab` above.
 
     >>> vds_gAB_vCR = (hc.import_vcf(vcf)
     >>>          .split_multi()
