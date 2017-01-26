@@ -101,6 +101,7 @@ object ToplevelCommands {
   register(RenameSamples)
   register(SampleQC)
   register(SeqrServerCommand)
+  register(SparkInfo)
   register(TDTCommand)
   register(Typecheck)
   register(PrintSchema)

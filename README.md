@@ -7,9 +7,9 @@
  - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count
  - generate sample annotations like mean depth, imputed sex, and TiTv ratio
  - load variant and sample annotations from text tables, JSON, VCF, VEP, and locus interval files
- - produce new annotations computed from existing annotations and the genotypes, and use these to filter samples, variants, and genotypes
- - compute sample scores and variant loadings using principal compenent analysis, or project your cohort onto ancestry coordinates of reference datasets
- - perform association analyses using linear, logistic, and linear mixed model regression, and estimate heritability
+ - generate new annotations from existing annotations and the genotypes, and use these to filter samples, variants, and genotypes		 + - produce new annotations computed from existing annotations and the genotypes, and use these to filter samples, variants, and genotypes
+ - find Mendelian violations in trios, analyze genetic similarity between samples via the GRM and IBD matrix, and compute sample scores and variant loadings using PCA
+ - perform association analyses using linear, logistic, and linear mixed regression, and estimate heritability
 
 All this functionality is exposed through **Python** and backed by distributed algorithms built on top of [Apache Spark](http://spark.apache.org/) to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on an on-prem cluster or in the cloud.
 

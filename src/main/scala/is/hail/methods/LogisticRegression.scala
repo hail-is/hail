@@ -38,7 +38,7 @@ object LogisticRegression {
     if (d < 1)
       fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
-    info(s"Running logreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
+    info(s"Running logreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
     val nullFit = nullModel.nullFit(nullModel.bInterceptOnly())
