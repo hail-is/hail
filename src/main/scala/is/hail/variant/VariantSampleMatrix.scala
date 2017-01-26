@@ -1054,30 +1054,18 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     ts.map { case (t, f) => (f().orNull, t) }.toArray
   }
 
-  def annotateVariantsKT(kt: KeyTable, root: String, code: String) = {
-    val (expr, codeInput) = (Option(code), Option(root)) match {
-      case (Some(c), None) => (true, c)
-      case (None, Some(r)) => (false, r)
-      case _ => fatal("this module requires one of `root' or `code', but not both")
-    }
+  def annotateVariantsKeyTable(kt: KeyTable, code: String) = {
+    val ktKeyTypes = kt.keySignature.fields.map(_.`type`)
 
-    val inputKeyTypes = kt.keySignature.fields.map(_.`type`)
-    val expectedKeyTypes = TStruct(("Variant", TVariant)).fields.map(_.`type`)
-    if ( inputKeyTypes != expectedKeyTypes)
-      fatal(s"Key Signature of KeyTable must be 1 field with type `Variant'. Found `${inputKeyTypes.mkString(", ")}'")
+    if (ktKeyTypes.size != 1 || ktKeyTypes(0) != TVariant)
+      fatal(s"Key Signature of KeyTable must be 1 field with type `Variant'. Found `${ktKeyTypes.mkString(", ")}'")
 
-    val struct = kt.signature
+    val ktValueSig = kt.valueSignature
 
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) = if (expr) {
-      val ec = EvalContext(Map(
-        "va" -> (0, vaSignature),
-        "table" -> (1, struct)))
-      buildInserter(codeInput, vaSignature, ec, Annotation.VARIANT_HEAD)
-    } else insertVA(struct, Parser.parseAnnotationRoot(codeInput, Annotation.VARIANT_HEAD))
+    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, ktValueSig)))
 
-    val nKeys = kt.nKeys
-    val nValues = kt.nValues
-    val ec = EvalContext(kt.fields.map(f => (f.name, f.`type`)): _*)
+    val (finalType, inserter) =
+      buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
     val keyedRDD = kt.rdd.map { case (k: Row, v) => (k(0).asInstanceOf[Variant], v) }
 

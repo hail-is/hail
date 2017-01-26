@@ -767,14 +767,14 @@ class VariantDataset(object):
         >>> kt = hc.import_keytable('data/variant-lof.tsv', 'v')
         >>>
         >>> (hc.read('data/example.vds')
-        >>>    .annotate_variants_keytable(kt, 'va.lof = table'))
+        >>>    .annotate_variants_keytable(kt, 'va.lof = table.lof'))
 
         **Notes**
 
         ``condition`` has the following symbols in scope:
 
           - ``va``: variant annotations
-          - ``table``: :py:class:`.KeyTable` values
+          - ``table``: :py:class:`.KeyTable` value
 
         :param condition: Annotation expression or list of annotation expressions
         :type condition: str or list of str

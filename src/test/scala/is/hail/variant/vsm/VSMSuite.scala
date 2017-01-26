@@ -395,7 +395,7 @@ class VSMSuite extends SparkSuite {
       var s = State(sc, sqlContext, vds = vds)
       s = AnnotateVariantsExpr.run(s, Array("-c", "va.bar = va"))
       val kt = s.vds.variantsKT()
-      val resultVds = s.vds.annotateVariantsKT(kt, "va.foo = va.bar")
+      val resultVds = s.vds.annotateVariantsKeyTable(kt, "va.foo = table.va.bar")
       val result = resultVds.rdd.collect()
       val (_, getFoo) = resultVds.queryVA("va.foo")
       val (_, getBar) = resultVds.queryVA("va.bar")
