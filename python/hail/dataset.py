@@ -757,10 +757,11 @@ class VariantDataset(object):
         pargs = ['annotatevariants', 'expr', '-c', condition]
         return self.hc._run_command(self, pargs)
 
-    def annotate_variants_keytable(self, keytable, condition):
+    def annotate_variants_keytable(self, keytable, condition, vdsKey=None):
         """Annotate variants with an expression that may depend on a :py:class:`.KeyTable`.
 
-        The :py:class:`.KeyTable`'s key must have type *Variant*.
+        If `vdsKey` is specified, it must evaluate to a value with the same type
+        as the `keytable`'s key type.
 
         **Examples**
 
@@ -771,6 +772,15 @@ class VariantDataset(object):
         >>> (hc.read('data/example.vds')
         >>>    .annotate_variants_keytable(kt, 'va.lof = table.lof'))
 
+        Use a TSV as a map from existing annotations to new annotations:
+
+        >>> kt = hc.import_keytable('data/locus-metadata.tsv', ['locus','score'])
+        >>>
+        >>> (hc.read('data/example-with-populations.vds')
+        >>>    .annotate_variants_keytable(kt,
+        >>>       'va.foo = table.foo',
+        >>>       '{ locus: v.locus, score: va.score }'))
+
         **Notes**
 
         ``condition`` has the following symbols in scope:
@@ -778,8 +788,16 @@ class VariantDataset(object):
           - ``va``: variant annotations
           - ``table``: :py:class:`.KeyTable` value
 
+        ``vdsKey`` has the following symbols in scope:
+
+          - ``v`` (*Variant*): :ref:`variant`
+          - ``va``: variant annotations
+
         :param condition: Annotation expression or list of annotation expressions
         :type condition: str or list of str
+
+        :param vdsKey: Annotation expression to produce the VDS's join key
+        :type vdsKey: str or None
 
         :return: A :py:class:`.VariantDataset` with new variant annotations specified by ``condition``
 
@@ -788,9 +806,13 @@ class VariantDataset(object):
         """
         if isinstance(condition, list):
             condition = ','.join(condition)
-        return VariantDataset(
-            self.hc,
-            self.jvds.annotateVariantsKeyTable(keytable.jkt, condition))
+
+        if (vdsKey==None):
+            jvds = self.jvds.annotateVariantsKeyTable(keytable.jkt, condition))
+        else:
+            jvds = self.jvds.annotateVariantsKeyTable(keytable.jkt, vdsKey, condition)
+
+        return VariantDataset(self.hc, jvds)
 
     def annotate_variants_intervals(self, input, root, all=False):
         """Annotate variants from an interval list file.

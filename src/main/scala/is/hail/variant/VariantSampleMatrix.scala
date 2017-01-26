@@ -1073,6 +1073,41 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
     annotateVariants(ordRdd, finalType, inserter)
   }
+
+  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: String, code: String) = {
+
+    val vdsKeyEc = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
+
+    val (vdsKeyType, vdsKeyF) = Parser.parseExpr(vdsKey, vdsKeyEc)
+
+    if (kt.keySignature != vdsKeyType)
+      fatal(s"Key signature of KeyTable, `${kt.keySignature}', must match type of computed key, `${vdsKeyType}'.")
+
+    val ktSig = kt.signature
+
+    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, ktSig)))
+
+    val (finalType, inserter) =
+      buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
+
+    val ktRdd = kt.rdd.map { case (k, v) => (k, kt.mergeKeyAndValue(k, v)) }
+
+    val thisRdd = rdd.map { case (v, (va, gs)) =>
+      vdsKeyEc.setAll(v, va)
+      (vdsKeyF().orNull, (v, va))
+    }
+
+    val variantKeyedRdd = ktRdd.join(thisRdd)
+      .map { case (_, (table, (v, va))) => (v, inserter(va, Some(table))) }
+
+    val ordRdd = OrderedRDD(variantKeyedRdd, None, None)
+
+    val newRdd = rdd.orderedLeftJoinDistinct(ordRdd)
+      .mapValues { case ((va, gs), optVa) => (optVa.getOrElse(va), gs) }
+      .asOrderedRDD
+
+    copy(rdd = newRdd, vaSignature = finalType)
+  }
 }
 
 // FIXME AnyVal Scala 2.11

@@ -405,4 +405,63 @@ class VSMSuite extends SparkSuite {
       }
     }.check()
   }
+
+  @Test def testAnnotateVariantsKeyTableWithComputedKey() {
+    forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
+      var s = State(sc, sqlContext, vds = vds)
+      s = AnnotateVariantsExpr.run(s, Array("-c", "va.key = pcoin(0.5)"))
+
+      val kt = KeyTable(sc.parallelize(Array((Annotation(true), Annotation(1)), (Annotation(false), Annotation(2)))),
+        TStruct(("key", TBoolean)), TStruct(("value", TInt)))
+
+      val resultVds = s.vds.annotateVariantsKeyTable(kt, "{ key: va.key }", "va.foo = table.value")
+      val result = resultVds.rdd.collect()
+      val (_, getKey) = resultVds.queryVA("va.key")
+      val (_, getFoo) = resultVds.queryVA("va.foo")
+
+      result.forall { case (v, (va, gs)) =>
+        if (getKey(va).get.asInstanceOf[Boolean]) {
+          assert(getFoo(va).get == 1)
+          getFoo(va).get == 1
+        } else {
+          assert(getFoo(va).get == 2)
+          getFoo(va).get == 2
+        }
+      }
+    }.check()
+  }
+
+  @Test def testAnnotateVariantsKeyTableWithComputedKey2() {
+    forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
+      var s = State(sc, sqlContext, vds = vds)
+      s = AnnotateVariantsExpr.run(s, Array("-c", "va.key1 = pcoin(0.5), va.key2 = pcoin(0.5)"))
+
+      def f(a: Boolean, b: Boolean): Int =
+        if (a)
+          if (b) 1 else 2
+        else
+          if (b) 3 else 4
+
+      def makeAnnotationPair(a: Boolean, b: Boolean): (Annotation, Annotation) =
+        (Annotation(a, b), Annotation(f(a, b)))
+
+      val mapping = sc.parallelize(Array(
+        makeAnnotationPair(true, true),
+        makeAnnotationPair(true, false),
+        makeAnnotationPair(false, true),
+        makeAnnotationPair(false, false)))
+
+      val kt = KeyTable(mapping, TStruct(("key1", TBoolean), ("key2", TBoolean)), TStruct(("value", TInt)))
+
+      val resultVds = s.vds.annotateVariantsKeyTable(kt, "{ key1: va.key1, key2: va.key2 }", "va.foo = table.value")
+      val result = resultVds.rdd.collect()
+      val (_, getKey1) = resultVds.queryVA("va.key1")
+      val (_, getKey2) = resultVds.queryVA("va.key2")
+      val (_, getFoo) = resultVds.queryVA("va.foo")
+
+      result.forall { case (v, (va, gs)) =>
+        getFoo(va).get == f(getKey1(va).get.asInstanceOf[Boolean], getKey2(va).get.asInstanceOf[Boolean])
+      }
+    }.check()
+  }
 }
