@@ -11,13 +11,13 @@ You'll need:
 - Python 2.7 and IPython. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
 - `CMake <http://cmake.org>`_ and a C++ compiler.
 
-  On a Debian-based Linux like Ubuntu, run:
+  On a Debian-based Linux OS like Ubuntu, run:
 
   .. code-block:: text
 
     $ sudo apt-get install g++ cmake
 
-  On OSX, install Xcode, available through the App Store, for the C++ compiler.  `CMake <http://cmake.org>`_ can be downloaded from the CMake website or through `Homebrew <http://brew.sh>`_.  To install with Homebrew, run
+  On Mac OS X, install Xcode, available through the App Store, for the C++ compiler.  `CMake <http://cmake.org>`_ can be downloaded from the CMake website or through `Homebrew <http://brew.sh>`_.  To install with Homebrew, run
 
   .. code-block:: text
 
@@ -32,20 +32,7 @@ You'll need:
 
   You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
 
-  Please also install "Seaborn", a python library for statistical data visualization. The easiest way to do this is by running:
-
-  .. code-block:: text
-
-      $ pip install seaborn
-
-  or 
-
-  .. code-block:: text
-
-      $ conda install seaborn
-
-  The former will only work if you pip installed, the later will only work if you did install Anaconda above. Seaborn is not technically 
-  necessary, but it helps with the graphs in the tutorial.
+  You may also want to install `Seaborn <http://seaborn.pydata.org>`_, a Python library for statistical data visualization, using ``conda install seaborn`` or ``pip install seaborn``. While not technically necessary, we use Seaborn in the tutorial to make prettier plots.
 
 To install all dependencies for running locally on a fresh Ubuntu installation, use this `script <https://github.com/hail-is/hail/wiki/Install-Hail-dependencies-on-a-fresh-Ubuntu-VM>`_.
 
