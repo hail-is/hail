@@ -757,6 +757,39 @@ class VariantDataset(object):
         pargs = ['annotatevariants', 'expr', '-c', condition]
         return self.hc._run_command(self, pargs)
 
+    def annotate_variants_keytable(self, keytable, condition):
+        """Annotate variants with an expression that may depend on a :py:class:`.KeyTable`.
+
+        **Examples**
+
+        Add annotations from a TSV:
+
+        >>> kt = hc.import_keytable('data/variant-lof.tsv', 'v')
+        >>>
+        >>> (hc.read('data/example.vds')
+        >>>    .annotate_variants_keytable(kt, 'va.lof = table'))
+
+        **Notes**
+
+        ``condition`` has the following symbols in scope:
+
+          - ``va``: variant annotations
+          - ``table``: :py:class:`.KeyTable` values
+
+        :param condition: Annotation expression or list of annotation expressions
+        :type condition: str or list of str
+
+        :return: A :py:class:`.VariantDataset` with new variant annotations specified by ``condition``
+
+        :rtype: :py:class:`.VariantDataset`
+
+        """
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+        return VariantDataset(
+            self.hc,
+            self.jvds.annotateVariantsKeyTable(keytable.jkt, condition))
+
     def annotate_variants_intervals(self, input, root, all=False):
         """Annotate variants from an interval list file.
 
