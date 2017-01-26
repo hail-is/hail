@@ -753,6 +753,8 @@ class VariantDataset(object):
     def annotate_variants_keytable(self, keytable, condition):
         """Annotate variants with an expression that may depend on a :py:class:`.KeyTable`.
 
+        The :py:class:`.KeyTable`'s key must have type *Variant*.
+
         **Examples**
 
         Add annotations from a TSV:
