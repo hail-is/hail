@@ -268,6 +268,13 @@ class ContextTests(unittest.TestCase):
 
         sample2.filter_alleles('pcoin(0.5)')
 
+        sample2.annotate_variants_keytable(sample2.variants_keytable(), "va.foo = table.va")
+
+        kt = (sample2.variants_keytable()
+              .annotate("v2 = v")
+              .key_by(["v", "v2"]))
+        sample2.annotate_variants_keytable(kt, "va.foo = table.va", "{ v : v, v2: v }")
+
     def test_keytable(self):
         test_resources = 'src/test/resources'
 
