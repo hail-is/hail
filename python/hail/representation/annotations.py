@@ -2,20 +2,27 @@ class Struct(object):
     """
     Nested annotation structure.
 
-    :param dict attributes: struct members, must contain every field in ``fields`` as a key.
-    :param fields: list of field names, used for ordering
-    :type fields: list of str
+    Struct elements are treated as both 'items' and 'attributes', which
+    allows either syntax for accessing the element "foo" of struct "bar":
 
-    :ivar fields: ordered list of fields
-    :vartype fields: list of str
+    >>> bar.foo
+    >>> bar['foo']
+
+    Note that it is possible to use Hail to define struct fields inside
+    of a key table or variant dataset that do not match python syntax.
+    The name "1kg", for example, will not parse to python because it
+    begins with an integer, which is not an acceptable leading character
+    for an identifier.  There are two ways to access this field:
+
+    >>> getattr(bar, '1kg')
+    >>> bar['1kg']
+
+    :param dict attributes: struct members.
     """
 
-    def __init__(self, attributes, fields):
-        if not len(fields) == len(attributes):
-            raise ValueError('length of fields and size of attributes is not the same: %d and %d' %
-                             (len(fields), len(attributes)))
+    def __init__(self, attributes):
+
         self._attrs = attributes
-        self.fields = fields
 
     def __getattr__(self, item):
         assert (self._attrs)
@@ -30,13 +37,13 @@ class Struct(object):
         return self.__getattr__(item)
 
     def __len__(self):
-        return len(self.fields)
+        return len(self._attrs)
 
     def __str__(self):
-        return 'Struct{%s}' % ', '.join(["'%s': %s" % (f, self._attrs[f]) for f in self.fields])
+        return 'Struct' + str(self._attrs)
 
     def __repr__(self):
-        return '{%s}' % ', '.join(["'%s':%s" % (f, repr(self._attrs[f])) for f in self.fields])
+        return 'Struct' + repr(self._attrs)
 
     def __eq__(self, other):
-        return self.fields == other.fields and self._attrs == other._attrs
+        return self._attrs == other._attrs

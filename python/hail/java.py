@@ -25,8 +25,13 @@ def joption(x):
     return jsome(x) if x else jnone()
 
 
-def strip_option(x):
+def from_option(x):
     return x.get() if x.isDefined() else None
+
+
+def raise_py4j_exception(self, e):
+    msg = scala_package_object(self._hail.utils).getMinimalMessage(e.java_exception)
+    raise FatalError(msg, e.java_exception)
 
 
 class Env:

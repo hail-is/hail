@@ -15,7 +15,7 @@ class Variant(object):
     :ivar str contig: chromosome identifier
     :ivar int start: chromosomal position (1-based)
     :ivar str ref: reference allele
-    :ivar alt_alleles: alternate alleles
+    :ivar alt_alleles: list of alternate allele objects in this polymorphism
     :vartype alt_alleles: list of :class:`.AltAllele`
     """
 
@@ -29,25 +29,14 @@ class Variant(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Variant(%s, %s, %s, %s)' % (self.contig, self.start, self.ref, self.alt_alleles)
+        return 'Variant(%s, %s, %s, %s)' % (self.contig, self.start, self.ref, self._alt_alleles)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-
-        #: (str) chromosome identifier
-        self.contig = jrep.contig()
-
-        #: (int) chromosomal position
-        self.start = jrep.start()
-
-        #: (str) reference allele
-        self.ref = jrep.ref()
-
-        #: (list of :class:`.AltAllele`) alternate alleles
-        self.alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
+        self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
 
     @classmethod
     def _from_java(cls, jrep):
@@ -70,6 +59,41 @@ class Variant(object):
         """
         jrep = scala_object(Env.hail_package().variant, 'Variant').parse(string)
         return Variant._from_java(jrep)
+
+    @property
+    def contig(self):
+        """
+        Chromosome identifier.
+        :rtype: str
+        """
+        return self._jrep.contig()
+
+    @property
+    def start(self):
+        """
+        Chromosomal position (1-based).
+        :rtype: int
+        """
+        return self._jrep.start()
+
+    @property
+    def ref(self):
+        """
+        Reference allele at this locus.
+
+        :rtype: str
+        """
+        return self._jrep.ref()
+
+    @property
+    def alt_alleles(self):
+        """
+        List of alternate allele objects in this polymorphism.
+
+        :rtype: list of :class:`.AltAllele`
+        """
+
+        return self._alt_alleles
 
     def num_alt_alleles(self):
         """Returns the number of alternate alleles in this polymorphism.
@@ -242,14 +266,30 @@ class AltAllele(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-        self.ref = jrep.ref()
-        self.alt = jrep.alt()
 
     @classmethod
     def _from_java(cls, jaa):
         aa = AltAllele.__new__(cls)
         aa._init_from_java(jaa)
         return aa
+
+    @property
+    def ref(self):
+        """
+        Reference allele.
+
+        :rtype: str
+        """
+        return self._jrep.ref()
+
+    @property
+    def alt(self):
+        """
+        Alternate allele.
+
+        :rtype: str
+        """
+        return self._jrep.alt()
 
     def num_mismatch(self):
         """Returns the number of mismatched bases in this alternate allele.
@@ -374,8 +414,6 @@ class Locus(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-        self.contig = jrep.contig()
-        self.position = jrep.position()
 
     @classmethod
     def _from_java(cls, jrep):
@@ -391,3 +429,19 @@ class Locus(object):
         """
 
         return Locus._from_java(scala_object(Env.hail_package().variant, 'Locus').parse(string))
+
+    @property
+    def contig(self):
+        """
+        Chromosome identifier.
+        :rtype: str
+        """
+        return self._jrep.contig()
+
+    @property
+    def position(self):
+        """
+        Chromosomal position (1-based).
+        :rtype: int
+        """
+        return self._jrep.position()

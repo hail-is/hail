@@ -306,7 +306,6 @@ object SampleQC extends Command {
 
   def run(state: State, options: Options): State = {
     val vds = state.vds
-    val branchingFactor = Option(options.branchingFactor).map(x => x: Int)
 
     val output = options.output
 

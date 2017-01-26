@@ -5,13 +5,27 @@ class Genotype(object):
     """
     An object that represents an individual's genotype at a genomic locus.
 
-    :param int gt: Genotype hard call
+    :param gt: Genotype hard call
+    :type gt: int or None
     :param ad: allelic depth (1 element per allele including reference)
-    :type ad: list of int
-    :param int dp: total depth
-    :param int gq: genotype quality
+    :type ad: list of int or None
+    :param dp: total depth
+    :type dp: int or None
+    :param gq: genotype quality
+    :type gq: int or None
     :param pl: phred-scaled posterior genotype likelihoods (1 element per possible genotype)
-    :type pl: list of int
+    :type pl: list of int or None
+
+    :ivar gt: Genotype hard call
+    :vartype gt: int or None
+    :ivar ad: allelic depth (1 element per allele including reference)
+    :vartype ad: list of int or None
+    :ivar dp: total depth
+    :vartype dp: int or None
+    :ivar gq: genotype quality
+    :vartype gq: int or None
+    :ivar pl: phred-scaled posterior genotype likelihoods (1 element per possible genotype)
+    :vartype pl: list of int or None
     """
 
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
@@ -37,7 +51,7 @@ class Genotype(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Genotype(%s, %s, %s, %s, %s' % (self.gt(), self.ad(), self.dp(), self.gq(), self.pl())
+        return 'Genotype(%s, %s, %s, %s, %s' % (self.gt, self.ad, self.dp, self.gq, self.pl)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
@@ -51,48 +65,53 @@ class Genotype(object):
         l._init_from_java(jrep)
         return l
 
+    @property
     def gt(self):
         """Returns the hard genotype call.
 
         :rtype: int or None
         """
 
-        return strip_option(self._jrep.gt())
+        return from_option(self._jrep.gt())
 
+    @property
     def ad(self):
         """Returns the allelic depth.
 
         :rtype: list of int or None
         """
 
-        result = strip_option(self._jrep.ad())
+        result = from_option(self._jrep.ad())
         if result:
             result = [x for x in scala_package_object(Env.hail_package().utils).arrayToArrayList(result)]
         return result
 
+    @property
     def dp(self):
         """Returns the total depth.
 
         :rtype: int or None
         """
 
-        return strip_option(self._jrep.dp())
+        return from_option(self._jrep.dp())
 
+    @property
     def gq(self):
         """Returns the phred-scaled genotype quality.
 
         :return: int or None
         """
 
-        return strip_option(self._jrep.gq())
+        return from_option(self._jrep.gq())
 
+    @property
     def pl(self):
         """Returns the phred-scaled genotype posterior likelihoods.
 
         :rtype: list of int or None
         """
 
-        result = strip_option(self._jrep.pl())
+        result = from_option(self._jrep.pl())
         if result:
             result = [x for x in scala_package_object(Env.hail_package().utils).arrayToArrayList(result)]
         return result
@@ -107,7 +126,7 @@ class Genotype(object):
         :rtype: int or None
         """
 
-        return strip_option(self._jrep.od())
+        return from_option(self._jrep.od())
 
     def dosage(self):
         """Returns the linear-scaled genotype probabilities.
@@ -115,7 +134,7 @@ class Genotype(object):
         :rtype: list of float
         """
 
-        return strip_option(self._jrep.dosage())
+        return from_option(self._jrep.dosage())
 
     def is_hom_ref(self):
         """True if the genotype call is 0/0
@@ -189,7 +208,7 @@ class Genotype(object):
         :rtype: int or None
         """
 
-        return strip_option(self._jrep.nNonRefAlleles())
+        return from_option(self._jrep.nNonRefAlleles())
 
     def one_hot_alleles(self, num_alleles):
         """Returns a list containing the one-hot encoded representation of the called alleles.
@@ -217,7 +236,7 @@ class Genotype(object):
         :rtype: list of int or None
         """
 
-        result = strip_option(self._jrep.oneHotAlleles(num_alleles))
+        result = from_option(self._jrep.oneHotAlleles(num_alleles))
         if result:
             result = [x for x in scala_package_object(Env.hail_package().utils).iterableToArrayList(result)]
         return result
@@ -247,7 +266,7 @@ class Genotype(object):
         :rtype: list of int or None
         """
 
-        result = strip_option(self._jrep.oneHotGenotype(num_genotypes))
+        result = from_option(self._jrep.oneHotGenotype(num_genotypes))
         if result:
             result = [x for x in scala_package_object(Env.hail_package().utils).iterableToArrayList(result)]
         return result
@@ -263,7 +282,7 @@ class Genotype(object):
         :rtype: float or None
         """
 
-        return strip_option(self._jrep.pAB(theta))
+        return from_option(self._jrep.pAB(theta))
 
     def fraction_reads_ref(self):
         """Returns the fraction of reads that are reference reads.
@@ -275,4 +294,4 @@ class Genotype(object):
         :rtype: float or None
         """
 
-        return strip_option(self._jrep.fractionReadsRef())
+        return from_option(self._jrep.fractionReadsRef())

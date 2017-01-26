@@ -1,23 +1,41 @@
 from py4j.protocol import Py4JJavaError
+from hail.java import Env, raise_py4j_exception
+
+
+class FatalError(Exception):
+    """:class:`.FatalError` is an error thrown by Hail method failures"""
+
+    def __init__(self, message, java_exception):
+        self.msg = message
+        self.java_exception = java_exception
+        super(FatalError)
+
+    def __str__(self):
+        return self.msg
+
 
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
 
     :param bool noheader: File has no header and columns the N columns are named ``_1``, ``_2``, ... ``_N`` (0-indexed)
-
     :param bool impute: Impute column types from the file
-
     :param comment: Skip lines beginning with the given pattern
     :type comment: str or None
-
     :param str delimiter: Field delimiter regex
-
     :param str missing: Specify identifier to be treated as missing
-
     :param types: Define types of fields in annotations files   
     :type types: str or None
 
+    :ivar bool noheader: File has no header and columns the N columns are named ``_1``, ``_2``, ... ``_N`` (0-indexed)
+    :ivar bool impute: Impute column types from the file
+    :ivar comment: Skip lines beginning with the given pattern
+    :vartype comment: str or None
+    :ivar str delimiter: Field delimiter regex
+    :ivar str missing: Specify identifier to be treated as missing
+    :ivar types: Define types of fields in annotations files
+    :vartype types: str or None
     """
+
     def __init__(self, noheader=False, impute=False,
                  comment=None, delimiter="\\t", missing="NA", types=None):
         self.noheader = noheader
@@ -27,11 +45,11 @@ class TextTableConfig(object):
         self.missing = missing
         self.types = types
 
-    def as_pargs(self):
+    def _as_pargs(self):
         """Configuration parameters as a list"""
 
         pargs = ["--delimiter", self.delimiter,
-               "--missing", self.missing]
+                 "--missing", self.missing]
 
         if self.noheader:
             pargs.append("--no-header")
@@ -50,16 +68,13 @@ class TextTableConfig(object):
         return pargs
 
     def __str__(self):
-        return " ".join(self.as_pargs())
+        return " ".join(self._as_pargs())
 
-    def to_java(self, hc):
-        """Convert to Java TextTableConfiguration object.
-
-        :param: :class:`.HailContext` The Hail context.
-        """
+    def _to_java(self):
+        """Convert to Java TextTableConfiguration object."""
         try:
-            return hc.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
-                                                              self.delimiter, self.missing,
-                                                              self.noheader, self.impute)
+            return Env.hail_package().utils.TextTableConfiguration.apply(self.types, self.comment,
+                                                                         self.delimiter, self.missing,
+                                                                         self.noheader, self.impute)
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)

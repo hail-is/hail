@@ -34,8 +34,6 @@ class Interval(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-        self.start = Locus._from_java(jrep.start())
-        self.end = Locus._from_java(jrep.end())
 
     @classmethod
     def _from_java(cls, jrep):
@@ -62,6 +60,24 @@ class Interval(object):
 
         jrep = scala_object(Env.hail_package().variant, 'Locus').parseInterval(string)
         return Interval._from_java(jrep)
+
+    @property
+    def start(self):
+        """
+        Locus object referring to the start of the interval (inclusive).
+
+        :rtype: :class:`.Locus`
+        """
+        return Locus._from_java(self._jrep.start())
+
+    @property
+    def end(self):
+        """
+        Locus object referring to the end of the interval (exclusive).
+
+        :rtype: :class:`.Locus`
+        """
+        return Locus._from_java(self._jrep.end())
 
     def contains(self, locus):
         """True if the supplied locus is contained within the interval.

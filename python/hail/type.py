@@ -3,6 +3,12 @@ from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, S
 
 
 class TypeCheckError(Exception):
+    """
+    Error thrown at mismatch between expected and supplied python types.
+
+    :param str message: Error message
+    """
+
     def __init__(self, message):
         self.msg = message
         super(TypeCheckError).__init__(TypeCheckError)
@@ -69,6 +75,21 @@ class Type(object):
         else:
             raise TypeError("unknown type class: '%s'" % class_name)
 
+    def _jtype(self):
+        """
+        Returns the java type associated with this type.
+        """
+
+        raise NotImplemented('use a subclass of Type')
+
+    def _typecheck(self, annotation):
+        """
+        Raise an exception if the given annotation is not the appropriate type.
+
+        :param annotation: value to check
+        """
+        raise NotImplemented('use a subclass of Type')
+
 
 class TInt(Type):
     """
@@ -78,16 +99,16 @@ class TInt(Type):
     def __init__(self):
         super(TInt, self).__init__(scala_object(Env.hail_package().expr, 'TInt'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation:
             return scala_package_object(Env.hail_package().utils).makeInt(annotation)
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, int):
             raise TypeCheckError("TInt expected type 'int', but found type '%s'" % type(annotation))
 
@@ -100,16 +121,16 @@ class TLong(Type):
     def __init__(self):
         super(TLong, self).__init__(scala_object(Env.hail_package().expr, 'TLong'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation:
             return scala_package_object(Env.hail_package().utils).makeLong(annotation)
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not (isinstance(annotation, long) or isinstance(annotation, int)):
             raise TypeCheckError("TLong expected type 'int' or 'long', but found type '%s'" % type(annotation))
 
@@ -122,10 +143,10 @@ class TFloat(Type):
     def __init__(self):
         super(TFloat, self).__init__(scala_object(Env.hail_package().expr, 'TFloat'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         # if annotation:
         #     return scala_package_object(Env.hail_package().utils).makeFloat(annotation)
         # else:
@@ -134,7 +155,7 @@ class TFloat(Type):
         # FIXME: This function is unsupported until py4j-0.10.4: https://github.com/bartdag/py4j/issues/255
         raise NotImplementedError('TFloat is currently unsupported in certain operations, use TDouble instead')
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, float):
             raise TypeCheckError("TDouble expected type 'float', but found type '%s'" % type(annotation))
 
@@ -147,16 +168,16 @@ class TDouble(Type):
     def __init__(self):
         super(TDouble, self).__init__(scala_object(Env.hail_package().expr, 'TDouble'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation:
             return scala_package_object(Env.hail_package().utils).makeDouble(annotation)
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, float):
             raise TypeCheckError("TDouble expected type 'float', but found type '%s'" % type(annotation))
 
@@ -169,13 +190,13 @@ class TString(Type):
     def __init__(self):
         super(TString, self).__init__(scala_object(Env.hail_package().expr, 'TString'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, str):
             raise TypeCheckError("TString expected type 'str', but found type '%s'" % type(annotation))
 
@@ -188,13 +209,13 @@ class TBoolean(Type):
     def __init__(self):
         super(TBoolean, self).__init__(scala_object(Env.hail_package().expr, 'TBoolean'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, bool):
             raise TypeCheckError("TBoolean expected type 'bool', but found type '%s'" % type(annotation))
 
@@ -225,27 +246,27 @@ class TArray(Type):
         t._jtype = jtype
         return t
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             lst = scala_package_object(Env.hail_package().utils).iterableToArrayList(annotation)
-            return [self.element_type.convert_to_py(x) for x in lst]
+            return [self.element_type._convert_to_py(x) for x in lst]
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return scala_package_object(Env.hail_package().utils).arrayListToISeq(
-                [self.element_type.convert_to_j(elt) for elt in annotation]
+                [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation:
             if not isinstance(annotation, list):
                 raise TypeCheckError("TArray expected type 'list', but found type '%s'" % type(annotation))
             for elt in annotation:
-                self.element_type.typecheck(elt)
+                self.element_type._typecheck(elt)
 
 
 class TSet(Type):
@@ -274,27 +295,27 @@ class TSet(Type):
         t._jtype = jtype
         return t
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             lst = scala_package_object(Env.hail_package().utils).iterableToArrayList(annotation)
-            return set([self.element_type.convert_to_py(x) for x in lst])
+            return set([self.element_type._convert_to_py(x) for x in lst])
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return scala_package_object(Env.hail_package().utils).arrayListToSet(
-                [self.element_type.convert_to_j(elt) for elt in annotation]
+                [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation:
             if not isinstance(annotation, set):
                 raise TypeCheckError("TSet expected type 'set', but found type '%s'" % type(annotation))
             for elt in annotation:
-                self.element_type.typecheck(elt)
+                self.element_type._typecheck(elt)
 
 
 class TDict(Type):
@@ -323,36 +344,48 @@ class TDict(Type):
         t._jtype = jtype
         return t
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             lst = scala_package_object(Env.hail_package().utils).iterableToArrayList(annotation)
             d = dict()
             for x in lst:
-                d[x._1()] = self.element_type.convert_to_py(x._2())
+                d[x._1()] = self.element_type._convert_to_py(x._2())
             return d
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return scala_package_object(Env.hail_package().utils).javaMapToMap(
-                {k: self.element_type.convert_to_j(v) for k, v in annotation.iteritems()}
+                {k: self.element_type._convert_to_j(v) for k, v in annotation.iteritems()}
             )
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation:
             if not isinstance(annotation, dict):
                 raise TypeCheckError("TDict expected type 'dict', but found type '%s'" % type(annotation))
             for v in annotation.values():
-                self.element_type.typecheck(v)
+                self.element_type._typecheck(v)
 
 
 class Field(object):
-    def __init__(self, name, htype):
+    """
+    Helper class for :class:`.TStruct`: contains attribute names and types.
+
+    :param str name: name of field
+    :param typ: type of field
+    :type typ: :class:`.Type`
+
+    :ivar str name: name of field
+    :ivar typ: type of field
+    :vartype typ: :class:`.Type`
+    """
+
+    def __init__(self, name, typ):
         self.name = name
-        self.typ = htype
+        self.typ = typ
 
 
 class TStruct(Type):
@@ -391,32 +424,32 @@ class TStruct(Type):
         jfields = scala_package_object(Env.hail_package().utils).iterableToArrayList(jtype.fields())
         self.fields = [Field(f.name(), Type._from_java(f.typ())) for f in jfields]
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             d = dict()
             for i, f in enumerate(self.fields):
-                d[f.name] = f.typ.convert_to_py(annotation.get(i))
-            return Struct(d, [f.name for f in self.fields])
+                d[f.name] = f.typ._convert_to_py(annotation.get(i))
+            return Struct(d)
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return scala_object(Env.hail_package().annotations, 'Annotation').fromSeq(
                 scala_package_object(Env.hail_package().utils).arrayListToISeq(
-                    [f.typ.convert_to_j(annotation[f.name]) for f in self.fields]
+                    [f.typ._convert_to_j(annotation[f.name]) for f in self.fields]
                 )
             )
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation:
             for f in self.fields:
                 if not (f.name in annotation):
                     raise TypeCheckError("TStruct expected fields '%s', but found fields '%s'" %
                                          ([f.name for f in self.fields], annotation.fields))
-                f.typ.typecheck((annotation[f.name]))
+                f.typ._typecheck((annotation[f.name]))
 
 
 class TVariant(Type):
@@ -427,19 +460,19 @@ class TVariant(Type):
     def __init__(self):
         super(TVariant, self).__init__(scala_object(Env.hail_package().expr, 'TVariant'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             return Variant._from_java(annotation)
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, Variant):
             raise TypeCheckError('TVariant expected type hail.representation.Variant, but found %s' %
                                  type(annotation))
@@ -453,19 +486,19 @@ class TAltAllele(Type):
     def __init__(self):
         super(TAltAllele, self).__init__(scala_object(Env.hail_package().expr, 'TAltAllele'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             return AltAllele._from_java(annotation)
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, AltAllele):
             raise TypeCheckError('TAltAllele expected type hail.representation.AltAllele, but found %s' %
                                  type(annotation))
@@ -479,19 +512,19 @@ class TGenotype(Type):
     def __init__(self):
         super(TGenotype, self).__init__(scala_object(Env.hail_package().expr, 'TGenotype'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             return Genotype._from_java(annotation)
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, Genotype):
             raise TypeCheckError('TGenotype expected type hail.representation.Genotype, but found %s' %
                                  type(annotation))
@@ -505,19 +538,19 @@ class TLocus(Type):
     def __init__(self):
         super(TLocus, self).__init__(scala_object(Env.hail_package().expr, 'TLocus'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             return Locus._from_java(annotation)
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, Locus):
             raise TypeCheckError('TLocus expected type hail.representation.Locus, but found %s' %
                                  type(annotation))
@@ -531,19 +564,19 @@ class TInterval(Type):
     def __init__(self):
         super(TInterval, self).__init__(scala_object(Env.hail_package().expr, 'TInterval'))
 
-    def convert_to_py(self, annotation):
+    def _convert_to_py(self, annotation):
         if annotation:
             return Interval._from_java(annotation)
         else:
             return annotation
 
-    def convert_to_j(self, annotation):
+    def _convert_to_j(self, annotation):
         if annotation is not None:
             return annotation._jrep
         else:
             return annotation
 
-    def typecheck(self, annotation):
+    def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, Interval):
             raise TypeCheckError('TInterval expected type hail.representation.Interval, but found %s' %
                                  type(annotation))
