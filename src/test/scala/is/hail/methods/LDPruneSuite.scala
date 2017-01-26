@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import breeze.linalg.{Vector => BVector}
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
@@ -12,8 +11,10 @@ import org.testng.annotations.Test
 class LDPruneSuite extends SparkSuite {
   val bytesPerCore = 256L * 1024L * 1024L
 
-  def correlationMatrixBitPacked(gs: Array[Iterable[Genotype]], nSamples: Int) = {
-    val bvi = gs.map(LDPrune.toByteGtArray(_, nSamples))
+  def convertGtToGs(gts: Array[Int]): Iterable[Genotype] = gts.map(Genotype(_))
+
+  def correlationMatrix(gs: Array[Iterable[Genotype]], nSamples: Int) = {
+    val bvi = gs.map(LDPrune.toBitPackedVector(_, nSamples))
     val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
       (bvi(i), bvi(j)) match {
         case (Some(x), Some(y)) =>
@@ -22,20 +23,6 @@ class LDPruneSuite extends SparkSuite {
       }
     }
     val nVariants = bvi.length
-    new MultiArray2(nVariants, nVariants, r2.toArray)
-  }
-
-  def correlationMatrix(gs: Array[Iterable[Genotype]], nSamples: Int) = {
-    val sgs = gs.map(LDPrune.toNormalizedGtArray(_, nSamples))
-    val r2 = for (i <- sgs.indices; j <- sgs.indices) yield {
-      (sgs(i), sgs(j)) match {
-        case (Some(x), Some(y)) =>
-          val r = BVector(x).dot(BVector(y)): Double
-          Some(r * r)
-        case _ => None
-      }
-    }
-    val nVariants = sgs.length
     new MultiArray2(nVariants, nVariants, r2.toArray)
   }
 
@@ -56,69 +43,15 @@ class LDPruneSuite extends SparkSuite {
     }
   }
 
-  def convertGtToGs(gts: Array[Int]): Iterable[Genotype] = gts.map(Genotype(_))
-
-  @Test def testBitUnpack() {
-    val input1 = Array(-8696433657633570816L)
-    val res1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1) ++ Array.fill[Int](16)(0)
-    assert(LDPrune.unpack(input1) sameElements res1)
-
-    val input2 = Array(2290643360471318528L)
-    val res2 = Array(0, 1, 2, 2, 2, 0, -1, -1) ++ Array.fill[Int](24)(0)
-    assert(LDPrune.unpack(input2) sameElements res2)
-
-    val input3 = input1 ++ input2
-    val res3 = res1 ++ res2
-    assert(LDPrune.unpack(input3) sameElements res3)
-  }
-
-  @Test def testBitPack() {
+  @Test def testBitPackUnpack() {
     val gts1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1)
-    val nGts1 = gts1.length
-    val res1 = Array(-8696433657633570816L)
-
     val gts2 = Array(0, 1, 2, 2, 2, 0, -1, -1)
-    val nGts2 = gts2.length
-    val res2 = Array(2290643360471318528L)
+    val gts3 = gts1 ++ Array.fill[Int](32 - gts1.length)(0) ++ gts2
 
-    val gts3 = gts1 ++ Array.fill[Int](32 - nGts1)(0) ++ gts2
-    val nGts3 = gts3.length
-    val res3 = res1 ++ res2
-
-    val gs1 = convertGtToGs(gts1)
-    assert(LDPrune.toByteGtArray(gs1, nGts1) match {
-      case Some(x) => x.gs sameElements res1
-      case None => false
-    })
-
-    val gs2 = convertGtToGs(gts2)
-    assert(LDPrune.toByteGtArray(gs2, nGts2) match {
-      case Some(x) => x.gs sameElements res2
-      case None => false
-    })
-
-    val gs3 = convertGtToGs(gts3)
-    assert(LDPrune.toByteGtArray(gs3, nGts3) match {
-      case Some(x) => x.gs sameElements res3
-      case None => false
-    })
-  }
-
-  @Test def testBitResultSameBVector() = {
-    val input = Array(0, 1, 2, 2, 2, 0, -1, -1)
-    val gs = convertGtToGs(input)
-    val n = input.length
-    val sgs1 = LDPrune.toNormalizedGtArray(gs, n).get
-    val sgs2 = LDPrune.toNormalizedGtArray(gs, n).get
-
-    val rOrig = BVector(sgs1).dot(BVector(sgs2)): Double
-    val r2Orig = rOrig * rOrig
-    assert(math.abs(r2Orig - 1d) < 1e-4)
-
-    val bvi1 = LDPrune.toByteGtArray(gs, n).get
-    val bvi2 = LDPrune.toByteGtArray(gs, n).get
-
-    assert( math.abs(LDPrune.r2(bvi1, bvi2) - 1d) < 1e-4)
+    for (gts <- Array(gts1, gts2, gts3)) {
+      val n = gts.length
+      assert(LDPrune.toBitPackedVector(convertGtToGs(gts), n).forall { bpv => bpv.unpack().take(n) sameElements gts })
+    }
   }
 
   @Test def testR2() {
@@ -137,12 +70,10 @@ class LDPruneSuite extends SparkSuite {
     }.value).toArray))
 
     val computedR2 = correlationMatrix(gts.map(_.map(Genotype(_)).toIterable), 8)
-    val computedR2bitpacked = correlationMatrixBitPacked(gts.map(_.map(Genotype(_)).toIterable), 8)
 
     val res = actualR2.indices.forall { case (i, j) =>
       val expected = actualR2(i, j)
-      val computed = computedR2bitpacked(i, j)
-//      val computed = computedR2(i, j)
+      val computed = computedR2(i, j)
 
       (computed, expected) match {
         case (Some(x), Some(y)) =>
@@ -158,6 +89,14 @@ class LDPruneSuite extends SparkSuite {
     }
 
     assert(res)
+
+    val input = Array(0, 1, 2, 2, 2, 0, -1, -1)
+    val gs = convertGtToGs(input)
+    val n = input.length
+    val bvi1 = LDPrune.toBitPackedVector(gs, n).get
+    val bvi2 = LDPrune.toBitPackedVector(gs, n).get
+
+    assert(math.abs(LDPrune.r2(bvi1, bvi2) - 1d) < 1e-4)
   }
 
   @Test def testIdenticalVariants() {
