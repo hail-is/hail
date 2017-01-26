@@ -2112,6 +2112,226 @@ class VariantDataset(object):
         except Py4JJavaError as e:
             raise_py4j_exception(e)
 
+    def lmmreg(self, kinship_vds, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
+               no_assoc=False, use_ml=False, delta=None, sparsity_threshold=1.0, force_block=False, force_grammian=False):
+        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
+
+        **Examples**
+
+        Suppose ``assoc.vds`` has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the ``lmmreg`` function in
+
+        >>> assoc_vds = hc.read('assoc.vds')
+        >>> kin_vds = assoc_vds.filter_variants_expr('va.useInKinship')
+        >>> lmm_vds = assoc_vds.lmmreg(kin_vds, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
+
+        will execute the following five steps in order:
+
+        1) filter to samples for which ``sa.pheno``, ``sa.cov``, and ``sa.cov2`` are all defined
+        2) compute the kinship matrix :math:`K` (the RRM defined below) using those variants in ``kin_vds``
+        3) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
+        4) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`_), storing results in global annotations under ``global.lmmreg``
+        5) test each variant for association, storing results under ``va.lmmreg`` in variant annotations
+
+        This plan can be modified as follows:
+
+        - Set ``no_assoc=True`` to not test any variants for association, i.e. skip Step 5.
+        - Set ``use_ml=True`` to use maximum likelihood instead of REML in Steps 4 and 5.
+        - Set the ``delta`` argument to manually set the value of :math:`\delta` rather that fitting :math:`\delta` in Step 4.
+        - Set the ``global_root`` argument to change the global annotation root in Step 4.
+        - Set the ``va_root`` argument to change the variant annotation root in Step 5.
+
+        ``lmmreg`` adds eight global annotations in Step 4; the last three are omitted if :math:`\delta` is set rather than fit.
+
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | Annotation                         | Type                 | Value                                                                                                                                                |
+        +====================================+======================+======================================================================================================================================================+
+        | ``global.lmmreg.useML``            | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order                                                                                                |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathit{ln}(\delta)` used in the grid search                                                                                        |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathit{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to the fit delta                                                                                   |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+        These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
+
+        If Step 5 is performed, ``lmmreg`` also adds nine variant annotations.
+
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | Annotation             | Type   | Value                                                                   |
+        +========================+========+=========================================================================+
+        | ``va.lmmreg.beta``     | Double | fit genotype coefficient, :math:`\hat\\beta_0`                           |
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | ``va.lmmreg.sigmaG2``  | Double | fit coefficient of genetic variance component, :math:`\hat{\sigma}_g^2` |
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | ``va.lmmreg.chi2``     | Double | :math:`\chi^2` statistic of the likelihood ratio test                   |
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | ``va.lmmreg.pval``     | Double | :math:`p`-value                                                         |
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | ``va.lmmreg.AF``       | Double | minor allele frequency for included samples                             |
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | ``va.lmmreg.nHomRef``  | Int    | count of HomRef genotypes for included samples                          |
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | ``va.lmmreg.nHet``     | Int    | count of Het genotypes among for samples                                |
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | ``va.lmmreg.nHomVar``  | Int    | count of HomVar genotypes for included samples                          |
+        +------------------------+--------+-------------------------------------------------------------------------+
+        | ``va.lmmreg.nMissing`` | Int    | count of missing genotypes for included samples                         |
+        +------------------------+--------+-------------------------------------------------------------------------+
+
+        Those variants that don't vary across the included samples (e.g., all genotypes are HomRef) will have missing annotations.
+
+        The simplest way to export all resulting annotations is:
+
+        >>> lmm_vds.show_globals('lmmreg.json')
+        >>>  .export_variants('lmmreg.tsv.bgz', 'variant = v, va.lmmreg.*')
+
+        **Performance**
+
+        This initial version of `lmmreg` scales to tens of thousands samples and an unbounded number of variants, making it particularly well-suited to modern sequencing studies. For example, starting from a VDS of the 1000 Genomes Project (consisting of 2535 whole genomes), ``lmmreg`` computes a kinship matrix based on 100k common variants, fits coefficients and variance components in the sample-covariates-only model, runs a linear-mixed-model likelihood ratio test for all 15 million high-quality non-rare variants, and exports the results in 3m42s minutes. Here we used 42 preemptible workers (~680 cores) on 2k partitions at a compute cost of about 50 cents on Google cloud (see `Using Hail on the Google Cloud Platform <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_). The first analysts to apply ``lmmreg`` in research computed kinship from 262k common variants and tested 25 million non-rare variants on 8185 whole genomes in 32 minutes.
+
+        While ``lmmreg`` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full eigendecomposition (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`_, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`_. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
+
+        Given the eigendecomposition, fitting the global model (Step 4) takes on the order of a few seconds on master. Association testing (Step 5) is fully distributed by variant with per-variant time complexity that is completely independent of the number of sample covariates and dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
+
+        **Linear mixed model**
+
+        The `lmmreg` command estimates the genetic proportion of residual phenotypic variance (narrow-sense heritability) under a kinship-based linear mixed model, and then (optionally) tests each variant for association using the likelihood ratio test. Inference is exact.
+
+        We first describe the sample-covariates-only model used to estimate heritability, which we simply refer to as the *global model*. With :math:`n` samples and :math:`c` sample covariates, we define:
+
+        - :math:`y = n \\times 1` vector of phenotypes
+        - :math:`X = n \\times c` matrix of sample covariates and intercept column of ones
+        - :math:`K = n \\times n` kinship matrix
+        - :math:`I = n \\times n` identity matrix
+        - :math:`\\beta = c \\times 1` vector of covariate coefficients
+        - :math:`\sigma_g^2 =` coefficient of genetic variance component :math:`K`
+        - :math:`\sigma_e^2 =` coefficient of environmental variance component :math:`I`
+        - :math:`\delta = \\frac{\sigma_e^2}{\sigma_g^2} =` ratio of environmental and genetic variance component coefficients
+        - :math:`h^2 = \\frac{\sigma_g^2}{\sigma_g^2 + \sigma_e^2} = \\frac{1}{1 + \delta} =` genetic proportion of residual phenotypic variance
+
+        Under a linear mixed model, :math:`y` is sampled from the :math:`n`-dimensional `multivariate normal distribution <https://en.wikipedia.org/wiki/Multivariate_normal_distribution>`_ with mean :math:`X \\beta` and variance components that are scalar multiples of :math:`K` and :math:`I`:
+
+        .. math::
+
+          y \sim \mathrm{N}\\left(X\\beta, \sigma_g^2 K + \sigma_e^2 I\\right)
+
+        Thus the model posits that the residuals :math:`y_i - X_{i,:}\\beta` and :math:`y_j - X_{j,:}\\beta` have covariance :math:`\sigma_g^2 K_{ij}` and approximate correlation :math:`h^2 K_{ij}`. Informally: phenotype residuals are correlated as the product of overall heritability and pairwise kinship. By contrast, standard (unmixed) linear regression is equivalent to fixing :math:`\sigma_2` (equivalently, :math:`h^2`) at 0 above, so that all phenotype residuals are independent.
+
+        **Caution:** while it is tempting to interpret :math:`h^2` as the `narrow-sense heritability <https://en.wikipedia.org/wiki/Heritability#Definition>`_ of the phenotype alone, note that its value depends not only the phenotype and genetic data, but also on the choice of sample covariates.
+
+        **Fitting the global model**
+
+        The core of ``lmmreg`` is a distributed implementation of the spectral approach taken in `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_. Let :math:`K = USU^T` be the `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix#Real_symmetric_matrices>`_ of the real symmetric matrix :math:`K`. That is:
+
+        - :math:`U = n \\times n` orthonormal matrix whose columns are the eigenvectors of :math:`K`
+        - :math:`S = n \\times n` diagonal matrix of eigenvalues of :math:`K` in descending order. :math:`S_{ii}` is the eigenvalue of eigenvector :math:`U_{:,i}`
+        - :math:`U^T = n \\times n` orthonormal matrix, the transpose (and inverse) of :math:`U`
+
+        A bit of matrix algebra on the multivariate normal density shows that the linear mixed model above is mathematically equivalent to the model
+
+        .. math::
+
+          U^Ty \\sim \mathrm{N}\\left(U^TX\\beta, \sigma_g^2 (S + \delta I)\\right)
+
+        for which the covariance is diagonal (e.g., unmixed). That is, rotating the phenotype vector (:math:`y`) and covariate vectors (columns of :math:`X`) in :math:`\mathbb{R}^n` by :math:`U^T` transforms the model to one with independent residuals. For any particular value of :math:`\delta`, the restricted maximum likelihood (REML) solution for the latter model can be solved exactly in time complexity that is linear rather than cubic in :math:`n`.  In particular, having rotated, we can run a very efficient 1-dimensional optimization procedure over :math:`\delta` to find the REML estimate :math:`(\hat{\delta}, \\hat{\\beta}, \\hat{\sigma}_g^2)` of the triple :math:`(\delta, \\beta, \sigma_g^2)`, which in turn determines :math:`\\hat{\sigma}_e^2` and :math:`\\hat{h}^2`.
+
+        We first compute the maximum log likelihood on a :math:`\delta`-grid that is uniform on the log scale, with :math:`\\mathit{ln}(\delta)` running from -10 to 10 by 0.01, corresponding to :math:`h^2` decreasing from 0.999999998 to 0.000000002. If :math:`h^2` is maximized at the lower boundary then standard linear regression would be more appropriate and Hail will exit; more generally, consider using standard linear regression when :math:`\\hat{h}^2` is very small. A maximum at the upper boundary is highly suspicious and will also cause Hail to exit, with the ``hail.log`` recording all values over the grid for further inspection.
+
+        If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`_ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathit{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than .01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid. Note that :math:`h^2` is related to :math:`\\mathit{ln}(\delta)` through the `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`_. Hence one can change variables to extract a high-resolution discretization of the likelihood function of :math:`h^2` over :math:`[0,1]` at the corresponding REML estimators for :math:`\\beta` and :math:`\sigma_g^2`.
+
+        **Testing each variant for association**
+
+        Fixing a single variant, we define:
+
+        - :math:`v = n \\times 1` vector of genotypes, with missing genotypes imputed as the mean of called genotypes
+        - :math:`X_v = \\left[v | X \\right] = n \\times (1 + c)` matrix concatenating :math:`v` and :math:`X`
+        - :math:`\\beta_v = (\\beta^0_v, \\beta^1_v, \\ldots, \\beta^c_v) = (1 + c) \\times 1` vector of covariate coefficients
+
+        Fixing :math:`\delta` at the global REML estimate :math:`\\hat{\delta}`, we find the REML estimate :math:`(\\hat{\\beta}_v, \\hat{\sigma}_{g,v}^2)` via rotation of the model
+
+        .. math::
+
+          y \\sim \\mathrm{N}\\left(X_v\\beta_v, \sigma_{g,v}^2 (K + \\hat{\delta} I)\\right)
+
+        Note that the only new rotation to compute here is :math:`U^T v`.
+
+        To test the null hypothesis that the genotype coefficient :math:`\\beta^0_v` is zero, we consider the restricted model with parameters :math:`((0, \\beta^1_v, \ldots, \\beta^c_v), \sigma_{g,v}^2)` within the full model with parameters :math:`(\\beta^0_v, \\beta^1_v, \\ldots, \\beta^c_v), \sigma_{g_v}^2)`, with :math:`\delta` fixed at :math:`\\hat\delta` in both. The latter fit is simply that of the global model, :math:`((0, \\hat{\\beta}^1, \\ldots, \\hat{\\beta}^c), \\hat{\sigma}_g^2)`. The likelihood ratio test statistic is given by
+
+        .. math::
+
+          \chi^2 = n \\, \\mathit{ln}\left(\\frac{\hat{\sigma}^2_g}{\\hat{\sigma}_{g,v}^2}\\right)
+
+        and follows a chi-squared distribution with one degree of freedom. Here the ratio :math:`\\hat{\sigma}^2_g / \\hat{\sigma}_{g,v}^2` captures the degree to which adding the variant :math:`v` to the global model reduces the residual phenotypic variance.
+
+        **Kinship: Realized Relationship Matrix (RRM)**
+
+        As in FastLMM, ``lmmreg`` uses the Realized Relationship Matrix (RRM) for kinship, defined as follows. Consider the :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal variants for which ``va.useInKinship`` is true; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+
+        .. math::
+
+          M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{\\frac{m}{n} \sum_{k=1}^n (C_{ij}-2p_j)^2}},
+
+        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes each variant column to have empirical variance $1/m$, which gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the :math:`n \\times n` sample correlation or realized relationship matrix (RRM) :math:`K` as simply
+
+        .. math::
+
+          K = MM^T
+
+        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in ``pca`` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
+
+        **Further background**
+
+        For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`_. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`_.
+
+        :param str kinship_vds: Variant dataset for kinship
+
+        :param str y: Response sample annotation.
+
+        :param covariates: List of covariate sample annotations
+        :type covariates: list of str
+
+        :param str global_root: Global annotation root, a period-delimited path starting with `global'.
+
+        :param str va_root: Variant annotation root, a period-delimited path starting with `va'.
+
+        :param bool no_assoc: Only fit the global model, no association testing.
+
+        :param bool use_ml: Use ML instead of REML throughout.
+
+        :param delta: Fixed delta value to use in the global model, overrides fitting delta.
+        :type delta: float or None
+
+        :param float sparsity_threshold: AF threshold above which to use dense genotype vectors in rotation (advanced).
+
+        :param bool force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
+
+        :param bool force_grammian: Force using Spark's RowMatrix.computeGrammian to compute kinship (advanced).
+
+        :return: A Variant Dataset with linear mixed regression annotations
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        try:
+            return VariantDataset(self.hc, self.hc.hail.methods.LinearMixedRegression.apply(
+                self.jvds, kinship_vds.jvds, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), use_ml, global_root, va_root, no_assoc,
+                joption(self.hc.jvm, delta), sparsity_threshold, force_block, force_grammian))
+        except Py4JJavaError as e:
+            self._raise_py4j_exception(e)
+
     def logreg(self, test, y, covariates=[], root='va.logreg'):
         """Test each variant for association using the logistic regression
         model.

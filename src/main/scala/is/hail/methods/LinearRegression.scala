@@ -36,7 +36,7 @@ object LinearRegression {
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
     info(s"Running linreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
 

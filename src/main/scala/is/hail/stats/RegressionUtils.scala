@@ -66,10 +66,6 @@ object RegressionUtils {
           majorStride = 1 + k,
           isTranspose = true)
 
-//    val r = rank(cov)
-//    if (r < k + 1)
-//      fatal(s"Covariates and intercept are not linearly independent: total rank is $r (less than 1 + $k)")
-
     (y, cov, completeSamples)
   }
 
