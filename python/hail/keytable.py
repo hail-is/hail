@@ -539,9 +539,11 @@ class KeyTable(object):
 
         :param bool expand: If true, expand_types before converting to
           Pandas DataFrame.
+
         :param bool flatten: If true, flatten before converting to Pandas
           DataFrame.  If both are true, flatten is run after expand so
           that expanded types are flattened.
+
         :return: pandas.DataFrame
         """
         return self.to_dataframe(expand, flatten).toPandas()
