@@ -26,8 +26,55 @@ object LDPrune {
         case 2 => -1
         case 3 => 2
         case _ => fatal("genotype unpacking not correct")
-      })}
+      })}.take(nSamples)
     }
+  }
+
+  val table = {
+    val t = Array.fill[Byte](256 * 4)(0)
+
+    (0 until 256).foreach{ i =>
+      val xi = i & 3
+      val xj = i >> 2 & 3
+      val yi = i >> 4 & 3
+      val yj = i >> 6 & 3
+
+      val res = findTableValue(yj, xj, yi, xi)
+
+      t(i * 4) = res._1.toByte
+      t(i * 4 + 1) = res._2.toByte
+      t(i * 4 + 2) = res._3.toByte
+      t(i * 4 + 3) = res._4.toByte
+    }
+    t
+  }
+
+  def findTableValue(a: Int, b: Int, c: Int, d: Int): (Int, Int, Int, Int) = {
+    val r1 = findTableValue(a, b)
+    val r2 = findTableValue(c, d)
+    (r1._1 + r2._1, r1._2 + r2._2, r1._3 + r2._3, r1._4 + r2._4)
+  }
+
+  def findTableValue(x: Int, y: Int): (Int, Int, Int, Int) = {
+    var xySum = 0
+    var XbarCount = 0
+    var YbarCount = 0
+    var XbarYbarCount = 0
+
+    (x, y) match {
+      case (2, 2) => XbarYbarCount += 1
+      case (2, 1) => XbarCount += 1
+      case (2, 3) => XbarCount += 2
+      case (1, 2) => YbarCount += 1
+      case (3, 2) => YbarCount += 2
+      case (3, 3) => xySum += 4
+      case (3, 1) => xySum += 2
+      case (1, 3) => xySum += 2
+      case (1, 1) => xySum += 1
+      case _ =>
+    }
+
+    (xySum, XbarCount, YbarCount, XbarYbarCount)
   }
 
   def pack(nGenotypes: Int, gs: Array[Byte]): Array[Long] = {
@@ -124,29 +171,13 @@ object LDPrune {
       val lY = gsY(pack)
       var shift = 2 * (genotypesPerPack - 1)
       while (shift > 0) {
-        val gX = lX >> shift & 3
-        val gY = lY >> shift & 3
+        val b = (((lY >> shift) & 15) << 4 | ((lX >> shift) & 15)).toInt
 
-        if (gX == 2 && gY == 2)
-          XbarYbarCount += 1
-        else if (gX == 2 && gY == 1)
-          XbarCount += 1
-        else if (gX == 2 && gY == 3)
-          XbarCount += 2
-        else if (gX == 1 && gY == 2)
-          YbarCount += 1
-        else if (gX == 3 && gY == 2)
-          YbarCount += 2
-        else if (gX == 3 && gY == 3)
-          xySum += 4
-        else if (gX == 3 && gY == 1)
-          xySum += 2
-        else if (gX == 1 && gY == 3)
-          xySum += 2
-        else if (gX == 1 && gY == 1)
-          xySum += 1
-
-        shift -= 2
+        xySum += table(b * 4)
+        XbarCount += table(b * 4 + 1)
+        YbarCount += table(b * 4 + 2)
+        XbarYbarCount += table(b * 4 + 3)
+        shift -= 4
       }
       pack += 1
     }
@@ -154,6 +185,61 @@ object LDPrune {
     val r = sdrecipX * sdrecipY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
     r * r
   }
+
+//  def r2(x: BitPackedVector, y: BitPackedVector): Double = {
+//    require(x.nSamples == y.nSamples)
+//
+//    val gsX = x.gs
+//    val gsY = y.gs
+//
+//    val N = x.nSamples
+//    val meanX = x.mean
+//    val meanY = y.mean
+//    val sdrecipX = x.sdRecip
+//    val sdrecipY = y.sdRecip
+//
+//    var XbarYbarCount = 0
+//    var XbarCount = 0
+//    var YbarCount = 0
+//    var xySum = 0
+//
+//    val nPacks = gsX.length
+//    var pack = 0
+//    while (pack < nPacks) {
+//      val lX = gsX(pack)
+//      val lY = gsY(pack)
+//      var shift = 2 * (genotypesPerPack - 1)
+//      while (shift > 0) {
+//        val gX = lX >> shift & 3
+//        val gY = lY >> shift & 3
+//
+//        if (gX == 2 && gY == 2)
+//          XbarYbarCount += 1
+//        else if (gX == 2 && gY == 1)
+//          XbarCount += 1
+//        else if (gX == 2 && gY == 3)
+//          XbarCount += 2
+//        else if (gX == 1 && gY == 2)
+//          YbarCount += 1
+//        else if (gX == 3 && gY == 2)
+//          YbarCount += 2
+//        else if (gX == 3 && gY == 3)
+//          xySum += 4
+//        else if (gX == 3 && gY == 1)
+//          xySum += 2
+//        else if (gX == 1 && gY == 3)
+//          xySum += 2
+//        else if (gX == 1 && gY == 1)
+//          xySum += 1
+//
+//        shift -= 2
+//      }
+//      pack += 1
+//    }
+//
+//    val r = sdrecipX * sdrecipY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
+//    r * r
+//  }
 
   private def pruneLocal(inputRDD: OrderedRDD[Locus, Variant, BitPackedVector], r2Threshold: Double, window: Int, queueSize: Option[Int]) = {
     inputRDD.rdd.mapPartitions({ it =>
@@ -314,7 +400,7 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"Memory per core must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB")
 
-    val repartitionRequired = partitionSizesInitial.exists(_ > maxQueueSize)
+    val repartitionRequired = true //partitionSizesInitial.exists(_ > maxQueueSize)
 
     val standardizedRDD = vds.rdd.flatMapValues { case (va, gs) => toBitPackedVector(gs, nSamples)}.asOrderedRDD
 

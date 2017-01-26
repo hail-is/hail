@@ -50,7 +50,7 @@ class LDPruneSuite extends SparkSuite {
 
     for (gts <- Array(gts1, gts2, gts3)) {
       val n = gts.length
-      assert(LDPrune.toBitPackedVector(convertGtToGs(gts), n).forall { bpv => bpv.unpack().take(n) sameElements gts })
+      assert(LDPrune.toBitPackedVector(convertGtToGs(gts), n).forall { bpv => bpv.unpack() sameElements gts })
     }
   }
 
@@ -197,7 +197,8 @@ class LDPruneSuite extends SparkSuite {
   @Test def test100K() {
     var s = State(sc, sqlContext, null)
     s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 50 * 1024 * 1024)
+    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 256 * 1024 * 1024)
     prunedVds.nVariants
+    while (true) {}
   }
 }
