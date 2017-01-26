@@ -184,9 +184,9 @@ Let's filter genotypes based on allelic balance using the `filter_genotypes` met
     >>>                          ((g.isHomRef && ab <= 0.1) || 
     >>>                           (g.isHet && ab >= 0.25 && ab <= 0.75) || 
     >>>                           (g.isHomVar && ab >= 0.9))'''
-    >>> vds_gAB = vds.filter_genotypes filter_condition_ab)
+    >>> vds_gAB = vds.filter_genotypes(filter_condition_ab)
 
-In this code, we first construct an expression  filter_condition_ab` that evaluates to a Boolean. We use `let ... in` syntax to define a temporary variable `ab` for the allelic balance which is calculated from the allelic depth `g.ad`, a zero-indexed array (so `g.ad[0]` and `g.ad[1]` are read counts for reference allele and unique alternate allele, respectively; this dataset is bi-allelic, but Hail supports multi-allelic variants as well). We require for homozygous calls that the allelic balance be within `.1` of the expected mode, and that for heterozygote calls (`g.isHet`) the allelic balance be between 0.25 and 0.75. Additional methods on genotype are documented [here](reference.html#genotype).
+In this code, we first construct an expression  `filter_condition_ab` that evaluates to a Boolean. We use `let ... in` syntax to define a temporary variable `ab` for the allelic balance which is calculated from the allelic depth `g.ad`, a zero-indexed array (so `g.ad[0]` and `g.ad[1]` are read counts for reference allele and unique alternate allele, respectively; this dataset is bi-allelic, but Hail supports multi-allelic variants as well). We require for homozygous calls that the allelic balance be within `.1` of the expected mode, and that for heterozygote calls (`g.isHet`) the allelic balance be between 0.25 and 0.75. Additional methods on genotype are documented [here](reference.html#genotype).
 
     >>> vds_gAB.count(genotypes=True)
 
