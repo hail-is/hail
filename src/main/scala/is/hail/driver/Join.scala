@@ -24,7 +24,7 @@ object Join extends Command {
   def join(left: VariantDataset, right: VariantDataset): VariantDataset = {
     if (left.wasSplit != right.wasSplit) {
       warn(
-        s"""cannot join split and unsplit datasets
+        s"""joining split and unsplit datasets may result in unexpected behavior
             |  left was split: ${ left.wasSplit }
             |  light was split: ${ right.wasSplit }""".stripMargin)
     }
