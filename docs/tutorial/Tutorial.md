@@ -60,16 +60,9 @@ Before using Hail, let's import the following Python libraries for use throughou
 
 ## Import data
 
-For cleanliness, let's first assign the names of data files to Python variables:
+We must first import variant data into Hail's internal format of Variant Dataset (VDS). We use the `import_vcf` method on `HailContext` to load the downsampled 1000 Genomes VCF into Hail. The VCF file is block-compressed (`.vcf.bgz`) which enables Hail to read the file in parallel. Reading files that have not been block-compressed (`.vcf`, `.vcf.gz`) is _significantly_ slower and should be avoided (though often `.vcf.gz` files are in fact block-compressed, in which case renaming to `.vcf.bgz` solves the problem).
 
-    >>> vcf = '1000Genomes.ALL.coreExome10K-v1.vcf.bgz'
-    >>> sample_annotations = '1000Genomes.ALL.coreExome10K-v1.sample_annotations'
-    >>> pruned_variants = 'purcell5k.interval_list'
-
-
-We must first import variant data into Hail's internal format of Variant Dataset (VDS). We use the `import_vcf` method on `HailContext` to load the downsampled 1000 Genomes VCF into Hail. The VCF file is block-compressed (`.vcf.bgz`) which enables Hail to read the file in parallel. Reading files that have not been block-compressed (`.vcf`, `.vcf.gz`) is _significantly_ slower and should be avoided (though often `.vcf.gz` files are in fact block-compressed, in which case renaming to `.vcf.bgz` solves the problem). 
-
-    >>> vds = hc.import_vcf(vcf)
+    >>> vds = hc.import_vcf('1000Genomes.ALL.coreExome10K-v1.vcf.bgz')
 
 We next use the `split_multi` method on `dataset` to split multi-allelic variants into biallelic variants. For example, the variant `1:1000:A:T,C` would become two variants: `1:1000:A:T` and `1:1000:A:C`.
 
@@ -77,7 +70,7 @@ We next use the `split_multi` method on `dataset` to split multi-allelic variant
 
 We next use the `annotate_samples_table` method to load phenotypic information on each sample from the sample annotations file.
 
-    >>> vds = vds.annotate_samples_table(sample_annotations, 
+    >>> vds = vds.annotate_samples_table('1000Genomes.ALL.coreExome10K-v1.sample_annotations',
     >>>                                  root='sa.pheno', 
     >>>                                  sample_expr='Sample', 
     >>>                                  config=TextTableConfig(impute=True))
