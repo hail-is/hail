@@ -445,6 +445,9 @@ class TStruct(Type):
 
     def _typecheck(self, annotation):
         if annotation:
+            if not isinstance(annotation, Struct):
+                raise TypeCheckError("TStruct expected type hail.representation.Struct, but found '%s'" %
+                                     type(annotation))
             for f in self.fields:
                 if not (f.name in annotation):
                     raise TypeCheckError("TStruct expected fields '%s', but found fields '%s'" %
