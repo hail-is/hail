@@ -1058,7 +1058,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val ktKeyTypes = kt.keySignature.fields.map(_.`type`)
 
     if (ktKeyTypes.size != 1 || ktKeyTypes(0) != TVariant)
-      fatal(s"Key Signature of KeyTable must be 1 field with type `Variant'. Found `${ktKeyTypes.mkString(", ")}'")
+      fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${kt.keySignature}'")
 
     val ktSig = kt.signature
 
