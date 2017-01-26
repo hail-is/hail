@@ -1060,14 +1060,14 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     if (ktKeyTypes.size != 1 || ktKeyTypes(0) != TVariant)
       fatal(s"Key Signature of KeyTable must be 1 field with type `Variant'. Found `${ktKeyTypes.mkString(", ")}'")
 
-    val ktValueSig = kt.valueSignature
+    val ktSig = kt.signature
 
-    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, ktValueSig)))
+    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, ktSig)))
 
     val (finalType, inserter) =
       buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val keyedRDD = kt.rdd.map { case (k: Row, v) => (k(0).asInstanceOf[Variant], v) }
+    val keyedRDD = kt.rdd.map { case (k: Row, v) => (k(0).asInstanceOf[Variant], kt.mergeKeyAndValue(k, v)) }
 
     val ordRdd = OrderedRDD(keyedRDD, None, None)
 
