@@ -128,7 +128,12 @@ So the call rate before any QC filtering is about 98.7%.
 
 Let's print the types of all annotations.
 
-    >>> vds.print_schema()
+    >>> print('variant annotations')
+    >>> print(vds.variant_schema())
+    >>> print('\nsample annotations')
+    >>> print(vds.sample_schema())
+    >>> print('\nglobal annotations')
+    >>> print(vds.global_schema())
 
 Note the annotations imported from the original VCF, as well as the sample annotations added above. Notice how those six sample annotations loaded above are nested inside `sa.pheno` as defined by the `root` option in `annotate_samples table`.
 
@@ -210,7 +215,7 @@ Having removed suspect genotypes, let's next remove variants with low call rate 
 
 The call rate for each variant is calculated using the `fraction` [aggregable](reference.html#aggregables) on the genotypes `gs`. `sampleqc` adds a number of statistics to sample annotations documented [here](commands.html#sampleqc). Let's print the new sample annotation schema:
 
-    >>> vds_gAB_vCR.print_schema(sa=True)
+    >>> print(vds_gAB_vCR.sample_schema())
 
 Let's export these sample annotations to a text file and take a look at them:
 
@@ -268,7 +273,7 @@ As before, let's use the `annotate_global_expr_by_sample` method to count the nu
     >>> post_qc_exprs = [
     >>>     'global.postQC.nCases = samples.filter(s => sa.pheno.PurpleHair).count()',
     >>>     'global.postQC.nControls = samples.filter(s => !sa.pheno.PurpleHair).count()' ]
-    >>> vds_gAB_sCR_sGQ.annotate_global_expr_by_sample(post_qc_exprs).show_globals()     
+    >>> print(vds_gAB_sCR_sGQ.annotate_global_expr_by_sample(post_qc_exprs).globals())
 
 <pre class="tutorial output" style="color: red">
 Global annotations: `global' = {
@@ -286,7 +291,7 @@ We now have `vds_gAB_sCR_sGQ`, a VDS where low-quality genotypes and samples hav
 Let's use the `variant_qc` method to start exploring variant metrics:
 
     >>> vds_gAB_sCR_sGQ = vds_gAB_sCR_sGQ.variant_qc()
-    >>> vds_gAB_sCR_sGQ.print_schema(va=True)
+    >>> print(vds_gAB_sCR_sGQ.variant_schema())
     
 
 We've once again used matplotlib to make histograms of four summary statistics (call rate, allele frequency, mean GQ, and [Hardy Weinberg Equilibrium P-value](https://en.wikipedia.org/wiki/Hardy–Weinberg_principle)). Notice how the histogram for HWE is massively inflated for small p-values. This is because we calculated HWE p-values with all five populations lumped together.
@@ -347,16 +352,15 @@ Now we can go ahead and use `annotate_variants_expr`.
 
     >>> vds_gAB_sCR_sGQ = vds_gAB_sCR_sGQ.annotate_variants_expr(hwe_expressions)
     >>> vds_gAB_sCR_sGQ.persist()
-    >>> vds_gAB_sCR_sGQ.print_schema(va=True)
+    >>> print(vds_gAB_sCR_sGQ.variant_schema())
 
 Above, for each variant, we filter the genotypes to only those genotypes from the population of interest using a filter function on the [genotype aggregable](reference.html#aggregables) and then calculate the Hardy-Weinberg Equilibrium p-value using the [`hardyWeinberg`](reference.html#aggreg_hwe) function on the filtered genotype aggregable.
 
 The `persist` method caches the dataset in its current state on memory/disk, so that downstream processing will be faster. 
 
-`print_schema` reveals that we've added new fields to the variant annotations for HWE p-values for each population. We've got quite a few variant annotations now! Notice that the results of these annotation statements are structs containing two elements:
+Printing the schema reveals that we've added new fields to the variant annotations for HWE p-values for each population. We've got quite a few variant annotations now! Notice that the results of these annotation statements are structs containing two elements:
 
 <pre class="tutorial output" style="color: red">
-Variant annotation schema:
 ...
         hweEUR: Struct {
             rExpectedHetFrequency: Double,
@@ -449,9 +453,9 @@ For sex check, we first use the `impute_sex` method with a minimum minor allele 
     
 We see that the genetic sex does not match the reported sex for 567 samples, an extremely high sex check failure rate! To figure out why this happened, we can use a Hail expression to look at the values that `sa.sexcheck` takes.
 
-    >>> (vds_sex_check.annotate_global_expr_by_sample(
-    >>>     'global.sexcheckCounter = samples.map(s => sa.sexcheck).counter()')
-    >>>     .show_globals())
+    >>> print(vds_sex_check.annotate_global_expr_by_sample(
+    >>>          'global.sexcheckCounter = samples.map(s => sa.sexcheck).counter()')
+    >>>          .globals())
 
 Aha! While we only have 3 'false' sex-check values, we have 564 missing sex-check values. Since `pheno.isFemale` is never missing in the sample annotations file, this means that there were 564 samples that could not be confidently imputed as male or female. This is because in our small dataset the number of variants on the X chromosome (about 200) is not sufficient to impute sex reliably. Let's instead keep those samples with missing sex-check.
  
