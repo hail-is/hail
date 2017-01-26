@@ -6,6 +6,7 @@ from hail.dataset import VariantDataset
 from hail.java import jarray, scala_object, scala_package_object, joption, Env, raise_py4j_exception
 from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
+from hail.stats import UniformDist, BetaDist
 from py4j.protocol import Py4JJavaError
 
 
@@ -553,6 +554,7 @@ class HailContext(object):
                               pop_dist=None,
                               fst=None,
                               root="bn",
+                              af_dist = UniformDist(0.0, 1.0),
                               seed=0):
         """
         Generate a VariantDataset using the Balding-Nichols model.
@@ -646,12 +648,17 @@ class HailContext(object):
         else:
             jvm_fst_opt = joption(jarray(self._jvm.double, fst))
 
-        return VariantDataset(self,
-                              self._hail.stats.BaldingNicholsModel.apply(self._jsc, populations, samples, variants,
-                                                                         jvm_pop_dist_opt,
-                                                                         jvm_fst_opt,
-                                                                         seed,
-                                                                         joption(partitions), root))
+
+        if isinstance(af_dist, UniformDist):
+            jvm_af_dist = self.hail.stats.UniformDist.apply(float(af_dist.a), float(af_dist.b))
+        elif isinstance(af_dist, BetaDist):
+            jvm_af_dist = self.hail.stats.BetaDist.apply(float(af_dist.a), float(af_dist.b))
+
+        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
+                            jvm_pop_dist_opt,
+                            jvm_fst_opt,
+                            seed,
+                            joption(self.jvm, partitions), jvm_af_dist, root))
 
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.

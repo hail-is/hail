@@ -14,7 +14,7 @@ object BaldingNicholsModel {
 
   def apply(sc: SparkContext, nPops: Int, nSamples: Int, nVariants: Int,
     popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
-    seed: Int, nPartitionsOpt: Option[Int], root: String): VariantDataset = {
+    seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution, root: String): VariantDataset = {
 
     if (nPops < 1)
       fatal(s"Number of populations must be positive, got ${ nPops }")
@@ -72,13 +72,12 @@ object BaldingNicholsModel {
 
     val rdd = sc.parallelize(
       (0 until M).map { m =>
+        val perVariantSeed = variantSeedBc.value + m
         val perVariantRandomGenerator = new JDKRandomGenerator
-        perVariantRandomGenerator.setSeed(variantSeedBc.value + m)
+        perVariantRandomGenerator.setSeed(perVariantSeed)
         val perVariantRandomBasis = new RandBasis(perVariantRandomGenerator)
 
-        val unif = new Uniform(0, 1)(perVariantRandomBasis)
-
-        val ancestralAF = Uniform(.1, .9).draw()
+        val ancestralAF = af_dist.getBreezeDist(variantSeedBc.value + m).draw()
 
         val popAF_k = (0 until K).map{k =>
           new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
@@ -89,7 +88,7 @@ object BaldingNicholsModel {
             (0 until N).map { n =>
               val p = popAF_k(popOfSample_nBc.value(n))
               val pSq = p * p
-              val x = unif.draw()
+              val x = new Uniform(0, 1)(perVariantRandomBasis).draw()
               val genotype_num =
                 if (x < pSq)
                   2
