@@ -176,7 +176,7 @@ class LDPruneSuite extends SparkSuite {
 
     val nSamples = 5
     val nVariants = 5
-    val memoryPerVariant = LDPrune.variantByteOverhead + 8 * nSamples
+    val memoryPerVariant = LDPrune.variantByteOverhead + math.ceil(nSamples.toDouble / LDPrune.genotypesPerPack).toLong
     val recipFractionMemoryUsed = 1.0 / LDPrune.fractionMemoryToUse
     val memoryPerCore = math.ceil(memoryPerVariant * recipFractionMemoryUsed).toInt
 
@@ -192,5 +192,12 @@ class LDPruneSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
     val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 100000, 200000)
     assert(uncorrelated(prunedVds, 0.2, 1000))
+  }
+
+  @Test def test100K() {
+    var s = State(sc, sqlContext, null)
+    s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
+    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 50 * 1024 * 1024)
+    prunedVds.nVariants
   }
 }

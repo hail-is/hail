@@ -103,8 +103,8 @@ object LDPrune {
   def r2(x: BitPackedVector, y: BitPackedVector): Double = {
     require(x.nSamples == y.nSamples)
 
-    val gtsX = x.unpack()
-    val gtsY = y.unpack()
+    val gsX = x.gs
+    val gsY = y.gs
 
     val N = x.nSamples
     val meanX = x.mean
@@ -117,13 +117,38 @@ object LDPrune {
     var YbarCount = 0
     var xySum = 0
 
-    gtsX.zip(gtsY).foreach { case (gtX, gtY) =>
-      (gtX, gtY) match {
-        case (-1, -1) => XbarYbarCount += 1
-        case (-1, _) => XbarCount += gtY
-        case (_, -1) => YbarCount += gtX
-        case (_, _) => xySum += gtX * gtY
+    val nPacks = gsX.length
+    var pack = 0
+    while (pack < nPacks) {
+      val lX = gsX(pack)
+      val lY = gsY(pack)
+      var shift = 2 * (genotypesPerPack - 1)
+      while (shift > 0) {
+        val gX = lX >> shift & 3
+        val gY = lY >> shift & 3
+
+        if (gX == 2 && gY == 2)
+          XbarYbarCount += 1
+        else if (gX == 2 && gY == 1)
+          XbarCount += 1
+        else if (gX == 2 && gY == 3)
+          XbarCount += 2
+        else if (gX == 1 && gY == 2)
+          YbarCount += 1
+        else if (gX == 3 && gY == 2)
+          YbarCount += 2
+        else if (gX == 3 && gY == 3)
+          xySum += 4
+        else if (gX == 3 && gY == 1)
+          xySum += 2
+        else if (gX == 1 && gY == 3)
+          xySum += 2
+        else if (gX == 1 && gY == 1)
+          xySum += 1
+
+        shift -= 2
       }
+      pack += 1
     }
 
     val r = sdrecipX * sdrecipY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
@@ -258,7 +283,7 @@ object LDPrune {
   }
 
   def estimateMemoryRequirements(nVariants: Long, nSamples: Int, memoryPerCore: Long) = {
-    val numBytesPerVariant = 8 * nSamples + variantByteOverhead
+    val numBytesPerVariant = math.ceil(nSamples.toDouble / genotypesPerPack).toLong + variantByteOverhead
     val memoryAvailPerCore = memoryPerCore * fractionMemoryToUse
 
     val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / numBytesPerVariant).toInt)
