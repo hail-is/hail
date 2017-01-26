@@ -100,7 +100,7 @@ object AnnotateGlobalExprBySample extends Command {
 
     val aggregationST = Map(
       "global" -> (0, vds.globalSignature),
-      "s" -> (1, TVariant),
+      "s" -> (1, TSample),
       "sa" -> (2, vds.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vds.globalSignature),
