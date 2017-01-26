@@ -9,6 +9,7 @@ import is.hail.check.Prop._
 import is.hail.driver._
 import is.hail.expr._
 import is.hail.io.vcf.LoadVCF
+import is.hail.keytable.KeyTable
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.sparkextras.OrderedRDD
@@ -387,5 +388,21 @@ class VSMSuite extends SparkSuite {
 
     s2 = Read.run(s2, Array(path))
     assert(s.vds.same(s2.vds))
+  }
+
+  @Test def testAnnotateVariantsKeyTable() {
+    forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
+      var s = State(sc, sqlContext, vds = vds)
+      s = AnnotateVariantsExpr.run(s, Array("-c", "va.bar = va"))
+      val kt = s.vds.variantsKT()
+      val resultVds = s.vds.annotateVariantsKeyTable(kt, "va.foo = table.va.bar")
+      val result = resultVds.rdd.collect()
+      val (_, getFoo) = resultVds.queryVA("va.foo")
+      val (_, getBar) = resultVds.queryVA("va.bar")
+
+      result.forall { case (v, (va, gs)) =>
+        getFoo(va) == getBar(va)
+      }
+    }.check()
   }
 }
