@@ -86,7 +86,7 @@ To get started running Hail on the Google Cloud Platform, see this [forum post](
 
 ### BLAS and LAPACK
 
-Hail uses BLAS and LAPACK optimized linear algebra libraries. On Linux, they must be explicitly installed; on Ubuntu 14.04, run
+Hail uses BLAS and LAPACK optimized linear algebra libraries. On Linux, these must be explicitly installed. On Ubuntu 14.04, run
 ```
 $ apt-get install libatlas-base-dev
 ```
