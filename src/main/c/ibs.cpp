@@ -103,8 +103,8 @@ void ibsVec2(uint64_t* __restrict__ result,
 }
 
 // samples in rows, genotypes in columns
-extern "C"
-EXPORT
+extern "C"  //make available for world
+EXPORT // export to world; * is address in memory (pointer to first element in array) ignore __restrict__
 void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotypePacks, uint64_t* __restrict__ genotypes1, uint64_t* __restrict__ genotypes2) {
   uint64vector * naMasks1 = 0;
   uint64vector * naMasks2 = 0;

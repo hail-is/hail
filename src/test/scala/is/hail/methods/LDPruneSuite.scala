@@ -12,6 +12,19 @@ import org.testng.annotations.Test
 class LDPruneSuite extends SparkSuite {
   val bytesPerCore = 256L * 1024L * 1024L
 
+  def correlationMatrixBitPacked(gs: Array[Iterable[Genotype]], nSamples: Int) = {
+    val bvi = gs.map(LDPrune.toByteGtArray(_, nSamples))
+    val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
+      (bvi(i), bvi(j)) match {
+        case (Some(x), Some(y)) =>
+          Some(LDPrune.r2(x, y))
+        case _ => None
+      }
+    }
+    val nVariants = bvi.length
+    new MultiArray2(nVariants, nVariants, r2.toArray)
+  }
+
   def correlationMatrix(gs: Array[Iterable[Genotype]], nSamples: Int) = {
     val sgs = gs.map(LDPrune.toNormalizedGtArray(_, nSamples))
     val r2 = for (i <- sgs.indices; j <- sgs.indices) yield {
@@ -59,10 +72,12 @@ class LDPruneSuite extends SparkSuite {
     }.value).toArray))
 
     val computedR2 = correlationMatrix(gts.map(_.map(Genotype(_)).toIterable), 8)
+    val computedR2bitpacked = correlationMatrixBitPacked(gts.map(_.map(Genotype(_)).toIterable), 8)
 
     val res = actualR2.indices.forall { case (i, j) =>
       val expected = actualR2(i, j)
-      val computed = computedR2(i, j)
+      val computed = computedR2bitpacked(i, j)
+//      val computed = computedR2(i, j)
 
       (computed, expected) match {
         case (Some(x), Some(y)) =>

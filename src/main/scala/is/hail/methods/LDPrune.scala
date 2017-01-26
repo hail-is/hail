@@ -13,9 +13,131 @@ import is.hail.utils._
 
 case class GlobalPruneIntermediate(rdd: GeneralRDD[(Variant, BVector[Double])], index: Int, persist: Boolean)
 
+case class BitVectorInput(gs: Array[Long], nSamples: Int, mean: Double, sdRecip: Double, sum: Int)
+
 object LDPrune {
   val variantByteOverhead = 50
   val fractionMemoryToUse = 0.25
+  val genotypesPerPack = 32
+
+  def pack(nGenotypes: Int, gs: Array[Byte]): Array[Long] = { // Each byte is one person's genotype (0, 1, 2, 3); made sure nGenotypes is mult 32 earlier
+    println(s"nGenotypes=$nGenotypes")
+    println(s"genotypesPerPack=$genotypesPerPack")
+    require(nGenotypes % genotypesPerPack == 0)
+    println(s"gs.length = ${gs.length}")
+
+    val nPacks = nGenotypes / genotypesPerPack // number of longs
+
+    val packedGenotypes = new Array[Long](nPacks)
+    var pack = 0
+    while (pack != nPacks) {
+      val k = pack * genotypesPerPack
+
+      packedGenotypes(pack) =
+          gs(k).toLong       << 62 | gs(k + 1 ).toLong  << 60 | gs(k + 2 ).toLong  << 58 | gs(k + 3 ).toLong  << 56 |
+          gs(k + 4 ).toLong  << 54 | gs(k + 5 ).toLong  << 52 | gs(k + 6 ).toLong  << 50 | gs(k + 7 ).toLong  << 48 |
+          gs(k + 8 ).toLong  << 46 | gs(k + 9 ).toLong  << 44 | gs(k + 10 ).toLong << 42 | gs(k + 11 ).toLong << 40 |
+          gs(k + 12 ).toLong << 38 | gs(k + 13 ).toLong << 36 | gs(k + 14 ).toLong << 34 | gs(k + 15 ).toLong << 32 |
+          gs(k + 16 ).toLong << 30 | gs(k + 17 ).toLong << 28 | gs(k + 18 ).toLong << 26 | gs(k + 19 ).toLong << 24 |
+          gs(k + 20 ).toLong << 22 | gs(k + 21 ).toLong << 20 | gs(k + 22 ).toLong << 18 | gs(k + 23 ).toLong << 16 |
+          gs(k + 24 ).toLong << 14 | gs(k + 25 ).toLong << 12 | gs(k + 26 ).toLong << 10 | gs(k + 27 ).toLong << 8  |
+          gs(k + 28 ).toLong << 6  | gs(k + 29 ).toLong << 4  | gs(k + 30 ).toLong << 2  | gs(k + 31 ).toLong
+
+      pack += 1
+    }
+    packedGenotypes
+  }
+
+  def r2(x: BitVectorInput, y: BitVectorInput): Double = {
+    require(x.nSamples == y.nSamples)
+    val gtsX = x.gs
+    val gtsY = y.gs
+    val N = x.nSamples
+    val meanX = x.mean
+    val meanY = y.mean
+    val sumX = x.sum
+    val sumY = y.sum
+    val sdrecipX = x.sdRecip
+    val sdrecipY = y.sdRecip
+
+    var XbarYbarCount = 0
+    var XbarCount = 0
+    var YbarCount = 0
+    var xySum = 0
+
+    val nPacks = math.ceil(N / genotypesPerPack).toInt
+    var pack = 0
+    while (pack != nPacks) {
+      var gtIdx = 0
+      val x = gtsX(pack)
+      val y = gtsY(pack)
+      while (gtIdx != genotypesPerPack) {
+        (x >> gtIdx & 3, y >> gtIdx & 3) match {
+          case (2, 2) => XbarYbarCount += 1
+          case (2, 1) => XbarCount += 1
+          case (2, 3) => XbarCount += 2
+          case (1, 2) => YbarCount += 1
+          case (3, 2) => YbarCount += 2
+          case (1, 1) => xySum += 1
+          case (1, 3) => xySum += 2
+          case (3, 1) => xySum += 2
+          case (3, 3) => xySum += 4
+          case (_, _) =>
+        }
+        gtIdx += 2
+      }
+      pack += 1
+    }
+    val r = N * sdrecipX * sdrecipY * (meanX * meanY - meanX * sumY - meanY * sumX) +
+      sdrecipX * sdrecipY * (xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY)
+    r * r
+  }
+
+  def toByteGtArray(gs: Iterable[Genotype], nSamples: Int): Option[BitVectorInput] = {
+    val padding = genotypesPerPack - nSamples % genotypesPerPack
+    val nGenotypes = nSamples + padding
+    println(s"padding = $padding")
+    val gts = new Array[Byte](nGenotypes)
+    val it = gs.iterator
+
+    var nPresent = 0
+    var gtSum = 0
+    var gtSumSq = 0
+
+    var i = 0
+    while (i < nSamples) {
+      val gt = it.next().unboxedGT
+      val gtInt = gt match {
+        case -1 => 2
+        case 0 => 0
+        case 1 => 1
+        case 2 => 3
+      }
+      gts.update(i, gtInt.toByte)
+      if (gt >= 0) {
+        nPresent += 1
+        gtSum += gt
+        gtSumSq += gt * gt
+      }
+      i += 1
+    }
+
+    val nMissing = nSamples - nPresent
+    val allHomRef = gtSum == 0
+    val allHet = gtSum == nPresent && gtSumSq == nPresent
+    val allHomVar = gtSum == 2 * nPresent
+
+    if (allHomRef || allHet || allHomVar || nMissing == nSamples)
+      None
+    else {
+      val gtMean = gtSum.toDouble / nPresent
+      val gtMeanAll = (gtSum + nMissing * gtMean) / nSamples
+      val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
+      val gtStdDevRec = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
+
+      Some(BitVectorInput(pack(nGenotypes, gts), nSamples, gtMean, gtStdDevRec, gtSum))
+    }
+  }
 
   def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
     val a = new Array[Double](nSamples)
