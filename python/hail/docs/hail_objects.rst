@@ -4,6 +4,8 @@
 Hail Objects
 ============
 
+Hail represents many concepts in genetics as objects with methods for use in the `Expression Language <https://hail.is/expr_lang.html>`_.
+
 .. _variant:
 
 -------
