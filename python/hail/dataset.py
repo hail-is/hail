@@ -2388,7 +2388,7 @@ class VariantDataset(object):
         return self.hc._run_command(self, pargs)
 
     def persist(self, storage_level="MEMORY_AND_DISK"):
-        """Persist the current dataset to memory and disk.
+        """Persist the current dataset to memory and/or disk.
 
         **Examples**
 
