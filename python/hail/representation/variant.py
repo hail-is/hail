@@ -1,4 +1,4 @@
-from hail.java import scala_object, Env
+from hail.java import scala_object, env
 
 
 class Variant(object):
@@ -22,8 +22,11 @@ class Variant(object):
     def __init__(self, contig, start, ref, alts):
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(Env.hail_package().variant, 'Variant').apply(contig, start, ref, alts)
+        jrep = scala_object(env.hail.variant, 'Variant').apply(contig, start, ref, alts)
         self._init_from_java(jrep)
+        self._contig = contig
+        self._start = start
+        self._ref = ref
 
     def __str__(self):
         return self._jrep.toString()
@@ -42,6 +45,9 @@ class Variant(object):
     def _from_java(cls, jrep):
         v = Variant.__new__(cls)
         v._init_from_java(jrep)
+        v._contig = jrep.contig()
+        v._start = jrep.start()
+        v._ref = jrep.ref()
         return v
 
     @staticmethod
@@ -57,7 +63,7 @@ class Variant(object):
 
         :rtype: :class:`.Variant`
         """
-        jrep = scala_object(Env.hail_package().variant, 'Variant').parse(string)
+        jrep = scala_object(env.hail.variant, 'Variant').parse(string)
         return Variant._from_java(jrep)
 
     @property
@@ -66,7 +72,7 @@ class Variant(object):
         Chromosome identifier.
         :rtype: str
         """
-        return self._jrep.contig()
+        return self._contig
 
     @property
     def start(self):
@@ -74,7 +80,7 @@ class Variant(object):
         Chromosomal position (1-based).
         :rtype: int
         """
-        return self._jrep.start()
+        return self._start
 
     @property
     def ref(self):
@@ -83,7 +89,8 @@ class Variant(object):
 
         :rtype: str
         """
-        return self._jrep.ref()
+
+        return self._ref
 
     @property
     def alt_alleles(self):
@@ -92,7 +99,6 @@ class Variant(object):
 
         :rtype: list of :class:`.AltAllele`
         """
-
         return self._alt_alleles
 
     def num_alt_alleles(self):
@@ -246,14 +252,15 @@ class AltAllele(object):
     :param str ref: reference allele
     :param str alt: alternate allele
 
-
     :ivar str ref: reference allele
     :ivar str alt: alternate allele
     """
 
     def __init__(self, ref, alt):
-        jaa = scala_object(Env.hail_package().variant, 'AltAllele').apply(ref, alt)
+        jaa = scala_object(env.hail.variant, 'AltAllele').apply(ref, alt)
         self._init_from_java(jaa)
+        self._ref = ref
+        self._alt = alt
 
     def __str__(self):
         return self._jrep.toString()
@@ -271,6 +278,8 @@ class AltAllele(object):
     def _from_java(cls, jaa):
         aa = AltAllele.__new__(cls)
         aa._init_from_java(jaa)
+        aa._ref = jaa.ref()
+        aa._alt = jaa.alt()
         return aa
 
     @property
@@ -280,7 +289,7 @@ class AltAllele(object):
 
         :rtype: str
         """
-        return self._jrep.ref()
+        return self._ref
 
     @property
     def alt(self):
@@ -289,7 +298,7 @@ class AltAllele(object):
 
         :rtype: str
         """
-        return self._jrep.alt()
+        return self._alt
 
     def num_mismatch(self):
         """Returns the number of mismatched bases in this alternate allele.
@@ -400,8 +409,10 @@ class Locus(object):
     def __init__(self, contig, position):
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(Env.hail_package().variant, 'Locus').apply(contig, position)
+        jrep = scala_object(env.hail.variant, 'Locus').apply(contig, position)
         self._init_from_java(jrep)
+        self._contig = contig
+        self._position = position
 
     def __str__(self):
         return self._jrep.toString()
@@ -419,6 +430,8 @@ class Locus(object):
     def _from_java(cls, jrep):
         l = Locus.__new__(cls)
         l._init_from_java(jrep)
+        l._contig = jrep.contig()
+        l._position = jrep.position()
         return l
 
     @staticmethod
@@ -428,7 +441,7 @@ class Locus(object):
         :rtype: :class:`.Locus`
         """
 
-        return Locus._from_java(scala_object(Env.hail_package().variant, 'Locus').parse(string))
+        return Locus._from_java(scala_object(env.hail.variant, 'Locus').parse(string))
 
     @property
     def contig(self):
@@ -436,7 +449,7 @@ class Locus(object):
         Chromosome identifier.
         :rtype: str
         """
-        return self._jrep.contig()
+        return self._contig
 
     @property
     def position(self):
@@ -444,4 +457,4 @@ class Locus(object):
         Chromosomal position (1-based).
         :rtype: int
         """
-        return self._jrep.position()
+        return self._position

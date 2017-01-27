@@ -1,4 +1,4 @@
-from hail.java import scala_object, Env
+from hail.java import scala_object, env
 from hail.representation import Locus
 
 
@@ -20,7 +20,7 @@ class Interval(object):
     def __init__(self, start, end):
         if not isinstance(start, Locus) and isinstance(end, Locus):
             raise TypeError('expect arguments of type (Locus, Locus) but found (%s, %s)' % (type(start), type(end)))
-        jrep = scala_object(Env.hail_package().variant, 'Locus').makeInterval(start._jrep, end._jrep)
+        jrep = scala_object(env.hail.variant, 'Locus').makeInterval(start._jrep, end._jrep)
         self._init_from_java(jrep)
 
     def __str__(self):
@@ -34,6 +34,7 @@ class Interval(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
+        self._start = Locus._from_java(self._jrep.start())
 
     @classmethod
     def _from_java(cls, jrep):
@@ -58,7 +59,7 @@ class Interval(object):
         :rtype: :class:`.Interval`
         """
 
-        jrep = scala_object(Env.hail_package().variant, 'Locus').parseInterval(string)
+        jrep = scala_object(env.hail.variant, 'Locus').parseInterval(string)
         return Interval._from_java(jrep)
 
     @property
@@ -68,7 +69,7 @@ class Interval(object):
 
         :rtype: :class:`.Locus`
         """
-        return Locus._from_java(self._jrep.start())
+        return
 
     @property
     def end(self):

@@ -1,4 +1,4 @@
-from hail.java import scala_object, scala_package_object, Env
+from hail.java import scala_object, scala_package_object, env
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct
 
 
@@ -17,11 +17,18 @@ class TypeCheckError(Exception):
         return self.msg
 
 
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
 class Type(object):
     """
-    Hail type class used for annotations and expression language.
-
-    :param jtype: equivalent java type
+    Hail type superclass used for annotations and expression language.
     """
 
     def __init__(self, jtype):
@@ -38,22 +45,11 @@ class Type(object):
 
     @classmethod
     def _from_java(cls, jtype):
-        # FIXME this is pretty hacky
+        # FIXME string matching is pretty hacky
         class_name = jtype.getClass().getCanonicalName()
-        if class_name == 'is.hail.expr.TInt$':
-            return TInt()
-        elif class_name == 'is.hail.expr.TLong$':
-            return TLong()
-        elif class_name == 'is.hail.expr.TFloat$':
-            return TFloat()
-        elif class_name == 'is.hail.expr.TDouble$':
-            return TDouble()
-        elif class_name == 'is.hail.expr.TString$':
-            return TString()
-        elif class_name == 'is.hail.expr.TBoolean$':
-            return TBoolean()
-        elif class_name == 'is.hail.expr.TSample$':
-            return TString()
+
+        if class_name in __singletons__:
+            return __singletons__[class_name]()
         elif class_name == 'is.hail.expr.TArray':
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.TSet':
@@ -62,16 +58,6 @@ class Type(object):
             return TDict._from_java(jtype)
         elif class_name == 'is.hail.expr.TStruct':
             return TStruct._from_java(jtype)
-        elif class_name == 'is.hail.expr.TVariant$':
-            return TVariant()
-        elif class_name == 'is.hail.expr.TAltAllele$':
-            return TAltAllele()
-        elif class_name == 'is.hail.expr.TLocus$':
-            return TLocus()
-        elif class_name == 'is.hail.expr.TInterval$':
-            return TInterval()
-        elif class_name == 'is.hail.expr.TGenotype$':
-            return TGenotype()
         else:
             raise TypeError("unknown type class: '%s'" % class_name)
 
@@ -93,18 +79,19 @@ class Type(object):
 
 class TInt(Type):
     """
-    Hail type corresponding to int
+    Hail type corresponding to 32-bit integers
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TInt, self).__init__(scala_object(Env.hail_package().expr, 'TInt'))
+        super(TInt, self).__init__(scala_object(env.hail.expr, 'TInt'))
 
     def _convert_to_py(self, annotation):
         return annotation
 
     def _convert_to_j(self, annotation):
         if annotation:
-            return scala_package_object(Env.hail_package().utils).makeInt(annotation)
+            return env.jutils.makeInt(annotation)
         else:
             return annotation
 
@@ -115,18 +102,19 @@ class TInt(Type):
 
 class TLong(Type):
     """
-    Hail type corresponding to long
+    Hail type corresponding to 64-bit integers
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TLong, self).__init__(scala_object(Env.hail_package().expr, 'TLong'))
+        super(TLong, self).__init__(scala_object(env.hail.expr, 'TLong'))
 
     def _convert_to_py(self, annotation):
         return annotation
 
     def _convert_to_j(self, annotation):
         if annotation:
-            return scala_package_object(Env.hail_package().utils).makeLong(annotation)
+            return env.jutils.makeLong(annotation)
         else:
             return annotation
 
@@ -137,18 +125,19 @@ class TLong(Type):
 
 class TFloat(Type):
     """
-    Hail type corresponding to float
+    Hail type corresponding to 32-bit floating point numbers
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TFloat, self).__init__(scala_object(Env.hail_package().expr, 'TFloat'))
+        super(TFloat, self).__init__(scala_object(env.hail.expr, 'TFloat'))
 
     def _convert_to_py(self, annotation):
         return annotation
 
     def _convert_to_j(self, annotation):
         # if annotation:
-        #     return scala_package_object(Env.hail_package().utils).makeFloat(annotation)
+        #     return env.jutils.makeFloat(annotation)
         # else:
         #     return annotation
 
@@ -162,18 +151,19 @@ class TFloat(Type):
 
 class TDouble(Type):
     """
-    Hail type corresponding to float
+    Hail type corresponding to 64-bit floating point numbers (python default)
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TDouble, self).__init__(scala_object(Env.hail_package().expr, 'TDouble'))
+        super(TDouble, self).__init__(scala_object(env.hail.expr, 'TDouble'))
 
     def _convert_to_py(self, annotation):
         return annotation
 
     def _convert_to_j(self, annotation):
         if annotation:
-            return scala_package_object(Env.hail_package().utils).makeDouble(annotation)
+            return env.jutils.makeDouble(annotation)
         else:
             return annotation
 
@@ -186,9 +176,10 @@ class TString(Type):
     """
     Hail type corresponding to str
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TString, self).__init__(scala_object(Env.hail_package().expr, 'TString'))
+        super(TString, self).__init__(scala_object(env.hail.expr, 'TString'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -205,9 +196,10 @@ class TBoolean(Type):
     """
     Hail type corresponding to bool
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TBoolean, self).__init__(scala_object(Env.hail_package().expr, 'TBoolean'))
+        super(TBoolean, self).__init__(scala_object(env.hail.expr, 'TBoolean'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -235,7 +227,7 @@ class TArray(Type):
         """
         :param :class:`.Type` element_type: Hail type of array element
         """
-        jtype = scala_object(Env.hail_package().expr, 'TArray').apply(element_type._jtype)
+        jtype = scala_object(env.hail.expr, 'TArray').apply(element_type._jtype)
         self.element_type = element_type
         super(TArray, self).__init__(jtype)
 
@@ -248,14 +240,14 @@ class TArray(Type):
 
     def _convert_to_py(self, annotation):
         if annotation:
-            lst = scala_package_object(Env.hail_package().utils).iterableToArrayList(annotation)
+            lst = env.jutils.iterableToArrayList(annotation)
             return [self.element_type._convert_to_py(x) for x in lst]
         else:
             return annotation
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return scala_package_object(Env.hail_package().utils).arrayListToISeq(
+            return env.jutils.arrayListToISeq(
                 [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
@@ -284,7 +276,7 @@ class TSet(Type):
         """
         :param :class:`.Type` element_type: Hail type of set element
         """
-        jtype = scala_object(Env.hail_package().expr, 'TSet').apply(element_type._jtype)
+        jtype = scala_object(env.hail.expr, 'TSet').apply(element_type._jtype)
         self.element_type = element_type
         super(TSet, self).__init__(jtype)
 
@@ -297,14 +289,14 @@ class TSet(Type):
 
     def _convert_to_py(self, annotation):
         if annotation:
-            lst = scala_package_object(Env.hail_package().utils).iterableToArrayList(annotation)
+            lst = env.jutils.iterableToArrayList(annotation)
             return set([self.element_type._convert_to_py(x) for x in lst])
         else:
             return annotation
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return scala_package_object(Env.hail_package().utils).arrayListToSet(
+            return env.jutils.arrayListToSet(
                 [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
@@ -320,7 +312,7 @@ class TSet(Type):
 
 class TDict(Type):
     """
-    Hail type corresponding to dict
+    Hail type corresponding to dict keyed by strings
 
     :param element_type: type of dict values
     :type element_type: :class:`.Type`
@@ -333,7 +325,7 @@ class TDict(Type):
         """
         :param :class:`.Type` element_type: Hail type of dict element
         """
-        jtype = scala_object(Env.hail_package().expr, 'TDict').apply(element_type._jtype)
+        jtype = scala_object(env.hail.expr, 'TDict').apply(element_type._jtype)
         self.element_type = element_type
         super(TDict, self).__init__(jtype)
 
@@ -346,7 +338,7 @@ class TDict(Type):
 
     def _convert_to_py(self, annotation):
         if annotation:
-            lst = scala_package_object(Env.hail_package().utils).iterableToArrayList(annotation)
+            lst = env.jutils.iterableToArrayList(annotation)
             d = dict()
             for x in lst:
                 d[x._1()] = self.element_type._convert_to_py(x._2())
@@ -356,7 +348,7 @@ class TDict(Type):
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return scala_package_object(Env.hail_package().utils).javaMapToMap(
+            return env.jutils.javaMapToMap(
                 {k: self.element_type._convert_to_j(v) for k, v in annotation.iteritems()}
             )
         else:
@@ -407,7 +399,7 @@ class TStruct(Type):
 
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
-        jtype = scala_object(Env.hail_package().expr, 'TStruct').apply(names, map(lambda t: t._jtype, types))
+        jtype = scala_object(env.hail.expr, 'TStruct').apply(names, map(lambda t: t._jtype, types))
         self.fields = [Field(names[i], types[i]) for i in xrange(len(names))]
 
         super(TStruct, self).__init__(jtype)
@@ -421,7 +413,7 @@ class TStruct(Type):
 
     def _init_from_java(self, jtype):
 
-        jfields = scala_package_object(Env.hail_package().utils).iterableToArrayList(jtype.fields())
+        jfields = env.jutils.iterableToArrayList(jtype.fields())
         self.fields = [Field(f.name(), Type._from_java(f.typ())) for f in jfields]
 
     def _convert_to_py(self, annotation):
@@ -435,8 +427,8 @@ class TStruct(Type):
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return scala_object(Env.hail_package().annotations, 'Annotation').fromSeq(
-                scala_package_object(Env.hail_package().utils).arrayListToISeq(
+            return scala_object(env.hail.annotations, 'Annotation').fromSeq(
+                env.jutils.arrayListToISeq(
                     [f.typ._convert_to_j(annotation[f.name]) for f in self.fields]
                 )
             )
@@ -459,9 +451,10 @@ class TVariant(Type):
     """
     Hail type corresponding to :class:`hail.representation.Variant`
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TVariant, self).__init__(scala_object(Env.hail_package().expr, 'TVariant'))
+        super(TVariant, self).__init__(scala_object(env.hail.expr, 'TVariant'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -485,9 +478,10 @@ class TAltAllele(Type):
     """
     Hail type corresponding to :class:`hail.representation.AltAllele`
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TAltAllele, self).__init__(scala_object(Env.hail_package().expr, 'TAltAllele'))
+        super(TAltAllele, self).__init__(scala_object(env.hail.expr, 'TAltAllele'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -511,9 +505,10 @@ class TGenotype(Type):
     """
     Hail type corresponding to :class:`hail.representation.Genotype`
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TGenotype, self).__init__(scala_object(Env.hail_package().expr, 'TGenotype'))
+        super(TGenotype, self).__init__(scala_object(env.hail.expr, 'TGenotype'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -537,9 +532,10 @@ class TLocus(Type):
     """
     Hail type corresponding to :class:`hail.representation.Locus`
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TLocus, self).__init__(scala_object(Env.hail_package().expr, 'TLocus'))
+        super(TLocus, self).__init__(scala_object(env.hail.expr, 'TLocus'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -563,9 +559,10 @@ class TInterval(Type):
     """
     Hail type corresponding to :class:`hail.representation.Interval`
     """
+    __metaclass__ = Singleton
 
     def __init__(self):
-        super(TInterval, self).__init__(scala_object(Env.hail_package().expr, 'TInterval'))
+        super(TInterval, self).__init__(scala_object(env.hail.expr, 'TInterval'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -583,3 +580,17 @@ class TInterval(Type):
         if annotation and not isinstance(annotation, Interval):
             raise TypeCheckError('TInterval expected type hail.representation.Interval, but found %s' %
                                  type(annotation))
+
+
+__singletons__ = {'is.hail.expr.TInt$': TInt,
+                  'is.hail.expr.TLong$': TLong,
+                  'is.hail.expr.TFloat$': TFloat,
+                  'is.hail.expr.TDouble$': TDouble,
+                  'is.hail.expr.TBoolean$': TBoolean,
+                  'is.hail.expr.TString$': TString,
+                  'is.hail.expr.TSample$': TString,
+                  'is.hail.expr.TVariant$': TVariant,
+                  'is.hail.expr.TAltAllele$': TAltAllele,
+                  'is.hail.expr.TLocus$': TLocus,
+                  'is.hail.expr.TGenotype$': TGenotype,
+                  'is.hail.expr.TInterval$': TInterval}

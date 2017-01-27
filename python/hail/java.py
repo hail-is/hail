@@ -1,5 +1,38 @@
+class Env:
+    _jvm = None
+    _gateway = None
+    _hail_package = None
+    _jutils = None
+
+    @property
+    def jvm(self):
+        if not Env._jvm:
+            raise EnvironmentError('no Hail context initialized, create one first')
+        return Env._jvm
+
+    @property
+    def hail(self):
+        if not Env._hail_package:
+            Env._hail_package = getattr(self.jvm, 'is').hail
+        return Env._hail_package
+
+    @property
+    def gateway(self):
+        if not Env._gateway:
+            raise EnvironmentError('no Hail context initialized, create one first')
+        return Env._gateway
+
+    @property
+    def jutils(self):
+        if not Env._jutils:
+            Env._jutils = scala_package_object(self.hail.utils)
+        return Env._jutils
+
+
+env = Env()
+
 def jarray(jtype, lst):
-    jarr = Env.gateway().new_array(jtype, len(lst))
+    jarr = env.gateway.new_array(jtype, len(lst))
     for i, s in enumerate(lst):
         jarr[i] = s
     return jarr
@@ -14,11 +47,11 @@ def scala_package_object(jpackage):
 
 
 def jnone():
-    return scala_object(Env.jvm().scala, 'None')
+    return scala_object(env.jvm.scala, 'None')
 
 
 def jsome(x):
-    return Env.jvm().scala.Some(x)
+    return env.jvm.scala.Some(x)
 
 
 def joption(x):
@@ -29,27 +62,12 @@ def from_option(x):
     return x.get() if x.isDefined() else None
 
 
+def jiterable_to_list(it):
+    if it:
+        return list(env.jutils.iterableToArrayList(it))
+    else:
+        return None
+
 def raise_py4j_exception(self, e):
-    msg = scala_package_object(self._hail.utils).getMinimalMessage(e.java_exception)
+    msg = env.jutils.getMinimalMessage(e.java_exception)
     raise FatalError(msg, e.java_exception)
-
-
-class Env:
-    _jvm = None
-    _gateway = None
-
-    @staticmethod
-    def jvm():
-        if not Env._jvm:
-            raise EnvironmentError('no Hail context initialized, create one first')
-        return Env._jvm
-
-    @staticmethod
-    def hail_package():
-        return getattr(Env.jvm(), 'is').hail
-
-    @staticmethod
-    def gateway():
-        if not Env._gateway:
-            raise EnvironmentError('no Hail context initialized, create one first')
-        return Env._gateway

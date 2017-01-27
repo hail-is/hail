@@ -31,20 +31,26 @@ class Genotype(object):
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
         """Initialize a Genotype object."""
 
-        jvm = Env.jvm()
-        gt = joption(gt)
+        jvm = env.jvm
+        jgt = joption(gt)
         if ad:
-            ad = jsome(jarray(jvm.int, ad))
+            jad = jsome(jarray(jvm.int, ad))
         else:
-            ad = jnone()
-        dp = joption(dp)
-        gq = joption(gq)
+            jad = jnone()
+        jdp = joption(dp)
+        jgq = joption(gq)
         if pl:
-            pl = jsome(jarray(jvm.int, pl))
+            jpl = jsome(jarray(jvm.int, pl))
         else:
-            pl = jnone()
+            jpl = jnone()
 
-        jrep = scala_object(Env.hail_package().variant, 'Genotype').apply(gt, ad, dp, gq, pl, False, False)
+        jrep = scala_object(env.hail.variant, 'Genotype').apply(
+            jgt, jad, jdp, jgq, jpl, False, False)
+        self._gt = gt
+        self._ad = ad
+        self._dp = dp
+        self._gq = gq
+        self._pl = pl
         self._init_from_java(jrep)
 
     def __str__(self):
@@ -61,9 +67,14 @@ class Genotype(object):
 
     @classmethod
     def _from_java(cls, jrep):
-        l = Genotype.__new__(cls)
-        l._init_from_java(jrep)
-        return l
+        g = Genotype.__new__(cls)
+        g._init_from_java(jrep)
+        g._gt = from_option(jrep.gt())
+        g._ad = jiterable_to_list(from_option(jrep.ad()))
+        g._dp = from_option(jrep.dp())
+        g._gq = from_option(jrep.gq())
+        g._pl = jiterable_to_list(from_option(jrep.pl()))
+        return g
 
     @property
     def gt(self):
@@ -72,7 +83,7 @@ class Genotype(object):
         :rtype: int or None
         """
 
-        return from_option(self._jrep.gt())
+        return self._gt
 
     @property
     def ad(self):
@@ -81,10 +92,7 @@ class Genotype(object):
         :rtype: list of int or None
         """
 
-        result = from_option(self._jrep.ad())
-        if result:
-            result = [x for x in scala_package_object(Env.hail_package().utils).arrayToArrayList(result)]
-        return result
+        return self._ad
 
     @property
     def dp(self):
@@ -93,7 +101,7 @@ class Genotype(object):
         :rtype: int or None
         """
 
-        return from_option(self._jrep.dp())
+        return self._dp
 
     @property
     def gq(self):
@@ -102,7 +110,7 @@ class Genotype(object):
         :return: int or None
         """
 
-        return from_option(self._jrep.gq())
+        return self._gq
 
     @property
     def pl(self):
@@ -111,10 +119,7 @@ class Genotype(object):
         :rtype: list of int or None
         """
 
-        result = from_option(self._jrep.pl())
-        if result:
-            result = [x for x in scala_package_object(Env.hail_package().utils).arrayToArrayList(result)]
-        return result
+        return self._pl
 
     def od(self):
         """Returns the difference between the total depth and the allelic depth sum.
@@ -235,11 +240,7 @@ class Genotype(object):
         :param int num_alleles: number of possible alternate alleles
         :rtype: list of int or None
         """
-
-        result = from_option(self._jrep.oneHotAlleles(num_alleles))
-        if result:
-            result = [x for x in scala_package_object(Env.hail_package().utils).iterableToArrayList(result)]
-        return result
+        return jiterable_to_list(from_option(self._jrep.oneHotAlleles(num_alleles)))
 
     def one_hot_genotype(self, num_genotypes):
         """Returns a list containing the one-hot encoded representation of the genotype call.
@@ -266,10 +267,7 @@ class Genotype(object):
         :rtype: list of int or None
         """
 
-        result = from_option(self._jrep.oneHotGenotype(num_genotypes))
-        if result:
-            result = [x for x in scala_package_object(Env.hail_package().utils).iterableToArrayList(result)]
-        return result
+        return jiterable_to_list(from_option(self._jrep.oneHotGenotype(num_genotypes)))
 
     def p_ab(self, theta=0.5):
         """Returns the p-value associated with finding the given allele depth ratio.

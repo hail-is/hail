@@ -17,7 +17,7 @@ trait Py4jUtils {
     list
   }
 
-  def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toIndexedSeq
+  def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.toArray(new Array[T](al.size())): IndexedSeq[T]
 
   def arrayListToSet[T](al: java.util.ArrayList[T]): Set[T] = al.asScala.toSet
 
