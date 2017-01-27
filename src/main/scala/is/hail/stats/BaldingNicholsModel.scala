@@ -89,14 +89,14 @@ object BaldingNicholsModel {
               val p = popAF_k(popOfSample_nBc.value(n))
               val pSq = p * p
               val x = new Uniform(0, 1)(perVariantRandomBasis).draw()
-              val genotype_num =
+              val gt =
                 if (x < pSq)
                   2
                 else if (x > 2 * p - pSq)
                   0
                 else
                   1
-              Genotype(genotype_num)
+              Genotype(gt)
             }: Iterable[Genotype]
           )
         )

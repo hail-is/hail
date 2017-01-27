@@ -650,7 +650,7 @@ class HailContext(object):
 
 
         if isinstance(af_dist, UniformDist):
-            jvm_af_dist = self.hail.stats.UniformDist.apply(float(af_dist.a), float(af_dist.b))
+            jvm_af_dist = self.hail.stats.UniformDist.apply(float(af_dist.minVal), float(af_dist.maxVal))
         elif isinstance(af_dist, BetaDist):
             jvm_af_dist = self.hail.stats.BetaDist.apply(float(af_dist.a), float(af_dist.b))
 

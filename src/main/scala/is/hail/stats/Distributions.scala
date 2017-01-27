@@ -8,8 +8,8 @@ sealed trait Distribution {
     def getBreezeDist(seed: Int): ContinuousDistr[Double]
 }
 case class UniformDist(a: Double, b: Double) extends Distribution{
-  if (a > b)
-    fatal("a must not be greater than b")
+  if (a >= b)
+    fatal("a must less than b")
 
   override def getBreezeDist(seed: Int): ContinuousDistr[Double] = {
     val generator = new JDKRandomGenerator
@@ -29,4 +29,14 @@ case class BetaDist(a: Double, b: Double) extends Distribution {
 
     new Beta(a, b)(basis)
   }
+}
+
+trait DistributionFactory {
+
+  def createDist(seed: Int): Distribution
+}
+
+case class UniformFactory(a: Double, b: Double) extends DistributionFactory {
+
+  override def createDist(seed: Int): Distribution = ???
 }
