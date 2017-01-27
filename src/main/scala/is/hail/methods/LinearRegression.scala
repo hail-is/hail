@@ -89,6 +89,9 @@ object LinearRegression {
 
   def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, minAC: Int, minAF: Double): VariantDataset = {
 
+    if (!vds.wasSplit)
+      fatal("linreg requires bi-allelic VDS, run split_multi first")
+
     val (y, cov, sampleMask) = getPhenoCovCompleteSamples(vds, ySA, covSA)
 
     if (minAC < 1)
