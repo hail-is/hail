@@ -11,6 +11,16 @@ final class ByteIterator(val a: Array[Byte]) {
     r
   }
 
+  def skipLEB128(count: Int): Unit = {
+    var j = 0
+    while (j < count) {
+      var b: Byte = next()
+      while ((b & 0x80) != 0)
+        b = next()
+      j += 1
+    }
+  }
+
   def readULEB128(): Int = {
     var b: Byte = next()
     var x: Int = b & 0x7f

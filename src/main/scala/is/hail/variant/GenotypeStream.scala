@@ -12,13 +12,17 @@ import is.hail.utils.ByteIterator
 
 import scala.collection.mutable
 
-// FIXME use zipWithIndex
 class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
   override def hasNext: Boolean = b.hasNext
 
-  override def next(): Genotype = {
-    Genotype.read(nAlleles, isDosage, b)
-  }
+  override def next(): Genotype = Genotype.read(nAlleles, isDosage, b)
+}
+
+// FIXME: Implement unboxed Int iterator
+class HardcallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Int] {
+  override def hasNext: Boolean = b.hasNext
+
+  override def next(): Int = Genotype.hardcallRead(nAlleles, isDosage, b)
 }
 
 object LZ4Utils {
@@ -54,6 +58,15 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
         new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
         new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
+    }
+  }
+
+  def hardcallIterator: Iterator[Int] = {
+    decompLenOption match {
+      case Some(decompLen) =>
+        new HardcallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
+      case None =>
+        new HardcallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
     }
   }
 
