@@ -2,12 +2,10 @@ package is.hail.driver
 
 import java.text.NumberFormat
 import java.util.Locale
-import java.util
 
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.GenotypeStream
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.collection.JavaConverters._
 
 object Count extends Command {
 
@@ -31,8 +29,8 @@ object Count extends Command {
     val vds = state.vds
 
     val (nVariants, nCalledOption) = if (options.genotypes) {
-      val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs)) =>
-        (1L, gs.count(_.isCalled).toLong)
+      val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs: GenotypeStream)) =>
+        (1L, gs.hardcallIterator.count(_ >= 0).toLong)
       }.fold((0L, 0L)) { (comb, x) =>
         (comb._1 + x._1, comb._2 + x._2)
       }
