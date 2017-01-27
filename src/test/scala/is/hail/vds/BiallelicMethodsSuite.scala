@@ -33,7 +33,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     catchError {
-      multi.ibd("foo")
+      multi.ibd()
     }
 
     catchError {
