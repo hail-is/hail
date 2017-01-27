@@ -20,26 +20,20 @@ object LDPrune {
   case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, sdRecip: Double) {
     def unpack(): Array[Int] = {
       val shifts = (0 until genotypesPerPack * 2 by 2).reverse
-      gs.flatMap{ l => shifts.map(s => l >> s & 3 match {
-        case 0 => 0
-        case 1 => 1
-        case 2 => -1
-        case 3 => 2
-        case _ => fatal("genotype unpacking not correct")
-      })}.take(nSamples)
+      gs.flatMap { l => shifts.map(s => ((l >> s) & 3).toInt) }.take(nSamples)
     }
   }
 
   val table = {
     val t = Array.fill[Byte](256 * 4)(0)
 
-    (0 until 256).foreach{ i =>
+    (0 until 256).foreach { i =>
       val xi = i & 3
       val xj = i >> 2 & 3
       val yi = i >> 4 & 3
       val yj = i >> 6 & 3
 
-      val res = findTableValue(yj, xj, yi, xi)
+      val res = findTableValue(xi, yi, xj, yj)
 
       t(i * 4) = res._1.toByte
       t(i * 4 + 1) = res._2.toByte
@@ -55,21 +49,21 @@ object LDPrune {
     (r1._1 + r2._1, r1._2 + r2._2, r1._3 + r2._3, r1._4 + r2._4)
   }
 
-  def findTableValue(x: Int, y: Int): (Int, Int, Int, Int) = {
+  def findTableValue(xi: Int, yi: Int): (Int, Int, Int, Int) = {
     var xySum = 0
     var XbarCount = 0
     var YbarCount = 0
     var XbarYbarCount = 0
 
-    (x, y) match {
-      case (2, 2) => XbarYbarCount += 1
-      case (2, 1) => XbarCount += 1
-      case (2, 3) => XbarCount += 2
-      case (1, 2) => YbarCount += 1
-      case (3, 2) => YbarCount += 2
-      case (3, 3) => xySum += 4
-      case (3, 1) => xySum += 2
-      case (1, 3) => xySum += 2
+    (xi, yi) match {
+      case (3, 3) => XbarYbarCount += 1
+      case (3, 1) => XbarCount += 1
+      case (3, 2) => XbarCount += 2
+      case (1, 3) => YbarCount += 1
+      case (2, 3) => YbarCount += 2
+      case (2, 2) => xySum += 4
+      case (2, 1) => xySum += 2
+      case (1, 2) => xySum += 2
       case (1, 1) => xySum += 1
       case _ =>
     }
@@ -87,14 +81,14 @@ object LDPrune {
       val k = pack * genotypesPerPack
 
       packedGenotypes(pack) =
-          gs(k).toLong       << 62 | gs(k + 1 ).toLong  << 60 | gs(k + 2 ).toLong  << 58 | gs(k + 3 ).toLong  << 56 |
-          gs(k + 4 ).toLong  << 54 | gs(k + 5 ).toLong  << 52 | gs(k + 6 ).toLong  << 50 | gs(k + 7 ).toLong  << 48 |
-          gs(k + 8 ).toLong  << 46 | gs(k + 9 ).toLong  << 44 | gs(k + 10 ).toLong << 42 | gs(k + 11 ).toLong << 40 |
-          gs(k + 12 ).toLong << 38 | gs(k + 13 ).toLong << 36 | gs(k + 14 ).toLong << 34 | gs(k + 15 ).toLong << 32 |
-          gs(k + 16 ).toLong << 30 | gs(k + 17 ).toLong << 28 | gs(k + 18 ).toLong << 26 | gs(k + 19 ).toLong << 24 |
-          gs(k + 20 ).toLong << 22 | gs(k + 21 ).toLong << 20 | gs(k + 22 ).toLong << 18 | gs(k + 23 ).toLong << 16 |
-          gs(k + 24 ).toLong << 14 | gs(k + 25 ).toLong << 12 | gs(k + 26 ).toLong << 10 | gs(k + 27 ).toLong << 8  |
-          gs(k + 28 ).toLong << 6  | gs(k + 29 ).toLong << 4  | gs(k + 30 ).toLong << 2  | gs(k + 31 ).toLong
+        gs(k).toLong << 62 | gs(k + 1).toLong << 60 | gs(k + 2).toLong << 58 | gs(k + 3).toLong << 56 |
+          gs(k + 4).toLong << 54 | gs(k + 5).toLong << 52 | gs(k + 6).toLong << 50 | gs(k + 7).toLong << 48 |
+          gs(k + 8).toLong << 46 | gs(k + 9).toLong << 44 | gs(k + 10).toLong << 42 | gs(k + 11).toLong << 40 |
+          gs(k + 12).toLong << 38 | gs(k + 13).toLong << 36 | gs(k + 14).toLong << 34 | gs(k + 15).toLong << 32 |
+          gs(k + 16).toLong << 30 | gs(k + 17).toLong << 28 | gs(k + 18).toLong << 26 | gs(k + 19).toLong << 24 |
+          gs(k + 20).toLong << 22 | gs(k + 21).toLong << 20 | gs(k + 22).toLong << 18 | gs(k + 23).toLong << 16 |
+          gs(k + 24).toLong << 14 | gs(k + 25).toLong << 12 | gs(k + 26).toLong << 10 | gs(k + 27).toLong << 8 |
+          gs(k + 28).toLong << 6 | gs(k + 29).toLong << 4 | gs(k + 30).toLong << 2 | gs(k + 31).toLong
 
       pack += 1
     }
@@ -104,8 +98,11 @@ object LDPrune {
   def toBitPackedVector(gs: Iterable[Genotype], nSamples: Int): Option[BitPackedVector] = {
     val padding = genotypesPerPack - nSamples % genotypesPerPack
     val nGenotypes = nSamples + padding
+    val a = new Array[Byte](nGenotypes) // padded values are 0 by default which do not affect the result when computing r2
+    toBitPackedVector(gs, nSamples, a, nGenotypes)
+  }
 
-    val gts = new Array[Byte](nGenotypes) // padded values are 0 by default which do not affect the result when computing r2
+  def toBitPackedVector(gs: Iterable[Genotype], nSamples: Int, a: Array[Byte], nGenotypes: Int): Option[BitPackedVector] = {
     val it = gs.iterator
 
     var nPresent = 0
@@ -115,14 +112,9 @@ object LDPrune {
     var i = 0
     while (i < nSamples) {
       val gt = it.next().unboxedGT
-      val gtInt = gt match {
-        case -1 => 2
-        case 0 => 0
-        case 1 => 1
-        case 2 => 3
-      }
+      val gtByte = (gt & 3).toByte
 
-      gts.update(i, gtInt.toByte)
+      a.update(i, gtByte)
       if (gt >= 0) {
         nPresent += 1
         gtSum += gt
@@ -140,12 +132,14 @@ object LDPrune {
       None
     else {
       val gtMean = gtSum.toDouble / nPresent
-      val gtMeanSq = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
-      val gtStdDevRec = 1d / math.sqrt((gtMeanSq - gtMean * gtMean) * nSamples)
+      val gtMeanAll = (gtSum + nMissing * gtMean) / nSamples
+      val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
+      val gtStdDevRec = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
 
-      Some(BitPackedVector(pack(nGenotypes, gts), nSamples, gtMean, gtStdDevRec))
+      Some(BitPackedVector(pack(nGenotypes, a), nSamples, gtMean, gtStdDevRec))
     }
   }
+
 
   def r2(x: BitPackedVector, y: BitPackedVector): Double = {
     require(x.nSamples == y.nSamples)
@@ -169,10 +163,10 @@ object LDPrune {
     while (pack < nPacks) {
       val lX = gsX(pack)
       val lY = gsY(pack)
-      var shift = 2 * (genotypesPerPack - 1)
-      while (shift > 0) {
-        val b = (((lY >> shift) & 15) << 4 | ((lX >> shift) & 15)).toInt
+      var shift = 2 * (genotypesPerPack - 2)
 
+      while (shift >= 0) {
+        val b = (((lY >> shift) & 15) << 4 | ((lX >> shift) & 15)).toInt
         xySum += table(b * 4)
         XbarCount += table(b * 4 + 1)
         YbarCount += table(b * 4 + 2)
@@ -333,9 +327,12 @@ object LDPrune {
       fatal(s"Window must be greater than or equal to 0. Found `$window'.")
 
     val sc = vds.sparkContext
-    val nSamples = vds.nSamples
     val partitionSizesInitial = sc.runJob(vds.rdd, getIteratorSize _)
     val nVariantsInitial = partitionSizesInitial.sum
+
+    val nSamples = vds.nSamples
+    val padding = genotypesPerPack - nSamples % genotypesPerPack
+    val nGenotypes = nSamples + padding
 
     val minMemoryPerCore = math.ceil((1 / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
     val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, memoryPerCore)
@@ -345,7 +342,20 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"Memory per core must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB")
 
-    val standardizedRDD = vds.rdd.flatMapValues { case (va, gs) => toBitPackedVector(gs, nSamples)}.asOrderedRDD
+    val standardizedRDD = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
+      .mapPartitions { it =>
+        val a = new Array[Byte](nGenotypes) // padded values are 0 by default which do not affect the result when computing r2
+        it.flatMap { case (v, (va, gs)) =>
+          toBitPackedVector(gs, nSamples, a, nGenotypes) match {
+            case Some(bpv) => Some((v, bpv))
+            case None => None
+          }
+        }
+      }.toOrderedRDD
+
+//
+//        val standardizedRDD2 = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
+//          .flatMapValues { case (va, gs) => toBitPackedVector(gs, nSamples) }.asOrderedRDD
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
       val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, window, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)

@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import breeze.linalg.{Vector => BVector}
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
@@ -12,6 +13,52 @@ class LDPruneSuite extends SparkSuite {
   val bytesPerCore = 256L * 1024L * 1024L
 
   def convertGtToGs(gts: Array[Int]): Iterable[Genotype] = gts.map(Genotype(_))
+
+  def toNormalizedGtArray(gs: Array[Int], nSamples: Int): Option[Array[Double]] = {
+    val a = new Array[Double](nSamples)
+    val gts = new Array[Int](nSamples)
+    val it = gs.iterator
+
+    var nPresent = 0
+    var gtSum = 0
+    var gtSumSq = 0
+
+    var i = 0
+    while (i < nSamples) {
+      val gt = it.next()
+      gts.update(i, gt)
+      if (gt >= 0) {
+        nPresent += 1
+        gtSum += gt
+        gtSumSq += gt * gt
+      }
+      i += 1
+    }
+
+    val nMissing = nSamples - nPresent
+    val allHomRef = gtSum == 0
+    val allHet = gtSum == nPresent && gtSumSq == nPresent
+    val allHomVar = gtSum == 2 * nPresent
+
+    if (allHomRef || allHet || allHomVar || nMissing == nSamples)
+      None
+    else {
+      val gtMean = gtSum.toDouble / nPresent
+      val gtMeanAll = (gtSum + nMissing * gtMean) / nSamples
+      val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
+      val gtStdDevRec = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
+
+      var i = 0
+      while (i < nSamples) {
+        val gt = gts(i)
+        if (gt >= 0)
+          a.update(i, (gt - gtMean) * gtStdDevRec)
+        i += 1
+      }
+
+      Some(a)
+    }
+  }
 
   def correlationMatrix(gs: Array[Iterable[Genotype]], nSamples: Int) = {
     val bvi = gs.map(LDPrune.toBitPackedVector(_, nSamples))
@@ -69,7 +116,7 @@ class LDPruneSuite extends SparkSuite {
       line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
     }.value).toArray))
 
-    val computedR2 = correlationMatrix(gts.map(_.map(Genotype(_)).toIterable), 8)
+    val computedR2 = correlationMatrix(gts.map(convertGtToGs), 8)
 
     val res = actualR2.indices.forall { case (i, j) =>
       val expected = actualR2(i, j)
@@ -124,18 +171,46 @@ class LDPruneSuite extends SparkSuite {
       window: Int <- Gen.choose(0, 5000);
       numPartitions: Int <- Gen.choose(5, 10)) yield (r2, window, numPartitions)
 
-    property("uncorrelated") =
-      forAll(compGen) { case (r2: Double, window: Int, numPartitions: Int) =>
-        var s = State(sc, sqlContext, null)
-        s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz", "-n", s"$numPartitions"))
-        s = SplitMulti.run(s, Array.empty[String])
-        val prunedVds = LDPrune.ldPrune(s.vds, r2, window, bytesPerCore)
-        uncorrelated(prunedVds, r2, window)
+    val vectorGen = for (nSamples: Int <- Gen.choose(1, 10000);
+      v1: Array[Int] <- Gen.buildableOfN[Array, Int](nSamples, Gen.choose(-1, 2));
+      v2: Array[Int] <- Gen.buildableOfN[Array, Int](nSamples, Gen.choose(-1, 2))
+    ) yield (nSamples, v1, v2)
+
+    property("bitPacked same as BVector") =
+      forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
+        val gs1 = convertGtToGs(v1)
+        val gs2 = convertGtToGs(v2)
+        val bv1 = LDPrune.toBitPackedVector(gs1, nSamples)
+        val bv2 = LDPrune.toBitPackedVector(gs2, nSamples)
+        val sgs1 = toNormalizedGtArray(v1, nSamples).map(BVector(_))
+        val sgs2 = toNormalizedGtArray(v2, nSamples).map(BVector(_))
+
+        val res2 = (bv1, bv2, sgs1, sgs2) match {
+          case (Some(a), Some(b), Some(c), Some(d)) =>
+            val rBreeze = c.dot(d): Double
+            val r2Breeze = rBreeze * rBreeze
+            val r2BitPacked = LDPrune.r2(a, b)
+            val res = math.abs(r2BitPacked - r2Breeze) < 1e-4
+            if (!res)
+              println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples v1=${v1.mkString(",")} v2=${v2.mkString(",")}")
+            res
+          case (_, _, _, _) => true
+        }
+        res2
       }
+
+//    property("uncorrelated") =
+//      forAll(compGen) { case (r2: Double, window: Int, numPartitions: Int) =>
+//        var s = State(sc, sqlContext, null)
+//        s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz", "-n", s"$numPartitions"))
+//        s = SplitMulti.run(s, Array.empty[String])
+//        val prunedVds = LDPrune.ldPrune(s.vds, r2, window, bytesPerCore)
+//        uncorrelated(prunedVds, r2, window)
+//      }
   }
 
   @Test def testRandom() {
-    Spec.check()
+    Spec.check2()
   }
 
   @Test def testInputs() {
@@ -192,6 +267,14 @@ class LDPruneSuite extends SparkSuite {
     s = SplitMulti.run(s, Array.empty[String])
     val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 100000, 200000)
     assert(uncorrelated(prunedVds, 0.2, 1000))
+  }
+
+  @Test def test10K() {
+    var s = State(sc, sqlContext, null)
+    s = Read.run(s, Array("ALL.1KG.10K.vds"))
+    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 20 * 1024 * 1024)
+    prunedVds.nVariants
+    // while (true) {}
   }
 
   @Test def test100K() {
