@@ -569,16 +569,14 @@ For reference, here's the full workflow to all tutorial endpoints combined into 
 
     >>> vds_gAB_vCR = (hc.import_vcf(vcf)
     >>>          .split_multi()
-    >>>          .annotate_samples_table(sample_annotations, 
-    >>>                                  root='sa.pheno', 
-    >>>                                  sample_expr='Sample', 
+    >>>          .annotate_samples_table(sample_annotations, root='sa.pheno', sample_expr='Sample',
     >>>                                  config=TextTableConfig(impute=True))
     >>>          .filter_genotypes(filter_condition_ab)
     >>>          .filter_variants_expr('gs.fraction(g => g.isCalled) > 0.95')
     >>>          .sample_qc())
     >>> 
     >>> vds_QCed = (vds_gAB_vCR
-    >>>     .annotate_samples_vds(vds_gAB_vCR, code = 'sa.qc = vds.qc' )
+    >>>     .annotate_samples_vds(vds_gAB_vCR, code = 'sa.qc = vds.qc')
     >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.gqMean >= 20')
     >>>     .variant_qc()
     >>>     .annotate_variants_expr(sex_aware_hwe_exprs)
@@ -601,6 +599,5 @@ For reference, here's the full workflow to all tutorial endpoints combined into 
     >>> vds_fet = (vds_QCed
     >>>     .filter_variants_expr('va.qc.AF <= 0.05 || va.qc.AF >= 0.95')
     >>>     .annotate_variants_expr(rare_variant_annotations)
-    >>>     .annotate_variants_expr('''va.fet = 
-    >>>                                 fet(va.minorCase.toInt, va.minorControl.toInt,
-    >>>                                     va.majorCase.toInt, va.majorControl.toInt)'''))
+    >>>     .annotate_variants_expr('''va.fet = fet(va.minorCase.toInt, va.minorControl.toInt,
+    >>>                                             va.majorCase.toInt, va.majorControl.toInt)'''))
