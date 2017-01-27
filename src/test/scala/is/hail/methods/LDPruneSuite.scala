@@ -97,7 +97,10 @@ class LDPruneSuite extends SparkSuite {
 
     for (gts <- Array(gts1, gts2, gts3)) {
       val n = gts.length
-      assert(LDPrune.toBitPackedVector(convertGtToGs(gts), n).forall { bpv => bpv.unpack() sameElements gts })
+      assert(LDPrune.toBitPackedVector(convertGtToGs(gts), n).forall { bpv =>
+        println(s"res=${bpv.unpack().mkString(",")}")
+        bpv.unpack() sameElements gts
+      })
     }
   }
 
