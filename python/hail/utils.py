@@ -2,18 +2,6 @@ from py4j.protocol import Py4JJavaError
 from hail.java import env, raise_py4j_exception
 
 
-class FatalError(Exception):
-    """:class:`.FatalError` is an error thrown by Hail method failures"""
-
-    def __init__(self, message, java_exception):
-        self.msg = message
-        self.java_exception = java_exception
-        super(FatalError)
-
-    def __str__(self):
-        return self.msg
-
-
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
 

@@ -1,3 +1,15 @@
+class FatalError(Exception):
+    """:class:`.FatalError` is an error thrown by Hail method failures"""
+
+    def __init__(self, message, java_exception):
+        self.msg = message
+        self.java_exception = java_exception
+        super(FatalError)
+
+    def __str__(self):
+        return self.msg
+
+
 class Env:
     _jvm = None
     _gateway = None
@@ -30,6 +42,7 @@ class Env:
 
 
 env = Env()
+
 
 def jarray(jtype, lst):
     jarr = env.gateway.new_array(jtype, len(lst))
@@ -68,6 +81,7 @@ def jiterable_to_list(it):
     else:
         return None
 
-def raise_py4j_exception(self, e):
+
+def raise_py4j_exception(e):
     msg = env.jutils.getMinimalMessage(e.java_exception)
     raise FatalError(msg, e.java_exception)
