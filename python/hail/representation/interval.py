@@ -10,11 +10,6 @@ class Interval(object):
     :type start: :class:`.Locus`
     :param end: exclusive end locus
     :type end: :class:`.Locus`
-
-    :ivar start: inclusive start locus
-    :vartype start: :class:`.Locus`
-    :ivar end: exclusive end locus
-    :vartype end: :class:`.Locus`
     """
 
     def __init__(self, start, end):

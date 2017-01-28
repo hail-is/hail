@@ -16,18 +16,6 @@ class VariantDataset(object):
 
     :ivar hc: Hail Context
     :vartype hc: :class:`.HailContext`
-    :ivar sample_ids: Sample IDs
-    :vartype sample_ids: list of str
-    :ivar sample_annotations: Sample annotations
-    :vartype sample_annotations: dict
-    :ivar globals: Global annotations
-    :ivar variant_schema: type of variant annotations
-    :vartype variant_schema: :class:`.Type`
-    :ivar sample_schema: type of sample annotations
-    :vartype sample_schema: :class:`.Type`
-    :ivar global_schema: type of global annotations
-    :vartype global_schema: :class:`.Type`
-    :ivar int num_samples: number of samples in dataset
     """
 
     def __init__(self, hc, jvds):

@@ -5,21 +5,6 @@
 
 .. autoclass:: {{ objname }}
 
-    {% block methods %}
-
-    {% if methods %}
-
-    .. rubric:: Methods
-
-    .. autosummary::
-        :nosignatures:
-
-    {% for item in methods %}
-        ~{{ name }}.{{ item }}
-    {%- endfor %}
-    {% endif %}
-    {% endblock %}
-
     {% block attributes %}
     {% if attributes %}
     .. rubric:: Attributes
@@ -33,4 +18,16 @@
     {% endif %}
     {% endblock %}
 
+    {% block methods %}
+    {% if methods %}
 
+    .. rubric:: Methods
+
+    .. autosummary::
+        :nosignatures:
+
+    {% for item in methods %}
+        ~{{ name }}.{{ item }}
+    {%- endfor %}
+    {% endif %}
+    {% endblock %}

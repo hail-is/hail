@@ -11,12 +11,6 @@ class Variant(object):
     :param str ref: reference allele
     :param alts: single alternate allele, or list of alternate alleles
     :type alts: str or list of str
-
-    :ivar str contig: chromosome identifier
-    :ivar int start: chromosomal position (1-based)
-    :ivar str ref: reference allele
-    :ivar alt_alleles: list of alternate allele objects in this polymorphism
-    :vartype alt_alleles: list of :class:`.AltAllele`
     """
 
     def __init__(self, contig, start, ref, alts):
@@ -251,9 +245,6 @@ class AltAllele(object):
 
     :param str ref: reference allele
     :param str alt: alternate allele
-
-    :ivar str ref: reference allele
-    :ivar str alt: alternate allele
     """
 
     def __init__(self, ref, alt):
@@ -401,9 +392,6 @@ class Locus(object):
     :param contig: chromosome identifier
     :type contig: str or int
     :param int position: chromosomal position (1-indexed)
-
-    :ivar str contig: chromosome identifier
-    :ivar int position: chromosomal position (1-indexed)
     """
 
     def __init__(self, contig, position):

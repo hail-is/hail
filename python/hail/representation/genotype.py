@@ -15,17 +15,6 @@ class Genotype(object):
     :type gq: int or None
     :param pl: phred-scaled posterior genotype likelihoods (1 element per possible genotype)
     :type pl: list of int or None
-
-    :ivar gt: Genotype hard call
-    :vartype gt: int or None
-    :ivar ad: allelic depth (1 element per allele including reference)
-    :vartype ad: list of int or None
-    :ivar dp: total depth
-    :vartype dp: int or None
-    :ivar gq: genotype quality
-    :vartype gq: int or None
-    :ivar pl: phred-scaled posterior genotype likelihoods (1 element per possible genotype)
-    :vartype pl: list of int or None
     """
 
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):

@@ -11,13 +11,6 @@ class KeyTable(object):
 
     :ivar hc: Hail Context
     :vartype hc: :class:`.HailContext`
-    :ivar schema: key table schema
-    :vartype schema: :class:`.TStruct`
-    :ivar key_names: names of key fields
-    :vartype key_names: list of str
-    :ivar column_names: names of all columns in table
-    :vartype column_names: list of str
-    :ivar int num_columns: total column count
     """
 
     def __init__(self, hc, jkt):
