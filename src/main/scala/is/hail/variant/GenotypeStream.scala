@@ -18,7 +18,7 @@ class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) 
   override def next(): Genotype = Genotype.read(nAlleles, isDosage, b)
 }
 
-class HardcallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends IntIterator {
+class HardcallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends IteratorInt {
   override def hasNext: Boolean = b.hasNext
 
   override def nextInt(): Int = Genotype.hardcallRead(nAlleles, isDosage, b)
@@ -60,7 +60,7 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
     }
   }
 
-  def hardcallIterator: Iterator[Int] = {
+  def hardcallIterator: IteratorInt = {
     decompLenOption match {
       case Some(decompLen) =>
         new HardcallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
@@ -129,10 +129,10 @@ object GenotypeStream {
 }
 
 object ToIteratorGT {
-  def apply(iter: Iterable[Genotype]): Iterator[Int] =
-    iter match {
+  def apply(it: Iterable[Genotype]): Iterator[Int] =
+    it match {
       case gs: GenotypeStream => gs.hardcallIterator
-      case _ => iter.iterator.map(_.unboxedGT)
+      case _ => it.iterator.map(_.unboxedGT)
     }
 }
 
