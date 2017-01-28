@@ -18,11 +18,10 @@ class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) 
   override def next(): Genotype = Genotype.read(nAlleles, isDosage, b)
 }
 
-// FIXME: Implement unboxed Int iterator
-class HardcallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Int] {
+class HardcallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends IntIterator {
   override def hasNext: Boolean = b.hasNext
 
-  override def next(): Int = Genotype.hardcallRead(nAlleles, isDosage, b)
+  override def nextInt(): Int = Genotype.hardcallRead(nAlleles, isDosage, b)
 }
 
 object LZ4Utils {
