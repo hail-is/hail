@@ -1,4 +1,5 @@
-from hail.java import scala_object, scala_package_object, env
+import abc
+from hail.java import scala_object, env
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct
 
 
@@ -17,19 +18,11 @@ class TypeCheckError(Exception):
         return self.msg
 
 
-class Singleton(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
 class Type(object):
     """
     Hail type superclass used for annotations and expression language.
     """
+    __metaclass__ = abc.ABCMeta
 
     def __init__(self, jtype):
         self._jtype = jtype
@@ -61,27 +54,34 @@ class Type(object):
         else:
             raise TypeError("unknown type class: '%s'" % class_name)
 
-    def _jtype(self):
-        """
-        Returns the java type associated with this type.
-        """
-
-        raise NotImplemented('use a subclass of Type')
-
+    @abc.abstractmethod
     def _typecheck(self, annotation):
         """
         Raise an exception if the given annotation is not the appropriate type.
 
         :param annotation: value to check
         """
-        raise NotImplemented('use a subclass of Type')
+        return
+
+
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class SingletonType(Singleton, abc.ABCMeta):
+    pass
 
 
 class TInt(Type):
     """
     Hail type corresponding to 32-bit integers
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TInt, self).__init__(scala_object(env.hail.expr, 'TInt'))
@@ -104,7 +104,7 @@ class TLong(Type):
     """
     Hail type corresponding to 64-bit integers
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TLong, self).__init__(scala_object(env.hail.expr, 'TLong'))
@@ -127,7 +127,7 @@ class TFloat(Type):
     """
     Hail type corresponding to 32-bit floating point numbers
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TFloat, self).__init__(scala_object(env.hail.expr, 'TFloat'))
@@ -153,7 +153,7 @@ class TDouble(Type):
     """
     Hail type corresponding to 64-bit floating point numbers (python default)
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TDouble, self).__init__(scala_object(env.hail.expr, 'TDouble'))
@@ -176,7 +176,7 @@ class TString(Type):
     """
     Hail type corresponding to str
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TString, self).__init__(scala_object(env.hail.expr, 'TString'))
@@ -196,7 +196,7 @@ class TBoolean(Type):
     """
     Hail type corresponding to bool
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TBoolean, self).__init__(scala_object(env.hail.expr, 'TBoolean'))
@@ -451,7 +451,7 @@ class TVariant(Type):
     """
     Hail type corresponding to :class:`hail.representation.Variant`
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TVariant, self).__init__(scala_object(env.hail.expr, 'TVariant'))
@@ -478,7 +478,7 @@ class TAltAllele(Type):
     """
     Hail type corresponding to :class:`hail.representation.AltAllele`
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TAltAllele, self).__init__(scala_object(env.hail.expr, 'TAltAllele'))
@@ -505,7 +505,7 @@ class TGenotype(Type):
     """
     Hail type corresponding to :class:`hail.representation.Genotype`
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TGenotype, self).__init__(scala_object(env.hail.expr, 'TGenotype'))
@@ -532,7 +532,7 @@ class TLocus(Type):
     """
     Hail type corresponding to :class:`hail.representation.Locus`
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TLocus, self).__init__(scala_object(env.hail.expr, 'TLocus'))
@@ -559,7 +559,7 @@ class TInterval(Type):
     """
     Hail type corresponding to :class:`hail.representation.Interval`
     """
-    __metaclass__ = Singleton
+    __metaclass__ = SingletonType
 
     def __init__(self):
         super(TInterval, self).__init__(scala_object(env.hail.expr, 'TInterval'))
