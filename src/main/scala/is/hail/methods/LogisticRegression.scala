@@ -14,7 +14,7 @@ object LogisticRegression {
   def apply(vds: VariantDataset, test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
 
     if (!vds.wasSplit)
-      fatal("logreg requires bi-allelic VDS, run split_multi first")
+      fatal("logreg requires bi-allelic VDS, run split_multi or filter_multi first")
 
     def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest)
 
