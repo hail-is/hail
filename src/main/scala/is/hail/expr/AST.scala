@@ -246,7 +246,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
 
       case (t: TStruct, _) =>
         t.selfField(rhs) match {
-          case Some(f) => f.`type`
+          case Some(f) => f.typ
           case None => parseError(
             s"""`$t' has no field `$rhs'
                |  Available fields: [ ${ t.fields.map(x => prettyIdentifier(x.name)).mkString("\n  ") } ]""".stripMargin)

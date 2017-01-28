@@ -40,7 +40,7 @@ object Annotation {
     case TArray(elementType) =>
       TArray(expandType(elementType))
     case TStruct(fields) =>
-      TStruct(fields.map { f => f.copy(`type` = expandType(f.`type`)) })
+      TStruct(fields.map { f => f.copy(typ = expandType(f.typ)) })
     case TSet(elementType) =>
       TArray(expandType(elementType))
     case TDict(elementType) =>
@@ -68,7 +68,7 @@ object Annotation {
           a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
         case TStruct(fields) =>
           Row.fromSeq((a.asInstanceOf[Row].toSeq, fields).zipped.map { case (ai, f) =>
-            expandAnnotation(ai, f.`type`)
+            expandAnnotation(ai, f.typ)
           })
 
         case TSet(elementType) =>
@@ -95,11 +95,11 @@ object Annotation {
   def flattenType(t: Type): Type = t match {
     case t: TStruct =>
       val flatFields = t.fields.flatMap { f =>
-        flattenType(f.`type`) match {
+        flattenType(f.typ) match {
           case t2: TStruct =>
-            t2.fields.map { f2 => (f.name + "." + f2.name, f2.`type`) }
+            t2.fields.map { f2 => (f.name + "." + f2.name, f2.typ) }
 
-          case _ => Seq(f.name -> f.`type`)
+          case _ => Seq(f.name -> f.typ)
         }
       }
 
@@ -117,9 +117,9 @@ object Annotation {
           a.asInstanceOf[Row].toSeq
 
       val fs = (s, t.fields).zipped.flatMap { case (ai, f) =>
-        f.`type` match {
+        f.typ match {
           case t: TStruct =>
-            flattenAnnotation(ai, f.`type`).asInstanceOf[Row].toSeq
+            flattenAnnotation(ai, f.typ).asInstanceOf[Row].toSeq
 
           case _ =>
             Seq(ai)

@@ -77,9 +77,9 @@ To :func:`split <hail.VariantDataset.split_multi>` multi-allelic variants, compu
     >>> vds = (hc.read('sample.vds')
     >>>     .split_multi()
     >>>     .sample_qc()
-    >>>     .variant_qc()
-    >>>     .export_variants('variantqc.tsv', 'Variant = v, va.qc.*')
-    >>>     .write('sample.qc.vds'))
+    >>>     .variant_qc())
+    >>> vds.export_variants('variantqc.tsv', 'Variant = v, va.qc.*')
+    >>> vds.write('sample.qc.vds')
 
 
 To :func:`count <hail.VariantDataset.count>` the number of samples, variants, and genotypes, run::
@@ -88,8 +88,11 @@ To :func:`count <hail.VariantDataset.count>` the number of samples, variants, an
 
 Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <../reference.html#Annotations>`_, and `expression language <../reference.html#HailExpressionLanguage>`_. To :func:`print <hail.VariantDataset.print_schema>` the current annotation schema and use these annotations to filter variants, samples, and genotypes, run::
 
-    >>> (vds.print_schema('schema.txt')
-    >>>     .filter_variants_expr('v.altAllele.isSNP && va.qc.gqMean >= 20')
+    >>> print('sample annotation schema:')
+    >>> print(vds.sample_schema)
+    >>> print('\nvariant annotation schema:')
+    >>> print(vds.variant_schema)
+    >>> (vds.filter_variants_expr('v.altAllele.isSNP && va.qc.gqMean >= 20')
     >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15')
     >>>     .filter_genotypes('let ab = g.ad[1] / g.ad.sum in '
     >>>                       '((g.isHomRef && ab <= 0.1) || '

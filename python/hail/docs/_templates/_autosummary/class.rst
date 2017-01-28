@@ -1,24 +1,9 @@
-{{ fullname }}
+{{ objname }}
 {{ underline }}
 
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}
-
-    {% block methods %}
-
-    {% if methods %}
-
-    .. rubric:: Methods
-
-    .. autosummary::
-        :nosignatures:
-
-    {% for item in methods %}
-        ~{{ name }}.{{ item }}
-    {%- endfor %}
-    {% endif %}
-    {% endblock %}
 
     {% block attributes %}
     {% if attributes %}
@@ -33,6 +18,16 @@
     {% endif %}
     {% endblock %}
 
-    .. automethod:: __init__
+    {% block methods %}
+    {% if methods %}
 
+    .. rubric:: Methods
 
+    .. autosummary::
+        :nosignatures:
+
+    {% for item in methods %}
+        ~{{ name }}.{{ item }}
+    {%- endfor %}
+    {% endif %}
+    {% endblock %}

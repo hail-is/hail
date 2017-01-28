@@ -45,7 +45,7 @@ object ExportVCF extends Command {
     if (value == null)
       false
     else
-      f.`type` match {
+      f.typ match {
         case it: TIterable =>
           val arr = value.asInstanceOf[Iterable[_]]
           if (arr.isEmpty) {
@@ -105,6 +105,48 @@ object ExportVCF extends Command {
     toAppend.foreachBetween(sb.append(_))(sb += ',')
   }
 
+  def writeGenotype(sb: StringBuilder, g: Genotype) {
+    sb.append(g.gt.map { gt =>
+      val p = Genotype.gtPair(gt)
+      s"${ p.j }/${ p.k }"
+    }.getOrElse("./."))
+
+    (g.ad, g.dp, g.gq,
+      if (g.isDosage)
+        g.dosage.map(Left(_))
+      else
+        g.pl.map(Right(_))) match {
+      case (None, None, None, None) =>
+      case (Some(ad), None, None, None) =>
+        sb += ':'
+        appendIntArray(sb, ad)
+      case (ad, Some(dp), None, None) =>
+        sb += ':'
+        appendIntArrayOption(sb, ad)
+        sb += ':'
+        sb.append(dp)
+      case (ad, dp, Some(gq), None) =>
+        sb += ':'
+        appendIntArrayOption(sb, ad)
+        sb += ':'
+        appendIntOption(sb, dp)
+        sb += ':'
+        sb.append(gq)
+      case (ad, dp, gq, Some(dosageOrPL)) =>
+        sb += ':'
+        appendIntArrayOption(sb, ad)
+        sb += ':'
+        appendIntOption(sb, dp)
+        sb += ':'
+        appendIntOption(sb, gq)
+        sb += ':'
+        dosageOrPL match {
+          case Left(dosage) => appendDoubleArray(sb, dosage)
+          case Right(pl) => appendIntArray(sb, pl)
+        }
+    }
+  }
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
     val vas = vds.vaSignature
@@ -153,9 +195,9 @@ object ExportVCF extends Command {
         sb.append("##INFO=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
-        sb.append(f.attr("Number").getOrElse(infoNumber(f.`type`)))
+        sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
         sb.append(",Type=")
-        sb.append(infoType(f.`type`))
+        sb.append(infoType(f.typ))
         sb.append(",Description=\"")
         sb.append(f.attr("Description").getOrElse(""))
         sb.append("\">\n")
@@ -270,45 +312,7 @@ object ExportVCF extends Command {
         gs.foreach { g =>
           sb += '\t'
 
-          sb.append(g.gt.map { gt =>
-            val p = Genotype.gtPair(gt)
-            s"${ p.j }/${ p.k }"
-          }.getOrElse("./."))
-
-          (g.ad, g.dp, g.gq,
-            if (g.isDosage)
-              g.dosage.map(Left(_))
-            else
-              g.pl.map(Right(_))) match {
-            case (None, None, None, None) =>
-            case (Some(ad), None, None, None) =>
-              sb += ':'
-              appendIntArray(sb, ad)
-            case (ad, Some(dp), None, None) =>
-              sb += ':'
-              appendIntArrayOption(sb, ad)
-              sb += ':'
-              sb.append(dp)
-            case (ad, dp, Some(gq), None) =>
-              sb += ':'
-              appendIntArrayOption(sb, ad)
-              sb += ':'
-              appendIntOption(sb, dp)
-              sb += ':'
-              sb.append(gq)
-            case (ad, dp, gq, Some(dosageOrPL)) =>
-              sb += ':'
-              appendIntArrayOption(sb, ad)
-              sb += ':'
-              appendIntOption(sb, dp)
-              sb += ':'
-              appendIntOption(sb, gq)
-              sb += ':'
-              dosageOrPL match {
-                case Left(dosage) => appendDoubleArray(sb, dosage)
-                case Right(pl) => appendIntArray(sb, pl)
-              }
-          }
+          writeGenotype(sb, g)
         }
       }
     }

@@ -1,92 +1,87 @@
-from __future__ import print_function # Python 2 and 3 print compatibility
+from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from py4j.protocol import Py4JJavaError
 from pyspark.sql import DataFrame
-from hail.java import scala_package_object
-from hail.type import Type
+from hail.java import scala_package_object, raise_py4j_exception
+from hail.type import Type, TStruct
+
 
 class KeyTable(object):
-    """:class:`.KeyTable` is Hail's version of a SQL table where columns
-    can be designated as keys.
+    """Hail's version of a SQL table where columns can be designated as keys.
 
+    :ivar hc: Hail Context
+    :vartype hc: :class:`.HailContext`
     """
 
     def __init__(self, hc, jkt):
         self.hc = hc
-        self.jkt = jkt
+        self._jkt = jkt
 
-    def _raise_py4j_exception(self, e):
-        self.hc._raise_py4j_exception(e)
+        self._schema = None
+        self._num_columns = None
+        self._key_names = None
+        self._column_names = None
 
     def __repr__(self):
         try:
-            return self.jkt.toString()
+            return self._jkt.toString()
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
+    @property
     def num_columns(self):
         """Number of columns.
 
         :rtype: int
-
         """
-        try:
-            return self.jkt.nFields()
-        except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
-
+        if self._num_columns is None:
+            self._num_columns = self._jkt.nFields()
+        return self._num_columns
+    @property
     def schema(self):
         """KeyTable schema.
 
-        :rtype: :class:`.Type`
+        **Example:** print the key table columns / signatures
+        >>> print(kt.schema)
 
+        :rtype: :class:`.TStruct`
         """
-        try:
-            return Type(self.jkt.signature())
-        except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
-
-    def print_schema(self):
-        """Print the schema."""
-
-        self.jkt.printSchema()
-
+        if self._schema is None:
+            self._schema = Type._from_java(self._jkt.signature())
+            assert (isinstance(self._schema, TStruct))
+        return self._schema
+    @property
     def key_names(self):
         """Column names that are keys.
 
         :rtype: list of str
 
         """
-        try:
-            return list(self.jkt.keyNames())
-        except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
-
+        if self._key_names is None:
+            self._key_names = list(self._jkt.keyNames())
+        return self._key_names
+    @property
     def column_names(self):
         """Names of all columns.
 
         :rtype: list of str
-
         """
-        try:
-            return list(self.jkt.fieldNames())
-        except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+        if self._column_names is None:
+            self._column_names = list(self._jkt.fieldNames())
+        return self._column_names
 
-    def num_rows(self):
+    def count_rows(self):
         """Number of rows.
 
         :rtype: long
-
         """
         try:
-            return self.jkt.nRows()
+            return self._jkt.nRows()
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
-        
+            raise_py4j_exception(e)
 
     def same(self, other):
-        """Test whether two KeyTables are identical.
+        """Test whether two key tables are identical.
 
         **Examples**
 
@@ -95,15 +90,15 @@ class KeyTable(object):
         >>> if kt1.same(kt2):
         >>>     print_function("KeyTables are the same!")
 
-        :param other: KeyTable to compare to
+        :param other: key table to compare against
         :type other: :class:`.KeyTable` 
 
         :rtype: bool
         """
         try:
-            return self.jkt.same(other.jkt)
+            return self._jkt.same(other._jkt)
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def export(self, output, types_file=None):
         """Export to a TSV file.
@@ -117,13 +112,12 @@ class KeyTable(object):
         >>>    .export("data/kt1_renamed.tsv"))
 
         :param str output: Output file path.
-
         :param str types_file: Output path of types file.
         """
         try:
-            self.jkt.export(self.hc.jsc, output, types_file)
+            self._jkt.export(self.hc._jsc, output, types_file)
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def filter(self, condition, keep=True):
         """Filter rows.
@@ -151,17 +145,15 @@ class KeyTable(object):
            When ``condition`` evaluates to missing, the row will be removed regardless of whether ``keep=True`` or ``keep=False``.
 
         :param str condition: Annotation expression.
-
         :param bool keep: Keep rows where ``condition`` evaluates to True.
 
-        :return: A KeyTable whose rows have been filtered by evaluating ``condition``.
-
+        :return: A key table whose rows have been filtered by evaluating ``condition``.
         :rtype: :class:`.KeyTable`
         """
         try:
-            return KeyTable(self.hc, self.jkt.filter(condition, keep))
+            return KeyTable(self.hc, self._jkt.filter(condition, keep))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def annotate(self, condition):
         """Add new columns computed from existing columns.
@@ -183,17 +175,16 @@ class KeyTable(object):
         :param condition: Annotation expression or multiple annotation expressions.
         :type condition: str or list of str
 
-        :return: A KeyTable with new columns specified by ``condition``.
-
+        :return: A key table with new columns specified by ``condition``.
         :rtype: :class:`.KeyTable`
         """
         if isinstance(condition, list):
             condition = ','.join(condition)
 
         try:
-            return KeyTable(self.hc, self.jkt.annotate(condition))
+            return KeyTable(self.hc, self._jkt.annotate(condition))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def join(self, right, how='inner'):
         """Join two KeyTables together.
@@ -221,17 +212,15 @@ class KeyTable(object):
 
         :param  right: KeyTable to join
         :type right: :class:`.KeyTable`
-
         :param str how: Method for joining two tables together. One of "inner", "outer", "left", "right".
 
-        :return: A KeyTable that is the result of joining two KeyTables.
-
+        :return: A key table that is the result of joining this key table with another.
         :rtype: :class:`.KeyTable`
         """
         try:
-            return KeyTable(self.hc, self.jkt.join(right.jkt, how))
+            return KeyTable(self.hc, self._jkt.join(right._jkt, how))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def aggregate_by_key(self, key_condition, agg_condition):
         """Group by key condition and aggregate results.
@@ -243,7 +232,7 @@ class KeyTable(object):
         >>> kt = hc.import_keytable("data/example.tsv")
         >>> kt_ht_by_sex = kt.aggregate_by_key("SEX = SEX", "MEAN_HT = HT.stats().mean")
 
-        The KeyTable ``kt`` has the following data:
+        The key table ``kt`` has the following data:
 
         +--------+----------+----------+
         |   ID   |    HT    |    SEX   |
@@ -274,14 +263,12 @@ class KeyTable(object):
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
         and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
 
-        :param key_condition: Named expression(s) for how to compute the keys of the new KeyTable.
+        :param key_condition: Named expression(s) for how to compute the keys of the new key table.
         :type key_condition: str or list of str
-
         :param agg_condition: Named aggregation expression(s).
         :type agg_condition: str or list of str
 
-        :return: A new KeyTable with the keys computed from the ``key_condition`` and the remaining columns computed from the ``agg_condition``.
-
+        :return: A new key table with the keys computed from the ``key_condition`` and the remaining columns computed from the ``agg_condition``.
         :rtype: :class:`.KeyTable`
         """
         if isinstance(key_condition, list):
@@ -291,9 +278,9 @@ class KeyTable(object):
             agg_condition = ", ".join(agg_condition)
 
         try:
-            return KeyTable(self.hc, self.jkt.aggregate(key_condition, agg_condition))
+            return KeyTable(self.hc, self._jkt.aggregate(key_condition, agg_condition))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def forall(self, code):
         """Test whether a condition is true for all rows.
@@ -311,9 +298,9 @@ class KeyTable(object):
         :rtype: bool
         """
         try:
-            return self.jkt.forall(code)
+            return self._jkt.forall(code)
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def exists(self, code):
         """Test whether a condition is true for any row.
@@ -331,9 +318,9 @@ class KeyTable(object):
         :rtype: bool
         """
         try:
-            return self.jkt.exists(code)
+            return self._jkt.exists(code)
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def rename(self, column_names):
         """Rename columns of KeyTable.
@@ -357,14 +344,13 @@ class KeyTable(object):
         :param column_names: list of new column names or a dict mapping old names to new names.
         :type list of str or dict of str: str
 
-        :return: A KeyTable with renamed columns.
-
-        :rtype: KeyTable
+        :return: A key table with renamed columns.
+        :rtype: :class:`.KeyTable`
         """
         try:
-            return KeyTable(self.hc, self.jkt.rename(column_names))
+            return KeyTable(self.hc, self._jkt.rename(column_names))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def expand_types(self):
         """Expand types Locus, Interval, AltAllele, Variant, Genotype, Char,
@@ -378,15 +364,14 @@ class KeyTable(object):
                 value: T
             }]
 
-        :return: KeyTable with signature containing only types:
+        :return: key table with signature containing only types:
           Boolean, Int, Long, Float, Double, Array and Struct
-
-        :rtype: KeyTable
+        :rtype: :class:`.KeyTable`
         """
         try:
-            return KeyTable(self.hc, self.jkt.expandTypes())
+            return KeyTable(self.hc, self._jkt.expandTypes())
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def key_by(self, key_names):
         """Change which columns are keys.
@@ -412,15 +397,14 @@ class KeyTable(object):
         :param key_names: List of columns to be used as keys.
         :type key_names: list of str
 
-        :return: A ``KeyTable`` whose key columns are given by ``key_names``.
-
-        :rtype: KeyTable
+        :return: A key table whose key columns are given by ``key_names``.
+        :rtype: :class:`.KeyTable`
 
         """
         try:
-            return KeyTable(self.hc, self.jkt.select(self.column_names(), key_names))
+            return KeyTable(self.hc, self._jkt.select(self.column_names, key_names))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def flatten(self):
         """Flatten nested Structs.  Column names will be concatenated with dot
@@ -466,15 +450,14 @@ class KeyTable(object):
         Note, structures inside non-struct types will not be
         flattened.
 
-        :return: A KeyTable with no columns of type Struct.
-
-        :rtype: KeyTable
+        :return: A key table with no columns of type Struct.
+        :rtype: :class:`.KeyTable`
 
         """
         try:
-            return KeyTable(self.hc, self.jkt.flatten())
+            return KeyTable(self.hc, self._jkt.flatten())
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def select(self, column_names):
         """Select a subset of columns.
@@ -505,41 +488,39 @@ class KeyTable(object):
         :param column_names: List of columns to be selected.
         :type: list of str
 
-        :return: A ``KeyTable`` with selected columns in the order given by ``column_names``.
-
-        :rtype: KeyTable
+        :return: A key table with selected columns in the order given by ``column_names``.
+        :rtype: :class:`.KeyTable`
 
         """
         try:
-            new_key_names = [k for k in self.key_names() if k in column_names]
-            return KeyTable(self.hc, self.jkt.select(column_names, new_key_names))
+            new_key_names = [k for k in self.key_names if k in column_names]
+            return KeyTable(self.hc, self._jkt.select(column_names, new_key_names))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def to_dataframe(self, expand=True, flatten=True):
         """Converts this KeyTable to a Spark DataFrame.
 
         :param bool expand: If true, expand_types before converting to
           DataFrame.
-
         :param bool flatten: If true, flatten before converting to
           DataFrame.  If both are true, flatten is run after expand so
           that expanded types are flattened.
 
-        :rtype: DataFrame
+        :rtype: :class:`pyspark.sql.DataFrame`
 
         """
         try:
-            jkt = self.jkt
+            jkt = self._jkt
             if expand:
                 jkt = jkt.expandTypes()
             if flatten:
                 jkt = jkt.flatten()
-            return DataFrame(jkt.toDF(self.hc.jsql_context), self.hc.sql_context)
+            return DataFrame(jkt.toDF(self.hc._jsql_context), self.hc._sql_context)
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
-    def to_pandas(self, expand = True, flatten = True):
+    def to_pandas(self, expand=True, flatten=True):
         """Converts this KeyTable into a Pandas DataFrame.
 
         :param bool expand: If true, expand_types before converting to
@@ -554,8 +535,9 @@ class KeyTable(object):
         return self.to_dataframe(expand, flatten).toPandas()
 
     def export_mongodb(self, mode='append'):
-        (scala_package_object(self.hc.hail.driver)
-         .exportMongoDB(self.hc.jsql_context, self.jkt, mode))
+        """Export to MongoDB"""
+        (scala_package_object(self.hc._hail.driver)
+         .exportMongoDB(self.hc._jsql_context, self._jkt, mode))
 
     def explode(self, column_names):
         """Explode columns of this KeyTable.
@@ -609,16 +591,13 @@ class KeyTable(object):
         :param column_names: Column name(s) to be exploded.
         :type column_names: str or list of str
             
-        :return: A KeyTable with columns exploded.
-
-        :rtype: KeyTable
-
+        :return: A key table with columns exploded.
+        :rtype: :class:`.KeyTable`
         """
 
         try:
             if isinstance(column_names, str):
                 column_names = [column_names]
-            return KeyTable(self.hc, self.jkt.explode(column_names))
+            return KeyTable(self.hc, self._jkt.explode(column_names))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
-
+            raise_py4j_exception(e)

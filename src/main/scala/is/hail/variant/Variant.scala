@@ -1,15 +1,16 @@
 package is.hail.variant
 
+import is.hail.check.{Arbitrary, Gen}
+import is.hail.expr._
+import is.hail.sparkextras.OrderedKey
+import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import is.hail.utils._
-import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr._
-import is.hail.sparkextras.OrderedKey
 import org.json4s._
 
+import scala.collection.JavaConverters._
 import scala.math.Numeric.Implicits._
 import scala.reflect.ClassTag
 
@@ -108,7 +109,7 @@ case class AltAllele(ref: String,
   def isTransversion: Boolean = isSNP && !isTransition
 
   def nMismatch: Int = {
-    require(ref.length == alt.length, s"invalid nMismatch call on ref `${ref}' and alt `${alt}'")
+    require(ref.length == alt.length, s"invalid nMismatch call on ref `${ ref }' and alt `${ alt }'")
     (ref, alt).zipped.map((a, b) => if (a == b) 0 else 1).sum
   }
 
@@ -138,6 +139,19 @@ object Variant {
     ref: String,
     alts: Array[String]): Variant =
     Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
+
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: java.util.ArrayList[String]): Variant = Variant(contig, start, ref, alts.asScala.toArray)
+
+  def parse(str: String): Variant = {
+    val colonSplit = str.split(":")
+    if (colonSplit.length != 4)
+      fatal(s"expected 4 colon-delimited fields, but found ${ colonSplit.length }")
+    val Array(contig, start, ref, alts) = colonSplit
+    Variant(contig, start.toInt, ref, alts.split(","))
+  }
 
   def nGenotypes(nAlleles: Int): Int = {
     require(nAlleles > 0, s"called nGenotypes with invalid number of alternates: $nAlleles")
@@ -246,8 +260,8 @@ case class Variant(contig: String,
 
   /* The position is 1-based. Telomeres are indicated by using positions 0 or N+1, where N is the length of the
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
-  require(start >= 0, s"invalid variant: negative position: `${this.toString}'")
-  require(!ref.isEmpty, s"invalid variant: empty contig: `${this.toString}'")
+  require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
+  require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -285,16 +299,20 @@ case class Variant(contig: String,
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
   def inXParPos: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
+
   def inYParPos: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
 
   // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
   def inXPar: Boolean = inX && inXParPos
+
   def inYPar: Boolean = inY && inYParPos
 
   def inXNonPar: Boolean = inX && !inXParPos
+
   def inYNonPar: Boolean = inY && !inYParPos
 
   private def inX: Boolean = contig.toUpperCase == "X" || contig == "23" || contig == "25"
+
   private def inY: Boolean = contig.toUpperCase == "Y" || contig == "24"
 
   import CopyState._
@@ -339,7 +357,7 @@ case class Variant(contig: String,
   }
 
   override def toString: String =
-    s"$contig:$start:$ref:${altAlleles.map(_.alt).mkString(",")}"
+    s"$contig:$start:$ref:${ altAlleles.map(_.alt).mkString(",") }"
 
   def toRow = {
     Row.fromSeq(Array(

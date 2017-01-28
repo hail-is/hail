@@ -1,43 +1,32 @@
-from __future__ import print_function # Python 2 and 3 print compatibility
+from __future__ import print_function  # Python 2 and 3 print compatibility
 
-from pyspark.java_gateway import launch_gateway
-from pyspark import SparkConf, SparkContext
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
-from hail.java import jarray, scala_object, scala_package_object, joption
+from hail.java import jarray, scala_object, scala_package_object, joption, Env, raise_py4j_exception
 from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
 
-class FatalError(Exception):
-    """:class:`.FatalError` is an error thrown by Hail method failures"""
-
-    def __init__(self, message, java_exception):
-        self.msg = message
-        self.java_exception = java_exception
-        super(FatalError)
-
-    def __str__(self):
-        return self.msg
 
 class HailContext(object):
-    """:class:`.HailContext` is the main entrypoint for Hail
-    functionality.
+    """The main entrypoint for Hail functionality.
 
-    :param str log: Log file.
+    :param sc: spark context, will be auto-generated if None
+    :type sc: :class:`.pyspark.SparkContext`
+    :param appName: Spark application identifier
+    :param master: Spark cluster master
+    :param local: local resources to use
+    :param log: log path
+    :param quiet: suppress log messages
+    :param append: write to end of log file instead of overwriting
+    :param parquet_compression: level of on-disk annotation compression
+    :param block_size: minimum file split size in MB
+    :param branching_factor: branching factor for tree aggregation
+    :param tmp_dir: temporary directory for file merging
 
-    :param bool quiet: Don't write log file.
-
-    :param bool append: Append to existing log file.
-
-    :param long block_size: Minimum size of file splits in MB.
-
-    :param str parquet_compression: Parquet compression codec.
-
-    :param int branching_factor: Branching factor to use in tree aggregate.
-
-    :param str tmp_dir: Temporary directory for file merging.
+    :ivar sc: Spark context
+    :vartype sc: :class:`.pyspark.SparkContext`
     """
 
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
@@ -46,48 +35,47 @@ class HailContext(object):
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
 
-        self.gateway = SparkContext._gateway
-        self.jvm = SparkContext._jvm
+        self._gateway = SparkContext._gateway
+        self._jvm = SparkContext._jvm
+
+        Env._jvm = self._jvm
+        Env._gateway = self._gateway
 
         # hail package
-        self.hail = getattr(self.jvm, 'is').hail
+        self._hail = getattr(self._jvm, 'is').hail
 
-        driver = scala_package_object(self.hail.driver)
+        driver = scala_package_object(self._hail.driver)
 
         if not sc:
-            self.jsc = driver.configureAndCreateSparkContext(
-                appName, joption(self.jvm, master), local, parquet_compression, block_size)
-            self.sc = SparkContext(gateway=self.gateway, jsc=self.jvm.JavaSparkContext(self.jsc))
+            self._jsc = driver.configureAndCreateSparkContext(
+                appName, joption(master), local, parquet_compression, block_size)
+            self.sc = SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         else:
             self.sc = sc
             # sc._jsc is a JavaSparkContext
-            self.jsc = sc._jsc.sc()
+            self._jsc = sc._jsc.sc()
 
         driver.configureHail(branching_factor, tmp_dir)
         driver.configureLogging(log, quiet, append)
 
-        self.jsql_context = driver.createSQLContext(self.jsc)
-        self.sql_context = SQLContext(self.sc, self.jsql_context)
+        self._jsql_context = driver.createSQLContext(self._jsc)
+        self._sql_context = SQLContext(self.sc, self._jsql_context)
 
     def _jstate(self, jvds):
-        return self.hail.driver.State(
-            self.jsc, self.jsql_context, jvds, scala_object(self.jvm.scala.collection.immutable, 'Map').empty())
+        return self._hail.driver.State(
+            self._jsc, self._jsql_context, jvds, scala_object(self._jvm.scala.collection.immutable, 'Map').empty())
 
-    def _raise_py4j_exception(self, e):
-        msg = scala_package_object(self.hail.utils).getMinimalMessage(e.java_exception)
-        raise FatalError(msg, e.java_exception)
-
-    def run_command(self, vds, pargs):
-        jargs = jarray(self.gateway, self.jvm.java.lang.String, pargs)
-        t = self.hail.driver.ToplevelCommands.lookup(jargs)
+    def _run_command(self, vds, pargs):
+        jargs = jarray(self._jvm.java.lang.String, pargs)
+        t = self._hail.driver.ToplevelCommands.lookup(jargs)
         cmd = t._1()
         cmd_args = t._2()
-        jstate = self._jstate(vds.jvds if vds != None else None)
+        jstate = self._jstate(vds._jvds if vds != None else None)
 
         try:
             result = cmd.run(jstate, cmd_args)
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
         return VariantDataset(self, result.vds())
 
@@ -128,7 +116,7 @@ class HailContext(object):
         pargs.append('--max-count')
         pargs.append(str(max_count))
 
-        self.run_command(None, pargs)
+        self._run_command(None, pargs)
 
     def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=None):
         """Import variants and variant annotations from a delimited text file
@@ -173,9 +161,9 @@ class HailContext(object):
         if not config:
             config = TextTableConfig()
 
-        pargs.extend(config.as_pargs())
+        pargs.extend(config._as_pargs())
 
-        return self.run_command(None, pargs)
+        return self._run_command(None, pargs)
 
     def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
         """Import .bgen files as VariantDataset
@@ -215,7 +203,7 @@ class HailContext(object):
         pargs.append('--tolerance')
         pargs.append(str(tolerance))
 
-        return self.run_command(None, pargs)
+        return self._run_command(None, pargs)
 
     def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None):
         """Import .gen files as VariantDataset.
@@ -305,7 +293,7 @@ class HailContext(object):
             pargs.append('--tolerance')
             pargs.append(str(tolerance))
 
-        return self.run_command(None, pargs)
+        return self._run_command(None, pargs)
 
     def import_keytable(self, path, key_names, npartitions=None, config=None):
         """Import delimited text file (text table) as KeyTable.
@@ -340,8 +328,9 @@ class HailContext(object):
         if not config:
             config = TextTableConfig()
 
-        return KeyTable(self, self.hail.keytable.KeyTable.importTextTable(
-            self.jsc, jarray(self.gateway, self.jvm.java.lang.String, path_args), key_names, npartitions, config.to_java(self)))
+        return KeyTable(self, self._hail.keytable.KeyTable.importTextTable(
+            self._jsc, jarray(self._jvm.java.lang.String, path_args), key_names, npartitions,
+            config._to_java()))
 
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """
@@ -435,7 +424,7 @@ class HailContext(object):
         pargs.append('--delimiter')
         pargs.append(delimiter)
 
-        return self.run_command(None, pargs)
+        return self._run_command(None, pargs)
 
     def read(self, path, sites_only=False):
         """Read .vds files as VariantDataset
@@ -463,7 +452,7 @@ class HailContext(object):
 
         if sites_only:
             pargs.append("--skip-genotypes")
-        return self.run_command(None, pargs)
+        return self._run_command(None, pargs)
 
     def write_partitioning(self, path):
         """Write partitioning.json.gz file for legacy VDS file.
@@ -472,7 +461,7 @@ class HailContext(object):
 
         """
 
-        self.hail.variant.VariantSampleMatrix.writePartitioning(self.jsql_context, path)
+        self._hail.variant.VariantSampleMatrix.writePartitioning(self._jsql_context, path)
 
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
                    sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
@@ -539,7 +528,7 @@ class HailContext(object):
         if store_gq:
             pargs.append('--store-gq')
 
-        return self.run_command(None, pargs)
+        return self._run_command(None, pargs)
 
     def index_bgen(self, path):
         """Index .bgen files.  import_bgen cannot run with these indicies.
@@ -558,9 +547,9 @@ class HailContext(object):
             for p in path:
                 pargs.append(p)
 
-        self.run_command(None, pargs)
+        self._run_command(None, pargs)
 
-    def balding_nichols_model(self, populations, samples, variants, partitions = None,
+    def balding_nichols_model(self, populations, samples, variants, partitions=None,
                               pop_dist=None,
                               fst=None,
                               root="bn",
@@ -647,23 +636,22 @@ class HailContext(object):
 
         """
 
-
         if pop_dist is None:
-            jvm_pop_dist_opt = joption(self.jvm, pop_dist)
+            jvm_pop_dist_opt = joption(pop_dist)
         else:
-            jvm_pop_dist_opt = joption(self.jvm, jarray(self.gateway, self.jvm.double, pop_dist))
-
+            jvm_pop_dist_opt = joption(jarray(self._jvm.double, pop_dist))
 
         if fst is None:
-            jvm_fst_opt = joption(self.jvm, fst)
+            jvm_fst_opt = joption(fst)
         else:
-            jvm_fst_opt = joption(self.jvm, jarray(self.gateway, self.jvm.double, fst))
+            jvm_fst_opt = joption(jarray(self._jvm.double, fst))
 
-        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
-                            jvm_pop_dist_opt,
-                            jvm_fst_opt,
-                            seed,
-                            joption(self.jvm, partitions), root))
+        return VariantDataset(self,
+                              self._hail.stats.BaldingNicholsModel.apply(self._jsc, populations, samples, variants,
+                                                                         jvm_pop_dist_opt,
+                                                                         jvm_fst_opt,
+                                                                         seed,
+                                                                         joption(partitions), root))
 
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.
@@ -691,9 +679,9 @@ class HailContext(object):
         :rtype: :class:`.KeyTable`
 
         """
-        
-        jkeys = jarray(self.gateway, self.jvm.java.lang.String, keys)
-        return KeyTable(self, self.hail.keytable.KeyTable.fromDF(df._jdf, jkeys))
+
+        jkeys = jarray(self._jvm.java.lang.String, keys)
+        return KeyTable(self, self._hail.keytable.KeyTable.fromDF(df._jdf, jkeys))
 
     def stop(self):
         self.sc.stop()

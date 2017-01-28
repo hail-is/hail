@@ -8,8 +8,7 @@ This is the API documentation for ``Hail``, and provides detailed information
 on the Python programming interface. See the :ref:`sec-tutorial` for an
 introduction to using this API to analyze genetic data.
 
-.. toctree::
-    :maxdepth: 2
+
 
 .. rubric:: Classes
 
@@ -22,3 +21,13 @@ introduction to using this API to analyze genetic data.
     hail.VariantDataset
     hail.KeyTable
     hail.TextTableConfig
+
+
+.. rubric:: Modules
+
+.. toctree::
+    :maxdepth: 1
+
+    representation <representation/index>
+    type <type/index>
+

@@ -56,12 +56,12 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         sig.fields.map { f =>
           val a = vc.getAttribute(f.name)
           try {
-            cast(a, f.`type`)
+            cast(a, f.typ)
           } catch {
             case e: Exception =>
               fatal(
                 s"""variant $v: INFO field ${f.name}:
-                    |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.`type`}:
+                    |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.typ}:
                     |  caught $e""".stripMargin)
           }
         }: _*)

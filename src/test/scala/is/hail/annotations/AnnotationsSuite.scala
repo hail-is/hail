@@ -39,7 +39,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Int - info.DP
     val dpQuery = vas.query("info", "DP")
     assert(vas.fieldOption("info", "DP").exists(f =>
-      f.`type` == TInt
+      f.typ == TInt
         && f.attrs == Map("Type" -> "Integer",
         "Number" -> "1",
         "Description" -> "Approximate read depth; some reads may have been filtered")))
@@ -49,7 +49,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Double - info.HWP
     val hwpQuery = vas.query("info", "HWP")
     assert(vas.fieldOption("info", "HWP").exists(f =>
-      f.`type` == TDouble
+      f.typ == TDouble
         && f.attrs == Map("Type" -> "Float",
         "Number" -> "1",
         "Description" -> "P value from test of Hardy Weinberg Equilibrium")))
@@ -62,7 +62,7 @@ class AnnotationsSuite extends SparkSuite {
     // type String - info.culprit
     val culpritQuery = vas.query("info", "culprit")
     assert(vas.fieldOption("info", "culprit").exists(f =>
-      f.`type` == TString
+      f.typ == TString
         && f.attrs == Map("Type" -> "String",
         "Number" -> "1",
         "Description" -> "The annotation which was the worst performing in the Gaussian mixture model, likely the reason why the variant was filtered out")))
@@ -74,7 +74,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Array - info.AC (allele count)
     val acQuery = vas.query("info", "AC")
     assert(vas.fieldOption("info", "AC").exists(f =>
-      f.`type` == TArray(TInt) &&
+      f.typ == TArray(TInt) &&
         f.attrs == Map("Number" -> "A",
           "Type" -> "Integer",
           "Description" -> "Allele count in genotypes, for each ALT allele, in the same order as listed")))
@@ -86,7 +86,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Boolean/flag - info.DB (dbSNP membership)
     val dbQuery = vas.query("info", "DB")
     assert(vas.fieldOption("info", "DB").exists(f =>
-      f.`type` == TBoolean
+      f.typ == TBoolean
         && f.attrs == Map("Type" -> "Flag",
         "Number" -> "0",
         "Description" -> "dbSNP Membership")))
@@ -99,7 +99,7 @@ class AnnotationsSuite extends SparkSuite {
 
     val filtQuery = vas.query("filters")
     assert(vas.fieldOption("filters").exists(f =>
-      f.`type` == TSet(TString)
+      f.typ == TSet(TString)
         && f.attrs.nonEmpty))
     assert(filtQuery(variantAnnotationMap(firstVariant))
       contains Set("PASS"))
@@ -108,7 +108,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // GATK PASS
     val passQuery = vas.query("pass")
-    assert(vas.fieldOption("pass").exists(f => f.`type` == TBoolean
+    assert(vas.fieldOption("pass").exists(f => f.typ == TBoolean
       && f.attrs == Map.empty))
     assert(passQuery(variantAnnotationMap(firstVariant))
       .contains(true))

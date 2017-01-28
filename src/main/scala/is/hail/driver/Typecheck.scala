@@ -22,31 +22,38 @@ object Typecheck extends Command {
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
-    if (!vds.globalSignature.typeCheck(vds.globalAnnotation))
+    var foundError = false
+    if (!vds.globalSignature.typeCheck(vds.globalAnnotation)) {
       warn(
         s"""found violation in global annotation
-            |Schema: ${ vds.globalSignature.toPrettyString() }
-            |
+           |Schema: ${ vds.globalSignature.toPrettyString() }
+           |
             |Annotation: ${ Annotation.printAnnotation(vds.globalAnnotation) }""".stripMargin)
+    }
 
     vds.sampleIdsAndAnnotations.find { case (_, sa) => !vds.saSignature.typeCheck(sa) }
       .foreach { case (s, sa) =>
+        foundError = true
         warn(
           s"""found violation in sample annotations for sample $s
-              |Schema: ${ vds.saSignature.toPrettyString() }
-              |
+             |Schema: ${ vds.saSignature.toPrettyString() }
+             |
               |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
 
     val vaSignature = vds.vaSignature
     vds.variantsAndAnnotations.find { case (_, va) => !vaSignature.typeCheck(va) }
       .foreach { case (v, va) =>
+        foundError = true
         warn(
           s"""found violation in variant annotations for variant $v
-              |Schema: ${ vaSignature.toPrettyString() }
-              |
+             |Schema: ${ vaSignature.toPrettyString() }
+             |
               |Annotation: ${ Annotation.printAnnotation(va) }""".stripMargin)
       }
+
+    if (foundError)
+      fatal("found one or more type check errors")
 
     state
   }

@@ -9,7 +9,7 @@ Contents
 ========
 
 .. toctree::
-    :maxdepth: 1
+    :maxdepth: 2
 
     Getting Started <getting_started>
     Overview <overview>

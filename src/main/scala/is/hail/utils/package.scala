@@ -19,7 +19,8 @@ import scala.reflect.ClassTag
 
 package object utils extends Logging
   with richUtils.Implicits
-  with utils.NumericImplicits {
+  with utils.NumericImplicits
+  with Py4jUtils {
 
   class FatalException(val msg: String, val logMsg: Option[String] = None) extends RuntimeException(msg)
 
