@@ -128,6 +128,14 @@ object GenotypeStream {
   }
 }
 
+object ToIteratorGT {
+  def apply(iter: Iterable[Genotype]): Iterator[Int] =
+    iter match {
+      case gs: GenotypeStream => gs.hardcallIterator
+      case _ => iter.iterator.map(_.unboxedGT)
+    }
+}
+
 class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false, compress: Boolean = true)
   extends mutable.Builder[Genotype, GenotypeStream] {
 

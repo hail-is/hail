@@ -4,7 +4,7 @@ import java.text.NumberFormat
 import java.util.Locale
 
 import is.hail.utils._
-import is.hail.variant.GenotypeStream
+import is.hail.variant.ToIteratorGT
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object Count extends Command {
@@ -29,8 +29,8 @@ object Count extends Command {
     val vds = state.vds
 
     val (nVariants, nCalledOption) = if (options.genotypes) {
-      val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs: GenotypeStream)) =>
-        (1L, gs.hardcallIterator.count(_ >= 0).toLong)
+      val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs)) =>
+        (1L, ToIteratorGT(gs).count(_ >= 0).toLong)
       }.fold((0L, 0L)) { (comb, x) =>
         (comb._1 + x._1, comb._2 + x._2)
       }
