@@ -29,7 +29,7 @@ object Count extends Command {
 
     val (nVariants, nCalledOption) = if (options.genotypes) {
       val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs)) =>
-        (1L, gs.hardcallIterator.count(_ >= 0).toLong)
+        (1L, gs.hardCallIterator.count(_ >= 0).toLong)
       }.fold((0L, 0L)) { (comb, x) =>
         (comb._1 + x._1, comb._2 + x._2)
       }

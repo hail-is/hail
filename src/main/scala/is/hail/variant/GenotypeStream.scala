@@ -18,10 +18,10 @@ class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) 
   override def next(): Genotype = Genotype.read(nAlleles, isDosage, b)
 }
 
-class HardcallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends IntIterator {
+class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends IntIterator {
   override def hasNext: Boolean = b.hasNext
 
-  override def nextInt(): Int = Genotype.hardcallRead(nAlleles, isDosage, b)
+  override def nextInt(): Int = Genotype.hardCallRead(nAlleles, isDosage, b)
 }
 
 object LZ4Utils {
@@ -60,12 +60,12 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
     }
   }
 
-  def hardcallIterator: HardcallGenotypeStreamIterator = {
+  def hardCallIterator: HardCallGenotypeStreamIterator = {
     decompLenOption match {
       case Some(decompLen) =>
-        new HardcallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
+        new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
-        new HardcallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
+        new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
     }
   }
 

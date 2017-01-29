@@ -603,7 +603,7 @@ object Genotype {
     new GenericGenotype(gt, ad, dp, gq, px, flagFakeRef(flags), isDosage)
   }
 
-  def hardcallRead(nAlleles: Int, isDosage: Boolean, a: ByteIterator): Int = {
+  def hardCallRead(nAlleles: Int, isDosage: Boolean, a: ByteIterator): Int = {
     val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
