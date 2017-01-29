@@ -60,7 +60,7 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
     }
   }
 
-  def hardCallIterator: HardCallGenotypeStreamIterator = {
+  def gsHardCallIterator: HardCallGenotypeStreamIterator = {
     decompLenOption match {
       case Some(decompLen) =>
         new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))

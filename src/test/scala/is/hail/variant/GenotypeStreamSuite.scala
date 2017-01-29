@@ -7,6 +7,8 @@ import org.testng.annotations.Test
 
 object GenotypeStreamSuite {
 
+  import is.hail.utils._
+
   object Spec extends Properties("GenotypeStream") {
 
     property("iterateBuild") = forAll(for (

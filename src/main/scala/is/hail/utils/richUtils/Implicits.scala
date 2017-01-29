@@ -41,7 +41,7 @@ trait Implicits {
 
   implicit def toRichIterable[T](a: Array[T]): RichIterable[T] = new RichIterable(a)
 
-  implicit def toRichIterableGenotype(it: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(it)
+  implicit def toRichIterableGenotype(i: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(i)
 
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
