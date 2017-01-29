@@ -1,8 +1,17 @@
 package is.hail.utils.richUtils
 
-import is.hail.utils.{IntIterator, HardCallIterator}
-import is.hail.variant.Genotype
+import is.hail.utils.IntIterator
+import is.hail.variant.{Genotype, GenotypeStream}
 
 class RichIterableGenotype(it: Iterable[Genotype]) {
-  def hardCallIterator: HardCallIterator = new HardCallIterator(it.iterator)
+  def hardCallIterator: IntIterator = it match {
+    case gs: GenotypeStream => gs.hardCallIterator
+    case _ =>
+      val iter = it.iterator
+      class HardCallIterator extends IntIterator {
+        override def hasNext: Boolean = iter.hasNext
+        override def nextInt(): Int = iter.next().unboxedGT
+      }
+      new HardCallIterator
+  }
 }
