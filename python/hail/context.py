@@ -554,7 +554,7 @@ class HailContext(object):
                               pop_dist=None,
                               fst=None,
                               root="bn",
-                              af_dist = UniformDist(0.0, 1.0),
+                              af_dist = UniformDist(0.1, 0.9),
                               seed=0):
         """
         Generate a VariantDataset using the Balding-Nichols model.
@@ -576,7 +576,7 @@ class HailContext(object):
         - :math:`K` populations are labeled by integers 0, 1, ..., K - 1
         - :math:`N` samples are named by strings 0, 1, ..., N - 1
         - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ..., ``1:M:A:C``
-        - The default ancestral frequency distribution :math:`P_0` is uniform on [0.0, 1.0]
+        - The default ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]
         - The population distribution defaults to uniform
         - The :math:`F_{st}` values default to 0.1
         - The number of partitions defaults to one partition per million genotypes (i.e., samples * variants / 10^6) or 8, whichever is larger
