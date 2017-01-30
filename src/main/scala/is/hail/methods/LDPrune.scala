@@ -2,6 +2,7 @@ package is.hail.methods
 
 import java.util
 
+import breeze.linalg.{Vector => BVector}
 import is.hail.annotations.Annotation
 import is.hail.sparkextras.GeneralRDD
 import org.apache.spark.rdd.RDD
@@ -9,6 +10,8 @@ import org.apache.spark.storage.StorageLevel
 import is.hail.sparkextras._
 import is.hail.variant._
 import is.hail.utils._
+
+import java.io._
 
 object LDPrune {
   val variantByteOverhead = 50
@@ -81,64 +84,19 @@ object LDPrune {
     (xySum, XbarCount, YbarCount, XbarYbarCount)
   }
 
-  def pack(nGenotypes: Int, gs: Array[Byte]): Array[Long] = {
-    require(nGenotypes % genotypesPerPack == 0)
-
-    val nPacks = nGenotypes / genotypesPerPack
-    val packedGenotypes = new Array[Long](nPacks)
-    var pack = 0
-    while (pack != nPacks) {
-      val k = pack * genotypesPerPack
-
-      packedGenotypes(pack) =
-        gs(k).toLong << 62 | gs(k + 1).toLong << 60 | gs(k + 2).toLong << 58 | gs(k + 3).toLong << 56 |
-          gs(k + 4).toLong << 54 | gs(k + 5).toLong << 52 | gs(k + 6).toLong << 50 | gs(k + 7).toLong << 48 |
-          gs(k + 8).toLong << 46 | gs(k + 9).toLong << 44 | gs(k + 10).toLong << 42 | gs(k + 11).toLong << 40 |
-          gs(k + 12).toLong << 38 | gs(k + 13).toLong << 36 | gs(k + 14).toLong << 34 | gs(k + 15).toLong << 32 |
-          gs(k + 16).toLong << 30 | gs(k + 17).toLong << 28 | gs(k + 18).toLong << 26 | gs(k + 19).toLong << 24 |
-          gs(k + 20).toLong << 22 | gs(k + 21).toLong << 20 | gs(k + 22).toLong << 18 | gs(k + 23).toLong << 16 |
-          gs(k + 24).toLong << 14 | gs(k + 25).toLong << 12 | gs(k + 26).toLong << 10 | gs(k + 27).toLong << 8 |
-          gs(k + 28).toLong << 6 | gs(k + 29).toLong << 4 | gs(k + 30).toLong << 2 | gs(k + 31).toLong
-
-      pack += 1
-    }
-    packedGenotypes
-  }
-
-  def toBitPackedVector(gs: Iterable[Genotype], nSamples: Int): Option[BitPackedVector] = {
-    val padding = genotypesPerPack - nSamples % genotypesPerPack
-    val nGenotypes = nSamples + padding
-    val nPacks = nGenotypes / genotypesPerPack
-    require(nGenotypes % genotypesPerPack == 0)
-    val a = new Array[Long](nPacks) // padded values are 0 by default which do not affect the result when computing r2
-    toBitPackedVector(gs, nSamples, a)
-  }
-
-  def toBitPackedVector(gs: Iterable[Genotype], nSamples: Int, a: Array[Long]): Option[BitPackedVector] = {
+  def toNormalizedGtArray(gs: Array[Int], nSamples: Int): Option[Array[Double]] = {
+    val a = new Array[Double](nSamples)
+    val gts = new Array[Int](nSamples)
     val it = gs.iterator
-    val nBitsPerPack = 2 * genotypesPerPack
 
     var nPresent = 0
     var gtSum = 0
     var gtSumSq = 0
 
-    var pack = 0L
-    var packOffset = nBitsPerPack - 2
-    var packIndex = 0
     var i = 0
     while (i < nSamples) {
-      val gt = it.next().unboxedGT
-
-      pack = pack | ((gt & 3).toLong << packOffset)
-
-      if (packOffset == 0) {
-        a(packIndex) = pack
-        packIndex += 1
-        pack = 0L
-        packOffset = nBitsPerPack
-      }
-      packOffset -= 2
-
+      val gt = it.next()
+      gts.update(i, gt)
       if (gt >= 0) {
         nPresent += 1
         gtSum += gt
@@ -146,8 +104,6 @@ object LDPrune {
       }
       i += 1
     }
-
-    a(packIndex) = pack
 
     val nMissing = nSamples - nPresent
     val allHomRef = gtSum == 0
@@ -162,12 +118,98 @@ object LDPrune {
       val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
       val gtStdDevRec = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
 
-      Some(BitPackedVector(a, nSamples, gtMean, gtStdDevRec))
+      var i = 0
+      while (i < nSamples) {
+        val gt = gts(i)
+        if (gt >= 0)
+          a.update(i, (gt - gtMean) * gtStdDevRec)
+        i += 1
+      }
+
+      Some(a)
+    }
+  }
+
+  def toBitPackedVector(gs: Iterable[Genotype], nSamples: Int): Option[BitPackedVector] = {
+    val padding = genotypesPerPack - nSamples % genotypesPerPack
+    val nGenotypes = nSamples + padding
+    val nPacks = nGenotypes / genotypesPerPack
+    require(nGenotypes % genotypesPerPack == 0)
+    val a = new Array[Long](nPacks) // padded values are 0 by default which do not affect the result when computing r2
+    toBitPackedVector(gs, nSamples, a)
+  }
+
+  def toBitPackedVector(gs: Iterable[Genotype], nSamples: Int, a: Array[Long]): Option[BitPackedVector] = {
+    val it = gs.iterator
+    val nBitsPerPack = 2 * genotypesPerPack
+    val gts = Array.fill[Int](nSamples)(0)
+
+    val padding = genotypesPerPack - nSamples % genotypesPerPack
+    val nGenotypes = nSamples + padding
+    val nPacks = nGenotypes / genotypesPerPack
+    require(nGenotypes % genotypesPerPack == 0)
+    val ax = new Array[Long](nPacks)
+
+//    println(s"a = ${a.mkString(",")}")
+
+    var nPresent = 0
+    var gtSum = 0
+    var gtSumSq = 0
+
+    var pack = 0L
+    var packOffset = nBitsPerPack - 2
+    var packIndex = 0
+    var i = 0
+    while (i < nSamples) {
+      val gt = it.next().unboxedGT
+      gts(i) = gt
+      require(gt >= -1 && gt <= 2)
+
+//      println(s"pack before = ${pack.toBinaryString}")
+      pack = pack | ((gt & 3).toLong << packOffset)
+//      println(s"pack after gt:${gt & 3} = ${pack.toBinaryString}")
+
+      if (packOffset == 0) {
+        ax(packIndex) = pack
+        packIndex += 1
+        pack = 0L
+        packOffset = nBitsPerPack
+      }
+      packOffset -= 2
+
+      if (gt >= 0) {
+        nPresent += 1
+        gtSum += gt
+        gtSumSq += gt * gt
+      }
+      i += 1
+    }
+
+    ax(packIndex) = pack
+
+    val nMissing = nSamples - nPresent
+    val allHomRef = gtSum == 0
+    val allHet = gtSum == nPresent && gtSumSq == nPresent
+    val allHomVar = gtSum == 2 * nPresent
+
+    println(s"${gts.mkString(",")}")
+    println(s"${a.map(_.toBinaryString).mkString(",")}")
+    println(s"${a.map(_.toBinaryString.length).mkString(",")}")
+
+    if (allHomRef || allHet || allHomVar || nMissing == nSamples)
+      None
+    else {
+      val gtMean = gtSum.toDouble / nPresent
+      val gtMeanAll = (gtSum + nMissing * gtMean) / nSamples
+      val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
+      val gtStdDevRec = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
+
+      Some(BitPackedVector(ax, nSamples, gtMean, gtStdDevRec))
     }
   }
 
 
-  def r2(x: BitPackedVector, y: BitPackedVector): Double = {
+  def computeR2(x: BitPackedVector, y: BitPackedVector): Double = {
     require(x.nSamples == y.nSamples)
 
     val gsX = x.gs
@@ -203,7 +245,9 @@ object LDPrune {
     }
 
     val r = sdrecipX * sdrecipY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
-    r * r
+    val r2 = r * r
+//    assert(r2 >= 0d || r2 >= 1d, s"r2=$r2")
+    r2
   }
 
   private def pruneLocal(inputRDD: OrderedRDD[Locus, Variant, BitPackedVector], r2Threshold: Double, window: Int, queueSize: Option[Int]) = {
@@ -223,7 +267,31 @@ object LDPrune {
           if (v.contig != v2.contig || v.start - v2.start > window)
             done = true
           else {
-            if (r2(bpv, bpv2) >= r2Threshold) {
+            println(s"mean same = ${bpv.mean == bpv2.mean } v1=${bpv.mean} v2=${bpv2.mean}")
+            println(s"sdrecip same = ${bpv.sdRecip == bpv2.sdRecip } v1=${bpv.sdRecip} v2=${bpv2.sdRecip}")
+            println(s"nsamples same = ${bpv.nSamples == bpv2.nSamples}")
+            println(s"gs same = ${bpv.gs sameElements bpv2.gs}")
+            println(s"unpack same = ${bpv.unpack() sameElements bpv2.unpack()}")
+            val r2 = computeR2(bpv, bpv2)
+            if ( r2 >= r2Threshold) {
+//              println(s"mean same = ${bpv.mean == bpv2.mean } v1=${bpv.mean} v2=${bpv2.mean}")
+//              println(s"sdrecip same = ${bpv.sdRecip == bpv2.sdRecip } v1=${bpv.sdRecip} v2=${bpv2.sdRecip}")
+//              println(s"nsamples same = ${bpv.nSamples == bpv2.nSamples}")
+//              println(s"gs same = ${bpv.gs sameElements bpv2.gs}")
+//              println(s"unpack same = ${bpv.unpack() sameElements bpv2.unpack()}")
+              val sgs = toNormalizedGtArray(bpv.unpack(), bpv.nSamples).map(BVector(_))
+              val sgs2 = toNormalizedGtArray(bpv2.unpack(), bpv2.nSamples).map(BVector(_))
+              val rBreeze = sgs.get.dot(sgs2.get): Double
+              val r2Breeze = rBreeze * rBreeze
+              println(s"v=$v v2=$v2 r2=${computeR2(bpv, bpv2)} r2Threshold=$r2Threshold r2Breeze=$r2Breeze")
+              if (r2 < 0d || r2 > 1d) {
+                val file = new File("badR2Variants.txt")
+                val bw = new BufferedWriter(new FileWriter(file))
+                bw.write(s"$v\t${bpv.unpack().mkString("\t")}\n")
+                bw.write(s"$v2\t${bpv2.unpack().mkString("\t")}\n")
+                bw.close()
+                sys.exit()
+              }
               keepVariant = false
               done = true
             }
@@ -281,7 +349,7 @@ object LDPrune {
               if (v.contig != v2.contig || v.start - v2.start > window)
                 true
               else {
-                r2(bpv, bpv2) < r2Threshold
+                computeR2(bpv, bpv2) < r2Threshold
               }
             }
           }
@@ -298,6 +366,7 @@ object LDPrune {
     val pruneIntermediates = Array.fill[GlobalPruneIntermediate](nPartitions)(null)
 
     def generalRDDInputs(partitionIndex: Int): (Array[RDD[(Variant, BitPackedVector)]], Array[(Int, Int)]) = {
+      println(s"partitionIndex=$partitionIndex computeDependencies=${computeDependencies(partitionIndex).mkString(",")}")
       val (rdds, inputs) = computeDependencies(partitionIndex).zipWithIndex.map { case (depIndex, i) =>
         if (depIndex == partitionIndex || contigStartPartitions.contains(depIndex))
           (inputRDD, (i, depIndex))
@@ -353,8 +422,9 @@ object LDPrune {
       fatal(s"Window must be greater than or equal to 0. Found `$window'.")
 
     val sc = vds.sparkContext
-    val partitionSizesInitial = sc.runJob(vds.rdd, getIteratorSize _)
-    val nVariantsInitial = partitionSizesInitial.sum
+
+    val nVariantsInitial = vds.nVariants
+    val nPartitionsInitial = vds.nPartitions
 
     val nSamples = vds.nSamples
     val padding = genotypesPerPack - nSamples % genotypesPerPack
@@ -365,24 +435,27 @@ object LDPrune {
     val minMemoryPerCore = math.ceil((1 / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
     val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, memoryPerCore)
 
-    info(s"InputData: nSamples=$nSamples nVariants=$nVariantsInitial nPartitions=${ partitionSizesInitial.length } maxQueueSize=$maxQueueSize")
+    info(s"InputData: nSamples=$nSamples nVariants=$nVariantsInitial nPartitions=$nPartitionsInitial maxQueueSize=$maxQueueSize")
 
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"Memory per core must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB")
 
     val standardizedRDD = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
       .mapPartitions { it =>
-        val a = new Array[Long](nGenotypes) // padded values are 0 by default which do not affect the result when computing r2
+        val a = new Array[Long](nPacks) // padded values are 0 by default which do not affect the result when computing r2
         it.flatMap { case (v, (va, gs)) =>
           toBitPackedVector(gs, nSamples, a) match {
-            case Some(bpv) => Some((v, bpv))
+            case Some(bpv) =>
+              println(s"v=$v gs=${bpv.unpack().mkString(",")}")
+              Some((v, bpv))
             case None => None
           }
         }
       }.toOrderedRDD
 
-//
-//        val standardizedRDD2 = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
+    info(s"After Filtering: nSamples=$nSamples nVariants=${standardizedRDD.count()}")
+
+//        val standardizedRDD = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
 //          .flatMapValues { case (va, gs) => toBitPackedVector(gs, nSamples) }.asOrderedRDD
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({

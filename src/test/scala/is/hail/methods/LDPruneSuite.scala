@@ -9,6 +9,10 @@ import is.hail.variant._
 import is.hail.utils._
 import org.testng.annotations.Test
 
+object LDPruneSuite {
+
+}
+
 class LDPruneSuite extends SparkSuite {
   val bytesPerCore = 256L * 1024L * 1024L
 
@@ -65,7 +69,7 @@ class LDPruneSuite extends SparkSuite {
     val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
       (bvi(i), bvi(j)) match {
         case (Some(x), Some(y)) =>
-          Some(LDPrune.r2(x, y))
+          Some(LDPrune.computeR2(x, y))
         case _ => None
       }
     }
@@ -146,7 +150,7 @@ class LDPruneSuite extends SparkSuite {
     val bvi1 = LDPrune.toBitPackedVector(gs, n).get
     val bvi2 = LDPrune.toBitPackedVector(gs, n).get
 
-    assert(math.abs(LDPrune.r2(bvi1, bvi2) - 1d) < 1e-4)
+    assert(math.abs(LDPrune.computeR2(bvi1, bvi2) - 1d) < 1e-4)
   }
 
   @Test def testIdenticalVariants() {
@@ -179,6 +183,22 @@ class LDPruneSuite extends SparkSuite {
       v2: Array[Int] <- Gen.buildableOfN[Array, Int](nSamples, Gen.choose(-1, 2))
     ) yield (nSamples, v1, v2)
 
+    property("bitPacked pack and unpack give same result") =
+      forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
+        val gs1 = convertGtToGs(v1)
+        val gs2 = convertGtToGs(v2)
+        val bv1 = LDPrune.toBitPackedVector(gs1, nSamples)
+        val bv2 = LDPrune.toBitPackedVector(gs2, nSamples)
+
+        val res = (bv1, bv2) match {
+          case (Some(x), Some(y)) =>
+            (LDPrune.toBitPackedVector(convertGtToGs(x.unpack()), nSamples).get.gs sameElements bv1.get.gs) &&
+              (LDPrune.toBitPackedVector(convertGtToGs(y.unpack()), nSamples).get.gs sameElements bv2.get.gs)
+          case _ => true
+        }
+        res
+      }
+
     property("bitPacked same as BVector") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
         val gs1 = convertGtToGs(v1)
@@ -192,10 +212,15 @@ class LDPruneSuite extends SparkSuite {
           case (Some(a), Some(b), Some(c), Some(d)) =>
             val rBreeze = c.dot(d): Double
             val r2Breeze = rBreeze * rBreeze
-            val r2BitPacked = LDPrune.r2(a, b)
-            val res = math.abs(r2BitPacked - r2Breeze) < 1e-4
+            val r2BitPacked = LDPrune.computeR2(a, b)
+
+//            if (r2Breeze < 0d || r2Breeze >= 1d)
+//              println(s"r2Breeze=$r2Breeze r2BitPacked=$r2BitPacked")
+
+            val res = math.abs(r2BitPacked - r2Breeze) < 1e-4 && r2BitPacked >= 0d && r2BitPacked <= 1d
             if (!res)
               println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples v1=${v1.mkString(",")} v2=${v2.mkString(",")}")
+//            res
             res
           case (_, _, _, _) => true
         }
@@ -272,12 +297,51 @@ class LDPruneSuite extends SparkSuite {
     assert(uncorrelated(prunedVds, 0.2, 1000))
   }
 
+  @Test def testNoPrune() {
+    var s = State(sc, sqlContext, null)
+    s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz"))
+    val nSamples = s.vds.nSamples
+    val vds = s.vds.filterVariants{ case (v, va, gs) =>
+      v.isBiallelic && gs.map(g => g.unboxedGT).groupBy(identity).mapValues(_.size).forall{case (_, n) => n != nSamples}
+    }
+
+    val prunedVds = LDPrune.ldPrune(vds, 1, 0, 200000)
+    val nVariantsExpected = vds.nVariants
+    assert(prunedVds.nVariants == nVariantsExpected)
+  }
+
+  @Test def testIdenticalVariants100() {
+    val x = hadoopConf.readLines("badR2Variants.txt")(_.map(_.map { line =>
+      line.trim.split("\t").drop(1).map(gt => gt.toInt)
+    }.value).toArray)
+
+    val nSamples = x(0).length
+
+    val v1 = LDPrune.toBitPackedVector(convertGtToGs(x(0)), nSamples).get
+    val v2 = LDPrune.toBitPackedVector(convertGtToGs(x(1)), nSamples).get
+
+    println(s"r2 = ${LDPrune.computeR2(v1, v2)}")
+
+    assert(math.abs(LDPrune.computeR2(v1, v2) - 1d) < 1e-4)
+
+    x.foreach{i => println(i.mkString("\t"))}
+//    println(s"${x.mkString(",")}")
+  }
+
+  @Test def test10273694() {
+    val vcf = "src/test/resources/10273694.vcf"
+    var s = State(sc, sqlContext, null)
+    s = ImportVCF.run(s, Array("-i", vcf))
+    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 100000, 200000)
+    prunedVds.nVariants
+  }
+
   @Test def test10K() {
     var s = State(sc, sqlContext, null)
     s = Read.run(s, Array("ALL.1KG.10K.vds"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 20 * 1024 * 1024)
+    val prunedVds = LDPrune.ldPrune(s.vds, 1, 1000000, ((1 * 1024 * 1024).toDouble / 9).toInt)
     prunedVds.nVariants
-    // while (true) {}
+    while (true) {}
   }
 
   @Test def test100K() {
