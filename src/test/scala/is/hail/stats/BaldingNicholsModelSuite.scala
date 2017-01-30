@@ -26,7 +26,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
     assert(bnm1.sampleAnnotations == bnm2.sampleAnnotations)
   }
 
-  @Test def testDimensions() = {
+  @Test def testDimensions()  {
     val K = 5
     val N = 10
     val M = 100
@@ -45,42 +45,64 @@ class BaldingNicholsModelSuite extends SparkSuite {
   @Test def testStats() {
     testStatsHelp(10, 100, 100, None, None, 0)
     testStatsHelp(40, 400, 20, None, None, 12)
-  }
 
-  def testStatsHelp(K: Int, N: Int, M: Int, popDistOpt: Option[Array[Double]], FstOfPopOpt: Option[Array[Double]], seed: Int) = {
-    val bnm = BaldingNicholsModel(sc, K, N, M, popDistOpt, FstOfPopOpt, seed, Some(4), UniformDist(.1, .9), "bn")
+    def testStatsHelp(K: Int, N: Int, M: Int, popDistOpt: Option[Array[Double]], FstOfPopOpt: Option[Array[Double]], seed: Int) = {
+      val bnm = BaldingNicholsModel(sc, K, N, M, popDistOpt, FstOfPopOpt, seed, Some(4), UniformDist(.1, .9), "bn")
 
-    val popDist: Array[Double] = popDistOpt.getOrElse(Array.fill(K)(1.0))
+      val popDist: Array[Double] = popDistOpt.getOrElse(Array.fill(K)(1.0))
 
-    //Test population distribution
-    val popArray = bnm.sampleAnnotations.toArray.map(_.asInstanceOf[GenericRow](0).asInstanceOf[GenericRow](0).toString.toDouble)
-    val popCounts = popArray.groupBy(x => x).values.toSeq.sortBy(_(0)).map(_.size)
+      //Test population distribution
+      val popArray = bnm.sampleAnnotations.toArray.map(_.asInstanceOf[GenericRow](0).asInstanceOf[GenericRow](0).toString.toDouble)
+      val popCounts = popArray.groupBy(x => x).values.toSeq.sortBy(_(0)).map(_.size)
 
-    popCounts.indices.foreach(index => {
-      assertEquals(popCounts(index) / N, popDist(index), Math.ceil(N / K * .1))
-    })
+      popCounts.indices.foreach(index => {
+        assertEquals(popCounts(index) / N, popDist(index), Math.ceil(N / K * .1))
+      })
 
-    //Test AF distributions
-    val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[GenericRow]]
-    val arrayOfVATuples = arrayOfVARows.map(row => row.get(0).asInstanceOf[GenericRow]).map(row => (row.get(0), row.get(1)).asInstanceOf[(Double, Vector[Double])])
+      //Test AF distributions
+      val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[GenericRow]]
+      val arrayOfVATuples = arrayOfVARows.map(row => row.get(0).asInstanceOf[GenericRow]).map(row => (row.get(0), row.get(1)).asInstanceOf[(Double, Vector[Double])])
 
-    val AFStats = arrayOfVATuples.map(tuple => meanAndVariance(tuple._2))
+      val AFStats = arrayOfVATuples.map(tuple => meanAndVariance(tuple._2))
 
-    arrayOfVATuples.map(_._1).zip(AFStats).foreach{
-      case (p, mv) =>
-        assertEquals(p, mv.mean, .2) //Consider alternatives to .2
-        assertEquals(.1 * p * (1 - p), mv.variance, .1)
+      arrayOfVATuples.map(_._1).zip(AFStats).foreach{
+        case (p, mv) =>
+          assertEquals(p, mv.mean, .2) //Consider alternatives to .2
+          assertEquals(.1 * p * (1 - p), mv.variance, .1)
+      }
+
+      //Test genotype distributions
+      val meanGeno_mk = bnm.rdd
+        .map(_._2._2.zip(popArray).groupBy(_._2).toSeq.sortBy(_._1))
+        .map(_.map(popIterPair => mean(popIterPair._2.map(_._1.gt.get.toDouble))).toArray)
+        .collect()
+
+      val p_mk = arrayOfVATuples.map(_._2.toArray)
+
+      val meanDiff = (meanGeno_mk.flatten.sum - 2 * p_mk.flatten.sum) / (M * K)
+      assertEquals(meanDiff, 0, .1)
     }
-
-    //Test genotype distributions
-    val meanGeno_mk = bnm.rdd
-      .map(_._2._2.zip(popArray).groupBy(_._2).toSeq.sortBy(_._1))
-      .map(_.map(popIterPair => mean(popIterPair._2.map(_._1.gt.get.toDouble))).toArray)
-      .collect()
-
-    val p_mk = arrayOfVATuples.map(_._2.toArray)
-
-    val meanDiff = (meanGeno_mk.flatten.sum - 2 * p_mk.flatten.sum) / (M * K)
-    assertEquals(meanDiff, 0, .1)
   }
+
+
+
+  @Test def testAFRanges() {
+    testRangeHelp(TruncatedBetaDist(.01, 2, .2, .8), .2, .8, 17)
+    testRangeHelp(TruncatedBetaDist(3, 3, .4, .6), .4, .6, 12)
+
+    testRangeHelp(UniformDist(.4, .7), .4, .7, 9823)
+
+    testRangeHelp(BetaDist(4, 6), 0, 1, 456)
+
+    def testRangeHelp(dist: Distribution, min: Double, max: Double, seed: Int) {
+      val bnm = BaldingNicholsModel(sc, 3, 400, 400, None, None, seed, Some(4), dist, "bn")
+
+      val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[GenericRow]]
+      val arrayOfAncestralAFs = arrayOfVARows.map(row => row.get(0).asInstanceOf[GenericRow]).map(row => (row.get(0)).asInstanceOf[Double])
+
+      assert(arrayOfAncestralAFs.forall(af => af > min && af < max))
+    }
+  }
+
+
 }
