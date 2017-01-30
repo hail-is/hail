@@ -1055,7 +1055,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def annotateVariantsKeyTable(kt: KeyTable, code: String) = {
-    val ktKeyTypes = kt.keySignature.fields.map(_.`type`)
+    val ktKeyTypes = kt.keySignature.fields.map(_.typ)
 
     if (ktKeyTypes.size != 1 || ktKeyTypes(0) != TVariant)
       fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${kt.keySignature}'")
@@ -1074,11 +1074,11 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     annotateVariants(ordRdd, finalType, inserter)
   }
 
-  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: String, code: String) = {
+  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: Seq[String], code: String) = {
 
     val vdsKeyEc = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
 
-    val (vdsKeyType, vdsKeyF) = Parser.parseExpr(vdsKey, vdsKeyEc)
+    val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, vdsKeyEc)).unzip
 
     if (kt.keySignature != vdsKeyType)
       fatal(s"Key signature of KeyTable, `${kt.keySignature}', must match type of computed key, `${vdsKeyType}'.")
@@ -1094,7 +1094,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
     val thisRdd = rdd.map { case (v, (va, gs)) =>
       vdsKeyEc.setAll(v, va)
-      (vdsKeyF().orNull, (v, va))
+      (Annotation.fromSeq(vdsKeyFs.map(f => f().orNull)), (v, va))
     }
 
     val variantKeyedRdd = ktRdd.join(thisRdd)

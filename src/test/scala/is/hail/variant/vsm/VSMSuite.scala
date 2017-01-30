@@ -414,7 +414,7 @@ class VSMSuite extends SparkSuite {
       val kt = KeyTable(sc.parallelize(Array((Annotation(true), Annotation(1)), (Annotation(false), Annotation(2)))),
         TStruct(("key", TBoolean)), TStruct(("value", TInt)))
 
-      val resultVds = s.vds.annotateVariantsKeyTable(kt, "{ key: va.key }", "va.foo = table.value")
+      val resultVds = s.vds.annotateVariantsKeyTable(kt, Seq("va.key"), "va.foo = table.value")
       val result = resultVds.rdd.collect()
       val (_, getKey) = resultVds.queryVA("va.key")
       val (_, getFoo) = resultVds.queryVA("va.foo")
@@ -453,7 +453,7 @@ class VSMSuite extends SparkSuite {
 
       val kt = KeyTable(mapping, TStruct(("key1", TBoolean), ("key2", TBoolean)), TStruct(("value", TInt)))
 
-      val resultVds = s.vds.annotateVariantsKeyTable(kt, "{ key1: va.key1, key2: va.key2 }", "va.foo = table.value")
+      val resultVds = s.vds.annotateVariantsKeyTable(kt, Seq("va.key1", "va.key2"), "va.foo = table.value")
       val result = resultVds.rdd.collect()
       val (_, getKey1) = resultVds.queryVA("va.key1")
       val (_, getKey2) = resultVds.queryVA("va.key2")

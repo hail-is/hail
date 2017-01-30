@@ -273,7 +273,7 @@ class ContextTests(unittest.TestCase):
         kt = (sample2.variants_keytable()
               .annotate("v2 = v")
               .key_by(["v", "v2"]))
-        sample2.annotate_variants_keytable(kt, "va.foo = table.va", "{ v : v, v2: v }")
+        sample2.annotate_variants_keytable(kt, "va.foo = table.va", ["v","v"])
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
