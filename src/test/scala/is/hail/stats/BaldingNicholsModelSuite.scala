@@ -18,8 +18,8 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val FstOfPop = Array(0.1, 0.2, 0.3)
     val seed = 0
 
-    val bnm1 = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(3), "bn")
-    val bnm2 = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), "bn")
+    val bnm1 = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(3), UniformDist(.1, .9), "bn")
+    val bnm2 = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), UniformDist(.1, .9), "bn")
 
     assert(bnm1.rdd.collect().toSeq == bnm2.rdd.collect().toSeq)
     assert(bnm1.globalAnnotation == bnm2.globalAnnotation)
@@ -34,7 +34,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val FstOfPop = Array(0.1, 0.2, 0.3, 0.2, 0.2)
     val seed = 0
 
-    val bnm = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), "bn")
+    val bnm = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), UniformDist(.1, .9), "bn")
 
     val gs_by_variant = bnm.rdd.collect.map(x => x._2._2)
     assert(gs_by_variant.forall(_.size == 10))
@@ -48,7 +48,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
   }
 
   def testStatsHelp(K: Int, N: Int, M: Int, popDistOpt: Option[Array[Double]], FstOfPopOpt: Option[Array[Double]], seed: Int) = {
-    val bnm = BaldingNicholsModel(sc, K, N, M, popDistOpt, FstOfPopOpt, seed, Some(4), "bn")
+    val bnm = BaldingNicholsModel(sc, K, N, M, popDistOpt, FstOfPopOpt, seed, Some(4), UniformDist(.1, .9), "bn")
 
     val popDist: Array[Double] = popDistOpt.getOrElse(Array.fill(K)(1.0))
 

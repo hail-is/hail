@@ -6,7 +6,7 @@ from hail.dataset import VariantDataset
 from hail.java import jarray, scala_object, scala_package_object, joption, Env, raise_py4j_exception
 from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
-from hail.stats import UniformDist, BetaDist
+from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from py4j.protocol import Py4JJavaError
 
 
@@ -565,9 +565,9 @@ class HailContext(object):
 
         >>> vds = hc.balding_nichols_model(3, 100, 1000)
 
-        To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12],  and root "balding", and random seed 1:
+        To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12], root "balding", ancestralAFs drawn from a beta distribution with a = .5 and b = .4, and random seed 1:
 
-        >>> vds = hc.balding_nichols_model(4, 40, 150, 10, pop_dist=[0.1, 0.2, 0.3, 0.4], fst=[.02, .06, .04, .12], root="balding", seed=1)
+        >>> vds = hc.balding_nichols_model(4, 40, 150, 10, pop_dist=[0.1, 0.2, 0.3, 0.4], fst=[.02, .06, .04, .12], af_dist= BetaDist(.5, .4), root="balding", seed=1)
 
         **Notes**
 
@@ -576,7 +576,7 @@ class HailContext(object):
         - :math:`K` populations are labeled by integers 0, 1, ..., K - 1
         - :math:`N` samples are named by strings 0, 1, ..., N - 1
         - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ..., ``1:M:A:C``
-        - The ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]
+        - The default ancestral frequency distribution :math:`P_0` is uniform on [0.0, 1.0]
         - The population distribution defaults to uniform
         - The :math:`F_{st}` values default to 0.1
         - The number of partitions defaults to one partition per million genotypes (i.e., samples * variants / 10^6) or 8, whichever is larger
@@ -653,6 +653,8 @@ class HailContext(object):
             jvm_af_dist = self.hail.stats.UniformDist.apply(float(af_dist.minVal), float(af_dist.maxVal))
         elif isinstance(af_dist, BetaDist):
             jvm_af_dist = self.hail.stats.BetaDist.apply(float(af_dist.a), float(af_dist.b))
+        elif isinstance(af_dist, TruncatedBetaDist):
+            jvm_af_dist = self.hail.stats.TruncatedBetaDist.apply(float(af_dist.a), float(af_dist.b), float(af_dist.minVal), float(af_dist.maxVal))
 
         return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
                             jvm_pop_dist_opt,

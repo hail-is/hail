@@ -5,24 +5,26 @@ import org.apache.commons.math3.random.JDKRandomGenerator
 import is.hail.utils._
 
 sealed trait Distribution {
-    def getBreezeDist(seed: Int): ContinuousDistr[Double]
+    def getBreezeDist(seed: Int): Rand[Double]
 }
-case class UniformDist(a: Double, b: Double) extends Distribution{
-  if (a >= b)
-    fatal("a must less than b")
+case class UniformDist(minVal: Double, maxVal: Double) extends Distribution{
+  if (minVal >= maxVal)
+    fatal("minVal must less than maxVal")
 
-  override def getBreezeDist(seed: Int): ContinuousDistr[Double] = {
+
+
+  override def getBreezeDist(seed: Int): Rand[Double] = {
     val generator = new JDKRandomGenerator
     generator.setSeed(seed)
     val basis = new RandBasis(generator)
 
-    new Uniform(a, b)(basis)
+    new Uniform(minVal, maxVal)(basis)
   }
 }
 
 case class BetaDist(a: Double, b: Double) extends Distribution {
 
-  override def getBreezeDist(seed: Int): ContinuousDistr[Double] = {
+  override def getBreezeDist(seed: Int): Rand[Double] = {
     val generator = new JDKRandomGenerator
     generator.setSeed(seed)
     val basis = new RandBasis(generator)
@@ -31,12 +33,34 @@ case class BetaDist(a: Double, b: Double) extends Distribution {
   }
 }
 
-trait DistributionFactory {
+case class TruncatedBetaDist(a: Double, b: Double, minVal: Double, maxVal: Double) extends Distribution {
+  if (minVal >= maxVal)
+    fatal("minVal must be less than maxVal")
 
-  def createDist(seed: Int): Distribution
+  override def getBreezeDist(seed: Int): Rand[Double] = {
+    val generator = new JDKRandomGenerator
+    generator.setSeed(seed)
+    val basis = new RandBasis(generator)
+
+    new TruncatedBeta(a, b, minVal, maxVal)(basis)
+  }
 }
 
-case class UniformFactory(a: Double, b: Double) extends DistributionFactory {
 
-  override def createDist(seed: Int): Distribution = ???
+class TruncatedBeta(a: Double, b: Double, minVal: Double, maxVal: Double)(randBasis: RandBasis) extends Rand[Double] {
+  if (minVal >= maxVal)
+    fatal("minVal must be less than maxVal")
+
+  private val beta = new Beta(a, b)(randBasis)
+
+  override def draw(): Double = {
+    var drawn = beta.draw()
+
+    while(drawn <= minVal || drawn >= maxVal) {
+      drawn = beta.draw()
+    }
+
+    drawn
+  }
 }
+

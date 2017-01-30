@@ -70,6 +70,10 @@ object BaldingNicholsModel {
     val variantSeed = Rand.randInt.draw();
     val variantSeedBc = sc.broadcast(variantSeed)
 
+    /*
+    IDEA: Instead of parallelizing over just a range, generate AF's first then work from there.
+     */
+
     val rdd = sc.parallelize(
       (0 until M).map { m =>
         val perVariantSeed = variantSeedBc.value + m
