@@ -12,13 +12,16 @@ import is.hail.utils.ByteIterator
 
 import scala.collection.mutable
 
-// FIXME use zipWithIndex
 class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
   override def hasNext: Boolean = b.hasNext
 
-  override def next(): Genotype = {
-    Genotype.read(nAlleles, isDosage, b)
-  }
+  override def next(): Genotype = Genotype.read(nAlleles, isDosage, b)
+}
+
+class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends IntIterator {
+  override def hasNext: Boolean = b.hasNext
+
+  override def nextInt(): Int = Genotype.hardCallRead(nAlleles, isDosage, b)
 }
 
 object LZ4Utils {
@@ -54,6 +57,15 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
         new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
         new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
+    }
+  }
+
+  def gsHardCallIterator: HardCallGenotypeStreamIterator = {
+    decompLenOption match {
+      case Some(decompLen) =>
+        new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
+      case None =>
+        new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
     }
   }
 

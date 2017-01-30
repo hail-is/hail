@@ -604,6 +604,49 @@ object Genotype {
     new GenericGenotype(gt, ad, dp, gq, px, flagFakeRef(flags), isDosage)
   }
 
+  def hardCallRead(nAlleles: Int, isDosage: Boolean, a: ByteIterator): Int = {
+    val isBiallelic = nAlleles == 2
+
+    val flags = a.readULEB128()
+
+    val gt: Int =
+      if (flagHasGT(isBiallelic, flags)) {
+        if (flagStoresGT(isBiallelic, flags))
+          flagGT(isBiallelic, flags)
+        else
+          a.readULEB128()
+      } else
+        -1
+
+    var count = 0
+
+    if (flagHasAD(flags)) {
+      if (flagSimpleAD(flags)) {
+        count += 1
+        val p = Genotype.gtPair(gt)
+        if (p.j != p.k)
+          count += 1
+      } else
+        count += nAlleles
+    }
+
+    if (flagHasDP(flags) && !(flagHasAD(flags) && flagSimpleDP(flags)))
+      count += 1
+
+    if (flagHasPX(flags))
+      if (gt >= 0)
+        count += triangle(nAlleles) - 1
+      else
+        count += triangle(nAlleles)
+
+    if (flagHasGQ(flags) && !flagSimpleGQ(flags))
+      count += 1
+
+    a.skipLEB128(count)
+
+    gt
+  }
+
   def genDosage(nAlleles: Int): Gen[Genotype] = {
     val nGenotypes = triangle(nAlleles)
     for (px <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
@@ -622,8 +665,8 @@ object Genotype {
       dp <- Gen.option(Gen.choose(0, m));
       gq <- Gen.option(Gen.choose(0, 10000));
       pl <- Gen.oneOfGen(
-         Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, m))),
-         Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, 100))))) yield {
+        Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, m))),
+        Gen.option(Gen.buildableOfN[Array, Int](nGenotypes, Gen.choose(0, 100))))) yield {
       gt.foreach { gtx =>
         pl.foreach { pla => pla(gtx) = 0 }
       }

@@ -7,6 +7,8 @@ import org.testng.annotations.Test
 
 object GenotypeStreamSuite {
 
+  import is.hail.utils._
+
   object Spec extends Properties("GenotypeStream") {
 
     property("iterateBuild") = forAll(for (
@@ -16,11 +18,11 @@ object GenotypeStreamSuite {
       val b = new GenotypeStreamBuilder(v.nAlleles)
       b ++= it
       val gs = b.result()
-      val a2 = gs.toArray
-      it.sameElements(a2)
+      val a1 = gs.toArray
+      val a2 = gs.hardCallIterator.toArray
+      it.sameElements(a1) && a1.map(_.unboxedGT).sameElements(a2)
     }
   }
-
 }
 
 class GenotypeStreamSuite extends TestNGSuite {
