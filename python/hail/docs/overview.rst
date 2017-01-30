@@ -46,7 +46,7 @@ To access the pHWE and the rExpectedHetFrequency variables which are nested insi
 Expressions
 -----------
 
-Expressions are snippets of code written in [Hail's Domain Language](reference.html#HailExpressionLanguage) referencing elements of a VDS that are used for the following operations:
+Expressions are snippets of code written in `Hail's Expression Language <https://hail.is/expr_lang.html>`_ referencing elements of a VDS that are used for the following operations:
 
  - :ref:`Define Variables to Export <overview-expr-export>`
  - :ref:`Input Variables to Methods <overview-expr-input>`
