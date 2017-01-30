@@ -650,17 +650,17 @@ class HailContext(object):
 
 
         if isinstance(af_dist, UniformDist):
-            jvm_af_dist = self.hail.stats.UniformDist.apply(float(af_dist.minVal), float(af_dist.maxVal))
+            jvm_af_dist = self._hail.stats.UniformDist.apply(float(af_dist.minVal), float(af_dist.maxVal))
         elif isinstance(af_dist, BetaDist):
-            jvm_af_dist = self.hail.stats.BetaDist.apply(float(af_dist.a), float(af_dist.b))
+            jvm_af_dist = self._hail.stats.BetaDist.apply(float(af_dist.a), float(af_dist.b))
         elif isinstance(af_dist, TruncatedBetaDist):
-            jvm_af_dist = self.hail.stats.TruncatedBetaDist.apply(float(af_dist.a), float(af_dist.b), float(af_dist.minVal), float(af_dist.maxVal))
+            jvm_af_dist = self._hail.stats.TruncatedBetaDist.apply(float(af_dist.a), float(af_dist.b), float(af_dist.minVal), float(af_dist.maxVal))
 
-        return VariantDataset(self, self.hail.stats.BaldingNicholsModel.apply(self.jsc,  populations, samples, variants,
+        return VariantDataset(self, self._hail.stats.BaldingNicholsModel.apply(self._jsc,  populations, samples, variants,
                             jvm_pop_dist_opt,
                             jvm_fst_opt,
                             seed,
-                            joption(self.jvm, partitions), jvm_af_dist, root))
+                            joption(partitions), jvm_af_dist, root))
 
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.
