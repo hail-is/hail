@@ -395,7 +395,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     if (!shuffle && maxPartitions >= n)
       return this
     if (shuffle) {
-      val shuffled = super.coalesce(maxPartitions, shuffle).mapPartitions(it => OrderedRDD.localKeySort(it))
+      val shuffled = super.coalesce(maxPartitions, shuffle)
       val ranges = OrderedRDD.calculateKeyRanges(shuffled.keys.map(kOk.project))
       OrderedRDD.shuffle(shuffled, OrderedPartitioner(ranges, ranges.length + 1))
     } else {

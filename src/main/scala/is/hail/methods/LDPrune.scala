@@ -81,8 +81,7 @@ object LDPrune {
     (xySum, XbarCount, YbarCount, XbarYbarCount)
   }
 
-  def toBitPackedVector(gs: Iterable[Genotype], nSamples: Int): Option[BitPackedVector] = {
-    val it = gs.iterator
+  def toBitPackedVector(it: IntIterator, nSamples: Int): Option[BitPackedVector] = {
     val nBitsPerPack = 2 * genotypesPerPack
 
     val padding = genotypesPerPack - nSamples % genotypesPerPack
@@ -100,7 +99,7 @@ object LDPrune {
     var packIndex = 0
     var i = 0
     while (i < nSamples) {
-      val gt = it.next().unboxedGT
+      val gt = it.next()
 
       pack = pack | ((gt & 3).toLong << packOffset)
 
@@ -341,8 +340,8 @@ object LDPrune {
     if (memoryPerCore < minMemoryPerCore)
       fatal(s"Memory per core must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB")
 
-    val standardizedRDD = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
-      .flatMapValues { case (va, gs) => toBitPackedVector(gs, nSamples) }.asOrderedRDD
+    val standardizedRDD: OrderedRDD[Locus, Variant, BitPackedVector] = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
+      .flatMapValues { case (va, gs) => toBitPackedVector(gs.hardCallIterator, nSamples) }.asOrderedRDD
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
       val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, window, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)

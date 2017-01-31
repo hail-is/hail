@@ -9,14 +9,10 @@ import is.hail.variant._
 import is.hail.utils._
 import org.testng.annotations.Test
 
-object LDPruneSuite {
-
-}
-
 class LDPruneSuite extends SparkSuite {
   val bytesPerCore = 256L * 1024L * 1024L
 
-  def convertGtToGs(gts: Array[Int]): Iterable[Genotype] = gts.map(Genotype(_))
+  def convertGtToGs(gts: Array[Int]): Iterable[Genotype] = gts.map(Genotype(_)).toIterable
 
   def toNormalizedGtArray(gs: Array[Int], nSamples: Int): Option[Array[Double]] = {
     val a = new Array[Double](nSamples)
@@ -64,8 +60,8 @@ class LDPruneSuite extends SparkSuite {
     }
   }
 
-  def correlationMatrix(gs: Array[Iterable[Genotype]], nSamples: Int) = {
-    val bvi = gs.map(LDPrune.toBitPackedVector(_, nSamples))
+  def correlationMatrix(gts: Array[Iterable[Genotype]], nSamples: Int) = {
+    val bvi = gts.map{ gs => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples)}
     val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
       (bvi(i), bvi(j)) match {
         case (Some(x), Some(y)) =>
@@ -101,7 +97,8 @@ class LDPruneSuite extends SparkSuite {
 
     for (gts <- Array(gts1, gts2, gts3)) {
       val n = gts.length
-      assert(LDPrune.toBitPackedVector(convertGtToGs(gts), n).forall { bpv =>
+      val gs = convertGtToGs(gts)
+      assert(LDPrune.toBitPackedVector(gs.hardCallIterator, n).forall { bpv =>
         bpv.unpack() sameElements gts
       })
     }
@@ -146,8 +143,8 @@ class LDPruneSuite extends SparkSuite {
     val input = Array(0, 1, 2, 2, 2, 0, -1, -1)
     val gs = convertGtToGs(input)
     val n = input.length
-    val bvi1 = LDPrune.toBitPackedVector(gs, n).get
-    val bvi2 = LDPrune.toBitPackedVector(gs, n).get
+    val bvi1 = LDPrune.toBitPackedVector(gs.hardCallIterator, n).get
+    val bvi2 = LDPrune.toBitPackedVector(gs.hardCallIterator, n).get
 
     assert(math.abs(LDPrune.computeR2(bvi1, bvi2) - 1d) < 1e-4)
   }
@@ -184,13 +181,13 @@ class LDPruneSuite extends SparkSuite {
       forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
         val gs1 = convertGtToGs(v1)
         val gs2 = convertGtToGs(v2)
-        val bv1 = LDPrune.toBitPackedVector(gs1, nSamples)
-        val bv2 = LDPrune.toBitPackedVector(gs2, nSamples)
+        val bv1 = LDPrune.toBitPackedVector(gs1.hardCallIterator, nSamples)
+        val bv2 = LDPrune.toBitPackedVector(gs2.hardCallIterator, nSamples)
 
         val res = (bv1, bv2) match {
           case (Some(x), Some(y)) =>
-            (LDPrune.toBitPackedVector(convertGtToGs(x.unpack()), nSamples).get.gs sameElements bv1.get.gs) &&
-              (LDPrune.toBitPackedVector(convertGtToGs(y.unpack()), nSamples).get.gs sameElements bv2.get.gs)
+            (LDPrune.toBitPackedVector(convertGtToGs(x.unpack()).hardCallIterator, nSamples).get.gs sameElements bv1.get.gs) &&
+              (LDPrune.toBitPackedVector(convertGtToGs(y.unpack()).hardCallIterator, nSamples).get.gs sameElements bv2.get.gs)
           case _ => true
         }
         res
@@ -200,8 +197,8 @@ class LDPruneSuite extends SparkSuite {
       forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
         val gs1 = convertGtToGs(v1)
         val gs2 = convertGtToGs(v2)
-        val bv1 = LDPrune.toBitPackedVector(gs1, nSamples)
-        val bv2 = LDPrune.toBitPackedVector(gs2, nSamples)
+        val bv1 = LDPrune.toBitPackedVector(gs1.hardCallIterator, nSamples)
+        val bv2 = LDPrune.toBitPackedVector(gs2.hardCallIterator, nSamples)
         val sgs1 = toNormalizedGtArray(v1, nSamples).map(BVector(_))
         val sgs2 = toNormalizedGtArray(v2, nSamples).map(BVector(_))
 
@@ -294,7 +291,7 @@ class LDPruneSuite extends SparkSuite {
     var s = State(sc, sqlContext, null)
     s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz"))
     val nSamples = s.vds.nSamples
-    val vds = s.vds.filterVariants{ case (v, va, gs) => v.isBiallelic && LDPrune.toBitPackedVector(gs, nSamples).isDefined }
+    val vds = s.vds.filterVariants{ case (v, va, gs) => v.isBiallelic && LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples).isDefined }
     val prunedVds = LDPrune.ldPrune(vds, 1, 0, 200000)
     val nVariantsExpected = vds.nVariants
     assert(prunedVds.nVariants == nVariantsExpected)
