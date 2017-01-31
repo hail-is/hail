@@ -6,7 +6,7 @@ import breeze.linalg.{DenseVector, sum}
 import org.apache.spark.SparkContext
 import org.apache.commons.math3.random.JDKRandomGenerator
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TDouble, TInt, TStruct}
+import is.hail.expr.{TArray, TDouble, TInt, TString, TStruct}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
 
@@ -115,15 +115,33 @@ object BaldingNicholsModel {
 
     val sampleIds = (0 until N).map(_.toString).toArray
     val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(Annotation(pop)))
+
+    val ancestralAFAnnotation = af_dist match {
+      case UniformDist(minVal, maxVal) => Annotation("uniform", minVal, maxVal)
+      case BetaDist(a, b) => Annotation("beta", a, b)
+      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("truncated_beta", a, b, minVal, maxVal)
+    }
     val globalAnnotation = Annotation(
-      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], seed))
+      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed))
 
     val saSignature = TStruct(root -> TStruct("pop" -> TInt))
     val vaSignature = TStruct(root -> TStruct("ancestralAF" -> TDouble, "AF" -> TArray(TDouble)))
-    val globalSignature = TStruct(root ->
-      TStruct("nPops" -> TInt, "nSamples" -> TInt, "nVariants" -> TInt,
-        "popDist" -> TArray(TDouble), "Fst" -> TArray(TDouble), "seed" -> TInt))
 
+    val ancestralAFAnnotationSignature = af_dist match {
+      case UniformDist(minVal, maxVal) => TStruct("type" -> TString, "minVal" -> TDouble, "maxVal" -> TDouble)
+      case BetaDist(a, b) => TStruct("type" -> TString, "a" -> TDouble, "b" -> TDouble)
+      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString, "a" -> TDouble, "b" -> TDouble, "minVal" -> TDouble, "maxVal" -> TDouble)
+    }
+
+    val globalSignature = TStruct(root ->
+      TStruct(
+        "nPops" -> TInt,
+        "nSamples" -> TInt,
+        "nVariants" -> TInt,
+        "popDist" -> TArray(TDouble),
+        "Fst" -> TArray(TDouble),
+        "ancestralDist" -> ancestralAFAnnotationSignature,
+        "seed" -> TInt))
     new VariantDataset(
       new VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation, saSignature, vaSignature, globalSignature, wasSplit=true),
       rdd
