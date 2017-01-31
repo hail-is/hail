@@ -27,6 +27,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.collection.JavaConverters._
 
 object VariantSampleMatrix {
   final val fileVersion: Int = 4
@@ -329,7 +330,7 @@ object VSMSubgen {
 }
 
 class VariantSampleMatrix[T](val metadata: VariantMetadata,
-  val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) {
+  val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {
 
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
 
@@ -1053,6 +1054,64 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     ec.setAll(localGlobalAnnotation)
     ts.map { case (t, f) => (f().orNull, t) }.toArray
   }
+
+  def annotateVariantsKeyTable(kt: KeyTable, code: String) = {
+    val ktKeyTypes = kt.keySignature.fields.map(_.typ)
+
+    if (ktKeyTypes.size != 1 || ktKeyTypes(0) != TVariant)
+      fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${kt.keySignature}'")
+
+    val ktSig = kt.signature
+
+    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, ktSig)))
+
+    val (finalType, inserter) =
+      buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
+
+    val keyedRDD = kt.rdd.map { case (k: Row, v) => (k(0).asInstanceOf[Variant], kt.mergeKeyAndValue(k, v)) }
+
+    val ordRdd = OrderedRDD(keyedRDD, None, None)
+
+    annotateVariants(ordRdd, finalType, inserter)
+  }
+
+  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: java.util.ArrayList[String], code: String): VariantSampleMatrix[T] =
+    annotateVariantsKeyTable(kt, vdsKey.asScala, code)
+
+  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: Seq[String], code: String): VariantSampleMatrix[T] = {
+    val vdsKeyEc = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
+
+    val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, vdsKeyEc)).unzip
+
+    val keyTypes = kt.keySignature.fields.map(_.typ)
+    if (keyTypes != vdsKeyType)
+      fatal(s"Key signature of KeyTable, `${keyTypes}', must match type of computed key, `${vdsKeyType}'.")
+
+    val ktSig = kt.signature
+
+    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, ktSig)))
+
+    val (finalType, inserter) =
+      buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
+
+    val ktRdd = kt.rdd.map { case (k, v) => (k, kt.mergeKeyAndValue(k, v)) }
+
+    val thisRdd = rdd.map { case (v, (va, gs)) =>
+      vdsKeyEc.setAll(v, va)
+      (Annotation.fromSeq(vdsKeyFs.map(f => f().orNull)), (v, va))
+    }
+
+    val variantKeyedRdd = ktRdd.join(thisRdd)
+      .map { case (_, (table, (v, va))) => (v, inserter(va, Some(table))) }
+
+    val ordRdd = OrderedRDD(variantKeyedRdd, None, None)
+
+    val newRdd = rdd.orderedLeftJoinDistinct(ordRdd)
+      .mapValues { case ((va, gs), optVa) => (optVa.getOrElse(va), gs) }
+      .asOrderedRDD
+
+    copy(rdd = newRdd, vaSignature = finalType)
+  }
 }
 
 // FIXME AnyVal Scala 2.11
@@ -1234,5 +1293,4 @@ class RichVDS(vds: VariantDataset) {
 
     vds.filterVariants(p)
   }
-
 }

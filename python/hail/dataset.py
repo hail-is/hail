@@ -757,6 +757,64 @@ class VariantDataset(object):
         pargs = ['annotatevariants', 'expr', '-c', condition]
         return self.hc._run_command(self, pargs)
 
+    def annotate_variants_keytable(self, keytable, condition, vds_key=None):
+        """Annotate variants with an expression that may depend on a :py:class:`.KeyTable`.
+
+        If `vds_key` is specified, it must be a list of hail expressions which whose types
+        match, in order, `keytable`'s key type.
+
+        **Examples**
+
+        Add annotations from a TSV:
+
+        >>> kt = hc.import_keytable('data/variant-lof.tsv', 'v')
+        >>>
+        >>> (hc.read('data/example.vds')
+        >>>    .annotate_variants_keytable(kt, 'va.lof = table.lof'))
+
+        Use a TSV as a map from existing annotations to new annotations:
+
+        >>> kt = hc.import_keytable('data/locus-metadata.tsv', ['locus','logscore'])
+        >>>
+        >>> (hc.read('data/example-with-populations.vds')
+        >>>    .annotate_variants_keytable(kt,
+        >>>       'va.foo = table.foo',
+        >>>       ['v.locus', 'log(va.score)']))
+
+        **Notes**
+
+        ``condition`` has the following symbols in scope:
+
+          - ``va``: variant annotations
+          - ``table``: :py:class:`.KeyTable` value
+
+        each expression in the list ``vds_key`` has the following symbols in
+        scope:
+
+          - ``v`` (*Variant*): :ref:`variant`
+          - ``va``: variant annotations
+
+        :param condition: Annotation expression or list of annotation expressions
+        :type condition: str or list of str
+
+        :param vds_key: A list of annotation expressions to be used as the VDS's join key
+        :type vds_key: None or list of str
+
+        :return: A :py:class:`.VariantDataset` with new variant annotations specified by ``condition``
+
+        :rtype: :py:class:`.VariantDataset`
+
+        """
+        if isinstance(condition, list):
+            condition = ','.join(condition)
+
+        if vds_key is None:
+            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, condition)
+        else:
+            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, vds_key, condition)
+
+        return VariantDataset(self.hc, jvds)
+
     def annotate_variants_intervals(self, input, root, all=False):
         """Annotate variants from an interval list file.
 
