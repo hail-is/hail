@@ -19,9 +19,8 @@ class UniformDist:
 
 class TruncatedBetaDist:
     """
-    Represents a beta distribution that has a lower and upper bound on values drawn from it. Note that this is accomplished
-    by rejection sampling, so if minVal and maxVal are very close together or the probability of a value being drawn between
-    minVal and maxVal is very low, a program using this distribution could take a very long time to execute.
+    Represents a truncated beta distribution with parameters a and b and support [minVal, maxVal]. Draws are made
+    via rejection sampling, which may be slow if the probability mass of Beta(a,b) over [minVal, maxVal] is small.
     """
     def __init__(self, a, b, minVal, maxVal):
         if minVal >= maxVal:
