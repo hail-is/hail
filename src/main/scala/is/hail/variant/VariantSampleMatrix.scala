@@ -27,6 +27,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.collection.JavaConverters._
 
 object VariantSampleMatrix {
   final val fileVersion: Int = 4
@@ -1074,14 +1075,17 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     annotateVariants(ordRdd, finalType, inserter)
   }
 
-  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: Seq[String], code: String) = {
+  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: java.util.ArrayList[String], code: String): VariantSampleMatrix[T] =
+    annotateVariantsKeyTable(kt, vdsKey.asScala, code)
 
+  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: Seq[String], code: String): VariantSampleMatrix[T] = {
     val vdsKeyEc = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
 
     val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, vdsKeyEc)).unzip
 
-    if (kt.keySignature != vdsKeyType)
-      fatal(s"Key signature of KeyTable, `${kt.keySignature}', must match type of computed key, `${vdsKeyType}'.")
+    val keyTypes = kt.keySignature.fields.map(_.typ)
+    if (keyTypes != vdsKeyType)
+      fatal(s"Key signature of KeyTable, `${keyTypes}', must match type of computed key, `${vdsKeyType}'.")
 
     val ktSig = kt.signature
 
