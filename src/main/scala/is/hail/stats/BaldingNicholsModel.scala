@@ -117,9 +117,9 @@ object BaldingNicholsModel {
     val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(Annotation(pop)))
 
     val ancestralAFAnnotation = af_dist match {
-      case UniformDist(minVal, maxVal) => Annotation("uniform", minVal, maxVal)
-      case BetaDist(a, b) => Annotation("beta", a, b)
-      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("truncated_beta", a, b, minVal, maxVal)
+      case UniformDist(minVal, maxVal) => Annotation("UniformDist", minVal, maxVal)
+      case BetaDist(a, b) => Annotation("BetaDist", a, b)
+      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("TruncatedBeta", a, b, minVal, maxVal)
     }
     val globalAnnotation = Annotation(
       Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed))
@@ -140,7 +140,7 @@ object BaldingNicholsModel {
         "nVariants" -> TInt,
         "popDist" -> TArray(TDouble),
         "Fst" -> TArray(TDouble),
-        "ancestralDist" -> ancestralAFAnnotationSignature,
+        "ancestralAFDist" -> ancestralAFAnnotationSignature,
         "seed" -> TInt))
     new VariantDataset(
       new VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation, saSignature, vaSignature, globalSignature, wasSplit=true),
