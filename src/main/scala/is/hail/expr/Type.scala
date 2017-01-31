@@ -28,7 +28,7 @@ object Type {
       Gen.oneOfGen(genScalar,
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
-        genArb.resize(size - 1).map(TDict),
+        Gen.zip(genArb.resize(size - 1), genArb.resize(size - 1)).map { case (k, v) => TMap(k, v) },
         Gen.buildableOf[Array, (String, Type, Map[String, String])](
           Gen.zip(Gen.identifier,
             genArb,
@@ -413,7 +413,7 @@ case class TArray(elementType: Type) extends TIterable {
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genValue: Gen[Annotation] =
-    Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x : IndexedSeq[Annotation])
+    Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -440,39 +440,47 @@ case class TSet(elementType: Type) extends TIterable {
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
 }
 
-case class TDict(elementType: Type) extends TContainer {
-  override def children = Seq(elementType)
+case class TMap(keyType: Type, valueType: Type) extends TContainer {
 
-  override def unify(concrete: Type) = {
+  def elementType: Type = valueType
+
+  override def children = Seq(keyType, valueType)
+
+  override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TDict(celementType) => elementType.unify(celementType)
+      case TMap(kt, vt) => keyType.unify(kt) && valueType.unify(vt)
       case _ => false
     }
   }
 
-  override def subst() = TDict(elementType.subst())
+  override def subst() = TMap(keyType.subst(), valueType.subst())
 
-  override def toString = s"Dict[$elementType]"
+  override def toString = s"Map[$keyType, $valueType]"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
-    sb.append("Dict[")
-    elementType.pretty(sb, indent, printAttrs, compact)
+    sb.append("Map[")
+    keyType.pretty(sb, indent, printAttrs, compact)
+    if (compact)
+      sb += ','
+    else
+      sb.append(", ")
+    valueType.pretty(sb, indent, printAttrs, compact)
     sb.append("]")
   }
 
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
-    a.asInstanceOf[Map[_, _]].forall { case (k, v) => k.isInstanceOf[String] && elementType.typeCheck(v) })
+    a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genValue: Gen[Annotation] =
-    Gen.buildableOf2[Map, String, Annotation](Gen.zip(arbitrary[String], elementType.genValue))
+    Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null) ||
-      a1.asInstanceOf[Map[String, _]].outerJoin(a2.asInstanceOf[Map[String, _]])
+      a1.asInstanceOf[Map[Any, _]].outerJoin(a2.asInstanceOf[Map[Any, _]])
         .forall { case (_, (o1, o2)) =>
-          o1.liftedZip(o2).exists { case (v1, v2) => elementType.valuesSimilar(v1, v2, tolerance) }
+          o1.liftedZip(o2).exists { case (v1, v2) => valueType.valuesSimilar(v1, v2, tolerance) }
         }
 }
 

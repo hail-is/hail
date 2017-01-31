@@ -21,7 +21,7 @@ type
     hail.type.TBoolean
     hail.type.TArray
     hail.type.TSet
-    hail.type.TDict
+    hail.type.TMap
     hail.type.TVariant
     hail.type.TGenotype
     hail.type.TAltAllele

@@ -371,14 +371,14 @@ class KeyTable(object):
 
     def expand_types(self):
         """Expand types Locus, Interval, AltAllele, Variant, Genotype, Char,
-        Set and Dict.  Char is converted to String.  Set is converted
-        to Array.  Dict[T] is converted to
+        Set and Map.  Char is converted to String.  Set is converted
+        to Array.  Map[K, V] is converted to
 
         .. code-block:: text
 
             Array[Struct {
-                key: String
-                value: T
+                key: K
+                value: V
             }]
 
         :return: key table with signature containing only types:

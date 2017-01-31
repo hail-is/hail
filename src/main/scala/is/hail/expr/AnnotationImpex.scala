@@ -32,7 +32,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType) => requiresConversion(elementType)
-    case TSet(_) | TDict(_) | TGenotype | TAltAllele | TVariant | TLocus | TInterval => true
+    case TSet(_) | TMap(_, _) | TGenotype | TAltAllele | TVariant | TLocus | TInterval => true
     case TStruct(fields) =>
       fields.isEmpty || fields.exists(f => requiresConversion(f.typ))
     case _ => false
@@ -63,11 +63,11 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           a.asInstanceOf[Seq[_]].map(elem => importAnnotation(elem, elementType))
         case TSet(elementType) =>
           a.asInstanceOf[Seq[_]].map(elem => importAnnotation(elem, elementType)).toSet
-        case TDict(elementType) =>
+        case TMap(keyType, valueType) =>
           val kvPairs = a.asInstanceOf[IndexedSeq[Annotation]]
           kvPairs
             .map(_.asInstanceOf[Row])
-            .map(r => (r.get(0), importAnnotation(r.get(1), elementType)))
+            .map(r => (importAnnotation(r.get(0), keyType), importAnnotation(r.get(1), valueType)))
             .toMap
         case TGenotype =>
           val r = a.asInstanceOf[Row]
@@ -116,10 +116,10 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case TBinary => BinaryType
     case TArray(elementType) => ArrayType(exportType(elementType))
     case TSet(elementType) => ArrayType(exportType(elementType))
-    case TDict(elementType) =>
+    case TMap(keyType, valueType) =>
       ArrayType(StructType(Array(
-        StructField("key", StringType, nullable = false),
-        StructField("value", elementType.schema))))
+        StructField("key", keyType.schema),
+        StructField("value", valueType.schema))))
     case TSample => StringType
     case TAltAllele => AltAllele.schema
     case TVariant => Variant.schema
@@ -146,10 +146,10 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           a.asInstanceOf[IndexedSeq[_]].map(elem => exportAnnotation(elem, elementType))
         case TSet(elementType) =>
           a.asInstanceOf[Set[_]].toSeq.map(elem => exportAnnotation(elem, elementType))
-        case TDict(elementType) =>
+        case TMap(keyType, valueType) =>
           a.asInstanceOf[Map[_, _]]
             .map { case (k, v) =>
-              Row.fromSeq(Seq(k, exportAnnotation(v, elementType)))
+              Row.fromSeq(Seq(exportAnnotation(k, keyType), exportAnnotation(v, valueType)))
             }.toIndexedSeq
         case TGenotype =>
           val g = a.asInstanceOf[Genotype]
@@ -275,10 +275,11 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         case TSet(elementType) =>
           val arr = a.asInstanceOf[Set[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
-        case TDict(elementType) =>
+        case TMap(keyType, valueType) =>
           val m = a.asInstanceOf[Map[_, _]]
-          JObject(m.map { case (k, v) =>
-            (k.asInstanceOf[String], exportAnnotation(v, elementType))
+          JArray(m.map { case (k, v) => JObject(
+            "key" -> exportAnnotation(k, keyType),
+            "value" -> exportAnnotation(v, valueType))
           }.toList)
         case TSample => a.asInstanceOf[Sample].toJSON
         case TGenotype => a.asInstanceOf[Genotype].toJSON
@@ -323,11 +324,30 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
           x.toDouble
       case (JBool(x), TBoolean) => x
 
-      case (JObject(a), TDict(elementType)) =>
+      // back compatibility
+      case (JObject(a), TMap(TString, valueType)) =>
         a.map { case (key, value) =>
-          (key, importAnnotation(value, elementType, parent))
+          (key, importAnnotation(value, valueType, parent))
         }
           .toMap
+
+      case (JArray(arr), TMap(keyType, valueType)) =>
+        arr.map { case JObject(a) =>
+          a match {
+            case List(k, v) =>
+              (k, v) match {
+                case (("key", ka), ("value", va)) =>
+                  (importAnnotation(ka, keyType, parent), importAnnotation(va, valueType, parent))
+              }
+            case _ =>
+              warn(s"Can't convert JSON value $jv to type $t at $parent.")
+              null
+
+          }
+        case _ =>
+          warn(s"Can't convert JSON value $jv to type $t at $parent.")
+          null
+        }.toMap
 
       case (JObject(jfields), t: TStruct) =>
         if (t.size == 0)
@@ -385,7 +405,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       t match {
         case TDouble => a.asInstanceOf[Double].formatted("%.4e")
         case TString => a.asInstanceOf[String]
-        case d: TDict => JsonMethods.compact(d.toJSON(a))
+        case d: TMap => JsonMethods.compact(d.toJSON(a))
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
         case t: TStruct => JsonMethods.compact(t.toJSON(a))
         case TGenotype => JsonMethods.compact(t.toJSON(a))
@@ -417,7 +437,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case TChar => a
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case t: TMap => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
     }
   }

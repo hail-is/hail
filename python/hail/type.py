@@ -47,8 +47,8 @@ class Type(object):
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.TSet':
             return TSet._from_java(jtype)
-        elif class_name == 'is.hail.expr.TDict':
-            return TDict._from_java(jtype)
+        elif class_name == 'is.hail.expr.TMap':
+            return TMap._from_java(jtype)
         elif class_name == 'is.hail.expr.TStruct':
             return TStruct._from_java(jtype)
         else:
@@ -310,29 +310,32 @@ class TSet(Type):
                 self.element_type._typecheck(elt)
 
 
-class TDict(Type):
+class TMap(Type):
     """
-    Hail type corresponding to dict keyed by strings
+    Hail type corresponding to dict
 
-    :param element_type: type of dict values
-    :type element_type: :class:`.Type`
+    :param key_type: type of map keys
+    :type key_type: :class:`.Type`
+    :param value_type: type of map values
+    :type value_type: :class:`.Type`
 
-    :ivar element_type: type of dict values
-    :vartype element_type: :class:`.Type`
+    :ivar key_type: type of map keys
+    :vartype key_type: :class:`.Type`
+    :ivar value_type: type of map values
+    :vartype value_type: :class:`.Type`
     """
 
-    def __init__(self, element_type):
-        """
-        :param :class:`.Type` element_type: Hail type of dict element
-        """
-        jtype = scala_object(env.hail.expr, 'TDict').apply(element_type._jtype)
-        self.element_type = element_type
-        super(TDict, self).__init__(jtype)
+    def __init__(self, key_type, value_type):
+        jtype = scala_object(env.hail.expr, 'TMap').apply(key_type._jtype, value_type._jtype)
+        self.key_type = key_type
+        self.value_type = value_type
+        super(TMap, self).__init__(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
-        t = TDict.__new__(cls)
-        t.element_type = Type._from_java(jtype.elementType())
+        t = TMap.__new__(cls)
+        t.key_type = Type._from_java(jtype.keyType())
+        t.value_type = Type._from_java(jtype.valueType())
         t._jtype = jtype
         return t
 
@@ -341,7 +344,7 @@ class TDict(Type):
             lst = env.jutils.iterableToArrayList(annotation)
             d = dict()
             for x in lst:
-                d[x._1()] = self.element_type._convert_to_py(x._2())
+                d[self.key_type._convert_to_py(x._1())] = self.value_type._convert_to_py(x._2())
             return d
         else:
             return annotation
@@ -349,7 +352,7 @@ class TDict(Type):
     def _convert_to_j(self, annotation):
         if annotation is not None:
             return env.jutils.javaMapToMap(
-                {k: self.element_type._convert_to_j(v) for k, v in annotation.iteritems()}
+                {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.iteritems()}
             )
         else:
             return annotation
@@ -357,9 +360,10 @@ class TDict(Type):
     def _typecheck(self, annotation):
         if annotation:
             if not isinstance(annotation, dict):
-                raise TypeCheckError("TDict expected type 'dict', but found type '%s'" % type(annotation))
-            for v in annotation.values():
-                self.element_type._typecheck(v)
+                raise TypeCheckError("TMap expected type 'dict', but found type '%s'" % type(annotation))
+            for k, v in annotation.iteritems():
+                self.key_type._typecheck(k)
+                self.value_type._typecheck(v)
 
 
 class Field(object):

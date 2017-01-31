@@ -68,7 +68,7 @@ object KuduAnnotationImpex extends AnnotationImpex[DataType, Any] {
         case _ => row.getSeq(field.index)
           .take(fixedArraySize).padTo(fixedArraySize, null)
       }
-      case mt: expr.TDict =>
+      case mt: expr.TMap =>
         throw new IllegalArgumentException("Cannot flatten MapType")
       case _ => if (row == null) Some(null) else Some(row.get(field.index))
     })

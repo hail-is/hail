@@ -109,19 +109,22 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - exists: `set.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
      - forall: `set.forall(v => expr)` -- returns a boolean which is true if the set is empty, or `expr` evaluates to `true` for **every** element
 
- - Dict Operations:
-     - select: `dict[key]` -- returns the value keyed by the string `key`.  An example might be `global.genedict["SCN2A"]`.
-     - contains: `dict.contains(key)` -- returns true if `dict` has key `key`, false otherwise.
-     - mapValues: `dict.mapValues(x => expr)` -- returns a new dict with a transformation of the values
-     - size: `dict.size` -- returns the number of key/value pairs
-     - isEmpty: `dict.isEmpty` -- returns true if there is at least one key/value pairs
+ - Map Operations:
+     - select: `map[key]` -- returns the value keyed by the string `key`.  Example: `global.genemap["SCN2A"]`.  This method will fail if the key is not contained in the map.
+     - get: `map.get(key)` -- identical to `select`, but returns missing if the key is not found, rather than failing.
+     - contains: `map.contains(key)` -- returns true if `map` has key `key`, false otherwise.
+     - mapValues: `map.mapValues(x => expr)` -- returns a new map with a transformation of the values
+     - size: `map.size` -- returns the number of key/value pairs
+     - isEmpty: `map.isEmpty` -- returns true if there is at least one key/value pairs
+     - keys: `map.keys` -- returns an `Array` of the map keys
+     - keySet: `map.keySet` -- returns a `Set` of the map keys
 
  - Struct Operations:
      - constructor: `{key1: 1, key2: "Hello", key3: 0.99, ...}` -- Create a new struct from specified field names and values in the format shown.
      - select: `struct.field` -- returns the value of the given field of a struct.  For example, `va.info.AC` selects the struct `info` from the struct `va`, and then selects the array `AC` from the struct `info`.
       - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
       - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
-      - index: `index(Array[Struct], fieldname)` -- returns a dictionary keyed by the string field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
+      - index: `index(Array[Struct], fieldname)` -- returns a map keyed by the field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
            
            For example, `global.gene_info` is the following `Array[Struct]`:
            
@@ -133,12 +136,12 @@ Several Hail commands provide the ability to perform a broad array of computatio
            
            We can index it by gene:
            ```
-           global.gene_dict = index(global.gene_info, genename)
+           global.gene_map = index(global.gene_info, genename)
            ```
            
            Now the following equality is true:
            ```
-           global.gene_dict["gene1"] == {PLI: 0.998, hits_in_exac: 1}
+           global.gene_map["gene1"] == {PLI: 0.998, hits_in_exac: 1}
            ```
 
   - Object constructors:

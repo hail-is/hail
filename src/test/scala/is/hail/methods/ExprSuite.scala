@@ -37,7 +37,7 @@ class ExprSuite extends SparkSuite {
       "mb" -> (12, TBoolean),
       "is" -> (13, TString),
       "iset" -> (14, TSet(TInt)),
-      "genedict" -> (15, TDict(TInt)),
+      "genedict" -> (15, TMap(TString, TInt)),
       "structArray" -> (16, TArray(TStruct(
         ("f1", TInt),
         ("f2", TString),
@@ -83,7 +83,9 @@ class ExprSuite extends SparkSuite {
 
     assert(a.length == symTab.size)
 
-    val rdd = sc.parallelize(Array(0), 1) // used to force serialization of values
+    val rdd = sc.parallelize(Array(0), 1)
+
+    // used to force serialization of values
     def eval[T](s: String): Option[T] = {
       val f = Parser.parseExpr(s, ec)._2
       val r = f().map(_.asInstanceOf[T])
@@ -334,7 +336,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("""emptyset.max""").isEmpty)
     assert(eval[Int]("""emptyset.median""").isEmpty)
 
-    assert(eval[Double]("""a.mean""").contains(22/7.0))
+    assert(eval[Double]("""a.mean""").contains(22 / 7.0))
     assert(eval[Int]("""a.sum""").contains(IndexedSeq(1, 2, 6, 3, 3, -1, 8).sum))
     assert(eval[String]("""str(i)""").contains("5"))
     assert(eval[String](""" "" + 5 + "5" """) == eval[String](""" "5" + 5 """))
@@ -394,7 +396,13 @@ class ExprSuite extends SparkSuite {
         "B" -> Annotation(5, 6),
         "C" -> Annotation(10, 10))
     ))
-    assert(dictType == TDict(TStruct(("f1", TInt), ("f3", TInt))))
+    assert(dictType == TMap(TString, TStruct(("f1", TInt), ("f3", TInt))))
+
+    val (dictt, dictr2) = evalWithType(""" index(structArray, f2)""")
+    assert(dictr2.contains(Map("A" -> Annotation(1, 2),
+      "B" -> Annotation(5,  6),
+      "C" -> Annotation(10, 10))))
+    assert(dictt == TMap(TString, TStruct("f1" -> TInt, "f3" -> TInt)))
 
     assert(eval[Int](""" index(structArray, f2)["B"].f3 """).contains(6))
     assert(eval[Map[_, _]](""" index(structArray, f2).mapValues(x => x.f1) """).contains(Map(
@@ -676,6 +684,7 @@ class ExprSuite extends SparkSuite {
 
   @Test def testIfNumericPromotion() {
     val ec = EvalContext(Map("c" -> (0, TBoolean), "l" -> (1, TLong), "f" -> (2, TFloat)))
+
     def eval[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parseExpr(s, ec)
       (t, f().map(_.asInstanceOf[T]))
