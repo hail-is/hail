@@ -580,7 +580,7 @@ object Genotype {
         } else
           a.readULEB128()
       } else
-        -1 // None
+        -1
 
     val px: Array[Int] =
       if (flagHasPX(flags)) {
@@ -889,8 +889,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
         for (i <- _ad.indices)
           _ad(i) = a.readULEB128()
       }
-    } else
-      _ad(0) = -1
+    }
 
     _dp =
       if (Genotype.flagHasDP(flags)) {
@@ -908,7 +907,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
         } else
           a.readULEB128()
       } else
-        -1 // None
+        -1
 
     if (_hasPX) {
       if (_gt >= 0) {
@@ -933,8 +932,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
           i += 1
         }
       }
-    } else
-      _px(0) = -1
+    }
 
     _gq =
       if (Genotype.flagHasGQ(flags)) {
