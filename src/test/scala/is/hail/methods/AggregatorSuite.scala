@@ -230,9 +230,7 @@ class AggregatorSuite extends SparkSuite {
     Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)) { vds =>
       var s = State(sc, sqlContext, vds)
       s = AnnotateGlobalExprByVariant.run(s, "-c", "global = variants.map(v => v.contig).counter()")
-      val counterMap = s.vds.globalAnnotation.asInstanceOf[IndexedSeq[Row]]
-        .map { r => (r.getAs[String](0), r.getAs[Long](1)) }
-        .toMap
+      val counterMap = s.vds.globalAnnotation
       val aggMap = vds.variants.map(_.contig).countByValue()
       aggMap == counterMap
     }.check()
