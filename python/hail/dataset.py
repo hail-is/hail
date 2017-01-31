@@ -809,9 +809,9 @@ class VariantDataset(object):
             condition = ','.join(condition)
 
         if vds_key is None:
-            jvds = self._jvds.annotateVariantsKeyTable(keytable.jkt, condition)
+            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, condition)
         else:
-            jvds = self._jvds.annotateVariantsKeyTable(keytable.jkt, vds_key, condition)
+            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, vds_key, condition)
 
         return VariantDataset(self.hc, jvds)
 
