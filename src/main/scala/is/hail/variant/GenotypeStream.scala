@@ -24,6 +24,17 @@ class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIt
   override def nextInt(): Int = Genotype.hardCallRead(nAlleles, isDosage, b)
 }
 
+class MutableGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
+  private val mutableGenotype = new MutableGenotype(nAlleles)
+
+  override def hasNext: Boolean = b.hasNext
+
+  override def next(): Genotype = {
+    mutableGenotype.set(nAlleles, isDosage, b)
+    mutableGenotype
+  }
+}
+
 object LZ4Utils {
   val factory = LZ4Factory.fastestInstance()
   val compressor = factory.highCompressor()
@@ -57,6 +68,15 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
         new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
         new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
+    }
+  }
+
+  def mutableIterator: MutableGenotypeStreamIterator = {
+    decompLenOption match {
+      case Some(decompLen) =>
+        new MutableGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
+      case None =>
+        new MutableGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
     }
   }
 
@@ -139,7 +159,6 @@ class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false, compress: 
     gb.write(b)
     this
   }
-
 
   def write(gb: GenotypeBuilder) {
     gb.write(b)

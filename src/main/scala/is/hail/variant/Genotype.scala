@@ -51,12 +51,12 @@ class GTPair(val p: Int) extends AnyVal {
   def alleleIndices: Array[Int] = {
     Array(this.j, this.k)
   }
-
 }
 
 abstract class Genotype extends Serializable {
-  val fakeRef: Boolean
-  val isDosage: Boolean
+  def fakeRef: Boolean
+
+  def isDosage: Boolean
 
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
@@ -120,51 +120,25 @@ abstract class Genotype extends Serializable {
 
   def dosage: Option[Array[Double]]
 
-  def isHomRef: Boolean = unboxedGT == 0
+  def isHomRef: Boolean = Genotype.isHomRef(unboxedGT)
 
-  def isHet: Boolean = unboxedGT > 0 && {
-    val p = Genotype.gtPair(unboxedGT)
-    p.j != p.k
-  }
+  def isHet: Boolean = Genotype.isHet(unboxedGT)
 
-  def isHomVar: Boolean = unboxedGT > 0 && {
-    val p = Genotype.gtPair(unboxedGT)
-    p.j == p.k
-  }
+  def isHomVar: Boolean = Genotype.isHomVar(unboxedGT)
 
-  def isCalledNonRef: Boolean = unboxedGT > 0
+  def isCalledNonRef: Boolean = Genotype.isCalledNonRef(unboxedGT)
 
-  def isHetNonRef: Boolean = unboxedGT > 0 && {
-    val p = Genotype.gtPair(unboxedGT)
-    p.j > 0 && p.j != p.k
-  }
+  def isHetNonRef: Boolean = Genotype.isHetNonRef(unboxedGT)
 
-  def isHetRef: Boolean = unboxedGT > 0 && {
-    val p = Genotype.gtPair(unboxedGT)
-    p.j == 0 && p.k > 0
-  }
+  def isHetRef: Boolean = Genotype.isHetRef(unboxedGT)
 
-  def isNotCalled: Boolean = unboxedGT == -1
+  def isNotCalled: Boolean = Genotype.isNotCalled(unboxedGT)
 
-  def isCalled: Boolean = unboxedGT >= 0
+  def isCalled: Boolean = Genotype.isCalled(unboxedGT)
 
-  def gtType: GenotypeType =
-    if (isHomRef)
-      GenotypeType.HomRef
-    else if (isHet)
-      GenotypeType.Het
-    else if (isHomVar)
-      GenotypeType.HomVar
-    else {
-      assert(isNotCalled)
-      GenotypeType.NoCall
-    }
+  def gtType: GenotypeType = Genotype.gtType(unboxedGT)
 
-  def nNonRefAlleles: Option[Int] =
-    if (unboxedGT >= 0)
-      Some(Genotype.gtPair(unboxedGT).nNonRefAlleles)
-    else
-      None
+  def nNonRefAlleles: Option[Int] = Genotype.nNonRefAlleles(unboxedGT)
 
   def oneHotAlleles(nAlleles: Int): Option[IndexedSeq[Int]] = {
     gt.map { call =>
@@ -377,6 +351,52 @@ object Genotype {
   def flagSetFakeRef(flags: Int): Int = flags | flagFakeRefBit
 
   def flagUnsetFakeRef(flags: Int): Int = flags ^ flagFakeRefBit
+
+  def isHomRef(gt: Int): Boolean = gt == 0
+
+  def isHet(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j != p.k
+  }
+
+  def isHomVar(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j == p.k
+  }
+
+  def isCalledNonRef(gt: Int): Boolean = gt > 0
+
+  def isHetNonRef(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j > 0 && p.j != p.k
+  }
+
+  def isHetRef(gt: Int): Boolean = gt > 0 && {
+    val p = Genotype.gtPair(gt)
+    p.j == 0 && p.k > 0
+  }
+
+  def isNotCalled(gt: Int): Boolean = gt == -1
+
+  def isCalled(gt: Int): Boolean = gt >= 0
+
+  def gtType(gt: Int): GenotypeType =
+    if (isHomRef(gt))
+      GenotypeType.HomRef
+    else if (isHet(gt))
+      GenotypeType.Het
+    else if (isHomVar(gt))
+      GenotypeType.HomVar
+    else {
+      assert(isNotCalled(gt))
+      GenotypeType.NoCall
+    }
+
+  def nNonRefAlleles(gt: Int): Option[Int] =
+    if (gt >= 0)
+      Some(Genotype.gtPair(gt).nNonRefAlleles)
+    else
+      None
 
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99
@@ -786,6 +806,156 @@ class GenericGenotype(private val _gt: Int,
     else
       Some(Genotype.phredToDosage(_px))
 }
+
+class MutableGenotype(nAlleles: Int) extends Genotype {
+
+  private var _gt: Int = 0
+  private val _ad: Array[Int] = Array.ofDim[Int](nAlleles)
+  private var _dp: Int = 0
+  private var _gq: Int = 0
+  private val _px: Array[Int] = Array.ofDim[Int](triangle(nAlleles))
+  var _fakeRef: Boolean = false
+  var _isDosage: Boolean = false
+
+  if (isDosage) {
+    require(_gq == -1)
+    if (_px(0) == -1)
+      require(_gt == -1)
+    else {
+      require(_px.sum == 32768)
+      require(_gt == Genotype.gtFromLinear(_px).getOrElse(-1))
+    }
+  }
+
+  def unboxedGT: Int = _gt
+  def fakeRef: Boolean = _fakeRef
+  def isDosage: Boolean = _isDosage
+
+  def ad: Option[Array[Int]] = if (_ad(0) >= 0) Some(_ad) else None
+
+  def dp: Option[Int] =
+    if (_dp >= 0)
+      Some(_dp)
+    else
+      None
+
+  def od: Option[Int] =
+    if (_dp >= 0 && _ad(0) >= 0)
+      Some(_dp - _ad.sum)
+    else
+      None
+
+  def gq: Option[Int] =
+    if (_gq >= 0)
+      Some(_gq)
+    else
+      None
+
+  def px: Option[Array[Int]] = if (_px(0) >= 0) Some(_px) else None
+
+  def pl: Option[Array[Int]] =
+    if (_px(0) < 0)
+      None
+    else if (!isDosage)
+      Some(_px)
+    else
+      Some(Genotype.linearToPhred(_px))
+
+  def dosage: Option[Array[Double]] =
+    if (_px(0) >= 0)
+      None
+    else if (isDosage)
+      Some(_px.map(_ / 32768.0))
+    else
+      Some(Genotype.phredToDosage(_px))
+
+  def set(nAlleles: Int, isDosage: Boolean, a: ByteIterator) {
+    val isBiallelic = nAlleles == 2
+
+    val flags = a.readULEB128()
+
+    _gt =
+      if (Genotype.flagHasGT(isBiallelic, flags)) {
+        if (Genotype.flagStoresGT(isBiallelic, flags))
+          Genotype.flagGT(isBiallelic, flags)
+        else
+          a.readULEB128()
+      } else
+        -1
+
+    if (Genotype.flagHasAD(flags)) {
+      if (Genotype.flagSimpleAD(flags)) {
+        assert(_gt >= 0)
+        val p = Genotype.gtPair(_gt)
+        _ad(p.j) = a.readULEB128()
+        if (p.j != p.k)
+          _ad(p.k) = a.readULEB128()
+      } else {
+        for (i <- _ad.indices)
+          _ad(i) = a.readULEB128()
+      }
+    } else
+      _ad(0) = -1
+
+    _dp =
+      if (Genotype.flagHasDP(flags)) {
+        if (Genotype.flagHasAD(flags)) {
+          var i = 0
+          var adsum = 0
+          while (i < _ad.length) {
+            adsum += _ad(i)
+            i += 1
+          }
+          if (Genotype.flagSimpleDP(flags))
+            adsum
+          else
+            adsum + a.readULEB128()
+        } else
+          a.readULEB128()
+      } else
+        -1 // None
+
+    if (Genotype.flagHasPX(flags)) {
+      if (_gt >= 0) {
+        var i = 0
+        while (i < _gt) {
+          _px(i) = a.readULEB128()
+          i += 1
+        }
+        i += 1
+        while (i < _px.length) {
+          _px(i) = a.readULEB128()
+          i += 1
+        }
+        if (isDosage)
+          _px(_gt) = 32768 - _px.sum // original values summed to 32768 or 1.0 in probability
+        else
+          _px(_gt) = 0
+      } else {
+        var i = 0
+        while (i < _px.length) {
+          _px(i) = a.readULEB128()
+          i += 1
+        }
+      }
+    } else
+      _px(0) = -1
+
+    _gq =
+      if (Genotype.flagHasGQ(flags)) {
+        if (Genotype.flagSimpleGQ(flags))
+          Genotype.gqFromPL(_px)
+        else
+          a.readULEB128()
+      } else
+        -1
+
+    _fakeRef = Genotype.flagFakeRef(flags)
+
+    _isDosage = isDosage
+  }
+}
+
 
 class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {
   require(nAlleles > 0, s"tried to create genotype builder with $nAlleles ${ plural(nAlleles, "allele") }")
