@@ -809,29 +809,21 @@ class GenericGenotype(private val _gt: Int,
 
 class MutableGenotype(nAlleles: Int) extends Genotype {
 
-  private var _gt: Int = 0
+  private var _gt: Int = -1
   private val _ad: Array[Int] = Array.ofDim[Int](nAlleles)
-  private var _dp: Int = 0
-  private var _gq: Int = 0
+  private var _dp: Int = -1
+  private var _gq: Int = -1
   private val _px: Array[Int] = Array.ofDim[Int](triangle(nAlleles))
-  var _fakeRef: Boolean = false
-  var _isDosage: Boolean = false
-
-  if (isDosage) {
-    require(_gq == -1)
-    if (_px(0) == -1)
-      require(_gt == -1)
-    else {
-      require(_px.sum == 32768)
-      require(_gt == Genotype.gtFromLinear(_px).getOrElse(-1))
-    }
-  }
+  private var _fakeRef: Boolean = false
+  private var _isDosage: Boolean = false
+  private var _hasAD = false
+  private var _hasPX = false
 
   def unboxedGT: Int = _gt
   def fakeRef: Boolean = _fakeRef
   def isDosage: Boolean = _isDosage
 
-  def ad: Option[Array[Int]] = if (_ad(0) >= 0) Some(_ad) else None
+  def ad: Option[Array[Int]] = if (_hasAD) Some(_ad) else None
 
   def dp: Option[Int] =
     if (_dp >= 0)
@@ -840,7 +832,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
       None
 
   def od: Option[Int] =
-    if (_dp >= 0 && _ad(0) >= 0)
+    if (_dp >= 0 && _hasAD)
       Some(_dp - _ad.sum)
     else
       None
@@ -851,10 +843,10 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
     else
       None
 
-  def px: Option[Array[Int]] = if (_px(0) >= 0) Some(_px) else None
+  def px: Option[Array[Int]] = if (_hasPX) Some(_px) else None
 
   def pl: Option[Array[Int]] =
-    if (_px(0) < 0)
+    if (!_hasPX)
       None
     else if (!isDosage)
       Some(_px)
@@ -862,17 +854,20 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
       Some(Genotype.linearToPhred(_px))
 
   def dosage: Option[Array[Double]] =
-    if (_px(0) >= 0)
+    if (_hasPX)
       None
     else if (isDosage)
       Some(_px.map(_ / 32768.0))
     else
       Some(Genotype.phredToDosage(_px))
 
-  def set(nAlleles: Int, isDosage: Boolean, a: ByteIterator) {
+  def read(nAlleles: Int, isDosage: Boolean, a: ByteIterator) {
     val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
+
+    _hasAD = Genotype.flagHasAD(flags)
+    _hasPX = Genotype.flagHasPX(flags)
 
     _gt =
       if (Genotype.flagHasGT(isBiallelic, flags)) {
@@ -883,7 +878,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
       } else
         -1
 
-    if (Genotype.flagHasAD(flags)) {
+    if (_hasAD) {
       if (Genotype.flagSimpleAD(flags)) {
         assert(_gt >= 0)
         val p = Genotype.gtPair(_gt)
@@ -899,7 +894,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
 
     _dp =
       if (Genotype.flagHasDP(flags)) {
-        if (Genotype.flagHasAD(flags)) {
+        if (_hasAD) {
           var i = 0
           var adsum = 0
           while (i < _ad.length) {
@@ -915,7 +910,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
       } else
         -1 // None
 
-    if (Genotype.flagHasPX(flags)) {
+    if (_hasPX) {
       if (_gt >= 0) {
         var i = 0
         while (i < _gt) {

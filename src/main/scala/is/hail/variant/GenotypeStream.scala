@@ -30,7 +30,7 @@ class MutableGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIte
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = {
-    mutableGenotype.set(nAlleles, isDosage, b)
+    mutableGenotype.read(nAlleles, isDosage, b)
     mutableGenotype
   }
 }
