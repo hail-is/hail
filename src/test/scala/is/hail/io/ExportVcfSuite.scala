@@ -94,7 +94,7 @@ class ExportVcfSuite extends SparkSuite {
   }
 
   @Test def testEmptyReadWrite() {
-    var s = FilterVariantsAll.run(State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sample.vcf"))
+    var s = FilterVariantsAll.run(State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sample.vcf")))
     val out = tmpDir.createTempFile("foo", "vcf")
     val out2 = tmpDir.createTempFile("foo", "vcf.bgz")
 
