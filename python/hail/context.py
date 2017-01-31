@@ -6,6 +6,7 @@ from hail.dataset import VariantDataset
 from hail.java import jarray, scala_object, scala_package_object, joption, Env, raise_py4j_exception
 from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
+from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 from py4j.protocol import Py4JJavaError
 
 
@@ -552,6 +553,7 @@ class HailContext(object):
     def balding_nichols_model(self, populations, samples, variants, partitions=None,
                               pop_dist=None,
                               fst=None,
+                              af_dist = UniformDist(0.1, 0.9),
                               root="bn",
                               seed=0):
         """
@@ -563,9 +565,13 @@ class HailContext(object):
 
         >>> vds = hc.balding_nichols_model(3, 100, 1000)
 
-        To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12],  and root "balding", and random seed 1:
+        To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12], root "mymodel", ancestral allele frequencies drawn from a truncated beta distribution with a = .01 and b = .05 over the interval [0.05, 1], and random seed 1:
 
-        >>> vds = hc.balding_nichols_model(4, 40, 150, 10, pop_dist=[0.1, 0.2, 0.3, 0.4], fst=[.02, .06, .04, .12], root="balding", seed=1)
+        >>> vds = hc.balding_nichols_model(4, 40, 150, 10,
+        >>>     pop_dist=[0.1, 0.2, 0.3, 0.4],
+        >>>     fst=[.02, .06, .04, .12],
+        >>>     af_dist=TruncatedBetaDist(a=0.01, b=2.0, minVal=0.05, maxVal=1.0),
+        >>>     root="mymodel", seed=1)
 
         **Notes**
 
@@ -574,8 +580,8 @@ class HailContext(object):
         - :math:`K` populations are labeled by integers 0, 1, ..., K - 1
         - :math:`N` samples are named by strings 0, 1, ..., N - 1
         - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ..., ``1:M:A:C``
-        - The ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]
-        - The population distribution defaults to uniform
+        - The default ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]. Options are UniformDist(minVal, maxVal), BetaDist(a, b), and TruncatedBetaDist(a, b, minVal, maxVal)
+        - The population distribution :math:`\pi` defaults to uniform
         - The :math:`F_{st}` values default to 0.1
         - The number of partitions defaults to one partition per million genotypes (i.e., samples * variants / 10^6) or 8, whichever is larger
 
@@ -609,6 +615,7 @@ class HailContext(object):
          - **global.bn.popDist** (*Array[Double]*) -- Normalized population distribution indexed by population
          - **global.bn.Fst** (*Array[Double]*) -- F_st values indexed by population
          - **global.bn.seed** (*Int*) -- Random seed
+         - **global.bn.ancestralAFDist (*Struct*) -- Information about ancestral allele frequency distribution
          - **sa.bn.pop** (*Int*) -- Population of sample
          - **va.bn.ancestralAF** (*Double*) -- Ancestral allele frequency
          - **va.bn.AF** (*Array[Double]*) -- Allele frequency indexed by population
@@ -626,6 +633,9 @@ class HailContext(object):
 
         :param fst: F_st values
         :type fst: array of float or None
+
+        :param af_dist: Ancestral allele frequency distribution
+        :type af_dist: :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
 
         :param str root: Annotation root to follow global, sa and va.
 
@@ -646,12 +656,11 @@ class HailContext(object):
         else:
             jvm_fst_opt = joption(jarray(self._jvm.double, fst))
 
-        return VariantDataset(self,
-                              self._hail.stats.BaldingNicholsModel.apply(self._jsc, populations, samples, variants,
-                                                                         jvm_pop_dist_opt,
-                                                                         jvm_fst_opt,
-                                                                         seed,
-                                                                         joption(partitions), root))
+        return VariantDataset(self, self._hail.stats.BaldingNicholsModel.apply(self._jsc,  populations, samples, variants,
+                            jvm_pop_dist_opt,
+                            jvm_fst_opt,
+                            seed,
+                            joption(partitions), af_dist._jrep(), root))
 
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.

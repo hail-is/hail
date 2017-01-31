@@ -6,7 +6,7 @@ import breeze.linalg.{DenseVector, sum}
 import org.apache.spark.SparkContext
 import org.apache.commons.math3.random.JDKRandomGenerator
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TDouble, TInt, TStruct}
+import is.hail.expr.{TArray, TDouble, TInt, TString, TStruct}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
 
@@ -14,7 +14,7 @@ object BaldingNicholsModel {
 
   def apply(sc: SparkContext, nPops: Int, nSamples: Int, nVariants: Int,
     popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
-    seed: Int, nPartitionsOpt: Option[Int], root: String): VariantDataset = {
+    seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution, root: String): VariantDataset = {
 
     if (nPops < 1)
       fatal(s"Number of populations must be positive, got ${ nPops }")
@@ -46,6 +46,15 @@ object BaldingNicholsModel {
     if (nPartitions <= 1)
       fatal(s"Number of partitions must be positive, got $nPartitions")
 
+    af_dist match {
+      case u: UniformDist =>
+        if (u.minVal < 0)
+          fatal(s"minVal ${u.minVal} must be at least 0")
+        else if (u.maxVal > 1)
+          fatal(s"maxVal ${u.maxVal} must be at most 1")
+      case _ =>
+    }
+
     val N = nSamples
     val M = nVariants
     val K = nPops
@@ -69,16 +78,16 @@ object BaldingNicholsModel {
 
     val variantSeed = Rand.randInt.draw();
     val variantSeedBc = sc.broadcast(variantSeed)
+    
 
-    val rdd = sc.parallelize(
-      (0 until M).map { m =>
+    val rdd = sc.parallelize(0 until M, nPartitions)
+      .map { m =>
+        val perVariantSeed = variantSeedBc.value + m
         val perVariantRandomGenerator = new JDKRandomGenerator
-        perVariantRandomGenerator.setSeed(variantSeedBc.value + m)
+        perVariantRandomGenerator.setSeed(perVariantSeed)
         val perVariantRandomBasis = new RandBasis(perVariantRandomGenerator)
 
-        val unif = new Uniform(0, 1)(perVariantRandomBasis)
-
-        val ancestralAF = Uniform(.1, .9).draw()
+        val ancestralAF = af_dist.getBreezeDist(perVariantRandomBasis).draw()
 
         val popAF_k = (0 until K).map{k =>
           new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
@@ -89,33 +98,50 @@ object BaldingNicholsModel {
             (0 until N).map { n =>
               val p = popAF_k(popOfSample_nBc.value(n))
               val pSq = p * p
-              val x = unif.draw()
-              val genotype_num =
+              val x = new Uniform(0, 1)(perVariantRandomBasis).draw()
+              val gt =
                 if (x < pSq)
                   2
                 else if (x > 2 * p - pSq)
                   0
                 else
                   1
-              Genotype(genotype_num)
+              Genotype(gt)
             }: Iterable[Genotype]
           )
         )
-      },
-      nPartitions
-    ).toOrderedRDD
+      }
+    .toOrderedRDD
 
     val sampleIds = (0 until N).map(_.toString).toArray
-    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(x => Annotation(Annotation(x)))
+    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(Annotation(pop)))
+
+    val ancestralAFAnnotation = af_dist match {
+      case UniformDist(minVal, maxVal) => Annotation("UniformDist", minVal, maxVal)
+      case BetaDist(a, b) => Annotation("BetaDist", a, b)
+      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("TruncatedBeta", a, b, minVal, maxVal)
+    }
     val globalAnnotation = Annotation(
-      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], seed))
+      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed))
 
     val saSignature = TStruct(root -> TStruct("pop" -> TInt))
     val vaSignature = TStruct(root -> TStruct("ancestralAF" -> TDouble, "AF" -> TArray(TDouble)))
-    val globalSignature = TStruct(root ->
-      TStruct("nPops" -> TInt, "nSamples" -> TInt, "nVariants" -> TInt,
-        "popDist" -> TArray(TDouble), "Fst" -> TArray(TDouble), "seed" -> TInt))
 
+    val ancestralAFAnnotationSignature = af_dist match {
+      case UniformDist(minVal, maxVal) => TStruct("type" -> TString, "minVal" -> TDouble, "maxVal" -> TDouble)
+      case BetaDist(a, b) => TStruct("type" -> TString, "a" -> TDouble, "b" -> TDouble)
+      case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString, "a" -> TDouble, "b" -> TDouble, "minVal" -> TDouble, "maxVal" -> TDouble)
+    }
+
+    val globalSignature = TStruct(root ->
+      TStruct(
+        "nPops" -> TInt,
+        "nSamples" -> TInt,
+        "nVariants" -> TInt,
+        "popDist" -> TArray(TDouble),
+        "Fst" -> TArray(TDouble),
+        "ancestralAFDist" -> ancestralAFAnnotationSignature,
+        "seed" -> TInt))
     new VariantDataset(
       new VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation, saSignature, vaSignature, globalSignature, wasSplit=true),
       rdd
