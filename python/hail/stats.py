@@ -1,3 +1,5 @@
+from hail.java import env
+
 class BetaDist:
     """
     Represents a beta distribution with parameters a and b.
@@ -5,6 +7,10 @@ class BetaDist:
     def __init__(self, a, b):
         self.a = a
         self.b = b
+
+
+    def _jrep(self):
+        return env.hail.stats.BetaDist.apply(float(self.a), float(self.b))
 
 
 class UniformDist:
@@ -16,6 +22,9 @@ class UniformDist:
             raise ValueError("min must be less than max")
         self.minVal = minVal
         self.maxVal = maxVal
+
+    def _jrep(self):
+        return env.hail.stats.UniformDist.apply(float(self.minVal), float(self.maxVal))
 
 class TruncatedBetaDist:
     """
@@ -34,3 +43,6 @@ class TruncatedBetaDist:
         self.maxVal = maxVal
         self.a = a
         self.b = b
+
+    def _jrep(self):
+        return env.hail.stats.TruncatedBetaDist.apply(float(self.a), float(self.b), float(self.minVal), float(self.maxVal))
