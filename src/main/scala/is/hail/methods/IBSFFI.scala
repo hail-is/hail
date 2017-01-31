@@ -11,24 +11,22 @@ object IBSFFI {
 
   @native
   def ibsMat(result: Array[Long], nSamples: Long, nPacks: Long, genotypes1: Array[Long], genotypes2: Array[Long])
-  //native is c function
 
-  Native.register("ibs");
-  // ibs is c-library to look for any Native annotated function (ibsMat)
+  Native.register("ibs")
 
-  val genotypesPerPack = 32 // number of people per long
+  val genotypesPerPack = 32
 
-  def pack(nSamples: Int, nGenotypes: Int, gs: Array[Byte]): Array[Long] = { // Each byte is one person's genotype (0, 1, 2, 3); made sure nGenotypes is mult 32 earlier
-    require(nGenotypes % 32 == 0);
+  def pack(nSamples: Int, nGenotypes: Int, gs: Array[Byte]): Array[Long] = {
+    require(nGenotypes % 32 == 0)
 
-    val nPacks = nGenotypes / genotypesPerPack // number of longs
+    val nPacks = nGenotypes / genotypesPerPack
 
     val sampleOrientedGenotypes = new Array[Long](nSamples * nPacks)
-    var si = 0 // sample
+    var si = 0
     while (si != nSamples) {
       var pack = 0
       while (pack != nPacks) {
-        val k = si + pack*genotypesPerPack*nSamples //pack*genPerPack => variant index ( pack is subset of variants)
+        val k = si + pack*genotypesPerPack*nSamples
         sampleOrientedGenotypes(si * nPacks + pack) =
             gs(k).toLong                 << 62 | gs(k + 1 * nSamples).toLong  << 60 | gs(k + 2 * nSamples).toLong  << 58 | gs(k + 3 * nSamples).toLong  << 56 |
             gs(k + 4 * nSamples).toLong  << 54 | gs(k + 5 * nSamples).toLong  << 52 | gs(k + 6 * nSamples).toLong  << 50 | gs(k + 7 * nSamples).toLong  << 48 |
@@ -47,11 +45,11 @@ object IBSFFI {
   }
 
   def ibs(nSamples: Int, nGenotypes: Int, gs1: Array[Long], gs2: Array[Long]): Array[Long] = {
-    require(nGenotypes % 32 == 0);
+    require(nGenotypes % 32 == 0)
 
     val nPacks = nGenotypes / genotypesPerPack
-    val ibs = new Array[Long](nSamples * nSamples * 3) //result
-    ibsMat(ibs, nSamples, nPacks, gs1, gs2) // gsX arbitrary sub matrix
+    val ibs = new Array[Long](nSamples * nSamples * 3)
+    ibsMat(ibs, nSamples, nPacks, gs1, gs2)
     ibs
   }
 

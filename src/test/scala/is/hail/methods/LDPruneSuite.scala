@@ -163,12 +163,10 @@ class LDPruneSuite extends SparkSuite {
   @Test def testMultipleChr() = {
     val r2 = 0.2
     val window = 500
-
     var s = State(sc, sqlContext, null)
     s = ImportVCF.run(s, Array("-i", "src/test/resources/ldprune_multchr.vcf", "-n", "10"))
     s = SplitMulti.run(s, Array.empty[String])
     val prunedVds = LDPrune.ldPrune(s.vds, r2, window, bytesPerCore)
-
     assert(uncorrelated(prunedVds, r2, window))
   }
 
@@ -177,7 +175,7 @@ class LDPruneSuite extends SparkSuite {
       window: Int <- Gen.choose(0, 5000);
       numPartitions: Int <- Gen.choose(5, 10)) yield (r2, window, numPartitions)
 
-    val vectorGen = for (nSamples: Int <- Gen.choose(1, 10000);
+    val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
       v1: Array[Int] <- Gen.buildableOfN[Array, Int](nSamples, Gen.choose(-1, 2));
       v2: Array[Int] <- Gen.buildableOfN[Array, Int](nSamples, Gen.choose(-1, 2))
     ) yield (nSamples, v1, v2)
@@ -198,7 +196,7 @@ class LDPruneSuite extends SparkSuite {
         res
       }
 
-    property("bitPacked same as BVector") =
+    property("R2 bitPacked same as BVector") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
         val gs1 = convertGtToGs(v1)
         val gs2 = convertGtToGs(v2)
@@ -274,7 +272,7 @@ class LDPruneSuite extends SparkSuite {
 
     val nSamples = 5
     val nVariants = 5
-    val memoryPerVariant = LDPrune.variantByteOverhead + math.ceil(nSamples.toDouble / LDPrune.genotypesPerPack).toLong
+    val memoryPerVariant = LDPrune.variantByteOverhead + math.ceil(8 * nSamples.toDouble / LDPrune.genotypesPerPack).toLong
     val recipFractionMemoryUsed = 1.0 / LDPrune.fractionMemoryToUse
     val memoryPerCore = math.ceil(memoryPerVariant * recipFractionMemoryUsed).toInt
 
@@ -297,29 +295,8 @@ class LDPruneSuite extends SparkSuite {
     s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz"))
     val nSamples = s.vds.nSamples
     val vds = s.vds.filterVariants{ case (v, va, gs) => v.isBiallelic && LDPrune.toBitPackedVector(gs, nSamples).isDefined }
-
     val prunedVds = LDPrune.ldPrune(vds, 1, 0, 200000)
     val nVariantsExpected = vds.nVariants
     assert(prunedVds.nVariants == nVariantsExpected)
-  }
-
-  @Test def test10K() {
-    var s = State(sc, sqlContext, null)
-    s = Read.run(s, Array("ALL.1KG.10K.vds"))
-    val prunedVds = LDPrune.ldPrune(s.vds, 1, 100000000, ((1 * 1024 * 1024).toDouble / 9).toInt)
-    prunedVds.nVariants
-    while (true) {}
-  }
-
-
-  @Test def test100K() {
-    val (count, duration) = time({
-      var s = State(sc, sqlContext, null)
-      s = Read.run(s, Array("1000Genomes.ALL.coreExome100K.updated.vds"))
-      val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 1000000, 256 * 1024 * 1024)
-      prunedVds.nVariants
-    })
-    info(s"time = ${formatTime(duration)}")
-//    while (true) {}
   }
 }
