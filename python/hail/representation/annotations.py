@@ -47,3 +47,6 @@ class Struct(object):
 
     def __eq__(self, other):
         return self._attrs == other._attrs
+
+    def __hash__(self):
+        return 37 + hash(tuple(sorted(self._attrs.items())))

@@ -36,6 +36,9 @@ class Type(object):
     def __eq__(self, other):
         return self._jtype.equals(other._jtype)
 
+    def __hash__(self):
+        return self._jtype.hashCode()
+
     @classmethod
     def _from_java(cls, jtype):
         # FIXME string matching is pretty hacky

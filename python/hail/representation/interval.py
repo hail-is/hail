@@ -27,6 +27,9 @@ class Interval(object):
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
 
+    def __hash__(self):
+        return self._jrep.hashCode()
+
     def _init_from_java(self, jrep):
         self._jrep = jrep
         self._start = Locus._from_java(self._jrep.start())

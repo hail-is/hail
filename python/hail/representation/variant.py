@@ -31,6 +31,9 @@ class Variant(object):
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
 
+    def __hash__(self):
+        return self._jrep.hashCode()
+
     def _init_from_java(self, jrep):
         self._jrep = jrep
         self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
@@ -262,6 +265,9 @@ class AltAllele(object):
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
 
+    def __hash__(self):
+        return self._jrep.hashCode()
+
     def _init_from_java(self, jrep):
         self._jrep = jrep
 
@@ -410,6 +416,9 @@ class Locus(object):
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
+
+    def __hash__(self):
+        return self._jrep.hashCode()
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
