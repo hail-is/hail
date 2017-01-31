@@ -10,7 +10,7 @@ import scala.collection.mutable
 
 class BaldingNicholsModelSuite extends SparkSuite {
 
-  @Test def testDeterminism() = {
+  @Test def testDeterminism() {
     val K = 3
     val N = 100
     val M = 100
@@ -84,7 +84,6 @@ class BaldingNicholsModelSuite extends SparkSuite {
     }
   }
 
-
   @Test def testAFRanges() {
     testRangeHelp(TruncatedBetaDist(.01, 2, .2, .8), .2, .8, 0)
     testRangeHelp(TruncatedBetaDist(3, 3, .4, .6), .4, .6, 1)
@@ -97,7 +96,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
       val bnm = BaldingNicholsModel(sc, 3, 400, 400, None, None, seed, Some(4), dist, "bn")
 
       val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[GenericRow]]
-      val arrayOfAncestralAFs = arrayOfVARows.map(row => row.get(0).asInstanceOf[GenericRow]).map(row => (row.get(0)).asInstanceOf[Double])
+      val arrayOfAncestralAFs = arrayOfVARows.map(row => row.get(0).asInstanceOf[GenericRow]).map(_.get(0).asInstanceOf[Double])
 
       assert(arrayOfAncestralAFs.forall(af => af > min && af < max))
     }

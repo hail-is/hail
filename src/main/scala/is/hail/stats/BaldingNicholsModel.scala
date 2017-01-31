@@ -46,12 +46,13 @@ object BaldingNicholsModel {
     if (nPartitions <= 1)
       fatal(s"Number of partitions must be positive, got $nPartitions")
 
-    if (af_dist.isInstanceOf[UniformDist]) {
-      val uniform = af_dist.asInstanceOf[UniformDist]
-      if (uniform.minVal < 0)
-        fatal("minVal cannot be less than 0")
-      else if (uniform.maxVal > 1)
-        fatal("maxVal cannot be greater than 1")
+    af_dist match {
+      case u: UniformDist =>
+        if (u.minVal < 0)
+          fatal(s"minVal ${u.minVal} must be at least 0")
+        else if (u.maxVal > 1)
+          fatal(s"maxVal ${u.maxVal} must be at most 1")
+      case _ =>
     }
 
     val N = nSamples
@@ -79,8 +80,8 @@ object BaldingNicholsModel {
     val variantSeedBc = sc.broadcast(variantSeed)
     
 
-    val rdd = sc.parallelize(
-      (0 until M), nPartitions).map { m =>
+    val rdd = sc.parallelize(0 until M, nPartitions)
+      .map { m =>
         val perVariantSeed = variantSeedBc.value + m
         val perVariantRandomGenerator = new JDKRandomGenerator
         perVariantRandomGenerator.setSeed(perVariantSeed)
