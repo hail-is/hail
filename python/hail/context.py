@@ -615,6 +615,7 @@ class HailContext(object):
          - **global.bn.popDist** (*Array[Double]*) -- Normalized population distribution indexed by population
          - **global.bn.Fst** (*Array[Double]*) -- F_st values indexed by population
          - **global.bn.seed** (*Int*) -- Random seed
+         - **global.bn.ancestralDist (*Struct*) -- Information about ancestral allele frequency distribution
          - **sa.bn.pop** (*Int*) -- Population of sample
          - **va.bn.ancestralAF** (*Double*) -- Ancestral allele frequency
          - **va.bn.AF** (*Array[Double]*) -- Allele frequency indexed by population
