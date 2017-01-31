@@ -46,6 +46,14 @@ object BaldingNicholsModel {
     if (nPartitions <= 1)
       fatal(s"Number of partitions must be positive, got $nPartitions")
 
+    if (af_dist.isInstanceOf[UniformDist]) {
+      val uniform = af_dist.asInstanceOf[UniformDist]
+      if (uniform.minVal < 0)
+        fatal("minVal cannot be less than 0")
+      else if (uniform.maxVal > 1)
+        fatal("maxVal cannot be greater than 1")
+    }
+
     val N = nSamples
     val M = nVariants
     val K = nPops
@@ -72,13 +80,13 @@ object BaldingNicholsModel {
     
 
     val rdd = sc.parallelize(
-      (0 until M).map { m =>
+      (0 until M), nPartitions).map { m =>
         val perVariantSeed = variantSeedBc.value + m
         val perVariantRandomGenerator = new JDKRandomGenerator
         perVariantRandomGenerator.setSeed(perVariantSeed)
         val perVariantRandomBasis = new RandBasis(perVariantRandomGenerator)
 
-        val ancestralAF = af_dist.getBreezeDist(variantSeedBc.value + m).draw()
+        val ancestralAF = af_dist.getBreezeDist(perVariantRandomBasis).draw()
 
         val popAF_k = (0 until K).map{k =>
           new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
@@ -101,9 +109,8 @@ object BaldingNicholsModel {
             }: Iterable[Genotype]
           )
         )
-      },
-      nPartitions
-    ).toOrderedRDD
+      }
+    .toOrderedRDD
 
     val sampleIds = (0 until N).map(_.toString).toArray
     val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(Annotation(pop)))

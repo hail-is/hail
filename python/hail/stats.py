@@ -1,15 +1,15 @@
 class BetaDist:
     """
-    Represents a beta distribution parameterized by a and b.
+    Represents a beta distribution with parameters a and b.
     """
     def __init__(self, a, b):
         self.a = a
         self.b = b
 
 
-class UniformDist(object):
+class UniformDist:
     """
-    Represents a uniform distribution spanning from minVal to maxVal.
+    Represents a uniform distribution on the interval [minVal, maxVal].
     """
     def __init__(self, minVal, maxVal):
         if minVal >= maxVal:
@@ -26,6 +26,10 @@ class TruncatedBetaDist:
     def __init__(self, a, b, minVal, maxVal):
         if minVal >= maxVal:
             raise ValueError("min must be less than max")
+        elif minVal < 0:
+            raise ValueError("min cannot be less than 0")
+        elif maxVal > 1:
+            raise ValueError("max cannot be greater than 1")
 
         self.minVal = minVal
         self.maxVal = maxVal

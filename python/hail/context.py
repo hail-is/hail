@@ -567,7 +567,7 @@ class HailContext(object):
 
         To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12], root "balding", ancestralAFs drawn from a beta distribution with a = .5 and b = .4, and random seed 1:
 
-        >>> vds = hc.balding_nichols_model(4, 40, 150, 10, pop_dist=[0.1, 0.2, 0.3, 0.4], fst=[.02, .06, .04, .12], af_dist= BetaDist(.5, .4), root="balding", seed=1)
+        >>> vds = hc.balding_nichols_model(4, 40, 150, 10, pop_dist=[0.1, 0.2, 0.3, 0.4], fst=[.02, .06, .04, .12], af_dist= TruncatedBetaDist(0.01, 2.0, 0.05, 1.0), root="balding", seed=1)
 
         **Notes**
 

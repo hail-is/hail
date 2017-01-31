@@ -85,14 +85,13 @@ class BaldingNicholsModelSuite extends SparkSuite {
   }
 
 
-
   @Test def testAFRanges() {
-    testRangeHelp(TruncatedBetaDist(.01, 2, .2, .8), .2, .8, 17)
-    testRangeHelp(TruncatedBetaDist(3, 3, .4, .6), .4, .6, 12)
+    testRangeHelp(TruncatedBetaDist(.01, 2, .2, .8), .2, .8, 0)
+    testRangeHelp(TruncatedBetaDist(3, 3, .4, .6), .4, .6, 1)
 
-    testRangeHelp(UniformDist(.4, .7), .4, .7, 9823)
+    testRangeHelp(UniformDist(.4, .7), .4, .7, 2)
 
-    testRangeHelp(BetaDist(4, 6), 0, 1, 456)
+    testRangeHelp(BetaDist(4, 6), 0, 1, 3)
 
     def testRangeHelp(dist: Distribution, min: Double, max: Double, seed: Int) {
       val bnm = BaldingNicholsModel(sc, 3, 400, 400, None, None, seed, Some(4), dist, "bn")
@@ -103,6 +102,5 @@ class BaldingNicholsModelSuite extends SparkSuite {
       assert(arrayOfAncestralAFs.forall(af => af > min && af < max))
     }
   }
-
 
 }
