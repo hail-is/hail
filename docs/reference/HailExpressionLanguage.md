@@ -346,23 +346,26 @@ vds.annotate_global_expr(['global.caseSingletons = samples.filter(s => sa.fam.is
 <aggregable>.counter()
 ```
 
-This aggregator counts the number of occurrences of each element of an aggregable.  It produces an array of structs with the following schema:
-
-```
-Array [ 
-  Struct {
-    key: T, // element type of aggregator
-    count: Long
-  }
-]
-```
-
-The resulting array is sorted by count in descending order (the most common element is first).
+This aggregator counts the number of occurrences of each element of an aggregable.  It produces a map of element to count, `Map[T, Long]`, where `T` is the element type of the aggregable.
 
 **Example:** compute the number of indels in each chromosome:
 
 ```
 vds.annotate_global_expr('global.chr_indels = variants.filter(v => v.altAllele.isIndel).map(v => v.contig).counter()')
+```
+
+This aggregable is designed to be maximally useful with the python API, and we recommend that it is used with the [python Counter object](https://docs.python.org/2/library/collections.html#collections.Counter).  See this example of finding the most common alternate alleles in our sample dataset (they are all SNPs):
+
+```
+>>> from collections import Counter
+>>> vds = hc.import_vcf('src/test/resources/sample2.vcf')
+>>> counter = Counter(vds.query_variants('variants.flatMap(v => v.altAlleles).counter()')[0])
+>>> print(counter.most_common(5))
+[(AltAllele(C, T), 129L),
+ (AltAllele(G, A), 112L),
+ (AltAllele(C, A), 60L),
+ (AltAllele(A, G), 46L),
+ (AltAllele(T, C), 44L)]
 ```
 
 ### Hist

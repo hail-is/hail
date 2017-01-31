@@ -848,7 +848,7 @@ object FunctionRegistry {
 
   registerAggregator[Any, Any]("counter", () => new CounterAggregator())(aggregableHr(TTHr),
     new HailRep[Any] {
-      def typ = TArray(TStruct("key" -> TTHr.typ, "count" -> TLong))
+      def typ = TMap(TTHr.typ, TLong)
     })
 
   registerAggregator[Double, Any]("stats", () => new StatAggregator())(aggregableHr(doubleHr),
