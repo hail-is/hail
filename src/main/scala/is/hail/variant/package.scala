@@ -28,7 +28,7 @@ package object variant {
     }
   }
 
-  implicit def toRichIterableGenotype(i: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(i)
+  implicit def toRichIterableGenotype(ig: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(ig)
 
   implicit def toRichVDS(vsm: VariantDataset): RichVDS = new RichVDS(vsm)
 }
