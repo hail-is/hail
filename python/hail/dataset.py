@@ -3249,7 +3249,7 @@ class VariantDataset(object):
         pargs = ['vep', '--config', config]
         if block_size:
             pargs.append('--block-size')
-            pargs.append(block_size)
+            pargs.append(str(block_size))
         if root:
             pargs.append('--root')
             pargs.append(root)
