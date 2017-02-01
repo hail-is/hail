@@ -554,7 +554,6 @@ class HailContext(object):
                               pop_dist=None,
                               fst=None,
                               af_dist = UniformDist(0.1, 0.9),
-                              root="bn",
                               seed=0):
         """
         Generate a VariantDataset using the Balding-Nichols model.
@@ -565,13 +564,13 @@ class HailContext(object):
 
         >>> vds = hc.balding_nichols_model(3, 100, 1000)
 
-        To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12], root "mymodel", ancestral allele frequencies drawn from a truncated beta distribution with a = .01 and b = .05 over the interval [0.05, 1], and random seed 1:
+        To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12], ancestral allele frequencies drawn from a truncated beta distribution with a = .01 and b = .05 over the interval [0.05, 1], and random seed 1:
 
         >>> vds = hc.balding_nichols_model(4, 40, 150, 10,
         >>>     pop_dist=[0.1, 0.2, 0.3, 0.4],
         >>>     fst=[.02, .06, .04, .12],
         >>>     af_dist=TruncatedBetaDist(a=0.01, b=2.0, minVal=0.05, maxVal=1.0),
-        >>>     root="mymodel", seed=1)
+        >>>     seed=1)
 
         **Notes**
 
@@ -637,7 +636,6 @@ class HailContext(object):
         :param af_dist: Ancestral allele frequency distribution
         :type af_dist: :class:`.UniformDist` or :class:`.BetaDist` or :class:`.TruncatedBetaDist`
 
-        :param str root: Annotation root to follow global, sa and va.
 
         :param int seed: Random seed.
 
@@ -660,7 +658,7 @@ class HailContext(object):
                             jvm_pop_dist_opt,
                             jvm_fst_opt,
                             seed,
-                            joption(partitions), af_dist._jrep(), root))
+                            joption(partitions), af_dist._jrep()))
 
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.

@@ -14,7 +14,7 @@ object BaldingNicholsModel {
 
   def apply(sc: SparkContext, nPops: Int, nSamples: Int, nVariants: Int,
     popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
-    seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution, root: String): VariantDataset = {
+    seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution): VariantDataset = {
 
     if (nPops < 1)
       fatal(s"Number of populations must be positive, got ${ nPops }")
@@ -94,7 +94,7 @@ object BaldingNicholsModel {
         }
 
         (Variant("1", m + 1, "A", "C"),
-          (Annotation(Annotation(ancestralAF, popAF_k)),
+          (Annotation(ancestralAF, popAF_k),
             (0 until N).map { n =>
               val p = popAF_k(popOfSample_nBc.value(n))
               val pSq = p * p
@@ -114,18 +114,18 @@ object BaldingNicholsModel {
     .toOrderedRDD
 
     val sampleIds = (0 until N).map(_.toString).toArray
-    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(Annotation(pop)))
+    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => (Annotation(pop)))
 
     val ancestralAFAnnotation = af_dist match {
       case UniformDist(minVal, maxVal) => Annotation("UniformDist", minVal, maxVal)
       case BetaDist(a, b) => Annotation("BetaDist", a, b)
-      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("TruncatedBeta", a, b, minVal, maxVal)
+      case TruncatedBetaDist(a, b, minVal, maxVal) => Annotation("TruncatedBetaDist", a, b, minVal, maxVal)
     }
-    val globalAnnotation = Annotation(
-      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed))
+    val globalAnnotation =
+      Annotation(K, N, M, popDist_k.toArray: IndexedSeq[Double], Fst_k.toArray: IndexedSeq[Double], ancestralAFAnnotation, seed)
 
-    val saSignature = TStruct(root -> TStruct("pop" -> TInt))
-    val vaSignature = TStruct(root -> TStruct("ancestralAF" -> TDouble, "AF" -> TArray(TDouble)))
+    val saSignature = TStruct("pop" -> TInt)
+    val vaSignature = TStruct("ancestralAF" -> TDouble, "AF" -> TArray(TDouble))
 
     val ancestralAFAnnotationSignature = af_dist match {
       case UniformDist(minVal, maxVal) => TStruct("type" -> TString, "minVal" -> TDouble, "maxVal" -> TDouble)
@@ -133,15 +133,14 @@ object BaldingNicholsModel {
       case TruncatedBetaDist(a, b, minVal, maxVal) => TStruct("type" -> TString, "a" -> TDouble, "b" -> TDouble, "minVal" -> TDouble, "maxVal" -> TDouble)
     }
 
-    val globalSignature = TStruct(root ->
-      TStruct(
+    val globalSignature = TStruct(
         "nPops" -> TInt,
         "nSamples" -> TInt,
         "nVariants" -> TInt,
         "popDist" -> TArray(TDouble),
         "Fst" -> TArray(TDouble),
         "ancestralAFDist" -> ancestralAFAnnotationSignature,
-        "seed" -> TInt))
+        "seed" -> TInt)
     new VariantDataset(
       new VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation, saSignature, vaSignature, globalSignature, wasSplit=true),
       rdd
