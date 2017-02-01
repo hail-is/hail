@@ -356,6 +356,35 @@ case class Variant(contig: String,
     0
   }
 
+  def minrep : Variant = {
+    val alts = altAlleles.map(a => a.alt)
+    require(alts.forall(ref != _))
+
+    val min_length = math.min(ref.length, alts.map(x => x.length).min)
+    var ne = 0
+
+    while( ne < min_length - 1
+      && alts.forall(x => ref(ref.length - ne - 1) == x(x.length - ne - 1))
+    ){
+      ne += 1
+    }
+
+    var ns = 0
+    while(ns < min_length - ne -1
+      && alts.forall(x => ref(ns) == x(ns))
+    ){
+      ns += 1
+    }
+
+    if(ne + ns == 0)
+      this
+    else {
+      assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
+      Variant(contig,start + ns, ref.substring(ns, ref.length - ne),
+        alts.map(x => x.substring(ns, x.length - ne)).toArray)
+    }
+  }
+
   override def toString: String =
     s"$contig:$start:$ref:${ altAlleles.map(_.alt).mkString(",") }"
 

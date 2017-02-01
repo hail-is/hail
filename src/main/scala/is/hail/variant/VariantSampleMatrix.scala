@@ -1112,6 +1112,16 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
     copy(rdd = newRdd, vaSignature = finalType)
   }
+
+  def minrep() : VariantSampleMatrix[T] = {
+    val newRDD = rdd.map {
+      case (v, (va, gs)) =>
+        (v.minrep, (va,gs))
+    }.orderedRepartitionBy(rdd.orderedPartitioner)
+
+    copy(rdd = newRDD)
+  }
+
 }
 
 // FIXME AnyVal Scala 2.11

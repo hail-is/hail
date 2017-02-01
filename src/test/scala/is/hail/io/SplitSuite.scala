@@ -25,13 +25,6 @@ class SplitSuite extends SparkSuite {
       }
   }
 
-  @Test def minrep() {
-    assert(SplitMulti.minRep(10, "TAA", "TA") == (10, "TA", "T"))
-    assert(SplitMulti.minRep(10, "ACTG", "ACT") == (12, "TG", "T"))
-    assert(SplitMulti.minRep(10, "AAACAAAC", "AAAC") == (10, "AAACA", "A"))
-    assert(SplitMulti.minRep(10, "AATAA", "AAGAA") == (12, "T", "G"))
-  }
-
   @Test def splitTest() {
     Spec.check()
 

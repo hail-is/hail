@@ -35,33 +35,6 @@ object SplitMulti extends Command {
       (if (p.k == i) 1 else 0)
   }
 
-  def minRep(start: Int, ref: String, alt: String): (Int, String, String) = {
-    require(ref != alt)
-    var newStart = start
-
-    var refe = ref.length
-    var alte = alt.length
-    while (refe > 1
-      && alte > 1
-      && ref(refe - 1) == alt(alte - 1)) {
-      refe -= 1
-      alte -= 1
-    }
-
-    var refs = 0
-    var alts = 0
-    while (ref(refs) == alt(alts)
-      && refs + 1 < refe
-      && alts + 1 < alte) {
-      newStart += 1
-      refs += 1
-      alts += 1
-    }
-
-    assert(refs < refe && alts < alte)
-    (newStart, ref.substring(refs, refe), alt.substring(alts, alte))
-  }
-
   def split(v: Variant,
     va: Annotation,
     it: Iterable[Genotype],
@@ -77,9 +50,7 @@ object SplitMulti extends Command {
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(keepStar || _._1.alt != "*")
       .map { case (aa, aai) =>
-        val (newStart, newRef, newAlt) = minRep(v.start, v.ref, aa.alt)
-
-        (Variant(v.contig, newStart, newRef, newAlt), aai + 1)
+        (Variant(v.contig, v.start, v.ref, Array(aa)).minrep, aai + 1)
       }.toArray
 
     val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isDosage) }
