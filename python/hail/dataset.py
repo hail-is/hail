@@ -2336,6 +2336,23 @@ class VariantDataset(object):
         pargs = ['mendelerrors', '-o', output, '-f', fam]
         self.hc._run_command(self, pargs)
 
+    def min_rep(self):
+        """
+        Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
+
+        ** Examples **
+        1) Simple trimming of a multi-allelic site, no change in variant position
+        `1:10000:TAA:TAA,AA` => `1:10000:TA:T,A`
+
+        2) Trimming of a bi-allelic site leading to a change in position
+        `1:10000:AATAA,AAGAA` => `1:10002:T:G`
+
+        """
+        try:
+            return VariantDataset(self.hc, self._jvds.minrep())
+        except Py4JJavaError as e:
+            raise_py4j_exception(e)
+
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
