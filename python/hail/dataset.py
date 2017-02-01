@@ -2118,16 +2118,16 @@ class VariantDataset(object):
 
         **Examples**
 
-        Suppose ``assoc.vds`` has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the ``lmmreg`` function in
+        Suppose ``assoc.vds`` has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
 
         >>> assoc_vds = hc.read('assoc.vds')
-        >>> kin_vds = assoc_vds.filter_variants_expr('va.useInKinship')
-        >>> lmm_vds = assoc_vds.lmmreg(kin_vds, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
+        >>> kinship_vds = assoc_vds.filter_variants_expr('va.useInKinship')
+        >>> lmm_vds = assoc_vds.lmmreg(kinship_vds, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
 
         will execute the following five steps in order:
 
         1) filter to samples for which ``sa.pheno``, ``sa.cov``, and ``sa.cov2`` are all defined
-        2) compute the kinship matrix :math:`K` (the RRM defined below) using those variants in ``kin_vds``
+        2) compute the kinship matrix :math:`K` (the RRM defined below) using those variants in ``kinship_vds``
         3) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
         4) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`_), storing results in global annotations under ``global.lmmreg``
         5) test each variant for association, storing results under ``va.lmmreg`` in variant annotations
@@ -2140,14 +2140,14 @@ class VariantDataset(object):
         - Set the ``global_root`` argument to change the global annotation root in Step 4.
         - Set the ``va_root`` argument to change the variant annotation root in Step 5.
 
-        ``lmmreg`` adds eight global annotations in Step 4; the last three are omitted if :math:`\delta` is set rather than fit.
+        :py:meth:`.lmmreg` adds eight global annotations in Step 4; the last three are omitted if :math:`\delta` is set rather than fit.
 
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | Annotation                         | Type                 | Value                                                                                                                                                |
         +====================================+======================+======================================================================================================================================================+
         | ``global.lmmreg.useML``            | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
+        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given covariate expressions to the corresponding fit :math:`\\beta` coefficients                                    |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -2168,7 +2168,7 @@ class VariantDataset(object):
 
         These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
 
-        If Step 5 is performed, ``lmmreg`` also adds nine variant annotations.
+        If Step 5 is performed, :py:meth:`.lmmreg` also adds nine variant annotations.
 
         +------------------------+--------+-------------------------------------------------------------------------+
         | Annotation             | Type   | Value                                                                   |
@@ -2201,15 +2201,15 @@ class VariantDataset(object):
 
         **Performance**
 
-        This initial version of `lmmreg` scales to tens of thousands samples and an unbounded number of variants, making it particularly well-suited to modern sequencing studies. For example, starting from a VDS of the 1000 Genomes Project (consisting of 2535 whole genomes), ``lmmreg`` computes a kinship matrix based on 100k common variants, fits coefficients and variance components in the sample-covariates-only model, runs a linear-mixed-model likelihood ratio test for all 15 million high-quality non-rare variants, and exports the results in 3m42s minutes. Here we used 42 preemptible workers (~680 cores) on 2k partitions at a compute cost of about 50 cents on Google cloud (see `Using Hail on the Google Cloud Platform <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_). The first analysts to apply ``lmmreg`` in research computed kinship from 262k common variants and tested 25 million non-rare variants on 8185 whole genomes in 32 minutes.
+        Hail's initial version of :py:meth:`.lmmreg` scales to well beyond 10k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. The first analysts to apply :py:meth:`.lmmreg` in research computed kinship from 262k common variants and tested 25 million non-rare variants on 8185 whole genomes in 32 minutes. As another example, starting from a VDS of the 1000 Genomes Project (consisting of 2535 whole genomes), :py:meth:`.lmmreg` computes a kinship matrix based on 100k common variants, fits coefficients and variance components in the sample-covariates-only model, runs a linear-mixed-model likelihood ratio test for all 15 million high-quality non-rare variants, and exports the results in 3m42s minutes. Here we used 42 preemptible workers (~680 cores) on 2k partitions at a compute cost of about 50 cents on Google cloud (see `Using Hail on the Google Cloud Platform <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_).
 
-        While ``lmmreg`` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full eigendecomposition (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`_, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`_. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
+        While :py:meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full eigendecomposition (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`_, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`_. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
 
         Given the eigendecomposition, fitting the global model (Step 4) takes on the order of a few seconds on master. Association testing (Step 5) is fully distributed by variant with per-variant time complexity that is completely independent of the number of sample covariates and dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
 
         **Linear mixed model**
 
-        The `lmmreg` command estimates the genetic proportion of residual phenotypic variance (narrow-sense heritability) under a kinship-based linear mixed model, and then (optionally) tests each variant for association using the likelihood ratio test. Inference is exact.
+        :py:meth:`.lmmreg` estimates the genetic proportion of residual phenotypic variance (narrow-sense heritability) under a kinship-based linear mixed model, and then optionally tests each variant for association using the likelihood ratio test. Inference is exact.
 
         We first describe the sample-covariates-only model used to estimate heritability, which we simply refer to as the *global model*. With :math:`n` samples and :math:`c` sample covariates, we define:
 
@@ -2235,7 +2235,7 @@ class VariantDataset(object):
 
         **Fitting the global model**
 
-        The core of ``lmmreg`` is a distributed implementation of the spectral approach taken in `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_. Let :math:`K = USU^T` be the `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix#Real_symmetric_matrices>`_ of the real symmetric matrix :math:`K`. That is:
+        The core algorithm is essentially a distributed implementation of the spectral approach taken in `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_. Let :math:`K = USU^T` be the `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix#Real_symmetric_matrices>`_ of the real symmetric matrix :math:`K`. That is:
 
         - :math:`U = n \\times n` orthonormal matrix whose columns are the eigenvectors of :math:`K`
         - :math:`S = n \\times n` diagonal matrix of eigenvalues of :math:`K` in descending order. :math:`S_{ii}` is the eigenvalue of eigenvector :math:`U_{:,i}`
@@ -2279,7 +2279,7 @@ class VariantDataset(object):
 
         **Kinship: Realized Relationship Matrix (RRM)**
 
-        As in FastLMM, ``lmmreg`` uses the Realized Relationship Matrix (RRM) for kinship, defined as follows. Consider the :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal variants for which ``va.useInKinship`` is true; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+        As in FastLMM, :py:meth:`.lmmreg` uses the Realized Relationship Matrix (RRM) for kinship, defined as follows. Consider the :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal variants for which ``va.useInKinship`` is true; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
 
         .. math::
 
