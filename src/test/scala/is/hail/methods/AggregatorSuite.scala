@@ -64,6 +64,7 @@ class AggregatorSuite extends SparkSuite {
           })
 
           val lowGqGtsData = gs.filter(_.gq.exists(_ < 60))
+
           assert(lowGqGts(va).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
 
       }

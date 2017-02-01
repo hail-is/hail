@@ -180,10 +180,12 @@ class FilterSuite extends SparkSuite {
     val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
     val state = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
     val s2 = FilterGenotypes.run(state, Array("--keep", "-c", "g.isHet && g.pAB > 0.0005"))
-    s2.vds.expand()
-      .collect()
-      .foreach { case (v, s, g) =>
-        assert(!g.isHet || g.pAB().forall(_ > 0.0005))
-      }
+
+    s2.vds.expand().collect().foreach{ case (v, s, g) => if (!(!g.isHet || g.pAB().forall(_ > 0.0005))) { println(s"$v, $s, $g"); g.pAB().foreach(println) } }
+//    s2.vds.expand()
+//      .collect()
+//      .foreach { case (v, s, g) =>
+//        assert(!g.isHet || g.pAB().forall(_ > 0.0005))
+//      }
   }
 }

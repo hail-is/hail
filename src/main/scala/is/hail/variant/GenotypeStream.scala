@@ -62,21 +62,23 @@ object LZ4Utils {
 case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Option[Int], a: Array[Byte])
   extends Iterable[Genotype] {
 
-  override def iterator: GenotypeStreamIterator = {
-    decompLenOption match {
-      case Some(decompLen) =>
-        new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
-      case None =>
-        new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
-    }
-  }
-
-  def mutableIterator: MutableGenotypeStreamIterator = {
+  // def mutableIterator: MutableGenotypeStreamIterator = {
+  override def iterator: MutableGenotypeStreamIterator = {
     decompLenOption match {
       case Some(decompLen) =>
         new MutableGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
         new MutableGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
+    }
+  }
+
+  // override def iterator: GenotypeStreamIterator = {
+  def genericIterator: GenotypeStreamIterator = {
+    decompLenOption match {
+      case Some(decompLen) =>
+        new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
+      case None =>
+        new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
     }
   }
 
