@@ -20,15 +20,14 @@ object LogisticRegression {
 
     val logRegTest = tests(test)
 
-    val (y, cov, sampleMask) = getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     if (! y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all values equal to 0 or 1")
 
     if (!tests.isDefinedAt(test))
-      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
-
-    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
+      fatal(s"Supported tests are ${tests.keys.mkString(", ")}, got: $test")
 
     val n = y.size
     val k = cov.cols
@@ -37,7 +36,7 @@ object LogisticRegression {
     if (d < 1)
       fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
-    info(s"Running logreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
+    info(s"Running logreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
     val nullFit = nullModel.nullFit(nullModel.bInterceptOnly())
@@ -54,8 +53,9 @@ object LogisticRegression {
     val yBc = sc.broadcast(y)
     val covBc = sc.broadcast(cov)
     val nullFitBc = sc.broadcast(nullFit)
-    val logRegTestBc = sc.broadcast(logRegTest) // Is this worth broadcasting?
+    val logRegTestBc = sc.broadcast(logRegTest)
 
+    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
 
     vds.mapAnnotations{ case (v, va, gs) =>
