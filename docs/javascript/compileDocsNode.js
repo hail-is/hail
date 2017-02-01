@@ -7,27 +7,19 @@ process.on('uncaughtException', function (err) {
   process.exit(1);
 });
 
-const referenceHtmlTemplate = __dirname + "/" + process.argv[2];
-const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
-const faqHtmlTemplate = __dirname + "/" + process.argv[4];
-const template = __dirname + "/" + process.argv[5];
-const jsonCommandsFile = process.argv[6];
-const pandocOutputDir = __dirname + "/" + process.argv[7];
+const faqHtmlTemplate = __dirname + "/" + process.argv[2];
+const template = __dirname + "/" + process.argv[3];
+const pandocOutputDir = __dirname + "/" + process.argv[4];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
 
 const buildDocs = require("./buildDocs.js");
 const mjAPI = require("mathjax-node/lib/mj-page.js");
-const jsonData = require(jsonCommandsFile);
 
 mjAPI.start();
 
 buildFAQ(faqHtmlTemplate, __dirname + "/faq.html");
-
-buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
-
-buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
 
 buildSinglePage(template, "#body", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html",
     '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#tutorial").addClass("active");});});</script>');
@@ -72,62 +64,6 @@ function runMathJax(document, callback) {
         const HTML = "<!DOCTYPE html>\n" + document.documentElement.outerHTML.replace(/^(\n|\s)*/, "");
         callback(HTML);
     })
-}
-
-function buildReference(htmlTemplate, outputFileName) {
-    jsdom.env(htmlTemplate, function (err, window) {
-        window.addEventListener("error", function (event) {
-          console.error("script error!!", event.error);
-          process.exit(1);
-        });
-
-        const $ = require('jquery')(window);
-
-        const loadOverviewPromises = ["Representation",
-                                    "Importing",
-                                    "HailObjectProperties",
-                                    "Annotations",
-                                    "HailExpressionLanguage",
-                                    "Filtering",
-                                    "ExportingData",
-                                    "ExportingTSV",
-                                    "SQL"]
-                                    .map(name => loadReq("#" + name, pandocOutputDir + "reference/" + name + ".html", $));
-
-        Promise.all(loadOverviewPromises)
-            .then(function() {
-                 var document = jsdom.jsdom($('html').html());
-                 runMathJax(document, function(html) {
-                    fs.writeFile(outputFileName, html);
-                 });
-            }, error)
-            .catch(error);
-    });
-}
-
-function buildCommands(htmlTemplate, outputFileName) {
-    jsdom.env(htmlTemplate, function (err, window) {
-        window.addEventListener("error", function (event) {
-          console.error("script error!!", event.error);
-          process.exit(1);
-        });
-
-        const $ = require('jquery')(window);
-
-        const buildCommandPromises = jsonData.commands
-            .filter(command => !command.hidden)
-            .map(command => buildDocs.buildCommand(command, pandocOutputDir + "commands/", $));
-
-        Promise.all(buildCommandPromises.concat([loadReq("#GlobalOptions", pandocOutputDir + "commands/" + "GlobalOptions.html", $)]))
-            .then(function() {$("div#GlobalOptions div.options").append(buildDocs.buildGlobalOptions(jsonData.global.options))}, error)
-            .then(function() {
-                 var document = jsdom.jsdom($('html').html());
-                 runMathJax(document, function(html) {
-                    fs.writeFile(outputFileName, html);
-                 });
-            }, error)
-            .catch(error);
-    });
 }
 
 function buildFAQ(htmlTemplate, outputFileName) {
