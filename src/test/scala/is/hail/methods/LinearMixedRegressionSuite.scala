@@ -173,7 +173,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val FstOfPop = Array.fill[Double](k)(Fst)
 
-    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), Some(4), "bn")
+    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9), "bn")
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 
@@ -276,12 +276,13 @@ class LinearMixedRegressionSuite extends SparkSuite {
     }
   }
 
-  // fix parameters, generate y, fit parameters, compare
-  def genAndFitLMM() {
+  // Fix parameters, generate y, fit parameters, compare
+  // To try with different parameters, remove asserts and add back print statements at the end
+  @Test def genAndFitLMM() {
     val seed = 0
     scala.util.Random.setSeed(seed)
 
-    val n = 4000
+    val n = 500
     val c = 2
     val m0 = 1000
     val k = 3
@@ -289,14 +290,14 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val FstOfPop = Array.fill[Double](k)(Fst)
 
-    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), None, "bn")
+    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), None, UniformDist(.1, .9), "bn")
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 
     val mG = G.cols
     val mW = mG
 
-    println(s"$mG of $m0 variants are not constant")
+    // println(s"$mG of $m0 variants are not constant")
 
     val W = convert(G(::, 0 until mW), Double)
 
@@ -344,11 +345,11 @@ class LinearMixedRegressionSuite extends SparkSuite {
       useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = true, optDelta = None,
       sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
 
-    val sb = new StringBuilder()
-    sb.append("Global annotation schema:\n")
-    sb.append("global: ")
-    vds.metadata.globalSignature.pretty(sb, 0, printAttrs = true)
-    println(sb.result())
+    // val sb = new StringBuilder()
+    // sb.append("Global annotation schema:\n")
+    // sb.append("global: ")
+    // vds.metadata.globalSignature.pretty(sb, 0, printAttrs = true)
+    // println(sb.result())
 
     val fitDelta = vds.queryGlobal("global.lmmreg.delta")._2.get.asInstanceOf[Double]
     val fitSigmaG2 = vds.queryGlobal("global.lmmreg.sigmaG2")._2.get.asInstanceOf[Double]
@@ -358,9 +359,16 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val linRes = norm(y - C * linBeta)
     val linSigma2 = (linRes * linRes) / (n - c)
 
-    println(s"truth / lmm: delta   = $delta / $fitDelta")
-    println(s"truth / lmm / lin: sigmaG2 = $sigmaG2 / $fitSigmaG2 / $linSigma2")
-    println(s"truth / lmm / lin: beta(0) = ${beta(0)} / ${fitBeta("intercept")} / ${linBeta(0)}")
-    (1 until c).foreach( i => println(s"truth / lmm / lin: beta($i) = ${beta(i)} / ${fitBeta(s"sa.covs.cov$i")} / ${linBeta(i)}"))
+    // println(s"truth / lmm: delta   = $delta / $fitDelta")
+    // println(s"truth / lmm / lin: sigmaG2 = $sigmaG2 / $fitSigmaG2 / $linSigma2")
+    // println(s"truth / lmm / lin: beta(0) = ${beta(0)} / ${fitBeta("intercept")} / ${linBeta(0)}")
+    // (1 until c).foreach( i => println(s"truth / lmm / lin: beta($i) = ${beta(i)} / ${fitBeta(s"sa.covs.cov$i")} / ${linBeta(i)}"))
+
+    assert(D_==(delta, 0.8314409887870612))
+    assert(D_==(fitDelta, 0.8410147169942509))
+    assert(D_==(delta, fitDelta, 0.05))
+    assert(D_==(sigmaG2, fitSigmaG2, 0.05))
+    assert(math.abs(beta(0) - fitBeta("intercept")) < 0.05)
+    assert(math.abs(beta(1) - fitBeta("sa.covs.cov1")) < 0.05)
   }
 }

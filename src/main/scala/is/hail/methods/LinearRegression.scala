@@ -23,17 +23,15 @@ object LinearRegression {
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
+    val n = y.size
+    val k = cov.cols
+    val d = n - k - 1
+
     if (minAC < 1)
       fatal(s"Minumum alternate allele count must be a positive integer, got $minAC")
     if (minAF < 0d || minAF > 1d)
       fatal(s"Minumum alternate allele frequency must lie in [0.0, 1.0], got $minAF")
-    val combinedMinAC = math.max(minAC, (math.ceil(2 * y.size * minAF) + 0.5).toInt)
-
-    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-
-    val n = y.size
-    val k = cov.cols
-    val d = n - k - 1
+    val combinedMinAC = math.max(minAC, (math.ceil(2 * n * minAF) + 0.5).toInt)
 
     if (d < 1)
       fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
@@ -51,6 +49,7 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
     val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
+    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(LinearRegression.`type`, pathVA)
 
     vds.mapAnnotations{ case (v, va, gs) =>

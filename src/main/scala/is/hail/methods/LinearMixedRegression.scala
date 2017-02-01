@@ -39,11 +39,11 @@ object LinearMixedRegression {
     forceBlock: Boolean,
     forceGrammian: Boolean): VariantDataset = {
 
-    if (!kinshipVds.wasSplit)
-      fatal("kinship vds must be split")
-
     if (!assocVds.wasSplit)
-      fatal("association vds must be split")
+      fatal("lmmreg requires bi-allelic VDS for association. Run split_multi or filter_multi first")
+
+    if (!kinshipVds.wasSplit)
+      fatal("lmmreg requires bi-allelic VDS for kinship. Run split_multi or filter_multi first")
 
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
@@ -63,11 +63,10 @@ object LinearMixedRegression {
       case (true, true) => fatal("Cannot force both Block and Grammian")
       case (b, _) => b
     }
-
-    // FIXME: implement matrix permutation to allow for different orders?
+    
     val filtKinshipVds = kinshipVds.filterSamples((s, sa) => completeSamplesSet(s))
     if (filtKinshipVds.sampleIds != completeSamples)
-      fatal("List of sample IDs in assoc_vds and list of sample IDs kinship_vds (with both filtered to complete samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
+      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
 
     val n = y.size
     val k = cov.cols

@@ -29,8 +29,6 @@ object LogisticRegression {
     if (!tests.isDefinedAt(test))
       fatal(s"Supported tests are ${tests.keys.mkString(", ")}, got: $test")
 
-    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-
     val n = y.size
     val k = cov.cols
     val d = n - k - 1
@@ -55,8 +53,9 @@ object LogisticRegression {
     val yBc = sc.broadcast(y)
     val covBc = sc.broadcast(cov)
     val nullFitBc = sc.broadcast(nullFit)
-    val logRegTestBc = sc.broadcast(logRegTest) // Is this worth broadcasting?
+    val logRegTestBc = sc.broadcast(logRegTest)
 
+    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
 
     vds.mapAnnotations{ case (v, va, gs) =>
