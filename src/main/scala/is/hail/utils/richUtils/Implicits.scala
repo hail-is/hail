@@ -8,7 +8,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import is.hail.utils.{JSONWriter, MultiArray2, Truncatable}
-import is.hail.variant.Genotype
 import org.json4s.JValue
 
 import scala.collection.{TraversableOnce, mutable}
@@ -40,8 +39,6 @@ trait Implicits {
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichIterable[T](a: Array[T]): RichIterable[T] = new RichIterable(a)
-
-  implicit def toRichIterableGenotype(i: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(i)
 
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
