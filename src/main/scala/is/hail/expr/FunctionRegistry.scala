@@ -255,11 +255,13 @@ object FunctionRegistry {
       case f: BinaryFun[_, _, _] =>
         AST.evalComposeCodeM(args(0), args(1))(invokePrimitive2(f.asInstanceOf[(AnyRef, AnyRef) => AnyRef]))
       case f: BinarySpecial[_, _, _] => {
-        val foo = ((x: AnyRef, y: AnyRef) => f.asInstanceOf[(() => AnyRef, () => AnyRef) => AnyRef](() => x, () => y))
+        val g = ((x: AnyRef, y: AnyRef) =>
+          f.asInstanceOf[(() => AnyRef, () => AnyRef) => AnyRef](() => x, () => y))
+
         for (
           t <- args(0).compile();
           u <- args(1).compile();
-          result <- invokePrimitive2(foo)(t, u))
+          result <- invokePrimitive2(g)(t, u))
           yield result
       }
       case f: BinaryLambdaFun[t, _, _] =>
@@ -271,10 +273,13 @@ object FunctionRegistry {
           case _ =>
         }
 
+        val g = ((xs: AnyRef, lam: AnyRef) =>
+          f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any]).asInstanceOf[AnyRef])
+
         for (
           lamc <- createLambda(param, body.compile());
           res <- AST.evalComposeCodeM(args(0)) { xs =>
-            invokePrimitive2[AnyRef, AnyRef, AnyRef]((xs: AnyRef, lam: AnyRef) => f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any]).asInstanceOf[AnyRef])(xs, lamc)
+            invokePrimitive2[AnyRef, AnyRef, AnyRef](g)(xs, lamc)
           }
         ) yield res
       case f: Arity3LambdaFun[t, _, v, _] =>
@@ -286,11 +291,13 @@ object FunctionRegistry {
           case _ =>
         }
 
+        val g = ((xs: AnyRef, lam: AnyRef, y: AnyRef) =>
+          f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any], y.asInstanceOf[v]).asInstanceOf[AnyRef])
+
         for (
           lamc <- createLambda(param, body.compile());
           res <- AST.evalComposeCodeM(args(0), args(2)) { (xs, y) =>
-            invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef]((xs: AnyRef, lam: AnyRef, y: AnyRef) =>
-              f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any], y.asInstanceOf[v]).asInstanceOf[AnyRef])(xs, lamc, y)
+            invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(xs, lamc, y)
           }
         ) yield res
       case f: Arity3Fun[_, _, _, _] =>
