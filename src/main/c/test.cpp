@@ -1,5 +1,6 @@
 #define __STDC_FORMAT_MACROS // see: http://stackoverflow.com/questions/8132399/how-to-printf-uint64-t and https://sourceware.org/bugzilla/show_bug.cgi?id=15366
-#include <inttypes.h> i#include <stdio.h>
+#include <inttypes.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "ibs.h"
 
