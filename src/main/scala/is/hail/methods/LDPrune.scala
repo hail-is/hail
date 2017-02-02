@@ -14,6 +14,7 @@ object LDPrune {
   val variantByteOverhead = 50
   val fractionMemoryToUse = 0.25
   val genotypesPerPack = 32
+  val nPartitionsPerCore = 3
 
   case class GlobalPruneIntermediate(rdd: GeneralRDD[(Variant, BitPackedVector)], index: Int, persist: Boolean)
 
@@ -197,7 +198,7 @@ object LDPrune {
             done = true
           else {
             val r2 = computeR2(bpv, bpv2)
-            if ( r2 >= r2Threshold) {
+            if (r2 >= r2Threshold) {
               keepVariant = false
               done = true
             }
@@ -307,19 +308,30 @@ object LDPrune {
     (annotRDD, nVariantsKept)
   }
 
-  def estimateMemoryRequirements(nVariants: Long, nSamples: Int, memoryPerCore: Long) = {
-    val numBytesPerVariant = math.ceil(8 * nSamples.toDouble / genotypesPerPack).toLong + variantByteOverhead
+  def estimateMemoryRequirements(nVariants: Long, nSamples: Int, nCores: Int, memoryPerCore: Long) = {
+    val nBytesPerVariant = math.ceil(8 * nSamples.toDouble / genotypesPerPack).toLong + variantByteOverhead
     val memoryAvailPerCore = memoryPerCore * fractionMemoryToUse
 
-    val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / numBytesPerVariant).toInt)
-    val numPartitionsRequired = math.max(1, math.ceil(nVariants.toDouble / maxQueueSize).toInt)
+    val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / nBytesPerVariant).toInt)
 
-    assert(maxQueueSize > 0 && numPartitionsRequired > 0)
+    val nPartitionsMinimum = math.max(1, math.ceil(nVariants.toDouble / maxQueueSize).toInt)
+    val nPartitionsOptimal = nCores * nPartitionsPerCore
 
-    (maxQueueSize, numPartitionsRequired)
+    val nPartitions =
+      if (nPartitionsOptimal < nPartitionsMinimum)
+        nPartitionsMinimum
+      else
+        nPartitionsOptimal
+
+    assert(maxQueueSize > 0 && nPartitions > 0)
+
+    (maxQueueSize, nPartitions)
   }
 
-  def ldPrune(vds: VariantDataset, r2Threshold: Double, window: Int, memoryPerCore: Long = 268435456) = {
+  def ldPrune(vds: VariantDataset, r2Threshold: Double, window: Int, nCores: Int, memoryPerCore: Long = 268435456) = {
+    if (nCores <= 0)
+      fatal(s"Number of cores must be greater than 0.")
+
     if (r2Threshold < 0 || r2Threshold > 1)
       fatal(s"R^2 threshold must be in the range [0,1]. Found `$r2Threshold'.")
 
@@ -332,8 +344,8 @@ object LDPrune {
     val nPartitionsInitial = vds.nPartitions
     val nSamples = vds.nSamples
 
-    val minMemoryPerCore = math.ceil((1 / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
-    val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, memoryPerCore)
+    val minMemoryPerCore = math.ceil((1d / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
+    val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, nCores, memoryPerCore)
 
     info(s"InputData: nSamples=$nSamples nVariants=$nVariantsInitial nPartitions=$nPartitionsInitial maxQueueSize=$maxQueueSize")
 
@@ -354,7 +366,7 @@ object LDPrune {
     info(s"Local Prune 1: nVariantsKept=$nVariantsLP1 nPartitions=$nPartitionsLP1 time=${ formatTime(durationLP1) }")
 
     val ((rddLP2, nVariantsLP2, nPartitionsLP2), durationLP2) = time({
-      val nPartitionsRequired = estimateMemoryRequirements(nVariantsLP1, nSamples, memoryPerCore)._2
+      val (_, nPartitionsRequired) = estimateMemoryRequirements(nVariantsLP1, nSamples, nCores, memoryPerCore)
       val repartRDD = rddLP1.coalesce(nPartitionsRequired, shuffle = true)(null).asOrderedRDD
       repartRDD.persist(StorageLevel.MEMORY_AND_DISK)
       repartRDD.count()

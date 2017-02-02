@@ -2035,7 +2035,7 @@ class VariantDataset(object):
 
         return VariantDataset(self.hc, self._jvdf.join(right._jvds))
 
-    def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256):
+    def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
         """Prune variants in linkage disequilibrium (LD).
 
         **Examples**
@@ -2069,7 +2069,9 @@ class VariantDataset(object):
 
         :param int window: Number of base pair window to compute pair-wise :math:`R^2` values.
 
-        :param float memory_per_core: Total amount of memory available for each core in MB. We strongly recommend using the default value.
+        :param float memory_per_core: Total amount of memory available for each core in MB. We recommend using the default value.
+
+        :param int num_cores: The number of cores available. Equivalent to the total number of workers (preemptible & non-preemptible) times the number of cores per worker.
 
         :return: A filtered dataset with variants that have been pruned.
 
@@ -2077,7 +2079,7 @@ class VariantDataset(object):
         """
         try:
             memory_per_core = int(memory_per_core * 1024 * 1024)
-            return VariantDataset(self.hc, env.hail.methods.LDPrune.ldPrune(self._jvds, r2, window, memory_per_core))
+            return VariantDataset(self.hc, env.hail.methods.LDPrune.ldPrune(self._jvds, r2, window, num_cores, memory_per_core))
         except Py4JJavaError as e:
             self._raise_py4j_exception(e)
 
