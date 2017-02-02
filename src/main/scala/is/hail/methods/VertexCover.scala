@@ -7,9 +7,9 @@ import org.apache.spark.graphx._
 /**
   * Created by johnc on 1/30/17.
   */
-class VertexCover {
+object VertexCover {
 
-  def apply(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double): Set[String] = {
+  def apply(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double, k: Int): Set[String] = {
 
     //Filter RDD to remove edges below(?) threshold
     val filteredRDD = inputRDD.filter(_._2 >= thresh)
@@ -24,6 +24,15 @@ class VertexCover {
 
     val edges = filteredRDD.map(tuple => Edge(vertexMapping(tuple._1._1), vertexMapping(tuple._1._2), tuple._2))
 
-    val vertices = sc.parallelize(vertexMapping.toSeq).map()
+    val vertices = sc.parallelize(vertexMapping.toSeq).map(pair => (pair._2, pair._1))
+
+    val graph = Graph(vertices, edges)
+
+
+    
+
+    //Get top k vertices
+    graph.degrees.sortBy(_._2).take(k)
+
   }
 }
