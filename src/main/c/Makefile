@@ -2,7 +2,7 @@
 
 CXX ?= c++
 # append existing flags so they override our flags
-_CXXFLAGS = -O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 ${CXXFLAGS}
+_CXXFLAGS = -O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -Wall -Werror ${CXXFLAGS}
 LIBFLAGS += -fvisibility=hidden
 
 UNAME_S := $(shell uname -s)

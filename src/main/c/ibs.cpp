@@ -27,7 +27,6 @@ uint64_t vector_popcnt(uint64vector x) {
 }
 
 void ibs256(uint64_t* __restrict__ result, uint64vector x, uint64vector y, uint64vector xna, uint64vector yna) {
-  uint64vector allones = make_ones();
   uint64vector leftAllele = make_uint(0xAAAAAAAAAAAAAAAA);
 
   uint64vector nxor = ~(x ^ y);
