@@ -9,7 +9,7 @@ You'll need:
 - The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
 - `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_. Hail should work with other versions of Spark 2, see below.
 - Python 2.7 and IPython. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
-- `CMake <http://cmake.org>`_ and a C++ compiler.
+- `CMake <http://cmake.org>`_ and a C++ compiler that supports `-std=c++11` (we recommend at least GCC 4.7 or Clang 3.3).
 
   On a Debian-based Linux OS like Ubuntu, run:
 
