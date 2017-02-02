@@ -64,7 +64,7 @@ object MendelErrors {
     val nSamplesDiscarded = preTrios.size - trios.size
 
     if (nSamplesDiscarded > 0)
-      warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
+      warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: sex of child is missing.")
 
     val sampleTrioRoles = mutable.Map.empty[String, List[(Int, Int)]]
     trios.zipWithIndex.foreach { case (t, ti) =>
