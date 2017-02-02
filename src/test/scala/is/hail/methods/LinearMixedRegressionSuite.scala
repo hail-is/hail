@@ -173,7 +173,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val FstOfPop = Array.fill[Double](k)(Fst)
 
-    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9), "bn")
+    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9))
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 
@@ -290,7 +290,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val FstOfPop = Array.fill[Double](k)(Fst)
 
-    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), None, UniformDist(.1, .9), "bn")
+    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), None, UniformDist(.1, .9))
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 

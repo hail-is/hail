@@ -18,8 +18,8 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val FstOfPop = Array(0.1, 0.2, 0.3)
     val seed = 0
 
-    val bnm1 = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(3), UniformDist(.1, .9), "bn")
-    val bnm2 = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), UniformDist(.1, .9), "bn")
+    val bnm1 = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(3), UniformDist(.1, .9))
+    val bnm2 = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), UniformDist(.1, .9))
 
     assert(bnm1.rdd.collect().toSeq == bnm2.rdd.collect().toSeq)
     assert(bnm1.globalAnnotation == bnm2.globalAnnotation)
@@ -34,7 +34,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
     val FstOfPop = Array(0.1, 0.2, 0.3, 0.2, 0.2)
     val seed = 0
 
-    val bnm = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), UniformDist(.1, .9), "bn")
+    val bnm = BaldingNicholsModel(sc, K, N, M, Some(popDist), Some(FstOfPop), seed, Some(2), UniformDist(.1, .9))
 
     val gs_by_variant = bnm.rdd.collect.map(x => x._2._2)
     assert(gs_by_variant.forall(_.size == 10))
@@ -47,12 +47,12 @@ class BaldingNicholsModelSuite extends SparkSuite {
     testStatsHelp(40, 400, 20, None, None, 12)
 
     def testStatsHelp(K: Int, N: Int, M: Int, popDistOpt: Option[Array[Double]], FstOfPopOpt: Option[Array[Double]], seed: Int) = {
-      val bnm = BaldingNicholsModel(sc, K, N, M, popDistOpt, FstOfPopOpt, seed, Some(4), UniformDist(.1, .9), "bn")
+      val bnm = BaldingNicholsModel(sc, K, N, M, popDistOpt, FstOfPopOpt, seed, Some(4), UniformDist(.1, .9))
 
       val popDist: Array[Double] = popDistOpt.getOrElse(Array.fill(K)(1.0))
 
       //Test population distribution
-      val popArray = bnm.sampleAnnotations.toArray.map(_.asInstanceOf[GenericRow](0).asInstanceOf[GenericRow](0).toString.toDouble)
+      val popArray = bnm.sampleAnnotations.toArray.map(_.asInstanceOf[GenericRow](0).toString.toDouble)
       val popCounts = popArray.groupBy(x => x).values.toSeq.sortBy(_(0)).map(_.size)
 
       popCounts.indices.foreach(index => {
@@ -61,7 +61,7 @@ class BaldingNicholsModelSuite extends SparkSuite {
 
       //Test AF distributions
       val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[GenericRow]]
-      val arrayOfVATuples = arrayOfVARows.map(row => row.get(0).asInstanceOf[GenericRow]).map(row => (row.get(0), row.get(1)).asInstanceOf[(Double, Vector[Double])])
+      val arrayOfVATuples = arrayOfVARows.map(row => (row.get(0), row.get(1)).asInstanceOf[(Double, Vector[Double])])
 
       val AFStats = arrayOfVATuples.map(tuple => meanAndVariance(tuple._2))
 
@@ -93,10 +93,10 @@ class BaldingNicholsModelSuite extends SparkSuite {
     testRangeHelp(BetaDist(4, 6), 0, 1, 3)
 
     def testRangeHelp(dist: Distribution, min: Double, max: Double, seed: Int) {
-      val bnm = BaldingNicholsModel(sc, 3, 400, 400, None, None, seed, Some(4), dist, "bn")
+      val bnm = BaldingNicholsModel(sc, 3, 400, 400, None, None, seed, Some(4), dist)
 
       val arrayOfVARows = bnm.variantsAndAnnotations.collect().map(_._2).toSeq.asInstanceOf[mutable.WrappedArray[GenericRow]]
-      val arrayOfAncestralAFs = arrayOfVARows.map(row => row.get(0).asInstanceOf[GenericRow]).map(_.get(0).asInstanceOf[Double])
+      val arrayOfAncestralAFs = arrayOfVARows.map(row => row.get(0).asInstanceOf[Double])
 
       assert(arrayOfAncestralAFs.forall(af => af > min && af < max))
     }
