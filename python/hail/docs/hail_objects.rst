@@ -22,8 +22,8 @@ Variant
 - **v.nAltAlleles** (*Int*) -- Number of alternate alleles, equal to ``nAlleles - 1``
 - **v.nGenotypes** (*Int*) -- Number of genotypes
 - **v.altAlleles** (*Array[AltAllele]*) -- The :ref:`alternate alleles <altallele>`
-- **v.inXPar** (*Boolean*) -- True if chromosome is X and start is in pseudo-autosomal region of X
-- **v.inYPar** (*Boolean*) -- True if chromosome is Y and start is in pseudo-autosomal region of Y. *NB: most callers assign variants in PAR to X*
+- **v.inXPar** (*Boolean*) -- True if chromosome is X and start is in :ref:`pseudoautosomal region <pseduoautosomal_region>` of X
+- **v.inYPar** (*Boolean*) -- True if chromosome is Y and start is in :ref:`pseudoautosomal region <pseduoautosomal_region>` of Y. *NB: most callers assign variants in PAR to X*
 - **v.inXNonPar** (*Boolean*) -- True if chromosome is X and start is not in pseudo-autosomal region of X
 - **v.inYNonPar** (*Boolean*) -- True if chromosome is Y and start is not in pseudo-autosomal region of Y
 - **v.altAllele** (*AltAllele*) -- The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**

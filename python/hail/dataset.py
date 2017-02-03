@@ -315,7 +315,7 @@ class VariantDataset(object):
         :param bool as_set: If True, load text file as Set[String],
             otherwise, load as Array[String].
 
-        :return: An annotated dataset with a new global annotation given by the list.
+        :return: Annotated dataset with a new global annotation given by the list.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -382,15 +382,22 @@ class VariantDataset(object):
         Compute per-sample GQ statistics for hets:
 
         >>> (hc.read('data/example.vds')
-        >>>   .annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()')
-        >>>   .export_samples('data/samples.txt', 'sample = s, het_gq_mean = sa.gqHetStats.mean'))
+        >>>    .annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()')
+        >>>    .export_samples('data/samples.txt', 'sample = s, het_gq_mean = sa.gqHetStats.mean'))
 
         Compute the list of genes with a singleton LOF:
 
         >>> (hc.read('data/example.vds')
-        >>>   .annotate_variants_table('data/consequence.tsv', 'Variant', code='va.consequence = table.Consequence')
-        >>>   .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles).sum() == 1')
-        >>>   .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet && va.consequence == "LOF").map(g => va.gene).collect()'))
+        >>>    .annotate_variants_table('data/consequence.tsv', 'Variant', code='va.consequence = table.Consequence')
+        >>>    .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles).sum() == 1')
+        >>>    .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet && va.consequence == "LOF").map(g => va.gene).collect()'))
+
+        To create an annotation for only a subset of samples based on an existing annotation:
+
+        >>> (hc.read('data/example.vds')
+        >>>    .annotate_samples_expr('if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Double')
+
+        For optimal performance, make sure the Type defined after NA is the same as the type of ``sa.pheno.bloodPressure``.
 
         **Notes**
 
@@ -494,7 +501,7 @@ class VariantDataset(object):
         :param str input: Sample list file.
         :param str root: Sample annotation path to store Boolean.
 
-        :return: annotated dataset with a new boolean sample annotation
+        :return: Annotated dataset with a new boolean sample annotation
         :rtype: :class:`.VariantDataset`
         """
 
@@ -626,7 +633,7 @@ class VariantDataset(object):
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig` or None
 
-        :return: annotated dataset with new samples annotations imported from a text file
+        :return: Annotated dataset with new samples annotations imported from a text file
         :rtype: :class:`.VariantDataset`
         """
 
@@ -648,11 +655,14 @@ class VariantDataset(object):
     def annotate_samples_vds(self, right, root=None, code=None):
         """Annotate samples with sample annotations from .vds file.
 
-        :param VariantDataset right: VariantDataset to annotate with.
+        :param right: VariantDataset to annotate with.
 
         :param str root: Sample annotation path to add sample annotations.
 
         :param str code: Annotation expression.
+
+        :return: Annotated dataset.
+        :rtype: :class:`.VariantDataset`
 
         """
 
@@ -732,6 +742,11 @@ class VariantDataset(object):
 
         >>> (hc.read('data/example.vds')
         >>>    .annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'))
+
+        Substitute a custom string for the rsID field:
+
+        >>> (hc.read('data/example.vds')
+        >>>    .annotate_variants_expr('va.rsid = va.contig + "_" + va.start + "_" + va.ref + "_" + va.alt'))
 
         **Notes**
 
@@ -1406,13 +1421,65 @@ class VariantDataset(object):
         self.hc._run_command(self, pargs)
 
     def export_vcf(self, output, append_to_header=None, export_pp=False, parallel=False):
-        """Export as .vcf file.
+        """Export a VariantDataset as a .vcf or .vcf.bgz file.
+
+        **Examples**
+
+        Export to VCF as an uncompressed file:
+
+        >>> hc.read('data/example.vds').export_vcf('data/example.vcf')
+
+        Export to VCF as block-compressed files with linear-scaled dosages:
+
+        >>> hc.read('data/example.vds').export_vcf('data.example.vcf.bgz', export_pp=True, parallel=True)
+
+        Export a sites-only VCF with addition header lines from `myheader.txt`:
+
+        >>> (hc.read('data/example.vds')
+        >>>    .filter_samples_all()
+        >>>    .export_vcf('data/sites-only.vcf.bgz', append_to_header='data/myheader.txt')
+
+        **Notes**
+        py:meth:`exportvcf` exports the VDS the VCF format as described in the [VCF 4.2 spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf).
+
+        - Use the ``.vcf.bgz`` extension in the output file name for `blocked GZIP <http://www.htslib.org/doc/tabix.html>`_ compression. We strongly recommended this for exporting large VCFs.
+        - Set ``parallel=True`` to return a set of VCF files (one per partition) rather than serially concatenating these files.
+        - Set ``append_to_header=file.txt`` to append *file.txt* to the output VCF header.
+        - Set ``export_pp=True`` to export linear-scaled probabilities (Hail's pp field on genotype) as the VCF PP FORMAT field.
+
+        Importing a VCF to a Hail VDS and then exporting to a VCF will not result in exactly the same VCF.  The differences, however, are limited to the header and INFO field.  The output VCF header will contain:
+
+        - FORMAT lines, with the format "GT:AD:DP:GQ:PL", or "GT:AD:DP:GQ:PP" if ``export_pp=True``
+        - FILTER lines, if present in the imported VCF
+        - INFO lines (see exported annotations below)
+
+        The output VCF header will not contain these lines unless they are explicitly copied to a file and inserted using the ``append_to_header`` option:
+
+        - contig lines
+        - lines added by external tools (bcftools, GATK, ...)
+
+        Hail exports the contents of `va.info` to the INFO field, so the workflow
+
+        >>> hc.import_vcf('data/example.vcf').export_vcf('data/example2.vcf')
+
+        will write out the same INFO field that was read in.
+
+        If samples or genotypes are filtered after importing a VCF, the value stored in `va.info.AC` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in `va.info` or overwrite existing annotations. For example, in order to produce an accurate "AC" field, one can run py:meth:`variant_qc` and copy the `va.qc.AC` field to `va.info.AC`:
+
+        >>> (hc.import_vcf('data/example.vcf')
+        >>>    .filter_genotypes('g.gq >= 20')
+        >>>    .variant_qc()
+        >>>    .annotate_variants_expr('va.info.AC = va.qc.AC')
+        >>>    .export_vcf('data/example.vcf.bgz'))
+
+        `py:meth:`export_vcf` does not export any annotations besides those in `va.info`.
 
         :param str output: Path of .vcf file to write.
         :param append_to_header: Path of file to append to .vcf header.
         :type append_to_header: str or None
-        :param bool export_pp: If True, export Hail pl genotype field as VCF PP FORMAT field.
+        :param bool export_pp: If True, export Hail pp genotype field as VCF PP FORMAT field.
         :param bool parallel: If True, export .vcf in parallel.
+
         """
 
         pargs = ['exportvcf', '--output', output]
@@ -1457,7 +1524,7 @@ class VariantDataset(object):
         update the alternate allele count annotation with the new
         indices:
 
-        >>> (hc.read('example.vds')
+        >>> (hc.read('data/example.vds')
         >>>   .filter_alleles('va.info.AC[aIndex - 1] == 0',
         >>>     'va.info.AC = aIndices[1:].map(i => va.info.AC[i - 1])',
         >>>     keep=False))
@@ -1755,24 +1822,33 @@ class VariantDataset(object):
         >>>                   .filter_variants_expr('va.gene == "CHD8"'))
 
 
-        Remove variants on chromosome 1:
+        Remove all variants on chromosome 1:
 
         >>> vds_filtered = (hc.read('data/example.vds')
         >>>                   .filter_variants_expr('v.contig == "1"',
         >>>                                          keep=False))
 
+        Keep variants on chromosomes 1, 2, and 3:
+
+        >>> vds_filtered = (hc.read('data/example.vds')
+        >>>                   .filter_variants_expr('set("1","2","3").contains(v.contig)')
+
+        Keep variants on chromosomes 1, 2, and 3:
+
+        >>> vds_filtered = (hc.read('data/example.vds')
+        >>>                   .filter_variants_expr('set("1","2","3").contains(v.contig)')
 
         **Notes**
 
-        ``condition`` is in variant context so the following symbols are in scope:
+        ``condition`` is in the variant context so the following symbols are in scope:
 
         - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
 
-        For more information, see the documentation on `data representation, annotations <overview.html#>`_, and
-        the `expression language <../expr_lang.html>`_.
+        .. caution::
+        ``va.contig`` is of type String.
 
         .. caution::
            When ``condition`` evaluates to missing, the variant will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -2464,22 +2540,22 @@ class VariantDataset(object):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
-        **Implementation Details**
+        **Example**
 
-        This method finds all violations of Mendelian inheritance in each (dad,
-        mom, kid) trio of samples.
+        Find all violations of Mendelian inheritance in each (dad,
+        mom, kid) trio in `trios.fam` and save results to files with root `mydata`:
 
-        The following expression,
+        >>> hc.read(sample.vds)..mendel_errors('mydata', 'trios.fam')
 
-        >>> vds.mendel_errors('genomes', 'trios.fam')
+        **Notes**
 
-        outputs four TSV files according to the `Plink mendel
+        The code above outputs four TSV files according to the `Plink mendel
         formats <https://www.cog-genomics.org/plink2/formats#mendel>`_:
 
-        - ``genomes.mendel`` -- all mendel errors: FID KID CHR SNP CODE ERROR
-        - ``genomes.fmendel`` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
-        - ``genomes.imendel`` -- error count per individual: FID IID N NSNP
-        - ``genomes.lmendel`` -- error count per variant: CHR SNP N
+        - ``mydata.mendel`` -- all mendel errors: FID KID CHR SNP CODE ERROR
+        - ``mydata.fmendel`` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
+        - ``mydata.imendel`` -- error count per individual: FID IID N NSNP
+        - ``mydata.lmendel`` -- error count per variant: CHR SNP N
 
         **FID**, **KID**, **PAT**, **MAT**, and **IID** refer to family, kid,
         dad, mom, and individual ID, respectively, with missing values set to
@@ -2534,9 +2610,9 @@ class VariantDataset(object):
         |   12   | HomRef     | Any        |  HomVar  | HemiY            |
         +--------+------------+------------+----------+------------------+
 
-        **Notes**
-
         This method only considers children with two parents and a defined sex.
+
+        .. _pseudoautosomal_region:
 
         PAR is currently defined with respect to reference
         `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
