@@ -105,4 +105,3 @@ exports.buildCommand = function (command, pandocOutputDir, $) {
         });
     });
 }
-}
