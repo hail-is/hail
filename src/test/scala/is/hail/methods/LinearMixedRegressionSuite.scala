@@ -103,7 +103,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     }.toMap
 
     // Then solve with LinearMixeModel and compare
-    val vds0 = vdsFromMatrix(sc)(G)
+    val vds0 = vdsFromMatrix(hc)(G)
     val pheno = y.toArray
     val cov1 = C(::, 1).toArray
     val cov2 = C(::, 2).toArray
@@ -172,7 +172,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val FstOfPop = Array.fill[Double](k)(Fst)
 
-    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9))
+    val bnm = BaldingNicholsModel(hc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9))
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 
@@ -289,7 +289,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val FstOfPop = Array.fill[Double](k)(Fst)
 
-    val bnm = BaldingNicholsModel(sc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), None, UniformDist(.1, .9))
+    val bnm = BaldingNicholsModel(hc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), None, UniformDist(.1, .9))
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 

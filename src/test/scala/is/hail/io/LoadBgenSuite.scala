@@ -33,13 +33,11 @@ class LoadBgenSuite extends SparkSuite {
     val nSamples = getNumberOfLinesInFile(sampleFile) - 2
     val nVariants = getNumberOfLinesInFile(gen)
 
-    var s = State(sc, sqlContext, null)
-    s = IndexBGEN.run(s, Array(bgen))
-    s = ImportBGEN.run(s, Array("-s", sampleFile, "-n", "10", bgen))
-    assert(s.vds.nSamples == nSamples && s.vds.nVariants == nVariants)
+    hc.indexBgen(bgen)
+    val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
+    assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
 
-    val genVDS = ImportGEN.run(s, Array("-s", sampleFile, gen)).vds
-    val bgenVDS = s.vds
+    val genVDS = hc.importGen(gen, sampleFile)
 
     val varidBgenQuery = bgenVDS.vaSignature.query("varid")
     val rsidBgenQuery = bgenVDS.vaSignature.query("rsid")
@@ -68,10 +66,10 @@ class LoadBgenSuite extends SparkSuite {
   }
 
   object Spec extends Properties("ImportBGEN") {
-    val compGen = for (vds <- VariantSampleMatrix.gen(sc,
+    val compGen = for (vds <- VariantSampleMatrix.gen(hc,
       VSMSubgen.dosage.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
         sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier.filter(_ != "NA"))))
-      .filter(_.nVariants > 0)
+      .filter(_.countVariants > 0)
       .map(_.copy(wasSplit = true));
       nPartitions <- choose(1, 10))
       yield (vds, nPartitions)
@@ -91,8 +89,7 @@ class LoadBgenSuite extends SparkSuite {
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
 
-        var s = State(sc, sqlContext, vds)
-        s = ExportGEN.run(s, Array("-o", fileRoot))
+        vds.exportGen(fileRoot)
 
         val localRoot = tmpDir.createLocalTempFile("testImportBgen")
         val localGenFile = localRoot + ".gen"
@@ -109,13 +106,12 @@ class LoadBgenSuite extends SparkSuite {
 
         assert(rc == 0)
 
-        var q = IndexBGEN.run(State(sc, sqlContext, null), Array(bgenFile))
-        q = ImportBGEN.run(State(sc, sqlContext, null), Array("-s", sampleFile, "-n", nPartitions.toString, bgenFile))
-
-        val importedVds = q.vds
+        hc.indexBgen(bgenFile)
+        val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions))
+          .cache()
 
         assert(importedVds.nSamples == vds.nSamples)
-        assert(importedVds.nVariants == vds.nVariants)
+        assert(importedVds.countVariants() == vds.countVariants())
         assert(importedVds.sampleIds == vds.sampleIds)
 
         val importedVariants = importedVds.variants

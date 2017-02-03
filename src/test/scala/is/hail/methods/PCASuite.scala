@@ -11,7 +11,7 @@ class PCASuite extends SparkSuite {
 
   @Test def test() {
 
-    val vds = LoadVCF(sc, "src/test/resources/tiny_m.vcf")
+    val vds = hc.importVCF("src/test/resources/tiny_m.vcf")
     val (scores, loadings, eigenvalues) = SamplePCA(vds, 3, true, true, true)
     val (scoresStruct, loadingsStruct, eigenvaluesStruct) = SamplePCA(vds, 3, true, true, false)
 

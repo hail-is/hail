@@ -79,8 +79,7 @@ class FisherExactTestSuite extends SparkSuite {
       }
 
     property("expr gives same result as class") =
-      forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { (vds: VariantDataset) =>
-        var s = State(sc, sqlContext, vds)
+      forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { (vds: VariantDataset) =>
         val sampleIds = vds.sampleIds
         val phenotypes = sampleIds.zipWithIndex.map { case (sample, i) =>
           if (i % 3 == 0)
@@ -97,26 +96,33 @@ class FisherExactTestSuite extends SparkSuite {
           phenotypes.foreach { case (sample, p) => w.write(s"$sample\t$p\n") }
         }
 
-        s = AnnotateSamplesTable.run(s, Array("-i", phenotypeFile, "-r", "sa.pheno", "-e", "Sample"))
+        val vds2 = vds.annotateSamplesTable(phenotypeFile, "Sample", root = Some("sa.pheno"))
+          .annotateVariantsExpr(
+            """va.macCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet).count() +
+              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar).count()""".stripMargin)
+          .annotateVariantsExpr(
+            """va.majCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet).count() +
+              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef).count()""".stripMargin)
+          .annotateVariantsExpr(
+            """va.macControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() +
+              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar).count()""".stripMargin)
+          .annotateVariantsExpr(
+            """va.majControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() +
+              |2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef).count()""".stripMargin)
+          .annotateVariantsExpr(
+            """va.fet = fet(va.macCase.toInt, va.majCase.toInt, va.macControl.toInt, va.majControl.toInt)""")
 
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.macCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar).count()"""))
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.majCase = gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef).count()"""))
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.macControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomVar).count()"""))
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.majControl = gs.filter(g => sa.pheno.Pheno1 == "Control" && g.isHet).count() + 2 * gs.filter(g => sa.pheno.Pheno1 == "ADHD" && g.isHomRef).count()"""))
 
-        s = AnnotateVariantsExpr.run(s, Array("-c", """va.fet = fet(va.macCase.toInt, va.majCase.toInt, va.macControl.toInt, va.majControl.toInt)"""))
+        val (_, q1) = vds2.queryVA("va.macCase")
+        val (_, q2) = vds2.queryVA("va.majCase")
+        val (_, q3) = vds2.queryVA("va.macControl")
+        val (_, q4) = vds2.queryVA("va.majControl")
+        val (_, q5) = vds2.queryVA("va.fet.pValue")
+        val (_, q6) = vds2.queryVA("va.fet.oddsRatio")
+        val (_, q7) = vds2.queryVA("va.fet.ci95Lower")
+        val (_, q8) = vds2.queryVA("va.fet.ci95Upper")
 
-
-        val (_, q1) = s.vds.queryVA("va.macCase")
-        val (_, q2) = s.vds.queryVA("va.majCase")
-        val (_, q3) = s.vds.queryVA("va.macControl")
-        val (_, q4) = s.vds.queryVA("va.majControl")
-        val (_, q5) = s.vds.queryVA("va.fet.pValue")
-        val (_, q6) = s.vds.queryVA("va.fet.oddsRatio")
-        val (_, q7) = s.vds.queryVA("va.fet.ci95Lower")
-        val (_, q8) = s.vds.queryVA("va.fet.ci95Upper")
-
-        s.vds.variantsAndAnnotations.forall { case (v, va) =>
+        vds2.variantsAndAnnotations.forall { case (v, va) =>
           val result = FisherExactTest(q1(va).get.asInstanceOf[Long].toInt, q2(va).get.asInstanceOf[Long].toInt,
             q3(va).get.asInstanceOf[Long].toInt, q4(va).get.asInstanceOf[Long].toInt)
           val annotationResult = Array(q5(va).asInstanceOf[Option[Double]], q6(va).asInstanceOf[Option[Double]],

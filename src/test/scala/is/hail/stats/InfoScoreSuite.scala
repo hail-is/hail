@@ -11,9 +11,8 @@ class InfoScoreSuite extends SparkSuite {
     val sampleFile = "src/test/resources/infoScoreTest.sample"
     val truthResultFile = "src/test/resources/infoScoreTest.result"
 
-    var s = State(sc, sqlContext)
-    s = ImportGEN.run(s, Array("-s", sampleFile, genFile))
-    s = AnnotateVariantsExpr.run(s, Array("-c", """va.infoScore = gs.infoScore()"""))
+    val vds = hc.importGen(genFile, sampleFile)
+      .annotateVariantsExpr("""va.infoScore = gs.infoScore()""")
 
     val truthResult = hadoopConf.readLines(truthResultFile)(_.map(_.map { line =>
       val Array(v, snpid, rsid, infoScore, nIncluded) = line.trim.split("\\s+")
@@ -26,10 +25,10 @@ class InfoScoreSuite extends SparkSuite {
     }.value
     ).toMap)
 
-    val (_, infoQuerier) = s.vds.queryVA("va.infoScore.score")
-    val (_, nQuerier) = s.vds.queryVA("va.infoScore.nIncluded")
+    val (_, infoQuerier) = vds.queryVA("va.infoScore.score")
+    val (_, nQuerier) = vds.queryVA("va.infoScore.nIncluded")
 
-    val hailResult = s.vds.rdd.mapValues { case (va, gs) =>
+    val hailResult = vds.rdd.mapValues { case (va, gs) =>
       (infoQuerier(va).map(_.asInstanceOf[Double]), nQuerier(va).map(_.asInstanceOf[Int]))
     }
       .map { case (v, (info, n)) => (v.toString, (info, n)) }.collectAsMap()

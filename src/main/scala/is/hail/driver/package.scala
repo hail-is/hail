@@ -27,24 +27,6 @@ package object driver {
       .mode(mode))
   }
 
-  case class CountResult(nSamples: Int,
-    nVariants: Long,
-    nCalled: Option[Long]) {
-    def nGenotypes: Long = nSamples * nVariants
-
-    def callRate: Option[Double] =
-      nCalled.flatMap(nCalled => divOption[Double](nCalled.toDouble * 100.0, nGenotypes))
-
-    def toJavaMap: util.Map[String, Any] = {
-      var m: Map[String, Any] = Map("nSamples" -> nSamples,
-        "nVariants" -> nVariants,
-        "nGenotypes" -> nGenotypes)
-      nCalled.foreach { nCalled => m += "nCalled" -> nCalled }
-      callRate.foreach { callRate => m += "callRate" -> callRate }
-      m.asJava
-    }
-  }
-
   def count(vds: VariantDataset, countGenotypes: Boolean): CountResult = {
     val (nVariants, nCalled) =
       if (countGenotypes) {
@@ -55,7 +37,7 @@ package object driver {
         }
         (nVar, Some(nCalled))
       } else
-        (vds.nVariants, None)
+        (vds.countVariants, None)
 
     CountResult(vds.nSamples, nVariants, nCalled)
   }
@@ -93,7 +75,7 @@ package object driver {
     val localSampleIdsBc = vds.sampleIdsBc
     val localSampleAnnotationsBc = vds.sampleAnnotationsBc
 
-    KeyTable(
+    KeyTable(vds.hc,
       vds.rdd.mapPartitions { it =>
         val ab = mutable.ArrayBuilder.make[Any]
 
@@ -212,13 +194,6 @@ package object driver {
 
     LogManager.resetConfiguration()
     PropertyConfigurator.configure(logProps)
-  }
-
-  def configureHail(branchingFactor: Int = 50, tmpDir: String = "/tmp") {
-    require(branchingFactor > 0)
-
-    HailConfiguration.tmpDir = tmpDir
-    HailConfiguration.branchingFactor = branchingFactor
   }
 
   def createSQLContext(sc: SparkContext): SQLContext = {

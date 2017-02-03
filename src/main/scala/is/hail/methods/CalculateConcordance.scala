@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.annotations.Annotation
 import is.hail.expr._
+import is.hail.keytable.KeyTable
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.variant._
@@ -59,7 +60,7 @@ class ConcordanceCombiner extends Serializable {
 
 object CalculateConcordance {
 
-  def apply(left: VariantDataset, right: VariantDataset): (VariantDataset, VariantDataset) = {
+  def apply(left: VariantDataset, right: VariantDataset): (IndexedSeq[IndexedSeq[Long]], VariantDataset, VariantDataset) = {
     require(left.wasSplit && right.wasSplit, "passed unsplit dataset to Concordance")
     val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
     if (overlap.isEmpty)
@@ -187,7 +188,7 @@ object CalculateConcordance {
 
     val rightSampleAnnotations = rightFiltered.sampleIdsAndAnnotations.toMap
 
-    val samples = VariantSampleMatrix(VariantMetadata(leftIds,
+    val samples = VariantSampleMatrix(left.hc, VariantMetadata(leftIds,
       sampleAnnotations = leftFiltered.sampleIdsAndAnnotations.zip(sampleResults).map { case ((s, leftSA), comb) =>
         val anno = Annotation(comb.toAnnotation, leftSA, rightSampleAnnotations(s))
         assert(sampleSchema.typeCheck(anno))
@@ -200,7 +201,7 @@ object CalculateConcordance {
       wasSplit = true),
       OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](left.sparkContext))
 
-    val variants = VariantSampleMatrix(VariantMetadata(IndexedSeq.empty[String],
+    val variants = VariantSampleMatrix(left.hc, VariantMetadata(IndexedSeq.empty[String],
       sampleAnnotations = IndexedSeq.empty[Annotation],
       globalAnnotation = globalAnnotation,
       saSignature = TStruct.empty,
@@ -209,6 +210,6 @@ object CalculateConcordance {
       wasSplit = true),
       variantResults)
 
-    (samples, variants)
+    (global.toAnnotation, samples, variants)
   }
 }

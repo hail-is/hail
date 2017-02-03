@@ -14,88 +14,84 @@ import org.testng.annotations.Test
 class AggregatorSuite extends SparkSuite {
 
   @Test def testRows() {
-    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
-    var s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
-    s = VariantQC.run(s, Array.empty[String])
-    s = AnnotateVariants.run(s, Array("expr", "-c",
-      """va.test.callrate = gs.fraction(g => g.isCalled), va.test.AC = gs.map(g => g.nNonRefAlleles).sum(),
-        |va.test.AF = gs.map(g => g.nNonRefAlleles).stats().sum.toDouble / gs.filter(g => g.isCalled).count() / 2.0,
-        |va.test.gqstats = gs.map(g => g.gq).stats(), va.test.gqhetstats = gs.filter(g => g.isHet).map(g => g.gq).stats(),
-        |va.lowGqGts = gs.filter(g => g.gq < 60).collect()""".stripMargin))
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
+      .splitMulti()
+      .variantQC()
+      .annotateVariantsExpr(
+        """va.test.callrate = gs.fraction(g => g.isCalled), va.test.AC = gs.map(g => g.nNonRefAlleles).sum(),
+          |va.test.AF = gs.map(g => g.nNonRefAlleles).stats().sum.toDouble / gs.filter(g => g.isCalled).count() / 2.0,
+          |va.test.gqstats = gs.map(g => g.gq).stats(), va.test.gqhetstats = gs.filter(g => g.isHet).map(g => g.gq).stats(),
+          |va.lowGqGts = gs.filter(g => g.gq < 60).collect()""".stripMargin)
 
-    val qCallRate = s.vds.queryVA("va.test.callrate")._2
-    val qCallRateQC = s.vds.queryVA("va.qc.callRate")._2
-    val qAC = s.vds.queryVA("va.test.AC")._2
-    val qACQC = s.vds.queryVA("va.qc.AC")._2
-    val qAF = s.vds.queryVA("va.test.AF")._2
-    val qAFQC = s.vds.queryVA("va.qc.AF")._2
-    val gqStatsMean = s.vds.queryVA("va.test.gqstats.mean")._2
-    val gqStatsMeanQC = s.vds.queryVA("va.qc.gqMean")._2
-    val gqStatsStDev = s.vds.queryVA("va.test.gqstats.stdev")._2
-    val gqStatsStDevQC = s.vds.queryVA("va.qc.gqStDev")._2
-    val gqStatsHetMean = s.vds.queryVA("va.test.gqhetstats.mean")._2
-    val gqStatsHetStDev = s.vds.queryVA("va.test.gqhetstats.stdev")._2
-    val lowGqGts = s.vds.queryVA("va.lowGqGts")._2
+    val qCallRate = vds.queryVA("va.test.callrate")._2
+    val qCallRateQC = vds.queryVA("va.qc.callRate")._2
+    val qAC = vds.queryVA("va.test.AC")._2
+    val qACQC = vds.queryVA("va.qc.AC")._2
+    val qAF = vds.queryVA("va.test.AF")._2
+    val qAFQC = vds.queryVA("va.qc.AF")._2
+    val gqStatsMean = vds.queryVA("va.test.gqstats.mean")._2
+    val gqStatsMeanQC = vds.queryVA("va.qc.gqMean")._2
+    val gqStatsStDev = vds.queryVA("va.test.gqstats.stdev")._2
+    val gqStatsStDevQC = vds.queryVA("va.qc.gqStDev")._2
+    val gqStatsHetMean = vds.queryVA("va.test.gqhetstats.mean")._2
+    val gqStatsHetStDev = vds.queryVA("va.test.gqhetstats.stdev")._2
+    val lowGqGts = vds.queryVA("va.lowGqGts")._2
 
-    s.vds.rdd.collect()
-      .foreach {
-        case (v, (va, gs)) =>
-          assert(qCallRate(va) == qCallRateQC(va))
-          assert(qAC(va) == qACQC(va))
-          assert(D_==(qAF(va).get.asInstanceOf[Double], qAFQC(va).get.asInstanceOf[Double]))
-          assert(gqStatsMean(va).zip(gqStatsMeanQC(va)).forall {
-            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
-          })
-          assert(gqStatsStDev(va).zip(gqStatsStDevQC(va)).forall {
-            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
-          })
+    vds.rdd.collect()
+      .foreach { case (v, (va, gs)) =>
+        assert(qCallRate(va) == qCallRateQC(va))
+        assert(qAC(va) == qACQC(va))
+        assert(D_==(qAF(va).get.asInstanceOf[Double], qAFQC(va).get.asInstanceOf[Double]))
+        assert(gqStatsMean(va).zip(gqStatsMeanQC(va)).forall {
+          case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+        })
+        assert(gqStatsStDev(va).zip(gqStatsStDevQC(va)).forall {
+          case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+        })
 
-          val gqSC = gs.aggregate(new StatCounter())({ case (s, g) =>
-            if (g.isHet)
-              g.gq.foreach(x => s.merge(x))
-            s
-          }, { case (s1, s2) => s1.merge(s2) })
+        val gqSC = gs.aggregate(new StatCounter())({ case (s, g) =>
+          if (g.isHet)
+            g.gq.foreach(x => s.merge(x))
+          s
+        }, { case (s1, s2) => s1.merge(s2) })
 
-          assert(gqStatsHetMean(va).zip(Option(gqSC.mean)).forall {
-            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
-          })
-          assert(gqStatsHetStDev(va).zip(Option(gqSC.stdev)).forall {
-            case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
-          })
+        assert(gqStatsHetMean(va).zip(Option(gqSC.mean)).forall {
+          case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+        })
+        assert(gqStatsHetStDev(va).zip(Option(gqSC.stdev)).forall {
+          case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
+        })
 
-          val lowGqGtsData = gs.filter(_.gq.exists(_ < 60))
-          assert(lowGqGts(va).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
+        val lowGqGtsData = gs.filter(_.gq.exists(_ < 60))
+        assert(lowGqGts(va).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
 
       }
   }
 
   @Test def testColumns() {
-    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf")
-    var s = SplitMulti.run(State(sc, sqlContext, vds), Array.empty[String])
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
+      .splitMulti()
+      .sampleQC()
+      .annotateSamplesExpr("sa.test.callrate = gs.fraction(g => g.isCalled), sa.test.gqstats = " +
+        "gs.map(g => g.gq).stats(), sa.test.gqhetstats = gs.filter(g => g.isHet).map(g => g.gq).stats()")
 
-    s = SampleQC.run(s, Array.empty[String])
+    val qCallRate = vds.querySA("sa.test.callrate")._2
+    val qCallRateQC = vds.querySA("sa.qc.callRate")._2
+    val gqStatsMean = vds.querySA("sa.test.gqstats.mean")._2
+    val gqStatsMeanQC = vds.querySA("sa.qc.gqMean")._2
+    val gqStatsStDev = vds.querySA("sa.test.gqstats.stdev")._2
+    val gqStatsStDevQC = vds.querySA("sa.qc.gqStDev")._2
+    val gqStatsHetMean = vds.querySA("sa.test.gqhetstats.mean")._2
+    val gqStatsHetStDev = vds.querySA("sa.test.gqhetstats.stdev")._2
 
-    s = AnnotateSamples.run(s, Array("expr", "-c", "sa.test.callrate = gs.fraction(g => g.isCalled), sa.test.gqstats = " +
-      "gs.map(g => g.gq).stats(), sa.test.gqhetstats = gs.filter(g => g.isHet).map(g => g.gq).stats()"))
-
-    val qCallRate = s.vds.querySA("sa.test.callrate")._2
-    val qCallRateQC = s.vds.querySA("sa.qc.callRate")._2
-    val gqStatsMean = s.vds.querySA("sa.test.gqstats.mean")._2
-    val gqStatsMeanQC = s.vds.querySA("sa.qc.gqMean")._2
-    val gqStatsStDev = s.vds.querySA("sa.test.gqstats.stdev")._2
-    val gqStatsStDevQC = s.vds.querySA("sa.qc.gqStDev")._2
-    val gqStatsHetMean = s.vds.querySA("sa.test.gqhetstats.mean")._2
-    val gqStatsHetStDev = s.vds.querySA("sa.test.gqhetstats.stdev")._2
-
-
-    val gqHetMap = s.vds.aggregateBySample(new StatCounter())({ case (s, g) =>
+    val gqHetMap = vds.aggregateBySample(new StatCounter())({ case (s, g) =>
       if (g.isHet)
         g.gq.foreach(x => s.merge(x))
       s
     }, { case (s1, s2) => s1.merge(s2) })
       .collect().toMap
 
-    s.vds.sampleIdsAndAnnotations
+    vds.sampleIdsAndAnnotations
       .foreach {
         case (s, sa) =>
           assert(qCallRate(sa) == qCallRateQC(sa))
@@ -115,17 +111,14 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testSum() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random)) { vds =>
-      var state = State(sc, sqlContext, vds)
-      state = SplitMulti.run(state)
-      state = VariantQC.run(state)
-      state = AnnotateVariantsExpr.run(state, Array("-c", "va.oneHotAC = gs.map(g => g.oneHotAlleles(v)).sum()"))
-      state.vds.rdd.collect()
-      state = AnnotateVariantsExpr.run(state, Array("-c",
-        "va.same = (gs.filter(g => g.isCalled).count() == 0) || " +
-          "(va.oneHotAC[0] == va.qc.nCalled * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.nHet + 2 * va.qc.nHomVar)"))
-      val (_, querier) = state.vds.queryVA("va.same")
-      state.vds.variantsAndAnnotations
+    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+      val vds2 = vds.splitMulti()
+        .variantQC()
+        .annotateVariantsExpr("va.oneHotAC = gs.map(g => g.oneHotAlleles(v)).sum()")
+        .annotateVariantsExpr("va.same = (gs.filter(g => g.isCalled).count() == 0) || " +
+          "(va.oneHotAC[0] == va.qc.nCalled * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.nHet + 2 * va.qc.nHomVar)")
+      val (_, querier) = vds2.queryVA("va.same")
+      vds2.variantsAndAnnotations
         .forall { case (v, va) =>
           querier(va).exists(_.asInstanceOf[Boolean])
         }
@@ -134,11 +127,10 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testHist() {
-    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
-    var s = State(sc, sqlContext, vds)
+    val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
 
-    val s2 = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(0, 100, 20)"))
-    s2.vds.rdd.collect.foreach { case (v, (va, gs)) =>
+    val vds2 = vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(0, 100, 20)")
+    vds2.rdd.collect.foreach { case (v, (va, gs)) =>
       val r = va.asInstanceOf[Row]
 
       val frequencies = r.getAs[IndexedSeq[Long]](1)
@@ -150,8 +142,8 @@ class AggregatorSuite extends SparkSuite {
       assert(frequencies.last == definedGq.count(gq => gq >= 95))
     }
 
-    val s3 = AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(22, 80, 5)"))
-    s3.vds.rdd.collect.foreach { case (v, (va, gs)) =>
+    val vds3 = vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(22, 80, 5)")
+    vds3.rdd.collect.foreach { case (v, (va, gs)) =>
       val r = va.asInstanceOf[Row]
       val nLess = r.getAs[Long](2)
       val nGreater = r.getAs[Long](3)
@@ -163,60 +155,58 @@ class AggregatorSuite extends SparkSuite {
     }
 
     TestUtils.interceptFatal("""invalid bin size""") {
-      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(0, 0, 10)"))
+      vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(0, 0, 10)")
     }
 
     TestUtils.interceptFatal("""method `hist' expects `bins' argument to be > 0""") {
-      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(0, 10, 0)"))
+      vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(0, 10, 0)")
     }
 
     TestUtils.interceptFatal("""invalid bin size""") {
-      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(10, 0, 5)"))
+      vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(10, 0, 5)")
     }
 
     TestUtils.interceptFatal("""symbol.*va.*not found""") {
-      AnnotateVariantsExpr.run(s, Array("-c", "va = gs.map(g => g.gq).hist(10, 0, va.info.AC[0])"))
+      vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(10, 0, va.info.AC[0])")
     }
   }
 
   @Test def testErrorMessages() {
-    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
-    val s = State(sc, sqlContext, vds)
+    val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
 
     val dummy = tmpDir.createTempFile("out")
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
-      ExportVariants.run(s, Array("-o", dummy, "-c", "gs")))
+      vds.exportVariants(dummy, "gs"))
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int\\]")(
-      ExportVariants.run(s, Array("-o", dummy, "-c", "gs.map(g => 5)")))
+      vds.exportVariants(dummy, "gs.map(g => 5)"))
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
-      ExportVariants.run(s, Array("-o", dummy, "-c", "gs")))
+      vds.exportVariants(dummy, "gs.filter(x => false)"))
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
-      AnnotateVariants.run(s, Array("expr", "-c", "va = gs")))
+      vds.annotateVariantsExpr("va = gs"))
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int\\]")(
-      AnnotateVariants.run(s, Array("expr", "-c", "va = gs.map(G => 5)")))
+      vds.annotateVariantsExpr("va = gs.map(g => 5)"))
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
-      AnnotateVariants.run(s, Array("expr", "-c", "va = gs.filter(g => true)")))
+      vds.annotateVariantsExpr("va = gs.filter(g => true)"))
   }
 
   @Test def testCallStats() {
-    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf").cache()
-    var s = State(sc, sqlContext, vds)
-    s = AnnotateVariantsExpr.run(s, Array("-c",
-      """va.callStats = gs.callStats(g => v),
-        |va.AC = gs.map(g => g.oneHotAlleles(v)).sum(),
-        |va.GC = gs.map(g => g.oneHotGenotype(v)).sum(),
-        |va.AN = gs.filter(g => g.isCalled).count() * 2""".stripMargin))
-    s = AnnotateVariantsExpr.run(s, Array("-c", "va.AF = va.AC / va.AN"))
-    val (_, csAC) = s.vds.queryVA("va.callStats.AC")
-    val (_, csAF) = s.vds.queryVA("va.callStats.AF")
-    val (_, csAN) = s.vds.queryVA("va.callStats.AN")
-    val (_, csGC) = s.vds.queryVA("va.callStats.GC")
-    val (_, ac) = s.vds.queryVA("va.AC")
-    val (_, af) = s.vds.queryVA("va.AF")
-    val (_, an) = s.vds.queryVA("va.AN")
-    val (_, gc) = s.vds.queryVA("va.GC")
+    val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
+      .annotateVariantsExpr(
+        """va.callStats = gs.callStats(g => v),
+          |va.AC = gs.map(g => g.oneHotAlleles(v)).sum(),
+          |va.GC = gs.map(g => g.oneHotGenotype(v)).sum(),
+          |va.AN = gs.filter(g => g.isCalled).count() * 2""".stripMargin)
+      .annotateVariantsExpr("va.AF = va.AC / va.AN")
+    val (_, csAC) = vds.queryVA("va.callStats.AC")
+    val (_, csAF) = vds.queryVA("va.callStats.AF")
+    val (_, csAN) = vds.queryVA("va.callStats.AN")
+    val (_, csGC) = vds.queryVA("va.callStats.GC")
+    val (_, ac) = vds.queryVA("va.AC")
+    val (_, af) = vds.queryVA("va.AF")
+    val (_, an) = vds.queryVA("va.AN")
+    val (_, gc) = vds.queryVA("va.GC")
 
-    s.vds.variantsAndAnnotations
+    vds.variantsAndAnnotations
       .collect()
       .foreach { case (_, va) =>
         assert(csAC(va) == ac(va), s"AC was different")
@@ -227,137 +217,43 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testCounter() {
-    Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprByVariant.run(s, "-c", "global = variants.map(v => v.contig).counter()")
-      val counterMap = s.vds.globalAnnotation
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
+      val (r, t) = vds.queryVariants("variants.map(v => v.contig).counter()")
+      val counterMap = r.asInstanceOf[Map[String, Long]]
       val aggMap = vds.variants.map(_.contig).countByValue()
       aggMap == counterMap
     }.check()
   }
 
   @Test def testTake() {
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/aggTake.vcf"))
+    val vds = hc.importVCF("src/test/resources/aggTake.vcf")
+      .annotateVariantsExpr("va.take = gs.map(g => g.dp).take(3)")
+      .annotateVariantsExpr("va.takeBy = gs.map(g => g.dp).takeBy(dp => g.gq, 3)")
 
-    ExportVCF.run(s, Array("-o", "/tmp/foo.vcf"))
+    val (_, qTake) = vds.queryVA("va.take")
+    val (_, qTakeBy) = vds.queryVA("va.takeBy")
 
-    s = AnnotateVariantsExpr.run(s, Array("-c", "va.take = gs.map(g => g.dp).take(3)"))
-    s = AnnotateVariantsExpr.run(s, Array("-c", "va.takeBy = gs.map(g => g.dp).takeBy(dp => g.gq, 3)"))
-
-    val (_, qTake) = s.vds.queryVA("va.take")
-    val (_, qTakeBy) = s.vds.queryVA("va.takeBy")
-
-    val va = s.vds.variantsAndAnnotations.map(_._2).collect().head
+    val va = vds.variantsAndAnnotations.map(_._2).collect().head
     assert(qTake(va).contains(IndexedSeq[Any](11, null, 20)))
     assert(qTakeBy(va).contains(IndexedSeq[Any](55, null, 11)))
   }
 
-  @Test def testMap() {
-    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
-    var s = State(sc, sqlContext, vds)
-    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.map(id => if (id == \"b\") (NA : Sample) else id).map(x => 1).sum()"))
+  @Test def testTransformations() {
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random.copy(sampleIdGen = Gen.const(Array("a", "b"))))) { vds =>
+      assert(vds.querySamples("samples.map(id => if (id == \"b\") (NA : Sample) else id).map(x => 1).sum()")._1 == 2)
+      assert(vds.querySamples("samples.filter(id => true).map(id => 1).sum()")._1 == 2)
+      assert(vds.querySamples("samples.filter(id => false).map(id => 1).sum()")._1 == 0)
+      assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == 2)
+      assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
+      assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 6)
+      assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 4)
+      assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet).filter(x => x % 2 == 0).sum()")._1 == 4)
 
-    val (_, result) = s.vds.queryGlobal("global.result")
-
-    assert(result.contains(2))
-  }
-
-  @Test def testFilter1() {
-    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
-    var s = State(sc, sqlContext, vds)
-    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(id => true).map(id => 1).sum()"))
-
-    val (_, result) = s.vds.queryGlobal("global.result")
-
-    assert(result.contains(2))
-  }
-
-  @Test def testFilter2() {
-    val vds = VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b")))).sample()
-    var s = State(sc, sqlContext, vds)
-    s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.filter(id => false).map(id => 1).sum()"))
-
-    val (_, result) = s.vds.queryGlobal("global.result")
-
-    assert(result.contains(0))
-  }
-
-  @Test def testFlatMap1() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1]).sum()"))
-
-      val (_, result) = s.vds.queryGlobal("global.result")
-
-      result.contains(2)
-    }
-    p.check()
-  }
-
-  @Test def testFlatMap2() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [0][:0]).sum()"))
-
-      val (_, result) = s.vds.queryGlobal("global.result")
-
-      result.contains(0)
-    }
-    p.check()
-  }
-
-  @Test def testFlatMap3() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2]).sum()"))
-
-      val (_, result) = s.vds.queryGlobal("global.result")
-
-      result.contains(6)
-    }
-    p.check()
-  }
-
-  @Test def testFlatMap4() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()"))
-
-      val (_, result) = s.vds.queryGlobal("global.result")
-
-      result.contains(4)
-    }
-    p.check()
-  }
-
-  @Test def testFlatMap5() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = AnnotateGlobalExprBySample.run(s, Array("-c", "global.result = samples.flatMap(g => [1,2,2].toSet).filter(x => x % 2 == 0).sum()"))
-
-      val (_, result) = s.vds.queryGlobal("global.result")
-
-      result.contains(4)
-    }
-    p.check()
-  }
-
-  @Test def filterMap() {
-    val vds = VariantSampleMatrix
-      .gen(sc, VSMSubgen.random.copy(sampleIdGen=Gen.const(Array("a", "b"))))
-      .filter(vds => vds.nVariants > 0)
-      .sample()
-    var s = State(sc, sqlContext, vds)
-    s = FilterSamplesExpr.run(s, Array("-c", "s == \"a\"", "--keep"))
-    s = AnnotateVariantsExpr.run(s, Array("-c", "va.result = gs.map(id => 1).sum()"))
-
-    val (_, result) = s.vds.queryVA("va.result")
-
-    s.vds.variantsAndAnnotations.map(_._2).collect().foreach { va =>
-      result(va).foreach { result =>
-        assert(result == 1)
-      }
-    }
+      vds.annotateVariantsExpr("""va = gs.filter(g => s.id == "a").map(g => 1).sum()""")
+        .rdd
+        .collect()
+        .foreach { case (_, (va, _)) => assert(va == 1) }
+      true
+    }.check()
   }
 }

@@ -4,7 +4,6 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import org.apache.spark.util.StatCounter
 import is.hail.annotations.Annotation
-import is.hail.driver.HailConfiguration
 import is.hail.expr.{TAggregable, _}
 import is.hail.stats._
 import is.hail.utils._
@@ -102,7 +101,7 @@ object Aggregators {
 
     val nAggregations = aggregations.length
     val nSamples = vds.nSamples
-    val depth = HailConfiguration.treeAggDepth(vds.nPartitions)
+    val depth = treeAggDepth(vds.hc, vds.nPartitions)
 
     val baseArray = MultiArray2.fill[Aggregator](nSamples, nAggregations)(null)
     for (i <- 0 until nSamples; j <- 0 until nAggregations) {

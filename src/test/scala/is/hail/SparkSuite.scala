@@ -8,25 +8,21 @@ import is.hail.utils.TempDir
 import is.hail.driver._
 
 object SparkSuite {
-  lazy val sc: SparkContext = {
-    configureHail()
-    configureLogging(quiet = true)
-    configureAndCreateSparkContext("Hail.TestNG",
-      Option(System.getProperty("hail.master")), local = "local[2]")
-  }
-
-  lazy val sqlContext: SQLContext = createSQLContext(sc)
+  lazy val hc = HailContext(master = Option(System.getProperty("hail.master")),
+    appName = "Hail.TestNG",
+    local = "local[2]",
+    quiet = true)
 }
 
 class SparkSuite extends TestNGSuite {
-  def sc = SparkSuite.sc
 
-  def sqlContext = SparkSuite.sqlContext
+  lazy val hc: HailContext = SparkSuite.hc
 
-  lazy val hadoopConf: hadoop.conf.Configuration =
-    sc.hadoopConfiguration
+  lazy val sc: SparkContext = hc.sc
 
-  val noArgs: Array[String] = Array.empty[String]
+  lazy val sqlContext: SQLContext = hc.sqlContext
+
+  lazy val hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
   lazy val tmpDir: TempDir = TempDir(hadoopConf)
 }

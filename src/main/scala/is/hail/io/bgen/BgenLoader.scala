@@ -5,6 +5,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import is.hail.annotations._
+import is.hail.driver.HailContext
 import is.hail.expr._
 import is.hail.io._
 import is.hail.io.gen.GenReport
@@ -20,11 +21,11 @@ case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Lon
 
 object BgenLoader {
 
-  def load(sc: SparkContext, files: Array[String], sampleFile: Option[String] = None,
+  def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
     tolerance: Double, compress: Boolean, nPartitions: Option[Int] = None): VariantDataset = {
     require(files.nonEmpty)
-    val samples = sampleFile.map(file => BgenLoader.readSampleFile(sc.hadoopConfiguration, file))
-      .getOrElse(BgenLoader.readSamples(sc.hadoopConfiguration, files.head))
+    val samples = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
+      .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
 
     val duplicateIds = samples.duplicates().toArray
     if (duplicateIds.nonEmpty) {
@@ -35,9 +36,10 @@ object BgenLoader {
 
     val nSamples = samples.length
 
-    sc.hadoopConfiguration.setBoolean("compressGS", compress)
-    sc.hadoopConfiguration.setDouble("tolerance", tolerance)
+    hc.hadoopConf.setBoolean("compressGS", compress)
+    hc.hadoopConf.setDouble("tolerance", tolerance)
 
+    val sc = hc.sc
     val results = files.map { file =>
       val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
       val bState = readState(sc.hadoopConfiguration, file)
@@ -73,7 +75,7 @@ object BgenLoader {
       (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
     })).toOrderedRDD[Locus](fastKeys)
 
-    VariantSampleMatrix(VariantMetadata(
+    VariantSampleMatrix(hc, VariantMetadata(
       sampleIds = samples,
       sampleAnnotations = IndexedSeq.fill(nSamples)(Annotation.empty),
       globalAnnotation = Annotation.empty,

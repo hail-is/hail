@@ -2,6 +2,7 @@ package is.hail.utils
 
 import org.apache.spark.SparkContext
 import is.hail.annotations._
+import is.hail.driver.HailContext
 import is.hail.variant._
 import is.hail.utils._
 
@@ -78,7 +79,7 @@ object TestRDDBuilder {
     }
   }
 
-  def buildRDD(nSamples: Int, nVariants: Int, sc: SparkContext,
+  def buildRDD(nSamples: Int, nVariants: Int, hc: HailContext,
                       gqArray: Option[Array[Array[Int]]] = None,
                       dpArray: Option[Array[Array[Int]]] = None,
                       gtArray: Option[Array[Array[Int]]] = None): VariantDataset = {
@@ -102,7 +103,7 @@ object TestRDDBuilder {
           dpArray.map(_(i)))))
       .toArray
 
-    val variantRDD = sc.parallelize(variantArray)
+    val variantRDD = hc.sc.parallelize(variantArray)
     val streamRDD = variantRDD.map {
       case (variant, (gtArr, gqArr, dpArr)) =>
         val b = new GenotypeStreamBuilder(variant.nAlleles)
@@ -127,6 +128,6 @@ object TestRDDBuilder {
         }
         (variant, (Annotation.empty, b.result(): Iterable[Genotype]))
     }
-    VariantSampleMatrix(VariantMetadata(sampleList), streamRDD.toOrderedRDD)
+    VariantSampleMatrix(hc, VariantMetadata(sampleList), streamRDD.toOrderedRDD)
   }
 }

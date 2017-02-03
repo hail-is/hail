@@ -35,22 +35,22 @@ class ImputeSexSuite extends SparkSuite {
 
   object Spec extends Properties("ImputeSex") {
 
-    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)
+    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal && v.contig.toUpperCase != "X" && v.contig.toUpperCase != "Y" })
-      .filter(vds => vds.nVariants > 2 && vds.nSamples >= 2)
+      .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same results as PLINK v1.9") =
       forAll(plinkSafeBiallelicVDS) { case (vds: VariantSampleMatrix[Genotype]) =>
 
-        var s = State(sc, sqlContext).copy(vds = vds.copy(rdd =
+        var mappedVDS = vds.copy(rdd =
           vds.rdd.map { case (v, (va, gs)) => (v.copy(contig = "X"), (va, gs)) }
-            .toOrderedRDD))
+            .toOrderedRDD)
+          .variantQC()
+          .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && " +
+            "va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
 
-        s = VariantQC.run(s)
-        s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8"))
-
-        if (s.vds.nSamples < 5 || s.vds.nVariants < 5) {
+        if (vds.nSamples < 5 || vds.countVariants() < 5) {
           true
         } else {
           val localRoot = tmpDir.createLocalTempFile("plinksexCheck")
@@ -61,9 +61,9 @@ class ImputeSexSuite extends SparkSuite {
           val vcfFile = root + ".vcf"
           val sexcheckFile = root + ".sexcheck"
 
-          s = ImputeSex.run(s, Array("-m", "0.0", "--include-par"))
-          s = ExportVCF.run(s, Array("-o", vcfFile))
-          s = Write.run(s, Array("-o", root + ".vds"))
+          mappedVDS = mappedVDS.imputeSex(0.0, includePAR = true)
+          mappedVDS.exportVCF(vcfFile)
+          mappedVDS.write(root + ".vds")
 
           hadoopConf.copy(vcfFile, localVCFFile)
 
@@ -73,10 +73,10 @@ class ImputeSexSuite extends SparkSuite {
 
           val plinkResult = parsePlinkSexCheck(sexcheckFile)
 
-          val (_, imputedSexQuery) = s.vds.querySA("if (sa.imputesex.isFemale) 2 else 1")
-          val (_, fQuery) = s.vds.querySA("sa.imputesex.Fstat")
+          val (_, imputedSexQuery) = mappedVDS.querySA("if (sa.imputesex.isFemale) 2 else 1")
+          val (_, fQuery) = mappedVDS.querySA("sa.imputesex.Fstat")
 
-          val hailResult = s.vds.sampleIdsAndAnnotations.map { case (sample, sa) =>
+          val hailResult = mappedVDS.sampleIdsAndAnnotations.map { case (sample, sa) =>
             (sample, (imputedSexQuery(sa).map(_.asInstanceOf[Int]), fQuery(sa).map(_.asInstanceOf[Double])))
           }.toMap
 
@@ -101,13 +101,13 @@ class ImputeSexSuite extends SparkSuite {
             }
           }
 
-          val countAnnotated = AnnotateVariantsExpr.run(s,
-            Array("-c", "va.maf = let a = gs.map(g => g.oneHotAlleles(v)).sum() in a[1] / a.sum"))
-          val sexcheck2 = ImputeSex.run(countAnnotated, Array("--pop-freq", "va.maf", "--include-par"))
+          val countAnnotated = mappedVDS.annotateVariantsExpr(
+            "va.maf = let a = gs.map(g => g.oneHotAlleles(v)).sum() in a[1] / a.sum")
+          val sexcheck2 = countAnnotated.imputeSex(popFreqExpr = Some("va.maf"), includePAR = true)
 
           result &&
-            sexcheck2.vds.saSignature == s.vds.saSignature &&
-            sexcheck2.vds.sampleAnnotationsSimilar(s.vds)
+            sexcheck2.saSignature == mappedVDS.saSignature &&
+            sexcheck2.sampleAnnotationsSimilar(mappedVDS)
         }
       }
   }

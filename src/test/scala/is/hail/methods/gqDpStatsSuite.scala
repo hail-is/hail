@@ -1,11 +1,8 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
+import is.hail.utils.{TestRDDBuilder, _}
 import org.testng.annotations.Test
-import is.hail.utils.TestRDDBuilder
-import is.hail.utils._
-import is.hail.driver.VariantQC
-import is.hail.driver.SampleQC
 
 class gqDpStatsSuite extends SparkSuite {
   @Test def test() {
@@ -22,7 +19,7 @@ class gqDpStatsSuite extends SparkSuite {
     val variantDevs = Array(1.87082869, 5.33853913, 7.27581611, 4.28478413)
 
     // DP test first
-    val dpVds = TestRDDBuilder.buildRDD(8, 4, sc, dpArray=Some(arr), gqArray=None)
+    val dpVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray=Some(arr), gqArray=None)
     val dpVariantR = VariantQC.results(dpVds)
     val dpSampleR = SampleQC.results(dpVds)
 
@@ -48,7 +45,7 @@ class gqDpStatsSuite extends SparkSuite {
     }
 
     // now test GQ
-    val gqVds = TestRDDBuilder.buildRDD(8, 4, sc, dpArray=None, gqArray=Some(arr))
+    val gqVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray=None, gqArray=Some(arr))
     val gqVariantR = VariantQC.results(gqVds)
     val gqSampleR = SampleQC.results(gqVds)
 

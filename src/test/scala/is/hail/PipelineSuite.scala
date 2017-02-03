@@ -12,21 +12,19 @@ class PipelineSuite extends SparkSuite {
     val mendelBase = tmpDir.createTempFile("mendel")
     val pcaFile = tmpDir.createTempFile("pca", extension = ".tsv")
 
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf"))
-    s = SplitMulti.run(s, Array.empty[String])
-    s = Write.run(s, Array("-o", vdsFile))
-    s = Read.run(s, Array("-i", vdsFile))
-    s = SampleQC.run(s, Array("-o", sampleQCFile))
-    s = VariantQC.run(s, Array.empty[String])
-    s = GQByDP.run(s, Array("-o", gqByDPFile))
-    s = MendelErrorsCommand.run(s, Array("-f", "src/test/resources/sample.fam",
-      "-o", mendelBase))
-    s = Count.run(s, Array.empty[String])
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    vds.splitMulti()
+      .write(vdsFile)
 
-    s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.AF > 0.01 && va.qc.AF < 0.99"))
+    val qc = hc.read(vdsFile)
+      .sampleQC()
+      .variantQC()
 
-    s = PCA.run(s, Array("-s", "sa.scores"))
+    qc.gqByDP(gqByDPFile)
+    qc.mendelErrors(mendelBase, "src/test/resources/sample.fam")
+    qc.count()
+    qc.filterVariantsExpr("va.qc.AF > 0.01 && va.qc.AF < 0.99")
+      .pca("sa.scores")
 
     /*
     val linregFile = tmpDir.createTempFile("linreg", extension = ".tsv")

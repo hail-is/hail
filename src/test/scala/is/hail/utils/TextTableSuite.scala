@@ -2,10 +2,11 @@ package is.hail.utils
 
 import is.hail.SparkSuite
 import is.hail.check._
-import is.hail.driver.{AnnotateVariantsTable, ExportVariants, State}
 import is.hail.expr._
 import is.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
 import org.testng.annotations.Test
+
+import scala.io.Source
 
 class TextTableSuite extends SparkSuite {
 
@@ -92,19 +93,17 @@ class TextTableSuite extends SparkSuite {
 
   @Test def testAnnotationsReadWrite() {
     val outPath = tmpDir.createTempFile("annotationOut", ".tsv")
-    val outTypesPath = tmpDir.createLocalTempFile("annotationOut", ".types")
-    val p = Prop.forAll(VariantSampleMatrix.gen(sc, VSMSubgen.realistic)
-      .filter(vds => vds.nVariants > 0 && vds.vaSignature != TDouble)) { vds: VariantDataset =>
+    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
+      .filter(vds => vds.countVariants > 0 && vds.vaSignature != TDouble)) { vds: VariantDataset =>
 
-      var state = State(sc, sqlContext, vds)
-      state = ExportVariants.run(state, Array("-o", outPath, "-c", "v = v, va = va", "-t", outTypesPath))
+      vds.exportVariants(outPath, "v = v, va = va", typeFile = true)
+      val types = Type.parseMap(hadoopConf.readFile(outPath + ".types")(Source.fromInputStream(_).mkString))
 
-      state = AnnotateVariantsTable.run(state, Array(outPath,
-        "-e", "v",
-        "-c", "va = table.va",
-        "-t", s"@${ uriPath(outTypesPath) }"))
-
-      state.vds.same(vds)
+      vds.annotateVariantsTable(outPath,
+        "v",
+        code = Some("va = table.va"),
+        config = TextTableConfiguration(types = types))
+        .same(vds)
     }
 
     p.check()

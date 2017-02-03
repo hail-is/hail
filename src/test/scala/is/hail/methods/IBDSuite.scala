@@ -56,8 +56,7 @@ class IBDSuite extends SparkSuite {
     val vcfFile = tmpdir + ".vcf"
     val localVCFFile = localTmpdir + ".vcf"
 
-    var s = State(sc, sqlContext).copy(vds = vds)
-    s = ExportVCF.run(s, Array("-o", vcfFile))
+    vds.exportVCF(vcfFile)
 
     hadoopConf.copy(vcfFile, localVCFFile)
 
@@ -100,10 +99,10 @@ class IBDSuite extends SparkSuite {
   }
 
   object Spec extends Properties("IBD") {
-    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)
+    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal })
-      .filter(vds => vds.nVariants > 2 && vds.nSamples >= 2)
+      .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same result as plink 1.9") =
       forAll(plinkSafeBiallelicVDS) { vds =>
@@ -143,7 +142,7 @@ class IBDSuite extends SparkSuite {
   }
 
   @Test def ibdPlinkSameOnRealVCF() {
-    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
 
     val us = IBD(vds).collect().toMap
 

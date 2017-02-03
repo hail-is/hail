@@ -12,8 +12,8 @@ import scala.language._
 
 
 class ConcordanceSuite extends SparkSuite {
-  def gen(sc: SparkContext) = for (vds1 <- VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic);
-    vds2 <- VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic);
+  def gen(sc: SparkContext) = for (vds1 <- VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic);
+    vds2 <- VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic);
     scrambledIds1 <- Gen.shuffle(vds1.sampleIds).map(_.iterator);
     newIds2 <- Gen.parameterized { p =>
       Gen.const(vds2.sampleIds.map { id =>
@@ -137,29 +137,24 @@ class ConcordanceSuite extends SparkSuite {
         .collectAsMap
         .mapValues(_.toAnnotation)
 
-      var s = State(sc, sqlContext, vds1, Map("other" -> vds2))
-      s = Concordance.run(s, Array("--right", "other", "--samples", "samples", "--variants", "variants"))
-      s = Get.run(s, Array("-n", "samples"))
+      val (globals, samples, variants) = vds1.concordance(vds2)
 
-      val (_, queryUnique1Sum) = s.vds.querySA("sa.concordance[0].sum")
-      val (_, queryUnique2Sum) = s.vds.querySA("sa.concordance.map(x => x[0]).sum")
-      val (_, innerJoinQuery) = s.vds.querySA("sa.concordance.map(x => x[1:])[1:]")
+      val (_, queryUnique1Sum) = samples.querySA("sa.concordance[0].sum")
+      val (_, queryUnique2Sum) = samples.querySA("sa.concordance.map(x => x[0]).sum")
+      val (_, innerJoinQuery) = samples.querySA("sa.concordance.map(x => x[1:])[1:]")
 
-      s.vds.sampleIdsAndAnnotations.foreach { case (s, sa) =>
+      samples.sampleIdsAndAnnotations.foreach { case (s, sa) =>
         assert(queryUnique1Sum(sa).contains(uniqueVds2Variants))
         assert(queryUnique2Sum(sa).contains(uniqueVds1Variants))
         assert(innerJoinQuery(sa).contains(innerJoinSamples(s)))
       }
 
-      s = Get.run(s, Array("-n", "variants"))
-
-      val (_, variantQuery) = s.vds.queryVA("va.concordance")
-      s.vds.variantsAndAnnotations.collect()
+      val (_, variantQuery) = variants.queryVA("va.concordance")
+      variants.variantsAndAnnotations.collect()
         .foreach { case (v, va) =>
           innerJoinVariants.get(v).forall(variantQuery(va).contains)
         }
       true
     }.check()
   }
-
 }

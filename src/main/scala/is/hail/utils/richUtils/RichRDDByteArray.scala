@@ -1,21 +1,20 @@
 package is.hail.utils.richUtils
 
-import org.apache.hadoop.fs.{FileStatus, PathIOException}
+import is.hail.driver.HailContext
 import org.apache.hadoop.io.{BytesWritable, NullWritable}
 import org.apache.spark.rdd.RDD
-import is.hail.driver.HailConfiguration
 import is.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import is.hail.utils._
 
 import scala.reflect.ClassTag
 
 class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
-  def saveFromByteArrays(filename: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
+  def saveFromByteArrays(filename: String, tmpDir: String, header: Option[Array[Byte]] = None, deleteTmpFiles: Boolean = true) {
     val nullWritableClassTag = implicitly[ClassTag[NullWritable]]
     val bytesClassTag = implicitly[ClassTag[BytesOnlyWritable]]
     val hConf = r.sparkContext.hadoopConfiguration
 
-    val tmpFileName = hConf.getTemporaryFile(HailConfiguration.tmpDir)
+    val tmpFileName = hConf.getTemporaryFile(tmpDir)
 
     header.foreach { str =>
       hConf.writeDataFile(tmpFileName + ".header") { s =>

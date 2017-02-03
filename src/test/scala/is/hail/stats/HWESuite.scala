@@ -4,6 +4,7 @@ import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.driver._
 import is.hail.io.vcf.LoadVCF
+import is.hail.methods.VariantQC
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
@@ -11,9 +12,9 @@ import org.testng.annotations.Test
 class HWESuite extends SparkSuite {
 
   @Test def test() {
-    val vds = LoadVCF(sc, "src/test/resources/HWE_test.vcf")
-
-    val r = VariantQC.results(vds).map { case (v, a) => (v.start, a.HWEStats) }.collectAsMap()
+    val r = VariantQC.results(hc.importVCF("src/test/resources/HWE_test.vcf"))
+      .map { case (v, a) => (v.start, a.HWEStats) }
+      .collectAsMap()
 
     assert(r(1) == (Some(0.0), 0.5))
     assert(r(2) == (Some(0.25), 0.5))
@@ -24,13 +25,11 @@ class HWESuite extends SparkSuite {
   }
 
   @Test def testExpr() {
-    val p = Prop.forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds: VariantDataset =>
-      var s = SplitMulti.run(State(sc, sqlContext, vds))
-      s = VariantQC.run(s)
-      s = AnnotateVariantsExpr.run(s, Array("-c", "va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)"))
-      s = AnnotateVariantsExpr.run(s, Array("-c", "va.hweAgg = gs.hardyWeinberg()"))
-
-      val vds2 = s.vds
+    val p = Prop.forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds: VariantDataset =>
+      val vds2 = vds.splitMulti()
+        .variantQC()
+        .annotateVariantsExpr("va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)")
+        .annotateVariantsExpr("va.hweAgg = gs.hardyWeinberg()")
 
       val (_, q1) = vds2.queryVA("va.qc.rExpectedHetFrequency")
       val (_, q2) = vds2.queryVA("va.qc.pHWE")

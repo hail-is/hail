@@ -7,7 +7,7 @@ import org.testng.annotations.Test
 
 class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
-    val vds = LoadVCF(sc, "src/test/resources/mendel.vcf")
+    val vds = hc.importVCF("src/test/resources/mendel.vcf")
     val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
     val men = MendelErrors(vds, ped.completeTrios)
 
@@ -54,8 +54,8 @@ class MendelErrorsSuite extends SparkSuite {
     val mendelBase = tmpDir.createTempFile("sample_mendel")
 
     //FIXME: How to test these?
-    men.writeMendel(mendelBase + ".mendel")
-    men.writeMendelL(mendelBase + ".lmendel")
+    men.writeMendel(mendelBase + ".mendel", hc.tmpDir)
+    men.writeMendelL(mendelBase + ".lmendel", hc.tmpDir)
     men.writeMendelF(mendelBase + ".fmendel")
     men.writeMendelI(mendelBase + ".imendel")
 

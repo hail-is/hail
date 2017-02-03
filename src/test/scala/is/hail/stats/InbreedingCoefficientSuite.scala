@@ -29,20 +29,19 @@ class InbreedingCoefficientSuite extends SparkSuite {
 
   object Spec extends Properties("InbreedingCoefficient") {
 
-    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(sc, VSMSubgen.plinkSafeBiallelic)
+    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
       .resize(1000)
       .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal && v.contig.toUpperCase != "X" && v.contig.toUpperCase != "Y" })
-      .filter(vds => vds.nVariants > 2 && vds.nSamples >= 2)
+      .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same results as PLINK v1.9") =
       forAll(plinkSafeBiallelicVDS) { case (vds: VariantSampleMatrix[Genotype]) =>
 
-        var s = State(sc, sqlContext).copy(vds = vds)
+        val vds2 = vds
+          .variantQC()
+          .filterVariantsExpr("va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8")
 
-        s = VariantQC.run(s)
-        s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.qc.AC > 1 && va.qc.AF >= 1e-8 && va.qc.nCalled * 2 - va.qc.AC > 1 && va.qc.AF <= 1 - 1e-8"))
-
-        if (s.vds.nSamples < 5 || s.vds.nVariants < 5) {
+        if (vds2.nSamples < 5 || vds2.countVariants() < 5) {
           true
         } else {
           val localRoot = tmpDir.createLocalTempFile("ibcCheck")
@@ -53,8 +52,9 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val vcfFile = root + ".vcf"
           val ibcFile = root + ".het"
 
-          s = AnnotateSamplesExpr.run(s, Array("-c", "sa.het = gs.inbreeding(g => va.qc.AF)"))
-          s = ExportVCF.run(s, Array("-o", vcfFile))
+          val vds3 = vds2.annotateSamplesExpr("sa.het = gs.inbreeding(g => va.qc.AF)")
+
+          vds3.exportVCF(vcfFile)
 
           hadoopConf.copy(vcfFile, localVCFFile)
 
@@ -64,12 +64,12 @@ class InbreedingCoefficientSuite extends SparkSuite {
 
           val plinkResult = parsePlinkHet(ibcFile)
 
-          val (_, fQuery) = s.vds.querySA("sa.het.Fstat")
-          val (_, obsHomQuery) = s.vds.querySA("sa.het.observedHoms")
-          val (_, expHomQuery) = s.vds.querySA("sa.het.expectedHoms")
-          val (_, nCalledQuery) = s.vds.querySA("sa.het.nCalled")
+          val (_, fQuery) = vds3.querySA("sa.het.Fstat")
+          val (_, obsHomQuery) = vds3.querySA("sa.het.observedHoms")
+          val (_, expHomQuery) = vds3.querySA("sa.het.expectedHoms")
+          val (_, nCalledQuery) = vds3.querySA("sa.het.nCalled")
 
-          val hailResult = s.vds.sampleIdsAndAnnotations.map { case (sample, sa) =>
+          val hailResult = vds3.sampleIdsAndAnnotations.map { case (sample, sa) =>
             (sample, (fQuery(sa).map(_.asInstanceOf[Double]), obsHomQuery(sa).map(_.asInstanceOf[Long]), expHomQuery(sa).map(_.asInstanceOf[Double]), nCalledQuery(sa).map(_.asInstanceOf[Long])))
           }.toMap
 
@@ -81,7 +81,8 @@ class InbreedingCoefficientSuite extends SparkSuite {
 
             val resultF = plinkF.liftedZip(hailF).forall { case (p, h) => math.abs(p - h) < 1e-2 }
             val resultObsHom = plinkObsHom.liftedZip(hailObsHom).forall { case (p, h) => p == h }
-            val resultExpHom = plinkExpHom.liftedZip(hailExpHom).forall { case (p, h) => math.abs(p - h) < 1e-2} //plink only gives two decimal places
+            val resultExpHom = plinkExpHom.liftedZip(hailExpHom).forall { case (p, h) => math.abs(p - h) < 1e-2 }
+            //plink only gives two decimal places
             val resultNCalled = plinkNCalled.liftedZip(hailNCalled).forall { case (p, h) => p == h }
 
             if (resultF && resultObsHom && resultExpHom && resultNCalled)

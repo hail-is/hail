@@ -48,7 +48,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testAll() {
-    val vds = VariantSampleMatrix(VariantMetadata(Array.empty[String]),
+    val vds = VariantSampleMatrix(hc, VariantMetadata(Array.empty[String]),
       sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Genotype])))).toOrderedRDD)
 
     val intervalFile = tmpDir.createTempFile("intervals")
@@ -60,8 +60,8 @@ class IntervalSuite extends SparkSuite {
       out.write("1\t50\t150\t+\tTHING5")
     }
 
-    val s = AnnotateVariantsIntervals.run(State(sc, sqlContext, vds), Array("--all", "-i", intervalFile, "-r", "va"))
-    assert(s.vds.variantsAndAnnotations
+    assert(vds.annotateVariantsIntervals(intervalFile, "va", all = true)
+      .variantsAndAnnotations
       .collect()
       .head._2 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
@@ -129,15 +129,13 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testAnnotateIntervalsAll() {
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
-    s = AnnotateVariantsIntervals.run(s, Array(
-      "-i", "src/test/resources/annotinterall.interval_list", "-a", "-r", "va.annot"))
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
+      .annotateVariantsIntervals("src/test/resources/annotinterall.interval_list", "va.annot", all = true)
 
-    val (t, q) = s.vds.queryVA("va.annot")
+    val (t, q) = vds.queryVA("va.annot")
     assert(t == TSet(TString))
 
-    s.vds.rdd.foreach { case (v, (va, gs)) =>
+    vds.rdd.foreach { case (v, (va, gs)) =>
       val a = q(va).get.asInstanceOf[Set[String]]
 
       if (v.start == 17348324)
@@ -149,8 +147,8 @@ class IntervalSuite extends SparkSuite {
     }
 
     @Test def testAggregate() {
-      val vds = LoadVCF(sc, "src/test/resources/sample2.vcf", nPartitions = Some(2)).cache()
-      val state = SplitMulti.run(State(sc, sqlContext, vds))
+      val vds = hc.importVCF("src/test/resources/sample2.vcf", nPartitions = Some(2)).cache()
+        .splitMulti()
       val iList = tmpDir.createTempFile("input", ".interval_list")
       val tmp1 = tmpDir.createTempFile("output", ".tsv")
 
@@ -169,15 +167,11 @@ class IntervalSuite extends SparkSuite {
           }
         }
 
-        AggregateIntervals.run(state, Array(
-          "-i", iList,
-          "-o", tmp1,
-          "-c", "nSNP = variants.filter(v => v.altAllele.isSNP).count(), " +
-            "nIndel = variants.filter(v => v.altAllele.isIndel).count(), " +
-            "N = variants.count()"))
+        vds.aggregateIntervals(iList, "nSNP = variants.filter(v => v.altAllele.isSNP).count(), " +
+          "nIndel = variants.filter(v => v.altAllele.isIndel).count(), " +
+          "N = variants.count()", tmp1)
 
-        val variants = state
-          .vds
+        val variants = vds
           .variants
           .collect()
 
@@ -210,8 +204,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testFilter() {
-    val vds = LoadVCF(sc, "src/test/resources/sample2.vcf", nPartitions = Some(4)).cache()
-    val state = State(sc, sqlContext, vds)
+    val vds = hc.importVCF("src/test/resources/sample2.vcf", nPartitions = Some(4)).cache()
     val iList = tmpDir.createTempFile("input", ".interval_list")
     val tmp1 = tmpDir.createTempFile("output", ".tsv")
 
@@ -230,13 +223,13 @@ class IntervalSuite extends SparkSuite {
         }
       }
 
-      val sKeep = FilterVariantsIntervals.run(state, "--keep", "-i", iList)
-      val sRemove = FilterVariantsIntervals.run(state, "--remove", "-i", iList)
+      val vdsKeep = vds.filterIntervals(iList, keep = true)
+      val vdsRemove = vds.filterIntervals(iList, keep = false)
 
-      val p1 = sKeep.vds.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
+      val p1 = vdsKeep.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
         intervals.exists(_.contains(v.locus))
       }.asOrderedRDD))
-      val p2 = sRemove.vds.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
+      val p2 = vdsRemove.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
         intervals.forall(!_.contains(v.locus))
       }.asOrderedRDD))
       p1 && p1

@@ -1,40 +1,40 @@
 package is.hail.keytable
 
+import is.hail.annotations._
+import is.hail.driver.HailContext
+import is.hail.expr._
+import is.hail.io.exportTypes
+import is.hail.methods.{Aggregators, Filter}
+import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import is.hail.annotations._
-import is.hail.expr._
-import is.hail.methods.{Aggregators, Filter}
-import is.hail.utils._
-import is.hail.io.TextExporter
 
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.reflect.ClassTag
 
 
-object KeyTable extends Serializable with TextExporter {
+object KeyTable {
 
-  def importTextTable(sc: SparkContext, path: Array[String], keysStr: String, nPartitions: Int, config: TextTableConfiguration) = {
+  def importTextTable(hc: HailContext, path: Array[String], keysStr: String, nPartitions: Int, config: TextTableConfiguration) = {
     require(nPartitions > 1)
 
-    val files = sc.hadoopConfiguration.globAll(path)
+    val files = hc.hadoopConf.globAll(path)
     if (files.isEmpty)
       fatal("Arguments referred to no files")
 
     val keys = Parser.parseIdentifierList(keysStr)
 
     val (struct, rdd) =
-      TextTableReader.read(sc)(files, config, nPartitions)
+      TextTableReader.read(hc.sc)(files, config, nPartitions)
 
     val invalidKeys = keys.filter(!struct.hasField(_))
     if (invalidKeys.nonEmpty)
       fatal(s"invalid keys: ${ invalidKeys.mkString(", ") }")
 
-    KeyTable(rdd.map(_.value), struct, keys)
+    KeyTable(hc, rdd.map(_.value), struct, keys)
   }
 
   def annotationToSeq(a: Annotation, nFields: Int) = Option(a).map(_.asInstanceOf[Row].toSeq).getOrElse(Seq.fill[Any](nFields)(null))
@@ -48,7 +48,7 @@ object KeyTable extends Serializable with TextExporter {
   def toSingleRDD(rdd: RDD[(Annotation, Annotation)], nKeys: Int, nValues: Int): RDD[Annotation] =
     rdd.map { case (k, v) => Annotation.fromSeq(annotationToSeq(k, nKeys) ++ annotationToSeq(v, nValues)) }
 
-  def apply(rdd: RDD[Annotation], signature: TStruct, keyNames: Array[String]): KeyTable = {
+  def apply(hc: HailContext, rdd: RDD[Annotation], signature: TStruct, keyNames: Array[String]): KeyTable = {
     val keyFields = signature.fields.filter(fd => keyNames.contains(fd.name))
     val keyIndices = keyFields.map(_.index)
 
@@ -69,22 +69,24 @@ object KeyTable extends Serializable with TextExporter {
       (Annotation.fromSeq(keyRow), Annotation.fromSeq(valueRow))
     }
 
-    KeyTable(newRDD, newKeySignature, newValueSignature)
+    KeyTable(hc, newRDD, newKeySignature, newValueSignature)
   }
 
-  def fromDF(df: DataFrame, keyNames: Array[String]): KeyTable = {
+  def fromDF(hc: HailContext, df: DataFrame, keyNames: Array[String]): KeyTable = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    KeyTable(df.rdd.map { r =>
+    KeyTable(hc, df.rdd.map { r =>
       SparkAnnotationImpex.importAnnotation(r, signature)
     },
       signature, keyNames)
   }
 }
 
-case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, valueSignature: TStruct) {
+case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation, Annotation)],
+  keySignature: TStruct, valueSignature: TStruct) extends Serializable {
   require(fieldNames.areDistinct())
 
-  val (signature, mergeKeyAndValue) = keySignature.merge(valueSignature)
+  private val localValueSignature = valueSignature
+  val (signature, mergeKeyAndValue) = keySignature.merge(localValueSignature)
 
   def fields = signature.fields
 
@@ -121,16 +123,16 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     if (signature != other.signature) {
       info(
         s"""different signatures:
-            | left: ${ signature.toPrettyString() }
-            | right: ${ other.signature.toPrettyString() }
-            |""".stripMargin)
+           | left: ${ signature.toPrettyString() }
+           | right: ${ other.signature.toPrettyString() }
+           |""".stripMargin)
       false
     } else if (keyNames.toSeq != other.keyNames.toSeq) {
       info(
         s"""different key names:
-            | left: ${ keyNames.mkString(", ") }
-            | right: ${ other.keyNames.mkString(", ") }
-            |""".stripMargin)
+           | left: ${ keyNames.mkString(", ") }
+           | right: ${ other.keyNames.mkString(", ") }
+           |""".stripMargin)
       false
     } else {
       val thisFieldNames = valueNames
@@ -216,7 +218,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
         }
     }
 
-    KeyTable(mapAnnotations(annotF), finalSignature, keyNames)
+    KeyTable(hc, mapAnnotations(annotF), finalSignature, keyNames)
   }
 
   def filter(p: (Annotation, Annotation) => Boolean): KeyTable =
@@ -253,10 +255,10 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
     val selectF: Annotation => Annotation = { a =>
       val row = KeyTable.annotationToSeq(a, nFieldsLocal)
-      Annotation.fromSeq(fieldTransform.map{ i => row(i)})
+      Annotation.fromSeq(fieldTransform.map { i => row(i) })
     }
 
-    KeyTable(mapAnnotations(selectF), newSignature, newKeys)
+    KeyTable(hc, mapAnnotations(selectF), newSignature, newKeys)
   }
 
   def select(fieldsSelect: java.util.ArrayList[String], newKeys: java.util.ArrayList[String]): KeyTable =
@@ -274,7 +276,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     if (duplicateFieldNames.nonEmpty)
       fatal(s"Found duplicate field names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
 
-    KeyTable(rdd, newKeySignature, newValueSignature)
+    KeyTable(hc, rdd, newKeySignature, newValueSignature)
   }
 
   def rename(newFieldNames: Array[String]): KeyTable = {
@@ -292,14 +294,14 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     if (keySignature != other.keySignature)
       fatal(
         s"""Key signatures must be identical.
-            |Left signature: ${ keySignature.toPrettyString(compact = true) }
-            |Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
+           |Left signature: ${ keySignature.toPrettyString(compact = true) }
+           |Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
 
     val overlappingFields = valueNames.toSet.intersect(other.valueNames.toSet)
     if (overlappingFields.nonEmpty)
       fatal(
         s"""Fields that are not keys cannot be present in both key-tables.
-            |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
+           |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
     joinType match {
       case "left" => leftJoin(other)
@@ -316,7 +318,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val (newValueSignature, merger) = valueSignature.merge(other.valueSignature)
     val newRDD = rdd.leftOuterJoin(other.rdd).map { case (k, (vl, vr)) => (k, merger(vl, vr.orNull)) }
 
-    KeyTable(newRDD, keySignature, newValueSignature)
+    KeyTable(hc, newRDD, keySignature, newValueSignature)
   }
 
   def rightJoin(other: KeyTable): KeyTable = {
@@ -325,7 +327,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val (newValueSignature, merger) = valueSignature.merge(other.valueSignature)
     val newRDD = rdd.rightOuterJoin(other.rdd).map { case (k, (vl, vr)) => (k, merger(vl.orNull, vr)) }
 
-    KeyTable(newRDD, keySignature, newValueSignature)
+    KeyTable(hc, newRDD, keySignature, newValueSignature)
   }
 
   def outerJoin(other: KeyTable): KeyTable = {
@@ -334,7 +336,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val (newValueSignature, merger) = valueSignature.merge(other.valueSignature)
     val newRDD = rdd.fullOuterJoin(other.rdd).map { case (k, (vl, vr)) => (k, merger(vl.orNull, vr.orNull)) }
 
-    KeyTable(newRDD, keySignature, newValueSignature)
+    KeyTable(hc, newRDD, keySignature, newValueSignature)
   }
 
   def innerJoin(other: KeyTable): KeyTable = {
@@ -343,7 +345,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val (newValueSignature, merger) = valueSignature.merge(other.valueSignature)
     val newRDD = rdd.join(other.rdd).map { case (k, (vl, vr)) => (k, merger(vl, vr)) }
 
-    KeyTable(newRDD, keySignature, newValueSignature)
+    KeyTable(hc, newRDD, keySignature, newValueSignature)
   }
 
   def forall(code: String): Boolean = {
@@ -378,7 +380,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
 
     Option(typesFile).foreach { file =>
-      KeyTable.exportTypes(file, hConf, fields.map(f => (f.name, f.typ)).toArray)
+      exportTypes(file, hConf, fields.map(f => (f.name, f.typ)).toArray)
     }
 
     hConf.delete(output, recursive = true)
@@ -408,7 +410,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
           sb.result()
         }
-      }.writeTable(output, Some(fields.map(_.name).mkString("\t")))
+      }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")))
   }
 
   def aggregate(keyCond: String, aggCond: String): KeyTable = {
@@ -458,9 +460,9 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
           (k, Annotation.fromSeq(aggF().map(_.orNull)))
       }
 
-    KeyTable(newRDD, keySignature, valueSignature)
+    KeyTable(hc, newRDD, keySignature, valueSignature)
   }
-  
+
   def expandTypes(): KeyTable = {
     val localKeySignature = keySignature
     val localValueSignature = valueSignature
@@ -468,7 +470,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
     val expandedKeySignature = Annotation.expandType(keySignature).asInstanceOf[TStruct]
     val expandedValueSignature = Annotation.expandType(valueSignature).asInstanceOf[TStruct]
 
-    KeyTable(rdd.map {
+    KeyTable(hc, rdd.map {
       case (k, v) =>
         (Annotation.expandAnnotation(k, localKeySignature),
           Annotation.expandAnnotation(v, localValueSignature))
@@ -480,7 +482,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
   def flatten(): KeyTable = {
     val localKeySignature = keySignature
     val localValueSignature = valueSignature
-    KeyTable(rdd.map {
+    KeyTable(hc, rdd.map {
       case (k, v) =>
         (Annotation.flattenAnnotation(k, localKeySignature),
           Annotation.flattenAnnotation(v, localValueSignature))
@@ -505,7 +507,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
       case None =>
         fatal(
           s"""Input field name `${ columnName }' not found in KeyTable.
-              |KeyTable field names are `${ fieldNames.mkString(", ") }'.""".stripMargin)
+             |KeyTable field names are `${ fieldNames.mkString(", ") }'.""".stripMargin)
     }
 
     val index = explodeField.index
@@ -522,7 +524,7 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
       for (element <- row(index).asInstanceOf[Iterable[_]]) yield row.updated(index, element)
     }.map(Annotation.fromSeq)
 
-    KeyTable(explodedRDD, newSignature, keyNames)
+    KeyTable(hc, explodedRDD, newSignature, keyNames)
   }
 
   def explode(columnNames: Array[String]): KeyTable = {

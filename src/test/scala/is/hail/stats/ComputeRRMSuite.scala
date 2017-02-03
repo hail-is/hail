@@ -19,7 +19,7 @@ class ComputeRRMSuite extends SparkSuite {
                         (2.0, 1.5),
                         (0.0, 2.0))
 
-    val vds = stats.vdsFromMatrix(sc)(G0)
+    val vds = stats.vdsFromMatrix(hc)(G0)
 
     val n = vds.nSamples
     val gtVects = vds.rdd.collect().flatMap { case (v, (va, gs)) => toNormalizedGtArray(gs, n) }.map(DenseVector(_))
@@ -49,7 +49,7 @@ class ComputeRRMSuite extends SparkSuite {
     val Fst = .9
     val FstOfPop = Array.fill[Double](k)(Fst)
 
-    val vds1 = BaldingNicholsModel(sc, k, n1, m1, None, Some(FstOfPop), seed, Some(4), UniformDist(0.1, 0.9))
+    val vds1 = BaldingNicholsModel(hc, k, n1, m1, None, Some(FstOfPop), seed, Some(4), UniformDist(0.1, 0.9))
 
     val G1 = TestUtils.vdsToMatrixInt(vds1)
 

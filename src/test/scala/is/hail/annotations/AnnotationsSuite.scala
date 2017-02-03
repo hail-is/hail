@@ -25,9 +25,8 @@ class AnnotationsSuite extends SparkSuite {
           3. the strings stored in the AnnotationData classes convert correctly to the proper type
     */
 
-    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
 
-    val state = State(sc, sqlContext, vds)
     val vas = vds.vaSignature
     val variantAnnotationMap = vds.variantsAndAnnotations.collect().toMap
 
@@ -115,26 +114,25 @@ class AnnotationsSuite extends SparkSuite {
     assert(passQuery(variantAnnotationMap(anotherVariant))
       .contains(false))
 
-    val vds2 = LoadVCF(sc, "src/test/resources/sample2.vcf")
+    val vds2 = hc.importVCF("src/test/resources/sample2.vcf")
     val vas2 = vds2.vaSignature
 
     // Check that VDS can be written to disk and retrieved while staying the same
     val f = tmpDir.createTempFile("sample", extension = ".vds")
-    vds2.write(sqlContext, f)
-    val readBack = Read.run(state, Array("-i", f))
+    vds2.write(f)
+    val readBack = hc.read(f)
 
-    assert(readBack.vds.same(vds2))
+    assert(readBack.same(vds2))
   }
 
   @Test def testReadWrite() {
-    val vds1 = LoadVCF(sc, "src/test/resources/sample.vcf")
-    val s = State(sc, sqlContext, vds1)
-    val vds2 = LoadVCF(sc, "src/test/resources/sample.vcf")
+    val vds1 = hc.importVCF("src/test/resources/sample.vcf")
+    val vds2 = hc.importVCF("src/test/resources/sample.vcf")
     assert(vds1.same(vds2))
 
     val f = tmpDir.createTempFile("sample", extension = ".vds")
-    Write.run(s, Array("-o", f))
-    val vds3 = Read.run(s, Array("-i", f)).vds
+    vds1.write(f)
+    val vds3 = hc.read(f)
     assert(vds3.same(vds1))
   }
 
@@ -146,8 +144,7 @@ class AnnotationsSuite extends SparkSuite {
       test overwriting behavior, deleting, appending, and querying.
     */
 
-    var vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-      .cache()
+    var vds = hc.importVCF("src/test/resources/sample.vcf").cache()
 
     // clear everything
     val (emptyS, d1) = vds.deleteVA()
@@ -351,19 +348,15 @@ class AnnotationsSuite extends SparkSuite {
   }
 
   @Test def testWeirdNamesReadWrite() {
-    val vds = LoadVCF(sc, "src/test/resources/sample.vcf")
-
-    var state = State(sc, sqlContext, vds)
-    state = SplitMulti.run(state)
-
-    val (newS, ins) = vds.insertVA(TInt, "ThisName(won'twork)=====")
-    state = state.copy(vds = vds.mapAnnotations((v, va, gs) => ins(va, Some(5)))
-      .copy(vaSignature = newS))
+    var vds = hc.importVCF("src/test/resources/sample.vcf")
+      .splitMulti()
 
     val f = tmpDir.createTempFile("testwrite", extension = ".vds")
+    val (newS, ins) = vds.insertVA(TInt, "ThisName(won'twork)=====")
+    vds = vds.mapAnnotations((v, va, gs) => ins(va, Some(5)))
+      .copy(vaSignature = newS)
+    vds.write(f)
 
-    Write.run(state, Array("-o", f))
-    val state2 = Read.run(state, Array("-i", f))
-    assert(state.vds.same(state2.vds))
+    assert(hc.read(f).same(vds))
   }
 }

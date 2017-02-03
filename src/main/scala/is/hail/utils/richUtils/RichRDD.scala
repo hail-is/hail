@@ -1,10 +1,9 @@
 package is.hail.utils.richUtils
 
+import is.hail.driver.HailContext
 import org.apache.hadoop
-import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.rdd.RDD
-import is.hail.driver.HailConfiguration
 import is.hail.sparkextras.ReorderedPartitionsRDD
 import is.hail.utils._
 
@@ -20,7 +19,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
   def exists(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(false)(_ || _)
 
-  def writeTable(filename: String, header: Option[String] = None, parallelWrite: Boolean = false) {
+  def writeTable(filename: String, tmpDir: String, header: Option[String] = None, parallelWrite: Boolean = false) {
     val hConf = r.sparkContext.hadoopConfiguration
 
     val codecFactory = new CompressionCodecFactory(hConf)
@@ -33,7 +32,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       if (parallelWrite) {
         filename
       } else
-        hConf.getTemporaryFile(HailConfiguration.tmpDir)
+        hConf.getTemporaryFile(tmpDir)
 
     val rWithHeader = header.map { h =>
       if (r.partitions.length == 0)

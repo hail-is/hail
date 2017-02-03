@@ -5,6 +5,7 @@ import org.apache.commons.math3.distribution.HypergeometricDistribution
 import net.sourceforge.jdistlib.{ChiSquare, Normal}
 import org.apache.spark.SparkContext
 import is.hail.annotations.Annotation
+import is.hail.driver.HailContext
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
 
@@ -292,17 +293,17 @@ package object stats {
   // genotypes(i,j) is genotype of variant j in sample i encoded as one of {-1, 0, 1, 2}; i and j are 0-based indices
   // sample i is "i" by default
   // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
-  def vdsFromMatrix(sc: SparkContext)(
+  def vdsFromMatrix(hc: HailContext)(
     genotypes: Matrix[Int],
     samplesIdsOpt: Option[Array[String]] = None,
-    nPartitions: Int = sc.defaultMinPartitions): VariantDataset = {
+    nPartitions: Int = hc.sc.defaultMinPartitions): VariantDataset = {
 
     require(samplesIdsOpt.forall(_.length == genotypes.rows))
     require(samplesIdsOpt.forall(_.areDistinct()))
 
     val sampleIds = samplesIdsOpt.getOrElse((0 until genotypes.rows).map(_.toString).toArray)
 
-    val rdd = sc.parallelize(
+    val rdd = hc.sc.parallelize(
       (0 until genotypes.cols).map { j =>
         (Variant("1", j + 1, "A", "C"),
           (Annotation.empty,
@@ -315,7 +316,7 @@ package object stats {
       nPartitions
     ).toOrderedRDD
 
-    new VariantDataset(VariantMetadata(sampleIds, wasSplit = true), rdd)
+    new VariantDataset(hc, VariantMetadata(sampleIds, wasSplit = true), rdd)
   }
 
   // mean 0, norm sqrt(n), variance 1 (constant variants are None)
