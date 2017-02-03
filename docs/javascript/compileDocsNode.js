@@ -9,9 +9,9 @@ process.on('uncaughtException', function (err) {
 
 const referenceHtmlTemplate = __dirname + "/" + process.argv[2];
 const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
-const template = __dirname + "/" + process.argv[5];
-const jsonCommandsFile = process.argv[6];
-const pandocOutputDir = __dirname + "/" + process.argv[7];
+const template = __dirname + "/" + process.argv[4];
+const jsonCommandsFile = process.argv[5];
+const pandocOutputDir = __dirname + "/" + process.argv[6];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
