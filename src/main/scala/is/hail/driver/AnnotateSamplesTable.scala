@@ -68,6 +68,17 @@ object AnnotateSamplesTable extends Command with JoinAnnotator {
       .collect()
       .toMap
 
+    val vdsKeys = vds.sampleIds.toSet
+    val tableKeys = map.keySet
+    val onlyVds = vdsKeys -- tableKeys
+    val onlyTable = tableKeys -- vdsKeys
+    if (onlyVds.size != 0) {
+      warn(s"There were ${onlyVds.size} samples present in the VDS but not in the table.")
+    }
+    if (onlyTable.size != 0) {
+      warn(s"There were ${onlyTable.size} samples present in the table but not in the VDS.")
+    }
+
     state.copy(vds = vds.annotateSamples(map.get _, finalType, inserter))
   }
 }
