@@ -1730,7 +1730,7 @@ class VariantDataset(object):
         """Discard all variants, variant annotations and genotypes.
 
         Samples, sample annotations and global annotations are retained. This
-         is the same as :func:`filter_variants_expr('false'), but much faster.
+        is the same as :func:`filter_variants_expr('false') <hail.VariantDataset.filter_variants_expr>`, but much faster.
 
         **Example**
 
@@ -2147,21 +2147,21 @@ class VariantDataset(object):
         +====================================+======================+======================================================================================================================================================+
         | ``global.lmmreg.useML``            | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given covariate expressions to the corresponding fit :math:`\\beta` coefficients                                    |
+        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given covariate expressions to the corresponding fit :math:`\\beta` coefficients                                        |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
+        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                       |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
+        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                  |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
+        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                  |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
+        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                    |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order                                                                                                |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathit{ln}(\delta)` used in the grid search                                                                                        |
+        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathit{ln}(\delta)` used in the grid search                                                                                       |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathit{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
+        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathit{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2` |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to the fit delta                                                                                   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -2304,9 +2304,9 @@ class VariantDataset(object):
         :param covariates: List of covariate sample annotations
         :type covariates: list of str
 
-        :param str global_root: Global annotation root, a period-delimited path starting with `global'.
+        :param str global_root: Global annotation root, a period-delimited path starting with `global`.
 
-        :param str va_root: Variant annotation root, a period-delimited path starting with `va'.
+        :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
 
         :param bool no_assoc: Only fit the global model, no association testing.
 
@@ -2946,7 +2946,57 @@ class VariantDataset(object):
     def sample_qc(self):
         """Compute per-sample QC metrics.
 
-        :return: Annotated dataset.
+        **Annotations**
+
+        :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the genotype data and stores the results as sample annotations that can be accessed with ``sa.qc.<identifier>``:
+
+        +---------------------------+--------+----------------------------------------------------+
+        | Name                      | Type   | Description                                        |
+        +===========================+========+====================================================+
+        | ``callRate``              | Double | Fraction of variants with called genotypes         |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nHomRef``               | Int    | Number of homozygous reference variants            |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nHet``                  | Int    | Number of heterozygous variants                    |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nHomVar``               | Int    | Number of homozygous alternate variants            |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nCalled``               | Int    | Sum of ``nHomRef`` + ``nHet`` + ``nHomVar``        |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nNotCalled``            | Int    | Number of uncalled variants                        |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nSNP``                  | Int    | Number of SNP variants                             |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nInsertion``            | Int    | Number of insertion variants                       |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nDeletion``             | Int    | Number of deletion variants                        |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nSingleton``            | Int    | Number of private variants                         |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nTransition``           | Int    | Number of transition (A-G, C-T) variants           |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nTransversion``         | Int    | Number of transversion variants                    |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                    |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``rTiTv``                 | Double | Transition/Transversion ratio                      |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``rHetHomVar``            | Double | Het/HomVar ratio across all variants               |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``rInsertionDeletion``    | Double | Insertion/Deletion ratio across all variants       |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``dpMean``                | Double | Depth mean across all variants                     |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``dpStDev``               | Double | Depth standard deviation across all variants       |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``gqMean``                | Double | The average genotype quality across all variants   |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``gqStDev``               | Double | Genotype quality standard deviation across variants|
+        +---------------------------+--------+----------------------------------------------------+
+
+        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
+
+        :return: Annotated dataset with new sample qc annotations.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -3206,7 +3256,7 @@ class VariantDataset(object):
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.variant_qc` computes 16 variant statistics from the genotype data and stores the results as variant annotations that can be accessed with ``va.qc.<identifier>``:
+        :py:meth:`~hail.VariantDataset.variant_qc` computes 18 variant statistics from the genotype data and stores the results as variant annotations that can be accessed with ``va.qc.<identifier>``:
 
         +---------------------------+--------+----------------------------------------------------+
         | Name                      | Type   | Description                                        |
@@ -3242,6 +3292,10 @@ class VariantDataset(object):
         | ``dpMean``                | Double | Depth mean across all samples                      |
         +---------------------------+--------+----------------------------------------------------+
         | ``dpStDev``               | Double | Depth standard deviation across all samples        |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``gqMean``                | Double | The average genotype quality across all samples    |
+        +---------------------------+--------+----------------------------------------------------+
+        | ``gqStDev``               | Double | Genotype quality standard deviation across samples |
         +---------------------------+--------+----------------------------------------------------+
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
