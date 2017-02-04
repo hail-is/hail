@@ -14,10 +14,10 @@ Identifier | Type | Description
 `v.nAltAlleles`         | `Int`       | number of alternate alleles, equal to `nAlleles - 1`
 `v.nGenotypes`          | `Int`       | number of genotypes
 `v.altAlleles`  | `Array[AltAllele]`  | the alternate alleles
-`v.inXPar`              |  `Boolean`  | true if chromosome is X and start is in pseudo-autosomal region of X
-`v.inYPar`              |  `Boolean`  | true if chromosome is Y and start is in pseudo-autosomal region of Y. _NB: most callers assign variants in PAR to X_
-`v.inXNonPar`           |  `Boolean`  | true if chromosome is X and start is not in pseudo-autosomal region of X
-`v.inYNonPar`           |  `Boolean`  | true if chromosome is Y and start is not in pseudo-autosomal region of Y
+`v.inXPar`              |  `Boolean`  | true if chromosome is X and start is in pseudoautosomal region of X
+`v.inYPar`              |  `Boolean`  | true if chromosome is Y and start is in pseudoautosomal region of Y. _NB: most callers assign variants in PAR to X_
+`v.inXNonPar`           |  `Boolean`  | true if chromosome is X and start is not in pseudoautosomal region of X
+`v.inYNonPar`           |  `Boolean`  | true if chromosome is Y and start is not in pseudoautosomal region of Y
 `v.altAllele`           | `AltAllele` | The alternate allele (schema below).  **Assumes biallelic.**
 `v.alt`                 | `String`    | Alternate allele sequence.  **Assumes biallelic.**
 `v.locus`               | `Locus`     | Chromosomal locus (chr, pos) of this variant

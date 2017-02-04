@@ -69,7 +69,7 @@ hail read /path/to/file.vds imputesex
    --male-threshold 0.5 --female-threshold 0.5
 ```
 
-<h4 class="example">Include pseudo-autosomal variants in the inbreeding coefficient calculation</h4>
+<h4 class="example">Include pseudoautosomal variants in the inbreeding coefficient calculation</h4>
 
 ```
 hail read /path/to/file.vds imputesex --include-par

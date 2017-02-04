@@ -22,14 +22,21 @@ Variant
 - **v.nAltAlleles** (*Int*) -- Number of alternate alleles, equal to ``nAlleles - 1``
 - **v.nGenotypes** (*Int*) -- Number of genotypes
 - **v.altAlleles** (*Array[AltAllele]*) -- The :ref:`alternate alleles <altallele>`
-- **v.inXPar** (*Boolean*) -- True if chromosome is X and start is in :ref:`pseudoautosomal region <pseduoautosomal_region>` of X
-- **v.inYPar** (*Boolean*) -- True if chromosome is Y and start is in :ref:`pseudoautosomal region <pseduoautosomal_region>` of Y. *NB: most callers assign variants in PAR to X*
-- **v.inXNonPar** (*Boolean*) -- True if chromosome is X and start is not in pseudo-autosomal region of X
-- **v.inYNonPar** (*Boolean*) -- True if chromosome is Y and start is not in pseudo-autosomal region of Y
 - **v.altAllele** (*AltAllele*) -- The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**
 - **v.alt** (*String*) -- Alternate allele sequence.  **Assumes biallelic.**
 - **v.locus** (*Locus*) -- Chromosomal locus (chr, pos) of this variant
 - **v.isAutosomal** (*Boolean*) -- True if chromosome is not X, not Y, and not MT
+- **v.inXPar** (*Boolean*) -- True if chromosome is X and start is in pseudoautosomal region of X
+- **v.inYPar** (*Boolean*) -- True if chromosome is Y and start is in pseudoautosomal region of Y.
+- **v.inXNonPar** (*Boolean*) -- True if chromosome is X and start is not in pseudoautosomal region of X
+- **v.inYNonPar** (*Boolean*) -- True if chromosome is Y and start is not in pseudoautosomal region of Y
+
+The `pseudoautosomal region <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`_ (PAR) is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
+
+- X: 60001 - 2699520, 154931044 - 155260560
+- Y: 10001 - 2649520, 59034050 - 59363566
+
+Most callers assign variants in PAR to X.
 
 .. _altallele:
 

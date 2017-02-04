@@ -241,7 +241,7 @@ class Variant(object):
 
 class AltAllele(object):
     """
-    An object that represents the alleles in a polymorphism deviating from the reference.
+    An object that represents an allele in a polymorphism deviating from the reference allele.
 
     :param str ref: reference allele
     :param str alt: alternate allele
