@@ -51,7 +51,10 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     files.forall(filename => fileSystem(filename).exists(new hadoop.fs.Path(filename)))
   }
 
-  def mkDir(dirname: String) {
+  /**
+    * @return true if a new directory was created, false otherwise
+    **/
+  def mkDir(dirname: String): Boolean = {
     fileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
   }
 
