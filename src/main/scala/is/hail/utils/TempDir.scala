@@ -13,7 +13,9 @@ object TempDir {
       try {
         val dir = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
 
-        hConf.mkDir(dir)
+        // assert true == assert created a new directory (as opposed to the
+        // directory already existing)
+        assert(hConf.mkDir(dir))
 
         val fs = hConf.fileSystem(tmpdir)
         val qDir = fs.makeQualified(new hadoop.fs.Path(dir))
