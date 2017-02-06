@@ -145,15 +145,17 @@ class Variant(object):
     def allele(self, i):
         """Returns the string allele representation for the ith allele.
 
-         The reference is included in the allele index.  The index of
-         the first alternate allele is 1.  The following is true for all
-         variants:
+        The reference is included in the allele index.  The index of
+        the first alternate allele is 1.  The following is true for all
+        variants:
 
-         >>> v.ref == v.allele(0)
+        >>> v = Variant.parse("16:2478434:A:T,TA")
+        >>> v.ref == v.allele(0)
 
-         Additionally, the following is true for all biallelic variants:
+        Additionally, the following is true for all biallelic variants:
 
-         >>> v.alt == v.allele(1)
+        >>> v = Variant.parse("7:5672934:G:C")
+        >>> v.alt == v.allele(1)
 
         :param int i: integer index of desired allele
 

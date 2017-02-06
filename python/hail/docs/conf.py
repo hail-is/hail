@@ -16,8 +16,12 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
+
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath('./_ext'))
+
 # sys.path.insert(0, os.path.abspath('.'))
 #import sphinx_rtd_theme
 
@@ -32,7 +36,7 @@
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
+    'hail_doctest', # replaced 'sphinx.ext.doctest'; new version does not check output
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
@@ -45,6 +49,15 @@ autodoc_default_flags = ['members', 'undoc-members']
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']
 
+doctest_global_setup = """import os
+from hail import *
+
+if not os.path.isdir("output/"):
+    os.mkdir("output/")
+
+hc = HailContext(log="output/hail.log", quiet=True)"""
+
+doctest_global_cleanup = 'import shutil; hc.stop(); shutil.rmtree("output/")'
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #

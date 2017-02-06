@@ -35,6 +35,7 @@ class HailContext(object):
     :param branching_factor: branching factor for tree aggregation
 
     :param tmp_dir: temporary directory for file merging
+    :param overwrite: If True, overwrite any existing file.
 
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
@@ -42,7 +43,8 @@ class HailContext(object):
 
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
-                 min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
+                 min_block_size=1, branching_factor=50, tmp_dir='/tmp', overwrite=False):
+
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
 
@@ -66,7 +68,7 @@ class HailContext(object):
             # sc._jsc is a JavaSparkContext
             self._jsc = sc._jsc.sc()
 
-        driver.configureHail(branching_factor, tmp_dir)
+        driver.configureHail(branching_factor, tmp_dir, overwrite)
         driver.configureLogging(log, quiet, append)
 
         self._jsql_context = driver.createSQLContext(self._jsc)
@@ -220,15 +222,15 @@ class HailContext(object):
 
         **Examples**
 
-        Read a .gen file and a .sample file and write to a .vds file::
+        Read a .gen file and a .sample file and write to a .vds file:
 
         >>> (hc.import_gen('data/example.gen', sample_file='data/example.sample')
-        >>>  .write('data/example.vds'))
+        ...    .write('output/gen_example1.vds'))
 
-        Load multiple files at the same time with `Hadoop glob patterns <../reference.html#hadoopglob>`_::
+        Load multiple files at the same time with `Hadoop glob patterns <../reference.html#hadoopglob>`_:
 
         >>> (hc.import_gen('data/example.chr*.gen', sample_file='data/example.sample')
-        >>>  .write('data/example.vds'))
+        ...    .write('output/gen_example2.vds'))
 
         **Notes**
 
@@ -349,9 +351,9 @@ class HailContext(object):
 
         Import data from a PLINK binary file:
 
-        >>> vds = (hc.import_plink(bed="data/test.bed",
-        >>>                        bim="data/test.bim",
-        >>>                        fam="data/test.fam"))
+        >>> hc.import_plink(bed="data/test.bed",
+        ...                 bim="data/test.bim",
+        ...                 fam="data/test.fam")
 
         **Implementation Details**
 
@@ -575,10 +577,10 @@ class HailContext(object):
         To generate a VDS with 4 populations, 2000 samples, 5000 variants, 10 partitions, population distribution [0.1, 0.2, 0.3, 0.4], :math:`F_st` values [.02, .06, .04, .12], ancestral allele frequencies drawn from a truncated beta distribution with a = .01 and b = .05 over the interval [0.05, 1], and random seed 1:
 
         >>> vds = hc.balding_nichols_model(4, 40, 150, 10,
-        >>>     pop_dist=[0.1, 0.2, 0.3, 0.4],
-        >>>     fst=[.02, .06, .04, .12],
-        >>>     af_dist=hail.stats.TruncatedBetaDist(a=0.01, b=2.0, minVal=0.05, maxVal=1.0),
-        >>>     seed=1)
+        ...                                pop_dist=[0.1, 0.2, 0.3, 0.4],
+        ...                                fst=[.02, .06, .04, .12],
+        ...                                af_dist=TruncatedBetaDist(a=0.01, b=2.0, minVal=0.05, maxVal=1.0),
+        ...                                seed=1)
 
         **Notes**
 

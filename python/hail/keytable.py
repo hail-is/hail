@@ -9,6 +9,40 @@ from hail.type import Type, TStruct
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
 
+    KeyTables can be imported from a text file with :py:meth:`~hail.HailContext.import_keytable` or generated from an existing
+    VariantDataset with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`,
+    :py:meth:`~hail.VariantDataset.samples_keytable`, and :py:meth:`~hail.VariantDataset.variants_keytable`.
+
+    In the examples below, we have imported two KeyTables from text files (``kt1`` and ``kt2``).
+
+    >>> kt1 = hc.import_keytable("data/kt_example1.tsv", ["ID"], config=TextTableConfig(impute=True))
+
+    +--+---+---+-+-+----+----+----+
+    |ID|HT |SEX|X|Z| C1 | C2 | C3 |
+    +==+===+===+=+=+====+====+====+
+    |1 |65 |M  |5|4|2	|50  |5   |
+    +--+---+---+-+-+----+----+----+
+    |2 |72 |M  |6|3|2	|61  |1   |
+    +--+---+---+-+-+----+----+----+
+    |3 |70 |F  |7|3|10	|81  |-5  |
+    +--+---+---+-+-+----+----+----+
+    |4 |60 |F  |8|2|11	|90  |-10 |
+    +--+---+---+-+-+----+----+----+
+
+    >>> kt2 = hc.import_keytable("data/kt_example2.tsv", ["ID"], config=TextTableConfig(impute=True))
+
+    +---+---+------+
+    |ID	|A  |B     |
+    +===+===+======+
+    |1	|65 |cat   |
+    +---+---+------+
+    |2	|72 |dog   |
+    +---+---+------+
+    |3	|70 |mouse |
+    +---+---+------+
+    |4	|60 |rabbit|
+    +---+---+------+
+
     :ivar hc: Hail Context
     :vartype hc: :class:`.HailContext`
     """
@@ -32,6 +66,9 @@ class KeyTable(object):
     def num_columns(self):
         """Number of columns.
 
+        >>> kt1.num_columns
+        8
+
         :rtype: int
         """
 
@@ -43,7 +80,18 @@ class KeyTable(object):
         """KeyTable schema.
 
         **Example:** print the key table columns / signatures
-        >>> print(kt.schema)
+
+        >>> print(kt1.schema)
+        Struct {
+            ID: Int,
+            HT: Int,
+            SEX: String,
+            X: Int,
+            Z: Int,
+            C1: Int,
+            C2: Int,
+            C3: Int
+        }
 
         :rtype: :class:`.TStruct`
         """
@@ -56,6 +104,9 @@ class KeyTable(object):
     def key_names(self):
         """Column names that are keys.
 
+        >>> kt1.key_names
+        [u'ID']
+
         :rtype: list of str
         """
 
@@ -66,6 +117,9 @@ class KeyTable(object):
     def column_names(self):
         """Names of all columns.
 
+        >>> kt1.column_names
+        [u'ID', u'HT', u'SEX', u'X', u'Z', u'C1', u'C2', u'C3']
+
         :rtype: list of str
         """
 
@@ -75,6 +129,9 @@ class KeyTable(object):
 
     def count_rows(self):
         """Number of rows.
+
+        >>> kt1.count_rows()
+        4L
 
         :rtype: long
         """
@@ -89,10 +146,8 @@ class KeyTable(object):
 
         **Examples**
 
-        >>> kt1 = hc.import_keytable("data/example1.tsv")
-        >>> kt2 = hc.import_keytable("data/example2.tsv")
         >>> if kt1.same(kt2):
-        >>>     print_function("KeyTables are the same!")
+        ...     print_function("KeyTables are the same!")
 
         :param other: key table to compare against
         :type other: :class:`.KeyTable` 
@@ -112,9 +167,8 @@ class KeyTable(object):
 
         Rename column names of KeyTable and export to file:
 
-        >>> (hc.import_keytable("data/example.tsv")
-        >>>    .rename({'column1' : 'newColumn1'})
-        >>>    .export("data/kt1_renamed.tsv"))
+        >>> (kt1.rename({'HT' : 'Height'})
+        ...     .export("output/kt1_renamed.tsv"))
 
         :param str output: Output file path.
 
@@ -133,13 +187,11 @@ class KeyTable(object):
 
         Keep rows where ``C1`` equals 5:
 
-        >>> kt = (hc.import_keytable("data/example.tsv")
-        >>>         .filter("C1 == 5"))
+        >>> kt1.filter("C1 == 5")
 
         Remove rows where ``C1`` equals 10:
 
-        >>> kt = (hc.import_keytable("data/example.tsv")
-        >>>         .filter("C1 == 10", keep=False))
+        >>> kt1.filter("C1 == 10", keep=False)
 
         **Notes**
 
@@ -171,8 +223,8 @@ class KeyTable(object):
 
         Add new column ``Y`` which is equal to 5 times ``X``:
 
-        >>> kt = (hc.import_keytable("data/example.tsv")
-        >>>         .annotate("Y = 5 * X"))
+        >>> kt1.annotate("Y = 5 * X")
+
 
         **Notes**
 
@@ -201,11 +253,9 @@ class KeyTable(object):
 
         **Examples**
 
-        Join ``kt1`` to ``kt2`` to produce ``kt3``:
+        Join ``kt1`` to ``kt2`` to produce ``kt_joined``:
 
-        >>> kt1 = hc.import_keytable("data/example1.tsv")
-        >>> kt2 = hc.import_keytable("data/example2.tsv")
-        >>> kt3 = kt1.join(kt2)
+        >>> kt_joined = kt1.join(kt2)
 
         **Notes:**
 
@@ -241,22 +291,7 @@ class KeyTable(object):
 
         Compute mean height by sex:
 
-        >>> kt = hc.import_keytable("data/example.tsv")
-        >>> kt_ht_by_sex = kt.aggregate_by_key("SEX = SEX", "MEAN_HT = HT.stats().mean")
-
-        The key table ``kt`` has the following data:
-
-        +--------+----------+----------+
-        |   ID   |    HT    |    SEX   |
-        +========+==========+==========+
-        |   1    |    65    |     M    |
-        +--------+----------+----------+
-        |   2    |    72    |     M    |
-        +--------+----------+----------+
-        |   3    |    70    |     F    |
-        +--------+----------+----------+
-        |   4    |    60    |     F    |
-        +--------+----------+----------+
+        >>> kt_ht_by_sex = kt1.aggregate_by_key("SEX = SEX", "MEAN_HT = HT.stats().mean")
 
         The result of :py:meth:`.aggregate_by_key` is a KeyTable ``kt_ht_by_sex`` with the following data:
 
@@ -303,9 +338,8 @@ class KeyTable(object):
 
         Test whether all rows in the KeyTable have the value of ``C1`` equal to 5:
 
-        >>> kt = hc.import_keytable('data/example.tsv')
-        >>> if kt.forall("C1 == 5"):
-        >>>     print_function("All rows have C1 equal 5.")
+        >>> if kt1.forall("C1 == 5"):
+        ...     print_function("All rows have C1 equal 5.")
 
         :param str code: Boolean expression.
 
@@ -324,9 +358,8 @@ class KeyTable(object):
 
         Test whether any row in the KeyTable has the value of ``C1`` equal to 5:
 
-        >>> kt = hc.import_keytable('data/example.tsv')
-        >>> if kt.exists("C1 == 5"):
-        >>>     print_function("At least one row has C1 equal 5.")
+        >>> if kt1.exists("C1 == 5"):
+        ...     print_function("At least one row has C1 equal 5.")
 
         :param str code: Boolean expression.
 
@@ -349,13 +382,11 @@ class KeyTable(object):
 
         Rename using a list:
 
-        >>> kt = hc.import_keytable('data/example.tsv')
-        >>> kt_renamed = kt.rename(['newColumn1', 'newColumn2', 'newColumn3'])
+        >>> kt2.rename(['newColumn1', 'newColumn2', 'newColumn3'])
 
         Rename using a dict:
 
-        >>> kt = hc.import_keytable('data/example.tsv')
-        >>> kt_renamed = kt.rename({'column1' : 'newColumn1'})
+        >>> kt2.rename({'A' : 'C1'})
 
         :param column_names: list of new column names or a dict mapping old names to new names.
         :type list of str or dict of str: str
@@ -401,11 +432,11 @@ class KeyTable(object):
 
         Change key columns:
 
-        >>> kt.key_by(['c2', 'c3'])
+        >>> kt1.key_by(['C2', 'C3'])
 
         Set to no keys:
 
-        >>> kt.key_by([])
+        >>> kt1.key_by([])
 
         **Notes**
 
@@ -432,8 +463,7 @@ class KeyTable(object):
 
         Flatten Structs in KeyTable:
 
-        >>> (hc.import_keytable("data/example.tsv")
-        >>>    .flatten())
+        >>> kt3.flatten()
 
         Consider a KeyTable ``kt`` with signature
 
@@ -487,15 +517,15 @@ class KeyTable(object):
 
         Select/drop columns:
 
-        >>> new_kt = kt.select(['C1'])
+        >>> kt1.select(['C1'])
 
         Reorder the columns:
 
-        >>> new_kt = kt.select(['C3', 'C1', 'C2'])
+        >>> kt1.select(['C3', 'C1', 'C2'])
 
         Drop all columns:
 
-        >>> new_kt = kt.select([])
+        >>> kt1.select([])
 
         **Notes**
 
@@ -568,8 +598,13 @@ class KeyTable(object):
 
         **Examples**
 
-        Assume ``kt`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
-        c3. The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
+        Assume ``kt3`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
+        c3.
+
+        >>> kt3 = hc.import_keytable("data/kt_example3.tsv", [],
+        ...   config=TextTableConfig(impute=True, types='c1:String,c2:Array[Int],c3:Array[Array[Int]]'))
+
+        The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
         c1 cannot be exploded because its type is not an ``Array`` or ``Set``.
         c2 can only be exploded once because the type of c2 after the first explode operation is ``Int``.
 
@@ -581,8 +616,7 @@ class KeyTable(object):
 
         Explode c2:
 
-        >>> exploded_kt = (hc.import_keytable("data/example.tsv")
-        >>>                  .explode('c2'))
+        >>> kt3.explode('c2')
 
         +----+-------+-----------------+
         | c1 |   c2  |    c3           |
@@ -594,8 +628,7 @@ class KeyTable(object):
 
         Explode c2 once and c3 twice:
 
-        >>> exploded_kt = (hc.import_keytable("data/example.tsv")
-        >>>                  .explode(['c2', 'c3', 'c3']))
+        >>> kt3.explode(['c2', 'c3', 'c3'])
 
         +----+-------+-------------+
         | c1 |   c2  |   c3        |
