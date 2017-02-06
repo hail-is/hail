@@ -1342,7 +1342,7 @@ class VariantDataset(object):
 
         .. note::
 
-            If any field is named, all fields must be names.
+            If any field is named, all fields must be named.
 
         In the common case that a group of annotations needs to be exported (for
         example, the annotations produced by ``variantqc``), one can use the
@@ -1463,42 +1463,31 @@ class VariantDataset(object):
 
         **Examples**
 
-        Export to VCF as an uncompressed file:
+        Export to VCF as block-compressed files:
 
-        >>> hc.read('data/example.vds').export_vcf('data/example.vcf')
-
-        Export to VCF as block-compressed files with linear-scaled dosages:
-
-        >>> hc.read('data/example.vds').export_vcf('data.example.vcf.bgz', export_pp=True, parallel=True)
-
-        Export a sites-only VCF with additional header lines from *myheader.txt*:
-
-        >>> (hc.read('data/example.vds')
-        >>>    .filter_samples_all()
-        >>>    .export_vcf('data/sites-only.vcf.bgz', append_to_header='data/myheader.txt')
+        >>> hc.read('data/example.vds').export_vcf('data/example.vcf.bgz')
 
         **Notes**
-        py:meth:`exportvcf` writes the VDS to disk in VCF format as described in the `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
 
-        Use the ``.vcf.bgz`` extension in the output file name for `blocked GZIP <http://www.htslib.org/doc/tabix.html>`_ compression.
+        :py:meth:`~hail.VariantDataset.export_vcf` writes the VDS to disk in VCF format as described in the `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
+
+        Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name for `blocked GZIP <http://www.htslib.org/doc/tabix.html>`_ compression.
 
         .. note::
 
             We strongly recommended compressed and parallel output when exporting large VCFs.
 
-        Following import-export workflow
+        Consider the workflow of importing VCF to VDS and immediately exporting VDS to VCF:
 
         >>> hc.import_vcf('data/example.vcf').export_vcf('data/example_out.vcf')
 
-        the *example_out.vcf* header will contain the FORMAT, FILTER, and INFO lines present in *example.vcf*.  However, it will *not* contain CONTIG lines or lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
+        The *example_out.vcf* header will contain the FORMAT, FILTER, and INFO lines present in *example.vcf*. However, it will *not* contain CONTIG lines or lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
 
-        Hail exports the contents of ``va.info`` to the INFO field
+        Hail exports the contents of ``va.info`` to the INFO field.
 
         .. caution::
 
-            If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results.
-
-        The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run py:meth:`variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
+            If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run py:meth:`variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
 
         >>> (hc.import_vcf('data/example.vcf')
         >>>    .filter_genotypes('g.gq >= 20')
@@ -1506,7 +1495,7 @@ class VariantDataset(object):
         >>>    .annotate_variants_expr('va.info.AC = va.qc.AC')
         >>>    .export_vcf('data/example.vcf.bgz'))
 
-        py:meth:`export_vcf` does not export any annotations besides those in ``va.info``.
+        :py:meth:`~hail.VariantDataset.export_vcf` does not export any annotations besides those in ``va.info``.
 
         :param str output: Path of .vcf file to write.
 
