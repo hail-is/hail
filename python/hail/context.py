@@ -22,7 +22,7 @@ class HailContext(object):
     :param quiet: suppress log messages
     :param append: write to end of log file instead of overwriting
     :param parquet_compression: level of on-disk annotation compression
-    :param block_size: minimum file split size in MB
+    :param min_block_size: minimum file split size in MB
     :param branching_factor: branching factor for tree aggregation
     :param tmp_dir: temporary directory for file merging
 
@@ -32,7 +32,7 @@ class HailContext(object):
 
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
-                 block_size=1, branching_factor=50, tmp_dir='/tmp'):
+                 min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
 
@@ -49,7 +49,7 @@ class HailContext(object):
 
         if not sc:
             self._jsc = driver.configureAndCreateSparkContext(
-                appName, joption(master), local, parquet_compression, block_size)
+                appName, joption(master), local, parquet_compression, min_block_size)
             self.sc = SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         else:
             self.sc = sc
