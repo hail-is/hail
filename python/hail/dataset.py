@@ -2147,21 +2147,21 @@ class VariantDataset(object):
         +====================================+======================+======================================================================================================================================================+
         | ``global.lmmreg.useML``            | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given covariate expressions to the corresponding fit :math:`\\beta` coefficients                                        |
+        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                       |
+        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                  |
+        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                  |
+        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                    |
+        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order                                                                                                |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathit{ln}(\delta)` used in the grid search                                                                                       |
+        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathit{ln}(\delta)` used in the grid search                                                                                        |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathit{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2` |
+        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathit{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to the fit delta                                                                                   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -3370,7 +3370,7 @@ class VariantDataset(object):
         **Annotations**
 
         Annotations with the following schema are placed in the location specified by ``root``.
-        The schema can be confirmed with :py:meth:`~hail.VariantDataset.print_schema`.
+        The schema can be confirmed with :py:attr:`~hail.VariantDataset.variant_schema`, :py:attr:`~hail.VariantDataset.sample_schema`, and :py:attr:`~hail.VariantDataset.global_schema`.
 
         .. code-block:: text
 
