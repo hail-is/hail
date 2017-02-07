@@ -500,6 +500,10 @@ class HailContext(object):
         :param bool skip_bad_ad: If True, set AD FORMAT field with
             wrong number of elements to missing, rather than setting
             the entire genotype to missing.
+
+        :return: A VariantDataset read from the VCF file
+        :rtype: :class:`.VariantDataset`
+
         """
 
         pargs = ["importvcf"]
@@ -694,5 +698,8 @@ class HailContext(object):
         return KeyTable(self, self._hail.keytable.KeyTable.fromDF(df._jdf, jkeys))
 
     def stop(self):
+        """
+        Shut down the Hail Context
+        """
         self.sc.stop()
         self.sc = None

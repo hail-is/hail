@@ -275,7 +275,7 @@ class VariantDataset(object):
 
         :param annotation: annotation to add to global
 
-        :param :class:`.Type` annotation_type: Hail type of annotation
+        :param :py:class:`.Type` annotation_type: Hail type of annotation
 
         :return: Annotated dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -1666,7 +1666,7 @@ class VariantDataset(object):
         :param bool filter_altered_genotypes: If true, genotypes that contain filtered-out alleles are set to missing.
 
         :return: Filtered dataset.
-        :rtype: :class:`.VariantDataset`
+        :rtype: :py:class:`.VariantDataset`
         """
 
         pargs = ['filteralleles',
