@@ -16,7 +16,7 @@ object LogisticRegression {
     if (!vds.wasSplit)
       fatal("logreg requires bi-allelic VDS. Run split_multi or filter_multi first")
 
-    def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
+    def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest)
 
     val logRegTest = tests(test)
 
