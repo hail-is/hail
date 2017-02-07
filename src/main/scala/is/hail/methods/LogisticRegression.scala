@@ -29,6 +29,8 @@ object LogisticRegression {
     if (!tests.isDefinedAt(test))
       fatal(s"Supported tests are ${tests.keys.mkString(", ")}, got: $test")
 
+    val useFirth = test == "firth"
+
     val n = y.size
     val k = cov.cols
     val d = n - k - 1
@@ -39,7 +41,7 @@ object LogisticRegression {
     info(s"Running logreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
-    val nullFit = nullModel.nullFit(nullModel.bInterceptOnly())
+    val nullFit = nullModel.nullFit(nullModel.bInterceptOnly(), useFirth=useFirth)
 
     if (!nullFit.converged)
       fatal("Failed to fit logistic regression null model (covariates only): " + (

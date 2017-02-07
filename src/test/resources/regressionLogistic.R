@@ -1,5 +1,5 @@
 suppressPackageStartupMessages(library("jsonlite"))
-#suppressPackageStartupMessages(library("logistf"))
+suppressPackageStartupMessages(library("logistf"))
 
 args <- commandArgs(trailingOnly=TRUE)
 #args <- c("/tmp/input.json", "/tmp/wald.tsv", "/tmp/lrt.tsv", "/tmp/score.tsv", "/tmp/firthB.tsv", "/tmp/firthlrt.tsv")

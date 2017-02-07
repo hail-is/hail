@@ -176,18 +176,22 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val waldFile = tmpDir.createLocalTempFile("localWald", ".tsv")
     val lrtFile = tmpDir.createLocalTempFile("localLRT", ".tsv")
     val scoreFile = tmpDir.createLocalTempFile("localScore", ".tsv")
-    // val firthFitFile = tmpDir.createLocalTempFile("firthfit", ".tsv")
-    // val firthLrtFile = tmpDir.createLocalTempFile("firthlrt", ".tsv")
+    val firthFitFile = tmpDir.createLocalTempFile("firthfit", ".tsv")
+    val firthLrtFile = tmpDir.createLocalTempFile("firthlrt", ".tsv")
 
     hadoopConf.writeTextFile(inputFile) { _.write(jsonString) }
 
-    s"Rscript src/test/resources/regressionLogistic.R ${ uriPath(inputFile) } ${ uriPath(waldFile) } ${ uriPath(lrtFile) } ${ uriPath(scoreFile) }" !
+    val rScript = s"Rscript src/test/resources/regressionLogistic.R " +
+      s"${ uriPath(inputFile) } " + s"${ uriPath(waldFile) } ${ uriPath(lrtFile) } " +
+      s"${ uriPath(scoreFile) } ${ uriPath(firthFitFile) } ${ uriPath(firthLrtFile) }"
+
+    rScript !
 
     val waldR = readResults(waldFile)
     val lrtR = readResults(lrtFile)
     val scoreR = readResults(scoreFile)
-    // val firthFitR = readResults(firthFitFile)
-    // val firthLrtR = readResults(firthLrtFile)
+    val firthFitR = readResults(firthFitFile)
+    val firthLrtR = readResults(firthLrtFile)
 
     val waldBR = waldR.map(_ (0))
     val waldSeR = waldR.map(_ (1))
@@ -200,10 +204,10 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val scoreChi2R = scoreR(0)(0)
     val scorePR = scoreR(1)(0)
 
-    // val firthBR = firthFitR.map(_(0))
-    // val firthLogLkhd0R = firthLrtR(0)(0)
-    // val firthLogLkhdR = firthLrtR(1)(0)
-    // val firthPValR = firthLrtR(2)(0)
+    val firthBR = firthFitR.map(_(0))
+    val firthLogLkhd0R = firthLrtR(0)(0)
+    val firthLogLkhdR = firthLrtR(1)(0)
+    val firthPValR = firthLrtR(2)(0)
 
     val y = DenseVector(yArray)
     val C = new DenseMatrix(rows, cols, XArray)
@@ -212,10 +216,12 @@ class LogisticRegressionModelSuite extends SparkSuite {
 
     val nullModel = new LogisticRegressionModel(ones, y)
     val nullFit = nullModel.nullFit(df = 2)
+    val nullFitFirth = nullModel.nullFit(df = 2, useFirth = true)
 
     val waldStats = WaldTest.test(X, y, nullFit).stats.get
     val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
     val scoreStats = ScoreTest.test(X, y, nullFit).stats.get
+    val firthStats = FirthTest.test(X, y, nullFitFirth).stats.get
 
     assertArray(waldStats.b, cycle(waldBR))
     assertArray(waldStats.se, cycle(waldSeR))
@@ -228,6 +234,6 @@ class LogisticRegressionModelSuite extends SparkSuite {
     assert(D_==(scoreStats.chi2, scoreChi2R, tol))
     assert(D_==(scoreStats.p, scorePR, tol))
 
-    // add Firth method and asserts
+    assert(D_==(firthStats.p, firthPValR, tol))
   }
 }

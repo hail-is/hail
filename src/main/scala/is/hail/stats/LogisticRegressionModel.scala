@@ -99,9 +99,9 @@ case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double)
 
 
 object FirthTest extends LogisticRegressionTest {
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[LikelihoodRatioStats] = {
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[FirthStats] = {
     val model = new LogisticRegressionModel(X, y)
-    val fit = model.fit(nullFit.b)
+    val fit = model.fitFirth(nullFit.b)
 
     val firthStats =
       if (fit.converged) {
@@ -277,12 +277,12 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     LogisticRegressionFit(b, score, fisher, logLkhd, 0, iter, converged, exploded)
   }
 
-  def nullFit(b0: DenseVector[Double] = DenseVector.zeros[Double](m), df: Int = 1, maxIter: Int = 25, tol: Double = 1E-6): LogisticRegressionFit = {
+  def nullFit(b0: DenseVector[Double] = DenseVector.zeros[Double](m), df: Int = 1, maxIter: Int = 25, tol: Double = 1E-6, useFirth: Boolean = false): LogisticRegressionFit = {
     val m = df + X.cols
     val b = DenseVector.zeros[Double](m)
     val score = DenseVector.zeros[Double](m)
     val fisher = DenseMatrix.zeros[Double](m, m)
-    val fit0 = fit(b0, maxIter, tol)
+    val fit0 = if (useFirth) fitFirth(b0, colsToFit = m - df + 1, maxIter=maxIter, tol=tol) else fit(b0, maxIter, tol) // FIXME: is colsToFit right?
 
     b(df until m) := fit0.b
     score(df until m) := fit0.score
