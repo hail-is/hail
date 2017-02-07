@@ -5,8 +5,6 @@ import is.hail.annotations._
 import is.hail.expr.{TBoolean, TInt, TStruct}
 import is.hail.sparkextras.OrderedRDD
 import is.hail.variant._
-import org.apache.spark.Partitioner
-import org.apache.spark.broadcast.Broadcast
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object SplitMulti extends Command {
@@ -178,7 +176,7 @@ object SplitMulti extends Command {
       newSignature
     }.getOrElse(vas3)
 
-    val partitionerBc = vds.sparkContext.broadcast(vds.rdd.orderedPartitioner: Partitioner)
+    val partitionerBc = vds.sparkContext.broadcast(vds.rdd.orderedPartitioner)
 
     val shuffledVariants = vds.rdd.mapPartitionsWithIndex { case (i, it) =>
       it.flatMap { case (v, (va, gs)) =>

@@ -1115,16 +1115,12 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
   }
 
   def minrep(maxShift: Int = 100): VariantSampleMatrix[T] = {
-    require(maxShift >= 0, "invalid value for maxShift: negative number")
+    require(maxShift > 0, s"invalid value for maxShift: $maxShift. Parameter must be a positive integer.")
     val minrepped = rdd.map {
       case (v, (va, gs)) =>
         (v.minrep, (va, gs))
     }
-    copy(rdd =
-      if (maxShift == 0)
-        OrderedRDD(minrepped, rdd.orderedPartitioner)
-      else
-        minrepped.smartShuffleAndSort(rdd.orderedPartitioner, maxShift))
+    copy(rdd = minrepped.smartShuffleAndSort(rdd.orderedPartitioner, maxShift))
   }
 
 }

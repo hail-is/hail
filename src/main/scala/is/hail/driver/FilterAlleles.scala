@@ -4,6 +4,7 @@ package is.hail.driver
 import is.hail.annotations._
 import is.hail.expr.{EvalContext, Parser, TArray, TBoolean, TInt, TVariant}
 import is.hail.methods.Filter
+import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.variant.{GTPair, Genotype, GenotypeType, Variant}
 import org.kohsuke.args4j.{Option => Args4jOption}
@@ -12,6 +13,7 @@ import scala.collection.mutable
 import scala.math.min
 
 object FilterAlleles extends Command {
+
   class Options extends BaseOptions {
     @Args4jOption(required = false, name = "--keep", usage = "Keep variants matching condition")
     var keep: Boolean = false
@@ -56,7 +58,8 @@ object FilterAlleles extends Command {
   override def requiresVDS: Boolean = true
 
   override protected def run(state: State, options: Options): State = {
-    if (state.vds.wasSplit)
+    val vds = state.vds
+    if (vds.wasSplit)
       warn("this VDS was already split; this module was designed to handle multi-allelics, perhaps you should use filtervariants instead.")
 
     if (!(options.keep ^ options.remove))
@@ -67,17 +70,17 @@ object FilterAlleles extends Command {
 
     val conditionEC = EvalContext(Map(
       "v" -> (0, TVariant),
-      "va" -> (1, state.vds.vaSignature),
+      "va" -> (1, vds.vaSignature),
       "aIndex" -> (2, TInt)))
     val conditionE = Parser.parseTypedExpr[Boolean](options.condition, conditionEC)
 
     val annotationEC = EvalContext(Map(
       "v" -> (0, TVariant),
-      "va" -> (1, state.vds.vaSignature),
+      "va" -> (1, vds.vaSignature),
       "aIndices" -> (2, TArray(TInt))))
     val (paths, types, f) = Parser.parseAnnotationExprs(options.annotation, annotationEC, Some(Annotation.VARIANT_HEAD))
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finalType = (paths, types).zipped.foldLeft(state.vds.vaSignature) { case (vas, (path, signature)) =>
+    val finalType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (path, signature)) =>
       val (newVas, i) = vas.insert(signature, path)
       inserterBuilder += i
       newVas
@@ -106,18 +109,18 @@ object FilterAlleles extends Command {
         None
       else {
         val newToOld = oldToNew.iterator
-            .zipWithIndex
-            .filter { case (newIdx, oldIdx) => oldIdx == 0 || newIdx != 0 }
-            .map(_._2)
-            .toArray
+          .zipWithIndex
+          .filter { case (newIdx, oldIdx) => oldIdx == 0 || newIdx != 0 }
+          .map(_._2)
+          .toArray
 
         val altAlleles = oldToNew.iterator
-            .zipWithIndex
-            .filter { case (newIdx, _) => newIdx != 0 }
-            .map { case (_, idx) => v.altAlleles(idx-1) }
-            .toArray
+          .zipWithIndex
+          .filter { case (newIdx, _) => newIdx != 0 }
+          .map { case (_, idx) => v.altAlleles(idx - 1) }
+          .toArray
 
-        Some((v.copy(altAlleles = altAlleles), newToOld : IndexedSeq[Int], oldToNew))
+        Some((v.copy(altAlleles = altAlleles).minrep, newToOld: IndexedSeq[Int], oldToNew))
       }
     }
 
@@ -129,6 +132,7 @@ object FilterAlleles extends Command {
     def updateGenotypes(gs: Iterable[Genotype], oldToNew: Array[Int], newCount: Int): Iterable[Genotype] = {
       def downcodeGtPair(gt: GTPair): GTPair =
         GTPair.fromNonNormalized(oldToNew(gt.j), oldToNew(gt.k))
+
       def downcodeGt(gt: Int): Int =
         Genotype.gtIndex(downcodeGtPair(Genotype.gtPair(gt)))
 
@@ -154,26 +158,26 @@ object FilterAlleles extends Command {
       }
 
       def subsetPx(px: Array[Int]): Array[Int] = {
-        val (newPx,minP) = px.zipWithIndex
+        val (newPx, minP) = px.zipWithIndex
           .filter({
             case (p, i) =>
               val gTPair = Genotype.gtPair(i)
-              (gTPair.j == 0 || oldToNew(gTPair.j) != 0) && (gTPair.k ==0 || oldToNew(gTPair.k) != 0)
+              (gTPair.j == 0 || oldToNew(gTPair.j) != 0) && (gTPair.k == 0 || oldToNew(gTPair.k) != 0)
           })
-          .foldLeft((Array.fill(triangle(newCount))(0),Int.MaxValue))({
-            case((newPx,minP),(p,i)) =>
+          .foldLeft((Array.fill(triangle(newCount))(0), Int.MaxValue))({
+            case ((newPx, minP), (p, i)) =>
               newPx(downcodeGt(i)) = p
-              (newPx,min(p,minP))
+              (newPx, min(p, minP))
           })
 
         newPx.map(_ - minP)
       }
 
-      def subsetGenotype(g: Genotype) : Genotype = {
-        val px  = g.px.map(subsetPx)
+      def subsetGenotype(g: Genotype): Genotype = {
+        val px = g.px.map(subsetPx)
         g.copy(
           gt = px.map(_.zipWithIndex.min._2),
-          ad = g.ad.map(_.zipWithIndex.filter({case(d,i) => i ==0 || oldToNew(i) != 0}).map(_._1)),
+          ad = g.ad.map(_.zipWithIndex.filter({ case (d, i) => i == 0 || oldToNew(i) != 0 }).map(_._1)),
           gq = px.map(Genotype.gqFromPL),
           px = px
         )
@@ -181,29 +185,49 @@ object FilterAlleles extends Command {
 
       gs.map({
         g =>
-          val newG = if(downcode) downcodeGenotype(g) else subsetGenotype(g)
-          if(filterAlteredGenotypes && newG.gt != g.gt)
+          val newG = if (downcode) downcodeGenotype(g) else subsetGenotype(g)
+          if (filterAlteredGenotypes && newG.gt != g.gt)
             newG.copy(gt = None)
           else
             newG
       })
     }
 
-    def updateOrFilterRow(v: Variant, va: Annotation, gs: Iterable[Genotype]): Option[(Variant, (Annotation, Iterable[Genotype]))] =
-      filterAllelesInVariant(v, va).map { case (newV, newToOld, oldToNew) =>
-        val newVa = updateAnnotation(v, va, newToOld)
-        if(newV == v)
-          (v,(newVa,gs))
-        else {
-          val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
-          (newV, (newVa, newGs))
+    def updateOrFilterRow(v: Variant, va: Annotation, gs: Iterable[Genotype],
+      f: (Variant) => Boolean): Option[(Variant, (Annotation, Iterable[Genotype]))] =
+      filterAllelesInVariant(v, va)
+        .filter { case (v, _, _) => f(v) }
+        .map { case (newV, newToOld, oldToNew) =>
+          val newVa = updateAnnotation(v, va, newToOld)
+          if (newV == v)
+            (v, (newVa, gs))
+          else {
+            val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
+            (newV, (newVa, newGs))
+          }
         }
-      }
 
-    val newVds = state.vds
-      .flatMapVariants { case (v, va, gs) => updateOrFilterRow(v, va, gs) }
-      .minrep(options.maxShift)
-      .copy(vaSignature = finalType)
+    val partitionerBc = vds.sparkContext.broadcast(vds.rdd.orderedPartitioner)
+
+    val shuffledVariants = vds.rdd.mapPartitionsWithIndex { case (i, it) =>
+      it.flatMap { case (v, (va, gs)) =>
+        updateOrFilterRow(v, va, gs,
+          f = (v: Variant) => partitionerBc.value.getPartition(v) != i)
+      }
+    }.orderedRepartitionBy(vds.rdd.orderedPartitioner)
+
+    val localMaxShift = options.maxShift
+    val staticVariants = vds.rdd.mapPartitionsWithIndex { case (i, it) =>
+      LocalVariantSortIterator(it.flatMap { case (v, (va, gs)) =>
+        updateOrFilterRow(v, va, gs,
+          f = (v: Variant) => partitionerBc.value.getPartition(v) == i)
+      }, localMaxShift)
+    }
+
+    val newRDD = OrderedRDD.partitionedSortedUnion(staticVariants, shuffledVariants, vds.rdd.orderedPartitioner)
+
+    val newVds = vds
+      .copy(rdd = newRDD, vaSignature = finalType)
 
     state.copy(vds = newVds)
   }
