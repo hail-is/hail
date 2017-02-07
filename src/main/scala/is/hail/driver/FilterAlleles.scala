@@ -193,7 +193,7 @@ object FilterAlleles extends Command {
           (v,(newVa,gs))
         else {
           val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
-          (newV, (newVa, newGs))
+          (newV.minrep, (newVa, newGs))
         }
       }
 
