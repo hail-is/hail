@@ -43,7 +43,7 @@ object Annotation {
       TStruct(fields.map { f => f.copy(typ = expandType(f.typ)) })
     case TSet(elementType) =>
       TArray(expandType(elementType))
-    case TMap(keyType, valueType) =>
+    case TDict(keyType, valueType) =>
       TArray(TStruct(
         "key" -> expandType(keyType),
         "value" -> expandType(valueType)))
@@ -76,7 +76,7 @@ object Annotation {
             .toArray[Any] : IndexedSeq[_])
             .map(expandAnnotation(_, elementType))
 
-        case TMap(keyType, valueType) =>
+        case TDict(keyType, valueType) =>
           (a.asInstanceOf[Map[String, _]]
 
             .toArray[(Any, Any)]: IndexedSeq[(Any, Any)])

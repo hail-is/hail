@@ -50,8 +50,8 @@ class Type(object):
             return TArray._from_java(jtype)
         elif class_name == 'is.hail.expr.TSet':
             return TSet._from_java(jtype)
-        elif class_name == 'is.hail.expr.TMap':
-            return TMap._from_java(jtype)
+        elif class_name == 'is.hail.expr.TDict':
+            return TDict._from_java(jtype)
         elif class_name == 'is.hail.expr.TStruct':
             return TStruct._from_java(jtype)
         else:
@@ -313,7 +313,7 @@ class TSet(Type):
                 self.element_type._typecheck(elt)
 
 
-class TMap(Type):
+class TDict(Type):
     """
     Hail type corresponding to dict
 
@@ -329,14 +329,14 @@ class TMap(Type):
     """
 
     def __init__(self, key_type, value_type):
-        jtype = scala_object(env.hail.expr, 'TMap').apply(key_type._jtype, value_type._jtype)
+        jtype = scala_object(env.hail.expr, 'TDict').apply(key_type._jtype, value_type._jtype)
         self.key_type = key_type
         self.value_type = value_type
-        super(TMap, self).__init__(jtype)
+        super(TDict, self).__init__(jtype)
 
     @classmethod
     def _from_java(cls, jtype):
-        t = TMap.__new__(cls)
+        t = TDict.__new__(cls)
         t.key_type = Type._from_java(jtype.keyType())
         t.value_type = Type._from_java(jtype.valueType())
         t._jtype = jtype
@@ -363,7 +363,7 @@ class TMap(Type):
     def _typecheck(self, annotation):
         if annotation:
             if not isinstance(annotation, dict):
-                raise TypeCheckError("TMap expected type 'dict', but found type '%s'" % type(annotation))
+                raise TypeCheckError("TDict expected type 'dict', but found type '%s'" % type(annotation))
             for k, v in annotation.iteritems():
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)

@@ -685,13 +685,13 @@ object FunctionRegistry {
   registerMethod("length", (a: IndexedSeq[Any]) => a.length)(arrayHr(TTHr), intHr)
   registerMethod("size", (a: IndexedSeq[Any]) => a.size)(arrayHr(TTHr), intHr)
   registerMethod("size", (s: Set[Any]) => s.size)(setHr(TTHr), intHr)
-  registerMethod("size", (d: Map[Any, Any]) => d.size)(mapHr(TTHr, TUHr), intHr)
+  registerMethod("size", (d: Map[Any, Any]) => d.size)(dictHr(TTHr, TUHr), intHr)
 
   registerMethod("id", (s: String) => s)(sampleHr, stringHr)
 
   registerMethod("isEmpty", (a: IndexedSeq[Any]) => a.isEmpty)(arrayHr(TTHr), boolHr)
   registerMethod("isEmpty", (s: Set[Any]) => s.isEmpty)(setHr(TTHr), boolHr)
-  registerMethod("isEmpty", (d: Map[Any, Any]) => d.isEmpty)(mapHr(TTHr, TUHr), boolHr)
+  registerMethod("isEmpty", (d: Map[Any, Any]) => d.isEmpty)(dictHr(TTHr, TUHr), boolHr)
 
   registerMethod("toSet", (a: IndexedSeq[Any]) => a.toSet)(arrayHr(TTHr), setHr(TTHr))
   registerMethod("toSet", (a: Set[Any]) => a)(setHr(TTHr), setHr(TTHr))
@@ -714,15 +714,15 @@ object FunctionRegistry {
 
   registerMethod("keys", (m: Map[Any, Any]) =>
     m.keysIterator.toArray[Any]: IndexedSeq[Any]
-  )(mapHr(TTHr, TUHr), arrayHr(TTHr))
+  )(dictHr(TTHr, TUHr), arrayHr(TTHr))
 
   registerMethod("keySet", (m: Map[Any, Any]) =>
     m.keySet
-  )(mapHr(TTHr, TUHr), setHr(TTHr))
+  )(dictHr(TTHr, TUHr), setHr(TTHr))
 
   registerMethod("get", (m: Map[Any, Any], key: Any) =>
     m.get(key).orNull
-  )(mapHr(TTHr, TUHr), TTHr, TUHr)
+  )(dictHr(TTHr, TUHr), TTHr, TUHr)
 
   registerMethod("mkString", (a: IndexedSeq[String], d: String) => a.mkString(d))(
     arrayHr(stringHr), stringHr, stringHr)
@@ -730,9 +730,7 @@ object FunctionRegistry {
     setHr(stringHr), stringHr, stringHr)
 
   registerMethod("contains", (s: Set[Any], x: Any) => s.contains(x))(setHr(TTHr), TTHr, boolHr)
-  registerMethod("contains", (d: Map[Any, Any], x: Any) => d.contains(x))(mapHr(TTHr, TUHr), TTHr, boolHr)
-
-  registerMethod("keys", (d: Map[Any, Any]) => d.keySet)(mapHr(TTHr, TUHr), setHr(TTHr))
+  registerMethod("contains", (d: Map[Any, Any], x: Any) => d.contains(x))(dictHr(TTHr, TUHr), TTHr, boolHr)
 
   registerLambdaMethod("find", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.find { elt =>
@@ -758,7 +756,7 @@ object FunctionRegistry {
 
   registerLambdaMethod("mapValues", (a: Map[Any, Any], f: (Any) => Any) =>
     a.map { case (k, v) => (k, f(v)) }
-  )(mapHr[Any, Any](TTHr, TUHr), unaryHr(TUHr, TVHr), mapHr[Any, Any](TTHr, TVHr))
+  )(dictHr[Any, Any](TTHr, TUHr), unaryHr(TUHr, TVHr), dictHr[Any, Any](TTHr, TVHr))
 
   //  registerMapLambdaMethod("mapValues", (a: Map[Any, Any], f: (Any) => Any) =>
   //    a.map { case (k, v) => (k, f(v)) }
@@ -848,7 +846,7 @@ object FunctionRegistry {
 
   registerAggregator[Any, Any]("counter", () => new CounterAggregator())(aggregableHr(TTHr),
     new HailRep[Any] {
-      def typ = TMap(TTHr.typ, TLong)
+      def typ = TDict(TTHr.typ, TLong)
     })
 
   registerAggregator[Double, Any]("stats", () => new StatAggregator())(aggregableHr(doubleHr),
@@ -1114,7 +1112,7 @@ object FunctionRegistry {
   })(TTHr, TTHr, TTHr)
 
   registerMethod("[]", (a: IndexedSeq[Any], i: Int) => if (i >= 0) a(i) else a(a.length + i))(arrayHr(TTHr), intHr, TTHr)
-  registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i))(mapHr(TTHr, TUHr), TTHr, TUHr)
+  registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i))(dictHr(TTHr, TUHr), TTHr, TUHr)
   registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString)(stringHr, intHr, charHr)
 
   registerMethod("[:]", (a: IndexedSeq[Any]) => a)(arrayHr(TTHr), arrayHr(TTHr))

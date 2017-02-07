@@ -28,7 +28,7 @@ object Type {
       Gen.oneOfGen(genScalar,
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
-        Gen.zip(genArb.resize(size - 1), genArb.resize(size - 1)).map { case (k, v) => TMap(k, v) },
+        Gen.zip(genArb.resize(size - 1), genArb.resize(size - 1)).map { case (k, v) => TDict(k, v) },
         Gen.buildableOf[Array, (String, Type, Map[String, String])](
           Gen.zip(Gen.identifier,
             genArb,
@@ -440,7 +440,7 @@ case class TSet(elementType: Type) extends TIterable {
   override def genValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
 }
 
-case class TMap(keyType: Type, valueType: Type) extends TContainer {
+case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   def elementType: Type = valueType
 
@@ -448,12 +448,12 @@ case class TMap(keyType: Type, valueType: Type) extends TContainer {
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TMap(kt, vt) => keyType.unify(kt) && valueType.unify(vt)
+      case TDict(kt, vt) => keyType.unify(kt) && valueType.unify(vt)
       case _ => false
     }
   }
 
-  override def subst() = TMap(keyType.subst(), valueType.subst())
+  override def subst() = TDict(keyType.subst(), valueType.subst())
 
   override def toString = s"Map[$keyType, $valueType]"
 

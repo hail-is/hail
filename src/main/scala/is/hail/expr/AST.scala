@@ -415,7 +415,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         t.getOption(key) match {
           case Some(keyType) =>
             val (newS, _) = t.delete(key)
-            `type` = TMap(keyType, newS)
+            `type` = TDict(keyType, newS)
           case None => parseError(
             s"""invalid arguments for method `$fn'
                |  Struct did not contain the designated key `${ prettyIdentifier(key) }'""".stripMargin)
@@ -549,7 +549,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = FunctionRegistry.lookupMethodReturnType(it, args.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
-      // not aggregable: TIterable or TMap
+      // not aggregable: TIterable or TDict
       case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
         rest.foreach(_.typecheck(ec))
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))

@@ -132,7 +132,7 @@ object LinearMixedRegression {
 
     val vds1 = assocVds.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, S.data.reverse),
-      TStruct(("useML", TBoolean), ("beta", TMap(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
+      TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
         ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble))), rootGA)
 
     val vds2 = (diagLMM.maxLogLkhd, diagLMM.deltaGridLogLkhd) match {
