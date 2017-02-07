@@ -7,7 +7,7 @@ import org.testng.annotations.Test
 
 
 class AnnotateAllelesSuite extends SparkSuite {
-  @Test def test(): Unit = {
+  @Test def test() {
 
     var s = State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sample2.vcf"))
     s = AnnotateAlleles.run(s, Array("expr", "--propagate-gq", "-c",

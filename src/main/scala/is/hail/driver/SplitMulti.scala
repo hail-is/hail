@@ -60,7 +60,7 @@ object SplitMulti extends Command {
       .filter(keepStar || _._1.alt != "*")
       .map { case (aa, aai) => (Variant(v.contig, v.start, v.ref, Array(aa)).minrep, aai + 1) }
       .filter { case (sv, _) => f(sv) }
-      .toArray.sortBy(_._1)
+      .toArray
 
     if (splitVariants.isEmpty)
       return Iterator()

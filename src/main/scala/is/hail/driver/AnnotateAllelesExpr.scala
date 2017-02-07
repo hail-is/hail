@@ -70,7 +70,7 @@ object AnnotateAllelesExpr extends Command {
 
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
-        compress = true,
+        compress = false,
         keepStar = true,
         isDosage = isDosage,
         insertSplitAnnots = { (va, index, wasSplit) =>
@@ -78,15 +78,15 @@ object AnnotateAllelesExpr extends Command {
         },
         f = _ => true)
         .map({
-          case (v,(va,gs)) =>
+          case (v, (va, gs)) =>
             ec.setAll(localGlobalAnnotation, v, va)
             aggregateOption.foreach(f => f(v, va, gs))
             f()
         }).toArray
 
-      inserters.zipWithIndex.foldLeft(va){
-        case (va,(inserter, i)) =>
-          inserter(va, Some(annotations.map(_(i).getOrElse(Annotation.empty)).toArray[Any]: IndexedSeq[Any]))
+      inserters.zipWithIndex.foldLeft(va) {
+        case (va, (inserter, i)) =>
+          inserter(va, Some(annotations.map(_ (i).getOrElse(Annotation.empty)).toArray[Any]: IndexedSeq[Any]))
       }
 
     }.copy(vaSignature = finalType)
