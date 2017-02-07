@@ -258,7 +258,7 @@ class VariantDataset(object):
         :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
 
         :return: Annotated dataset.
-        :rtype :class:`.VariantDataset`
+        :rtype: :py:class:`.VariantDataset`
         """
 
         if isinstance(condition, list):
@@ -1463,7 +1463,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Export to VCF as block-compressed files:
+        Export to VCF as a block-compressed file:
 
         >>> hc.read('data/example.vds').export_vcf('data/example.vcf.bgz')
 
@@ -1475,7 +1475,7 @@ class VariantDataset(object):
 
         .. note::
 
-            We strongly recommended compressed and parallel output when exporting large VCFs.
+            We strongly recommended compressed (``.bgz`` extension) and parallel output (``parallel=True``) when exporting large VCFs.
 
         Consider the workflow of importing VCF to VDS and immediately exporting VDS to VCF:
 
@@ -1483,19 +1483,17 @@ class VariantDataset(object):
 
         The *example_out.vcf* header will contain the FORMAT, FILTER, and INFO lines present in *example.vcf*. However, it will *not* contain CONTIG lines or lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
 
-        Hail exports the contents of ``va.info`` to the INFO field.
+        Hail only exports the contents of ``va.info`` to the INFO field. No other annotations besides ``va.info`` are exported.
 
         .. caution::
 
-            If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run py:meth:`variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
+            If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run :py:meth:`~hail.VariantDataset.variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
 
-        >>> (hc.import_vcf('data/example.vcf')
-        >>>    .filter_genotypes('g.gq >= 20')
-        >>>    .variant_qc()
-        >>>    .annotate_variants_expr('va.info.AC = va.qc.AC')
-        >>>    .export_vcf('data/example.vcf.bgz'))
-
-        :py:meth:`~hail.VariantDataset.export_vcf` does not export any annotations besides those in ``va.info``.
+            >>> (hc.import_vcf('data/example.vcf')
+            >>>    .filter_genotypes('g.gq >= 20')
+            >>>    .variant_qc()
+            >>>    .annotate_variants_expr('va.info.AC = va.qc.AC')
+            >>>    .export_vcf('data/example.vcf.bgz'))
 
         :param str output: Path of .vcf file to write.
 
