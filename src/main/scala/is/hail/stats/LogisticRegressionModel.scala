@@ -23,7 +23,6 @@ class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override
 }
 
 
-
 object WaldTest extends LogisticRegressionTest {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[WaldStats] = {
     val model = new LogisticRegressionModel(X, y)
@@ -98,6 +97,39 @@ case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double)
   def toAnnotation = Annotation(b(0), chi2, p)
 }
 
+
+object FirthTest extends LogisticRegressionTest {
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[LikelihoodRatioStats] = {
+    val model = new LogisticRegressionModel(X, y)
+    val fit = model.fit(nullFit.b)
+
+    val firthStats =
+      if (fit.converged) {
+        val chi2 = 2 * (fit.logLkhd - nullFit.logLkhd)
+        val p = chiSquaredTail(nullFit.df, chi2)
+
+        Some(new FirthStats(fit.b, chi2, p))
+      } else
+        None
+
+    new LogisticRegressionTestResultWithFit[FirthStats](firthStats, fit)
+  }
+
+  def `type` = TStruct(
+    ("firth", LikelihoodRatioStats.`type`),
+    ("fit", LogisticRegressionFit.`type`))
+}
+
+object FirthStats {
+  def `type`: Type = TStruct(
+    ("beta", TDouble),
+    ("chi2", TDouble),
+    ("pval", TDouble))
+}
+
+case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
+  def toAnnotation = Annotation(b(0), chi2, p)
+}
 
 
 object ScoreTest extends LogisticRegressionTest {
@@ -188,6 +220,50 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
           logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu))))
+        } else {
+          deltaB = fisher \ score
+          b += deltaB
+        }
+      } catch {
+        case e: breeze.linalg.MatrixSingularException => exploded = true
+        case e: breeze.linalg.NotConvergedException => exploded = true
+      }
+    }
+
+    LogisticRegressionFit(b, score, fisher, logLkhd, 0, iter, converged, exploded)
+  }
+
+  def fitFirth(b0: DenseVector[Double], colsToFit: Int = m, maxIter: Int = 25, tol: Double = 1E-6): LogisticRegressionFit = {
+    require(X.cols == b0.length)
+    require(maxIter > 0)
+
+    var b = b0.copy
+    var deltaB = DenseVector.zeros[Double](m)
+    var mu = DenseVector.zeros[Double](n)
+    var score = DenseVector.zeros[Double](m)
+    var fisher = DenseMatrix.zeros[Double](m, m)
+    var logLkhd = 0d
+    var iter = 0
+    var converged = false
+    var exploded = false
+
+    while (!converged && !exploded && iter < maxIter) {
+      try {
+        iter += 1
+
+        val X0 = X(::, 0 until colsToFit)
+        val mu = sigmoid(X0 * b)
+        val XsqrtW = X(::,*) :* sqrt(mu :* (1d - mu))
+        val QR = qr.reduced(XsqrtW)
+        val sqrtH = norm(QR.q(*, ::)) // FIXME: implement norm2
+        val score = X0.t * (y - mu + (sqrtH :* sqrtH :* (.5 - mu)))
+        val r0 = QR.r(::, 0 until colsToFit)
+        val fisher = r0.t * r0
+
+        if (max(abs(deltaB)) < tol && iter > 1) {
+          converged = true
+          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) +
+            sum(breeze.numerics.log(diag(cholesky(fisher)))) // FIXME: change to logdet?
         } else {
           deltaB = fisher \ score
           b += deltaB
