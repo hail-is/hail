@@ -47,7 +47,7 @@ In this window, enter two commands:
     >>> from hail import *
     >>> hc = HailContext()
 
-If there is no error, you're ready to start using Hail! Otherwise, make sure that the `export` variables are correctly set and appropriate versions of all dependencies are installed. If this step triggers an `Exception in thread "main" java.net.BindException`, see [here](https://hail.is/faq.html#how-do-i-fix-exception-in-thread-main-java.net.bindexception-cant-assign-requested-address-...) for a fix.
+If there is no error, you're ready to start using Hail! Otherwise, make sure that the `export` variables are correctly set and appropriate versions of all dependencies are installed.
 
 Before using Hail, let's import the following Python libraries for use throughout the tutorial. Installing and importing [seaborn](http://seaborn.pydata.org/installing.html) is optional; it just makes the plots prettier.
 

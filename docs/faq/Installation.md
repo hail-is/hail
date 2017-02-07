@@ -1,1 +1,0 @@
-## <a class="jumptarget" name="installation"></a> Installation

@@ -29,7 +29,7 @@ CHLD is the number of children in a nuclear family.
 
 The CODE of each Mendel error is determined by the table below, extending the [Plink classification](https://www.cog-genomics.org/plink2/basic_stats#mendel).
 Those individuals implicated by each code are in bold.
-The copy state of a locus with respect to a trio is defined as follows, where PAR is the pseudo-autosomal region (PAR).
+The copy state of a locus with respect to a trio is defined as follows, where PAR is the pseudoautosomal region (PAR).
 
 - HemiX -- in non-PAR of X, male child
 - HemiY -- in non-PAR of Y, male child

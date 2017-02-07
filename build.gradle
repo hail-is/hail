@@ -402,7 +402,7 @@ task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
 }
 
 task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepareJavascript', 'copyHtml']) {
-    args('referenceTemplate.html', 'commandsTemplate.html', 'faqTemplate.html', 'template.html', './commandOptions.json', 'docs/')
+    args('referenceTemplate.html', 'commandsTemplate.html', 'template.html', './commandOptions.json', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
@@ -423,7 +423,6 @@ task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs', 'clea
 }
 
 task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
-    from 'build/tmp/docs/faq.html'
     from 'build/tmp/docs/commands.html'
     from 'build/tmp/docs/reference.html'
     from 'build/tmp/docs/tutorial.html'

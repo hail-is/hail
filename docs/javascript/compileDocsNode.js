@@ -9,10 +9,9 @@ process.on('uncaughtException', function (err) {
 
 const referenceHtmlTemplate = __dirname + "/" + process.argv[2];
 const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
-const faqHtmlTemplate = __dirname + "/" + process.argv[4];
-const template = __dirname + "/" + process.argv[5];
-const jsonCommandsFile = process.argv[6];
-const pandocOutputDir = __dirname + "/" + process.argv[7];
+const template = __dirname + "/" + process.argv[4];
+const jsonCommandsFile = process.argv[5];
+const pandocOutputDir = __dirname + "/" + process.argv[6];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
@@ -22,8 +21,6 @@ const mjAPI = require("mathjax-node/lib/mj-page.js");
 const jsonData = require(jsonCommandsFile);
 
 mjAPI.start();
-
-buildFAQ(faqHtmlTemplate, __dirname + "/faq.html");
 
 buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
 
@@ -120,45 +117,6 @@ function buildCommands(htmlTemplate, outputFileName) {
 
         Promise.all(buildCommandPromises.concat([loadReq("#GlobalOptions", pandocOutputDir + "commands/" + "GlobalOptions.html", $)]))
             .then(function() {$("div#GlobalOptions div.options").append(buildDocs.buildGlobalOptions(jsonData.global.options))}, error)
-            .then(function() {
-                 var document = jsdom.jsdom($('html').html());
-                 runMathJax(document, function(html) {
-                    fs.writeFile(outputFileName, html);
-                 });
-            }, error)
-            .catch(error);
-    });
-}
-
-function buildFAQ(htmlTemplate, outputFileName) {
-    jsdom.env(htmlTemplate, function (err, window) {
-        window.addEventListener("error", function (event) {
-          console.error("script error!!", event.error);
-          process.exit(1);
-        });
-
-        const $ = require('jquery')(window);
-
-    var faqNames = ["Annotations",
-                    "DataRepresentation",
-                    "DevTools",
-                    "ErrorMessages",
-                    "ExportingData",
-                    "ExpressionLanguage",
-                    "FilteringData",
-                    "General",
-                    "ImportingData",
-                    "Installation",
-                    "Methods",
-                    "OptimizePipeline"];
-
-    var loadFaqPromises = faqNames.map(name => loadReq("#" + name, pandocOutputDir + "faq/" + name + ".html", $));
-
-        Promise.all(loadFaqPromises)
-            .then(function () {
-                buildDocs.buildFaqTOC($);
-                faqNames.map(name => buildDocs.buildFaqHeader(name, $));
-            }, error)
             .then(function() {
                  var document = jsdom.jsdom($('html').html());
                  runMathJax(document, function(html) {

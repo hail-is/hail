@@ -17,7 +17,7 @@ Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06
 
 To get started using Hail:
 
-- read the docs ([Getting Started](https://hail.is/getting_started.html), [Overview](https://hail.is/overview.html), [Tutorial](https://hail.is/tutorial.html), [General Reference](https://hail.is/reference.html), [Command Reference](https://hail.is/commands.html), [FAQ](https://hail.is/faq.html))
+- read the docs ([Getting Started](https://hail.is/getting_started.html), [Overview](https://hail.is/overview.html), [Tutorial](https://hail.is/tutorial.html), [General Reference](https://hail.is/reference.html), and [Command Reference](https://hail.is/commands.html))
 - join the [discussion forum](http://discuss.hail.is) 
 - chat with the Hail team and other users in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 
