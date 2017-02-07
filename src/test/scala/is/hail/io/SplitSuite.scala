@@ -44,6 +44,8 @@ class SplitSuite extends SparkSuite {
           }
       }.collect().toSet
 
+      println(method1)
+      println(method2)
       method1 == method2
     }
   }

@@ -75,7 +75,8 @@ object AnnotateAllelesExpr extends Command {
         isDosage = isDosage,
         insertSplitAnnots = { (va, index, wasSplit) =>
           insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
-        })
+        },
+        f = _ => true)
         .map({
           case (v,(va,gs)) =>
             ec.setAll(localGlobalAnnotation, v, va)

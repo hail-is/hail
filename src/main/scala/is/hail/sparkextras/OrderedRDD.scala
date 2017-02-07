@@ -213,7 +213,7 @@ object OrderedRDD {
             val r = it.next()
 
             if (i < rangeBoundsBc.value.length)
-              assert(kOk.project(r._1) <= rangeBoundsBc.value(i))
+              assert(kOk.project(r._1) <= rangeBoundsBc.value(i), s"key ${ r._1 } greater than partition max ${ rangeBoundsBc.value(i)   }")
             if (i > 0)
               assert(rangeBoundsBc.value(i - 1) < kOk.project(r._1),
                 s"key ${ r._1 } >= last max ${ rangeBoundsBc.value(i - 1) } in partition $i")
@@ -325,8 +325,8 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
   assert(orderedPartitioner.numPartitions == rdd.partitions.length,
     s"""mismatch between partitioner and rdd partition count
-        |  rdd partitions: ${ rdd.partitions.length }
-        |  partitioner n:  ${ orderedPartitioner.numPartitions }""".stripMargin
+       |  rdd partitions: ${ rdd.partitions.length }
+       |  partitioner n:  ${ orderedPartitioner.numPartitions }""".stripMargin
   )
 
   override val partitioner: Option[Partitioner] = Some(orderedPartitioner)

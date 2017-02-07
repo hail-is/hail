@@ -3,7 +3,10 @@ package is.hail.driver
 import is.hail.utils._
 import is.hail.annotations._
 import is.hail.expr.{TBoolean, TInt, TStruct}
+import is.hail.sparkextras.OrderedRDD
 import is.hail.variant._
+import org.apache.spark.Partitioner
+import org.apache.spark.broadcast.Broadcast
 import org.kohsuke.args4j.{Option => Args4jOption}
 
 object SplitMulti extends Command {
@@ -44,16 +47,25 @@ object SplitMulti extends Command {
     compress: Boolean,
     isDosage: Boolean,
     keepStar: Boolean,
-    insertSplitAnnots: (Annotation, Int, Boolean) => Annotation): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
+    insertSplitAnnots: (Annotation, Int, Boolean) => Annotation,
+    f: (Variant) => Boolean): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
 
-    if (v.isBiallelic)
-      return Iterator((v, (insertSplitAnnots(va, 1, false), it)))
+    if (v.isBiallelic) {
+      val minrep = v.minrep
+      if (f(minrep))
+        return Iterator((minrep, (insertSplitAnnots(va, 1, false), it)))
+      else
+        return Iterator()
+    }
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
       .filter(keepStar || _._1.alt != "*")
-      .map { case (aa, aai) =>
-        (Variant(v.contig, v.start, v.ref, Array(aa)).minrep, aai + 1)
-      }.toArray
+      .map { case (aa, aai) => (Variant(v.contig, v.start, v.ref, Array(aa)).minrep, aai + 1) }
+      .filter { case (sv, _) => f(sv) }
+      .toArray.sortBy(_._1)
+
+    if (splitVariants.isEmpty)
+      return Iterator()
 
     val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isDosage) }
     val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isDosage, compress) }
@@ -166,10 +178,10 @@ object SplitMulti extends Command {
       newSignature
     }.getOrElse(vas3)
 
-    val newVDS = state.vds.copy(
-      wasSplit = true,
-      vaSignature = vas4,
-      rdd = vds.rdd.flatMap { case (v, (va, gs)) =>
+    val partitionerBc = vds.sparkContext.broadcast(vds.rdd.orderedPartitioner: Partitioner)
+
+    val shuffledVariants = vds.rdd.mapPartitionsWithIndex { case (i, it) =>
+      it.flatMap { case (v, (va, gs)) =>
         split(v, va, gs,
           propagateGQ = propagateGQ,
           compress = !noCompress,
@@ -177,12 +189,32 @@ object SplitMulti extends Command {
           isDosage = isDosage,
           insertSplitAnnots = { (va, index, wasSplit) =>
             insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
-          })
+          },
+          f = (v: Variant) => partitionerBc.value.getPartition(v) != i)
       }
-        .map { case (v, (va, gs)) =>
-          (v.minrep, (va, gs.toGenotypeStream(v, isDosage, compress = !noCompress): Iterable[Genotype]))
-        }
-        .smartShuffleAndSort(vds.rdd.orderedPartitioner, options.maxShift))
+    }.orderedRepartitionBy(vds.rdd.orderedPartitioner)
+
+    val localMaxShift = options.maxShift
+    val staticVariants = vds.rdd.mapPartitionsWithIndex { case (i, it) =>
+      LocalVariantSortIterator(it.flatMap { case (v, (va, gs)) =>
+        split(v, va, gs,
+          propagateGQ = propagateGQ,
+          compress = !noCompress,
+          keepStar = keepStar,
+          isDosage = isDosage,
+          insertSplitAnnots = { (va, index, wasSplit) =>
+            insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+          },
+          f = (v: Variant) => partitionerBc.value.getPartition(v) == i)
+      }, localMaxShift)
+    }
+
+    val newRDD = OrderedRDD.partitionedSortedUnion(staticVariants, shuffledVariants, vds.rdd.orderedPartitioner)
+
+    val newVDS = state.vds.copy(
+      wasSplit = true,
+      vaSignature = vas4,
+      rdd = newRDD)
 
     state.copy(vds = newVDS)
   }
