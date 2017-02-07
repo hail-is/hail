@@ -64,7 +64,7 @@ class Interval(object):
 
         :rtype: :class:`.Locus`
         """
-        return
+        return Locus._from_java(self._jrep.start())
 
     @property
     def end(self):
