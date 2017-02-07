@@ -1,6 +1,6 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-from hail.java import scala_package_object, jarray, raise_py4j_exception, env
+from hail.java import scala_package_object, jarray, raise_py4j_exception, env, joption
 from hail.keytable import KeyTable
 from hail.type import Type
 from hail.utils import TextTableConfig
@@ -2438,11 +2438,11 @@ class VariantDataset(object):
         """
 
         try:
-            return VariantDataset(self.hc, self.hc.hail.methods.LinearMixedRegression.apply(
-                self.jvds, kinship_vds.jvds, y, jarray(self.hc.gateway, self.hc.jvm.java.lang.String, covariates), use_ml, global_root, va_root, no_assoc,
-                joption(self.hc.jvm, delta), sparsity_threshold, force_block, force_grammian))
+            return VariantDataset(self.hc, env.hail.methods.LinearMixedRegression.apply(
+                self._jvds, kinship_vds._jvds, y, jarray(env.jvm.java.lang.String, covariates), use_ml, global_root, va_root, no_assoc,
+                joption(delta), sparsity_threshold, force_block, force_grammian))
         except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+            raise_py4j_exception(e)
 
     def logreg(self, test, y, covariates=[], root='va.logreg'):
         """Test each variant for association using the logistic regression
