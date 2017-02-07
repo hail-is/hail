@@ -317,14 +317,14 @@ class TDict(Type):
     """
     Hail type corresponding to dict
 
-    :param key_type: type of map keys
+    :param key_type: type of dict keys
     :type key_type: :class:`.Type`
-    :param value_type: type of map values
+    :param value_type: type of dict values
     :type value_type: :class:`.Type`
 
-    :ivar key_type: type of map keys
+    :ivar key_type: type of dict keys
     :vartype key_type: :class:`.Type`
-    :ivar value_type: type of map values
+    :ivar value_type: type of dict values
     :vartype value_type: :class:`.Type`
     """
 

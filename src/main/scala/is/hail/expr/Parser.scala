@@ -513,7 +513,7 @@ object Parser extends JavaTokenParsers {
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
       // back compatibility
       ("Dict" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TDict(TString, elementType) } |
-      ("Map" ~ "[") ~> type_expr ~ "," ~ type_expr <~ "]" ^^ { case kt ~ _ ~ vt => TDict(kt, vt) } |
+      ("Dict" ~ "[") ~> type_expr ~ "," ~ type_expr <~ "]" ^^ { case kt ~ _ ~ vt => TDict(kt, vt) } |
       ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields =>
         TStruct(fields)
       }

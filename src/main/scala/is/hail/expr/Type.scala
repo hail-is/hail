@@ -455,10 +455,10 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def subst() = TDict(keyType.subst(), valueType.subst())
 
-  override def toString = s"Map[$keyType, $valueType]"
+  override def toString = s"Dict[$keyType, $valueType]"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean = false) {
-    sb.append("Map[")
+    sb.append("Dict[")
     keyType.pretty(sb, indent, printAttrs, compact)
     if (compact)
       sb += ','

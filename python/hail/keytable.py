@@ -371,8 +371,8 @@ class KeyTable(object):
 
     def expand_types(self):
         """Expand types Locus, Interval, AltAllele, Variant, Genotype, Char,
-        Set and Map.  Char is converted to String.  Set is converted
-        to Array.  Map[K, V] is converted to
+        Set and Dict.  Char is converted to String.  Set is converted
+        to Array.  Dict[K, V] is converted to
 
         .. code-block:: text
 

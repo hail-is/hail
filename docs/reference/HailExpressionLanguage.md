@@ -109,25 +109,25 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - exists: `set.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
      - forall: `set.forall(v => expr)` -- returns a boolean which is true if the set is empty, or `expr` evaluates to `true` for **every** element
 
- - Map Operations:
-     - select: `map[key]` -- returns the value keyed by the string `key`.  Example: `global.genemap["SCN2A"]`.  This method will fail if the key is not contained in the map.
-     - get: `map.get(key)` -- identical to `select`, but returns missing if the key is not found, rather than failing.
-     - contains: `map.contains(key)` -- returns true if `map` has key `key`, false otherwise.
-     - mapValues: `map.mapValues(x => expr)` -- returns a new map with a transformation of the values
-     - size: `map.size` -- returns the number of key/value pairs
-     - isEmpty: `map.isEmpty` -- returns true if there is at least one key/value pairs
-     - keys: `map.keys` -- returns an `Array` of the map keys
-     - keySet: `map.keySet` -- returns a `Set` of the map keys
+ - Dict Operations:
+     - select: `dict[key]` -- returns the value keyed by the string `key`.  Example: `global.genemap["SCN2A"]`.  This method will fail if the key is not contained in the dict.
+     - get: `dict.get(key)` -- identical to `select`, but returns missing if the key is not found, rather than failing.
+     - contains: `dict.contains(key)` -- returns true if `dict` has key `key`, false otherwise.
+     - mapValues: `dict.mapValues(x => expr)` -- returns a new map with a transformation of the values
+     - size: `dict.size` -- returns the number of key/value pairs
+     - isEmpty: `dict.isEmpty` -- returns true if there is at least one key/value pairs
+     - keys: `dict.keys` -- returns an `Array` of the dict keys
+     - keySet: `dict.keySet` -- returns a `Set` of the dict keys
 
  - Struct Operations:
      - constructor: `{key1: 1, key2: "Hello", key3: 0.99, ...}` -- Create a new struct from specified field names and values in the format shown.
      - select: `struct.field` -- returns the value of the given field of a struct.  For example, `va.info.AC` selects the struct `info` from the struct `va`, and then selects the array `AC` from the struct `info`.
       - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
       - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
-      - index: `index(Array[Struct], fieldname)` -- returns a map keyed by the field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
+      - index: `index(Array[Struct], fieldname)` -- returns a dict keyed by the field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
            
            For example, `global.gene_info` is the following `Array[Struct]`:
-           
+
            ```
            [{PLI: 0.998, genename: "gene1", hits_in_exac: 1},
            {PLI: 0.0015, genename: "gene2", hits_in_exac: 10},
@@ -346,7 +346,7 @@ vds.annotate_global_expr(['global.caseSingletons = samples.filter(s => sa.fam.is
 <aggregable>.counter()
 ```
 
-This aggregator counts the number of occurrences of each element of an aggregable.  It produces a map of element to count, `Map[T, Long]`, where `T` is the element type of the aggregable.
+This aggregator counts the number of occurrences of each element of an aggregable.  It produces a dict of element to count, `Dict[T, Long]`, where `T` is the element type of the aggregable.
 
 **Example:** compute the number of indels in each chromosome:
 
