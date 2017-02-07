@@ -548,7 +548,6 @@ class HailContext(object):
         :param path: .bgen files to index.
         :type path: str or list of str
 
-        :return: Nothing.
         """
 
         pargs = ["indexbgen"]
@@ -579,7 +578,7 @@ class HailContext(object):
         >>> vds = hc.balding_nichols_model(4, 40, 150, 10,
         >>>     pop_dist=[0.1, 0.2, 0.3, 0.4],
         >>>     fst=[.02, .06, .04, .12],
-        >>>     af_dist=TruncatedBetaDist(a=0.01, b=2.0, minVal=0.05, maxVal=1.0),
+        >>>     af_dist=hail.stats.TruncatedBetaDist(a=0.01, b=2.0, minVal=0.05, maxVal=1.0),
         >>>     seed=1)
 
         **Notes**
@@ -589,7 +588,7 @@ class HailContext(object):
         - :math:`K` populations are labeled by integers 0, 1, ..., K - 1
         - :math:`N` samples are named by strings 0, 1, ..., N - 1
         - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ..., ``1:M:A:C``
-        - The default ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]. Options are UniformDist(minVal, maxVal), BetaDist(a, b), and TruncatedBetaDist(a, b, minVal, maxVal)
+        - The default ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]. Options are UniformDist(minVal, maxVal), BetaDist(a, b), and TruncatedBetaDist(a, b, minVal, maxVal). All three of these are located in hail.stats
         - The population distribution :math:`\pi` defaults to uniform
         - The :math:`F_{st}` values default to 0.1
         - The number of partitions defaults to one partition per million genotypes (i.e., samples * variants / 10^6) or 8, whichever is larger
