@@ -180,7 +180,7 @@ object SplitMulti extends Command {
           })
       }
         .map { case (v, (va, gs)) =>
-          (v, (va, gs.toGenotypeStream(v, isDosage, compress = !noCompress): Iterable[Genotype]))
+          (v.minrep, (va, gs.toGenotypeStream(v, isDosage, compress = !noCompress): Iterable[Genotype]))
         }
         .smartShuffleAndSort(vds.rdd.orderedPartitioner, options.maxShift))
 

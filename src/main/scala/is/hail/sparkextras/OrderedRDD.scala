@@ -305,6 +305,14 @@ object OrderedRDD {
       OrderedPartitioner.determineBounds(candidates, rdd.partitions.length)
     }
   }
+
+  def partitionedSortedUnion[PK, K, V](rdd1: RDD[(K, V)], rdd2: RDD[(K, V)], partitioner: OrderedPartitioner[PK, K])
+    (implicit kOk: OrderedKey[PK, K], ct: ClassTag[V]): OrderedRDD[PK, K, V] = {
+    OrderedRDD(rdd1.zipPartitions(rdd2) { case (l, r) =>
+      new SortedUnionPairIterator[K, V](l, r)(kOk.kOrd)
+    }, partitioner)
+
+  }
 }
 
 class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: OrderedPartitioner[PK, K])

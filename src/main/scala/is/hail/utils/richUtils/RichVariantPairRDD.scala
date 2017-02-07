@@ -27,10 +27,6 @@ case class RichVariantPairRDD[T](rdd: RDD[(Variant, T)]) extends AnyVal {
       it.filter { case (k, _) => partitionerBc.value.getPartition(k) != i }
     }.orderedRepartitionBy(partitioner)
 
-    println(s"partition shifting variants: ${move.count()}")
-
-    OrderedRDD(stay.zipPartitions(move, preservesPartitioning = true) { case (l, r) =>
-      new SortedUnionPairIterator[Variant, T](l, r)
-    }, partitioner)
+    OrderedRDD.partitionedSortedUnion(stay, move, partitioner)
   }
 }
