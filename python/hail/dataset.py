@@ -253,6 +253,27 @@ class VariantDataset(object):
     def annotate_alleles_expr(self, condition, propagate_gq=False):
         """Annotate alleles with expression.
 
+        **Notes**
+
+        This command runs similarly to :py:meth:`.annotate_variants_expr`, but it dynamically splits multi-allelic sites,
+        computes each expression on each split allele separately, and returns an Array with one entry per non-ref allele
+        for each expression. During the evaluation of the expressions, two additional variant annotations are accessible:
+
+        1. `va.aIndex`: An `Int` indicating the index of the non-reference allele being evaluated (amongst all alleles
+        including the reference allele, so cannot be `0`).
+
+        2. `va.wasSplit`: A `Boolean` indicating whether this allele belongs to a multi-allelic site or not.
+
+        *Important Note:* When the alleles are split, the genotypes are downcoded and each non-reference allele is represented
+        using its minimal representation (see :py:meth:`split_multi` for more details).
+
+        **Examples**
+
+        `vds.annotate_alleles_expr(condition = 'va.nNonRefSamples = gs.filter(g => g.isCalledNonRef).count()')`
+
+        This expression produces a variant annotation `va.nNonRefSamples` of type *Array[Int]*, where the nth entry of
+        the array is the count of the number of samples carrying the nth non-reference allele.
+
         :param condition: Annotation expression.
         :type condition: str or list of str
         :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
