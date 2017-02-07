@@ -194,4 +194,42 @@ class UtilsSuite extends SparkSuite {
       true
     }
   }
+
+  @Test def sortedUnionIterator() {
+
+    val p = Prop.forAll(Gen.buildableOf[Array, Variant](Variant.gen), Gen.buildableOf[Array, Variant](Variant.gen)) {
+      case (a1, a2) =>
+        val sa1 = a1.sorted.map(v => (v, "foo"))
+        val sa2 = a2.sorted.map(v => (v, "foo"))
+        (sa1 ++ sa2).sorted.sameElements(
+          new SortedUnionPairIterator(sa1.iterator, sa2.iterator).toSeq)
+    }
+
+    p.check()
+  }
+
+  @Test def localVariantSortIterator() {
+    val vg = for {contig <- Gen.oneOf("1", "2")
+      start <- Gen.choose(1, 1000)
+      ref <- Gen.oneOf("A", "T", "C", "G")
+      alt <- Gen.oneOf("A", "T", "C", "G", "TT", "CCA").filter(_ != ref)
+    } yield Variant(contig, start, ref, alt)
+
+    val p = Prop.forAll(Gen.buildableOf[Seq, Variant](vg), Gen.choose(10, 300)) { case (variants, maxShift) =>
+      val adjusted = variants.groupBy(v => v.start / maxShift + v.contig.toInt * 10000)
+        .toSeq
+
+      val adjusted2 = adjusted.sortBy(_._1)
+        .flatMap(_._2)
+
+
+      val localSorted = LocalVariantSortIterator(adjusted2.map(v => (v, "foo")).iterator, maxShift)
+        .map(_._1)
+        .toArray
+
+      variants.sorted.sameElements(localSorted)
+    }
+
+    p.check()
+  }
 }

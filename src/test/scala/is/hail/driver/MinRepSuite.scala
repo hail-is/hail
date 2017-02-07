@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 
-class MinRepSuite extends SparkSuite{
+class MinRepSuite extends SparkSuite {
 
   @Test def minrep() {
 

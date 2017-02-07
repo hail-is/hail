@@ -40,6 +40,9 @@ object FilterAlleles extends Command {
       usage = "Annotation modifying expression involving v (new variant), va (old variant annotations), and aIndices (maps from new to old indices)",
       metaVar = "ANNO_EXPR")
     var annotation: String = "va = va"
+
+    @Args4jOption(required = false, name = "--max-shift", usage = "Max position shift after min-rep")
+    var maxShift: Int = 100
   }
 
   override def newOptions: Options = new Options
@@ -199,6 +202,7 @@ object FilterAlleles extends Command {
 
     val newVds = state.vds
       .flatMapVariants { case (v, va, gs) => updateOrFilterRow(v, va, gs) }
+      .minrep(options.maxShift)
       .copy(vaSignature = finalType)
 
     state.copy(vds = newVds)

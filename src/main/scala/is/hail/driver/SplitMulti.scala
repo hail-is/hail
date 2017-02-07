@@ -21,6 +21,8 @@ object SplitMulti extends Command {
     @Args4jOption(required = false, name = "--keep-star-alleles", usage = "Do not filter * alleles")
     var keepStar: Boolean = false
 
+    @Args4jOption(required = false, name = "--max-shift", usage = "Max position shift after min-rep")
+    var maxShift: Int = 100
   }
 
   def newOptions = new Options
@@ -180,7 +182,7 @@ object SplitMulti extends Command {
         .map { case (v, (va, gs)) =>
           (v, (va, gs.toGenotypeStream(v, isDosage, compress = !noCompress): Iterable[Genotype]))
         }
-        .orderedRepartitionBy(vds.rdd.orderedPartitioner))
+        .smartShuffleAndSort(vds.rdd.orderedPartitioner, options.maxShift))
 
     state.copy(vds = newVDS)
   }

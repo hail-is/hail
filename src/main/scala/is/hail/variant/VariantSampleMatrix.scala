@@ -51,14 +51,14 @@ object VariantSampleMatrix {
     if (!hConf.exists(pqtSuccess) && requireParquetSuccess)
       fatal(
         s"""corrupt VDS: no parquet success indicator
-            |  Unexpected shutdown occurred during `write'
-            |  Recreate VDS.""".stripMargin)
+           |  Unexpected shutdown occurred during `write'
+           |  Recreate VDS.""".stripMargin)
 
     if (!hConf.exists(metadataFile))
       fatal(
         s"""corrupt or outdated VDS: invalid metadata
-            |  No `metadata.json.gz' file found in VDS directory
-            |  Recreate VDS with current version of Hail.""".stripMargin)
+           |  No `metadata.json.gz' file found in VDS directory
+           |  Recreate VDS with current version of Hail.""".stripMargin)
 
     val json = try {
       hConf.readFile(metadataFile)(
@@ -77,7 +77,7 @@ object VariantSampleMatrix {
       case _ =>
         fatal(
           s"""corrupt VDS: invalid metadata value
-              |  Recreate VDS with current version of Hail.""".stripMargin)
+             |  Recreate VDS with current version of Hail.""".stripMargin)
     }
 
     def getAndCastJSON[T <: JValue](fname: String)(implicit tct: ClassTag[T]): T =
@@ -86,13 +86,13 @@ object VariantSampleMatrix {
         case Some(other) =>
           fatal(
             s"""corrupt VDS: invalid metadata
-                |  Expected `${ tct.runtimeClass.getName }' in field `$fname', but got `${ other.getClass.getName }'
-                |  Recreate VDS with current version of Hail.""".stripMargin)
+               |  Expected `${ tct.runtimeClass.getName }' in field `$fname', but got `${ other.getClass.getName }'
+               |  Recreate VDS with current version of Hail.""".stripMargin)
         case None =>
           fatal(
             s"""corrupt VDS: invalid metadata
-                |  Missing field `$fname'
-                |  Recreate VDS with current version of Hail.""".stripMargin)
+               |  Missing field `$fname'
+               |  Recreate VDS with current version of Hail.""".stripMargin)
       }
 
     val version = getAndCastJSON[JInt]("version").num
@@ -100,7 +100,7 @@ object VariantSampleMatrix {
     if (version != VariantSampleMatrix.fileVersion)
       fatal(
         s"""Invalid VDS: old version [$version]
-            |  Recreate VDS with current version of Hail.
+           |  Recreate VDS with current version of Hail.
          """.stripMargin)
 
     val wasSplit = getAndCastJSON[JBool]("split").value
@@ -108,8 +108,8 @@ object VariantSampleMatrix {
       case Some(t: JBool) => t.value
       case Some(other) => fatal(
         s"""corrupt VDS: invalid metadata
-            |  Expected `JBool' in field `isDosage', but got `${ other.getClass.getName }'
-            |  Recreate VDS with current version of Hail.""".stripMargin)
+           |  Expected `JBool' in field `isDosage', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
       case _ => false
     }
 
@@ -125,8 +125,8 @@ object VariantSampleMatrix {
           (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations"))
         case other => fatal(
           s"""corrupt VDS: invalid metadata
-              |  Invalid sample annotation metadata
-              |  Recreate VDS with current version of Hail.""".stripMargin)
+             |  Invalid sample annotation metadata
+             |  Recreate VDS with current version of Hail.""".stripMargin)
       }
       .toArray
 
@@ -246,7 +246,8 @@ object VariantSampleMatrix {
     }.spanByKey().map(kv => {
       // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
-      val annotations = kv._2.head._1 // just use first annotation
+      val annotations = kv._2.head._1
+      // just use first annotation
       val genotypes = kv._2.flatMap(_._2) // combine genotype streams
       (variant, (annotations, genotypes))
     })
@@ -702,50 +703,50 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
       metadataSame = false
       println(
         s"""different va signature:
-            |  left:  ${ vaSignature.toPrettyString(compact = true) }
-            |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ vaSignature.toPrettyString(compact = true) }
+           |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
     }
     if (saSignature != that.saSignature) {
       metadataSame = false
       println(
         s"""different sa signature:
-            |  left:  ${ saSignature.toPrettyString(compact = true) }
-            |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ saSignature.toPrettyString(compact = true) }
+           |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
     }
     if (globalSignature != that.globalSignature) {
       metadataSame = false
       println(
         s"""different global signature:
-            |  left:  ${ globalSignature.toPrettyString(compact = true) }
-            |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
+           |  left:  ${ globalSignature.toPrettyString(compact = true) }
+           |  right: ${ that.globalSignature.toPrettyString(compact = true) }""".stripMargin)
     }
     if (sampleIds != that.sampleIds) {
       metadataSame = false
       println(
         s"""different sample ids:
-            |  left:  $sampleIds
-            |  right: ${ that.sampleIds }""".stripMargin)
+           |  left:  $sampleIds
+           |  right: ${ that.sampleIds }""".stripMargin)
     }
     if (!sampleAnnotationsSimilar(that, tolerance)) {
       metadataSame = false
       println(
         s"""different sample annotations:
-            |  left:  $sampleAnnotations
-            |  right: ${ that.sampleAnnotations }""".stripMargin)
+           |  left:  $sampleAnnotations
+           |  right: ${ that.sampleAnnotations }""".stripMargin)
     }
     if (sampleIds != that.sampleIds) {
       metadataSame = false
       println(
         s"""different global annotation:
-            |  left:  $globalAnnotation
-            |  right: ${ that.globalAnnotation }""".stripMargin)
+           |  left:  $globalAnnotation
+           |  right: ${ that.globalAnnotation }""".stripMargin)
     }
     if (wasSplit != that.wasSplit) {
       metadataSame = false
       println(
         s"""different was split:
-            |  left:  $wasSplit
-            |  right: ${ that.wasSplit }""".stripMargin)
+           |  left:  $wasSplit
+           |  right: ${ that.wasSplit }""".stripMargin)
     }
     if (!metadataSame)
       println("metadata were not the same")
@@ -760,8 +761,8 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
             if (!annotationsSame && !printed) {
               println(
                 s"""at variant `$v', annotations were not the same:
-                    |  $va1
-                    |  $va2
+                   |  $va1
+                   |  $va2
                  """.stripMargin)
               printed = true
             }
@@ -1059,7 +1060,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     val ktKeyTypes = kt.keySignature.fields.map(_.typ)
 
     if (ktKeyTypes.size != 1 || ktKeyTypes(0) != TVariant)
-      fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${kt.keySignature}'")
+      fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${ kt.keySignature }'")
 
     val ktSig = kt.signature
 
@@ -1085,7 +1086,7 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
     val keyTypes = kt.keySignature.fields.map(_.typ)
     if (keyTypes != vdsKeyType)
-      fatal(s"Key signature of KeyTable, `${keyTypes}', must match type of computed key, `${vdsKeyType}'.")
+      fatal(s"Key signature of KeyTable, `${ keyTypes }', must match type of computed key, `${ vdsKeyType }'.")
 
     val ktSig = kt.signature
 
@@ -1113,13 +1114,17 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
     copy(rdd = newRdd, vaSignature = finalType)
   }
 
-  def minrep() : VariantSampleMatrix[T] = {
-    val newRDD = rdd.map {
+  def minrep(maxShift: Int = 100): VariantSampleMatrix[T] = {
+    require(maxShift >= 0, "invalid value for maxShift: negative number")
+    val minrepped = rdd.map {
       case (v, (va, gs)) =>
-        (v.minrep, (va,gs))
-    }.orderedRepartitionBy(rdd.orderedPartitioner)
-
-    copy(rdd = newRDD)
+        (v.minrep, (va, gs))
+    }
+    copy(rdd =
+      if (maxShift == 0)
+        OrderedRDD(minrepped, rdd.orderedPartitioner)
+      else
+        minrepped.smartShuffleAndSort(rdd.orderedPartitioner, maxShift))
   }
 
 }
