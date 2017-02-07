@@ -3295,7 +3295,7 @@ class VariantDataset(object):
             pargs.append('--propagate-gq')
         if keep_star_alleles:
             pargs.append('--keep-star-alleles')
-        pargs.extend(['--max-shift' str(max_shift)])
+        pargs.extend(['--max-shift', str(max_shift)])
         return self.hc._run_command(self, pargs)
 
     def tdt(self, fam, root='va.tdt'):
