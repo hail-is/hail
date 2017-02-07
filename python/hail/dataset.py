@@ -2496,19 +2496,22 @@ class VariantDataset(object):
         LRT   ``va.logreg.lrt.beta``   Double fit genotype coefficient, :math:`\hat\\beta_1`
         LRT   ``va.logreg.lrt.chi2``   Double likelihood ratio test statistic (deviance) testing :math:`\\beta_1 = 0`
         LRT   ``va.logreg.lrt.pval``   Double likelihood ratio test p-value
+        Firth ``va.logreg.firth.beta``   Double fit genotype coefficient, :math:`\hat\\beta_1`
+        Firth ``va.logreg.firth.chi2``   Double Firth statistic testing :math:`\\beta_1 = 0`
+        Firth ``va.logreg.firth.pval``   Double Firth test p-value
         Score ``va.logreg.score.chi2`` Double score statistic testing :math:`\\beta_1 = 0`
         Score ``va.logreg.score.pval`` Double score test p-value
         ===== ======================== ====== =====
 
-        For the Wald and likelihood ratio tests, Hail fits the logistic model for each variant using Newton iteration and only emits the above annotations when the maximum likelihood estimate of the coefficients converges. To help diagnose convergence issues, Hail also emits three variant annotations which summarize the iterative fitting process:
+        For the Wald and likelihood ratio tests, Hail fits the logistic model for each variant using Newton iteration and only emits the above annotations when the maximum likelihood estimate of the coefficients converges. For the Firth test, Newton iteration is modified. To help diagnose convergence issues, Hail also emits three variant annotations which summarize the iterative fitting process:
 
-        ========= =========================== ======= =====
-        Test      Annotation                  Type    Value
-        ========= =========================== ======= =====
-        Wald, LRT ``va.logreg.fit.nIter``     Int     number of iterations until convergence, explosion, or reaching the max (25)
-        Wald, LRT ``va.logreg.fit.converged`` Boolean true if iteration converged
-        Wald, LRT ``va.logreg.fit.exploded``  Boolean true if iteration exploded
-        ========= =========================== ======= =====
+        ================ =========================== ======= =====
+        Test             Annotation                  Type    Value
+        ================ =========================== ======= =====
+        Wald, LRT, Firth ``va.logreg.fit.nIter``     Int     number of iterations until convergence, explosion, or reaching the max (25)
+        Wald, LRT, Firth ``va.logreg.fit.converged`` Boolean true if iteration converged
+        Wald, LRT, Firth ``va.logreg.fit.exploded``  Boolean true if iteration exploded
+        ================ =========================== ======= =====
 
         We consider iteration to have converged when every coordinate of :math:`\\beta` changes by less than :math:`10^{-6}`. Up to 25 iterations are attempted; in testing we find 4 or 5 iterations nearly always suffice. Convergence may also fail due to explosion, which refers to low-level numerical linear algebra exceptions caused by manipulating ill-conditioned matrices. Explosion may result from (nearly) linearly dependent covariates or complete `separation <https://en.wikipedia.org/wiki/Separation_(statistics)>`_.
 
@@ -2547,8 +2550,7 @@ class VariantDataset(object):
 
         See `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`_ for an empirical comparison of the logistic Wald, LRT, score, and Firth tests. The theoretical foundations of the Wald, likelihood ratio, and score tests may be found in Chapter 3 of Gesine Reinert's notes `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`_.
 
-        :param str test: Statistical test, one of: wald, lrt, or score.
-
+        :param str test: Statistical test, one of: wald, lrt, firth, or score.
         :param str y: Response expression.  Must evaluate to Boolean or
             numeric with all values 0 or 1.
 
