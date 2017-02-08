@@ -210,6 +210,20 @@ class ContextTests(unittest.TestCase):
         (linreg.logreg('wald', 'sa.pheno.isCase', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
+        vds_assoc = (hc.import_vcf(test_resources + '/sample.vcf')
+               .split_multi()
+               .variant_qc()
+               .annotate_samples_expr('sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
+               .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
+               .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
+               .annotate_samples_expr('sa.cov2 = rnorm(0,1)'))
+
+        vds_kinship = vds_assoc.filter_variants_expr('va.qc.AF > .05')
+
+        vds_assoc = vds_assoc.lmmreg(vds_kinship, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
+
+        vds_assoc.export_variants('/tmp/lmmreg.tsv', 'Variant = v, va.lmmreg.*')
+
         sample_split.mendel_errors('/tmp/sample.mendel', test_resources + '/sample.fam')
 
         sample_split.pca('sa.scores')
