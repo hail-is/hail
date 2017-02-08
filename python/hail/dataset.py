@@ -2225,7 +2225,7 @@ class VariantDataset(object):
             raise_py4j_exception(e)
 
     def lmmreg(self, kinship_vds, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               no_assoc=False, use_ml=False, delta=None, sparsity_threshold=1.0, force_block=False, force_grammian=False):
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, force_block=False, force_grammian=False):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         **Examples**
@@ -2246,7 +2246,7 @@ class VariantDataset(object):
 
         This plan can be modified as follows:
 
-        - Set ``no_assoc=True`` to not test any variants for association, i.e. skip Step 5.
+        - Set ``run_assoc=False`` to not test any variants for association, i.e. skip Step 5.
         - Set ``use_ml=True`` to use maximum likelihood instead of REML in Steps 4 and 5.
         - Set the ``delta`` argument to manually set the value of :math:`\delta` rather that fitting :math:`\delta` in Step 4.
         - Set the ``global_root`` argument to change the global annotation root in Step 4.
@@ -2420,7 +2420,7 @@ class VariantDataset(object):
 
         :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
 
-        :param bool no_assoc: Only fit the global model, no association testing.
+        :param bool run_assoc: If True, run association testing in addition to fitting the global model
 
         :param bool use_ml: Use ML instead of REML throughout.
 
@@ -2439,7 +2439,7 @@ class VariantDataset(object):
 
         try:
             return VariantDataset(self.hc, env.hail.methods.LinearMixedRegression.apply(
-                self._jvds, kinship_vds._jvds, y, jarray(env.jvm.java.lang.String, covariates), use_ml, global_root, va_root, no_assoc,
+                self._jvds, kinship_vds._jvds, y, jarray(env.jvm.java.lang.String, covariates), use_ml, global_root, va_root, run_assoc,
                 joption(delta), sparsity_threshold, force_block, force_grammian))
         except Py4JJavaError as e:
             raise_py4j_exception(e)
