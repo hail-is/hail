@@ -113,8 +113,6 @@ class HailContext(object):
         :type path: str or list of str
 
         :param int max_count: The maximum number of matches to return.
-
-        :return: Nothing.
         """
 
         pargs = ["grep", regex]
@@ -192,6 +190,7 @@ class HailContext(object):
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
+        :return A dataset imported from the bgen file.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -276,7 +275,7 @@ class HailContext(object):
         :type chromosome: str or None
 
         :rtype: :class:`.VariantDataset`
-        :return: A VariantDataset imported from a .gen and .sample file.
+        :return: A dataset imported from a .gen and .sample file.
         """
 
         pargs = ["importgen"]
@@ -404,7 +403,7 @@ class HailContext(object):
 
         :param bool quantpheno: If True, FAM phenotype is interpreted as quantitative.
 
-        :return: A VariantDataset imported from a PLINK binary file.
+        :return: A dataset imported from a PLINK binary file.
 
         :rtype: :class:`.VariantDataset`
         """
@@ -448,7 +447,7 @@ class HailContext(object):
           VariantDataset.  Don't load sample ids, sample annotations
           or gneotypes.
 
-        :return: A VariantDataset read from disk
+        :return: A dataset read from disk
         :rtype: :class:`.VariantDataset`
         """
 
@@ -501,7 +500,7 @@ class HailContext(object):
             wrong number of elements to missing, rather than setting
             the entire genotype to missing.
 
-        :return: A VariantDataset read from the VCF file
+        :return: A dataset imported from the VCF file
         :rtype: :class:`.VariantDataset`
 
         """
@@ -588,7 +587,7 @@ class HailContext(object):
         - :math:`K` populations are labeled by integers 0, 1, ..., K - 1
         - :math:`N` samples are named by strings 0, 1, ..., N - 1
         - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ..., ``1:M:A:C``
-        - The default ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]. Options are UniformDist(minVal, maxVal), BetaDist(a, b), and TruncatedBetaDist(a, b, minVal, maxVal). All three of these are located in hail.stats
+        - The default ancestral frequency distribution :math:`P_0` is uniform on [0.1, 0.9]. Options are UniformDist(minVal, maxVal), BetaDist(a, b), and TruncatedBetaDist(a, b, minVal, maxVal). All three classes are located in hail.stats.
         - The population distribution :math:`\pi` defaults to uniform
         - The :math:`F_{st}` values default to 0.1
         - The number of partitions defaults to one partition per million genotypes (i.e., samples * variants / 10^6) or 8, whichever is larger
@@ -697,8 +696,6 @@ class HailContext(object):
         return KeyTable(self, self._hail.keytable.KeyTable.fromDF(df._jdf, jkeys))
 
     def stop(self):
-        """
-        Shut down the Hail Context
-        """
+        """ Shut down the Hail Context """
         self.sc.stop()
         self.sc = None

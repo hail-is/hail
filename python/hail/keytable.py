@@ -549,7 +549,7 @@ class KeyTable(object):
           DataFrame.  If both are true, flatten is run after expand so
           that expanded types are flattened.
 
-        :returns: A Pandas DataFrame constructed from this KeyTable
+        :returns: A Pandas DataFrame constructed from the KeyTable
         :rtype: :py:class:`pandas.DataFrame`
         """
 

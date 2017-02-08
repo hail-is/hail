@@ -253,26 +253,20 @@ class VariantDataset(object):
     def annotate_alleles_expr(self, condition, propagate_gq=False):
         """Annotate alleles with expression.
 
-        **Notes**
-
-        This command runs similarly to :py:meth:`.annotate_variants_expr`, but it dynamically splits multi-allelic sites,
-        computes each expression on each split allele separately, and returns an Array with one entry per non-ref allele
-        for each expression. During the evaluation of the expressions, two additional variant annotations are accessible:
-
-        1. `va.aIndex`: An `Int` indicating the index of the non-reference allele being evaluated (amongst all alleles
-        including the reference allele, so cannot be `0`).
-
-        2. `va.wasSplit`: A `Boolean` indicating whether this allele belongs to a multi-allelic site or not.
-
-        *Important Note:* When the alleles are split, the genotypes are downcoded and each non-reference allele is represented
-        using its minimal representation (see :py:meth:`split_multi` for more details).
-
         **Examples**
 
-        `vds.annotate_alleles_expr(condition = 'va.nNonRefSamples = gs.filter(g => g.isCalledNonRef).count()')`
+        To create a variant annotation ``va.nNonRefSamples: Array[Int]`` where the ith entry of
+        the array is the number of samples carrying the ith alternate allele:
 
-        This expression produces a variant annotation `va.nNonRefSamples` of type *Array[Int]*, where the nth entry of
-        the array is the count of the number of samples carrying the nth non-reference allele.
+        >>> (hc.read('data/sample.vds')
+        >>>    .annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.isCalledNonRef).count()'))
+
+        **Notes**
+
+        This command is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr` dynamically splits multi-allelic sites,
+        evaluates each expression on each split allele separately, and for each expression annotates with an array with one element per alternate allele. In the splitting, genotypes are downcoded and each alternate allele is represented
+        using its minimal representation (see :py:meth:`split_multi` for more details).
+
 
         :param condition: Annotation expression.
         :type condition: str or list of str
@@ -1120,19 +1114,19 @@ class VariantDataset(object):
                 VariantDataset(self.hc, result._2()))
 
     def count(self, genotypes=False):
-        """Gets number of samples, variants and genotypes in this vds as a dictionary with the fields ``"nSamples"``, ``"nVariants"``, and ``"nGenotypes"``.
+        """Returns number of samples, variants and genotypes in this vds as a dictionary with keys ``'nSamples'``, ``'nVariants'``, and ``'nGenotypes'``.
 
         :param bool genotypes: If True, include number of called
-            genotypes and genotype call rate as fields ``"nCalled"`` and ``"callRate"``.
+            genotypes and genotype call rate as keys ``'nCalled'`` and ``'callRate'``, respectively.
 
-        :return: Returns a python dictionary with keys as described above.
+        :return: Returns a python dictionary of counts.
         :rtype: dict
         """
 
         try:
             return dict(scala_package_object(self.hc._hail.driver)
-                        .count(self._jvds, genotypes)
-                        .toJavaMap())
+                    .count(self._jvds, genotypes)
+                    .toJavaMap())
         except Py4JJavaError as e:
             raise_py4j_exception(e)
 
@@ -3276,7 +3270,7 @@ class VariantDataset(object):
 
         :param bool keep_star_alleles: Do not filter out * alleles.
 
-        :return: A dataset with split multiallelic variants.
+        :return: A biallelic dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
