@@ -253,6 +253,21 @@ class VariantDataset(object):
     def annotate_alleles_expr(self, condition, propagate_gq=False):
         """Annotate alleles with expression.
 
+        **Examples**
+
+        To create a variant annotation ``va.nNonRefSamples: Array[Int]`` where the ith entry of
+        the array is the number of samples carrying the ith alternate allele:
+
+        >>> (hc.read('data/sample.vds')
+        >>>    .annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.isCalledNonRef).count()'))
+
+        **Notes**
+
+        This command is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr` dynamically splits multi-allelic sites,
+        evaluates each expression on each split allele separately, and for each expression annotates with an array with one element per alternate allele. In the splitting, genotypes are downcoded and each alternate allele is represented
+        using its minimal representation (see :py:meth:`split_multi` for more details).
+
+
         :param condition: Annotation expression.
         :type condition: str or list of str
         :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
@@ -275,7 +290,8 @@ class VariantDataset(object):
 
         :param annotation: annotation to add to global
 
-        :param :class:`.Type` annotation_type: Hail type of annotation
+        :param annotation_type: Hail type of annotation
+        :type annotation_type: :py:class:`.Type`
 
         :return: Annotated dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -675,7 +691,8 @@ class VariantDataset(object):
     def annotate_samples_vds(self, right, root=None, code=None):
         """Annotate samples with sample annotations from .vds file.
 
-        :param VariantDataset right: Dataset to annotate with.
+        :param right: Dataset to annotate with.
+        :type right: :py:class:`.VariantDataset`
 
         :param str root: Sample annotation path to add sample annotations.
 
@@ -1097,14 +1114,17 @@ class VariantDataset(object):
                 VariantDataset(self.hc, result._2()))
 
     def count(self, genotypes=False):
-        """Return number of samples, variants and genotypes.
+        """Returns number of samples, variants and genotypes in this vds as a dictionary with keys ``'nSamples'``, ``'nVariants'``, and ``'nGenotypes'``.
 
         :param bool genotypes: If True, include number of called
-            genotypes and genotype call rate.
+            genotypes and genotype call rate as keys ``'nCalled'`` and ``'callRate'``, respectively.
+
+        :return: Returns a python dictionary of counts.
+        :rtype: dict
         """
 
         try:
-            return (scala_package_object(self.hc._hail.driver)
+            return dict(scala_package_object(self.hc._hail.driver)
                     .count(self._jvds, genotypes)
                     .toJavaMap())
         except Py4JJavaError as e:
@@ -1666,7 +1686,7 @@ class VariantDataset(object):
         :param bool filter_altered_genotypes: If true, genotypes that contain filtered-out alleles are set to missing.
 
         :return: Filtered dataset.
-        :rtype: :class:`.VariantDataset`
+        :rtype: :py:class:`.VariantDataset`
         """
 
         pargs = ['filteralleles',
@@ -1960,21 +1980,22 @@ class VariantDataset(object):
         """Return global annotations as a python object.
 
         :return: Dataset global annotations.
+        :rtype: :py:class:`~hail.representation.Struct`
         """
         if self._globals is None:
             self._globals = self.global_schema._convert_to_py(self._jvds.globalAnnotation())
         return self._globals
 
     def grm(self, format, output, id_file=None, n_file=None):
-        """Compute the Genetic Relatedness Matrix (GMR).
+        """Compute the Genetic Relatedness Matrix (GRM).
 
-        :param str format: Output format.  One of: rel, gcta-grm, gcta-grm-bin.
+        :param str format: Output format.  One of: "rel", "gcta-grm", "gcta-grm-bin".
+
+        :param str output: Output file.
 
         :param str id_file: ID file.
 
         :param str n_file: N file, for gcta-grm-bin only.
-
-        :param str output: Output file.
         """
 
         pargs = ['grm', '-f', format, '-o', output]
@@ -2403,7 +2424,7 @@ class VariantDataset(object):
 
           K = MM^T
 
-        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in ``pca`` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
+        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in :py:meth:`~hail.VariantDataset.pca` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
 
         **Further background**
 
@@ -2671,12 +2692,15 @@ class VariantDataset(object):
         """
         Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
 
-        ** Examples **
-        1) Simple trimming of a multi-allelic site, no change in variant position
+        **Examples**
+
+        1. Simple trimming of a multi-allelic site, no change in variant position
         `1:10000:TAA:TAA,AA` => `1:10000:TA:T,A`
 
-        2) Trimming of a bi-allelic site leading to a change in position
+        2. Trimming of a bi-allelic site leading to a change in position
         `1:10000:AATAA,AAGAA` => `1:10002:T:G`
+
+        :rtype: :class:`.VariantDataset`
         """
 
         try:
@@ -3246,7 +3270,7 @@ class VariantDataset(object):
 
         :param bool keep_star_alleles: Do not filter out * alleles.
 
-        :return: A dataset with split biallelic variants.
+        :return: A biallelic dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -3714,7 +3738,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Consider a ``VariantDataset`` ``vds`` with 2 variants and 3 samples:
+        Consider a :py:class:`VariantDataset` ``vds`` with 2 variants and 3 samples:
 
         .. code-block:: text
 
@@ -3727,7 +3751,7 @@ class VariantDataset(object):
           >>> vds = hc.import_vcf('data/sample.vcf')
           >>> vds.make_keytable('v = v', 'gt = g.gt', 'gq = g.gq', [])
 
-        returns a ``KeyTable`` with schema
+        returns a :py:class:`KeyTable` with schema
 
         .. code-block:: text
 
@@ -3756,7 +3780,7 @@ class VariantDataset(object):
         :param key_names: list of key columns
         :type key_names: list of str
 
-        :rtype: :class:`.KeyTable`
+        :rtype: :py:class:`.KeyTable`
         """
 
         if isinstance(variant_condition, list):
