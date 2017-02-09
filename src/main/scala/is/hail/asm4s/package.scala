@@ -126,14 +126,14 @@ package object asm4s {
       val astoreOp = AASTORE
       val returnOp = ARETURN
 
-      def newArray() = new TypeInsnNode(ANEWARRAY, name)
+      def newArray() = new TypeInsnNode(ANEWARRAY, Type.getInternalName(cct.runtimeClass))
     }
   }
 
   def loadClass(className: String, b: Array[Byte]): Class[_] = {
     // override classDefine (as it is protected) and define the class.
     var clazz: Class[_] = null
-    val loader: ClassLoader = ClassLoader.getSystemClassLoader
+    val loader: ClassLoader = classOf[FunctionBuilder[_]].getClassLoader
     val cls: Class[_] = Class.forName("java.lang.ClassLoader")
     val method: Method = cls.getDeclaredMethod("defineClass", classOf[String], classOf[Array[Byte]], classOf[Int], classOf[Int])
 
