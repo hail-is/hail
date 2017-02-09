@@ -108,7 +108,12 @@ case class KeyTable(rdd: RDD[(Annotation, Annotation)], keySignature: TStruct, v
 
   def nValues = valueSignature.size
 
-  def typeCheck = rdd.forall { case (k, v) => keySignature.typeCheck(k) && valueSignature.typeCheck(v) }
+  def typeCheck() = {
+    rdd.forall { case (k, v) => keySignature.typeCheck(k) && valueSignature.typeCheck(v) } &&
+      KeyTable.toSingleRDD(rdd, nKeys, nValues).forall { a =>
+        signature.typeCheck(a)
+      }
+  }
 
   def printSchema(): Unit = println(signature.toPrettyString())
 
