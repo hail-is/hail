@@ -78,12 +78,10 @@ class ExportVcfSuite extends SparkSuite {
   }
 
   @Test def testReadWrite() {
+    val out = tmpDir.createTempFile("foo", "vcf.bgz")
+    val out2 = tmpDir.createTempFile("foo2", "vcf.bgz")
     val s = State(sc, sqlContext, null)
-    val out = tmpDir.createTempFile("foo", ".vcf.bgz")
-    val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
     val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random), Gen.choose(1, 10), Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
-      hadoopConf.delete(out, recursive = true)
-      hadoopConf.delete(out2, recursive = true)
       ExportVCF.run(s.copy(vds = vds), Array("-o", out))
       val vsm2 = ImportVCF.run(s, Array(out, "-n", nPar1.toString)).vds
       ExportVCF.run(s.copy(vds = vsm2), Array("-o", out2))
@@ -93,6 +91,20 @@ class ExportVcfSuite extends SparkSuite {
     }
 
     p.check()
+  }
+
+  @Test def testEmptyReadWrite() {
+    var s = FilterVariantsAll.run(State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sample.vcf")))
+    val out = tmpDir.createTempFile("foo", "vcf")
+    val out2 = tmpDir.createTempFile("foo", "vcf.bgz")
+
+    ExportVCF.run(s, "-o", out)
+    ExportVCF.run(s, "-o", out2)
+
+    assert(hadoopConf.getFileSize(out) > 0)
+    assert(hadoopConf.getFileSize(out2) > 0)
+    val rb1 = ImportVCF.run(s, out).vds
+    val rb2 = ImportVCF.run(s, out2).vds
   }
 
   @Test def testPPs() {

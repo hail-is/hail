@@ -413,12 +413,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         }
 
         t.getOption(key) match {
-          case Some(TString) =>
+          case Some(keyType) =>
             val (newS, _) = t.delete(key)
-            `type` = TDict(newS)
-          case Some(other) => parseError(
-            s"""invalid arguments for method `$fn'
-               |  Expected key to be of type String, but field ${ prettyIdentifier(key) } had type `$other'""".stripMargin)
+            `type` = TDict(keyType, newS)
           case None => parseError(
             s"""invalid arguments for method `$fn'
                |  Struct did not contain the designated key `${ prettyIdentifier(key) }'""".stripMargin)

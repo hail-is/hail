@@ -494,7 +494,7 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(TArray(TDouble()) == TArray(TFloat()))
         self.assertFalse(TSet(TDouble()) == TArray(TFloat()))
         self.assertEqual(TSet(TDouble()), TSet(TDouble()))
-        self.assertEqual(TDict(TArray(TInt())), TDict(TArray(TInt())))
+        self.assertEqual(TDict(TString(), TArray(TInt())), TDict(TString(), TArray(TInt())))
 
         some_random_types = [
             TInt(),
@@ -504,7 +504,7 @@ class ContextTests(unittest.TestCase):
             TBoolean(),
             TArray(TString()),
             TSet(TArray(TSet(TBoolean()))),
-            TDict(TInt()),
+            TDict(TString(), TInt()),
             TVariant(),
             TLocus(),
             TGenotype(),
@@ -524,7 +524,7 @@ class ContextTests(unittest.TestCase):
             TBoolean(),
             TArray(TString()),
             TSet(TArray(TSet(TBoolean()))),
-            TDict(TInt()),
+            TDict(TString(), TInt()),
             TVariant(),
             TLocus(),
             TGenotype(),
@@ -604,14 +604,25 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(vds.annotate_global_py(path, set4, settype).globals.annotation, set4)
 
         dict1 = {'a': 'foo', 'b': 'bar'}
+        dict2 = {'a': None, 'b': 'bar'}
         dict3 = None
         dict4 = dict()
-        dict2 = {'a': None, 'b': 'bar'}
-        dicttype = TDict(TString())
+        dicttype = TDict(TString(), TString())
         self.assertEqual(vds.annotate_global_py(path, dict1, dicttype).globals.annotation, dict1)
         self.assertEqual(vds.annotate_global_py(path, dict2, dicttype).globals.annotation, dict2)
         self.assertEqual(vds.annotate_global_py(path, dict3, dicttype).globals.annotation, dict3)
         self.assertEqual(vds.annotate_global_py(path, dict4, dicttype).globals.annotation, dict4)
+
+        map5 = {Locus("1", 100): 5, Locus("5", 205): 100}
+        map6 = None
+        map7 = dict()
+        map8 = {Locus("1", 100): None,Locus("5", 205): 100}
+        maptype2 = TDict(TLocus(), TInt())
+        self.assertEqual(vds.annotate_global_py(path, map5, maptype2).globals.annotation, map5)
+        self.assertEqual(vds.annotate_global_py(path, map6, maptype2).globals.annotation, map6)
+        self.assertEqual(vds.annotate_global_py(path, map7, maptype2).globals.annotation, map7)
+        self.assertEqual(vds.annotate_global_py(path, map8, maptype2).globals.annotation, map8)
+
 
         struct1 = Struct({'field1': 5, 'field2': 10, 'field3': [1, 2]})
         struct2 = Struct({'field1': 5, 'field2': None, 'field3': None})

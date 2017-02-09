@@ -247,12 +247,10 @@ class StatAggregator() extends TypedAggregator[Annotation] {
   def copy() = new StatAggregator()
 }
 
-class CounterAggregator extends TypedAggregator[IndexedSeq[Annotation]] {
+class CounterAggregator extends TypedAggregator[Map[Annotation, Long]] {
   var m = new mutable.HashMap[Any, Long]
 
-  def result = m.map { case (k, v) =>
-    Annotation(k, v)
-  }.toArray[Annotation]: IndexedSeq[Annotation]
+  def result: Map[Annotation, Long] = m.toMap
 
   def seqOp(x: Any) {
     m.updateValue(x, 0L, _ + 1)

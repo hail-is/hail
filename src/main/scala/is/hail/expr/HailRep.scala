@@ -90,8 +90,8 @@ trait HailRepFunctions {
     def typ = TSet(hrt.typ)
   }
 
-  implicit def dictHr[T](implicit hrt: HailRep[T]) = new HailRep[Map[String, T]] {
-    def typ = TDict(hrt.typ)
+  implicit def dictHr[K, V](implicit hrt: HailRep[K], hrt2: HailRep[V]) = new HailRep[Map[K, V]] {
+    def typ = TDict(hrt.typ, hrt2.typ)
   }
 
   implicit def unaryHr[T, U](implicit hrt: HailRep[T], hru: HailRep[U]) = new HailRep[(Any) => Any] {

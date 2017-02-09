@@ -26,7 +26,7 @@ object FunctionRegistry {
   sealed case class Ambiguous(name: String, typ: TypeTag, alternates: Seq[(Int, (TypeTag, Fun))]) extends LookupError {
     def message =
       s"""found ${ alternates.size } ambiguous matches for $typ:
-          |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
+         |  ${ alternates.map(_._2._1).mkString("\n  ") }""".stripMargin
   }
 
   type Err[T] = Either[LookupError, T]
@@ -685,13 +685,13 @@ object FunctionRegistry {
   registerMethod("length", (a: IndexedSeq[Any]) => a.length)(arrayHr(TTHr), intHr)
   registerMethod("size", (a: IndexedSeq[Any]) => a.size)(arrayHr(TTHr), intHr)
   registerMethod("size", (s: Set[Any]) => s.size)(setHr(TTHr), intHr)
-  registerMethod("size", (d: Map[String, Any]) => d.size)(dictHr(TTHr), intHr)
+  registerMethod("size", (d: Map[Any, Any]) => d.size)(dictHr(TTHr, TUHr), intHr)
 
   registerMethod("id", (s: String) => s)(sampleHr, stringHr)
 
   registerMethod("isEmpty", (a: IndexedSeq[Any]) => a.isEmpty)(arrayHr(TTHr), boolHr)
   registerMethod("isEmpty", (s: Set[Any]) => s.isEmpty)(setHr(TTHr), boolHr)
-  registerMethod("isEmpty", (d: Map[String, Any]) => d.isEmpty)(dictHr(TTHr), boolHr)
+  registerMethod("isEmpty", (d: Map[Any, Any]) => d.isEmpty)(dictHr(TTHr, TUHr), boolHr)
 
   registerMethod("toSet", (a: IndexedSeq[Any]) => a.toSet)(arrayHr(TTHr), setHr(TTHr))
   registerMethod("toSet", (a: Set[Any]) => a)(setHr(TTHr), setHr(TTHr))
@@ -712,13 +712,25 @@ object FunctionRegistry {
     flattenOrNull[Set, Any](Set.newBuilder[Any], s)
   )(setHr(setHr(TTHr)), setHr(TTHr))
 
+  registerMethod("keys", (m: Map[Any, Any]) =>
+    m.keysIterator.toArray[Any]: IndexedSeq[Any]
+  )(dictHr(TTHr, TUHr), arrayHr(TTHr))
+
+  registerMethod("keySet", (m: Map[Any, Any]) =>
+    m.keySet
+  )(dictHr(TTHr, TUHr), setHr(TTHr))
+
+  registerMethod("get", (m: Map[Any, Any], key: Any) =>
+    m.get(key).orNull
+  )(dictHr(TTHr, TUHr), TTHr, TUHr)
+
   registerMethod("mkString", (a: IndexedSeq[String], d: String) => a.mkString(d))(
     arrayHr(stringHr), stringHr, stringHr)
   registerMethod("mkString", (s: Set[String], d: String) => s.mkString(d))(
     setHr(stringHr), stringHr, stringHr)
 
   registerMethod("contains", (s: Set[Any], x: Any) => s.contains(x))(setHr(TTHr), TTHr, boolHr)
-  registerMethod("contains", (d: Map[String, Any], x: String) => d.contains(x))(dictHr(TTHr), stringHr, boolHr)
+  registerMethod("contains", (d: Map[Any, Any], x: Any) => d.contains(x))(dictHr(TTHr, TUHr), TTHr, boolHr)
 
   registerLambdaMethod("find", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.find { elt =>
@@ -742,9 +754,13 @@ object FunctionRegistry {
     s.map(f)
   )(setHr(TTHr), unaryHr(TTHr, TUHr), setHr(TUHr))
 
-  registerLambdaMethod("mapValues", (a: Map[String, Any], f: (Any) => Any) =>
+  registerLambdaMethod("mapValues", (a: Map[Any, Any], f: (Any) => Any) =>
     a.map { case (k, v) => (k, f(v)) }
-  )(dictHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr))
+  )(dictHr[Any, Any](TTHr, TUHr), unaryHr(TUHr, TVHr), dictHr[Any, Any](TTHr, TVHr))
+
+  //  registerMapLambdaMethod("mapValues", (a: Map[Any, Any], f: (Any) => Any) =>
+  //    a.map { case (k, v) => (k, f(v)) }
+  //  )(TTHr, TUHr, unaryHr(TUHr, TVHr), TVHr)
 
   registerLambdaMethod("flatMap", (a: IndexedSeq[Any], f: (Any) => Any) =>
     flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any],
@@ -830,7 +846,7 @@ object FunctionRegistry {
 
   registerAggregator[Any, Any]("counter", () => new CounterAggregator())(aggregableHr(TTHr),
     new HailRep[Any] {
-      def typ = TArray(TStruct("key" -> TTHr.typ, "count" -> TLong))
+      def typ = TDict(TTHr.typ, TLong)
     })
 
   registerAggregator[Double, Any]("stats", () => new StatAggregator())(aggregableHr(doubleHr),
@@ -847,7 +863,7 @@ object FunctionRegistry {
     if (binSize <= 0)
       fatal(
         s"""invalid bin size from given arguments (start = $start, end = $end, bins = $bins)
-            |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
+           |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
                   """.stripMargin)
 
     val indices = Array.tabulate(bins + 1)(i => start + i * binSize)
@@ -886,31 +902,31 @@ object FunctionRegistry {
 
   val aggST = Box[SymbolTable]()
 
-  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
-    { (k: Any => Any) => a { x =>
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) =>
+    a { x =>
       val r = f(x).asInstanceOf[IndexedSeq[Any]]
       var i = 0
       while (i < r.size) {
         k(r(i))
         i += 1
       }
-    } }
+    }
+  }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
 
-  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
-    { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, setHr(TUHr)), aggregableHr(TUHr, aggST))
 
-  registerLambdaAggregatorTransformer("filter", { (a: CPS[Any], f: (Any) => Any) =>
-    { (k: Any => Any) => a { x =>
+  registerLambdaAggregatorTransformer("filter", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) =>
+    a { x =>
       val r = f(x)
       if (r != null && r.asInstanceOf[Boolean])
         k(x)
-    } }
+    }
+  }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 
-  registerLambdaAggregatorTransformer("map", { (a: CPS[Any], f: (Any) => Any) =>
-    { (k: Any => Any) => a { x => k(f(x)) } }
+  registerLambdaAggregatorTransformer("map", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => k(f(x)) } }
   })(aggregableHr(TTHr, aggST), unaryHr(TTHr, TUHr), aggregableHr(TUHr, aggST))
 
   type Id[T] = T
@@ -943,8 +959,8 @@ object FunctionRegistry {
     register(name, { (x: IndexedSeq[Any], y: IndexedSeq[Any]) =>
       if (x.length != y.length) fatal(
         s"""Cannot apply operation $name to arrays of unequal length:
-            |  Left: ${ x.length } elements
-            |  Right: ${ y.length } elements""".stripMargin)
+           |  Left: ${ x.length } elements
+           |  Right: ${ y.length } elements""".stripMargin)
       (x, y).zipped.map { case (xi, yi) =>
         if (xi == null || yi == null)
           null
@@ -1038,9 +1054,13 @@ object FunctionRegistry {
   registerMethod("//", (x: Double, y: Double) => math.floor(x / y))
 
   register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y))
-  register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x,y))
-  register("%", (x: Float, y: Float) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
-  register("%", (x: Double, y: Double) => { val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y })
+  register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x, y))
+  register("%", (x: Float, y: Float) => {
+    val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
+  })
+  register("%", (x: Double, y: Double) => {
+    val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
+  })
 
   register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
 
@@ -1092,7 +1112,7 @@ object FunctionRegistry {
   })(TTHr, TTHr, TTHr)
 
   registerMethod("[]", (a: IndexedSeq[Any], i: Int) => if (i >= 0) a(i) else a(a.length + i))(arrayHr(TTHr), intHr, TTHr)
-  registerMethod("[]", (a: Map[String, Any], i: String) => a(i))(dictHr(TTHr), stringHr, TTHr)
+  registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i))(dictHr(TTHr, TUHr), TTHr, TUHr)
   registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString)(stringHr, intHr, charHr)
 
   registerMethod("[:]", (a: IndexedSeq[Any]) => a)(arrayHr(TTHr), arrayHr(TTHr))

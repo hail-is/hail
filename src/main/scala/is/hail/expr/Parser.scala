@@ -63,7 +63,7 @@ object Parser extends JavaTokenParsers {
     val (types, fs) = args.parse(code).map(eval(_, ec)).unzip
     (types.toArray, () => fs.map(f => Option(f())).toArray)
   }
-  
+
   def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
     Array[List[String]], Array[Type], () => Array[Option[Any]]) = {
     val (maybeNames, types, f) = parseNamedExprs[List[String]](code, annotationIdentifier, ec,
@@ -511,7 +511,9 @@ object Parser extends JavaTokenParsers {
       "String" ^^ { _ => TString } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
-      ("Dict" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TDict(elementType) } |
+      // back compatibility
+      ("Dict" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TDict(TString, elementType) } |
+      ("Dict" ~ "[") ~> type_expr ~ "," ~ type_expr <~ "]" ^^ { case kt ~ _ ~ vt => TDict(kt, vt) } |
       ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields =>
         TStruct(fields)
       }

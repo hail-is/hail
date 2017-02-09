@@ -110,21 +110,24 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - forall: `set.forall(v => expr)` -- returns a boolean which is true if the set is empty, or `expr` evaluates to `true` for **every** element
 
  - Dict Operations:
-     - select: `dict[key]` -- returns the value keyed by the string `key`.  An example might be `global.genedict["SCN2A"]`.
+     - select: `dict[key]` -- returns the value keyed by the string `key`.  Example: `global.genemap["SCN2A"]`.  This method will fail if the key is not contained in the dict.
+     - get: `dict.get(key)` -- identical to `select`, but returns missing if the key is not found, rather than failing.
      - contains: `dict.contains(key)` -- returns true if `dict` has key `key`, false otherwise.
      - mapValues: `dict.mapValues(x => expr)` -- returns a new dict with a transformation of the values
      - size: `dict.size` -- returns the number of key/value pairs
      - isEmpty: `dict.isEmpty` -- returns true if there is at least one key/value pairs
+     - keys: `dict.keys` -- returns an `Array` of the dict keys
+     - keySet: `dict.keySet` -- returns a `Set` of the dict keys
 
  - Struct Operations:
      - constructor: `{key1: 1, key2: "Hello", key3: 0.99, ...}` -- Create a new struct from specified field names and values in the format shown.
      - select: `struct.field` -- returns the value of the given field of a struct.  For example, `va.info.AC` selects the struct `info` from the struct `va`, and then selects the array `AC` from the struct `info`.
       - merge: `merge(struct1, struct2)` -- create a new struct with all fields in struct1 and struct2
       - select and drop: `select` / `drop` -- these take the format `select(struct, identifier1, identifier2, ...)`.  These methods return a subset of the struct.  One could, for example, remove the horrible `CSQ` from the info field of a vds with `annotatevariants expr -c 'va.info = drop(va.info, CSQ)`.  One can select a subset of fields from a table using `select(va.EIGEN, field1, field2, field3)`
-      - index: `index(Array[Struct], fieldname)` -- returns a dictionary keyed by the string field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
+      - index: `index(Array[Struct], fieldname)` -- returns a dict keyed by the field `fieldname` of the given `struct`, referencing values that are structs with the remaining fields.
            
            For example, `global.gene_info` is the following `Array[Struct]`:
-           
+
            ```
            [{PLI: 0.998, genename: "gene1", hits_in_exac: 1},
            {PLI: 0.0015, genename: "gene2", hits_in_exac: 10},
@@ -133,12 +136,12 @@ Several Hail commands provide the ability to perform a broad array of computatio
            
            We can index it by gene:
            ```
-           global.gene_dict = index(global.gene_info, genename)
+           global.gene_map = index(global.gene_info, genename)
            ```
            
            Now the following equality is true:
            ```
-           global.gene_dict["gene1"] == {PLI: 0.998, hits_in_exac: 1}
+           global.gene_map["gene1"] == {PLI: 0.998, hits_in_exac: 1}
            ```
 
   - Object constructors:
@@ -343,23 +346,26 @@ vds.annotate_global_expr(['global.caseSingletons = samples.filter(s => sa.fam.is
 <aggregable>.counter()
 ```
 
-This aggregator counts the number of occurrences of each element of an aggregable.  It produces an array of structs with the following schema:
-
-```
-Array [ 
-  Struct {
-    key: T, // element type of aggregator
-    count: Long
-  }
-]
-```
-
-The resulting array is sorted by count in descending order (the most common element is first).
+This aggregator counts the number of occurrences of each element of an aggregable.  It produces a dict of element to count, `Dict[T, Long]`, where `T` is the element type of the aggregable.
 
 **Example:** compute the number of indels in each chromosome:
 
 ```
 vds.annotate_global_expr('global.chr_indels = variants.filter(v => v.altAllele.isIndel).map(v => v.contig).counter()')
+```
+
+This aggregable is designed to be maximally useful with the python API, and we recommend that it is used with the [python Counter object](https://docs.python.org/2/library/collections.html#collections.Counter).  See this example of finding the most common alternate alleles in our sample dataset (they are all SNPs):
+
+```
+>>> from collections import Counter
+>>> vds = hc.import_vcf('src/test/resources/sample2.vcf')
+>>> counter = Counter(vds.query_variants('variants.flatMap(v => v.altAlleles).counter()')[0])
+>>> print(counter.most_common(5))
+[(AltAllele(C, T), 129L),
+ (AltAllele(G, A), 112L),
+ (AltAllele(C, A), 60L),
+ (AltAllele(A, G), 46L),
+ (AltAllele(T, C), 44L)]
 ```
 
 ### Hist

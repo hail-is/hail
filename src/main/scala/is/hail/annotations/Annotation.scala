@@ -43,10 +43,10 @@ object Annotation {
       TStruct(fields.map { f => f.copy(typ = expandType(f.typ)) })
     case TSet(elementType) =>
       TArray(expandType(elementType))
-    case TDict(elementType) =>
+    case TDict(keyType, valueType) =>
       TArray(TStruct(
-        "key" -> TString,
-        "value" -> expandType(elementType)))
+        "key" -> expandType(keyType),
+        "value" -> expandType(valueType)))
     case TAltAllele => AltAllele.t
     case TInterval =>
       TStruct(
@@ -76,12 +76,11 @@ object Annotation {
             .toArray[Any] : IndexedSeq[_])
             .map(expandAnnotation(_, elementType))
 
-        case TDict(elementType) =>
+        case TDict(keyType, valueType) =>
           (a.asInstanceOf[Map[String, _]]
-            .toArray[(String, Any)]: IndexedSeq[(String, Any)])
-            .map { case (k, v) =>
-              Annotation(k, expandAnnotation(v, elementType))
-            }
+
+            .toArray[(Any, Any)]: IndexedSeq[(Any, Any)])
+            .map { case (k, v) => Annotation(expandAnnotation(k, keyType), expandAnnotation(v, valueType)) }
 
         case TAltAllele => a.asInstanceOf[AltAllele].toRow
 

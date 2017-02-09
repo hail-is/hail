@@ -36,7 +36,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
         hConf.getTemporaryFile(HailConfiguration.tmpDir)
 
     val rWithHeader = header.map { h =>
-      if (parallelWrite)
+      if (r.partitions.length == 0)
+        r.sparkContext.parallelize(List(h))
+      else if (parallelWrite)
         r.mapPartitions { it => Iterator(h) ++ it }
       else
         r.mapPartitionsWithIndex { case (i, it) =>
