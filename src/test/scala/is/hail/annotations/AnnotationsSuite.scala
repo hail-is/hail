@@ -100,6 +100,33 @@ class AnnotationsSuite extends SparkSuite {
     val readBack = hc.read(f)
 
     assert(readBack.same(vds2))
+
+    //Check that adding attributes to FILTERS / INFO outputs the correct Number/Description
+    val vds_attr = vds
+      .setVAattribute("va.filters", "testFilter", "testFilterDesc")
+      .setVAattributes("va.info.MQ", Map("Number" -> ".", "Description" -> "testMQ", "foo" -> "bar"))
+
+    assert(vds_attr.vaSignature.fieldOption("filters")
+      .map(f => f.attrs.getOrElse("testFilter", "") == "testFilterDesc")
+      .getOrElse(false))
+
+    assert(vds_attr.vaSignature.fieldOption(List("info", "MQ"))
+      .map(f => f.attrs.getOrElse("foo", "") == "bar")
+      .getOrElse(false))
+    assert(vds_attr.vaSignature.fieldOption(List("info", "MQ"))
+      .map(f => f.attrs.getOrElse("Description", "") == "testMQ")
+      .getOrElse(false))
+    assert(vds_attr.vaSignature.fieldOption(List("info", "MQ"))
+      .map(f => f.attrs.getOrElse("Number", "") == ".")
+      .getOrElse(false))
+
+
+    // Write VCF and check that annotaions are the same
+    val f2 = tmpDir.createTempFile("sample2", extension = ".vds")
+    vds_attr.write(f2)
+    val readBack_attr = hc.read(f2)
+
+    assert(readBack_attr.same(vds_attr))
   }
 
   @Test def testReadWrite() {
@@ -322,6 +349,32 @@ class AnnotationsSuite extends SparkSuite {
     assert(vds.vaSignature.schema == toAdd8Sig.schema)
     assert(vds.variantsAndAnnotations.collect()
       .forall { case (v, va) => va == "dummy" })
+  }
+
+  @Test def testAttributeOperations() {
+
+    /*
+      This test method performs a number of attribute annotation operations on a vds, and ensures that the signatures
+      and annotations in the RDD elements are what is expected after each step.
+    */
+
+    var vds = hc.importVCF("src/test/resources/sample.vcf").cache()
+
+    vds = vds.setVAattribute("va.info.DP", "new_key", "new_value")
+    assert(vds.getVAattributes("va.info.DP").getOrElse("new_key", "missing_value") == "new_value")
+
+    vds = vds.setVAattribute("va.info.DP", "new_key", "modified_value")
+    assert(vds.getVAattributes("va.info.DP").getOrElse("new_key", "missing_value") == "modified_value")
+
+    vds = vds.setVAattributes("va.info.DP", Map("key1" -> "value1", "key2" -> "value2"))
+    assert(vds.getVAattributes("va.info.DP").getOrElse("key1", "missing_value") == "value1")
+    assert(vds.getVAattributes("va.info.DP").getOrElse("key2", "missing_value") == "value2")
+
+    vds = vds.deleteVAattribute("va.info.DP", "new_key")
+    assert(!vds.getVAattributes("va.info.DP").contains("new_key"))
+
+    vds = vds.deleteVAattribute("va.info.DP", "new_key")
+
   }
 
   @Test def testWeirdNamesReadWrite() {

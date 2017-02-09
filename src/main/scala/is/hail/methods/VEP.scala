@@ -394,7 +394,13 @@ object VEP {
         }
       }.asOrderedRDD
 
-    vsm.copy(rdd = newRDD,
-      vaSignature = newVASignature)
+    if (csq)
+      vsm.copy(rdd = newRDD,
+        vaSignature = newVASignature.asInstanceOf[TStruct]
+          .setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
+    else
+      vsm.copy(rdd = newRDD,
+        vaSignature = newVASignature)
+
   }
 }

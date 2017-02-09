@@ -753,6 +753,35 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         f.flatMap(_.typ.fieldOption(path.tail))
     }
 
+  def updateFieldAttributes(path: List[String], f: Map[String, String] => Map[String, String]): TStruct = {
+
+    if (path.isEmpty)
+      throw new AnnotationPathException(s"Empty path for attribute annotation is not allowed.")
+
+    if (!hasField(path.head))
+      throw new AnnotationPathException(s"struct has no field ${ path.head }")
+
+    this.copy(fields.map({
+      field =>
+        if (field.name == path.head) {
+          if (path.length == 1)
+            field.copy(attrs = f(field.attrs))
+          else
+            field.copy(typ = field.typ.asInstanceOf[TStruct].updateFieldAttributes(path.tail, f))
+        }
+        else
+          field
+    }))
+  }
+
+  def setFieldAttributes(path: List[String], kv: Map[String, String]): TStruct = {
+    updateFieldAttributes(path, attributes => attributes ++ kv)
+  }
+
+  def deleteFieldAttributes(path: List[String], attr: String): TStruct = {
+    updateFieldAttributes(path, attributes => attributes - attr)
+  }
+
   override def query(p: List[String]): Querier = {
     if (p.isEmpty)
       identity[Annotation]
@@ -943,12 +972,11 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     val included = fields.map(f)
 
     val newFields = fields.zip(included)
-      .flatMap {
-        case (field, incl) =>
-          if (incl)
-            Some(field.name -> field.typ)
-          else
-            None
+      .flatMap { case (field, incl) =>
+        if (incl)
+          Some(field)
+        else
+          None
       }
 
     val newSize = newFields.size
@@ -971,7 +999,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         Annotation.fromSeq(newValues)
       }
 
-    (TStruct(newFields: _*), filterer)
+    (TStruct(newFields.zipWithIndex.map({ case (f, i) => f.copy(index = i) })), filterer)
   }
 
   override def toString = if (size == 0) "Empty" else "Struct"

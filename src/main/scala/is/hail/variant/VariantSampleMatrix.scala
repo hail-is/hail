@@ -1,6 +1,8 @@
 package is.hail.variant
 
 import java.nio.ByteBuffer
+import java.util
+import scala.collection.JavaConverters._
 
 import is.hail.annotations._
 import is.hail.check.Gen
@@ -1841,6 +1843,41 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def storageLevel: String = rdd.getStorageLevel.toReadableString()
+
+  def setVAattribute(path: String, key: String, value: String): VariantSampleMatrix[T] = {
+    setVAattributes(path, Map(key -> value))
+  }
+
+  def setVAattribute(path: List[String], key: String, value: String): VariantSampleMatrix[T] = {
+    setVAattributes(path, Map(key -> value))
+  }
+
+  def setVAattributes(path: String, kv: Map[String, String]): VariantSampleMatrix[T] = {
+    setVAattributes(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), kv)
+  }
+
+  def setVAattributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
+    this.copy(vaSignature = vaSignature.asInstanceOf[TStruct].setFieldAttributes(path, kv))
+  }
+
+  def deleteVAattribute(path: String, attribute: String): VariantSampleMatrix[T] = {
+    deleteVAattribute(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), attribute)
+  }
+
+  def deleteVAattribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
+    this.copy(vaSignature = vaSignature.asInstanceOf[TStruct].deleteFieldAttributes(path, attribute))
+  }
+
+  def getVAattributes(path: String): Map[String, String] = {
+    vaSignature.asInstanceOf[TStruct]
+      .fieldOption(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD))
+      .map(f => f.attrs)
+      .getOrElse(Map[String, String]())
+  }
+
+  def getVAattributesAsJava(path: String): util.Map[String, String] = {
+    getVAattributes(path).asJava
+  }
 
   override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
 

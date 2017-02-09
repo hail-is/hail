@@ -333,11 +333,14 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
 
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finalType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
+    val newType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
       val (s, i) = vas.insert(TArray(signature), ids)
       inserterBuilder += i
       s
     }
+    val finalType = paths.foldLeft(newType.asInstanceOf[TStruct])({
+      case (res, path) => res.setFieldAttributes(path, Map("Number" -> "A"))
+    })
     val inserters = inserterBuilder.result()
 
     val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
