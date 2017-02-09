@@ -90,6 +90,9 @@ object AnnotateAllelesExpr extends Command {
       }
 
     }.copy(vaSignature = finalType)
-    state.copy(vds = annotated)
+
+    state.copy(vds = annotated.copy(
+      vaSignature = paths.foldLeft(annotated.vaSignature.asInstanceOf[TStruct])({
+        case (res, path) => res.setFieldAttributes(path,Map("Number" -> "A")) })))
   }
 }

@@ -631,6 +631,26 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         f.flatMap(_.typ.fieldOption(path.tail))
     }
 
+  def setFieldAttributes(path: List[String], kv: Map[String, String]): TStruct = {
+
+    if (path.isEmpty)
+      throw new AnnotationPathException(s"Empty path for attribute annotation is not allowed.")
+
+    if (!hasField(path.head))
+      throw new AnnotationPathException(s"struct has no field ${ path.head }")
+
+    this.copy(fields.map({
+      f => if (f.name == path.head){
+        if(path.length == 1)
+          f.copy(attrs = f.attrs ++ kv)
+        else
+          f.copy(typ = f.typ.asInstanceOf[TStruct].setFieldAttributes(path.tail, kv))
+      }
+      else
+        f
+    }))
+  }
+
   override def query(p: List[String]): Querier = {
     if (p.isEmpty)
       a => Option(a)

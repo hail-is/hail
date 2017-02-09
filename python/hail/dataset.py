@@ -1555,7 +1555,7 @@ class VariantDataset(object):
             pargs.append('--overwrite')
         self.hc._run_command(self, pargs)
 
-    def filter_alleles(self, condition, annotation=None, subset=True, keep=True, 
+    def filter_alleles(self, condition, annotation=None, subset=True, keep=True,
                        filter_altered_genotypes=False, max_shift=100):
         """Filter a user-defined set of alternate alleles for each variant.
         If all alternate alleles of a variant are filtered, the
@@ -1704,7 +1704,7 @@ class VariantDataset(object):
 
         if filter_altered_genotypes:
             pargs.append('--filterAlteredGenotypes')
-            
+
         pargs.extend(['--max-shift', str(max_shift)])
 
         return self.hc._run_command(self, pargs)
@@ -3159,6 +3159,20 @@ class VariantDataset(object):
         """Displays the number of partitions and persistence level of the dataset."""
 
         self.hc._run_command(self, ['sparkinfo'])
+
+    def set_va_attribute(self, code, key, value):
+        """Sets an attribute for a variant annotation signature.
+        Attributes are key/value pairs that can be attached to a variant annotation field.
+        Of note, the following attributes are used to generate the VCF header when using export_vcf:
+        - INFO fields attributes (attached to (`va.info.XXX`)):
+            - 'Number' (default is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types)
+            - 'Description' (default is '')
+        - FILTER entries in the VCF header are generated based on the attributes of `va.filters`. Each key/value pair in the attributes will generate a FILTER entry in the VCF with ID = key and Description = value."""
+
+        try:
+            return VariantDataset(self.hc, self._jvds.setVAattribute(code,key,value))
+        except Py4JJavaError as e:
+            raise_py4j_exception(e)
 
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.

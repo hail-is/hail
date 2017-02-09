@@ -12,7 +12,7 @@ import is.hail.utils._
 import is.hail.driver.{HailConfiguration, Main}
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.expr.{EvalContext, _}
+import is.hail.expr.{EvalContext, TStruct, _}
 import is.hail.io.vcf.BufferedLineIterator
 import is.hail.sparkextras._
 import org.json4s._
@@ -969,6 +969,22 @@ class VariantSampleMatrix[T](val metadata: VariantMetadata,
 
   def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
     globalSignature.insert(sig, path)
+  }
+
+  def setVAattribute(path: String, key: String, value: String): VariantSampleMatrix[T] = {
+    setVAattributes(path, Map(key -> value))
+  }
+
+  def setVAattribute(path: List[String], key: String, value: String): VariantSampleMatrix[T] = {
+    setVAattributes(path, Map(key -> value))
+  }
+
+  def setVAattributes(path: String, kv: Map[String, String]): VariantSampleMatrix[T] = {
+    setVAattributes(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), kv)
+  }
+
+  def setVAattributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
+    this.copy(vaSignature = vaSignature.asInstanceOf[TStruct].setFieldAttributes(path, kv))
   }
 
   override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
