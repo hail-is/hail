@@ -21,7 +21,7 @@ object MaximalIndependentSet {
     val vertexMapping = vertexPairs.flatMap[String](vertexPair => List(vertexPair._1, vertexPair._2))
                                                         .distinct()
                                                         .zipWithUniqueId().collectAsMap()
-
+    println(vertexMapping)
     //Consider wrapping EdgeRDD
     val edges: RDD[Edge[Double]] = filteredRDD.map(tuple => Edge(vertexMapping(tuple._1._1), vertexMapping(tuple._1._2), tuple._2))
 
@@ -33,10 +33,9 @@ object MaximalIndependentSet {
 
     graph.cache()
     while((() => graph.numEdges > 0)()) {
-      //Get top k vertices
-      //TODO MAYBE BOTH INSTEAD OF EITHER.
-      val topK = graph.collectNeighborIds(EdgeDirection.Either).sortBy(_._2.size).take(k)
-      println(topK.size)
+      //Get top k vertices.
+      val topK = graph.collectNeighborIds(EdgeDirection.Either).sortBy(-_._2.size).take(k)
+      println(topK.toIndexedSeq)
 
       val filteredVertices: Seq[(VertexId, Array[VertexId])] = topK.toList match {
         case x :: xs => x :: xs.filter(_._2.contains(x))
@@ -44,11 +43,11 @@ object MaximalIndependentSet {
       }
 
       val vertexIds = filteredVertices.map(_._1)
-      println("vertex Ids are " + vertexIds)
+      println("vertices in graph are " + graph.vertices.collect().map(_._1).toIndexedSeq)
 
       //Keep vertices that arent in
+      println(graph.edges.take(2)(0))
       graph = graph.subgraph(_ => true, (id, name) => !vertexIds.contains(id))
-      println(graph.edges.take(1))
     }
 
     graph.vertices.map(_._2).collect().toSet
