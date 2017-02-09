@@ -622,3 +622,8 @@ class KeyTable(object):
             return KeyTable(self.hc, self._jkt.explode(column_names))
         except Py4JJavaError as e:
             raise_py4j_exception(e)
+
+    def _typecheck(self):
+        """Check if all values with the schema."""
+
+        self._jkt.typeCheck()

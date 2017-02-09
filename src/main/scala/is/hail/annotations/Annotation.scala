@@ -79,7 +79,9 @@ object Annotation {
         case TDict(elementType) =>
           (a.asInstanceOf[Map[String, _]]
             .toArray[(String, Any)]: IndexedSeq[(String, Any)])
-            .map(expandAnnotation(_, elementType))
+            .map { case (k, v) =>
+              Annotation(k, expandAnnotation(v, elementType))
+            }
 
         case TAltAllele => a.asInstanceOf[AltAllele].toRow
 
