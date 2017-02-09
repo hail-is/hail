@@ -4,18 +4,14 @@ import org.apache.spark.{SparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.graphx._
 
-/**
-  * Created by johnc on 1/30/17.
-  */
 object MaximalIndependentSet {
 
   def apply(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double, k: Int): Set[String] = {
-    println("ACTUALLY CALLED METHOD")
-    //Filter RDD to remove edges below(?) threshold
-    val filteredRDD = inputRDD.filter(_._2 >= thresh)
+    //Filter RDD to remove edges above threshold
+    val filteredRDD = inputRDD.filter(_._2 <= thresh)
 
     //Throw away weights
-    val vertexPairs = filteredRDD.map(_._1)
+    val vertexPairs = inputRDD.map(_._1)
 
     //Collect all vertices, map em to numbers
     val vertexMapping = vertexPairs.flatMap[String](vertexPair => List(vertexPair._1, vertexPair._2))
@@ -29,13 +25,10 @@ object MaximalIndependentSet {
 
     var graph = Graph(vertices, edges)
 
-    println("Initital Edge count " + graph.numEdges)
 
     graph.cache()
     while((() => graph.numEdges > 0)()) {
-      //Get top k vertices.
       val topK = graph.collectNeighborIds(EdgeDirection.Either).sortBy(-_._2.size).take(k)
-      println(topK.toIndexedSeq)
 
       val filteredVertices: Seq[(VertexId, Array[VertexId])] = topK.toList match {
         case x :: xs => x :: xs.filter(_._2.contains(x))
@@ -43,10 +36,7 @@ object MaximalIndependentSet {
       }
 
       val vertexIds = filteredVertices.map(_._1)
-      println("vertices in graph are " + graph.vertices.collect().map(_._1).toIndexedSeq)
 
-      //Keep vertices that arent in
-      println(graph.edges.take(2)(0))
       graph = graph.subgraph(_ => true, (id, name) => !vertexIds.contains(id))
     }
 
