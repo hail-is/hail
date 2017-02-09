@@ -17,7 +17,7 @@ object MaximalIndependentSet {
     val vertexMapping = vertexPairs.flatMap[String](vertexPair => List(vertexPair._1, vertexPair._2))
                                                         .distinct()
                                                         .zipWithUniqueId().collectAsMap()
-    println(vertexMapping)
+
     //Consider wrapping EdgeRDD
     val edges: RDD[Edge[Double]] = filteredRDD.map(tuple => Edge(vertexMapping(tuple._1._1), vertexMapping(tuple._1._2), tuple._2))
 
