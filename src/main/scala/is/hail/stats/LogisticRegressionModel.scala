@@ -247,11 +247,12 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     var converged = false
     var exploded = false
 
+    val X0 = X(::, 0 until colsToFit)
+
     while (!converged && !exploded && iter < maxIter) {
       try {
         iter += 1
 
-        val X0 = X(::, 0 until colsToFit)
         val mu = sigmoid(X0 * b)
         val XsqrtW = X(::,*) :* sqrt(mu :* (1d - mu))
         val QR = qr.reduced(XsqrtW)
@@ -282,7 +283,11 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     val b = DenseVector.zeros[Double](m)
     val score = DenseVector.zeros[Double](m)
     val fisher = DenseMatrix.zeros[Double](m, m)
-    val fit0 = if (useFirth) fitFirth(b0, colsToFit = m - df + 1, maxIter=maxIter, tol=tol) else fit(b0, maxIter, tol) // FIXME: is colsToFit right?
+    val fit0 =
+      if (useFirth)
+        fitFirth(b0, colsToFit = m - df + 1, maxIter=maxIter, tol=tol)
+      else
+        fit(b0, maxIter, tol)
 
     b(df until m) := fit0.b
     score(df until m) := fit0.score
