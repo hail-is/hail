@@ -38,14 +38,12 @@ class SplitSuite extends SparkSuite {
       s = SplitMulti.run(s)
       val method1 = s.vds.variants.collect().toSet
       val method2 = vds.variants.flatMap { v =>
-        v.altAlleles.iterator.zipWithIndex
-          .map { case (aa, aai) =>
+        v.altAlleles.iterator
+          .map { aa =>
             Variant(v.contig, v.start, v.ref, Array(aa)).minrep
           }
       }.collect().toSet
 
-      println(method1)
-      println(method2)
       method1 == method2
     }
   }

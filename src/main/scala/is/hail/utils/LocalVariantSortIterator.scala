@@ -6,6 +6,7 @@ import scala.collection.mutable
 
 object LocalVariantSortIterator {
   def apply[T](it: Iterator[(Variant, T)], maxShift: Int): Iterator[(Variant, T)] = {
+    require(maxShift > 0, "max shift must be positive")
 
     val ord: Ordering[(Variant, T)] = new Ordering[(Variant, T)] {
       def compare(x: (Variant, T), y: (Variant, T)): Int = x._1.compare(y._1)
