@@ -113,7 +113,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - select: `dict[key]` -- returns the value keyed by the string `key`.  Example: `global.genemap["SCN2A"]`.  This method will fail if the key is not contained in the dict.
      - get: `dict.get(key)` -- identical to `select`, but returns missing if the key is not found, rather than failing.
      - contains: `dict.contains(key)` -- returns true if `dict` has key `key`, false otherwise.
-     - mapValues: `dict.mapValues(x => expr)` -- returns a new map with a transformation of the values
+     - mapValues: `dict.mapValues(x => expr)` -- returns a new dict with a transformation of the values
      - size: `dict.size` -- returns the number of key/value pairs
      - isEmpty: `dict.isEmpty` -- returns true if there is at least one key/value pairs
      - keys: `dict.keys` -- returns an `Array` of the dict keys
