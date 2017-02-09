@@ -4,10 +4,10 @@ import is.hail.SparkSuite
 import is.hail.utils._
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
-import is.hail.check.Properties
+import is.hail.check.{Gen, Properties}
 import is.hail.driver.{SplitMulti, State}
 import is.hail.io.vcf.LoadVCF
-import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{AltAllele, Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 class SplitSuite extends SparkSuite {
@@ -23,6 +23,29 @@ class SplitSuite extends SparkSuite {
           .collect()
           .forall(identity)
       }
+
+    val splittableVariantGen = for {
+      contig <- Gen.const("1")
+      start <- Gen.choose(1, 100)
+      motif <- Gen.oneOf("AT", "AC", "CT", "GA", "GT", "CCA", "CAT", "CCT")
+      ref <- Gen.choose(1, 10).map(motif * _)
+      alts <- Gen.distinctBuildableOf[Array, AltAllele](Gen.choose(1, 10).map(motif * _).filter(_ != ref).map(a => AltAllele(ref, a)))
+    } yield Variant(contig, start, ref, alts)
+
+    property("splitMulti maintains variants") = forAll(VariantSampleMatrix.gen[Genotype](sc,
+      VSMSubgen.random.copy(vGen = splittableVariantGen))) { vds =>
+      var s = State(sc, sqlContext, vds)
+      s = SplitMulti.run(s)
+      val method1 = s.vds.variants.collect().toSet
+      val method2 = vds.variants.flatMap { v =>
+        v.altAlleles.iterator
+          .map { aa =>
+            Variant(v.contig, v.start, v.ref, Array(aa)).minrep
+          }
+      }.collect().toSet
+
+      method1 == method2
+    }
   }
 
   @Test def splitTest() {
@@ -43,7 +66,8 @@ class SplitSuite extends SparkSuite {
       .foreach { case (k, (g1, g2)) =>
         if (g1 != g2)
           println(s"$g1, $g2")
-        simpleAssert(g1 == g2) }
+        simpleAssert(g1 == g2)
+      }
 
     val wasSplitQuerier = vds1.vaSignature.query("wasSplit")
 

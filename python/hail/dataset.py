@@ -1555,7 +1555,8 @@ class VariantDataset(object):
             pargs.append('--overwrite')
         self.hc._run_command(self, pargs)
 
-    def filter_alleles(self, condition, annotation=None, subset=True, keep=True, filter_altered_genotypes=False):
+    def filter_alleles(self, condition, annotation=None, subset=True, keep=True, 
+                       filter_altered_genotypes=False, max_shift=100):
         """Filter a user-defined set of alternate alleles for each variant.
         If all alternate alleles of a variant are filtered, the
         variant itself is filtered.  The condition expression is
@@ -1684,6 +1685,10 @@ class VariantDataset(object):
         :param bool keep: If true, keep variants matching condition
 
         :param bool filter_altered_genotypes: If true, genotypes that contain filtered-out alleles are set to missing.
+        :param int max_shift: maximum number of base pairs by which
+            a split variant can move.  Affects memory usage, and will
+            cause Hail to throw an error if a variant that moves further
+            is encountered.
 
         :return: Filtered dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -1699,6 +1704,8 @@ class VariantDataset(object):
 
         if filter_altered_genotypes:
             pargs.append('--filterAlteredGenotypes')
+            
+        pargs.extend(['--max-shift', str(max_shift)])
 
         return self.hc._run_command(self, pargs)
 
@@ -2688,7 +2695,7 @@ class VariantDataset(object):
         pargs = ['mendelerrors', '-o', output, '-f', fam]
         self.hc._run_command(self, pargs)
 
-    def min_rep(self):
+    def min_rep(self, max_shift=100):
         """
         Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
 
@@ -2700,11 +2707,16 @@ class VariantDataset(object):
         2. Trimming of a bi-allelic site leading to a change in position
         `1:10000:AATAA,AAGAA` => `1:10002:T:G`
 
+        :param int max_shift: maximum number of base pairs by which
+          a split variant can move.  Affects memory usage, and will
+          cause Hail to throw an error if a variant that moves further
+          is encountered.
+
         :rtype: :class:`.VariantDataset`
         """
 
         try:
-            return VariantDataset(self.hc, self._jvds.minrep())
+            return VariantDataset(self.hc, self._jvds.minrep(max_shift))
         except Py4JJavaError as e:
             raise_py4j_exception(e)
 
@@ -3148,7 +3160,7 @@ class VariantDataset(object):
 
         self.hc._run_command(self, ['sparkinfo'])
 
-    def split_multi(self, propagate_gq=False, keep_star_alleles=False):
+    def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
         **Examples**
@@ -3269,6 +3281,10 @@ class VariantDataset(object):
           in the future by generic genotype schemas.  Experimental.
 
         :param bool keep_star_alleles: Do not filter out * alleles.
+        :param int max_shift: maximum number of base pairs by which
+          a split variant can move.  Affects memory usage, and will
+          cause Hail to throw an error if a variant that moves further
+          is encountered.
 
         :return: A biallelic dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -3279,6 +3295,7 @@ class VariantDataset(object):
             pargs.append('--propagate-gq')
         if keep_star_alleles:
             pargs.append('--keep-star-alleles')
+        pargs.extend(['--max-shift', str(max_shift)])
         return self.hc._run_command(self, pargs)
 
     def tdt(self, fam, root='va.tdt'):

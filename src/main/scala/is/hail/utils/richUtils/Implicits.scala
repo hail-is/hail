@@ -8,6 +8,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import is.hail.utils.{JSONWriter, MultiArray2, Truncatable}
+import is.hail.variant.Variant
 import org.json4s.JValue
 
 import scala.collection.{TraversableOnce, mutable}
@@ -62,6 +63,9 @@ trait Implicits {
 
   implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K],
     vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
+
+  implicit def toRichVariantPairRDD[V](r: RDD[(Variant, V)])(implicit vct: ClassTag[V]): RichVariantPairRDD[V] =
+    RichVariantPairRDD(r)
 
   implicit def toRichPairTraversableOnce[K, V](t: TraversableOnce[(K, V)]): RichPairTraversableOnce[K, V] =
     new RichPairTraversableOnce[K, V](t)

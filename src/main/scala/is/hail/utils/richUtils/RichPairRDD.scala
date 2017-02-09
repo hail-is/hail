@@ -4,7 +4,7 @@ import org.apache.spark.Partitioner
 import org.apache.spark.Partitioner._
 import org.apache.spark.rdd.RDD
 import is.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
-import is.hail.utils.SpanningIterator
+import is.hail.utils._
 
 import scala.collection.TraversableOnce
 import scala.reflect.ClassTag
