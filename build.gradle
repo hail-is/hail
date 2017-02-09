@@ -41,7 +41,7 @@ mainClassName = "is.hail.driver.Main"
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
 if (!(sparkVersion ==~ /^2\..*/))
-    ant.fail('Hail does not support Spark version ' + sparkVersion)
+    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.0.2.')
 
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
