@@ -213,7 +213,7 @@ html_static_path = ['_static']
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
 #
-html_extra_path = ['_static/navbar_hail.html', '../../../www/hail-logo-cropped.png',
+html_extra_path = ['../../../www/hail-logo-cropped.png',
                    '../../../www/navbar.css', '../../../www/hail_logo_sq.png']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page

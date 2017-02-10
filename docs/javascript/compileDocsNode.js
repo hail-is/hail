@@ -26,9 +26,6 @@ buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
 
 buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
 
-buildSinglePage(template, "#body", pandocOutputDir + "tutorial/Tutorial.html",  __dirname + "/tutorial.html",
-    '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#tutorial").addClass("active");});});</script>');
-
 buildSinglePage(template, "#body", pandocOutputDir + "reference/HailExpressionLanguage.html",  __dirname + "/expr_lang.html",
     '<script>$(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li").removeClass("active"); $("#docs").addClass("active"); $("#exprlang").addClass("active");});});</script>');
 

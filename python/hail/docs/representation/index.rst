@@ -10,11 +10,11 @@ representation
 .. autosummary::
     :nosignatures:
     :toctree: ./
-        :template: class.rst
+    :template: class.rst
 
-        hail.representation.Variant
-        hail.representation.AltAllele
-        hail.representation.Genotype
-        hail.representation.Locus
-        hail.representation.Interval
-        hail.representation.Struct
+    hail.representation.Variant
+    hail.representation.AltAllele
+    hail.representation.Genotype
+    hail.representation.Locus
+    hail.representation.Interval
+    hail.representation.Struct
