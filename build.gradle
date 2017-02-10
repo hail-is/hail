@@ -57,6 +57,7 @@ String kuduSpark = 'spark2'
 String mongoVersion = '2.0.0'
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
+String tutorialFileLoc = System.getProperty("tutorial.home", "")
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
@@ -343,7 +344,7 @@ task wrapper(type: Wrapper) {
 }
 
 task setupDocsDirs(type: Exec) {
-    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/', 'build/tmp/tutorial/'
+    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/'
 }
 
 task copyHtml(type: Copy, dependsOn: setupDocsDirs) {
@@ -354,12 +355,6 @@ task copyHtml(type: Copy, dependsOn: setupDocsDirs) {
 task copyJavascript(type: Copy, dependsOn: setupDocsDirs) {
     from 'docs/javascript'
     into 'build/tmp/docs'
-}
-
-task copyTutorialImages(type: Copy, dependsOn: setupDocsDirs) {
-    from 'docs/tutorial/'
-    into 'build/www'
-    include '**/*.png'
 }
 
 task copyTex(type: Copy, dependsOn: setupDocsDirs) {
@@ -377,9 +372,10 @@ task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
     executable 'src/test/resources/runPandoc.sh'
 }
 
-task makeTutorial(type: Exec, dependsOn: setupDocsDirs) {
-    args('docs/tutorial/Tutorial.md','docs/tutorial/', 'build/tmp/tutorial/', 'build/www/')
-    executable 'docs/tutorial/packageTutorial.sh'
+task setupTutorial(type: Exec) {
+    workingDir 'python/hail/docs'
+    args tutorialFileLoc
+    executable '../../../docs/tutorial/setupTutorial.sh'
 }
 
 task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
@@ -409,13 +405,12 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepar
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 
-task makeHailDocs(type: Exec, dependsOn: shadowJar) {
-     workingDir 'python/hail/docs'
-
-     commandLine 'make', 'clean', 'doctest', 'html'
-     environment SPARK_HOME: sparkHome
-     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
-     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial']) {
+    workingDir 'python/hail/docs'
+    commandLine 'make', 'clean', 'doctest', 'html'
+    environment SPARK_HOME: sparkHome
+    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
 task cleanHailDocs(type: Exec) {
@@ -429,7 +424,6 @@ task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs', 'clea
 task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     from 'build/tmp/docs/commands.html'
     from 'build/tmp/docs/reference.html'
-    from 'build/tmp/docs/tutorial.html'
     from 'build/tmp/docs/overview.html'
     from 'build/tmp/docs/getting_started.html'
     from 'build/tmp/docs/expr_lang.html'
@@ -437,7 +431,7 @@ task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
     into 'build/www'
 }
 
-task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'makeTutorial', 'copyHailDocs']) {
+task createWebsite(dependsOn: ['copyTex', 'copyWebsiteContent', 'copyCompiledDocs', 'copyTutorialImages', 'copyHailDocs']) {
 }
 
 task createDocs(dependsOn: createWebsite)

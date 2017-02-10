@@ -6,16 +6,16 @@ If you haven't already installed Hail, go to [Getting Started](hail/getting_star
 
 ## Download tutorial data files
 
-Download the zip file *Hail_Tutorial_Data-v1.tgz* using [`wget`](https://www.google.com/search?q=install+wget) or [`curl`](https://www.google.com/search?q=install+curl):
+Download the zip file *Hail_Tutorial_Data-v1.tgz* using [wget](https://www.google.com/search?q=install+wget) or [curl](https://www.google.com/search?q=install+curl):
  
-```
-wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial_Data-v1.tgz
+```text
+!wget https://storage.googleapis.com/hail-tutorial/Hail_Tutorial_Data-v1.tgz
 ```
 
 Unzip the file:
 
-```
-tar -xvzf Hail_Tutorial_Data-v1.tgz --strip 1
+```text
+!tar -xvzf Hail_Tutorial_Data-v1.tgz --strip 1
 ```
       
 The contents are as follows:
@@ -179,7 +179,7 @@ The QC procedures below are a sampler covering various features of Hail, not an 
 
 For filtering, we make extensive use of the [Hail expression language](reference.html#HailExpressionLanguage). Here `g` is genotype, `v` is variant, `s` is sample, and annotations are accessible via `va`, `sa`, and `global`. 
 
-##### Filter genotypes
+#### Filter genotypes
 
 Let's filter genotypes based on allelic balance using the `filter_genotypes` method.
 
