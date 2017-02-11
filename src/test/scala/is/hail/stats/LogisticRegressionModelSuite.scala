@@ -31,30 +31,30 @@ class LogisticRegressionModelSuite extends SparkSuite {
 
     val ones = DenseMatrix.fill[Double](6, 1)(1d)
 
-    val X = DenseMatrix.horzcat(C, ones)
-
     val nullModel = new LogisticRegressionModel(ones, y)
-    val nullFit = nullModel.nullFit(df = 2)
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly())
+
+    val X = DenseMatrix.horzcat(ones, C)
 
     val waldStats = WaldTest.test(X, y, nullFit).stats.get
     val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
     val scoreStats = ScoreTest.test(X, y, nullFit).stats.get
 
-    assert(D_==(waldStats.b(0), -0.3585773, tolerance = 1.0E-6))
-    assert(D_==(waldStats.b(1), 0.1922622, tolerance = 1.0E-6))
-    assert(D_==(waldStats.b(2), 0.7245034, tolerance = 1.0E-6))
+    assert(D_==(waldStats.b(0), 0.7245034, tolerance = 1.0E-6))
+    assert(D_==(waldStats.b(1), -0.3585773, tolerance = 1.0E-6))
+    assert(D_==(waldStats.b(2), 0.1922622, tolerance = 1.0E-6))
 
-    assert(D_==(waldStats.se(0), 0.6246568, tolerance = 1.0E-6))
-    assert(D_==(waldStats.se(1), 0.4559844, tolerance = 1.0E-6))
-    assert(D_==(waldStats.se(2), 0.9396654, tolerance = 1.0E-6))
+    assert(D_==(waldStats.se(0), 0.9396654, tolerance = 1.0E-6))
+    assert(D_==(waldStats.se(1), 0.6246568, tolerance = 1.0E-6))
+    assert(D_==(waldStats.se(2), 0.4559844, tolerance = 1.0E-6))
 
-    assert(D_==(waldStats.z(0), -0.5740389, tolerance = 1.0E-6))
-    assert(D_==(waldStats.z(1), 0.4216421, tolerance = 1.0E-6))
-    assert(D_==(waldStats.z(2), 0.7710228, tolerance = 1.0E-6))
+    assert(D_==(waldStats.z(0), 0.7710228, tolerance = 1.0E-6))
+    assert(D_==(waldStats.z(1), -0.5740389, tolerance = 1.0E-6))
+    assert(D_==(waldStats.z(2), 0.4216421, tolerance = 1.0E-6))
 
-    assert(D_==(waldStats.p(0), 0.5659415, tolerance = 1.0E-6))
-    assert(D_==(waldStats.p(1), 0.6732863, tolerance = 1.0E-6))
-    assert(D_==(waldStats.p(2), 0.4406934, tolerance = 1.0E-6))
+    assert(D_==(waldStats.p(0), 0.4406934, tolerance = 1.0E-6))
+    assert(D_==(waldStats.p(1), 0.5659415, tolerance = 1.0E-6))
+    assert(D_==(waldStats.p(2), 0.6732863, tolerance = 1.0E-6))
 
     assert(D_==(nullFit.logLkhd, -3.81908501, tolerance = 1.0E-6))
     assert(D_==(lrStats.chi2, 0.351536062, tolerance = 1.0E-6))
@@ -88,34 +88,36 @@ class LogisticRegressionModelSuite extends SparkSuite {
 
     val gts = DenseVector(0d, 1d, 2d, 0d, 0d, 1d)
 
-    val X = DenseMatrix.horzcat(gts.asDenseMatrix.t, C)
-
     val nullModel = new LogisticRegressionModel(C, y)
-    val nullFit = nullModel.nullFit(nullModel.bInterceptOnly())
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly())
+
+    val X = DenseMatrix.horzcat(C, gts.asDenseMatrix.t)
 
     val waldStats = WaldTest.test(X, y, nullFit).stats.get
     val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
     val scoreStats = ScoreTest.test(X, y, nullFit).stats.get
 
-    assert(D_==(waldStats.b(0), 3.1775729, tolerance = 1.0E-6))
-    assert(D_==(waldStats.b(1), -0.4811418, tolerance = 1.0E-6))
-    assert(D_==(waldStats.b(2), -0.4293547, tolerance = 1.0E-6))
-    assert(D_==(waldStats.b(3), -0.4214875, tolerance = 1.0E-6))
+    println(waldStats.b)
 
-    assert(D_==(waldStats.se(0), 4.1094207, tolerance = 1.0E-6))
-    assert(D_==(waldStats.se(1), 1.6203668, tolerance = 1.0E-6))
-    assert(D_==(waldStats.se(2), 0.7256665, tolerance = 1.0E-6))
-    assert(D_==(waldStats.se(3), 0.9223569, tolerance = 1.0E-6))
+    assert(D_==(waldStats.b(0), -0.4811418, tolerance = 1.0E-6))
+    assert(D_==(waldStats.b(1), -0.4293547, tolerance = 1.0E-6))
+    assert(D_==(waldStats.b(2), -0.4214875, tolerance = 1.0E-6))
+    assert(D_==(waldStats.b(3), 3.1775729, tolerance = 1.0E-6))
 
-    assert(D_==(waldStats.z(0), 0.7732411, tolerance = 1.0E-6))
-    assert(D_==(waldStats.z(1), -0.2969339, tolerance = 1.0E-6))
-    assert(D_==(waldStats.z(2), -0.5916695, tolerance = 1.0E-6))
-    assert(D_==(waldStats.z(3), -0.4569679, tolerance = 1.0E-6))
+    assert(D_==(waldStats.se(0), 1.6203668, tolerance = 1.0E-6))
+    assert(D_==(waldStats.se(1), 0.7256665, tolerance = 1.0E-6))
+    assert(D_==(waldStats.se(2), 0.9223569, tolerance = 1.0E-6))
+    assert(D_==(waldStats.se(3), 4.1094207, tolerance = 1.0E-6))
 
-    assert(D_==(waldStats.p(0), 0.4393797, tolerance = 1.0E-6))
-    assert(D_==(waldStats.p(1), 0.7665170, tolerance = 1.0E-6))
-    assert(D_==(waldStats.p(2), 0.5540720, tolerance = 1.0E-6))
-    assert(D_==(waldStats.p(3), 0.6476941, tolerance = 1.0E-6))
+    assert(D_==(waldStats.z(0), -0.2969339, tolerance = 1.0E-6))
+    assert(D_==(waldStats.z(1), -0.5916695, tolerance = 1.0E-6))
+    assert(D_==(waldStats.z(2), -0.4569679, tolerance = 1.0E-6))
+    assert(D_==(waldStats.z(3), 0.7732411, tolerance = 1.0E-6))
+
+    assert(D_==(waldStats.p(0), 0.7665170, tolerance = 1.0E-6))
+    assert(D_==(waldStats.p(1), 0.5540720, tolerance = 1.0E-6))
+    assert(D_==(waldStats.p(2), 0.6476941, tolerance = 1.0E-6))
+    assert(D_==(waldStats.p(3), 0.4393797, tolerance = 1.0E-6))
 
     /* R code:
     logfitnull <- glm(y0 ~ c1 + c2, family=binomial(link="logit"))
@@ -207,26 +209,32 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val firthBR = firthFitR.map(_(0))
     val firthLogLkhd0R = firthLrtR(0)(0)
     val firthLogLkhdR = firthLrtR(1)(0)
+    val firthChi2R = 2 * (firthLogLkhdR - firthLogLkhd0R)
     val firthPValR = firthLrtR(2)(0)
 
     val y = DenseVector(yArray)
     val C = new DenseMatrix(rows, cols, XArray)
     val ones = DenseMatrix.fill[Double](6, 1)(1d)
-    val X = DenseMatrix.horzcat(C, ones)
 
     val nullModel = new LogisticRegressionModel(ones, y)
-    val nullFit = nullModel.nullFit(df = 2)
-    val nullFitFirth = nullModel.nullFit(df = 2, useFirth = true)
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly())
+
+    println(nullFit)
+
+    val X = DenseMatrix.horzcat(ones, C)
 
     val waldStats = WaldTest.test(X, y, nullFit).stats.get
     val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
     val scoreStats = ScoreTest.test(X, y, nullFit).stats.get
-    val firthStats = FirthTest.test(X, y, nullFitFirth).stats.get
+    val firthStats = FirthTest.test(X, y, nullFit).stats.get
 
-    assertArray(waldStats.b, cycle(waldBR))
-    assertArray(waldStats.se, cycle(waldSeR))
-    assertArray(waldStats.z, cycle(waldZR))
-    assertArray(waldStats.p, cycle(waldPR))
+    //val firthB0 = DenseVector(nullFitFirth.b(0), 0d, 0d)
+    //val firthLogLkhd0 = nullFitFirth.firthLogLkhd(firthB0)
+
+    assertArray(waldStats.b, waldBR)
+    assertArray(waldStats.se, waldSeR)
+    assertArray(waldStats.z, waldZR)
+    assertArray(waldStats.p, waldPR)
 
     assert(D_==(lrStats.chi2, lrtChi2R, tol))
     assert(D_==(lrStats.p, lrtPR, tol))
@@ -234,6 +242,19 @@ class LogisticRegressionModelSuite extends SparkSuite {
     assert(D_==(scoreStats.chi2, scoreChi2R, tol))
     assert(D_==(scoreStats.p, scorePR, tol))
 
+    assertArray(firthStats.b, firthBR)
+
+    println(s"firthLogLkhd0R = $firthLogLkhd0R")
+    println(s"firthLogLkhdR = $firthLogLkhdR")
+    println(s"firthChi2R = $firthChi2R")
+    println(s"firthPValR = $firthPValR")
+
+    //assert(D_==(firthLogLkhd0, firthLogLkhd0R, tol))
+    //assert(D_==(firthStats.logLkhd, firthLogLkhdR, tol))
+
+    println(firthStats.p)
+
     assert(D_==(firthStats.p, firthPValR, tol))
+
   }
 }

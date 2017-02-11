@@ -41,7 +41,7 @@ object LogisticRegression {
     info(s"Running logreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
-    val nullFit = nullModel.nullFit(nullModel.bInterceptOnly(), useFirth=useFirth)
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly())
 
     if (!nullFit.converged)
       fatal("Failed to fit logistic regression null model (covariates only): " + (
@@ -65,7 +65,7 @@ object LogisticRegression {
 
       val logRegAnnot =
         buildGtColumn(maskedGts).map { gts =>
-          val X = DenseMatrix.horzcat(gts, covBc.value)
+          val X = DenseMatrix.horzcat(covBc.value, gts)
           logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
         }
 

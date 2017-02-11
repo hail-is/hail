@@ -25,14 +25,19 @@ class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override
 
 object WaldTest extends LogisticRegressionTest {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[WaldStats] = {
+
     val model = new LogisticRegressionModel(X, y)
-    val fit = model.fit(nullFit.b)
+
+    val nullFitb = DenseVector.zeros[Double](X.cols)
+    nullFitb(0 until nullFit.b.length) := nullFit.b
+
+    val fit = model.fit(nullFitb)
 
     val waldStats = if (fit.converged) {
       try {
         val se = sqrt(diag(inv(fit.fisher)))
         val z = fit.b :/ se
-        val p = z.map(zi => chiSquaredTail(1, zi * zi))
+        val p = z.map(zi => chiSquaredTail(1, zi * zi)) // fixme: change to normal tail?
 
         Some(new WaldStats(fit.b, se, z, p))
       } catch {
@@ -59,20 +64,27 @@ object WaldStats {
 }
 
 case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends LogisticRegressionStats {
-  def toAnnotation: Annotation = Annotation(b(0), se(0), z(0), p(0))
+  def toAnnotation: Annotation = Annotation(b(-1), se(-1), z(-1), p(-1))
 }
 
 
 
 object LikelihoodRatioTest extends LogisticRegressionTest {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[LikelihoodRatioStats] = {
+
+    val m = X.cols
+    val m0 = nullFit.b.length
     val model = new LogisticRegressionModel(X, y)
-    val fit = model.fit(nullFit.b)
+
+    val nullFitb = DenseVector.zeros[Double](m)
+    nullFitb(0 until m0) := nullFit.b
+
+    val fit = model.fit(nullFitb)
 
     val lrStats =
       if (fit.converged) {
         val chi2 = 2 * (fit.logLkhd - nullFit.logLkhd)
-        val p = chiSquaredTail(nullFit.df, chi2)
+        val p = chiSquaredTail(m - m0, chi2)
 
         Some(new LikelihoodRatioStats(fit.b, chi2, p))
       } else
@@ -94,25 +106,38 @@ object LikelihoodRatioStats {
 }
 
 case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotation = Annotation(b(0), chi2, p)
+  def toAnnotation = Annotation(b(-1), chi2, p)
 }
 
 
 object FirthTest extends LogisticRegressionTest {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[FirthStats] = {
+    val m = X.cols
+    val m0 = nullFit.b.length
     val model = new LogisticRegressionModel(X, y)
-    val fit = model.fitFirth(nullFit.b)
+    val nullFitFirth = model.fitFirth(nullFit.b)
+
+    val nullFitFirthb = DenseVector.zeros[Double](m)
+    nullFitFirthb(0 until m0) := nullFitFirth.b
+
+    val fitFirth = model.fitFirth(nullFitFirthb)
 
     val firthStats =
-      if (fit.converged) {
-        val chi2 = 2 * (fit.logLkhd - nullFit.logLkhd)
-        val p = chiSquaredTail(nullFit.df, chi2)
+      if (nullFitFirth.converged && fitFirth.converged) {
+        val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
+        val p = chiSquaredTail(m - m0, chi2)
 
-        Some(new FirthStats(fit.b, chi2, p))
+        println(s"nullFitFirthb = ${nullFitFirth.b}")
+        println(s"nullFitFirthLkhd = ${nullFitFirth.logLkhd}")
+        println(s"fitFirthLkhd = ${fitFirth.logLkhd}")
+        println(s"chi2 = $chi2")
+        println(s"p = $p")
+
+        Some(new FirthStats(fitFirth.b, chi2, p))
       } else
         None
 
-    new LogisticRegressionTestResultWithFit[FirthStats](firthStats, fit)
+    new LogisticRegressionTestResultWithFit[FirthStats](firthStats, fitFirth) // FIXME: modify fit annotations to deal with fitting null as well
   }
 
   def `type` = TStruct(
@@ -128,7 +153,7 @@ object FirthStats {
 }
 
 case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotation = Annotation(b(0), chi2, p)
+  def toAnnotation = Annotation(b(-1), chi2, p)
 }
 
 
@@ -136,24 +161,31 @@ object ScoreTest extends LogisticRegressionTest {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResult[ScoreStats] = {
     val scoreStats = {
       try {
-        val mu = sigmoid(X * nullFit.b)
+        val m = X.cols
+        val m0 = nullFit.b.length
+        val nullFitb = DenseVector.zeros[Double](m)
+        nullFitb(0 until m0) := nullFit.b
 
-        val r0 = 0 until nullFit.df
-        val r1 = nullFit.df to -1
+        val mu = sigmoid(X * nullFitb)
+
+        val r0 = 0 until m0
+        val r1 = m0 to -1
 
         val X0 = X(::, r0)
         val X1 = X(::, r1)
 
-        val score = nullFit.score.copy
-        score(r0) := X0.t * (y - mu)
+        val score = DenseVector.zeros[Double](m)
+        score(r0) := nullFit.score
+        score(r1) := X1.t * (y - mu)
 
-        val fisher = nullFit.fisher.copy
-        fisher(r0, r0) := X0.t * (X0(::, *) :* (mu :* (1d - mu)))
+        val fisher = DenseMatrix.zeros[Double](m, m)
+        fisher(r0, r0) := nullFit.fisher
         fisher(r0, r1) := X0.t * (X1(::, *) :* (mu :* (1d - mu)))
         fisher(r1, r0) := fisher(r0, r1).t
+        fisher(r1, r1) := X1.t * (X1(::, *) :* (mu :* (1d - mu)))
 
         val chi2 = score dot (fisher \ score)
-        val p = chiSquaredTail(nullFit.df, chi2)
+        val p = chiSquaredTail(m - m0, chi2)
 
         Some(new ScoreStats(chi2, p))
       } catch {
@@ -198,11 +230,9 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
 
   def fit(b0: DenseVector[Double], maxIter: Int = 25, tol: Double = 1E-6): LogisticRegressionFit = {
     require(X.cols == b0.length)
-    require(maxIter > 0)
 
     var b = b0.copy
     var deltaB = DenseVector.zeros[Double](m)
-    var mu = DenseVector.zeros[Double](n)
     var score = DenseVector.zeros[Double](m)
     var fisher = DenseMatrix.zeros[Double](m, m)
     var logLkhd = 0d
@@ -213,7 +243,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     while (!converged && !exploded && iter < maxIter) {
       try {
         iter += 1
-        mu = sigmoid(X * b)
+        val mu = sigmoid(X * b)
         score = X.t * (y - mu)
         fisher = X.t * (X(::, *) :* (mu :* (1d - mu)))
 
@@ -230,24 +260,24 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       }
     }
 
-    LogisticRegressionFit(b, score, fisher, logLkhd, 0, iter, converged, exploded)
+    LogisticRegressionFit(b, score, fisher, logLkhd, iter, converged, exploded)
   }
 
-  def fitFirth(b0: DenseVector[Double], colsToFit: Int = m, maxIter: Int = 25, tol: Double = 1E-6): LogisticRegressionFit = {
-    require(X.cols == b0.length)
-    require(maxIter > 0)
+  def fitFirth(b0: DenseVector[Double], maxIter: Int = 100, tol: Double = 1E-6): LogisticRegressionFit = {
+    require(b0.length <= m)
 
     var b = b0.copy
-    var deltaB = DenseVector.zeros[Double](m)
-    var mu = DenseVector.zeros[Double](n)
-    var score = DenseVector.zeros[Double](m)
-    var fisher = DenseMatrix.zeros[Double](m, m)
+    val m0 = b0.length
+    val X0 = if (m == m0) X else X(::, 0 until m0)
+
+    var score = DenseVector.zeros[Double](m0)
+    var fisher = DenseMatrix.zeros[Double](m0, m0)
     var logLkhd = 0d
     var iter = 0
     var converged = false
     var exploded = false
 
-    val X0 = X(::, 0 until colsToFit)
+    var deltaB = DenseVector.zeros[Double](m0)
 
     while (!converged && !exploded && iter < maxIter) {
       try {
@@ -257,14 +287,13 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         val XsqrtW = X(::,*) :* sqrt(mu :* (1d - mu))
         val QR = qr.reduced(XsqrtW)
         val sqrtH = norm(QR.q(*, ::)) // FIXME: implement norm2
-        val score = X0.t * (y - mu + (sqrtH :* sqrtH :* (.5 - mu)))
-        val r0 = QR.r(::, 0 until colsToFit)
-        val fisher = r0.t * r0
+        score = X0.t * (y - mu + (sqrtH :* sqrtH :* (0.5 - mu)))
+        val r = if (m == m0) QR.r else QR.r(::, 0 until m0)
+        fisher = r.t * r
 
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
-          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) +
-            sum(breeze.numerics.log(diag(cholesky(fisher)))) // FIXME: change to logdet?
+          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + 0.5 * breeze.linalg.logdet(fisher)._2
         } else {
           deltaB = fisher \ score
           b += deltaB
@@ -275,25 +304,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       }
     }
 
-    LogisticRegressionFit(b, score, fisher, logLkhd, 0, iter, converged, exploded)
-  }
-
-  def nullFit(b0: DenseVector[Double] = DenseVector.zeros[Double](m), df: Int = 1, maxIter: Int = 25, tol: Double = 1E-6, useFirth: Boolean = false): LogisticRegressionFit = {
-    val m = df + X.cols
-    val b = DenseVector.zeros[Double](m)
-    val score = DenseVector.zeros[Double](m)
-    val fisher = DenseMatrix.zeros[Double](m, m)
-    val fit0 =
-      if (useFirth)
-        fitFirth(b0, colsToFit = m - df + 1, maxIter=maxIter, tol=tol)
-      else
-        fit(b0, maxIter, tol)
-
-    b(df until m) := fit0.b
-    score(df until m) := fit0.score
-    fisher(df until m, df until m) := fit0.fisher
-
-    LogisticRegressionFit(b, score, fisher, fit0.logLkhd, df, fit0.nIter, fit0.converged, fit0.exploded)
+    LogisticRegressionFit(b, score, fisher, logLkhd, iter, converged, exploded)
   }
 }
 
@@ -309,7 +320,6 @@ case class LogisticRegressionFit(
   score: DenseVector[Double],
   fisher: DenseMatrix[Double],
   logLkhd: Double,
-  df: Int, // degrees of freedom of full model relative to this fit model (positive for null model, 0 for full model)
   nIter: Int,
   converged: Boolean,
   exploded: Boolean) {
