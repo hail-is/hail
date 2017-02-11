@@ -127,7 +127,9 @@ object FirthTest extends LogisticRegressionTest {
         val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
         val p = chiSquaredTail(m - m0, chi2)
 
-        println(s"nullFitFirthb = ${nullFitFirth.b}")
+        println(s"nullFitFirthB = ${nullFitFirth.b}")
+        println(s"nullFitFirthScore = ${nullFitFirth.score}")
+        println(s"nullFitFirthFisher = ${nullFitFirth.fisher}")
         println(s"nullFitFirthLkhd = ${nullFitFirth.logLkhd}")
         println(s"fitFirthLkhd = ${fitFirth.logLkhd}")
         println(s"chi2 = $chi2")
