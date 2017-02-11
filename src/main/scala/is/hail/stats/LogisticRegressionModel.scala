@@ -270,7 +270,8 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
 
     var b = b0.copy
     val m0 = b0.length
-    val X0 = if (m == m0) X else X(::, 0 until m0)
+    val fitAll = m == m0
+    val X0 = if (fitAll) X else X(::, 0 until m0)
 
     var score = DenseVector.zeros[Double](m0)
     var fisher = DenseMatrix.zeros[Double](m0, m0)
@@ -290,12 +291,13 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         val QR = qr.reduced(XsqrtW)
         val sqrtH = norm(QR.q(*, ::)) // FIXME: implement norm2
         score = X0.t * (y - mu + (sqrtH :* sqrtH :* (0.5 - mu)))
-        val r = if (m == m0) QR.r else QR.r(::, 0 until m0)
+        val r = if (fitAll) QR.r else QR.r(::, 0 until m0)
         fisher = r.t * r
 
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
-          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + 0.5 * breeze.linalg.logdet(fisher)._2
+          val fisherAll = if (fitAll) fisher else X.t * (X(::, *) :* (mu :* (1d - mu)))
+          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + 0.5 * breeze.linalg.logdet(fisherAll)._2
         } else {
           deltaB = fisher \ score
           b += deltaB
