@@ -44,7 +44,7 @@ object LogisticRegression {
     val nullFit = nullModel.fit(nullModel.bInterceptOnly())
 
     if (!nullFit.converged)
-      fatal("Failed to fit logistic regression null model (covariates only): " + (
+      fatal("Failed to fit (unregulatized) logistic regression null model (covariates only): " + (
         if (nullFit.exploded)
          s"exploded at Newton iteration ${nullFit.nIter}"
         else

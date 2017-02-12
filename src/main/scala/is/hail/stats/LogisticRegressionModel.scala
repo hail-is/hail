@@ -117,29 +117,24 @@ object FirthTest extends LogisticRegressionTest {
     val model = new LogisticRegressionModel(X, y)
     val nullFitFirth = model.fitFirth(nullFit.b)
 
-    val nullFitFirthb = DenseVector.zeros[Double](m)
-    nullFitFirthb(0 until m0) := nullFitFirth.b
+    if (nullFitFirth.converged) {
+      val nullFitFirthb = DenseVector.zeros[Double](m)
+      nullFitFirthb(0 until m0) := nullFitFirth.b
 
-    val fitFirth = model.fitFirth(nullFitFirthb)
+      val fitFirth = model.fitFirth(nullFitFirthb)
 
-    val firthStats =
-      if (nullFitFirth.converged && fitFirth.converged) {
-        val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
-        val p = chiSquaredTail(m - m0, chi2)
+      val firthStats =
+        if (fitFirth.converged) {
+          val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
+          val p = chiSquaredTail(m - m0, chi2)
 
-        println(s"nullFitFirthB = ${nullFitFirth.b}")
-        println(s"nullFitFirthScore = ${nullFitFirth.score}")
-        println(s"nullFitFirthFisher = ${nullFitFirth.fisher}")
-        println(s"nullFitFirthLkhd = ${nullFitFirth.logLkhd}")
-        println(s"fitFirthLkhd = ${fitFirth.logLkhd}")
-        println(s"chi2 = $chi2")
-        println(s"p = $p")
+          Some(new FirthStats(fitFirth.b, chi2, p))
+        } else
+          None
 
-        Some(new FirthStats(fitFirth.b, chi2, p))
-      } else
-        None
-
-    new LogisticRegressionTestResultWithFit[FirthStats](firthStats, fitFirth) // FIXME: modify fit annotations to deal with fitting null as well
+      new LogisticRegressionTestResultWithFit[FirthStats](firthStats, fitFirth)
+    } else
+      new LogisticRegressionTestResultWithFit[FirthStats](None, nullFitFirth)
   }
 
   def `type` = TStruct(
