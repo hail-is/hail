@@ -29,8 +29,6 @@ object LogisticRegression {
     if (!tests.isDefinedAt(test))
       fatal(s"Supported tests are ${tests.keys.mkString(", ")}, got: $test")
 
-    val useFirth = test == "firth"
-
     val n = y.size
     val k = cov.cols
     val d = n - k - 1
