@@ -37,7 +37,7 @@ object WaldTest extends LogisticRegressionTest {
       try {
         val se = sqrt(diag(inv(fit.fisher)))
         val z = fit.b :/ se
-        val p = z.map(zi => chiSquaredTail(1, zi * zi)) // fixme: change to normal tail?
+        val p = z.map(zi => 2 * pnorm(-math.abs(zi)))
 
         Some(new WaldStats(fit.b, se, z, p))
       } catch {
@@ -284,7 +284,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         val mu = sigmoid(X0 * b)
         val XsqrtW = X(::,*) :* sqrt(mu :* (1d - mu))
         val QR = qr.reduced(XsqrtW)
-        val sqrtH = norm(QR.q(*, ::)) // FIXME: implement norm2
+        val sqrtH = norm(QR.q(*, ::))
         score = X0.t * (y - mu + (sqrtH :* sqrtH :* (0.5 - mu)))
         val r = if (fitAll) QR.r else QR.r(::, 0 until m0)
         fisher = r.t * r
