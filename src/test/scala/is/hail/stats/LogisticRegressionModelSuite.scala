@@ -97,8 +97,6 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
     val scoreStats = ScoreTest.test(X, y, nullFit).stats.get
 
-    println(waldStats.b)
-
     assert(D_==(waldStats.b(0), -0.4811418, tolerance = 1.0E-6))
     assert(D_==(waldStats.b(1), -0.4293547, tolerance = 1.0E-6))
     assert(D_==(waldStats.b(2), -0.4214875, tolerance = 1.0E-6))
@@ -148,9 +146,6 @@ class LogisticRegressionModelSuite extends SparkSuite {
       assert(v.length == a.length)
       (v.data, a).zipped.foreach((ai, bi) => assert(D_==(ai, bi, tolerance)))
     }
-
-    // R returns intercept first, WaldTest returns tested coefficients first
-    def cycle(a: Array[Double]) = a.tail :+ a.head
 
     def readResults(file: String) = {
       hadoopConf.readLines(file) {
@@ -219,17 +214,14 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val nullModel = new LogisticRegressionModel(ones, y)
     val nullFit = nullModel.fit(nullModel.bInterceptOnly())
 
-    println(nullFit)
-
     val X = DenseMatrix.horzcat(ones, C)
 
     val waldStats = WaldTest.test(X, y, nullFit).stats.get
     val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
     val scoreStats = ScoreTest.test(X, y, nullFit).stats.get
-    val firthStats = FirthTest.test(X, y, nullFit).stats.get
-
-    //val firthB0 = DenseVector(nullFitFirth.b(0), 0d, 0d)
-    //val firthLogLkhd0 = nullFitFirth.firthLogLkhd(firthB0)
+    val firthTest = FirthTest.test(X, y, nullFit)
+    val firthStats = firthTest.stats.get
+    val firthFit = firthTest.fitStats
 
     assertArray(waldStats.b, waldBR)
     assertArray(waldStats.se, waldSeR)
@@ -243,18 +235,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     assert(D_==(scoreStats.p, scorePR, tol))
 
     assertArray(firthStats.b, firthBR)
-
-    println(s"firthLogLkhd0R = $firthLogLkhd0R")
-    println(s"firthLogLkhdR = $firthLogLkhdR")
-    println(s"firthChi2R = $firthChi2R")
-    println(s"firthPValR = $firthPValR")
-
-    //assert(D_==(firthLogLkhd0, firthLogLkhd0R, tol))
-    //assert(D_==(firthStats.logLkhd, firthLogLkhdR, tol))
-
-    println(firthStats.p)
-
+    assert(D_==(firthFit.logLkhd, firthLogLkhdR, tol))
     assert(D_==(firthStats.p, firthPValR, tol))
-
   }
 }
