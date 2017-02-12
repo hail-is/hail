@@ -50,7 +50,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
 
     assert(D_==(waldStats.z(0), 0.7710228, tolerance = 1.0E-6))
     assert(D_==(waldStats.z(1), -0.5740389, tolerance = 1.0E-6))
-    assert(D_==(waldStats.z(2), 0.4216421, tolerance = 1.0E-6))
+    assert(D_==(waldStats.z(2), 0.4216421, tolerance = 1.0E-5))
 
     assert(D_==(waldStats.p(0), 0.4406934, tolerance = 1.0E-6))
     assert(D_==(waldStats.p(1), 0.5659415, tolerance = 1.0E-6))

@@ -233,22 +233,22 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     var score = DenseVector.zeros[Double](m)
     var fisher = DenseMatrix.zeros[Double](m, m)
     var logLkhd = 0d
-    var iter = 0
+    var iter = 1
     var converged = false
     var exploded = false
 
-    while (!converged && !exploded && iter < maxIter) {
+    while (!converged && !exploded && iter <= maxIter) {
       try {
-        iter += 1
         val mu = sigmoid(X * b)
         score = X.t * (y - mu)
         fisher = X.t * (X(::, *) :* (mu :* (1d - mu)))
+        deltaB = fisher \ score
 
-        if (max(abs(deltaB)) < tol && iter > 1) {
+        if (max(abs(deltaB)) < tol) {
           converged = true
           logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu))))
         } else {
-          deltaB = fisher \ score
+          iter += 1
           b += deltaB
         }
       } catch {
@@ -271,16 +271,14 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     var score = DenseVector.zeros[Double](m0)
     var fisher = DenseMatrix.zeros[Double](m0, m0)
     var logLkhd = 0d
-    var iter = 0
+    var iter = 1
     var converged = false
     var exploded = false
 
     var deltaB = DenseVector.zeros[Double](m0)
 
-    while (!converged && !exploded && iter < maxIter) {
+    while (!converged && !exploded && iter <= maxIter) {
       try {
-        iter += 1
-
         val mu = sigmoid(X0 * b)
         val XsqrtW = X(::,*) :* sqrt(mu :* (1d - mu))
         val QR = qr.reduced(XsqrtW)
@@ -288,13 +286,14 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         score = X0.t * (y - mu + (sqrtH :* sqrtH :* (0.5 - mu)))
         val r = if (fitAll) QR.r else QR.r(::, 0 until m0)
         fisher = r.t * r
+        deltaB = fisher \ score
 
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
           val fisherAll = if (fitAll) fisher else X.t * (X(::, *) :* (mu :* (1d - mu)))
           logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + 0.5 * breeze.linalg.logdet(fisherAll)._2
         } else {
-          deltaB = fisher \ score
+          iter += 1
           b += deltaB
         }
       } catch {
