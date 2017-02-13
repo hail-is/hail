@@ -31,12 +31,11 @@ object WaldTest extends LogisticRegressionTest {
     val nullFitb = DenseVector.zeros[Double](X.cols)
     nullFitb(0 until nullFit.b.length) := nullFit.b
 
-    val fit = model.fit(nullFitb)
+    val fit = model.fit(nullFitb, computeSe=true)
 
     val waldStats = if (fit.converged) {
       try {
-        val invFisherSqrt = inv(fit.fisherSqrt) // could speed up inverting upper triangular, or avoid altogether as 1 / se(-1) = fit.fisherSqrt(-1, -1)
-        val se = norm(invFisherSqrt(*, ::))
+        val se = fit.optSe.get
         val z = fit.b :/ se
         val p = z.map(zi => 2 * pnorm(-math.abs(zi)))
 
@@ -80,11 +79,11 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
     val nullFitb = DenseVector.zeros[Double](m)
     nullFitb(0 until m0) := nullFit.b
 
-    val fit = model.fit(nullFitb)
+    val fit = model.fit(nullFitb, computeLogLkld = true)
 
     val lrStats =
       if (fit.converged) {
-        val chi2 = 2 * (fit.logLkhd - nullFit.logLkhd)
+        val chi2 = 2 * (fit.optLogLkhd.get - nullFit.optLogLkhd.get)
         val p = chiSquaredTail(m - m0, chi2)
 
         Some(new LikelihoodRatioStats(fit.b, chi2, p))
@@ -126,7 +125,7 @@ object FirthTest extends LogisticRegressionTest {
 
       val firthStats =
         if (fitFirth.converged) {
-          val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
+          val chi2 = 2 * (fitFirth.optLogLkhd.get - nullFitFirth.optLogLkhd.get)
           val p = chiSquaredTail(m - m0, chi2)
 
           Some(new FirthStats(fitFirth.b, chi2, p))
@@ -173,11 +172,12 @@ object ScoreTest extends LogisticRegressionTest {
         val X1 = X(::, r1)
 
         val score = DenseVector.zeros[Double](m)
-        score(r0) := nullFit.score
+        score(r0) := nullFit.optScore.get
         score(r1) := X1.t * (y - mu)
 
         val fisher = DenseMatrix.zeros[Double](m, m)
-        fisher(r0, r0) := nullFit.fisherSqrt.t * nullFit.fisherSqrt
+        val R = nullFit.optR.get
+        fisher(r0, r0) := R.t * R
         fisher(r0, r1) := X0.t * (X1(::, *) :* (mu :* (1d - mu)))
         fisher(r1, r0) := fisher(r0, r1).t
         fisher(r1, r1) := X1.t * (X1(::, *) :* (mu :* (1d - mu)))
@@ -226,14 +226,15 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     b
   }
 
-  def fit(b0: DenseVector[Double], maxIter: Int = 25, tol: Double = 1E-6): LogisticRegressionFit = {
+  def fit(b0: DenseVector[Double], computeScoreR: Boolean = false, computeSe: Boolean = false, computeLogLkld: Boolean = false, maxIter: Int = 25, tol: Double = 1E-6): LogisticRegressionFit = {
     require(X.cols == b0.length)
 
     var b = b0.copy
     var deltaB = DenseVector.zeros[Double](m)
-    var score = DenseVector.zeros[Double](m)
-    var fisherSqrt = DenseMatrix.zeros[Double](m, m)
-    var logLkhd = 0d
+    var optScore: Option[DenseVector[Double]] = None
+    var optR: Option[DenseMatrix[Double]] = None
+    var optSe: Option[DenseVector[Double]] = None
+    var optLogLkhd: Option[Double] = None
     var iter = 1
     var converged = false
     var exploded = false
@@ -248,9 +249,16 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
 
         if (max(abs(deltaB)) < tol) {
           converged = true
-          score = X.t * (y - mu)
-          fisherSqrt = QR.r
-          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu))))
+          if (computeScoreR) {
+            optScore = Some(X.t * (y - mu))
+            optR = Some(QR.r)
+          }
+          if (computeSe) {
+            val invR = inv(QR.r)  // could speed up inverting as upper triangular, or avoid altogether as 1 / se(-1) = fit.fisherSqrt(-1, -1)
+            optSe = Some(norm(invR(*, ::)))
+          }
+          if (computeLogLkld)
+            optLogLkhd = Some(sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))))
         } else {
           iter += 1
           b += deltaB
@@ -261,7 +269,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       }
     }
 
-    LogisticRegressionFit(b, score, fisherSqrt, logLkhd, iter, converged, exploded)
+    LogisticRegressionFit(b, optScore, optR, optSe, optLogLkhd, iter, converged, exploded)
   }
 
   def fitFirth(b0: DenseVector[Double], maxIter: Int = 100, tol: Double = 1E-6): LogisticRegressionFit = {
@@ -269,11 +277,6 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
 
     var b = b0.copy
     val m0 = b0.length
-    val fitAll = m == m0
-    val X0 = if (fitAll) X else X(::, 0 until m0)
-
-    var score = DenseVector.zeros[Double](m0)
-    var fisherSqrt = DenseMatrix.zeros[Double](m0, m0)
     var logLkhd = 0d
     var iter = 1
     var converged = false
@@ -283,13 +286,11 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
 
     while (!converged && !exploded && iter <= maxIter) {
       try {
-        val mu = sigmoid(X0 * b)
+        val mu = sigmoid(X(::, 0 until m0) * b)
         val sqrtW = sqrt(mu :* (1d - mu))
         val QR = qr.reduced(X(::, *) :* sqrtW)
         val sqrtH = norm(QR.q(*, ::))
-        score = X0.t * (y - mu + (sqrtH :* sqrtH :* (0.5 - mu)))
-        fisherSqrt = if (fitAll) QR.r else QR.r(::, 0 until m0)
-        deltaB = (fisherSqrt.t * fisherSqrt) \ score
+        deltaB = TriSolve(QR.r(0 until m0, 0 until m0), QR.q(::, 0 until m0).t * ((y - mu) + (sqrtH :* sqrtH :* (0.5 - mu)) :/ sqrtW))
 
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
@@ -304,7 +305,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       }
     }
 
-    LogisticRegressionFit(b, score, fisherSqrt, logLkhd, iter, converged, exploded)
+    LogisticRegressionFit(b, None, None, None, Some(logLkhd), iter, converged, exploded)
   }
 }
 
@@ -317,9 +318,10 @@ object LogisticRegressionFit {
 
 case class LogisticRegressionFit(
   b: DenseVector[Double],
-  score: DenseVector[Double],
-  fisherSqrt: DenseMatrix[Double],
-  logLkhd: Double,
+  optScore: Option[DenseVector[Double]],
+  optR: Option[DenseMatrix[Double]],
+  optSe: Option[DenseVector[Double]],
+  optLogLkhd: Option[Double],
   nIter: Int,
   converged: Boolean,
   exploded: Boolean) {

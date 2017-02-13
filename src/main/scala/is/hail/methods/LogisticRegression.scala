@@ -39,7 +39,11 @@ object LogisticRegression {
     info(s"Running $test logreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
-    val nullFit = nullModel.fit(nullModel.bInterceptOnly())
+    val nullFit = nullModel.fit(
+      nullModel.bInterceptOnly(),
+      computeScoreR = test == "score",
+      computeSe = test == "wald",
+      computeLogLkld = test == "lrt" || test == "firth")
 
     if (!nullFit.converged)
       fatal("Failed to fit (unregulatized) logistic regression null model (covariates only): " + (

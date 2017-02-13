@@ -32,7 +32,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val ones = DenseMatrix.fill[Double](6, 1)(1d)
 
     val nullModel = new LogisticRegressionModel(ones, y)
-    val nullFit = nullModel.fit(nullModel.bInterceptOnly())
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreR = true, computeSe = true, computeLogLkld = true)
 
     val X = DenseMatrix.horzcat(ones, C)
 
@@ -56,7 +56,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     assert(D_==(waldStats.p(1), 0.5659415, tolerance = 1.0E-6))
     assert(D_==(waldStats.p(2), 0.6732863, tolerance = 1.0E-6))
 
-    assert(D_==(nullFit.logLkhd, -3.81908501, tolerance = 1.0E-6))
+    assert(D_==(nullFit.optLogLkhd.get, -3.81908501, tolerance = 1.0E-6))
     assert(D_==(lrStats.chi2, 0.351536062, tolerance = 1.0E-6))
     assert(D_==(lrStats.p, 0.8388125392, tolerance = 1.0E-5))
 
@@ -89,7 +89,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val gts = DenseVector(0d, 1d, 2d, 0d, 0d, 1d)
 
     val nullModel = new LogisticRegressionModel(C, y)
-    val nullFit = nullModel.fit(nullModel.bInterceptOnly())
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreR = true, computeSe = true, computeLogLkld = true)
 
     val X = DenseMatrix.horzcat(C, gts.asDenseMatrix.t)
 
@@ -124,7 +124,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     pval <- lrtest[["Pr(>Chi)"]][2]
     */
 
-    assert(D_==(nullFit.logLkhd, -3.643316979, tolerance = 1.0E-6))
+    assert(D_==(nullFit.optLogLkhd.get, -3.643316979, tolerance = 1.0E-6))
     assert(D_==(lrStats.chi2, 0.8733246, tolerance = 1.0E-6))
     assert(D_==(lrStats.p, 0.3500365602, tolerance = 1.0E-6))
 
@@ -212,7 +212,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val ones = DenseMatrix.fill[Double](6, 1)(1d)
 
     val nullModel = new LogisticRegressionModel(ones, y)
-    val nullFit = nullModel.fit(nullModel.bInterceptOnly())
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreR = true, computeSe = true, computeLogLkld = true)
 
     val X = DenseMatrix.horzcat(ones, C)
 
@@ -235,7 +235,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     assert(D_==(scoreStats.p, scorePR, tol))
 
     assertArray(firthStats.b, firthBR)
-    assert(D_==(firthFit.logLkhd, firthLogLkhdR, tol))
+    assert(D_==(firthFit.optLogLkhd.get, firthLogLkhdR, tol))
     assert(D_==(firthStats.p, firthPValR, tol))
   }
 }
