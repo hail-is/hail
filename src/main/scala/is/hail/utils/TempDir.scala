@@ -13,15 +13,17 @@ object TempDir {
       try {
         val dir = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
 
-        assert(!hConf.exists(dir))
+        if (hConf.exists(dir)) {
+          // try again
+        } else {
+          hConf.mkDir(dir)
 
-        hConf.mkDir(dir)
+          val fs = hConf.fileSystem(tmpdir)
+          val qDir = fs.makeQualified(new hadoop.fs.Path(dir))
+          fs.deleteOnExit(qDir)
 
-        val fs = hConf.fileSystem(tmpdir)
-        val qDir = fs.makeQualified(new hadoop.fs.Path(dir))
-        fs.deleteOnExit(qDir)
-
-        return qDir.toString
+          return qDir.toString
+        }
       } catch {
         case e: IOException =>
         // try again
