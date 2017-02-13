@@ -1093,7 +1093,7 @@ class VariantDataset(object):
         """
 
         pargs = ['cache']
-        self.hc._run_command(self, pargs)
+        return self.hc._run_command(self, pargs)
 
     def concordance(self, right):
         """Calculate call concordance with another dataset.
@@ -2847,7 +2847,7 @@ class VariantDataset(object):
         if storage_level:
             pargs.append('-s')
             pargs.append(storage_level)
-        self.hc._run_command(self, pargs)
+        return self.hc._run_command(self, pargs)
 
     @property
     def global_schema(self):
