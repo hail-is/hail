@@ -176,8 +176,7 @@ object ScoreTest extends LogisticRegressionTest {
         score(r1) := X1.t * (y - mu)
 
         val fisher = DenseMatrix.zeros[Double](m, m)
-        val R = nullFit.optR.get
-        fisher(r0, r0) := R.t * R
+        fisher(r0, r0) := nullFit.optFisher.get
         fisher(r0, r1) := X0.t * (X1(::, *) :* (mu :* (1d - mu)))
         fisher(r1, r0) := fisher(r0, r1).t
         fisher(r1, r1) := X1.t * (X1(::, *) :* (mu :* (1d - mu)))
@@ -226,13 +225,13 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     b
   }
 
-  def fit(b0: DenseVector[Double], computeScoreR: Boolean = false, computeSe: Boolean = false, computeLogLkld: Boolean = false, maxIter: Int = 25, tol: Double = 1E-6): LogisticRegressionFit = {
+  def fit(b0: DenseVector[Double], computeScoreFisher: Boolean = false, computeSe: Boolean = false, computeLogLkld: Boolean = false, maxIter: Int = 25, tol: Double = 1E-6): LogisticRegressionFit = {
     require(X.cols == b0.length)
 
     var b = b0.copy
     var deltaB = DenseVector.zeros[Double](m)
     var optScore: Option[DenseVector[Double]] = None
-    var optR: Option[DenseMatrix[Double]] = None
+    var optFisher: Option[DenseMatrix[Double]] = None
     var optSe: Option[DenseVector[Double]] = None
     var optLogLkhd: Option[Double] = None
     var iter = 1
@@ -242,20 +241,19 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     while (!converged && !exploded && iter <= maxIter) {
       try {
         val mu = sigmoid(X * b)
-        val sqrtW = sqrt(mu :* (1d - mu))
-        val QR = qr.reduced(X(::, *) :* sqrtW)
-
-        deltaB = TriSolve(QR.r, QR.q.t * ((y - mu) :/ sqrtW))
+        val score = X.t * (y - mu)
+        val fisher = X.t * (X(::, *) :* (mu :* (1d - mu)))
+        deltaB = fisher \ score
 
         if (max(abs(deltaB)) < tol) {
           converged = true
-          if (computeScoreR) {
-            optScore = Some(X.t * (y - mu))
-            optR = Some(QR.r)
+
+          if (computeScoreFisher) {
+            optScore = Some(score)
+            optFisher = Some(fisher)
           }
           if (computeSe) {
-            val invR = inv(QR.r)  // could speed up inverting as upper triangular, or avoid altogether as 1 / se(-1) = fit.fisherSqrt(-1, -1)
-            optSe = Some(norm(invR(*, ::)))
+            optSe = Some(sqrt(diag(inv(fisher))))
           }
           if (computeLogLkld)
             optLogLkhd = Some(sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))))
@@ -269,7 +267,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       }
     }
 
-    LogisticRegressionFit(b, optScore, optR, optSe, optLogLkhd, iter, converged, exploded)
+    LogisticRegressionFit(b, optScore, optFisher, optSe, optLogLkhd, iter, converged, exploded)
   }
 
   def fitFirth(b0: DenseVector[Double], maxIter: Int = 100, tol: Double = 1E-6): LogisticRegressionFit = {
@@ -319,7 +317,7 @@ object LogisticRegressionFit {
 case class LogisticRegressionFit(
   b: DenseVector[Double],
   optScore: Option[DenseVector[Double]],
-  optR: Option[DenseMatrix[Double]],
+  optFisher: Option[DenseMatrix[Double]],
   optSe: Option[DenseVector[Double]],
   optLogLkhd: Option[Double],
   nIter: Int,

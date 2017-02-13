@@ -41,7 +41,7 @@ object LogisticRegression {
     val nullModel = new LogisticRegressionModel(cov, y)
     val nullFit = nullModel.fit(
       nullModel.bInterceptOnly(),
-      computeScoreR = test == "score",
+      computeScoreFisher = test == "score",
       computeSe = test == "wald",
       computeLogLkld = test == "lrt" || test == "firth")
 

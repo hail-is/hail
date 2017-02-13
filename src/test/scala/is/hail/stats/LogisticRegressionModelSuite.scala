@@ -32,7 +32,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val ones = DenseMatrix.fill[Double](6, 1)(1d)
 
     val nullModel = new LogisticRegressionModel(ones, y)
-    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreR = true, computeSe = true, computeLogLkld = true)
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreFisher = true, computeSe = true, computeLogLkld = true)
 
     val X = DenseMatrix.horzcat(ones, C)
 
@@ -89,7 +89,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val gts = DenseVector(0d, 1d, 2d, 0d, 0d, 1d)
 
     val nullModel = new LogisticRegressionModel(C, y)
-    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreR = true, computeSe = true, computeLogLkld = true)
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreFisher = true, computeSe = true, computeLogLkld = true)
 
     val X = DenseMatrix.horzcat(C, gts.asDenseMatrix.t)
 
@@ -212,7 +212,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val ones = DenseMatrix.fill[Double](6, 1)(1d)
 
     val nullModel = new LogisticRegressionModel(ones, y)
-    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreR = true, computeSe = true, computeLogLkld = true)
+    val nullFit = nullModel.fit(nullModel.bInterceptOnly(), computeScoreFisher = true, computeSe = true, computeLogLkld = true)
 
     val X = DenseMatrix.horzcat(ones, C)
 
