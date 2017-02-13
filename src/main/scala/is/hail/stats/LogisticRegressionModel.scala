@@ -288,13 +288,12 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         val QR = qr.reduced(XsqrtW)
         val sqrtH = norm(QR.q(*, ::))
         score = X0.t * (y - mu + (sqrtH :* sqrtH :* (0.5 - mu)))
-        val fisherSqrt = if (fitAll) QR.r else QR.r(::, 0 until m0)
+        fisherSqrt = QR.r(::, 0 until m0)
         deltaB = (fisherSqrt.t * fisherSqrt) \ score
 
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
-          val logDetFisherSqrtAll = if (fitAll) sum(log(diag(fisherSqrt))) else breeze.linalg.logdet(XsqrtW)._2
-          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + logDetFisherSqrtAll
+          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + sum(log(abs(diag(QR.r))))
         } else {
           iter += 1
           b += deltaB
