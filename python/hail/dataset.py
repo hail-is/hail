@@ -811,26 +811,29 @@ class VariantDataset(object):
     def annotate_variants_keytable(self, keytable, condition, vds_key=None):
         """Annotate variants with an expression that may depend on a :py:class:`.KeyTable`.
 
-        If `vds_key` is specified, it must be a list of hail expressions which whose types
+        If `vds_key` is None, the keytable's key must be exactly one column and
+        that column must have type *Variant*.
+
+        If `vds_key` is not None, it must be a list of hail expressions which whose types
         match, in order, `keytable`'s key type.
 
         **Examples**
 
-        Add annotations from a TSV:
+        Add annotations from a variant-keyed TSV:
 
         >>> kt = hc.import_keytable('data/variant-lof.tsv', 'v')
         >>>
         >>> (hc.read('data/example.vds')
         >>>    .annotate_variants_keytable(kt, 'va.lof = table.lof'))
 
-        Use a TSV as a map from existing annotations to new annotations:
+        Add annotations from a gene-and-type-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/locus-metadata.tsv', ['locus','logscore'])
+        >>> kt = hc.import_keytable('data/locus-metadata.tsv', ['gene', 'type'])
         >>>
         >>> (hc.read('data/example-with-populations.vds')
         >>>    .annotate_variants_keytable(kt,
         >>>       'va.foo = table.foo',
-        >>>       ['v.locus', 'log(va.score)']))
+        >>>       ['v.gene', 'if (va.score > 10) "Type1" else "Type2"']))
 
         **Notes**
 
