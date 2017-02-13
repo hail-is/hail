@@ -16,7 +16,7 @@ object MaximalIndependentSet {
     //Collect all vertices.
     val allVertices = vertexPairs.flatMap[String](vertexPair => List(vertexPair._1, vertexPair._2)).distinct()
 
-    val numberedVertices: RDD[(String, VertexId)] = allVertices.zip(sc.parallelize(0L until allVertices.count()))
+    val numberedVertices: RDD[(String, VertexId)] = allVertices.zipWithIndex()
 
     val verticesToNumbers = numberedVertices.collectAsMap()
     val numbersToVertices = numberedVertices.map(pair => (pair._2, pair._1)).collectAsMap()
@@ -24,11 +24,12 @@ object MaximalIndependentSet {
 
     val edges: RDD[Edge[Double]] = filteredRDD.map(tuple => Edge(verticesToNumbers(tuple._1._1), verticesToNumbers(tuple._1._2), tuple._2))
 
-    val vertices: VertexRDD[String] = VertexRDD[String](numberedVertices.map(pair => (pair._2, pair._1)))
+    val vertices: VertexRDD[String] = VertexRDD[String](numberedVertices.map{ case (id, index) => (index, id)})
 
     val stringGraph: Graph[String, Double] = Graph(vertices, edges)
 
-    var graph = Graph[((VertexId, Int), VertexId), Double](stringGraph.collectNeighborIds(EdgeDirection.Either).map(pair => (pair._1, ((pair._1, pair._2.size), -1L))), stringGraph.edges)
+    var graph = Graph[((VertexId, Int), VertexId), Double](stringGraph.collectNeighborIds(EdgeDirection.Either)
+      .map{ case(v, neighbors) => (v, ((v, neighbors.size), -1L))}, stringGraph.edges)
 
 
     // Initially set each vertex to its own degree.
