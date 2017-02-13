@@ -104,16 +104,13 @@ class eigSymDSuite extends SparkSuite {
     val rand = new JDKRandomGenerator()
     rand.setSeed(seed)
 
-    val n = 5
+    (1 to 5).foreach { n =>
+      val A = DenseMatrix.zeros[Double](n, n)
+      (0 until n).foreach(i => (i until n).foreach(j => A(i,j) = rand.nextGaussian()))
 
-    val A = DenseMatrix.zeros[Double](n, n)
-    (0 until n).foreach(i => (i until n).foreach(j => A(i,j) = rand.nextGaussian()))
+      val x = DenseVector.fill[Double](n)(rand.nextGaussian())
 
-    val x = DenseVector.fill[Double](n)(rand.nextGaussian())
-
-    val B = A * x
-    val x1 = TriSolve(A, B)
-
-    TestUtils.assertVectorEqualityDouble(x, x1)
+      TestUtils.assertVectorEqualityDouble(x, TriSolve(A, A * x))
+    }
   }
 }

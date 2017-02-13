@@ -284,22 +284,20 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
   def fitFirth(b0: DenseVector[Double], maxIter: Int = 100, tol: Double = 1E-6): LogisticRegressionFit = {
     require(b0.length <= m)
 
-    var b = b0.copy
+    val b = b0.copy
     val m0 = b0.length
     var logLkhd = 0d
     var iter = 1
     var converged = false
     var exploded = false
 
-    var deltaB = DenseVector.zeros[Double](m0)
-
     while (!converged && !exploded && iter <= maxIter) {
       try {
         val mu = sigmoid(X(::, 0 until m0) * b)
         val sqrtW = sqrt(mu :* (1d - mu))
         val QR = qr.reduced(X(::, *) :* sqrtW)
-        val sqrtH = norm(QR.q(*, ::))
-        deltaB = TriSolve(QR.r(0 until m0, 0 until m0), QR.q(::, 0 until m0).t * ((y - mu) + (sqrtH :* sqrtH :* (0.5 - mu)) :/ sqrtW))
+        val h = QR.q(*, ::).map(r => r dot r)
+        val deltaB = TriSolve(QR.r(0 until m0, 0 until m0), QR.q(::, 0 until m0).t * ((y - mu) + (h :* (0.5 - mu)) :/ sqrtW))
 
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
@@ -336,3 +334,4 @@ case class LogisticRegressionFit(
 
   def toAnnotation: Annotation = Annotation(nIter, converged, exploded)
 }
+

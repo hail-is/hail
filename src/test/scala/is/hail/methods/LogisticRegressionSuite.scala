@@ -292,9 +292,10 @@ class LogisticRegressionSuite extends SparkSuite {
       "-t", "PC1: Double, PC2: Double",
       "-e", "IND_ID"))
 
-    val vds = LogisticRegression(s.vds, "wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg")
-    val vds2 = LogisticRegression(vds, "lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg2")
-    val vds3 = LogisticRegression(vds2, "score", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.logreg3")
+    val vds = LogisticRegression(s.vds, "wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
+    val vds2 = LogisticRegression(vds, "lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
+    val vds3 = LogisticRegression(vds2, "score", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.score")
+    val vds4 = LogisticRegression(vds3, "firth", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.firth")
 
     // 2535 samples from 1K Genomes Project
     val v1 = Variant("22", 16060511, "T", "TTC") // MAC  623
@@ -303,14 +304,16 @@ class LogisticRegressionSuite extends SparkSuite {
     val v4 = Variant("22", 16117940, "T", "G")   // MAC    7
     val v5 = Variant("22", 16117953, "G", "C")   // MAC   21
 
-    val qBeta = vds3.queryVA("va.logreg.wald.beta")._2
-    val qSe = vds3.queryVA("va.logreg.wald.se")._2
-    val qZstat = vds3.queryVA("va.logreg.wald.zstat")._2
-    val qPVal = vds3.queryVA("va.logreg.wald.pval")._2
-    val qPValLR = vds3.queryVA("va.logreg2.lrt.pval")._2
-    val qPValScore = vds3.queryVA("va.logreg3.score.pval")._2
+    val qBeta = vds4.queryVA("va.wald.wald.beta")._2
+    val qSe = vds4.queryVA("va.wald.wald.se")._2
+    val qZstat = vds4.queryVA("va.wald.wald.zstat")._2
+    val qPVal = vds4.queryVA("va.wald.wald.pval")._2
+    val qPValLR = vds4.queryVA("va.lrt.lrt.pval")._2
+    val qPValScore = vds4.queryVA("va.score.score.pval")._2
+    val qBetaFirth = vds4.queryVA("va.firth.firth.beta")._2
+    val qPValFirth = vds4.queryVA("va.firth.firth.pval")._2
 
-    val annotationMap = vds3.variantsAndAnnotations
+    val annotationMap = vds4.variantsAndAnnotations
       .collect()
       .toMap
 
@@ -327,6 +330,8 @@ class LogisticRegressionSuite extends SparkSuite {
     assertDouble(qPVal, v1, 0.26516)
     assertDouble(qPValLR, v1, 0.26475)
     assertDouble(qPValScore, v1, 0.26499)
+    assertDouble(qBetaFirth, v1, -0.097079)
+    assertDouble(qPValFirth, v1, 0.26593)
 
     assertDouble(qBeta, v2, -0.052632)
     assertDouble(qSe, v2, 0.11272)
@@ -334,6 +339,8 @@ class LogisticRegressionSuite extends SparkSuite {
     assertDouble(qPVal, v2, 0.64056)
     assertDouble(qPValLR, v2, 0.64046)
     assertDouble(qPValScore, v2, 0.64054)
+    assertDouble(qBetaFirth, v2, -0.052301)
+    assertDouble(qPValFirth, v2, 0.64197)
 
     assertDouble(qBeta, v3, -0.15598)
     assertDouble(qSe, v3, 0.079508)
@@ -341,6 +348,8 @@ class LogisticRegressionSuite extends SparkSuite {
     assertDouble(qPVal, v3, 0.049779)
     assertDouble(qPValLR, v3, 0.049675)
     assertDouble(qPValScore, v3, 0.049717)
+    assertDouble(qBetaFirth, v3, -0.15567)
+    assertDouble(qPValFirth, v3, 0.04991	)
 
     assertDouble(qBeta, v4, -0.88059)
     assertDouble(qSe, v4, 0.83769, 1e-3)
@@ -348,6 +357,8 @@ class LogisticRegressionSuite extends SparkSuite {
     assertDouble(qPVal, v4, 0.29316, 1e-2)
     assertDouble(qPValLR, v4, 0.26984)
     assertDouble(qPValScore, v4, 0.27828)
+    assertDouble(qBetaFirth, v4, -0.7524)
+    assertDouble(qPValFirth, v4, 0.30731)
 
     assertDouble(qBeta, v5, 0.54921)
     assertDouble(qSe, v5, 0.4517, 1e-3)
@@ -355,5 +366,7 @@ class LogisticRegressionSuite extends SparkSuite {
     assertDouble(qPVal, v5, 0.22403, 1e-3)
     assertDouble(qPValLR, v5, 0.21692)
     assertDouble(qPValScore, v5, 0.21849)
+    assertDouble(qBetaFirth, v5, 0.5258)
+    assertDouble(qPValFirth, v5, 0.22562)
   }
 }
