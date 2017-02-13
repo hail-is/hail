@@ -135,3 +135,32 @@ object eigSymR extends UFunc {
     (W, if (rightEigenvectors) Some(Z) else None)
   }
 }
+
+// FIXME: what assumptions does this make about B and A?
+object TriSolve {
+  /* Solve for X in A * X = B with upper triangular A
+  // http://www.netlib.org/lapack/explore-html/da/dba/group__double_o_t_h_e_rcomputational_ga4e87e579d3e1a56b405d572f868cd9a1.html
+   */
+  def apply(A: DenseMatrix[Double], B: DenseMatrix[Double]): DenseMatrix[Double] = {
+    require(A.rows == A.cols)
+    require(A.rows == B.rows)
+
+    val X = B.copy
+    assert(!X.isTranspose)
+
+    val info: Int = {
+      val info = new intW(0)
+      lapack.dtrtrs("U", "N", "N", A.rows, B.cols, A.data, A.rows, X.data, X.rows, info) // X := A \ X
+      info.`val`
+    }
+
+    if (info > 0)
+      throw new MatrixSingularException()
+    else if (info < 0)
+      throw new IllegalArgumentException()
+
+    X
+  }
+
+  def apply(A: DenseMatrix[Double], v: DenseVector[Double]): DenseVector[Double] = new DenseVector(TriSolve(A, new DenseMatrix[Double](v.length, 1, v.data)).data)
+}

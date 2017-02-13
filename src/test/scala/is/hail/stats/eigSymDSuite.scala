@@ -98,4 +98,24 @@ class eigSymDSuite extends SparkSuite {
 
     timeSymEig()
   }
+
+  @Test def triSolveTest() {
+    val seed = 0
+
+    val rand = new JDKRandomGenerator()
+    rand.setSeed(seed)
+
+    val n = 5
+    val m = 2
+
+    val A = DenseMatrix.zeros[Double](n, n)
+    (0 until n).foreach(i => (i until n).foreach(j => A(i,j) = rand.nextGaussian()))
+
+    val X = DenseMatrix.fill[Double](n, m)(rand.nextGaussian())
+
+    val B = A * X
+    val X1 = TriSolve(A, B)
+
+    TestUtils.assertMatrixEqualityDouble(X, X1)
+  }
 }
