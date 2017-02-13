@@ -1,7 +1,6 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import org.apache.spark.graphx.{Edge, Graph, VertexId, VertexRDD}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
@@ -11,23 +10,6 @@ import org.testng.annotations.Test
 class MaximalIndependentSetSuite extends SparkSuite {
 
 
-  /*@Test def cc() {
-    val vertices: VertexRDD[String] = VertexRDD(sc.parallelize(Array(
-      (1L, "A"), (2L, "B"), (3L, "C"), (4L, "D"), (5L, "E")
-    )))
-
-    val edges: RDD[Edge[Double]] = sc.parallelize(Array(
-      Edge(1L, 2L, 0.0), Edge(2L, 5L, 0.0), Edge(3L, 4L, 0.0)
-    ))
-
-    val graph = Graph(vertices, edges)
-
-    val cced = graph.connectedComponents().vertices
-
-    val x: RDD[(VertexId, Iterable[(VertexId, VertexId)])] = cced.groupBy(_._2)
-
-
-  }*/
 
   @Test def worksAtAll() {
     val input = sc.parallelize(Array(
