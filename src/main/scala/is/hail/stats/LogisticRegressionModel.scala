@@ -273,7 +273,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     val X0 = if (fitAll) X else X(::, 0 until m0)
 
     var score = DenseVector.zeros[Double](m0)
-    var fisher = DenseMatrix.zeros[Double](m0, m0)
+    var fisherSqrt = DenseMatrix.zeros[Double](m0, m0)
     var logLkhd = 0d
     var iter = 1
     var converged = false
@@ -288,14 +288,13 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
         val QR = qr.reduced(XsqrtW)
         val sqrtH = norm(QR.q(*, ::))
         score = X0.t * (y - mu + (sqrtH :* sqrtH :* (0.5 - mu)))
-        val r = if (fitAll) QR.r else QR.r(::, 0 until m0)
-        fisher = r.t * r
-        deltaB = fisher \ score
+        val fisherSqrt = if (fitAll) QR.r else QR.r(::, 0 until m0)
+        deltaB = (fisherSqrt.t * fisherSqrt) \ score
 
         if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
-          val fisherAll = if (fitAll) fisher else X.t * (X(::, *) :* (mu :* (1d - mu)))
-          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + 0.5 * breeze.linalg.logdet(fisherAll)._2
+          val logDetFisherSqrtAll = if (fitAll) sum(log(diag(fisherSqrt))) else breeze.linalg.logdet(XsqrtW)._2
+          logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu)))) + logDetFisherSqrtAll
         } else {
           iter += 1
           b += deltaB
@@ -306,7 +305,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       }
     }
 
-    LogisticRegressionFit(b, score, fisher, logLkhd, iter, converged, exploded)
+    LogisticRegressionFit(b, score, fisherSqrt, logLkhd, iter, converged, exploded)
   }
 }
 
