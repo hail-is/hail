@@ -35,7 +35,8 @@ object WaldTest extends LogisticRegressionTest {
 
     val waldStats = if (fit.converged) {
       try {
-        val se = sqrt(diag(inv(fit.fisher)))
+        val invFisherSqrt = inv(fit.fisherSqrt) // could speed up inverting upper triangular, or avoid altogether as 1 / se(-1) = fit.fisherSqrt(-1, -1)
+        val se = norm(invFisherSqrt(*, ::))
         val z = fit.b :/ se
         val p = z.map(zi => 2 * pnorm(-math.abs(zi)))
 
@@ -176,7 +177,7 @@ object ScoreTest extends LogisticRegressionTest {
         score(r1) := X1.t * (y - mu)
 
         val fisher = DenseMatrix.zeros[Double](m, m)
-        fisher(r0, r0) := nullFit.fisher
+        fisher(r0, r0) := nullFit.fisherSqrt.t * nullFit.fisherSqrt
         fisher(r0, r1) := X0.t * (X1(::, *) :* (mu :* (1d - mu)))
         fisher(r1, r0) := fisher(r0, r1).t
         fisher(r1, r1) := X1.t * (X1(::, *) :* (mu :* (1d - mu)))
@@ -231,7 +232,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     var b = b0.copy
     var deltaB = DenseVector.zeros[Double](m)
     var score = DenseVector.zeros[Double](m)
-    var fisher = DenseMatrix.zeros[Double](m, m)
+    var fisherSqrt = DenseMatrix.zeros[Double](m, m)
     var logLkhd = 0d
     var iter = 1
     var converged = false
@@ -240,24 +241,27 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     while (!converged && !exploded && iter <= maxIter) {
       try {
         val mu = sigmoid(X * b)
-        score = X.t * (y - mu)
-        fisher = X.t * (X(::, *) :* (mu :* (1d - mu)))
-        deltaB = fisher \ score
+        val sqrtW = sqrt(mu :* (1d - mu))
+        val qrFact = qr.reduced(X(::, *) :* sqrtW)
+
+        deltaB = TriSolve(qrFact.r, qrFact.q.t * ((y - mu) :/ sqrtW))
 
         if (max(abs(deltaB)) < tol) {
           converged = true
+          score = X.t * (y - mu)
+          fisherSqrt = qrFact.r
           logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu))))
         } else {
           iter += 1
           b += deltaB
         }
       } catch {
-        case e: breeze.linalg.MatrixSingularException => exploded = true
-        case e: breeze.linalg.NotConvergedException => exploded = true
+        case e: breeze.linalg.MatrixSingularException => exploded = true; println("sing")
+        case e: breeze.linalg.NotConvergedException => exploded = true; println("notconv")
       }
     }
 
-    LogisticRegressionFit(b, score, fisher, logLkhd, iter, converged, exploded)
+    LogisticRegressionFit(b, score, fisherSqrt, logLkhd, iter, converged, exploded)
   }
 
   def fitFirth(b0: DenseVector[Double], maxIter: Int = 100, tol: Double = 1E-6): LogisticRegressionFit = {
@@ -316,7 +320,7 @@ object LogisticRegressionFit {
 case class LogisticRegressionFit(
   b: DenseVector[Double],
   score: DenseVector[Double],
-  fisher: DenseMatrix[Double],
+  fisherSqrt: DenseMatrix[Double],
   logLkhd: Double,
   nIter: Int,
   converged: Boolean,

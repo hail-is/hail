@@ -1,9 +1,8 @@
 package is.hail.stats
 
-import breeze.linalg.{DenseMatrix, eigSym, svd}
+import breeze.linalg.{DenseMatrix, DenseVector, eigSym, svd}
 import org.apache.commons.math3.random.JDKRandomGenerator
-import org.apache.commons.math3.random.MersenneTwister
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 import is.hail.utils._
 
@@ -106,16 +105,15 @@ class eigSymDSuite extends SparkSuite {
     rand.setSeed(seed)
 
     val n = 5
-    val m = 2
 
     val A = DenseMatrix.zeros[Double](n, n)
     (0 until n).foreach(i => (i until n).foreach(j => A(i,j) = rand.nextGaussian()))
 
-    val X = DenseMatrix.fill[Double](n, m)(rand.nextGaussian())
+    val x = DenseVector.fill[Double](n)(rand.nextGaussian())
 
-    val B = A * X
-    val X1 = TriSolve(A, B)
+    val B = A * x
+    val x1 = TriSolve(A, B)
 
-    TestUtils.assertMatrixEqualityDouble(X, X1)
+    TestUtils.assertVectorEqualityDouble(x, x1)
   }
 }
