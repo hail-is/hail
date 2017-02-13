@@ -16,9 +16,15 @@ class MaximalIndependentSetSuite extends SparkSuite {
       (("A", "B"), 0.2), (("B", "C"), 0.2)
     ))
 
-    assert(MaximalIndependentSet(sc, input, 0.8, 1) == Set("A", "C"))
-    assert(MaximalIndependentSet(sc, input, 0.8, 2) == Set("A", "C"))
-    assert(MaximalIndependentSet(sc, input, 0.8, 3) == Set("A", "C"))
+    assert(MaximalIndependentSet(sc, input, 0.8) == Set("A", "C"))
+    assert(MaximalIndependentSet(sc, input, 0.8) == Set("A", "C"))
+    assert(MaximalIndependentSet(sc, input, 0.8) == Set("A", "C"))
+  }
+
+  @Test def emptySet() {
+    val input = sc.parallelize(Array[((String, String), Double)]())
+
+    assert(MaximalIndependentSet(sc, input, .01) == Set())
   }
 
   @Test def graphTest1() {
@@ -28,7 +34,16 @@ class MaximalIndependentSetSuite extends SparkSuite {
       (("F", "H"), 0.0)
     ))
 
-    assert(MaximalIndependentSet(sc, input, 0.8, 3) == Set("A", "C", "D", "E", "G", "H"))
-    assert(MaximalIndependentSet(sc, input, 0.2, 2) == Set("A", "B", "C", "D", "E", "G", "H"))
+    assert(MaximalIndependentSet(sc, input, 0.8) == Set("A", "C", "D", "E", "G", "H"))
+    assert(MaximalIndependentSet(sc, input, 0.2) == Set("A", "B", "C", "D", "E", "G", "H"))
   }
+
+  @Test def graphTest2() {
+    val input: RDD[((String, String), Double)] = sc.parallelize(Array(
+      (("A", "B"), .4), (("C", "D"), .3)
+    ))
+
+    assert(MaximalIndependentSet(sc, input, 0.5).size == 2)
+  }
+
 }

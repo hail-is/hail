@@ -6,7 +6,7 @@ import org.apache.spark.graphx._
 
 object MaximalIndependentSet {
 
-  def apply(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double, k: Int): Set[String] = {
+  def apply(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double): Set[String] = {
     //Filter RDD to remove edges above threshold
     val filteredRDD = inputRDD.filter(_._2 <= thresh)
 
@@ -30,10 +30,9 @@ object MaximalIndependentSet {
 
     var graph = Graph[((VertexId, Int), VertexId), Double](stringGraph.collectNeighborIds(EdgeDirection.Either).map(pair => (pair._1, ((pair._1, pair._2.size), -1L))), stringGraph.edges)
 
-    //graph.cache()
 
-    //Initially set each vertex to its own degree.
-    //Start a pregel run, everyone passing a (ID, degree) pair.
+    // Initially set each vertex to its own degree.
+    // Start a pregel run, everyone passing a (ID, degree) pair.
     //  -On message reception, if current degree is greater than received degree, update status to to reflect this, alert everyone
     //  -If current degree <= received degree, status does not change, don't bother sending alert.
 
