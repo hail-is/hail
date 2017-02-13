@@ -242,14 +242,14 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       try {
         val mu = sigmoid(X * b)
         val sqrtW = sqrt(mu :* (1d - mu))
-        val qrFact = qr.reduced(X(::, *) :* sqrtW)
+        val QR = qr.reduced(X(::, *) :* sqrtW)
 
-        deltaB = TriSolve(qrFact.r, qrFact.q.t * ((y - mu) :/ sqrtW))
+        deltaB = TriSolve(QR.r, QR.q.t * ((y - mu) :/ sqrtW))
 
         if (max(abs(deltaB)) < tol) {
           converged = true
           score = X.t * (y - mu)
-          fisherSqrt = qrFact.r
+          fisherSqrt = QR.r
           logLkhd = sum(breeze.numerics.log((y :* mu) + ((1d - y) :* (1d - mu))))
         } else {
           iter += 1
@@ -284,11 +284,11 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     while (!converged && !exploded && iter <= maxIter) {
       try {
         val mu = sigmoid(X0 * b)
-        val XsqrtW = X(::,*) :* sqrt(mu :* (1d - mu))
-        val QR = qr.reduced(XsqrtW)
+        val sqrtW = sqrt(mu :* (1d - mu))
+        val QR = qr.reduced(X(::, *) :* sqrtW)
         val sqrtH = norm(QR.q(*, ::))
         score = X0.t * (y - mu + (sqrtH :* sqrtH :* (0.5 - mu)))
-        fisherSqrt = QR.r(::, 0 until m0)
+        fisherSqrt = if (fitAll) QR.r else QR.r(::, 0 until m0)
         deltaB = (fisherSqrt.t * fisherSqrt) \ score
 
         if (max(abs(deltaB)) < tol && iter > 1) {
