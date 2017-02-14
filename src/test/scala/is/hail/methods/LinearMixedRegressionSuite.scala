@@ -3,7 +3,6 @@ package is.hail.methods
 import breeze.linalg._
 import breeze.stats.mean
 import is.hail.annotations._
-import is.hail.driver.PrintSchema
 import is.hail.expr.{TDouble, TStruct}
 import is.hail.stats._
 import is.hail.utils._
@@ -241,7 +240,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       (Variant("1", j + 1, "A", "C"), (beta(0), sg2))
     }.toMap
 
-    // Then solve with LinearMixeModel and compare
+    // Then solve with LinearMixedModel and compare
 
     val pheno = y.toArray
     val covSA = (1 until c).map(i => s"sa.covs.cov$i").toArray
@@ -354,6 +353,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val fitDelta = vds.queryGlobal("global.lmmreg.delta")._2.get.asInstanceOf[Double]
     val fitSigmaG2 = vds.queryGlobal("global.lmmreg.sigmaG2")._2.get.asInstanceOf[Double]
     val fitBeta = vds.queryGlobal("global.lmmreg.beta")._2.get.asInstanceOf[Map[String, Double]]
+
+    //Making sure type on this is not an array, but an IndexedSeq.
+    val evals = vds.queryGlobal("global.lmmreg.evals")._2.get.asInstanceOf[IndexedSeq[Double]]
 
     val linBeta = (C.t * C) \ (C.t * y)
     val linRes = norm(y - C * linBeta)
