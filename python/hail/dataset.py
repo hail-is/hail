@@ -3199,7 +3199,7 @@ class VariantDataset(object):
         """
 
         try:
-            return VariantDataset(self.hc, self._jvds.setVAattribute(root,key,value))
+            return VariantDataset(self.hc, self._jvds.setVAattribute(ann_path,key,value))
         except Py4JJavaError as e:
             raise_py4j_exception(e)
 
