@@ -213,12 +213,11 @@ package object driver {
     PropertyConfigurator.configure(logProps)
   }
 
-  def configureHail(branchingFactor: Int = 50, tmpDir: String = "/tmp", overwrite: Boolean = false) {
+  def configureHail(branchingFactor: Int = 50, tmpDir: String = "/tmp") {
     require(branchingFactor > 0)
 
     HailConfiguration.tmpDir = tmpDir
     HailConfiguration.branchingFactor = branchingFactor
-    HailConfiguration.overwrite = overwrite
   }
 
   def createSQLContext(sc: SparkContext): SQLContext = {

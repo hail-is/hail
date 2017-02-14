@@ -35,7 +35,6 @@ class HailContext(object):
     :param branching_factor: branching factor for tree aggregation
 
     :param tmp_dir: temporary directory for file merging
-    :param overwrite: If True, overwrite any existing file.
 
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
@@ -43,7 +42,7 @@ class HailContext(object):
 
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
-                 min_block_size=1, branching_factor=50, tmp_dir='/tmp', overwrite=False):
+                 min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
 
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
@@ -68,7 +67,7 @@ class HailContext(object):
             # sc._jsc is a JavaSparkContext
             self._jsc = sc._jsc.sc()
 
-        driver.configureHail(branching_factor, tmp_dir, overwrite)
+        driver.configureHail(branching_factor, tmp_dir)
         driver.configureLogging(log, quiet, append)
 
         self._jsql_context = driver.createSQLContext(self._jsc)

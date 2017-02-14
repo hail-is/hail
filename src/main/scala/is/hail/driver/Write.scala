@@ -25,7 +25,7 @@ object Write extends Command {
   def requiresVDS = true
 
   def run(state: State, options: Options): State = {
-    if (options.overwrite || HailConfiguration.overwrite)
+    if (options.overwrite)
       state.hadoopConf.delete(options.output, recursive =  true)
     else if (state.hadoopConf.exists(options.output))
       fatal(

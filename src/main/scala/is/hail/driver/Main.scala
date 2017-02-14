@@ -16,7 +16,6 @@ import scala.reflect.ClassTag
 object HailConfiguration {
   var tmpDir: String = "/tmp"
   var branchingFactor: Int = _
-  var overwrite: Boolean = false
 
   def treeAggDepth(nPartitions: Int): Int = {
     (math.log(nPartitions) / math.log(branchingFactor) + 0.5).toInt.max(1)
@@ -46,9 +45,6 @@ object Main {
 
     @Args4jOption(required = false, name = "--parquet-compression", usage = "Parquet compression codec")
     var parquetCompression = "uncompressed"
-
-    @Args4jOption(required = false, name = "--overwrite", usage = "Overwrite files if they already exist.")
-    var overwrite: Boolean = false
 
     @Args4jOption(required = false, name = "-q", aliases = Array("--quiet"), usage = "Don't write log file")
     var logQuiet: Boolean = false
@@ -229,7 +225,7 @@ object Main {
     val sc = configureAndCreateSparkContext("Hail", Option(options.master), local = "local[*]",
       parquetCompression = options.parquetCompression, blockSize = options.blockSize)
     configureLogging(logFile = options.logFile, quiet = options.logQuiet, append = options.logAppend)
-    configureHail(branchingFactor = options.branchingFactor, tmpDir = options.tmpDir, overwrite = options.overwrite)
+    configureHail(branchingFactor = options.branchingFactor, tmpDir = options.tmpDir)
 
     val sqlContext = createSQLContext(sc)
 

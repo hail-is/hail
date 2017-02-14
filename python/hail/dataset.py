@@ -2310,6 +2310,7 @@ class VariantDataset(object):
         The simplest way to export all resulting annotations is:
 
         >>> lmm_vds.export_variants('output/lmmreg.tsv.bgz', 'variant = v, va.lmmreg.*')
+        >>> lmmreg_results = lmm_vds.globals['lmmreg']
 
         **Performance**
 
