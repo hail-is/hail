@@ -602,7 +602,29 @@ class ExprSuite extends SparkSuite {
       x.get("odd") should contain theSameElementsAs Seq(1,3,5)
     }
 
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => k % 2)")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq(0, 1)
+      x.get(0) should contain theSameElementsAs Seq(2,4)
+      x.get(1) should contain theSameElementsAs Seq(1,3,5)
+    }
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => k % 2 == 0)")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq(true, false)
+      x.get(true) should contain theSameElementsAs Seq(2,4)
+      x.get(false) should contain theSameElementsAs Seq(1,3,5)
+    }
+
     (eval[Map[String,IndexedSeq[Int]]]("[1].tail.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+      shouldBe empty)
+
+    (eval[Map[String,IndexedSeq[Int]]]("[1].tail.groupBy(k => k % 2)").get
+      shouldBe empty)
+
+    (eval[Map[String,IndexedSeq[Int]]]("[1].tail.groupBy(k => k % 2 == 0)").get
       shouldBe empty)
 
     {
