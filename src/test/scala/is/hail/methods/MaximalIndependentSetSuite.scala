@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
+import org.apache.spark.graphx.{Edge, Graph, VertexId, VertexRDD}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
@@ -9,25 +10,34 @@ import org.testng.annotations.Test
   */
 class MaximalIndependentSetSuite extends SparkSuite {
 
+  @Test def emptySet() {
+    assert(MaximalIndependentSet(Graph(sc.parallelize(Array[(VertexId, Int)]()),
+      sc.parallelize(Array[Edge[Int]]()))) == Set())
+  }
 
-
-  @Test def worksAtAll() {
-    val input = sc.parallelize(Array(
-      (("A", "B"), 0.2), (("B", "C"), 0.2)
+  @Test def graphWithoutEdges() {
+    val vertices = sc.parallelize(Array[(VertexId, String)](
+      (1, "A"), (2, "B"), (3, "C")
     ))
 
-    assert(MaximalIndependentSet.ofIBDMatrix(sc, input, 0.8) == Set("A", "C"))
-    assert(MaximalIndependentSet.ofIBDMatrix(sc, input, 0.8) == Set("A", "C"))
-    assert(MaximalIndependentSet.ofIBDMatrix(sc, input, 0.8) == Set("A", "C"))
+    val edges = sc.parallelize(Array[Edge[Int]]())
+
+    assert(MaximalIndependentSet(Graph(vertices, edges)) == Set(1, 2, 3))
   }
 
-  @Test def emptySet() {
-    val input = sc.parallelize(Array[((String, String), Double)]())
+  @Test def simpleGraph() {
+    val vertices = sc.parallelize(Array[(VertexId, String)](
+      (1, "A"), (2, "B"), (3, "C")
+    ))
 
-    assert(MaximalIndependentSet.ofIBDMatrix(sc, input, .01) == Set())
+    val edges = sc.parallelize(Array[Edge[String]](
+      Edge(1, 2, "AB"), Edge(2, 3, "BC")
+    ))
+
+    assert(MaximalIndependentSet(Graph(vertices, edges)) == Set(1, 3))
   }
 
-  @Test def graphTest1() {
+  @Test def ofIBDMatrixTest1() {
     val input: RDD[((String, String), Double)] = sc.parallelize(Array(
       (("A", "B"), 0.3), (("B", "C"), 0.3), (("B", "D"), 0.3),
       (("D", "F"), 0.0), (("F", "E"), 0.0), (("G", "F"), 0.0),
@@ -38,7 +48,7 @@ class MaximalIndependentSetSuite extends SparkSuite {
     assert(MaximalIndependentSet.ofIBDMatrix(sc, input, 0.2) == Set("A", "B", "C", "D", "E", "G", "H"))
   }
 
-  @Test def graphTest2() {
+  @Test def ofIBDMatrixTest2() {
     val input: RDD[((String, String), Double)] = sc.parallelize(Array(
       (("A", "B"), .4), (("C", "D"), .3)
     ))

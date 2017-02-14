@@ -1,12 +1,14 @@
 package is.hail.methods
 
-import org.apache.spark.{SparkContext}
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.graphx._
 
+import scala.reflect.ClassTag
+
 object MaximalIndependentSet {
 
-  def apply[VD, ED](g: Graph[VD, Double]): Set[Long] = {
+  def apply[VD: ClassTag, ED: ClassTag](g: Graph[VD, ED]): Set[Long] = {
     // Initially set each vertex to its own degree.
     // Start a pregel run, everyone passing a (ID, degree) pair.
     //  -On message reception, if current degree is greater than received degree, update status to to reflect this, alert everyone
@@ -17,8 +19,8 @@ object MaximalIndependentSet {
     // -What the highest degree message received has been
     // -What vertex is in that highest degree message
 
-    var graph = Graph[((VertexId, Int), VertexId), Double](g.collectNeighborIds(EdgeDirection.Either)
-      .map{ case(v, neighbors) => (v, ((v, neighbors.size), -1L))}, g.edges)
+    var graph = Graph[((VertexId, Int), VertexId), ED](g.collectNeighborIds(EdgeDirection.Either)
+      .map{ case(v, neighbors) => (v, ((v, neighbors.size), -1L))}, g.edges: RDD[Edge[ED]])
 
     val initialMsg = (-1L, -1)
 
@@ -40,7 +42,7 @@ object MaximalIndependentSet {
 
     }
 
-    def sendMsg(triplet: EdgeTriplet[((VertexId, Int), VertexId), Double]): Iterator[(VertexId, (VertexId, Int))] = {
+    def sendMsg(triplet: EdgeTriplet[((VertexId, Int), VertexId), ED]): Iterator[(VertexId, (VertexId, Int))] = {
       val sourceAttr = triplet.srcAttr
 
       if (sourceAttr._1._1 == sourceAttr._2) {
