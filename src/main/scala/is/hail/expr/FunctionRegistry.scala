@@ -777,7 +777,7 @@ object FunctionRegistry {
   )(arrayHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr, arrayHr(TTHr)))
 
   registerLambdaMethod("groupBy", (a: Set[Any], f: (Any) => Any) =>
-    (a.toArray[Any]: IndexedSeq[Any]).groupBy(f)
+    a.groupBy(f)
   )(setHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr, arrayHr(TTHr)))
 
   registerLambdaMethod("exists", (a: IndexedSeq[Any], f: (Any) => Any) =>
