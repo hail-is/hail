@@ -814,8 +814,8 @@ class VariantDataset(object):
         If `vds_key` is None, the keytable's key must be exactly one column and
         that column must have type *Variant*.
 
-        If `vds_key` is not None, it must be a list of hail expressions which whose types
-        match, in order, `keytable`'s key type.
+        If `vds_key` is not None, it must be a list of Hail expressions whose types
+        match, in order, the `keytable`'s key type.
 
         **Examples**
 
