@@ -129,7 +129,7 @@ sealed abstract class Type {
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
 
-  def strVCF(a: Annotation): String = if (a == null) "." else a.toString
+  def strVCF(a: Annotation): String = if (a == null) "." else str(a)
 
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
@@ -841,7 +841,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     val newFields = fields.zip(included)
       .flatMap { case (field, incl) =>
         if (incl)
-          Some(field.name -> field.typ)
+          Some(field)
         else
           None
       }
@@ -865,7 +865,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         Annotation.fromSeq(newValues)
       }
 
-    (TStruct(newFields: _*), filterer)
+    (TStruct(newFields), filterer)
   }
 
   override def toString = if (size == 0) "Empty" else "Struct"
