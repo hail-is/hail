@@ -83,6 +83,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - forall: `arr.forall(v => expr)` -- Returns a boolean which is true if the array is empty, or `expr` evaluates to `true` for **every** element
      - sort: `arr.sort([ascending])` -- Returns a new array with the same elements in ascending order according to their value, which must be numeric or string. For descending order, use `arr.sort(false)`. Missing elements are always placed at the end.
      - sortBy: `arr.sortBy(v => expr[,ascending])` -- Returns a new array with the same elements in ascending order according to the value of `expr`, which must be numeric or string. For descending order, use `arr.sortBy(v => expr, false)`. Elements with missing `expr` values are always placed at the end.
+     - groupBy: `arr.groupBy(v => expr)` -- Returns a Dict mapping from keys specified by the lambda argument to an Array of the values associated with that key.
 
  - Numeric Array Operations:
      - arithmetic: `+ - * /`
@@ -95,7 +96,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - max: `arr.max` -- returns the maximum, missing if empty
      - mean: `arr.mean` -- returns the mean as a `Double`, missing if empty
      - median: `arr.median` -- returns the median, missing if empty. Element type is preserved so the median of `[0, 3]` is `(0 + 3) / 2 = 1`. To get `1.5` instead, use `arr.map(_.toDouble).median`
- 
+
  - Set Operations:
      - contains: `set.contains(elem)` -- returns true if the element is contained in the array, otherwise false
      - size: `set.size` -- returns the number of elements in the set as an integer
@@ -108,6 +109,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - filter: `set.filter(v => expr)` -- Returns a new set subsetted to the elements where `expr` evaluated to true
      - exists: `set.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
      - forall: `set.forall(v => expr)` -- returns a boolean which is true if the set is empty, or `expr` evaluates to `true` for **every** element
+     - groupBy: `arr.groupBy(v => expr)` -- Returns a Dict mapping from keys specified by the lambda argument to a Set of the values associated with that key.
 
  - Dict Operations:
      - select: `dict[key]` -- returns the value keyed by the string `key`.  Example: `global.genemap["SCN2A"]`.  This method will fail if the key is not contained in the dict.
