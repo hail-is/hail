@@ -1,12 +1,10 @@
 package is.hail.methods
 
-import org.apache.spark.util.StatCounter
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.annotations.Annotation
-import is.hail.driver._
 import is.hail.expr._
-import is.hail.io.vcf.LoadVCF
+import is.hail.utils._
+import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
 
 

@@ -1,8 +1,6 @@
 package is.hail.methods
 
-import is.hail.driver._
 import is.hail.expr._
-import is.hail.io.vcf.LoadVCF
 import is.hail.utils.TestRDDBuilder
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
@@ -16,7 +14,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds.filterSamplesExpr("\"^HG\" ~ s.id").nSamples == 63)
 
-    assert(vds.filterVariantsExpr("v.start >= 14066228", remove = true).countVariants() == 173)
+    assert(vds.filterVariantsExpr("v.start >= 14066228", keep = false).countVariants() == 173)
 
     assert(vds.filterVariantsExpr("va.pass").countVariants() == 312)
 
@@ -32,7 +30,7 @@ class FilterSuite extends SparkSuite {
     // FIXME: rsid of "." should be treated as missing value
     assert(vds.filterVariantsExpr("""va.rsid != "."""").countVariants() == 258)
 
-    assert(vds.filterVariantsExpr("""va.rsid == "."""", remove = true).countVariants() == 258)
+    assert(vds.filterVariantsExpr("""va.rsid == "."""", keep = false).countVariants() == 258)
 
     val sQcVds = vds.sampleQC()
 
@@ -53,18 +51,18 @@ class FilterSuite extends SparkSuite {
 
     assert(vQcVds.filterVariantsExpr("va.qc.rHetHomVar >= 0").countVariants() == 117)
 
-    assert(vQcVds.filterVariantsExpr("isMissing(va.qc.rHetHomVar)", remove = true).countVariants() == 117)
+    assert(vQcVds.filterVariantsExpr("isMissing(va.qc.rHetHomVar)", keep = false).countVariants() == 117)
 
     assert(vQcVds.filterVariantsExpr("isDefined(va.qc.rHetHomVar)").countVariants() == 117)
 
-    val highGQ = vds.filterGenotypes("g.gq < 20", remove = true)
+    val highGQ = vds.filterGenotypes("g.gq < 20", keep = false)
       .expand()
       .collect()
 
     assert(!highGQ.exists { case (v, s, g) => g.gq.exists(_ < 20) })
     assert(highGQ.count { case (v, s, g) => g.gq.exists(_ >= 20) } == 30889)
 
-    val highGQorMidQGAndLowFS = vds.filterGenotypes("g.gq < 20 || (g.gq < 30 && va.info.FS > 30)", remove = true)
+    val highGQorMidQGAndLowFS = vds.filterGenotypes("g.gq < 20 || (g.gq < 30 && va.info.FS > 30)", keep = false)
       .expand()
       .collect()
 
@@ -76,7 +74,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds2.filterGenotypes("g.ad[1].toDouble / g.dp > 0.05").expand().collect().count(_._3.isCalled) == 3)
 
-    val highGQ2 = vds2.filterGenotypes("g.gq < 20", remove = true)
+    val highGQ2 = vds2.filterGenotypes("g.gq < 20", keep = false)
 
     assert(!highGQ2.expand().collect().exists { case (v, s, g) => g.gq.exists(_ < 20) })
 
@@ -86,7 +84,7 @@ class FilterSuite extends SparkSuite {
 
     assert(chr1.expand().collect().count(_._3.isCalled) == 9 * 11 - 2)
 
-    val hetOrHomVarOnChr1 = chr1.filterGenotypes("g.isHomRef", remove = true)
+    val hetOrHomVarOnChr1 = chr1.filterGenotypes("g.isHomRef", keep = false)
       .expand()
       .collect()
 
@@ -106,7 +104,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds.filterSamplesList("src/test/resources/filter.sample_list").nSamples == 3)
 
-    assert(vds.filterSamplesList("src/test/resources/filter.sample_list", remove = true).nSamples == 5)
+    assert(vds.filterSamplesList("src/test/resources/filter.sample_list", keep = false).nSamples == 5)
 
     assert(vds.filterIntervals("src/test/resources/filter.interval_list", keep = true).countVariants() == 6)
 

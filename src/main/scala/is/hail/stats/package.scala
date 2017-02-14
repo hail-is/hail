@@ -1,13 +1,11 @@
 package is.hail
 
 import breeze.linalg.Matrix
-import org.apache.commons.math3.distribution.HypergeometricDistribution
-import net.sourceforge.jdistlib.{ChiSquare, Normal}
-import org.apache.spark.SparkContext
 import is.hail.annotations.Annotation
-import is.hail.driver.HailContext
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
+import net.sourceforge.jdistlib.{ChiSquare, Normal}
+import org.apache.commons.math3.distribution.HypergeometricDistribution
 
 package object stats {
 

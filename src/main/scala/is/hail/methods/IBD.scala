@@ -1,14 +1,12 @@
 package is.hail.methods
 
-import org.apache.spark.rdd.RDD
-import is.hail.utils._
 import is.hail.annotations.Annotation
 import is.hail.expr.{EvalContext, Parser, TVariant, Type}
+import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
+import org.apache.spark.rdd.RDD
 
-import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
-import scala.reflect.ClassTag
 
 object IBDInfo {
   def apply(Z0: Double, Z1: Double, Z2: Double): IBDInfo = {

@@ -41,7 +41,7 @@ class FilterAllelesSuite extends SparkSuite {
       TStruct.empty,
       TChar),
       sc.parallelize(Seq(row1)).toOrderedRDD)
-      .filterAlleles("aIndex == 2", downcode = true, remove = true)
+      .filterAlleles("aIndex == 2", subset = false, keep = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
     val newVa1 = va1: Annotation
@@ -70,7 +70,7 @@ class FilterAllelesSuite extends SparkSuite {
       TStruct.empty,
       TChar),
       sc.parallelize(Seq(row1)).toOrderedRDD)
-      .filterAlleles("aIndex == 1", downcode = true, remove = true)
+      .filterAlleles("aIndex == 1", subset = false, keep = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.drop(1))
     val newVa1 = va1
@@ -99,7 +99,7 @@ class FilterAllelesSuite extends SparkSuite {
       TStruct.empty,
       TChar),
       sc.parallelize(Seq(row1)).toOrderedRDD)
-      .filterAlleles("aIndex == 1", subset = true, remove = true)
+      .filterAlleles("aIndex == 1", subset = true, keep = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.drop(1))
     val newVa1 = va1
@@ -128,7 +128,7 @@ class FilterAllelesSuite extends SparkSuite {
       TStruct.empty,
       TChar),
       sc.parallelize(Seq(row1)).toOrderedRDD)
-      .filterAlleles("aIndex == 2", subset = true, remove = true)
+      .filterAlleles("aIndex == 2", subset = true, keep = false)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
     val newVa1 = va1
@@ -157,7 +157,7 @@ class FilterAllelesSuite extends SparkSuite {
       TStruct.empty,
       TChar),
       sc.parallelize(Seq(row1)).toOrderedRDD)
-      .filterAlleles("aIndex == 2", subset = true, remove = true, filterAlteredGenotypes = true)
+      .filterAlleles("aIndex == 2", subset = true, keep = false, filterAlteredGenotypes = true)
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
     val newVa1 = va1
@@ -183,7 +183,7 @@ class FilterAllelesSuite extends SparkSuite {
       TStruct.empty,
       TChar),
       sc.parallelize(Seq(row1)).toOrderedRDD)
-      .filterAlleles("aIndex == 2", remove = true, downcode = true, annotationExpr = "va = aIndices")
+      .filterAlleles("aIndex == 2", keep = false, subset = false, annotationExpr = "va = aIndices")
 
     val newVariant1 = variant1.copy(altAlleles = variant1.altAlleles.take(1))
     val newVa1: IndexedSeq[Int] = Array(0, 1)

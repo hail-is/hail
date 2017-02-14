@@ -1,10 +1,10 @@
 package is.hail.stats
 
 import breeze.linalg.{DenseMatrix, DenseVector, eigSym, svd}
-import org.apache.commons.math3.random.JDKRandomGenerator
 import is.hail.{SparkSuite, TestUtils}
-import org.testng.annotations.Test
 import is.hail.utils._
+import org.apache.commons.math3.random.JDKRandomGenerator
+import org.testng.annotations.Test
 
 class eigSymDSuite extends SparkSuite {
   @Test def eigSymTest() = {

@@ -1,8 +1,8 @@
 package is.hail.expr
 
-import org.apache.spark.sql.Row
-import is.hail.utils._
 import is.hail.utils.StringEscapeUtils._
+import is.hail.utils._
+import org.apache.spark.sql.Row
 
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position

@@ -3,8 +3,8 @@ package is.hail.methods
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.sparkextras.OrderedRDD
-import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder, Variant, VariantDataset}
 import is.hail.utils._
+import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder, Variant, VariantDataset}
 
 object SplitMulti {
 

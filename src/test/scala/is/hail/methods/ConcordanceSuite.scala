@@ -1,11 +1,10 @@
 package is.hail.methods
 
-import org.apache.spark.SparkContext
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
-import is.hail.driver._
 import is.hail.utils._
 import is.hail.variant.{VSMSubgen, Variant, VariantSampleMatrix}
+import org.apache.spark.SparkContext
 import org.testng.annotations.Test
 
 import scala.language._

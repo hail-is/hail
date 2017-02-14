@@ -1,8 +1,6 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.driver._
-import is.hail.io.vcf.LoadVCF
 import org.testng.annotations.Test
 
 

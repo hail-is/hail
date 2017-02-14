@@ -1,9 +1,8 @@
 package is.hail.variant
 
-import is.hail.utils._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.utils.ByteIterator
+import is.hail.utils.{ByteIterator, _}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 

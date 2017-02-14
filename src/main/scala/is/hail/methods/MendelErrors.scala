@@ -1,11 +1,10 @@
 package is.hail.methods
 
-import org.apache.spark.rdd.RDD
-import is.hail.utils.MultiArray2
-import is.hail.utils._
+import is.hail.utils.{MultiArray2, _}
 import is.hail.variant.CopyState._
-import is.hail.variant._
 import is.hail.variant.GenotypeType._
+import is.hail.variant._
+import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
 

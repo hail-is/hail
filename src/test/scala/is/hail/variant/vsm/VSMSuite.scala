@@ -1,19 +1,17 @@
 package is.hail.variant.vsm
 
+import is.hail.TestUtils._
+import is.hail.annotations._
+import is.hail.check.Prop._
+import is.hail.check.{Gen, Parameters}
+import is.hail.expr._
+import is.hail.keytable.KeyTable
+import is.hail.sparkextras.OrderedRDD
+import is.hail.utils._
+import is.hail.variant._
+import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.annotations._
-import is.hail.check.{Gen, Parameters}
-import is.hail.check.Prop._
-import is.hail.driver._
-import is.hail.expr._
-import is.hail.io.vcf.LoadVCF
-import is.hail.keytable.KeyTable
-import is.hail.variant._
-import is.hail.utils._
-import is.hail.sparkextras.OrderedRDD
-import is.hail.TestUtils._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
@@ -338,7 +336,7 @@ class VSMSuite extends SparkSuite {
 
     vds.write(out)
 
-    TestUtils.interceptFatal("""File already exists""") {
+    TestUtils.interceptFatal("""file already exists""") {
       vds.write(out)
     }
 

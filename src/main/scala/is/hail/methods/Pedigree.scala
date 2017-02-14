@@ -1,11 +1,11 @@
 package is.hail.methods
 
-import org.apache.hadoop
-import is.hail.utils._
 import is.hail.check.Gen
+import is.hail.utils._
 import is.hail.variant.Phenotype.{Case, Control, Phenotype}
 import is.hail.variant.Sex.{Female, Male, Sex}
 import is.hail.variant.{Phenotype, Sex}
+import org.apache.hadoop
 
 import scala.collection.mutable
 import scala.io.Source

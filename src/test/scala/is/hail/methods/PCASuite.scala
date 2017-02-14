@@ -3,7 +3,6 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TDouble, TStruct}
-import is.hail.io.vcf.LoadVCF
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 

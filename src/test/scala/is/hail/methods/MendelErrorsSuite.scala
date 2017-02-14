@@ -1,7 +1,6 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.io.vcf.LoadVCF
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 

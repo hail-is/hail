@@ -1,7 +1,7 @@
 package is.hail.keytable
 
+import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.driver.HailContext
 import is.hail.expr._
 import is.hail.io.exportTypes
 import is.hail.methods.{Aggregators, Filter}

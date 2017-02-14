@@ -1,13 +1,11 @@
-package is.hail.driver
+package is.hail
 
 import java.util.Properties
 
-import org.apache.hadoop
 import is.hail.annotations.Annotation
-import is.hail.expr.{EvalContext, Parser, TStruct, Type}
+import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.gen.{GenLoader, GenReport}
-import is.hail.expr._
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.vcf.{LoadVCF, VCFReport}
 import is.hail.keytable.KeyTable
@@ -16,6 +14,7 @@ import is.hail.misc.SeqrServer
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
+import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -153,7 +152,7 @@ object HailContext {
 
     {
       import breeze.linalg._
-      import breeze.linalg.operators.{OpMulMatrix, BinaryRegistry}
+      import breeze.linalg.operators.{BinaryRegistry, OpMulMatrix}
 
       implicitly[BinaryRegistry[DenseMatrix[Double], Vector[Double], OpMulMatrix.type, DenseVector[Double]]].register(
         DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
@@ -169,6 +168,7 @@ object HailContext {
       sc
     }
 
+    sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
     ProgressBarBuilder.build(sparkContext)
 
     log.info(s"Spark properties: ${
@@ -522,6 +522,7 @@ case class HailContext private(sc: SparkContext,
   def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
 
   /**
+    *
     *
     * @param collection SolrCloud collection
     * @param url Solr instance (URL) to connect to

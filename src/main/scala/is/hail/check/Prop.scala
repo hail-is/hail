@@ -1,6 +1,5 @@
 package is.hail.check
 
-import is.hail.utils._
 import org.apache.commons.math3.random.RandomDataGenerator
 
 import scala.collection.mutable.ArrayBuffer

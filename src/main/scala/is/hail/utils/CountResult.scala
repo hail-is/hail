@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import java.util
+
 import scala.collection.JavaConverters._
 
 case class CountResult(nSamples: Int,

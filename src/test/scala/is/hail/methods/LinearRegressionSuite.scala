@@ -2,11 +2,10 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.TestUtils._
-import is.hail.utils._
 import is.hail.annotations.Querier
-import is.hail.driver._
 import is.hail.expr.TDouble
 import is.hail.io.plink.FamFileConfig
+import is.hail.utils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 

@@ -12,14 +12,11 @@ import scala.math.min
 object FilterAlleles {
 
   def apply(vds: VariantDataset, filterExpr: String, annotationExpr: String = "va = va",
-    filterAlteredGenotypes: Boolean = false, remove: Boolean = false,
-    downcode: Boolean = false, subset: Boolean = false, maxShift: Int = 100): VariantDataset = {
+    filterAlteredGenotypes: Boolean = false, keep: Boolean = true,
+    subset: Boolean = true, maxShift: Int = 100): VariantDataset = {
 
     if (vds.wasSplit)
       warn("this VDS was already split; this module was designed to handle multi-allelics, perhaps you should use filtervariants instead.")
-
-    if (!(downcode ^ subset))
-      fatal("either `--downcode' or `--subset' required, but not both")
 
     val conditionEC = EvalContext(Map(
       "v" -> (0, TVariant),
@@ -47,7 +44,7 @@ object FilterAlleles {
         val index = aai + 1
         conditionEC.setAll(v, va, index)
         oldToNew(index) =
-          if (Filter.keepThis(conditionE(), !remove)) {
+          if (Filter.keepThis(conditionE(), keep)) {
             alive += 1
             alive
           } else
@@ -134,7 +131,7 @@ object FilterAlleles {
 
       gs.map({
         g =>
-          val newG = if (downcode) downcodeGenotype(g) else subsetGenotype(g)
+          val newG = if (subset) subsetGenotype(g) else downcodeGenotype(g)
           if (filterAlteredGenotypes && newG.gt != g.gt)
             newG.copy(gt = None)
           else

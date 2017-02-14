@@ -1,7 +1,7 @@
 package is.hail.stats
 
-import breeze.linalg._
 import breeze.generic.UFunc
+import breeze.linalg._
 import com.github.fommil.netlib.LAPACK.{getInstance => lapack}
 import org.netlib.util.intW
 

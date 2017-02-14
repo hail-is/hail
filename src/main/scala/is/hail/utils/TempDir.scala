@@ -1,7 +1,6 @@
 package is.hail.utils
 
 import java.io.IOException
-import java.net.URI
 
 import org.apache.hadoop
 

@@ -1,9 +1,9 @@
 package is.hail.annotations
 
-import org.apache.spark.sql.Row
 import is.hail.expr._
 import is.hail.utils.Interval
 import is.hail.variant._
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 

@@ -1,15 +1,13 @@
 package is.hail.stats
 
-import breeze.linalg._
+import breeze.linalg.{DenseVector, sum, _}
 import breeze.stats.distributions._
-import breeze.linalg.{DenseVector, sum}
-import org.apache.spark.SparkContext
-import org.apache.commons.math3.random.JDKRandomGenerator
+import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.driver.HailContext
 import is.hail.expr.{TArray, TDouble, TInt, TString, TStruct}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
+import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
 

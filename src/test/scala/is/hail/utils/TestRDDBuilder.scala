@@ -1,10 +1,8 @@
 package is.hail.utils
 
-import org.apache.spark.SparkContext
+import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.driver.HailContext
 import is.hail.variant._
-import is.hail.utils._
 
 import scala.util.Random
 

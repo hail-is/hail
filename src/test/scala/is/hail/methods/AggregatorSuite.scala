@@ -1,14 +1,11 @@
 package is.hail.methods
 
+import is.hail.check.{Gen, Prop}
+import is.hail.utils._
+import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
+import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.utils._
-import is.hail.check.Gen
-import is.hail.check.Prop
-import is.hail.driver._
-import is.hail.io.vcf.LoadVCF
-import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 class AggregatorSuite extends SparkSuite {

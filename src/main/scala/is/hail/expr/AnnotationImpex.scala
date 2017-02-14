@@ -1,11 +1,10 @@
 package is.hail.expr
 
+import is.hail.annotations.Annotation
+import is.hail.utils.{Interval, _}
+import is.hail.variant.{AltAllele, Genotype, Locus, Sample, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import is.hail.utils._
-import is.hail.annotations.Annotation
-import is.hail.utils.Interval
-import is.hail.variant.{AltAllele, Genotype, Locus, Sample, Variant}
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 

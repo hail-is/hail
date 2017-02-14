@@ -1,13 +1,13 @@
 package is.hail.methods
 
 import breeze.linalg._
-import org.apache.spark.rdd.RDD
-import is.hail.utils._
 import is.hail.annotations.Annotation
-import is.hail.stats._
-import is.hail.variant._
 import is.hail.expr._
 import is.hail.stats.RegressionUtils._
+import is.hail.stats._
+import is.hail.utils._
+import is.hail.variant._
+import org.apache.spark.rdd.RDD
 
 object LogisticRegression {
 

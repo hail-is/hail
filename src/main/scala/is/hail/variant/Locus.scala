@@ -1,14 +1,12 @@
 package is.hail.variant
 
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import is.hail.check.Gen
 import is.hail.expr.{TInt, TString, TStruct, Type}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.json4s._
-import org.json4s.Extraction.decompose
-import org.json4s.jackson.Serialization
 
 import scala.reflect.ClassTag
 

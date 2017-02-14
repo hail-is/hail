@@ -1,8 +1,8 @@
 package is.hail.stats
 
+import is.hail.utils._
 import org.apache.commons.math3.distribution.AbstractIntegerDistribution
 import org.apache.commons.math3.random.RandomGenerator
-import is.hail.utils._
 
 // Efficient implementation of the Levene-Haldane distribution, used in exact tests of Hardy-Weinberg equilibrium
 // See docs/LeveneHaldane.pdf

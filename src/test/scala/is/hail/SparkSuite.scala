@@ -1,11 +1,10 @@
 package is.hail
 
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.SparkContext
-import org.scalatest.testng.TestNGSuite
-import org.apache.hadoop
 import is.hail.utils.TempDir
-import is.hail.driver._
+import org.apache.hadoop
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.SQLContext
+import org.scalatest.testng.TestNGSuite
 
 object SparkSuite {
   lazy val hc = HailContext(master = Option(System.getProperty("hail.master")),

@@ -1,11 +1,10 @@
 package is.hail.utils.richUtils
 
-import is.hail.driver.HailContext
+import is.hail.sparkextras.ReorderedPartitionsRDD
+import is.hail.utils._
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.rdd.RDD
-import is.hail.sparkextras.ReorderedPartitionsRDD
-import is.hail.utils._
 
 import scala.reflect.ClassTag
 

@@ -3,10 +3,8 @@ package is.hail.variant
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
-import is.hail.driver._
 import is.hail.expr.{TSet, TString}
 import is.hail.io.annotators.IntervalListAnnotator
-import is.hail.io.vcf.LoadVCF
 import is.hail.utils._
 import org.testng.annotations.Test
 

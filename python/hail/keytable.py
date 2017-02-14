@@ -75,6 +75,7 @@ class KeyTable(object):
         if self._num_columns is None:
             self._num_columns = self._jkt.nFields()
         return self._num_columns
+
     @property
     def schema(self):
         """KeyTable schema.
@@ -100,6 +101,7 @@ class KeyTable(object):
             self._schema = Type._from_java(self._jkt.signature())
             assert (isinstance(self._schema, TStruct))
         return self._schema
+
     @property
     def key_names(self):
         """Column names that are keys.
@@ -113,6 +115,7 @@ class KeyTable(object):
         if self._key_names is None:
             self._key_names = list(self._jkt.keyNames())
         return self._key_names
+
     @property
     def column_names(self):
         """Names of all columns.

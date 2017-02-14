@@ -1,11 +1,10 @@
 package is.hail.stats
 
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import is.hail.driver._
+import is.hail.utils._
 import is.hail.variant.{VariantDataset, _}
 import org.testng.annotations.Test
 

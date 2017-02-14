@@ -1,10 +1,9 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.annotations.Querier
-import is.hail.driver._
 import is.hail.expr.{TBoolean, TDouble}
+import is.hail.utils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 

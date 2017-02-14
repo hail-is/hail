@@ -1,6 +1,6 @@
 package is.hail.stats
 
-import is.hail.annotations.{Annotation, _}
+import is.hail.annotations.Annotation
 import is.hail.expr.{TDouble, TInt, TStruct}
 import is.hail.utils._
 import is.hail.variant.Genotype

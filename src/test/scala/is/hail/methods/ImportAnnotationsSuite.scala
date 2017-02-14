@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.check.Prop
-import is.hail.expr.{TDouble, TInt, TString, TStruct, Type}
+import is.hail.expr.{TDouble, TInt, TString, TStruct}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.utils._
 import is.hail.variant._

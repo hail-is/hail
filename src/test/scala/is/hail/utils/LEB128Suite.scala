@@ -1,12 +1,11 @@
 package is.hail.utils
 
-import is.hail.check.Properties
 import is.hail.check.Prop._
+import is.hail.check.Properties
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 import scala.collection.mutable
-import is.hail.utils._
 
 object LEB128Suite {
   val b = new mutable.ArrayBuilder.ofByte

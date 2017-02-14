@@ -1,6 +1,7 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
+
 import scala.collection.mutable
 
 object RichDenseMatrixDouble {

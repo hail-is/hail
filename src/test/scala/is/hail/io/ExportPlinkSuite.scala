@@ -1,11 +1,8 @@
 package is.hail.io
 
-import is.hail.utils._
-import is.hail.driver._
-import is.hail.io.vcf.LoadVCF
 import is.hail.SparkSuite
 import is.hail.io.plink.FamFileConfig
-import is.hail.utils.TempDir
+import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.io.Source

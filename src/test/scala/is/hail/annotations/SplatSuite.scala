@@ -1,9 +1,8 @@
 package is.hail.annotations
 
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.driver._
-import org.testng.annotations.Test
+import is.hail.SparkSuite
 import is.hail.utils._
+import org.testng.annotations.Test
 
 class SplatSuite extends SparkSuite {
   @Test def test() {

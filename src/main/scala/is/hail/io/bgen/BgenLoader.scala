@@ -1,15 +1,14 @@
 package is.hail.io.bgen
 
-import org.apache.hadoop.io.LongWritable
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import is.hail.utils._
+import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.driver.HailContext
 import is.hail.expr._
 import is.hail.io._
 import is.hail.io.gen.GenReport
+import is.hail.utils._
 import is.hail.variant._
+import org.apache.hadoop.io.LongWritable
+import org.apache.spark.rdd.RDD
 
 import scala.collection.mutable
 import scala.io.Source

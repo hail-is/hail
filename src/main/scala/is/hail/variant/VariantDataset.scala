@@ -2,13 +2,14 @@ package is.hail.variant
 
 import java.io.FileNotFoundException
 
+import is.hail.HailContext
 import is.hail.annotations.{Annotation, _}
-import is.hail.driver.HailContext
 import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TString, TStruct, Type, _}
 import is.hail.io._
-import is.hail.io.annotators.{BedAnnotator, IntervalListAnnotator}
-import is.hail.io.plink.{ExportBedBimFam, FamFileConfig, PlinkLoader}
+import is.hail.io.annotators.IntervalListAnnotator
+import is.hail.io.plink.ExportBedBimFam
 import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
+import is.hail.keytable.KeyTable
 import is.hail.methods._
 import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
 import is.hail.utils._
@@ -28,6 +29,57 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 object VariantDataset {
+  def read(hc: HailContext, dirname: String,
+    skipGenotypes: Boolean = false, skipVariants: Boolean = false): VariantDataset = {
+
+    val sqlContext = hc.sqlContext
+    val sc = hc.sc
+    val hConf = sc.hadoopConfiguration
+
+    val metadata = readMetadata(hConf, dirname, skipGenotypes)
+    val vaSignature = metadata.vaSignature
+
+    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
+    val isDosage = metadata.isDosage
+
+    val parquetFile = dirname + "/rdd.parquet"
+
+    val orderedRDD = if (skipVariants)
+      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
+    else {
+      val rdd = if (skipGenotypes)
+        sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
+          .map(row => (row.getVariant(0),
+            (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+              Iterable.empty[Genotype])))
+      else
+        sqlContext.readParquetSorted(parquetFile)
+          .map { row =>
+            val v = row.getVariant(0)
+            (v,
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
+          }
+
+      val partitioner: OrderedPartitioner[Locus, Variant] =
+        try {
+          val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
+          jv.fromJSON[OrderedPartitioner[Locus, Variant]]
+        } catch {
+          case _: FileNotFoundException =>
+            fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
+        }
+
+      OrderedRDD(rdd, partitioner)
+    }
+
+    new VariantSampleMatrix[Genotype](hc,
+      if (skipGenotypes) metadata.copy(sampleIds = IndexedSeq.empty[String],
+        sampleAnnotations = IndexedSeq.empty[Annotation])
+      else metadata,
+      orderedRDD)
+  }
+
   private def readMetadata(hConf: hadoop.conf.Configuration, dirname: String,
     requireParquetSuccess: Boolean = true): VariantMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
@@ -131,62 +183,6 @@ object VariantDataset {
       saSignature, vaSignature, globalSignature, wasSplit, isDosage)
   }
 
-  def read(hc: HailContext, dirname: String,
-    skipGenotypes: Boolean = false, skipVariants: Boolean = false): VariantDataset = {
-
-    val sqlContext = hc.sqlContext
-    val sc = hc.sc
-    val hConf = sc.hadoopConfiguration
-
-    val metadata = readMetadata(hConf, dirname, skipGenotypes)
-    val vaSignature = metadata.vaSignature
-
-    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
-    val isDosage = metadata.isDosage
-
-    val parquetFile = dirname + "/rdd.parquet"
-
-    val orderedRDD = if (skipVariants)
-      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
-    else {
-      val rdd = if (skipGenotypes)
-        sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
-          .map(row => (row.getVariant(0),
-            (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              Iterable.empty[Genotype])))
-      else
-        sqlContext.readParquetSorted(parquetFile)
-          .map { row =>
-            val v = row.getVariant(0)
-            (v,
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
-          }
-
-      val partitioner: OrderedPartitioner[Locus, Variant] =
-        try {
-          val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
-          jv.fromJSON[OrderedPartitioner[Locus, Variant]]
-        } catch {
-          case _: FileNotFoundException =>
-            fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
-        }
-
-      OrderedRDD(rdd, partitioner)
-    }
-
-    new VariantSampleMatrix[Genotype](hc,
-      if (skipGenotypes) metadata.copy(sampleIds = IndexedSeq.empty[String],
-        sampleAnnotations = IndexedSeq.empty[Annotation])
-      else metadata,
-      orderedRDD)
-  }
-
-  def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.t,
-    "annotations" -> vaSignature,
-    "gs" -> GenotypeStream.t,
-    "sample_group" -> TString)
-
   def readKudu(hc: HailContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
@@ -224,6 +220,11 @@ object VariantDataset {
     new VariantSampleMatrix[Genotype](hc, metadata, rdd.toOrderedRDD)
   }
 
+  def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.t,
+    "annotations" -> vaSignature,
+    "gs" -> GenotypeStream.t,
+    "sample_group" -> TString)
+
   private def makeSchemaForKudu(vaSignature: Type): StructType =
     StructType(Array(
       StructField("variant", Variant.schema, nullable = false),
@@ -234,176 +235,6 @@ object VariantDataset {
 }
 
 class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) extends AnyVal {
-
-  private def rdd = vds.rdd
-
-  def makeSchema(): StructType =
-    StructType(Array(
-      StructField("variant", Variant.schema, nullable = false),
-      StructField("annotations", vds.vaSignature.schema),
-      StructField("gs", GenotypeStream.schema, nullable = false)
-    ))
-
-  def makeSchemaForKudu(): StructType =
-    makeSchema().add(StructField("sample_group", StringType, nullable = false))
-
-  def coalesce(k: Int, shuffle: Boolean = true): VariantDataset = {
-    val start = if (shuffle)
-      withGenotypeStream()
-    else vds
-    vds.copy(rdd = vds.rdd)
-    start.copy(rdd = rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
-  }
-
-  private def writeMetadata(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
-    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
-      fatal(s"output path ending in `.vds' required, found `$dirname'")
-
-    val hConf = vds.hc.hadoopConf
-    hConf.mkDir(dirname)
-
-    val sb = new StringBuilder
-
-    vds.saSignature.pretty(sb, printAttrs = true, compact = true)
-    val saSchemaString = sb.result()
-
-    sb.clear()
-    vds.vaSignature.pretty(sb, printAttrs = true, compact = true)
-    val vaSchemaString = sb.result()
-
-    sb.clear()
-    vds.globalSignature.pretty(sb, printAttrs = true, compact = true)
-    val globalSchemaString = sb.result()
-
-    val sampleInfoSchema = TStruct(("id", TString), ("annotation", vds.saSignature))
-    val sampleInfoJson = JArray(
-      vds.sampleIdsAndAnnotations
-        .map { case (id, annotation) =>
-          JObject(List(("id", JString(id)), ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, vds.saSignature))))
-        }
-        .toList
-    )
-
-    val json = JObject(
-      ("version", JInt(VariantSampleMatrix.fileVersion)),
-      ("split", JBool(vds.wasSplit)),
-      ("isDosage", JBool(vds.isDosage)),
-      ("sample_annotation_schema", JString(saSchemaString)),
-      ("variant_annotation_schema", JString(vaSchemaString)),
-      ("global_annotation_schema", JString(globalSchemaString)),
-      ("sample_annotations", sampleInfoJson),
-      ("global_annotation", JSONAnnotationImpex.exportAnnotation(vds.globalAnnotation, vds.globalSignature))
-    )
-
-    hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))
-  }
-
-  def write(dirname: String, overwrite: Boolean = false, compress: Boolean = true) {
-    require(dirname.endsWith(".vds"), "variant dataset write paths must end in '.vds'")
-
-    if (overwrite)
-      vds.hadoopConf.delete(dirname, recursive = true)
-    else if (vds.hadoopConf.exists(dirname))
-      fatal(s"file already exists at `$dirname'")
-
-    writeMetadata(vds.hc.sqlContext, dirname, compress)
-
-    val vaSignature = vds.vaSignature
-    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
-
-    val ordered = vds.rdd.asOrderedRDD
-
-    vds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
-      Serialization.write(ordered.orderedPartitioner.toJSON, out)
-    }
-
-    val isDosage = vds.isDosage
-    val rowRDD = ordered.map { case (v, (va, gs)) =>
-      Row.fromSeq(Array(v.toRow,
-        if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-        gs.toGenotypeStream(v, isDosage, compress).toRow))
-    }
-    vds.hc.sqlContext.createDataFrame(rowRDD, makeSchema())
-      .write.parquet(dirname + "/rdd.parquet")
-    // .saveAsParquetFile(dirname + "/rdd.parquet")
-  }
-
-  def writeKudu(dirname: String, tableName: String,
-    master: String, vcfSeqDict: String, rowsPerPartition: Int,
-    sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
-
-    writeMetadata(vds.hc.sqlContext, dirname, compress)
-
-    val vaSignature = vds.vaSignature
-    val isDosage = vds.isDosage
-
-    val rowType = VariantDataset.kuduRowType(vaSignature)
-    val rowRDD = vds.rdd
-      .map { case (v, (va, gs)) =>
-        KuduAnnotationImpex.exportAnnotation(Annotation(
-          v.toRow,
-          va,
-          gs.toGenotypeStream(v, isDosage, compress).toRow,
-          sampleGroup), rowType).asInstanceOf[Row]
-      }
-
-    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
-    println(s"schema = $schema")
-    val df = vds.hc.sqlContext.createDataFrame(rowRDD, schema)
-
-    val kuduContext = new KuduContext(master)
-    if (drop) {
-      KuduUtils.dropTable(master, tableName)
-      Thread.sleep(10 * 1000) // wait to avoid overwhelming Kudu service queue
-    }
-    if (!KuduUtils.tableExists(master, tableName)) {
-      val hConf = vds.hc.sqlContext.sparkContext.hadoopConfiguration
-      val headerLines = hConf.readFile(vcfSeqDict) { s =>
-        Source.fromInputStream(s)
-          .getLines()
-          .takeWhile { line => line(0) == '#' }
-          .toArray
-      }
-      val codec = new htsjdk.variant.vcf.VCFCodec()
-      val seqDict = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
-        .getHeaderValue
-        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
-        .getSequenceDictionary
-
-      val keys = Seq("variant__contig", "variant__start", "variant__ref",
-        "variant__altAlleles_0__alt", "sample_group")
-      kuduContext.createTable(tableName, schema, keys,
-        KuduUtils.createTableOptions(schema, keys, seqDict, rowsPerPartition))
-    }
-    df.write
-      .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
-      .mode("append")
-      // FIXME inlined since .kudu wouldn't work for some reason
-      .format("org.apache.kudu.spark.kudu").save
-
-    println("Written to Kudu")
-  }
-
-  def eraseSplit(): VariantDataset = {
-    if (vds.wasSplit) {
-      val (newSignatures1, f1) = vds.deleteVA("wasSplit")
-      val vds1 = vds.copy(vaSignature = newSignatures1)
-      val (newSignatures2, f2) = vds1.deleteVA("aIndex")
-      vds1.copy(wasSplit = false,
-        vaSignature = newSignatures2,
-        rdd = vds1.rdd.mapValuesWithKey { case (v, (va, gs)) =>
-          (f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
-        }.asOrderedRDD)
-    } else
-      vds
-  }
-
-  def withGenotypeStream(compress: Boolean = true): VariantDataset = {
-    val isDosage = vds.isDosage
-    vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
-      (va, gs.toGenotypeStream(v, isDosage, compress = compress))
-    }.asOrderedRDD)
-  }
 
   def aggregateIntervals(intervalList: String, expr: String, out: String) {
 
@@ -535,73 +366,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }.copy(vaSignature = finalType)
   }
 
-  def annotateGlobalExpr(expr: String): VariantDataset = {
-    val ec = EvalContext(Map(
-      "global" -> (0, vds.globalSignature)))
-
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Option(Annotation.GLOBAL_HEAD))
-
-    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-
-    val finalType = (paths, types).zipped.foldLeft(vds.globalSignature) { case (v, (ids, signature)) =>
-      val (s, i) = v.insert(signature, ids)
-      inserterBuilder += i
-      s
-    }
-
-    val inserters = inserterBuilder.result()
-
-    ec.set(0, vds.globalAnnotation)
-    val ga = inserters
-      .zip(f())
-      .foldLeft(vds.globalAnnotation) { case (a, (ins, res)) =>
-        ins(a, res)
-      }
-
-    vds.copy(globalAnnotation = ga,
-      globalSignature = finalType)
-  }
-
-  def annotateGlobalList(path: String, root: String, asSet: Boolean = false): VariantDataset = {
-    val textList = vds.hc.hadoopConf.readFile(path) { in =>
-      Source.fromInputStream(in)
-        .getLines()
-        .toArray
-    }
-
-    val (sig, toInsert) =
-      if (asSet)
-        (TSet(TString), textList.toSet)
-      else
-        (TArray(TString), textList: IndexedSeq[String])
-
-    val rootPath = Parser.parseAnnotationRoot(root, "global")
-
-    val (newGlobalSig, inserter) = vds.insertGlobal(sig, rootPath)
-
-    vds.copy(
-      globalAnnotation = inserter(vds.globalAnnotation, Some(toInsert)),
-      globalSignature = newGlobalSig)
-  }
-
-  def annotateGlobalTable(path: String, root: String,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
-    val annotationPath = Parser.parseAnnotationRoot(root, Annotation.GLOBAL_HEAD)
-
-    val (struct, rdd) = TextTableReader.read(vds.sparkContext)(Array(path), config)
-    val arrayType = TArray(struct)
-
-    val (finalType, inserter) = vds.insertGlobal(arrayType, annotationPath)
-
-    val table = rdd
-      .map(_.value)
-      .collect(): IndexedSeq[Annotation]
-
-    vds.copy(
-      globalAnnotation = inserter(vds.globalAnnotation, Some(table)),
-      globalSignature = finalType)
-  }
-
   def annotateSamplesExpr(expr: String): VariantDataset = {
     val ec = Aggregators.sampleEC(vds)
 
@@ -634,119 +398,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     )
   }
 
-  def annotateSamplesFam(path: String, root: String = "sa.fam",
-    config: FamFileConfig = FamFileConfig()): VariantDataset = {
-    if (!path.endsWith(".fam"))
-      fatal("input file must end in .fam")
-
-    val (info, signature) = PlinkLoader.parseFam(path, config, vds.hc.hadoopConf)
-
-    val duplicateIds = info.map(_._1).duplicates().toArray
-    if (duplicateIds.nonEmpty) {
-      val n = duplicateIds.length
-      fatal(
-        s"""found $n duplicate sample ${ plural(n, "id") }:
-           |  @1""".stripMargin, duplicateIds)
-    }
-
-    vds.annotateSamples(info.toMap, signature, root)
-  }
-
-  def annotateSamplesList(path: String, root: String): VariantDataset = {
-
-    val samplesInList = vds.hc.hadoopConf.readLines(path) { lines =>
-      if (lines.isEmpty)
-        warn(s"Empty annotation file given: $path")
-
-      lines.map(_.value).toSet
-    }
-
-    val sampleAnnotations = vds.sampleIds.map { s => (s, samplesInList.contains(s)) }.toMap
-    vds.annotateSamples(sampleAnnotations, TBoolean, root)
-  }
-
-  def annotateSamplesTable(path: String, sampleExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
-
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
-    }
-
-    val (struct, rdd) = TextTableReader.read(vds.sparkContext)(Array(path), config)
-
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "sa" -> (0, vds.saSignature),
-          "table" -> (1, struct)))
-        Annotation.buildInserter(annotationExpr, vds.saSignature, ec, Annotation.SAMPLE_HEAD)
-      } else
-        vds.insertSA(struct, Parser.parseAnnotationRoot(annotationExpr, Annotation.SAMPLE_HEAD))
-
-    val sampleQuery = struct.parseInStructScope[String](sampleExpr)
-
-    val map = rdd
-      .flatMap {
-        _.map { a =>
-          sampleQuery(a).map(s => (s, a))
-        }.value
-      }
-      .collect()
-      .toMap
-
-    val vdsKeys = vds.sampleIds.toSet
-    val tableKeys = map.keySet
-    val onlyVds = vdsKeys -- tableKeys
-    val onlyTable = tableKeys -- vdsKeys
-    if (onlyVds.nonEmpty) {
-      warn(s"There were ${onlyVds.size} samples present in the VDS but not in the table.")
-    }
-    if (onlyTable.nonEmpty) {
-      warn(s"There were ${onlyTable.size} samples present in the table but not in the VDS.")
-    }
-
-
-    vds.annotateSamples(map.get _, finalType, inserter)
-  }
-
-  def annotateSamplesVDS(other: VariantDataset,
-    root: Option[String] = None,
-    code: Option[String] = None): VariantDataset = {
-
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
-    }
-
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "sa" -> (0, vds.saSignature),
-          "vds" -> (1, other.saSignature)))
-        Annotation.buildInserter(annotationExpr, vds.saSignature, ec, Annotation.SAMPLE_HEAD)
-      } else
-        vds.insertSA(other.saSignature, Parser.parseAnnotationRoot(annotationExpr, Annotation.SAMPLE_HEAD))
-
-    val m = other.sampleIdsAndAnnotations.toMap
-    vds
-      .annotateSamples(m.get _, finalType, inserter)
-  }
-
-  def annotateVariantsBED(path: String, root: String, all: Boolean = false): VariantDataset = {
-    val annotationPath = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    BedAnnotator(path, vds.hc.hadoopConf) match {
-      case (is, None) =>
-        vds.annotateIntervals(is, annotationPath)
-
-      case (is, Some((t, m))) =>
-        vds.annotateIntervals(is, t, m, all = all, annotationPath)
-    }
-  }
-
   def annotateVariantsExpr(expr: String): VariantDataset = {
     val localGlobalAnnotation = vds.globalAnnotation
 
@@ -774,121 +425,33 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }.copy(vaSignature = finalType)
   }
 
-  def annotateVariantsIntervals(path: String, root: String, all: Boolean = false): VariantDataset = {
-    val annotationPath = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-
-    IntervalListAnnotator(path, vds.hc.hadoopConf) match {
-      case (is, Some((m, t))) =>
-        vds.annotateIntervals(is, m, t, all = all, annotationPath)
-
-      case (is, None) =>
-        vds.annotateIntervals(is, annotationPath)
-    }
-  }
-
-  def annotateVariantsLoci(path: String, locusExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
-    annotateVariantsLociAll(List(path), locusExpr, root, code, config)
-  }
-
-  def annotateVariantsLociAll(paths: Seq[String], locusExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
-    val files = vds.hc.hadoopConf.globAll(paths)
-    if (files.isEmpty)
-      fatal("Arguments referred to no files")
-
-    val (struct, rdd) = TextTableReader.read(vds.sparkContext)(files, config, vds.nPartitions)
-
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
-    }
-
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "va" -> (0, vds.vaSignature),
-          "table" -> (1, struct)))
-        Annotation.buildInserter(annotationExpr, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else vds.insertVA(struct, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
-
-    val locusQuery = struct.parseInStructScope[Locus](locusExpr)
-
-
-    import is.hail.variant.LocusImplicits.orderedKey
-    val lociRDD = rdd.flatMap {
-      _.map { a =>
-        locusQuery(a).map(l => (l, a))
-      }.value
-    }.toOrderedRDD(vds.rdd.orderedPartitioner.mapMonotonic)
-
-    vds.annotateLoci(lociRDD, finalType, inserter)
-  }
-
-  def annotateVariantsTable(path: String, variantExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
-    annotateVariantsTables(List(path), variantExpr, root, code, config)
-  }
-
-  def annotateVariantsTables(paths: Seq[String], variantExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
-    val files = vds.hc.hadoopConf.globAll(paths)
-    if (files.isEmpty)
-      fatal("Arguments referred to no files")
-
-    val (struct, rdd) = TextTableReader.read(vds.sparkContext)(files, config, vds.nPartitions)
-
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
-    }
-
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "va" -> (0, vds.vaSignature),
-          "table" -> (1, struct)))
-        Annotation.buildInserter(annotationExpr, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else vds.insertVA(struct, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
-
-    val variantQuery = struct.parseInStructScope[Variant](variantExpr)
-
-    val keyedRDD = rdd.flatMap {
-      _.map { a =>
-        variantQuery(a).map(v => (v, a))
-      }.value
-    }.toOrderedRDD(vds.rdd.orderedPartitioner)
-
-    vds.annotateVariants(keyedRDD, finalType, inserter)
-  }
-
-  def annotateVariantsVDS(other: VariantDataset,
-    root: Option[String] = None, code: Option[String] = None): VariantDataset = {
-
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
-    }
-
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "va" -> (0, vds.vaSignature),
-          "vds" -> (1, other.vaSignature)))
-        Annotation.buildInserter(annotationExpr, vds.vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else vds.insertVA(other.vaSignature, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
-
-    vds.annotateVariants(other.variantsAndAnnotations, finalType, inserter)
-  }
-
   def cache(): VariantDataset = persist("MEMORY_ONLY")
+
+  def persist(storageLevel: String = "MEMORY_AND_DISK"): VariantDataset = {
+    val level = try {
+      StorageLevel.fromString(storageLevel)
+    } catch {
+      case e: IllegalArgumentException =>
+        fatal(s"unknown StorageLevel `$storageLevel'")
+    }
+
+    vds.withGenotypeStream().copy(rdd = vds.rdd.persist(level))
+  }
+
+  def withGenotypeStream(compress: Boolean = true): VariantDataset = {
+    val isDosage = vds.isDosage
+    vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
+      (va, gs.toGenotypeStream(v, isDosage, compress = compress))
+    }.asOrderedRDD)
+  }
+
+  def coalesce(k: Int, shuffle: Boolean = true): VariantDataset = {
+    val start = if (shuffle)
+      withGenotypeStream()
+    else vds
+
+    start.copy(rdd = start.rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
+  }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], VariantDataset, VariantDataset) = {
     require(vds.wasSplit && other.wasSplit, "method `concordance' requires both left and right datasets to be split.")
@@ -920,8 +483,18 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }, preservesPartitioning = true).asOrderedRDD)
   }
 
-  def downsampleVariants(keep: Long): VariantDataset = {
-    vds.sampleVariants(keep.toDouble / vds.countVariants())
+  def eraseSplit(): VariantDataset = {
+    if (vds.wasSplit) {
+      val (newSignatures1, f1) = vds.deleteVA("wasSplit")
+      val vds1 = vds.copy(vaSignature = newSignatures1)
+      val (newSignatures2, f2) = vds1.deleteVA("aIndex")
+      vds1.copy(wasSplit = false,
+        vaSignature = newSignatures2,
+        rdd = vds1.rdd.mapValuesWithKey { case (v, (va, gs)) =>
+          (f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
+        }.asOrderedRDD)
+    } else
+      vds
   }
 
   def exportGen(path: String) {
@@ -1169,6 +742,17 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     hadoopConf.writeTable(path, lines, names.map(_.mkString("\t")))
   }
 
+  /**
+    *
+    * @param path output path
+    * @param append append file to header
+    * @param exportPP export Hail PLs as a PP format field
+    * @param parallel export VCF in parallel using the path argument as a directory
+    */
+  def exportVCF(path: String, append: Option[String] = None, exportPP: Boolean = false, parallel: Boolean = false) {
+    ExportVCF(vds, path, append, exportPP, parallel)
+  }
+
   def exportVariants(path: String, expr: String, typeFile: Boolean = false) {
     val vas = vds.vaSignature
     val hConf = vds.hc.hadoopConf
@@ -1254,38 +838,26 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param path output path
-    * @param append append file to header
-    * @param exportPP export Hail PLs as a PP format field
-    * @param parallel export VCF in parallel using the path argument as a directory
-    */
-  def exportVCF(path: String, append: Option[String] = None, exportPP: Boolean = false, parallel: Boolean = false) {
-    ExportVCF(vds, path, append, exportPP, parallel)
-  }
-
-  /**
-    *
     * @param filterExpr Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
     * @param annotationExpr Annotation modifying expression involving v (new variant), va (old variant annotations),
     *                       and aIndices (maps from new to old indices)
     * @param filterAlteredGenotypes any call that contains a filtered allele is set to missing instead
-    * @param remove Remove variants matching condition
-    * @param downcode downcodes the PL and AD. Genotype and GQ are set based on the resulting PLs
-    * @param subset subsets the PL and AD. Genotype and GQ are set based on the resulting PLs
+    * @param keep Keep variants matching condition
+    * @param subset subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
     * @param maxShift Maximum possible position change during minimum representation calculation
     */
   def filterAlleles(filterExpr: String, annotationExpr: String = "va = va", filterAlteredGenotypes: Boolean = false,
-    remove: Boolean = false, downcode: Boolean = false, subset: Boolean = false, maxShift: Int = 100): VariantDataset = {
-    FilterAlleles(vds, filterExpr, annotationExpr, filterAlteredGenotypes, remove, downcode, subset, maxShift)
+    keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100): VariantDataset = {
+    FilterAlleles(vds, filterExpr, annotationExpr, filterAlteredGenotypes, keep, subset, maxShift)
   }
 
   /**
     *
     * @param filterExpr filter expression involving v (Variant), va (variant annotations), s (sample),
     *                   sa (sample annotations), and g (genotype), which returns a boolean value
-    * @param remove remove genotypes where filterExpr evaluates to true, rather than keep them
+    * @param keep keep genotypes where filterExpr evaluates to true
     */
-  def filterGenotypes(filterExpr: String, remove: Boolean = false): VariantDataset = {
+  def filterGenotypes(filterExpr: String, keep: Boolean = true): VariantDataset = {
     val vas = vds.vaSignature
     val sas = vds.saSignature
 
@@ -1308,12 +880,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     (vds.sampleIds, vds.sampleAnnotations).zipped.map((_, _))
 
     val noCall = Genotype()
-    val keep = !remove
+    val localKeep = keep
     vds.mapValuesWithAll(
       (v: Variant, va: Annotation, s: String, sa: Annotation, g: Genotype) => {
         ec.setAll(v, va, s, sa, g)
 
-        if (Filter.keepThis(f(), keep))
+        if (Filter.keepThis(f(), localKeep))
           g
         else
           noCall
@@ -1340,12 +912,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     * Filter samples using the Hail expression language.
     *
     * @param filterExpr Filter expression involving `s' (sample) and `sa' (sample annotations)
-    * @param remove remove samples where filterExpr evaluates to true, rather than keeping only these
+    * @param keep keep where filterExpr evaluates to true
     */
-  def filterSamplesExpr(filterExpr: String, remove: Boolean = false): VariantDataset = {
+  def filterSamplesExpr(filterExpr: String, keep: Boolean = true): VariantDataset = {
     val localGlobalAnnotation = vds.globalAnnotation
 
-    val keep = !remove
     val sas = vds.saSignature
 
     val ec = Aggregators.sampleEC(vds)
@@ -1354,29 +925,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, ec)
 
+    val localKeep = keep
     val sampleIds = vds.sampleIds
     val p = (s: String, sa: Annotation) => {
       sampleAggregationOption.foreach(f => f.apply(s))
       ec.setAll(localGlobalAnnotation, s, sa)
-      Filter.keepThis(f(), keep)
+      Filter.keepThis(f(), localKeep)
     }
-
-    vds.filterSamples(p)
-  }
-
-  /**
-    * Filter samples using a text file containing sample IDs
-    * @param path path to sample list file
-    * @param remove remove listed samples rather than keeping them
-    */
-  def filterSamplesList(path: String, remove: Boolean = false): VariantDataset = {
-    val samples = vds.hc.hadoopConf.readFile(path) { reader =>
-      Source.fromInputStream(reader)
-        .getLines()
-        .filter(line => !line.isEmpty)
-        .toSet
-    }
-    val p = (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), !remove)
 
     vds.filterSamples(p)
   }
@@ -1384,10 +939,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   /**
     * Filter variants using the Hail expression language.
     * @param filterExpr filter expression
-    * @param remove remove variants where filterExpr evaluates to true, rather than keeping only these
+    * @param keep keep variants where filterExpr evaluates to true
     * @return
     */
-  def filterVariantsExpr(filterExpr: String, remove: Boolean = false): VariantDataset = {
+  def filterVariantsExpr(filterExpr: String, keep: Boolean = true): VariantDataset = {
     val localGlobalAnnotation = vds.globalAnnotation
     val ec = Aggregators.variantEC(vds)
 
@@ -1395,25 +950,15 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val aggregatorOption = Aggregators.buildVariantAggregations(vds, ec)
 
+    val localKeep = keep
     val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
       aggregatorOption.foreach(f => f(v, va, gs))
 
       ec.setAll(localGlobalAnnotation, v, va)
-      Filter.keepThis(f(), !remove)
+      Filter.keepThis(f(), localKeep)
     }
 
     vds.filterVariants(p)
-  }
-
-  /**
-    *
-    * @param path output path
-    * @param format output format: one of rel, gcta-grm, gcta-grm-bin
-    * @param idFile write ID file to this path
-    * @param nFile N file path, used with gcta-grm-bin only
-    */
-  def grm(path: String, format: String, idFile: Option[String] = None, nFile: Option[String] = None) {
-    GRM(vds, path, format, idFile, nFile)
   }
 
   def gqByDP(path: String) {
@@ -1440,6 +985,17 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         s.write("\n")
       }
     }
+  }
+
+  /**
+    *
+    * @param path output path
+    * @param format output format: one of rel, gcta-grm, gcta-grm-bin
+    * @param idFile write ID file to this path
+    * @param nFile N file path, used with gcta-grm-bin only
+    */
+  def grm(path: String, format: String, idFile: Option[String] = None, nFile: Option[String] = None) {
+    GRM(vds, path, format, idFile, nFile)
   }
 
   def hardCalls(): VariantDataset = {
@@ -1543,9 +1099,87 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LinearRegression(vds, ySA, covSA, root, minAC, minAF)
   }
 
+  def lmmreg(kinshipVDS: VariantDataset, ySA: String,
+    covSA: Array[String],
+    useML: Boolean,
+    rootGA: String,
+    rootVA: String,
+    runAssoc: Boolean,
+    optDelta: Option[Double],
+    sparsityThreshold: Double,
+    forceBlock: Boolean,
+    forceGrammian: Boolean): VariantDataset = {
+    LinearMixedRegression(vds, kinshipVDS, ySA, covSA, useML, rootGA, rootVA,
+      runAssoc, optDelta, sparsityThreshold, forceBlock, forceGrammian)
+  }
+
   def logreg(test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
     LogisticRegression(vds, test, ySA, covSA, root)
   }
+
+  def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String]): KeyTable = {
+    val vSymTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature))
+    val vEC = EvalContext(vSymTab)
+    val vA = vEC.a
+
+    val (vNames, vTypes, vf) = Parser.parseNamedExprs(variantCondition, vEC)
+
+    val gSymTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vds.vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, vds.saSignature),
+      "g" -> (4, TGenotype))
+    val gEC = EvalContext(gSymTab)
+    val gA = gEC.a
+
+    val (gNames, gTypes, gf) = Parser.parseNamedExprs(genotypeCondition, gEC)
+
+    val sig = TStruct(((vNames, vTypes).zipped ++
+      vds.sampleIds.flatMap { s =>
+        (gNames, gTypes).zipped.map { case (n, t) =>
+          (if (n.isEmpty)
+            s
+          else
+            s + "." + n, t)
+        }
+      }).toSeq: _*)
+
+    val localSampleIdsBc = vds.sampleIdsBc
+    val localSampleAnnotationsBc = vds.sampleAnnotationsBc
+
+    KeyTable(vds.hc,
+      vds.rdd.mapPartitions { it =>
+        val ab = mutable.ArrayBuilder.make[Any]
+
+        it.map { case (v, (va, gs)) =>
+          ab.clear()
+
+          vEC.setAll(v, va)
+          vf().foreach { x =>
+            ab += x.orNull
+          }
+
+          gs.iterator.zipWithIndex.foreach { case (g, i) =>
+            val s = localSampleIdsBc.value(i)
+            val sa = localSampleAnnotationsBc.value(i)
+            gEC.setAll(v, va, s, sa, g)
+            gf().foreach { x =>
+              ab += x.orNull
+            }
+          }
+
+          Row.fromSeq(ab.result()): Annotation
+        }
+      },
+      sig,
+      keyNames)
+  }
+
+  def makeSchemaForKudu(): StructType =
+    makeSchema().add(StructField("sample_group", StringType, nullable = false))
 
   /**
     *
@@ -1561,18 +1195,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     men.writeMendelL(pathBase + ".lmendel", vds.hc.tmpDir)
     men.writeMendelF(pathBase + ".fmendel")
     men.writeMendelI(pathBase + ".imendel")
-  }
-
-  def persist(storageLevel: String = "MEMORY_AND_DISK"): VariantDataset = {
-    vds.rdd.persist()
-    val level = try {
-      StorageLevel.fromString(storageLevel)
-    } catch {
-      case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
-    }
-
-    vds.withGenotypeStream().copy(rdd = vds.rdd.persist(level))
   }
 
   /**
@@ -1609,35 +1231,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     ret
   }
 
-  /**
-    *
-    * @param path ID mapping file
-    */
-  def renameSamples(path: String): VariantDataset = {
-    val m = vds.hc.hadoopConf.readFile(path) { s =>
-      Source.fromInputStream(s)
-        .getLines()
-        .map {
-          _.split("\t") match {
-            case Array(old, news) => (old, news)
-            case _ =>
-              fatal("Invalid input. Use two tab-separated columns.")
-          }
-        }.toMap
-    }
-
-    val newSamples = mutable.Set.empty[String]
-    val newSampleIds = vds.sampleIds
-      .map { s =>
-        val news = m.getOrElse(s, s)
-        if (newSamples.contains(news))
-          fatal(s"duplicate sample ID `$news' after rename")
-        newSamples += news
-        news
-      }
-    vds.copy(sampleIds = newSampleIds)
-  }
-
   def sampleQC(): VariantDataset = SampleQC(vds)
 
   /**
@@ -1663,41 +1256,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 
-  def typecheck() {
-    var foundError = false
-    if (!vds.globalSignature.typeCheck(vds.globalAnnotation)) {
-      warn(
-        s"""found violation in global annotation
-           |Schema: ${ vds.globalSignature.toPrettyString() }
-           |
-            |Annotation: ${ Annotation.printAnnotation(vds.globalAnnotation) }""".stripMargin)
-    }
-
-    vds.sampleIdsAndAnnotations.find { case (_, sa) => !vds.saSignature.typeCheck(sa) }
-      .foreach { case (s, sa) =>
-        foundError = true
-        warn(
-          s"""found violation in sample annotations for sample $s
-             |Schema: ${ vds.saSignature.toPrettyString() }
-             |
-              |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
-      }
-
-    val vaSignature = vds.vaSignature
-    vds.variantsAndAnnotations.find { case (_, va) => !vaSignature.typeCheck(va) }
-      .foreach { case (v, va) =>
-        foundError = true
-        warn(
-          s"""found violation in variant annotations for variant $v
-             |Schema: ${ vaSignature.toPrettyString() }
-             |
-              |Annotation: ${ Annotation.printAnnotation(va) }""".stripMargin)
-      }
-
-    if (foundError)
-      fatal("found one or more type check errors")
-  }
-
   def variantQC(): VariantDataset = VariantQC(vds)
 
   /**
@@ -1711,5 +1269,139 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def vep(config: String, root: String = "va.vep", csq: Boolean = false, force: Boolean = false,
     blockSize: Int = 1000): VariantDataset = {
     VEP.annotate(vds, config, root, csq, force, blockSize)
+  }
+
+  def write(dirname: String, overwrite: Boolean = false, compress: Boolean = true) {
+    require(dirname.endsWith(".vds"), "variant dataset write paths must end in '.vds'")
+
+    if (overwrite)
+      vds.hadoopConf.delete(dirname, recursive = true)
+    else if (vds.hadoopConf.exists(dirname))
+      fatal(s"file already exists at `$dirname'")
+
+    writeMetadata(vds.hc.sqlContext, dirname, compress)
+
+    val vaSignature = vds.vaSignature
+    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
+
+    vds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
+      Serialization.write(vds.rdd.orderedPartitioner.toJSON, out)
+    }
+
+    val isDosage = vds.isDosage
+    val rowRDD = vds.rdd.map { case (v, (va, gs)) =>
+      Row.fromSeq(Array(v.toRow,
+        if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
+        gs.toGenotypeStream(v, isDosage, compress).toRow))
+    }
+    vds.hc.sqlContext.createDataFrame(rowRDD, makeSchema())
+      .write.parquet(dirname + "/rdd.parquet")
+    // .saveAsParquetFile(dirname + "/rdd.parquet")
+  }
+
+  def makeSchema(): StructType =
+    StructType(Array(
+      StructField("variant", Variant.schema, nullable = false),
+      StructField("annotations", vds.vaSignature.schema),
+      StructField("gs", GenotypeStream.schema, nullable = false)
+    ))
+
+  private def writeMetadata(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
+    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
+      fatal(s"output path ending in `.vds' required, found `$dirname'")
+
+    val hConf = vds.hc.hadoopConf
+    hConf.mkDir(dirname)
+
+    val sb = new StringBuilder
+
+    vds.saSignature.pretty(sb, printAttrs = true, compact = true)
+    val saSchemaString = sb.result()
+
+    sb.clear()
+    vds.vaSignature.pretty(sb, printAttrs = true, compact = true)
+    val vaSchemaString = sb.result()
+
+    sb.clear()
+    vds.globalSignature.pretty(sb, printAttrs = true, compact = true)
+    val globalSchemaString = sb.result()
+
+    val sampleInfoSchema = TStruct(("id", TString), ("annotation", vds.saSignature))
+    val sampleInfoJson = JArray(
+      vds.sampleIdsAndAnnotations
+        .map { case (id, annotation) =>
+          JObject(List(("id", JString(id)), ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, vds.saSignature))))
+        }
+        .toList
+    )
+
+    val json = JObject(
+      ("version", JInt(VariantSampleMatrix.fileVersion)),
+      ("split", JBool(vds.wasSplit)),
+      ("isDosage", JBool(vds.isDosage)),
+      ("sample_annotation_schema", JString(saSchemaString)),
+      ("variant_annotation_schema", JString(vaSchemaString)),
+      ("global_annotation_schema", JString(globalSchemaString)),
+      ("sample_annotations", sampleInfoJson),
+      ("global_annotation", JSONAnnotationImpex.exportAnnotation(vds.globalAnnotation, vds.globalSignature))
+    )
+
+    hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))
+  }
+
+  def writeKudu(dirname: String, tableName: String,
+    master: String, vcfSeqDict: String, rowsPerPartition: Int,
+    sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
+
+    writeMetadata(vds.hc.sqlContext, dirname, compress)
+
+    val vaSignature = vds.vaSignature
+    val isDosage = vds.isDosage
+
+    val rowType = VariantDataset.kuduRowType(vaSignature)
+    val rowRDD = vds.rdd
+      .map { case (v, (va, gs)) =>
+        KuduAnnotationImpex.exportAnnotation(Annotation(
+          v.toRow,
+          va,
+          gs.toGenotypeStream(v, isDosage, compress).toRow,
+          sampleGroup), rowType).asInstanceOf[Row]
+      }
+
+    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
+    println(s"schema = $schema")
+    val df = vds.hc.sqlContext.createDataFrame(rowRDD, schema)
+
+    val kuduContext = new KuduContext(master)
+    if (drop) {
+      KuduUtils.dropTable(master, tableName)
+      Thread.sleep(10 * 1000) // wait to avoid overwhelming Kudu service queue
+    }
+    if (!KuduUtils.tableExists(master, tableName)) {
+      val hConf = vds.hc.sqlContext.sparkContext.hadoopConfiguration
+      val headerLines = hConf.readFile(vcfSeqDict) { s =>
+        Source.fromInputStream(s)
+          .getLines()
+          .takeWhile { line => line(0) == '#' }
+          .toArray
+      }
+      val codec = new htsjdk.variant.vcf.VCFCodec()
+      val seqDict = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+        .getHeaderValue
+        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
+        .getSequenceDictionary
+
+      val keys = Seq("variant__contig", "variant__start", "variant__ref",
+        "variant__altAlleles_0__alt", "sample_group")
+      kuduContext.createTable(tableName, schema, keys,
+        KuduUtils.createTableOptions(schema, keys, seqDict, rowsPerPartition))
+    }
+    df.write
+      .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
+      .mode("append")
+      // FIXME inlined since .kudu wouldn't work for some reason
+      .format("org.apache.kudu.spark.kudu").save
+
+    println("Written to Kudu")
   }
 }

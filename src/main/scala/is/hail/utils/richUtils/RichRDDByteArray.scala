@@ -1,10 +1,9 @@
 package is.hail.utils.richUtils
 
-import is.hail.driver.HailContext
-import org.apache.hadoop.io.{BytesWritable, NullWritable}
-import org.apache.spark.rdd.RDD
 import is.hail.io.hadoop.{ByteArrayOutputFormat, BytesOnlyWritable}
 import is.hail.utils._
+import org.apache.hadoop.io.{BytesWritable, NullWritable}
+import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 

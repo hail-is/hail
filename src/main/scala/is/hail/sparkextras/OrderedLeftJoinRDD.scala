@@ -1,12 +1,8 @@
 package is.hail.sparkextras
 
+import is.hail.utils.{BufferedAdvanceableOrderedPairIterator, _}
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
-import is.hail.utils._
-import is.hail.utils.BufferedAdvanceableOrderedPairIterator
-import is.hail.utils.richUtils.RichPairIterator
-
-import scala.reflect.ClassTag
 
 object OrderedRDDIterator {
   def apply[PK, K, V](rdd: OrderedRDD[PK, K, V], partitions: Array[Partition],
@@ -31,6 +27,7 @@ class OrderedRDDIterator[PK, K, V](
   implicit val kOrdering = orderedKeyEv.kOrd
 
   import orderedKeyEv.pkOrd
+
   import Ordering.Implicits._
 
   private val partitioner = rdd.orderedPartitioner

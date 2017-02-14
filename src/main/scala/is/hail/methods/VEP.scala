@@ -9,6 +9,7 @@ import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
+
 import scala.collection.JavaConverters._
 
 object VEP {

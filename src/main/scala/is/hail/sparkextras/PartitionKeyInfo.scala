@@ -12,8 +12,8 @@ object PartitionKeyInfo {
   final val KSORTED = 2
 
   def apply[PK, K](partIndex: Int, it: Iterator[K])(implicit kOk: OrderedKey[PK, K]): PartitionKeyInfo[PK] = {
-    import kOk.kOrd
-    import kOk.pkOrd
+    import kOk.{kOrd, pkOrd}
+
     import Ordering.Implicits._
 
     assert(it.hasNext)

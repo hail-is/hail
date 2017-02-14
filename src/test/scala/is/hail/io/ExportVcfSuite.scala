@@ -1,14 +1,11 @@
 package is.hail.io
 
-import org.apache.spark.rdd.RDD
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.driver._
 import is.hail.expr.TStruct
-import is.hail.io.vcf.LoadVCF
+import is.hail.utils._
 import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 

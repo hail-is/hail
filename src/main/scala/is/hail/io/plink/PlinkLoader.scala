@@ -1,14 +1,14 @@
 package is.hail.io.plink
 
+import is.hail.HailContext
+import is.hail.annotations._
+import is.hail.expr._
+import is.hail.utils.StringEscapeUtils._
+import is.hail.utils._
+import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
-import is.hail.utils._
-import is.hail.annotations._
-import is.hail.driver.HailContext
-import is.hail.expr._
-import is.hail.utils.StringEscapeUtils._
-import is.hail.variant._
 
 import scala.collection.mutable
 

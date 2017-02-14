@@ -1,8 +1,8 @@
 package is.hail.io.plink
 
+import is.hail.io.IndexedBinaryInputFormat
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred._
-import is.hail.io.{IndexedBinaryInputFormat, KeySerializedValueRecord}
 
 class PlinkInputFormat extends IndexedBinaryInputFormat[PlinkRecord] {
   override def getRecordReader(split: InputSplit, job: JobConf, reporter: Reporter): RecordReader[LongWritable,

@@ -1,10 +1,9 @@
 package is.hail.methods
 
 import is.hail.annotations.Annotation
-import is.hail.expr.TStruct
+import is.hail.expr.{TStruct, _}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
-import is.hail.expr._
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable

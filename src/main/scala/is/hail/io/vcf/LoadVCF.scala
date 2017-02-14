@@ -2,16 +2,14 @@ package is.hail.io.vcf
 
 import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
-import org.apache.hadoop.mapred.FileSplit
-import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{Accumulable, SparkContext}
-import is.hail.utils._
+import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.driver.HailContext
 import is.hail.expr._
-import is.hail.sparkextras.{OrderedRDD, ReorderedPartitionsRDD, ReorderedPartitionsRDDPartition}
+import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
+import org.apache.spark.Accumulable
+import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable

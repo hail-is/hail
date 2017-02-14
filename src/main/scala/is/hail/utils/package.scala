@@ -4,7 +4,6 @@ import java.lang.reflect.Method
 import java.net.URI
 
 import is.hail.check.Gen
-import is.hail.driver.HailContext
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}

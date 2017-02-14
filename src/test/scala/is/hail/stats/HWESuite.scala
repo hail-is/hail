@@ -2,8 +2,6 @@ package is.hail.stats
 
 import is.hail.SparkSuite
 import is.hail.check._
-import is.hail.driver._
-import is.hail.io.vcf.LoadVCF
 import is.hail.methods.VariantQC
 import is.hail.utils._
 import is.hail.variant._

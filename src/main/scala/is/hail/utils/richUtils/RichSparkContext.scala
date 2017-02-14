@@ -1,8 +1,8 @@
 package is.hail.utils.richUtils
 
+import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import is.hail.utils._
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
   def textFilesLines(files: Array[String],

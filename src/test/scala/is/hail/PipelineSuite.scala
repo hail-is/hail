@@ -1,6 +1,5 @@
 package is.hail
 
-import is.hail.driver._
 import org.testng.annotations.Test
 
 class PipelineSuite extends SparkSuite {

@@ -1,11 +1,11 @@
 package is.hail.methods
 
-import org.apache.spark.mllib.linalg.DenseMatrix
-import org.apache.spark.rdd.RDD
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.mllib.linalg.DenseMatrix
+import org.apache.spark.rdd.RDD
 
 object SamplePCA {
 

@@ -1,10 +1,10 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
+import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions

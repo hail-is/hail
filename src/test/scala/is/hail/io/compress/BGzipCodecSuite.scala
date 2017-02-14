@@ -1,11 +1,11 @@
 package is.hail.io.compress
 
-import org.apache.commons.io.IOUtils
-import org.apache.{hadoop => hd}
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
+import is.hail.utils._
+import org.apache.commons.io.IOUtils
+import org.apache.{hadoop => hd}
 import org.testng.annotations.Test
 
 import scala.collection.JavaConverters._

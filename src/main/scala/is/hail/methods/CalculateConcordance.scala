@@ -2,12 +2,9 @@ package is.hail.methods
 
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.keytable.KeyTable
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.variant._
-
-import Numeric.Implicits._
 
 object ConcordanceCombiner {
   val schema = TArray(TArray(TLong))

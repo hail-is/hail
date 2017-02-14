@@ -134,7 +134,10 @@ class ContextTests(unittest.TestCase):
         (sample2.annotate_variants_vds(sample2, code='va.good = va.info.AF == vds.info.AF')
          .count())
 
-        (concordance1, concordance2) = (sample2_split.concordance(sample2_split))
+        glob, concordance1, concordance2 = (sample2_split.concordance(sample2_split))
+        print(glob[1][4])
+        print(glob[4][0])
+        print(glob[:][3])
         concordance1.write('/tmp/foo.vds', overwrite=True)
         concordance2.write('/tmp/foo.vds', overwrite=True)
 
@@ -156,9 +159,9 @@ class ContextTests(unittest.TestCase):
 
         sample2.filter_multi().count()
 
-        self.assertEqual(sample2.filter_samples_all().count()['nSamples'], 0)
+        self.assertEqual(sample2.drop_samples().count()['nSamples'], 0)
 
-        self.assertEqual(sample2.filter_variants_all().count()['nVariants'], 0)
+        self.assertEqual(sample2.drop_variants().count()['nVariants'], 0)
 
         sample2_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
                                         test_resources + '/sample2.vcf'])
@@ -171,14 +174,14 @@ class ContextTests(unittest.TestCase):
         (sample2.filter_variants_expr('pcoin(0.5)')
          .export_variants('/tmp/sample2.variant_list', 'v'))
 
-        (sample2.filter_variants_intervals(test_resources + '/annotinterall.interval_list')
+        (sample2.filter_intervals(test_resources + '/annotinterall.interval_list')
          .count())
 
         self.assertEqual(sample2.filter_variants_list(
             test_resources + '/sample2_variants.tsv')
                          .count()['nVariants'], 21)
 
-        sample2.grm('gcta-grm-bin', '/tmp/sample2.grm')
+        sample2.grm('/tmp/sample2.grm', 'gcta-grm-bin')
 
         sample2.hardcalls().count()
 
@@ -232,7 +235,7 @@ class ContextTests(unittest.TestCase):
             (sample2.repartition(16, shuffle=False)
              .same(sample2)))
 
-        sample2.sparkinfo()
+        print(sample2.storage_level())
 
         sample_split.tdt(test_resources + '/sample.fam')
 

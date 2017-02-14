@@ -1,7 +1,6 @@
 package is.hail.stats
 
 import is.hail.SparkSuite
-import is.hail.driver._
 import is.hail.utils._
 import org.testng.annotations.Test
 

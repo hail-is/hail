@@ -74,6 +74,8 @@ def joption(x):
 def from_option(x):
     return x.get() if x.isDefined() else None
 
+def jindexed_seq(x):
+    return env.jutils.arrayListToISeq(x)
 
 def jiterable_to_list(it):
     if it:

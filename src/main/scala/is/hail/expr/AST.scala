@@ -1,21 +1,16 @@
 package is.hail.expr
 
-import org.apache.spark.sql.Row
-import org.apache.spark.util.StatCounter
-import is.hail.utils._
 import is.hail.annotations._
-import is.hail.methods._
-import is.hail.stats._
-import is.hail.utils.{FatalException, Interval}
-import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import is.hail.utils.EitherIsAMonad._
+import is.hail.utils.{FatalException, _}
+import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.util.parsing.input.{Position, Positional}
 import scala.language.existentials
 import scala.reflect.ClassTag
-import is.hail.utils.EitherIsAMonad._
+import scala.util.parsing.input.{Position, Positional}
 
 case class EvalContext(st: SymbolTable,
   a: ArrayBuffer[Any],

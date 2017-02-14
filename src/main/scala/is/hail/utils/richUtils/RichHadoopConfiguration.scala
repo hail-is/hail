@@ -2,12 +2,12 @@ package is.hail.utils.richUtils
 
 import java.io._
 
-import org.apache.hadoop
-import org.apache.hadoop.fs.{FileStatus, PathIOException}
-import org.apache.hadoop.io.IOUtils._
-import org.apache.hadoop.io.compress.CompressionCodecFactory
 import is.hail.io.compress.BGzipCodec
 import is.hail.utils.{TextContext, WithContext, _}
+import org.apache.hadoop
+import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.io.IOUtils._
+import org.apache.hadoop.io.compress.CompressionCodecFactory
 
 import scala.io.Source
 

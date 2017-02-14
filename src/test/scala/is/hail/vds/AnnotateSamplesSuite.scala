@@ -1,7 +1,6 @@
 package is.hail.vds
 
 import is.hail.SparkSuite
-import is.hail.io.vcf.LoadVCF
 import org.testng.annotations.Test
 
 class AnnotateSamplesSuite extends SparkSuite {

@@ -1,10 +1,8 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.utils._
-import is.hail.driver._
 import is.hail.expr.Parser
-import is.hail.io.vcf.LoadVCF
+import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.io.Source

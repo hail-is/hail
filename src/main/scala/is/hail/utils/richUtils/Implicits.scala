@@ -1,14 +1,14 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
+import is.hail.utils.{JSONWriter, MultiArray2, Truncatable}
+import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
-import is.hail.utils.{JSONWriter, MultiArray2, Truncatable}
-import is.hail.variant.Variant
 import org.json4s.JValue
 
 import scala.collection.{TraversableOnce, mutable}

@@ -1,11 +1,11 @@
 package is.hail.io
 
-import org.apache.spark.rdd.RDD
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
-import org.testng.annotations.Test
-import is.hail.variant._
 import is.hail.utils._
+import is.hail.variant._
+import org.apache.spark.rdd.RDD
+import org.testng.annotations.Test
 
 class LoadGenSuite extends SparkSuite {
 

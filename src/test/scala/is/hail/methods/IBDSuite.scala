@@ -1,17 +1,13 @@
 package is.hail.methods
 
-import org.apache.spark.sql.Row
 import is.hail.SparkSuite
-import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.check.Properties
-import is.hail.driver._
+import is.hail.check.{Gen, Properties}
 import is.hail.expr.{TDouble, TInt, TString}
-import is.hail.io.vcf.LoadVCF
 import is.hail.utils.AbsoluteFuzzyComparable._
-import is.hail.utils.{AbsoluteFuzzyComparable, TextTableConfiguration, TextTableReader}
+import is.hail.utils.{AbsoluteFuzzyComparable, TextTableConfiguration, TextTableReader, _}
 import is.hail.variant._
-import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.language._

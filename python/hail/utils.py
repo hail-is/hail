@@ -33,36 +33,14 @@ class TextTableConfig(object):
         self.missing = missing
         self.types = types
 
-    def _as_pargs(self):
-        """Configuration parameters as a list"""
-
-        pargs = ["--delimiter", self.delimiter,
-                 "--missing", self.missing]
-
-        if self.noheader:
-            pargs.append("--no-header")
-
-        if self.impute:
-            pargs.append("--impute")
-
-        if self.types:
-            pargs.append("--types")
-            pargs.append(self.types)
-
-        if self.comment:
-            pargs.append("--comment")
-            pargs.append(self.comment)
-
-        return pargs
-
     def __str__(self):
-        return " ".join(self._as_pargs())
+        return self._to_java().toString()
 
     def _to_java(self):
         """Convert to Java TextTableConfiguration object."""
         try:
             return env.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
-                                                                 self.delimiter, self.missing,
-                                                                 self.noheader, self.impute)
+                                                               self.delimiter, self.missing,
+                                                               self.noheader, self.impute)
         except Py4JJavaError as e:
             raise_py4j_exception(e)

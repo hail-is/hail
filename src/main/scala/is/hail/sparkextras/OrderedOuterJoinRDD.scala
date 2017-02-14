@@ -42,9 +42,7 @@ class OrderedOuterJoinRDD[PK, K, V1, V2] private(left: OrderedRDD[PK, K, V1], ri
 
   override val partitioner = Some(left.orderedPartitioner)
 
-  import left.kOk.kOrd
-  import left.kOk.pkOrd
-  import left.kOk.project
+  import left.kOk.{kOrd, pkOrd, project}
 
   import Ordering.Implicits._
 

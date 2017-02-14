@@ -1,13 +1,12 @@
 package is.hail.io
 
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{LongType, StructField, StructType}
 import is.hail.SparkSuite
 import is.hail.utils._
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.{LongType, StructField, StructType}
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
-import scala.sys.process._
 
 class ReadSuite extends SparkSuite {
   // verify loading parquet files >128MB with readParquetSorted aren't split

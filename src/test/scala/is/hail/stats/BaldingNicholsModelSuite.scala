@@ -1,10 +1,10 @@
 package is.hail.stats
 
+import breeze.stats._
 import is.hail.SparkSuite
 import org.apache.spark.sql.catalyst.expressions.GenericRow
-import org.testng.annotations.Test
 import org.testng.Assert.assertEquals
-import breeze.stats._
+import org.testng.annotations.Test
 
 import scala.collection.mutable
 

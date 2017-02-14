@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
-from hail.java import jarray, scala_object, scala_package_object, joption, Env, raise_py4j_exception
+from hail.java import *
 from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
@@ -56,40 +56,22 @@ class HailContext(object):
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
 
-        driver = scala_package_object(self._hail.driver)
-
-        if not sc:
-            self._jsc = driver.configureAndCreateSparkContext(
-                appName, joption(master), local, parquet_compression, min_block_size)
-            self.sc = SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
+        if sc:
+            jsc = sc._jsc
         else:
+            jsc = None
+
+        self._jhc = scala_object(self._hail, 'HailContext').apply(
+            jsc, appName, joption(master), local, log, quiet, append,
+            parquet_compression, min_block_size, branching_factor, tmp_dir)
+
+        if sc:
             self.sc = sc
-            # sc._jsc is a JavaSparkContext
-            self._jsc = sc._jsc.sc()
-
-        driver.configureHail(branching_factor, tmp_dir)
-        driver.configureLogging(log, quiet, append)
-
-        self._jsql_context = driver.createSQLContext(self._jsc)
+        else:
+            self.sc = SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jhc.sc()))
+        self._jsc = self._jhc.sc()
+        self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
-
-    def _jstate(self, jvds):
-        return self._hail.driver.State(
-            self._jsc, self._jsql_context, jvds, scala_object(self._jvm.scala.collection.immutable, 'Map').empty())
-
-    def _run_command(self, vds, pargs):
-        jargs = jarray(self._jvm.java.lang.String, pargs)
-        t = self._hail.driver.ToplevelCommands.lookup(jargs)
-        cmd = t._1()
-        cmd_args = t._2()
-        jstate = self._jstate(vds._jvds if vds != None else None)
-
-        try:
-            result = cmd.run(jstate, cmd_args)
-        except Py4JJavaError as e:
-            raise_py4j_exception(e)
-
-        return VariantDataset(self, result.vds())
 
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.
@@ -116,19 +98,15 @@ class HailContext(object):
         :param int max_count: The maximum number of matches to return.
         """
 
-        pargs = ["grep", regex]
         if isinstance(path, str):
-            pargs.append(path)
+            files = [path]
         else:
-            for p in path:
-                pargs.append(p)
+            files = path
+        files = jindexed_seq(files)
 
-        pargs.append('--max-count')
-        pargs.append(str(max_count))
+        self._jhc.grep(regex, files, max_count)
 
-        self._run_command(None, pargs)
-
-    def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=None):
+    def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=TextTableConfig()):
         """Import variants and variant annotations from a delimited text file
         (text table) as a sites-only VariantDataset.
 
@@ -145,37 +123,22 @@ class HailContext(object):
         :type npartitions: int or None
 
         :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig` or None
+        :type config: :class:`.TextTableConfig`
 
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ['importannotations', 'table']
         if isinstance(path, str):
-            pargs.append(path)
+            files = [path]
         else:
-            for p in path:
-                pargs.append(p)
+            files = path
+        files = jindexed_seq(files)
 
-        pargs.append('--variant-expr')
-        pargs.append(variant_expr)
+        jvds = self._jhc.importAnnotationsTables(files, variant_expr, joption(code),
+                                                 joption(npartitions), config._to_java())
+        return VariantDataset(self, jvds)
 
-        if code:
-            pargs.append('--code')
-            pargs.append(code)
-
-        if npartitions:
-            pargs.append('--npartition')
-            pargs.append(npartitions)
-
-        if not config:
-            config = TextTableConfig()
-
-        pargs.extend(config._as_pargs())
-
-        return self._run_command(None, pargs)
-
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
+    def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None, compress=True):
         """Import .bgen files as VariantDataset
 
         :param path: .bgen files to import.
@@ -191,32 +154,22 @@ class HailContext(object):
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
+        :param bool compress: compress in-memory representation on import
+
         :return A dataset imported from the bgen file.
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ["importbgen"]
-
         if isinstance(path, str):
-            pargs.append(path)
+            files = [path]
         else:
-            for p in path:
-                pargs.append(p)
+            files = path
+        files = jindexed_seq(files)
 
-        if sample_file:
-            pargs.append('--samplefile')
-            pargs.append(sample_file)
+        jvds = self._jhc.importBgens(files, joption(sample_file), tolerance, joption(npartitions), True)
+        return VariantDataset(self, jvds)
 
-        if npartitions:
-            pargs.append('--npartition')
-            pargs.append(str(npartitions))
-
-        pargs.append('--tolerance')
-        pargs.append(str(tolerance))
-
-        return self._run_command(None, pargs)
-
-    def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None):
+    def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None, compress=True):
         """Import .gen files as VariantDataset.
 
         **Examples**
@@ -264,8 +217,7 @@ class HailContext(object):
         :param path: .gen files to import.
         :type path: str or list of str
 
-        :param sample_file: The sample file.
-        :type sample_file: str or None
+        :param str sample_file: The sample file.
 
         :param float tolerance: If the sum of the dosages for a genotype differ from 1.0 by more than the tolerance, set the genotype to missing.
 
@@ -275,35 +227,20 @@ class HailContext(object):
         :param chromosome: Chromosome if not listed in the .gen file.
         :type chromosome: str or None
 
+        :param bool compress: compress in-memory representation
+
         :rtype: :class:`.VariantDataset`
         :return: A dataset imported from a .gen and .sample file.
         """
 
-        pargs = ["importgen"]
-
         if isinstance(path, str):
-            pargs.append(path)
+            files = [path]
         else:
-            for p in path:
-                pargs.append(p)
+            files = path
+        files = jindexed_seq(files)
 
-        if sample_file:
-            pargs.append('--samplefile')
-            pargs.append(sample_file)
-
-        if chromosome:
-            pargs.append('--chromosome')
-            pargs.append(chromosome)
-
-        if npartitions:
-            pargs.append('--npartition')
-            pargs.append(str(npartitions))
-
-        if tolerance:
-            pargs.append('--tolerance')
-            pargs.append(str(tolerance))
-
-        return self._run_command(None, pargs)
+        jvds = self._jhc.importGens(files, sample_file, joption(chromosome), joption(npartitions), tolerance, compress)
+        return VariantDataset(self, jvds)
 
     def import_keytable(self, path, key_names, npartitions=None, config=None):
         """Import delimited text file (text table) as KeyTable.
@@ -340,10 +277,11 @@ class HailContext(object):
             config = TextTableConfig()
 
         return KeyTable(self, self._hail.keytable.KeyTable.importTextTable(
-            self._jsc, jarray(self._jvm.java.lang.String, path_args), key_names, npartitions,
+            self._jhc, jarray(self._jvm.java.lang.String, path_args), key_names, npartitions,
             config._to_java()))
 
-    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
+    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False,
+                     compress=True):
         """Import PLINK binary file (BED, BIM, FAM) as VariantDataset
 
         **Examples**
@@ -404,38 +342,18 @@ class HailContext(object):
 
         :param bool quantpheno: If True, FAM phenotype is interpreted as quantitative.
 
+        :param bool compress: Compress in-memory representation
+
         :return: A dataset imported from a PLINK binary file.
 
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ["importplink"]
+        jvds = self._jhc.importPlink(bed, bim, fam, joption(npartitions), delimiter, missing, quantpheno, compress)
 
-        pargs.append('--bed')
-        pargs.append(bed)
+        return VariantDataset(self, jvds)
 
-        pargs.append('--bim')
-        pargs.append(bim)
-
-        pargs.append('--fam')
-        pargs.append(fam)
-
-        if npartitions:
-            pargs.append('--npartition')
-            pargs.append(npartitions)
-
-        if quantpheno:
-            pargs.append('--quantpheno')
-
-        pargs.append('--missing')
-        pargs.append(missing)
-
-        pargs.append('--delimiter')
-        pargs.append(delimiter)
-
-        return self._run_command(None, pargs)
-
-    def read(self, path, sites_only=False):
+    def read(self, path, sites_only=False, samples_only=False):
         """Read .vds files as VariantDataset
 
         When loading multiple .vds files, they must have the same
@@ -445,24 +363,24 @@ class HailContext(object):
         :type path: str or list of str
 
         :param bool sites_only: If True, create sites-only
-          VariantDataset.  Don't load sample ids, sample annotations
+          dataset.  Don't load sample ids, sample annotations
           or gneotypes.
+
+        :param bool samples_only: If True, create samples-only
+          dataset (no variants or genotypes).
 
         :return: A dataset read from disk
         :rtype: :class:`.VariantDataset`
         """
 
-        pargs = ["read"]
-
         if isinstance(path, str):
-            pargs.append(path)
+            files = [path]
         else:
-            for p in path:
-                pargs.append(p)
+            files = path
+        files = jindexed_seq(files)
 
-        if sites_only:
-            pargs.append("--skip-genotypes")
-        return self._run_command(None, pargs)
+        jvds = self._jhc.readAll(files, sites_only, samples_only)
+        return VariantDataset(self, jvds)
 
     def write_partitioning(self, path):
         """Write partitioning.json.gz file for legacy VDS file.
@@ -470,10 +388,10 @@ class HailContext(object):
         :param str path: path to VDS file.
         """
 
-        self._hail.variant.VariantSampleMatrix.writePartitioning(self._jsql_context, path)
+        self._jhc.writePartitioning(path)
 
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
-                   sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
+                   sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, compress=False):
         """Import .vcf files as VariantDataset
 
         :param path: .vcf files to read.
@@ -501,46 +419,24 @@ class HailContext(object):
             wrong number of elements to missing, rather than setting
             the entire genotype to missing.
 
+        :param bool compress: compress in-memory representation
+
         :return: A dataset imported from the VCF file
         :rtype: :class:`.VariantDataset`
 
         """
 
-        pargs = ["importvcf"]
-
         if isinstance(path, str):
-            pargs.append(path)
+            files = [path]
         else:
-            for p in path:
-                pargs.append(p)
+            files = path
+        files = jindexed_seq(files)
 
-        if force:
-            pargs.append('--force')
+        jvds = self._jhc.importVCFs(files, force, force_bgz, joption(header_file),
+                                    joption(npartitions), sites_only, store_gq,
+                                    pp_as_pl, skip_bad_ad, compress)
 
-        if force_bgz:
-            pargs.append('--force-bgz')
-
-        if header_file:
-            pargs.append('--header-file')
-            pargs.append(header_file)
-
-        if npartitions:
-            pargs.append('--npartition')
-            pargs.append(str(npartitions))
-
-        if pp_as_pl:
-            pargs.append('--pp-as-pl')
-
-        if skip_bad_ad:
-            pargs.append('--skip-bad-ad')
-
-        if sites_only:
-            pargs.append('--skip-genotypes')
-
-        if store_gq:
-            pargs.append('--store-gq')
-
-        return self._run_command(None, pargs)
+        return VariantDataset(self, jvds)
 
     def index_bgen(self, path):
         """Index .bgen files.  import_bgen cannot run with these indicies.
@@ -550,20 +446,16 @@ class HailContext(object):
 
         """
 
-        pargs = ["indexbgen"]
-
         if isinstance(path, str):
-            pargs.append(path)
+            files = [path]
         else:
-            for p in path:
-                pargs.append(p)
+            files = path
+        files = jindexed_seq(files)
 
-        self._run_command(None, pargs)
+        self._jhc.indexBgen(files)
 
-    def balding_nichols_model(self, populations, samples, variants, partitions=None,
-                              pop_dist=None,
-                              fst=None,
-                              af_dist = UniformDist(0.1, 0.9),
+    def balding_nichols_model(self, populations, samples, variants, npartitions=None,
+                              pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                               seed=0):
         """Generate a VariantDataset using the Balding-Nichols model.
 
@@ -635,7 +527,7 @@ class HailContext(object):
 
         :param int variants: Number of variants.
 
-        :param int partitions: Number of partitions.
+        :param int npartitions: Number of partitions.
 
         :param pop_dist: Unnormalized population distribution
         :type pop_dist: array of float or None
@@ -662,11 +554,13 @@ class HailContext(object):
         else:
             jvm_fst_opt = joption(jarray(self._jvm.double, fst))
 
-        return VariantDataset(self, self._hail.stats.BaldingNicholsModel.apply(self._jsc,  populations, samples, variants,
-                            jvm_pop_dist_opt,
-                            jvm_fst_opt,
-                            seed,
-                            joption(partitions), af_dist._jrep()))
+        jvds = self._jhc.baldingNicholsModel(populations, samples, variants,
+                                             joption(npartitions),
+                                             jvm_pop_dist_opt,
+                                             jvm_fst_opt,
+                                             af_dist._jrep(),
+                                             seed)
+        return VariantDataset(self, jvds)
 
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.
@@ -695,7 +589,7 @@ class HailContext(object):
         """
 
         jkeys = jarray(self._jvm.java.lang.String, keys)
-        return KeyTable(self, self._hail.keytable.KeyTable.fromDF(df._jdf, jkeys))
+        return KeyTable(self, self._hail.keytable.KeyTable.fromDF(self._jhc, df._jdf, jkeys))
 
     def stop(self):
         """ Shut down the Hail Context """

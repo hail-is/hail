@@ -1,13 +1,10 @@
 package is.hail.annotations
 
-import org.apache.spark.sql.types._
 import is.hail.SparkSuite
-import is.hail.utils._
-import is.hail.driver._
 import is.hail.expr._
-import is.hail.io.vcf.LoadVCF
-import is.hail.methods._
+import is.hail.utils._
 import is.hail.variant.Variant
+import org.apache.spark.sql.types._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
