@@ -865,7 +865,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         Annotation.fromSeq(newValues)
       }
 
-    (TStruct(newFields), filterer)
+    (TStruct(newFields.zipWithIndex.map({case (f,i) => f.copy(index = i)})), filterer)
   }
 
   override def toString = if (size == 0) "Empty" else "Struct"
