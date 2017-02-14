@@ -593,6 +593,57 @@ class ExprSuite extends SparkSuite {
     // FIXME: parser should accept minimum Long/Int literals
     // assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
     // assert(eval[Long](Long.MinValue.toString+"l").contains(Long.MinValue))
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("even", "odd")
+      x.get("even") should contain theSameElementsAs Seq(2,4)
+      x.get("odd") should contain theSameElementsAs Seq(1,3,5)
+    }
+
+    (eval[Map[String,IndexedSeq[Int]]]("[1].tail.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+      shouldBe empty)
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("odd")
+      x.get("odd") should contain theSameElementsAs Seq(1)
+    }
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[2].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("even")
+      x.get("even") should contain theSameElementsAs Seq(2)
+    }
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("even", "odd")
+      x.get("even") should contain theSameElementsAs Seq(2,4)
+      x.get("odd") should contain theSameElementsAs Seq(1,3,5)
+    }
+
+    (eval[Map[String,IndexedSeq[Int]]]("[1].tail.toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+      shouldBe empty)
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("odd")
+      x.get("odd") should contain theSameElementsAs Seq(1)
+    }
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[2].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("even")
+      x.get("even") should contain theSameElementsAs Seq(2)
+    }
+
   }
 
   @Test def testParseTypes() {
