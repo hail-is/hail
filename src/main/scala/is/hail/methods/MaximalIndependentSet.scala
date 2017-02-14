@@ -6,32 +6,7 @@ import org.apache.spark.graphx._
 
 object MaximalIndependentSet {
 
-  def apply(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double): Set[String] = {
-    //Filter RDD to remove edges above threshold
-    val filteredRDD = inputRDD.filter(_._2 <= thresh)
-
-    //Throw away weights
-    val vertexPairs = inputRDD.map(_._1)
-
-    //Collect all vertices.
-    val allVertices = vertexPairs.flatMap[String](vertexPair => List(vertexPair._1, vertexPair._2)).distinct()
-
-    val numberedVertices: RDD[(String, VertexId)] = allVertices.zipWithIndex()
-
-    val verticesToNumbers = numberedVertices.collectAsMap()
-    val numbersToVertices = numberedVertices.map(pair => (pair._2, pair._1)).collectAsMap()
-
-
-    val edges: RDD[Edge[Double]] = filteredRDD.map(tuple => Edge(verticesToNumbers(tuple._1._1), verticesToNumbers(tuple._1._2), tuple._2))
-
-    val vertices: VertexRDD[String] = VertexRDD[String](numberedVertices.map{ case (id, index) => (index, id)})
-
-    val stringGraph: Graph[String, Double] = Graph(vertices, edges)
-
-    var graph = Graph[((VertexId, Int), VertexId), Double](stringGraph.collectNeighborIds(EdgeDirection.Either)
-      .map{ case(v, neighbors) => (v, ((v, neighbors.size), -1L))}, stringGraph.edges)
-
-
+  def apply[VD, ED](g: Graph[VD, Double]): Set[Long] = {
     // Initially set each vertex to its own degree.
     // Start a pregel run, everyone passing a (ID, degree) pair.
     //  -On message reception, if current degree is greater than received degree, update status to to reflect this, alert everyone
@@ -41,6 +16,9 @@ object MaximalIndependentSet {
     // -Whether it changed recently (some facet of old state must be stored)
     // -What the highest degree message received has been
     // -What vertex is in that highest degree message
+
+    var graph = Graph[((VertexId, Int), VertexId), Double](g.collectNeighborIds(EdgeDirection.Either)
+      .map{ case(v, neighbors) => (v, ((v, neighbors.size), -1L))}, g.edges)
 
     val initialMsg = (-1L, -1)
 
@@ -87,7 +65,35 @@ object MaximalIndependentSet {
       }
     }
 
-    graph.vertices.collect().map(tuple => numbersToVertices(tuple._1)).toSet
+    graph.vertices.map{ case(id, _) => id}.collect().toSet
+  }
+
+
+  def ofIBDMatrix(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double): Set[String] = {
+    //Filter RDD to remove edges above threshold
+    val filteredRDD = inputRDD.filter(_._2 <= thresh)
+
+    //Throw away weights
+    val vertexPairs = inputRDD.map(_._1)
+
+    //Collect all vertices.
+    val allVertices = vertexPairs.flatMap[String](vertexPair => List(vertexPair._1, vertexPair._2)).distinct()
+
+    val numberedVertices: RDD[(String, VertexId)] = allVertices.zipWithIndex()
+
+    val verticesToNumbers = numberedVertices.collectAsMap()
+    val numbersToVertices = numberedVertices.map(pair => (pair._2, pair._1)).collectAsMap()
+
+
+    val edges: RDD[Edge[Double]] = filteredRDD.map(tuple => Edge(verticesToNumbers(tuple._1._1), verticesToNumbers(tuple._1._2), tuple._2))
+
+    val vertices: VertexRDD[String] = VertexRDD[String](numberedVertices.map{ case (id, index) => (index, id)})
+
+    val stringGraph: Graph[String, Double] = Graph(vertices, edges)
+
+    val misGraph = apply(stringGraph)
+
+    misGraph.map(numbersToVertices(_))
 
   }
 }
