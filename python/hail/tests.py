@@ -5,7 +5,6 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from pyspark import SparkContext
 from hail import HailContext, TextTableConfig
 from hail.representation import *
 from hail.type import *
@@ -184,13 +183,13 @@ class ContextTests(unittest.TestCase):
             test_resources + '/sample2_variants.tsv')
                          .count()['nVariants'], 21)
 
-        sample2.grm('/tmp/sample2.grm', 'gcta-grm-bin')
+        sample2.split_multi().grm('/tmp/sample2.grm', 'gcta-grm-bin')
 
         sample2.hardcalls().count()
 
         sample2_split.ibd('/tmp/sample2.ibd')
 
-        sample2.impute_sex().variant_schema
+        sample2.split_multi().impute_sex().variant_schema
 
         self.assertEqual(sample2.join(sample2.rename_samples(test_resources + '/sample2_rename.tsv'))
                          .count()['nSamples'], 200)

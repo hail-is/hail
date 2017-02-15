@@ -1,3 +1,5 @@
+from py4j.protocol import Py4JJavaError
+
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
 
@@ -83,7 +85,14 @@ def jiterable_to_list(it):
     else:
         return None
 
+def handle_py4j(func):
+    def wrapper(*args, **kwargs):
+        try:
+            r = func(*args, **kwargs)
+        except Py4JJavaError as e:
+            msg = env.jutils.getMinimalMessage(e.java_exception)
+            raise FatalError(msg, e.java_exception)
 
-def raise_py4j_exception(e):
-    msg = env.jutils.getMinimalMessage(e.java_exception)
-    raise FatalError(msg, e.java_exception)
+        return r
+
+    return wrapper

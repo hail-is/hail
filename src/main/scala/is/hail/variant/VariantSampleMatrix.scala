@@ -130,11 +130,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
 
-  private[variant] def requireSplit(methodName: String) {
-    if (!wasSplit)
-      fatal(s"method `$methodName' requires a split dataset. Use `split_multi' or `filter_multi' first.")
-  }
-
   /**
     * Aggregate by user-defined key and aggregation expressions.
     *

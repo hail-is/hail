@@ -1,5 +1,5 @@
 from py4j.protocol import Py4JJavaError
-from hail.java import env, raise_py4j_exception
+from hail.java import env, handle_py4j
 
 
 class TextTableConfig(object):
@@ -36,11 +36,9 @@ class TextTableConfig(object):
     def __str__(self):
         return self._to_java().toString()
 
+    @handle_py4j
     def _to_java(self):
         """Convert to Java TextTableConfiguration object."""
-        try:
-            return env.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
-                                                               self.delimiter, self.missing,
-                                                               self.noheader, self.impute)
-        except Py4JJavaError as e:
-            raise_py4j_exception(e)
+        return env.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
+                                                           self.delimiter, self.missing,
+                                                           self.noheader, self.impute)

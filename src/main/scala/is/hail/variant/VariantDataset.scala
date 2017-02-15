@@ -237,7 +237,8 @@ object VariantDataset {
 class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) extends AnyVal {
 
   private def requireSplit(methodName: String) {
-    vds.requireSplit(methodName)
+    if (!vds.wasSplit)
+      fatal(s"method `$methodName' requires a split dataset. Use `split_multi' or `filter_multi' first.")
   }
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
@@ -386,7 +387,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], VariantDataset, VariantDataset) = {
-    require(vds.wasSplit && other.wasSplit, "method `concordance' requires both left and right datasets to be split.")
+    requireSplit("concordance")
+
+    if (!other.wasSplit)
+      fatal("method `concordance' requires both datasets to be split, but found unsplit right-hand VDS.")
 
     CalculateConcordance(vds, other)
   }
@@ -430,7 +434,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def exportGen(path: String) {
-    require(vds.wasSplit, "method `exportGen' requires a split dataset")
+    requireSplit("export gen")
 
     def writeSampleFile() {
       //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
@@ -553,7 +557,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def exportPlink(path: String, famExpr: String = "id = s.id") {
-    require(vds.wasSplit, "method `exportPlink' requires a split dataset")
+    requireSplit("export plink")
 
     val ec = EvalContext(Map(
       "s" -> (0, TSample),
@@ -735,6 +739,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def exportVariantsCassandra(address: String, genotypeExpr: String, keySpace: String,
     table: String, variantExpr: String, drop: Boolean = false, exportRef: Boolean = false,
     exportMissing: Boolean = false, blockSize: Int = 100) {
+    requireSplit("export variants cassandra")
 
     CassandraConnector.exportVariants(vds, address, keySpace, table, genotypeExpr,
       variantExpr, drop, exportRef, exportMissing, blockSize)
@@ -763,6 +768,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     drop: Boolean = false,
     numShards: Int = 1,
     blockSize: Int = 100) {
+    requireSplit("export variants solr")
 
     SolrConnector.exportVariants(vds, variantExpr, genotypeExpr, collection, url, zkHost, exportMissing,
       exportRef, drop, numShards, blockSize)
@@ -927,6 +933,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     * @param nFile N file path, used with gcta-grm-bin only
     */
   def grm(path: String, format: String, idFile: Option[String] = None, nFile: Option[String] = None) {
+    requireSplit("GRM")
     GRM(vds, path, format, idFile, nFile)
   }
 
@@ -948,6 +955,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     */
   def ibd(path: String, computeMafExpr: Option[String] = None, bounded: Boolean = true, parallelWrite: Boolean = false,
     minimum: Option[Double] = None, maximum: Option[Double] = None) {
+    requireSplit("IBD")
 
     minimum.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
     maximum.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
@@ -977,6 +985,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
     fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
+    requireSplit("impute sex")
 
     val result = ImputeSexPlink(vds,
       mafThreshold,
@@ -1028,6 +1037,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def linreg(ySA: String, covSA: Array[String], root: String, minAC: Int, minAF: Double): VariantDataset = {
+    requireSplit("linear regression")
     LinearRegression(vds, ySA, covSA, root, minAC, minAF)
   }
 
@@ -1041,11 +1051,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     sparsityThreshold: Double,
     forceBlock: Boolean,
     forceGrammian: Boolean): VariantDataset = {
+    requireSplit("linear mixed regression")
     LinearMixedRegression(vds, kinshipVDS, ySA, covSA, useML, rootGA, rootVA,
       runAssoc, optDelta, sparsityThreshold, forceBlock, forceGrammian)
   }
 
   def logreg(test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
+    requireSplit("logistic regression")
     LogisticRegression(vds, test, ySA, covSA, root)
   }
 
@@ -1119,6 +1131,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     * @param famFile path to pedigree .fam file
     */
   def mendelErrors(pathBase: String, famFile: String) {
+    requireSplit("mendel errors")
 
     val ped = Pedigree.read(famFile, vds.hc.hadoopConf, vds.sampleIds)
     val men = MendelErrors(vds, ped.completeTrios)
@@ -1139,6 +1152,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     */
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
     asArrays: Boolean = false): VariantDataset = {
+    requireSplit("PCA")
+
     if (k < 1)
       fatal(
         s"""requested invalid number of components: $k
@@ -1183,12 +1198,17 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     * @param tdtRoot Annotation root, starting in 'va'
     */
   def tdt(famFile: String, tdtRoot: String = "va.tdt"): VariantDataset = {
+    requireSplit("TDT")
+
     val ped = Pedigree.read(famFile, vds.hc.hadoopConf, vds.sampleIds)
     TDT(vds, ped.completeTrios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 
-  def variantQC(): VariantDataset = VariantQC(vds)
+  def variantQC(): VariantDataset = {
+    requireSplit("variant QC")
+    VariantQC(vds)
+  }
 
   /**
     *
@@ -1284,6 +1304,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def writeKudu(dirname: String, tableName: String,
     master: String, vcfSeqDict: String, rowsPerPartition: Int,
     sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
+    requireSplit("write Kudu")
 
     writeMetadata(vds.hc.sqlContext, dirname, compress)
 
@@ -1334,6 +1355,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       // FIXME inlined since .kudu wouldn't work for some reason
       .format("org.apache.kudu.spark.kudu").save
 
-    println("Written to Kudu")
+    info("Written to Kudu")
   }
 }

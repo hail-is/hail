@@ -7,7 +7,6 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.utils import TextTableConfig
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
-from py4j.protocol import Py4JJavaError
 
 
 class HailContext(object):
@@ -73,6 +72,7 @@ class HailContext(object):
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
 
+    @handle_py4j
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.
 
@@ -106,6 +106,7 @@ class HailContext(object):
 
         self._jhc.grep(regex, files, max_count)
 
+    @handle_py4j
     def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=TextTableConfig()):
         """Import variants and variant annotations from a delimited text file
         (text table) as a sites-only VariantDataset.
@@ -138,6 +139,7 @@ class HailContext(object):
                                                  joption(npartitions), config._to_java())
         return VariantDataset(self, jvds)
 
+    @handle_py4j
     def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None, compress=True):
         """Import .bgen files as VariantDataset
 
@@ -169,6 +171,7 @@ class HailContext(object):
         jvds = self._jhc.importBgens(files, joption(sample_file), tolerance, joption(npartitions), True)
         return VariantDataset(self, jvds)
 
+    @handle_py4j
     def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None, compress=True):
         """Import .gen files as VariantDataset.
 
@@ -242,6 +245,7 @@ class HailContext(object):
         jvds = self._jhc.importGens(files, sample_file, joption(chromosome), joption(npartitions), tolerance, compress)
         return VariantDataset(self, jvds)
 
+    @handle_py4j
     def import_keytable(self, path, key_names, npartitions=None, config=None):
         """Import delimited text file (text table) as KeyTable.
 
@@ -280,6 +284,7 @@ class HailContext(object):
             self._jhc, jarray(self._jvm.java.lang.String, path_args), key_names, npartitions,
             config._to_java()))
 
+    @handle_py4j
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False,
                      compress=True):
         """Import PLINK binary file (BED, BIM, FAM) as VariantDataset
@@ -353,6 +358,7 @@ class HailContext(object):
 
         return VariantDataset(self, jvds)
 
+    @handle_py4j
     def read(self, path, sites_only=False, samples_only=False):
         """Read .vds files as VariantDataset
 
@@ -382,6 +388,7 @@ class HailContext(object):
         jvds = self._jhc.readAll(files, sites_only, samples_only)
         return VariantDataset(self, jvds)
 
+    @handle_py4j
     def write_partitioning(self, path):
         """Write partitioning.json.gz file for legacy VDS file.
 
@@ -390,6 +397,7 @@ class HailContext(object):
 
         self._jhc.writePartitioning(path)
 
+    @handle_py4j
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
                    sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, compress=False):
         """Import .vcf files as VariantDataset
@@ -438,6 +446,7 @@ class HailContext(object):
 
         return VariantDataset(self, jvds)
 
+    @handle_py4j
     def index_bgen(self, path):
         """Index .bgen files.  import_bgen cannot run with these indicies.
 
@@ -454,6 +463,7 @@ class HailContext(object):
 
         self._jhc.indexBgen(files)
 
+    @handle_py4j
     def balding_nichols_model(self, populations, samples, variants, npartitions=None,
                               pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                               seed=0):
@@ -562,6 +572,7 @@ class HailContext(object):
                                              seed)
         return VariantDataset(self, jvds)
 
+    @handle_py4j
     def dataframe_to_keytable(self, df, keys=[]):
         """Convert Spark SQL DataFrame to KeyTable.
 

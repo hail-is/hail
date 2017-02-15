@@ -21,6 +21,7 @@ class Genotype(object):
     :type pl: list of int or None
     """
 
+    @handle_py4j
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
         """Initialize a Genotype object."""
 
@@ -213,6 +214,7 @@ class Genotype(object):
 
         return from_option(self._jrep.nNonRefAlleles())
 
+    @handle_py4j
     def one_hot_alleles(self, num_alleles):
         """Returns a list containing the one-hot encoded representation of the called alleles.
 
@@ -244,6 +246,7 @@ class Genotype(object):
         """
         return jiterable_to_list(from_option(self._jrep.oneHotAlleles(num_alleles)))
 
+    @handle_py4j
     def one_hot_genotype(self, num_genotypes):
         """Returns a list containing the one-hot encoded representation of the genotype call.
 
@@ -275,6 +278,7 @@ class Genotype(object):
 
         return jiterable_to_list(from_option(self._jrep.oneHotGenotype(num_genotypes)))
 
+    @handle_py4j
     def p_ab(self, theta=0.5):
         """Returns the p-value associated with finding the given allele depth ratio.
 
