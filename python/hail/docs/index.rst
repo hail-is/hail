@@ -13,6 +13,7 @@ Contents
 
     Getting Started <getting_started>
     Overview <overview>
+    Tutorial <tutorial.ipynb>
     Hail Objects <hail_objects>
     Python API <api>
     SQL <sql>

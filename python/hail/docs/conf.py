@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.abspath('./_ext'))
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #
-# needs_sphinx = '1.0'
+needs_sphinx = '1.4'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -40,9 +40,13 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
+    'nbsphinx'
 ]
 
-autosummary_generate = True
+nbsphinx_timeout = 300
+nbsphinx_allow_errors = False
+
+autosummary_generate = ['api.rst', 'type/index.rst', 'representation/index.rst']
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']
 
@@ -209,7 +213,7 @@ html_static_path = ['_static']
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
 #
-html_extra_path = ['_static/navbar_hail.html', '../../../www/hail-logo-cropped.png',
+html_extra_path = ['../../../www/hail-logo-cropped.png',
                    '../../../www/navbar.css', '../../../www/hail_logo_sq.png']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
