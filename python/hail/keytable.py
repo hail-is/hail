@@ -9,11 +9,11 @@ from hail.type import Type, TStruct
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
 
-    KeyTables can be imported from a text file with :py:meth:`~hail.HailContext.import_keytable` or generated from an existing
+    Key tables can be imported from a text file with :py:meth:`~hail.HailContext.import_keytable` or generated from an existing
     VariantDataset with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`,
     :py:meth:`~hail.VariantDataset.samples_keytable`, and :py:meth:`~hail.VariantDataset.variants_keytable`.
 
-    In the examples below, we have imported two KeyTables from text files (``kt1`` and ``kt2``).
+    In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
     >>> kt1 = hc.import_keytable("data/kt_example1.tsv", ["ID"], config=TextTableConfig(impute=True))
 
@@ -187,11 +187,11 @@ class KeyTable(object):
 
         Keep rows where ``C1`` equals 5:
 
-        >>> kt1.filter("C1 == 5")
+        >>> kt_result = kt1.filter("C1 == 5")
 
         Remove rows where ``C1`` equals 10:
 
-        >>> kt1.filter("C1 == 10", keep=False)
+        >>> kt_result = kt1.filter("C1 == 10", keep=False)
 
         **Notes**
 
@@ -223,7 +223,7 @@ class KeyTable(object):
 
         Add new column ``Y`` which is equal to 5 times ``X``:
 
-        >>> kt1.annotate("Y = 5 * X")
+        >>> kt_result = kt1.annotate("Y = 5 * X")
 
 
         **Notes**
@@ -255,7 +255,7 @@ class KeyTable(object):
 
         Join ``kt1`` to ``kt2`` to produce ``kt_joined``:
 
-        >>> kt_joined = kt1.join(kt2)
+        >>> kt_result = kt1.join(kt2)
 
         **Notes:**
 
@@ -376,7 +376,7 @@ class KeyTable(object):
 
         ``column_names`` can be either a list of new names or a dict
         mapping old names to new names.  If ``column_names`` is a list,
-        its length must be the number of columns in this ``KeyTable``.
+        its length must be the number of columns in this :py:class:`.KeyTable`.
 
         **Examples**
 
@@ -427,16 +427,16 @@ class KeyTable(object):
 
         **Examples**
 
-        Assume ``kt`` is a ``KeyTable`` with three columns: c1, c2 and
+        Assume ``kt`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
         c3 and key c1.
 
         Change key columns:
 
-        >>> kt1.key_by(['C2', 'C3'])
+        >>> kt_result = kt1.key_by(['C2', 'C3'])
 
         Set to no keys:
 
-        >>> kt1.key_by([])
+        >>> kt_result = kt1.key_by([])
 
         **Notes**
 
@@ -463,7 +463,7 @@ class KeyTable(object):
 
         Flatten Structs in KeyTable:
 
-        >>> kt3.flatten()
+        >>> kt_result = kt3.flatten()
 
         Consider a KeyTable ``kt`` with signature
 
@@ -512,26 +512,26 @@ class KeyTable(object):
 
         **Examples**
 
-        Assume ``kt`` is a ``KeyTable`` with three columns: C1, C2 and
+        Assume ``kt`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
         C3.
 
         Select/drop columns:
 
-        >>> kt1.select(['C1'])
+        >>> kt_result = kt1.select(['C1'])
 
         Reorder the columns:
 
-        >>> kt1.select(['C3', 'C1', 'C2'])
+        >>> kt_result = kt1.select(['C3', 'C1', 'C2'])
 
         Drop all columns:
 
-        >>> kt1.select([])
+        >>> kt_result = kt1.select([])
 
         **Notes**
 
         The order of the columns will be the order given
         by ``column_names`` with the key columns moved to the beginning
-        in the order of the key columns in this ``KeyTable``.
+        in the order of the key columns in this :py:class:`.KeyTable`.
 
         :param column_names: List of columns to be selected.
         :type: list of str
