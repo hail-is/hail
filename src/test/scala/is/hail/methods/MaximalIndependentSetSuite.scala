@@ -1,12 +1,12 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import org.apache.spark.graphx.{Edge, Graph, VertexId, VertexRDD}
+import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
 /**
-  * Created by johnc on 2/8/17.
+  * Tests for MaximalIndependentSet
   */
 class MaximalIndependentSetSuite extends SparkSuite {
 
@@ -34,7 +34,19 @@ class MaximalIndependentSetSuite extends SparkSuite {
       Edge(1, 2, "AB"), Edge(2, 3, "BC")
     ))
 
-    assert(MaximalIndependentSet(Graph(vertices, edges)) == Set(1, 3))
+    assert(MaximalIndependentSet(Graph(vertices, edges), true) == Set(1, 3))
+  }
+
+  @Test def directedTest() {
+    val vertices = sc.parallelize(Array[(VertexId, String)](
+      (1, "A"), (2, "B"), (3, "C")
+    ))
+
+    val edges = sc.parallelize(Array[Edge[String]](
+      Edge(1, 2, "AB"), Edge(1, 3, "BC")
+    ))
+
+    assert(MaximalIndependentSet(Graph(vertices, edges)) == Set(2, 3))
   }
 
   @Test def ofIBDMatrixTest1() {
@@ -64,5 +76,4 @@ class MaximalIndependentSetSuite extends SparkSuite {
 
     MaximalIndependentSet.ofIBDMatrix(sc, input, 0.8) == (Set("B", "C", "F", "G"))
   }
-
 }
