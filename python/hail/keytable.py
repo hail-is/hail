@@ -147,7 +147,7 @@ class KeyTable(object):
         **Examples**
 
         >>> if kt1.same(kt2):
-        ...     print_function("KeyTables are the same!")
+        ...     print("KeyTables are the same!")
 
         :param other: key table to compare against
         :type other: :class:`.KeyTable` 
@@ -339,7 +339,7 @@ class KeyTable(object):
         Test whether all rows in the KeyTable have the value of ``C1`` equal to 5:
 
         >>> if kt1.forall("C1 == 5"):
-        ...     print_function("All rows have C1 equal 5.")
+        ...     print("All rows have C1 equal 5.")
 
         :param str code: Boolean expression.
 
@@ -359,7 +359,7 @@ class KeyTable(object):
         Test whether any row in the KeyTable has the value of ``C1`` equal to 5:
 
         >>> if kt1.exists("C1 == 5"):
-        ...     print_function("At least one row has C1 equal 5.")
+        ...     print("At least one row has C1 equal 5.")
 
         :param str code: Boolean expression.
 

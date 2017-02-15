@@ -104,11 +104,7 @@ class Interval(object):
 
         is equivalent to
 
-        >>> interval1.contains(interval2.start)
-
-        or
-
-        >>> interval2.contains(interval1.start)
+        >>> interval1.contains(interval2.start) or interval2.contains(interval1.start)
 
         :type: interval: :class:`.Interval`
         :rtype: bool"""

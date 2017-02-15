@@ -49,8 +49,11 @@ autodoc_default_flags = ['members', 'undoc-members']
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates', '_templates/_autosummary']
 
-doctest_global_setup = """import os
+doctest_global_setup = """import os, shutil
 from hail import *
+from hail.representation import *
+from hail.type import *
+from hail.stats import *
 
 if not os.path.isdir("output/"):
     os.mkdir("output/")
@@ -66,7 +69,8 @@ doctest_global_cleanup = """import shutil, os
 
 hc.stop()
 
-shutil.rmtree("output/")
+if os.path.isdir("output/"):
+    shutil.rmtree("output/")
 
 vds_files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
 for vds in vds_files:

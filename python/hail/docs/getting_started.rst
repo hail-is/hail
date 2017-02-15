@@ -72,7 +72,7 @@ Here are a few simple things to try in order. To import the ``hail`` module and 
 .. doctest::
 
     >>> import hail
-    >>> hc = HailContext()
+    >>> hc = hail.HailContext()
 
 To :func:`import <hail.HailContext.import_vcf>` the included *sample.vcf* into Hail's **.vds** format, run:
 

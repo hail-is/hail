@@ -23,8 +23,6 @@ object ExportVCF extends Command {
 
     @Args4jOption(name = "--parallel", usage = "Export VCF in parallel")
     var parallel: Boolean = false
-
-
   }
 
   def newOptions = new Options

@@ -15,6 +15,7 @@ import scala.reflect.ClassTag
 
 object HailConfiguration {
   var tmpDir: String = "/tmp"
+
   var branchingFactor: Int = _
 
   def treeAggDepth(nPartitions: Int): Int = {
