@@ -56,4 +56,13 @@ class MaximalIndependentSetSuite extends SparkSuite {
     assert(MaximalIndependentSet.ofIBDMatrix(sc, input, 0.5).size == 2)
   }
 
+  @Test def largeComponentWithTwoSubComponents() {
+    val input: RDD[((String, String), Double)] = sc.parallelize(Array(
+      ("A", "B"), ("A", "C"), ("B", "D"), ("B", "E"), ("C", "D"), ("C", "E"),
+      ("H", "F"), ("H", "G"), ("F", "D"), ("F", "E"), ("G", "D"), ("G", "E")
+    ).map(x => (x, 1.0)))
+
+    MaximalIndependentSet.ofIBDMatrix(sc, input, 0.8) == (Set("B", "C", "F", "G"))
+  }
+
 }

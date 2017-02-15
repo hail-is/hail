@@ -43,13 +43,13 @@ object MaximalIndependentSet {
     }
 
     def sendMsg(triplet: EdgeTriplet[((VertexId, Int), VertexId), ED]): Iterator[(VertexId, (VertexId, Int))] = {
-      val sourceAttr = triplet.srcAttr
+      val ((srcMaxID, srcMaxDegrees), srcOldID) = triplet.srcAttr
 
-      if (sourceAttr._1._1 == sourceAttr._2) {
+      if (srcMaxID == srcOldID) {
         Iterator.empty
       }
       else {
-        Iterator((triplet.dstId, sourceAttr._1))
+        Iterator((triplet.dstId, (srcMaxID, srcMaxDegrees)))
       }
     }
 
@@ -57,17 +57,12 @@ object MaximalIndependentSet {
       if (msg1._2 > msg2._2) msg1 else msg2
     }
 
-    var atLeastOneEdge = graph.numEdges > 0
-    while(atLeastOneEdge) {
+    while(graph.numEdges > 0) {
       graph = graph.pregel(initialMsg, Int.MaxValue, EdgeDirection.Both)(vprog, sendMsg, mergeMsg)
-      graph = graph.subgraph(_ => true, (id, value) => value._1._1 != value._2 || value._1._2 == 0)
-
-      if (graph.numEdges == 0) {
-        atLeastOneEdge = false
-      }
+      graph = graph.subgraph(_ => true, (id, value) => value match { case ((maxID, maxDegrees), oldID) => maxID != oldID || maxDegrees == 0})
     }
 
-    graph.vertices.map{ case(id, _) => id}.collect().toSet
+    graph.vertices.keys.collect().toSet
   }
 
 
@@ -76,26 +71,25 @@ object MaximalIndependentSet {
     val filteredRDD = inputRDD.filter(_._2 <= thresh)
 
     //Throw away weights
-    val vertexPairs = inputRDD.map(_._1)
+    val vertexPairs = inputRDD.keys
 
     //Collect all vertices.
-    val allVertices = vertexPairs.flatMap[String](vertexPair => List(vertexPair._1, vertexPair._2)).distinct()
+    val allVertices = vertexPairs.flatMap[String]{case (v1, v2) => List(v1, v2)}.distinct()
 
     val numberedVertices: RDD[(String, VertexId)] = allVertices.zipWithIndex()
 
     val verticesToNumbers = numberedVertices.collectAsMap()
-    val numbersToVertices = numberedVertices.map(pair => (pair._2, pair._1)).collectAsMap()
+    val numbersToVertices = numberedVertices.map{case (name, id) => (id, name)}.collectAsMap()
 
-
-    val edges: RDD[Edge[Double]] = filteredRDD.map(tuple => Edge(verticesToNumbers(tuple._1._1), verticesToNumbers(tuple._1._2), tuple._2))
+    val edges: RDD[Edge[Double]] = filteredRDD.map{case((v1, v2), weight) => Edge(verticesToNumbers(v1), verticesToNumbers(v2), weight)}
 
     val vertices: VertexRDD[String] = VertexRDD[String](numberedVertices.map{ case (id, index) => (index, id)})
 
     val stringGraph: Graph[String, Double] = Graph(vertices, edges)
 
-    val misGraph = apply(stringGraph)
+    val mis = apply(stringGraph)
 
-    misGraph.map(numbersToVertices(_))
+    mis.map(numbersToVertices(_))
 
   }
 }
