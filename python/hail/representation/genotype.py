@@ -5,6 +5,10 @@ class Genotype(object):
     """
     An object that represents an individual's genotype at a genomic locus.
 
+    .. testsetup::
+
+        g = Genotype(0, ad=[9,1], dp=11, gq=20, pl=[0,100,1000])
+
     :param gt: Genotype hard call
     :type gt: int or None
     :param ad: allelic depth (1 element per allele including reference)
@@ -118,7 +122,9 @@ class Genotype(object):
 
         Equivalent to:
 
-        >>> g.dp - sum(g.ad)
+        .. testcode::
+
+            g.dp - sum(g.ad)
 
         :rtype: int or None
         """
@@ -216,16 +222,20 @@ class Genotype(object):
         encoding for an alternate allele is [0, 1].  Thus, with the
         following variables:
 
-        >>> num_alleles = 2
-        >>> hom_ref = Genotype(0)
-        >>> het = Genotype(1)
-        >>> hom_var = Genotype(2)
+        .. testcode::
+
+            num_alleles = 2
+            hom_ref = Genotype(0)
+            het = Genotype(1)
+            hom_var = Genotype(2)
 
         All the below statements are true:
 
-        >>> hom_ref.one_hot_alleles(num_alleles) == [2, 0]
-        >>> het.one_hot_alleles(num_alleles) == [1, 1]
-        >>> hom_var.one_hot_alleles(num_alleles) == [0, 2]
+        .. testcode::
+
+            hom_ref.one_hot_alleles(num_alleles) == [2, 0]
+            het.one_hot_alleles(num_alleles) == [1, 1]
+            hom_var.one_hot_alleles(num_alleles) == [0, 2]
 
         This function returns None if the genotype call is missing.
 
@@ -242,16 +252,20 @@ class Genotype(object):
         the genotype call (gt) into a one-hot encoded array.  With the following
         variables:
 
-        >>> num_genotypes = 3
-        >>> hom_ref = Genotype(0)
-        >>> het = Genotype(1)
-        >>> hom_var = Genotype(2)
+        .. testcode::
+
+            num_genotypes = 3
+            hom_ref = Genotype(0)
+            het = Genotype(1)
+            hom_var = Genotype(2)
 
         All the below statements are true:
 
-        >>> hom_ref.one_hot_genotype(num_genotypes) == [1, 0, 0]
-        >>> het.one_hot_genotype(num_genotypes) == [0, 1, 0]
-        >>> hom_var.one_hot_genotype(num_genotypes) == [0, 0, 1]
+        .. testcode::
+
+            hom_ref.one_hot_genotype(num_genotypes) == [1, 0, 0]
+            het.one_hot_genotype(num_genotypes) == [0, 1, 0]
+            hom_var.one_hot_genotype(num_genotypes) == [0, 0, 1]
 
         This function returns None if the genotype call is missing.
 
@@ -279,7 +293,7 @@ class Genotype(object):
 
         Equivalent to:
 
-        >>> g.ad()[0] / sum(g.ad())
+        >>> g.ad[0] / sum(g.ad)
 
         :rtype: float or None
         """

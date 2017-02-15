@@ -14,6 +14,12 @@ warnings.filterwarnings(module=__name__, action='once')
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
+    Variant Datasets can be generated from a number of :py:class:`.HailContext` methods.
+
+    Once a Variant Dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`, use :py:meth:`~hail.HailContext.read` to load the Variant Dataset into the environment.
+
+    >>> vds = hc.read("data/example.vds")
+
     :ivar hc: Hail Context
     :vartype hc: :class:`.HailContext`
     """
@@ -161,11 +167,11 @@ class VariantDataset(object):
         Calculate the total number of SNPs, indels, and variants contained in
         the intervals specified by *data/capture_intervals.txt*:
 
-        >>> vds.aggregate_intervals('data/capture_intervals.txt',
-        >>>   """n_SNP = variants.filter(v => v.altAllele.isSNP).count(),
-        >>>      n_indel = variants.filter(v => v.altAllele.isIndel).count(),
-        >>>      n_total = variants.count()""",
-        >>>   'out.txt')
+        >>> vds_result = vds.aggregate_intervals('data/capture_intervals.txt',
+        ...   'n_SNP = variants.filter(v => v.altAllele.isSNP).count(), ' +
+        ...   'n_indel = variants.filter(v => v.altAllele.isIndel).count(), ' +
+        ...   'n_total = variants.count()',
+        ...   'output/out.txt')
 
         If *data/capture_intervals.txt* contains:
 
@@ -192,12 +198,12 @@ class VariantDataset(object):
         Count the number of LOF, missense, and synonymous non-reference calls
         per interval:
 
-        >>> (vds.annotate_variants_expr('va.n_calls = gs.filter(g => g.isCalledNonRef).count()')
-        >>>     .aggregate_intervals('data/intervals.txt'
-        >>>        """LOF_CALLS = variants.filter(v => va.consequence == "LOF").map(v => va.n_calls).sum(),
-        >>>           MISSENSE_CALLS = variants.filter(v => va.consequence == "missense").map(v => va.n_calls).sum(),
-        >>>           SYN_CALLS = variants.filter(v => va.consequence == "synonymous").map(v => va.n_calls).sum()""",
-        >>>        'out.txt'))
+        >>> vds_result = (vds.annotate_variants_expr('va.n_calls = gs.filter(g => g.isCalledNonRef).count()')
+        ...     .aggregate_intervals('data/intervals.txt',
+        ...            'LOF_CALLS = variants.filter(v => va.consequence == "LOF").map(v => va.n_calls).sum(), ' +
+        ...            'MISSENSE_CALLS = variants.filter(v => va.consequence == "missense").map(v => va.n_calls).sum(), ' +
+        ...            'SYN_CALLS = variants.filter(v => va.consequence == "synonymous").map(v => va.n_calls).sum()',
+        ...            'output/out.txt'))
 
         If *data/intervals.txt* contains:
 
@@ -258,8 +264,7 @@ class VariantDataset(object):
         To create a variant annotation ``va.nNonRefSamples: Array[Int]`` where the ith entry of
         the array is the number of samples carrying the ith alternate allele:
 
-        >>> (hc.read('data/sample.vds')
-        >>>    .annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.isCalledNonRef).count()'))
+        >>> vds_result = vds.annotate_alleles_expr('va.nNonRefSamples = gs.filter(g => g.isCalledNonRef).count()')
 
         **Notes**
 
@@ -311,8 +316,7 @@ class VariantDataset(object):
 
         Add a list of genes in a file to global annotations:
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_global_list('data/genes.txt', 'global.genes'))
+        >>> vds_result = vds.annotate_global_list('data/genes.txt', 'global.genes')
 
         For the gene list
 
@@ -327,9 +331,8 @@ class VariantDataset(object):
 
         To filter to those variants in genes listed in *genes.txt* given a variant annotation ``va.gene: String``, annotate as type ``Set[String]`` instead:
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_global_list('data/genes.txt', 'global.genes', as_set=True)
-        >>>  .filter_variants_expr('global.genes.contains(va.gene)'))
+        >>> vds_result = (vds.annotate_global_list('data/genes.txt', 'global.genes', as_set=True)
+        ...     .filter_variants_expr('global.genes.contains(va.gene)'))
 
         :param str input: Input text file.
 
@@ -353,7 +356,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Load a file as a global annotation.  Consider the file *data/genes.txt* with contents:
+        Load a file as a global annotation.  Consider the file *data/genes_pli_exac.txt* with contents:
 
         .. code-block:: text
 
@@ -361,9 +364,8 @@ class VariantDataset(object):
           Gene1   0.12312 2
           ...
 
-        >>> (hc.read('data/example.vds')
-        >>>   .annotate_global_table('data/genes.txt', 'global.genes',
-        >>>                          TextTableConfig(types='PLI: Double, EXAC_LOF_COUNT: Int')))
+        >>> vds_result = vds.annotate_global_table('data/genes_pli_exac.txt', 'global.genes',
+        ...                           config=TextTableConfig(types='PLI: Double, EXAC_LOF_COUNT: Int'))
 
         creates a new global annotation ``global.genes`` with type:
 
@@ -406,22 +408,18 @@ class VariantDataset(object):
 
         Compute per-sample GQ statistics for hets:
 
-        >>> (hc.read('data/example.vds')
-        >>>    .annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()')
-        >>>    .export_samples('data/samples.txt', 'sample = s, het_gq_mean = sa.gqHetStats.mean'))
+        >>> vds_result = (vds.annotate_samples_expr('sa.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()')
+        ...     .export_samples('output/samples.txt', 'sample = s, het_gq_mean = sa.gqHetStats.mean'))
 
-        Compute the list of genes with a singleton LOF:
+        Compute the list of genes with a singleton LOF per sample:
 
-        >>> (hc.read('data/example.vds')
-        >>>    .annotate_variants_table('data/consequence.tsv', 'Variant', code='va.consequence = table.Consequence')
-        >>>    .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles).sum() == 1')
-        >>>    .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet && va.consequence == "LOF").map(g => va.gene).collect()'))
+        >>> vds_result = (vds.annotate_variants_table('data/consequence.tsv', 'Variant', code='va.consequence = table.Consequence', config=TextTableConfig(impute=True))
+        ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles).sum() == 1')
+        ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet && va.consequence == "LOF").map(g => va.gene).collect()'))
 
         To create an annotation for only a subset of samples based on an existing annotation:
 
-        >>> (hc.read('data/example.vds')
-        >>>    .annotate_samples_table('data/phenotypes.tsv', 'Sample', root='sa.pheno', config=TextTableConfig(impute=True))
-        >>>    .annotate_samples_expr('if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Double')
+        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Double')
 
         .. note::
 
@@ -457,21 +455,14 @@ class VariantDataset(object):
         <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
         annotations:
 
-        >>> vds.annotate_samples_fam("data/myStudy.fam")
+        >>> vds_result = vds.annotate_samples_fam("data/myStudy.fam")
 
         In Hail, unlike Plink, the user must *explicitly* distinguish between
         case-control and quantitative phenotypes. Importing a quantitative
-        phenotype without ``quantPheno=True`` will return an error
+        phenotype without ``quantpheno=True`` will return an error
         (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
 
-        >>> vds.annotate_samples_fam("data/myStudy.fam", quantPheno=True)
-
-        Import case-control phenotype data from an
-        arbitrary-whitespace-delimited `PLINK .fam
-        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
-        annotations:
-
-        >>> vds.annotate_samples_fam("data/myStudy.fam", delimiter="\\s+")
+        >>> vds_result = vds.annotate_samples_fam("data/myStudy.fam", quantpheno=True)
 
         **Annotations**
 
@@ -517,8 +508,7 @@ class VariantDataset(object):
 
         Add the sample annotation ``sa.inBatch1: Boolean`` with value true if the sample is in *batch1.txt*:
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_samples_list('data/batch1.txt','sa.inBatch1'))
+        >>> vds_result = vds.annotate_samples_list('data/batch1.txt','sa.inBatch1')
 
         The file must have no header and one sample per line
 
@@ -547,9 +537,8 @@ class VariantDataset(object):
 
         To annotates samples using `samples1.tsv` with type imputation::
 
-        >>> conf = hail.TextTableConfig(impute=True)
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.pheno', config=conf))
+        >>> conf = TextTableConfig(impute=True)
+        >>> vds_result = vds.annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.pheno', config=conf)
 
         Given this file
 
@@ -566,8 +555,7 @@ class VariantDataset(object):
 
         To annotate without type imputation, resulting in all String types:
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes'))
+        >>> vds_result = vds.annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes')
 
         **Detailed examples**
 
@@ -597,8 +585,7 @@ class VariantDataset(object):
         - Add the only useful column using ``code`` rather than the ``root`` parameter.
 
         >>> conf = TextTableConfig(delimiter=',', missing='.')
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_samples_table('data/samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf))
+        >>> vds_result = vds.annotate_samples_table('data/samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf)
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information
 
@@ -614,8 +601,10 @@ class VariantDataset(object):
         To import it:
 
         >>> conf = TextTableConfig(noheader=True)
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_samples_table('data/samples3.tsv', '_0.split("_")[1]', code='sa.sex = table._1, sa.batch = table._0.split("_")[0]', config=conf))
+        >>> vds_result = vds.annotate_samples_table('data/samples3.tsv',
+        ...                             '_0.split("_")[1]',
+        ...                             code='sa.sex = table._1, sa.batch = table._0.split("_")[0]',
+        ...                             config=conf)
 
         **Using the** ``sample_expr`` **argument**
 
@@ -715,13 +704,11 @@ class VariantDataset(object):
 
         Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`:
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_variants_bed('data/file1.bed', 'va.cnvRegion'))
+        >>> vds_result = vds.annotate_variants_bed('data/file1.bed', 'va.cnvRegion')
 
-        Add a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`::
+        Add a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`:
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .annotate_variants_bed('data/file2.bed', 'va.cnvRegion'))
+        >>> vds_result = vds.annotate_variants_bed('data/file2.bed', 'va.cnvRegion')
 
         The file formats are
 
@@ -770,19 +757,15 @@ class VariantDataset(object):
 
         Compute GQ statistics about heterozygotes per variant:
 
-        >>> (hc.read('data/example.vds')
-        >>>    .annotate_variants_expr('va.gqHetStats = '
-        >>>                                'gs.filter(g => g.isHet).map(g => g.gq).stats()'))
+        >>> vds_result = vds.annotate_variants_expr('va.gqHetStats = gs.filter(g => g.isHet).map(g => g.gq).stats()')
 
         Collect a list of sample IDs with non-ref calls in LOF variants:
 
-        >>> (hc.read('data/example.vds')
-        >>>    .annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()'))
+        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef).map(g => s.id).collect()')
 
         Substitute a custom string for the rsID field:
 
-        >>> (hc.read('data/example.vds')
-        >>>    .annotate_variants_expr('va.rsid = va.contig + "_" + va.start + "_" + va.ref + "_" + va.alt'))
+        >>> vds_result = vds.annotate_variants_expr('va.rsid = v.contig + "_" + v.start + "_" + v.ref + "_" + v.alt')
 
         **Notes**
 
@@ -821,19 +804,16 @@ class VariantDataset(object):
 
         Add annotations from a variant-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/variant-lof.tsv', 'v')
-        >>>
-        >>> (hc.read('data/example.vds')
-        >>>    .annotate_variants_keytable(kt, 'va.lof = table.lof'))
+        >>> kt = hc.import_keytable('data/variant-lof.tsv', 'v', config=TextTableConfig(impute=True))
+        >>> vds_result = vds.annotate_variants_keytable(kt, 'va.lof = table.lof')
 
         Add annotations from a gene-and-type-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/locus-metadata.tsv', ['gene', 'type'])
+        >>> kt = hc.import_keytable('data/locus-metadata.tsv', ['gene', 'type'], config=TextTableConfig(impute=True))
         >>>
-        >>> (hc.read('data/example-with-populations.vds')
-        >>>    .annotate_variants_keytable(kt,
-        >>>       'va.foo = table.foo',
-        >>>       ['v.gene', 'if (va.score > 10) "Type1" else "Type2"']))
+        >>> vds_result = (vds.annotate_variants_keytable(kt,
+        ...       'va.foo = table.foo',
+        ...       ['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
 
         **Notes**
 
@@ -889,7 +869,7 @@ class VariantDataset(object):
         ``va.inExon``. The annotation ``va.inExon`` is ``true`` for every
         variant included by ``exons.interval_list`` and false otherwise.
 
-        >>> vds.annotate_variants_intervals('data/exons.interval_list', 'va.inExon')
+        >>> vds_result = vds.annotate_variants_intervals('data/exons.interval_list', 'va.inExon')
 
         Consider the tab-separated, five-column file *data/exons2.interval_list*:
 
@@ -906,7 +886,7 @@ class VariantDataset(object):
         annotation ``va.gene`` is set to the gene name occurring in the fifth
         column and ``NA`` otherwise.
 
-        >>> vds.annotate_variants_intervals('data/exons2.interval_list', 'va.gene')
+        >>> vds_result = vds.annotate_variants_intervals('data/exons2.interval_list', 'va.gene')
 
         **Notes**
 
@@ -1027,24 +1007,30 @@ class VariantDataset(object):
 
         **Examples**
 
+        Import a second Variant Dataset with annotations to merge into ``vds``:
+
+        >>> vds1 = vds.annotate_variants_expr('va = drop(va, anno1)')
+        >>> vds2 = (hc.read("data/example2.vds")
+        ...           .annotate_variants_expr('va = select(va, anno1, toKeep1, toKeep2, toKeep3)'))
+
         Copy the ``anno1`` annotation from ``other`` to ``va.annot``:
 
-        >>> vds.annotate_variants_vds(code='va.annot = vds.anno1')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annot = vds.anno1')
 
         Merge the variant annotations from the two vds together and places them
         at ``va``:
 
-        >>> vds.annotate_variants_vds(code='va = merge(va, vds)')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va = merge(va, vds)')
 
         Select a subset of the annotations from ``other``:
 
-        >>> vds.annotate_variants_vds(code='va.annotations = select(vds, toKeep1, toKeep2, toKeep3)')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annotations = select(vds, toKeep1, toKeep2, toKeep3)')
 
         The previous expression is equivalent to:
 
-        >>> vds.annotate_variants_vds(code="""va.annotations.toKeep1 = vds.toKeep1,
-        >>>                                   va.annotations.toKeep2 = vds.toKeep2,
-        >>>                                   va.annotations.toKeep3 = vds.toKeep3""")
+        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annotations.toKeep1 = vds.toKeep1, ' +
+        ...                                       'va.annotations.toKeep2 = vds.toKeep2, ' +
+        ...                                       'va.annotations.toKeep3 = vds.toKeep3')
 
         **Notes**
 
@@ -1162,10 +1148,10 @@ class VariantDataset(object):
 
         Import dosage data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
 
-        >>> vds = (hc.index_bgen("data/example.bgen")
-        >>>         .import_bgen("data/example.bgen", sample_file="data/example.sample"))
-        >>> (vds.filter_variants_expr("gs.infoScore() >= 0.9")
-        >>>     .export_gen("data/example_filtered"))
+        >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+
+        >>> (vds3.filter_variants_expr("gs.infoScore().score >= 0.9")
+        ...      .export_gen("output/infoscore_filtered"))
 
         **Notes**
 
@@ -1205,13 +1191,11 @@ class VariantDataset(object):
 
         Export genotype information with identifiers that form the header:
 
-        >>> (hc.read('data/example.vds')
-        >>>  .export_genotypes('data/genotypes.tsv', 'SAMPLE=s, VARIANT=v, GQ=g.gq, DP=g.dp, ANNO1=va.anno1, ANNO2=va.anno2'))
+        >>> vds.export_genotypes('output/genotypes.tsv', 'SAMPLE=s, VARIANT=v, GQ=g.gq, DP=g.dp, ANNO1=va.anno1, ANNO2=va.anno2')
 
         Export the same information without identifiers, resulting in a file with no header:
 
-        >>> (hc.read('data/example.vds')
-        >>>  .export_genotypes('data/genotypes.tsv', 's, v, s.id, g.dp, va.anno1, va.anno2'))
+        >>> vds.export_genotypes('output/genotypes.tsv', 's, v, s.id, g.dp, va.anno1, va.anno2')
 
         **Notes**
 
@@ -1248,9 +1232,7 @@ class VariantDataset(object):
 
         Import data from a VCF file, split multi-allelic variants, and export to a PLINK binary file:
 
-        >>> (hc.import_vcf('data/example.vcf')
-        >>>   .split_multi()
-        >>>   .export_plink('data/plink'))
+        >>> vds.split_multi().export_plink('output/plink')
 
         **Notes**
 
@@ -1278,11 +1260,9 @@ class VariantDataset(object):
 
         The BIM file ID field is set to ``CHR:POS:REF:ALT``.
 
-        This code::
+        This code:
 
-        >>> (hc.import_vcf('data/example.vcf')
-        >>>   .split_multi()
-        >>>   .export_plink('data/plink'))
+        >>> vds.split_multi().export_plink('output/plink')
 
         will behave similarly to the PLINK VCF conversion command
 
@@ -1311,17 +1291,15 @@ class VariantDataset(object):
 
         Export some sample QC metrics:
 
-        >>> (hc.read('data/example.vds')
-        >>>   .sample_qc()
-        >>>   .export_samples('data/samples.tsv', 'SAMPLE = s, CALL_RATE = sq.qc.callRate, NHET = sa.qc.nHet'))
+        >>> (vds.sample_qc()
+        ...     .export_samples('output/samples.tsv', 'SAMPLE = s, CALL_RATE = sa.qc.callRate, NHET = sa.qc.nHet'))
 
         This will produce a file with a header and three columns.  To
         produce a file with no header, just leave off the assignment
         to the column identifier:
 
-        >>> (hc.read('data/example.vds')
-        >>>   .sample_qc()
-        >>>   .export_samples('data/samples.tsv', 's, CALL_RATE = sq.qc.rTiTv'))
+        >>> (vds.sample_qc()
+        ...     .export_samples('output/samples.tsv', 's, sa.qc.rTiTv'))
 
         **Notes**
 
@@ -1354,14 +1332,14 @@ class VariantDataset(object):
         Export a four column TSV with ``v``, ``va.pass``, ``va.filters``, and
         one computed field: ``1 - va.qc.callRate``.
 
-        >>> vds.export_variants('data/file.tsv',
-        >>>   'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
+        >>> vds.export_variants('output/file.tsv',
+        ...        'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
 
         It is also possible to export without identifiers, which will result in
         a file with no header. In this case, the expressions should look like
         the examples below:
 
-        >>> vds.export_variants('data/file.tsv', 'v, va.pass, va.qc.AF')
+        >>> vds.export_variants('output/file.tsv', 'v, va.pass, va.qc.AF')
 
         .. note::
 
@@ -1375,7 +1353,7 @@ class VariantDataset(object):
         For example, the following invocation (assuming ``va.qc`` was generated
         by :py:meth:`.variant_qc`):
 
-        >>> vds.export_variants('data/file.tsv', 'variant = v, va.qc.*')
+        >>> vds.export_variants('output/file.tsv', 'variant = v, va.qc.*')
 
         will produce the following set of columns:
 
@@ -1388,7 +1366,7 @@ class VariantDataset(object):
         naming the "splatted" struct will apply the name in front of each column
         like so:
 
-        >>> vds.export_variants('data/file.tsv', 'variant = v, QC = va.qc.*')
+        >>> vds.export_variants('output/file.tsv', 'variant = v, QC = va.qc.*')
 
         which produces these columns:
 
@@ -1488,7 +1466,7 @@ class VariantDataset(object):
 
         Export to VCF as a block-compressed file:
 
-        >>> hc.read('data/example.vds').export_vcf('data/example.vcf.bgz')
+        >>> vds.export_vcf('output/example.vcf.bgz')
 
         **Notes**
 
@@ -1502,7 +1480,7 @@ class VariantDataset(object):
 
         Consider the workflow of importing VCF to VDS and immediately exporting VDS to VCF:
 
-        >>> hc.import_vcf('data/example.vcf').export_vcf('data/example_out.vcf')
+        >>> vds.export_vcf('output/example_out.vcf')
 
         The *example_out.vcf* header will contain the FORMAT, FILTER, and INFO lines present in *example.vcf*. However, it will *not* contain CONTIG lines or lines added by external tools (such as bcftools and GATK) unless they are explicitly inserted using the ``append_to_header`` option.
 
@@ -1512,11 +1490,10 @@ class VariantDataset(object):
 
             If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run :py:meth:`~hail.VariantDataset.variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
 
-            >>> (hc.import_vcf('data/example.vcf')
-            >>>    .filter_genotypes('g.gq >= 20')
-            >>>    .variant_qc()
-            >>>    .annotate_variants_expr('va.info.AC = va.qc.AC')
-            >>>    .export_vcf('data/example.vcf.bgz'))
+            >>> (vds.filter_genotypes('g.gq >= 20')
+            ...     .variant_qc()
+            ...     .annotate_variants_expr('va.info.AC = va.qc.AC')
+            ...     .export_vcf('output/example.vcf.bgz'))
 
         :param str output: Path of .vcf file to write.
 
@@ -1545,8 +1522,7 @@ class VariantDataset(object):
 
         Import data from a VCF file and then write the data to a VDS file:
 
-        >>> (hc.import_vcf("data/sample.vcf.bgz")
-        >>>    .write("data/sample.vds"))
+        >>> vds.write("output/sample.vds")
 
         :param str output: Path of .vds file to write.
 
@@ -1572,10 +1548,9 @@ class VariantDataset(object):
         update the alternate allele count annotation with the new
         indices:
 
-        >>> (hc.read('data/example.vds')
-        >>>   .filter_alleles('va.info.AC[aIndex - 1] == 0',
-        >>>     'va.info.AC = aIndices[1:].map(i => va.info.AC[i - 1])',
-        >>>     keep=False))
+        >>> vds_result = vds.filter_alleles('va.info.AC[aIndex - 1] == 0',
+        ...     annotation='va.info.AC = aIndices[1:].map(i => va.info.AC[i - 1])',
+        ...     keep=False)
 
         Note that we skip the first element of ``aIndices`` because
         we are mapping between the old and new *allele* indices, not
@@ -1719,13 +1694,12 @@ class VariantDataset(object):
 
         Filter genotypes by allele balance dependent on genotype call:
 
-        >>> (vds.filter_genotypes('let ab = g.ad[1] / g.ad.sum in'
-        >>>                      '((g.isHomRef && ab <= 0.1) ||'
-        >>>                      '(g.isHet && ab >= 0.25 && ab <= 0.75) ||'
-        >>>                      '(g.isHomVar && ab >= 0.9))'))
+        >>> vds_result = vds.filter_genotypes('let ab = g.ad[1] / g.ad.sum in ' +
+        ...                      '((g.isHomRef && ab <= 0.1) || ' +
+        ...                      '(g.isHet && ab >= 0.25 && ab <= 0.75) || ' +
+        ...                      '(g.isHomVar && ab >= 0.9))')
 
         **Notes**
-
 
         ``condition`` is in genotype context so the following symbols are in scope:
 
@@ -1789,17 +1763,17 @@ class VariantDataset(object):
 
         Filter samples by phenotype (assumes sample annotation *sa.isCase* exists and is a Boolean variable):
 
-        >>> vds.filter_samples_expr("sa.isCase")
+        >>> vds_result = vds.filter_samples_expr("sa.isCase")
 
         Remove samples with an ID that matches a regular expression:
 
-        >>> vds.filter_samples_expr('"^NA" ~ s' , keep=False)
+        >>> vds_result = vds.filter_samples_expr('"^NA" ~ s.id' , keep=False)
 
         Filter samples from sample QC metrics and write output to a new dataset:
 
         >>> (vds.sample_qc()
-        >>>     .filter_samples_expr('sa.qc.callRate >= 0.99 && sa.qc.dpMean >= 10')
-        >>>     .write("data/filter_samples.vds"))
+        ...     .filter_samples_expr('sa.qc.callRate >= 0.99 && sa.qc.dpMean >= 10')
+        ...     .write("output/filter_samples.vds"))
 
         **Notes**
 
@@ -1834,8 +1808,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>   .filter_samples_list('exclude_samples.txt', keep=False))
+        >>> vds_result = vds.filter_samples_list('data/exclude_samples.txt', keep=False)
 
         The file at the path ``input`` should contain on sample per
         line with no header or other fields.
@@ -1859,8 +1832,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> (hc.read('data/example.vds')
-        >>>  .filter_variants_all())
+        >>> vds_result = vds.filter_variants_all()
 
         :return: Samples-only dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -1876,14 +1848,12 @@ class VariantDataset(object):
 
         Keep variants in the gene CHD8 (assumes the variant annotation ``va.gene`` exists):
 
-        >>> vds_filtered = (hc.read('data/example.vds')
-        >>>                   .filter_variants_expr('va.gene == "CHD8"'))
+        >>> vds_result = vds.filter_variants_expr('va.gene == "CHD8"')
 
 
         Remove all variants on chromosome 1:
 
-        >>> vds_filtered = (hc.read('data/example.vds')
-        >>>                   .filter_variants_expr('v.contig == "1"', keep=False))
+        >>> vds_result = vds.filter_variants_expr('v.contig == "1"', keep=False)
 
         .. caution::
 
@@ -1924,7 +1894,7 @@ class VariantDataset(object):
         following expression will produce a :py:class:`.VariantDataset` containg
         only variants included by the given intervals:
 
-        >>> vds.filter_variants_intervals('data/intervals.txt')
+        >>> vds_result = vds.filter_variants_intervals('data/intervals.txt')
 
         **The File Format**
 
@@ -1963,11 +1933,11 @@ class VariantDataset(object):
         Keep all variants that occur in *data/variants.txt* (removing all other
         variants):
 
-        >>> vds.filter_variants_list('data/variants.txt')
+        >>> vds_result = vds.filter_variants_list('data/variants.txt')
 
         Remove all variants that occur in *data/variants.txt*:
 
-        >>> vds.filter_variants_list('data/variants.txt', keep=False)
+        >>> vds_result = vds.filter_variants_list('data/variants.txt', keep=False)
 
         **File Format**
 
@@ -2040,13 +2010,11 @@ class VariantDataset(object):
 
         To estimate and write the full IBD matrix to *ibd.tsv*, estimated using minor allele frequencies computed from the dataset itself:
 
-        >>> (hc.read('data/example.vds')
-        >>>  .ibd('data/ibd.tsv'))
+        >>> vds.ibd('output/ibd.tsv')
 
         To estimate IBD using minor allele frequencies stored in ``va.panel_maf`` and write to *ibd.tsv* only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive:
 
-        >>> (hc.read('data/example.vds')
-        >>>  .ibd('data/ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9))
+        >>> vds.ibd('output/ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9)
 
         **Details**
 
@@ -2084,16 +2052,16 @@ class VariantDataset(object):
 
         pargs = ['ibd', '-o', output]
         if maf:
-            pargs.append('-m')
+            pargs.append('--maf')
             pargs.append(maf)
         if unbounded:
             pargs.append('--unbounded')
         if min:
             pargs.append('--min')
-            pargs.append(min)
+            pargs.append(str(min))
         if max:
             pargs.append('--min')
-            pargs.append(max)
+            pargs.append(str(max))
         self.hc._run_command(self, pargs)
 
     def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
@@ -2157,11 +2125,9 @@ class VariantDataset(object):
 
         **Examples**
 
-        To run linear regression with response and two covariates imported from a TSV file:
+        To run linear regression with response and two covariates:
 
-        >>> (hc.read('data/example.vds')
-        >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno', config=TextTableConfig(impute=True))
-        >>>   .linreg('sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
 
@@ -2173,9 +2139,9 @@ class VariantDataset(object):
         missing genotypes as the mean of called genotypes.
 
         Assuming there are sample annotations ``sa.pheno.height``,
-        ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the command:
+        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.pheno.PC1``, the command:
 
-        >>> vds.linreg('sa.pheno.height', covariates=['sa.cov.age', 'sa.cov.isFemale', 'sa.cov.PC1'])
+        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale', 'sa.cov.PC1'])
 
         considers a model of the form
 
@@ -2261,9 +2227,9 @@ class VariantDataset(object):
 
         **Examples**
 
-        Suppose ``assoc.vds`` has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
+        The VDS saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
 
-        >>> assoc_vds = hc.read('assoc.vds')
+        >>> assoc_vds = hc.read("data/example_lmmreg.vds")
         >>> kinship_vds = assoc_vds.filter_variants_expr('va.useInKinship')
         >>> lmm_vds = assoc_vds.lmmreg(kinship_vds, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
 
@@ -2290,21 +2256,21 @@ class VariantDataset(object):
         +====================================+======================+======================================================================================================================================================+
         | ``global.lmmreg.useML``            | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
+        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
+        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                       |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
+        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                  |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
+        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                  |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
+        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                    |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order                                                                                                |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathit{ln}(\delta)` used in the grid search                                                                                        |
+        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathit{ln}(\delta)` used in the grid search                                                                                       |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathit{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
+        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathit{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2` |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to the fit delta                                                                                   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -2316,7 +2282,7 @@ class VariantDataset(object):
         +------------------------+--------+-------------------------------------------------------------------------+
         | Annotation             | Type   | Value                                                                   |
         +========================+========+=========================================================================+
-        | ``va.lmmreg.beta``     | Double | fit genotype coefficient, :math:`\hat\\beta_0`                           |
+        | ``va.lmmreg.beta``     | Double | fit genotype coefficient, :math:`\hat\\beta_0`                          |
         +------------------------+--------+-------------------------------------------------------------------------+
         | ``va.lmmreg.sigmaG2``  | Double | fit coefficient of genetic variance component, :math:`\hat{\sigma}_g^2` |
         +------------------------+--------+-------------------------------------------------------------------------+
@@ -2339,8 +2305,8 @@ class VariantDataset(object):
 
         The simplest way to export all resulting annotations is:
 
-        >>> lmm_vds.show_globals('lmmreg.json')
-        >>>  .export_variants('lmmreg.tsv.bgz', 'variant = v, va.lmmreg.*')
+        >>> lmm_vds.export_variants('output/lmmreg.tsv.bgz', 'variant = v, va.lmmreg.*')
+        >>> lmmreg_results = lmm_vds.globals['lmmreg']
 
         **Performance**
 
@@ -2483,9 +2449,7 @@ class VariantDataset(object):
 
         To run logistic regression using the Wald test with response and two covariates imported from a TSV file:
 
-        >>> (hc.read('data/example.vds')
-        >>>   .annotate_samples_table('data/pheno.tsv', root='sa.pheno', config=TextTableConfig(impute=True))
-        >>>   .logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
 
@@ -2499,10 +2463,10 @@ class VariantDataset(object):
         the mean of called genotypes.
 
         Assuming there are sample annotations ``sa.pheno.isCase``,
-        ``sa.cov.age``, ``sa.cov.isFemale``, and ``sa.cov.PC1``, the
+        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the
         command:
 
-        >>> vds.logreg('sa.pheno.isCase', covariates=['sa.cov.age' , 'sa.cov.isFemale', 'sa.cov.PC1'])
+        >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age' , 'sa.pheno.isFemale', 'sa.cov.PC1'])
 
         considers a model of the form
 
@@ -2614,7 +2578,7 @@ class VariantDataset(object):
         Find all violations of Mendelian inheritance in each (dad,
         mom, kid) trio in *trios.fam* and save results to files with root ``mydata``:
 
-        >>> hc.read(sample.vds).mendel_errors('mydata', 'trios.fam')
+        >>> vds_result = vds.mendel_errors('output/genomes', 'data/trios.fam')
 
         **Notes**
 
@@ -2730,13 +2694,11 @@ class VariantDataset(object):
 
         Compute the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double:
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .pca('sa.scores'))
+        >>> vds_result = vds.pca('sa.scores')
 
         Compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True))
+        >>> vds_result = vds.pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
 
         **Details**
 
@@ -2830,7 +2792,7 @@ class VariantDataset(object):
 
         Persist the dataset to both memory and disk:
 
-        >>> vds.persist()
+        >>> vds_result = vds.persist()
 
         **Notes**
 
@@ -2856,6 +2818,11 @@ class VariantDataset(object):
     def global_schema(self):
         """
         Returns the signature of the global annotations contained in this VDS.
+
+        .. doctest::
+            :options: +SKIP
+
+            print(vds.global_schema)
 
         >>> print(vds.global_schema)
 
@@ -2900,7 +2867,7 @@ class VariantDataset(object):
         **Examples**
 
         >>> low_callrate_samples, t = vds.query_samples_typed(
-        >>>     'samples.filter(s => sa.qc.callRate < 0.95).collect()')
+        ...    'samples.filter(s => sa.qc.callRate < 0.95).collect()')
 
         See :py:meth:`.query_samples` for more information.
 
@@ -2922,7 +2889,7 @@ class VariantDataset(object):
         **Examples**
 
         >>> low_callrate_samples = vds.query_samples(
-        >>>     'samples.filter(s => sa.qc.callRate < 0.95).collect()')
+        ...     'samples.filter(s => sa.qc.callRate < 0.95).collect()')
 
         **Details**
 
@@ -2958,8 +2925,8 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> lof_variant_count, t = vds.query_variants(
-        >>>     'variants.filter(v => va.csq == "LOF").count()')
+        >>> lof_variant_count, t = vds.query_variants_typed(
+        ...     'variants.filter(v => va.consequence == "LOF").count()')
 
         See :py:meth:`.query_variants` for more information.
 
@@ -2982,7 +2949,7 @@ class VariantDataset(object):
         **Examples**
 
         >>> lof_variant_count = vds.query_variants(
-        >>>     'variants.filter(v => va.csq == "LOF").count()')
+        ...    'variants.filter(v => va.consequence == "LOF").count()')
 
         **Notes**
 
@@ -3009,11 +2976,11 @@ class VariantDataset(object):
         to execute multiple query methods.  This:
 
         >>> result1 = vds.query_variants('variants.count()')
-        >>> result2 = vds.query_variants('variants.filter(variants.filter(v => v.altAllele.isSNP()).count()')
+        >>> result2 = vds.query_variants('variants.filter(v => v.altAllele.isSNP()).count()')
 
         will be nearly twice as slow as this:
 
-        >>> exprs = ['variants.count()', 'variants.filter(variants.filter(v => v.altAllele.isSNP()).count()']
+        >>> exprs = ['variants.count()', 'variants.filter(v => v.altAllele.isSNP()).count()']
         >>> results = vds.query_variants(exprs)
 
         :param exprs: one or more query expressions
@@ -3030,9 +2997,7 @@ class VariantDataset(object):
 
         **Examples**
 
-
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .rename_samples('data/sample.map'))
+        >>> vds_result = vds.rename_samples('data/sample.map')
 
         **Details**
 
@@ -3045,8 +3010,7 @@ class VariantDataset(object):
         samples. For example, suppose you want to rename samples to remove
         spaces.  First, run:
 
-        >>> (hc.read('data/example.vds')
-        >>>  .export_samples('data/sample.map', 's.id, s.id'))
+        >>> vds.export_samples('output/sample.map', 's.id, s.id')
 
         Then edit *sample.map* to remove spaces from the sample names in the
         second column and run the example above. Renaming samples is fast so there is no need to save out the resulting dataset
@@ -3069,7 +3033,7 @@ class VariantDataset(object):
 
         Force the number of partitions to be 5:
 
-        >>> vds_repartitioned = vds.repartition(5)
+        >>> vds_result = vds.repartition(5)
 
         :param int num_partitions: Desired number of partitions.
 
@@ -3168,9 +3132,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> (hc.import_vcf('data/sample.vcf')
-        >>>  .split_multi()
-        >>>  .write('data/split.vds'))
+        >>> vds.split_multi().write('output/split.vds')
 
         **Implementation Details**
 
@@ -3240,9 +3202,8 @@ class VariantDataset(object):
         to select the value corresponding to the split allele's
         position:
 
-        >>> (hc.import_vcf('data/sample.vcf')
-        >>>  .split_multi()
-        >>>  .filter_variants_expr('va.info.AC[va.aIndex - 1] < 10', keep = False))
+        >>> vds_result = (vds.split_multi()
+        ...     .filter_variants_expr('va.info.AC[va.aIndex - 1] < 10', keep = False))
 
         VCFs split by Hail and exported to new VCFs may be
         incompatible with other tools, if action is not taken
@@ -3255,10 +3216,9 @@ class VariantDataset(object):
         possible to use annotatevariants expr to remap these
         values. Here is an example:
 
-        >>> (hc.import_vcf('data/sample.vcf')
-        >>>  .split_multi()
-        >>>  .annotate_variants_expr('va.info.AC = va.info.AC[va.aIndex - 1]')
-        >>>  .export_vcf('data/export.vcf'))
+        >>> (vds.split_multi()
+        ...     .annotate_variants_expr('va.info.AC = va.info.AC[va.aIndex - 1]')
+        ...     .export_vcf('output/export.vcf'))
 
         The info field AC in *data/export.vcf* will have ``Number=1``.
 
@@ -3309,9 +3269,8 @@ class VariantDataset(object):
 
         Compute TDT association results:
 
-        >>> (hc.read("data/example.vds")
-        >>>     .tdt("data/sample.fam")
-        >>>     .export_variants("Variant = v, va.tdt.*"))
+        >>> (vds.tdt("data/trios.fam")
+        ...     .export_variants("output/tdt_results.tsv", "Variant = v, va.tdt.*"))
 
         **Implementation Details**
 
@@ -3411,8 +3370,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> vds = (hc.read('data/example.vds')
-        >>>  .variant_qc())
+        >>> vds_result = vds.variant_qc()
 
         .. _variantqc_annotations:
 
@@ -3483,7 +3441,7 @@ class VariantDataset(object):
 
         Add VEP annotations to the dataset:
 
-        >>> vds_annotated = vds.vep("data/vep.properties")
+        >>> vds_result = vds.vep("data/vep.properties") # doctest: +SKIP
 
         **Configuration**
 
@@ -3766,10 +3724,9 @@ class VariantDataset(object):
           1:1:A:T	GT:GQ	0/1:99	./.	0/0:99
           1:2:G:C	GT:GQ	0/1:89	0/1:99	1/1:93
 
-        Then::
+        Then:
 
-          >>> vds = hc.import_vcf('data/sample.vcf')
-          >>> vds.make_keytable('v = v', 'gt = g.gt', 'gq = g.gq', [])
+        >>> kt = vds.make_keytable('v = v', ['gt = g.gt', 'gq = g.gq'], [])
 
         returns a :py:class:`KeyTable` with schema
 

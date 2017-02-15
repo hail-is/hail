@@ -1,5 +1,9 @@
 .. _sec-getting_started:
 
+.. testsetup::
+
+    hc.stop()
+
 ===============
 Getting Started
 ===============
@@ -63,42 +67,58 @@ Add the following environmental variables and make an alias for Hail by filling 
 
 Running ``hail`` on the command line will open an interactive Python shell.
 
-Here are a few simple things to try in order. To import the ``hail`` module and start a :py:class:`~hail.HailContext`, run::
+Here are a few simple things to try in order. To import the ``hail`` module and start a :py:class:`~hail.HailContext`, run:
+
+.. doctest::
 
     >>> import hail
     >>> hc = hail.HailContext()
 
-To :func:`import <hail.HailContext.import_vcf>` the included *sample.vcf* into Hail's **.vds** format, run::
+To :func:`import <hail.HailContext.import_vcf>` the included *sample.vcf* into Hail's **.vds** format, run:
+
+.. doctest::
+    :hide:
+
+    >>> hc.import_vcf('../../../src/test/resources/sample.vcf').write('sample.vds')
+
+.. doctest::
+    :options: +SKIP
 
     >>> hc.import_vcf('src/test/resources/sample.vcf').write('sample.vds')
 
-To :func:`split <hail.VariantDataset.split_multi>` multi-allelic variants, compute a panel of :func:`sample <hail.VariantDataset.sample_qc>` and :func:`variant <hail.VariantDataset.sample_qc>` quality control statistics, write these statistics to files, and save an annotated version of the vds, run::
+To :func:`split <hail.VariantDataset.split_multi>` multi-allelic variants, compute a panel of :func:`sample <hail.VariantDataset.sample_qc>` and :func:`variant <hail.VariantDataset.sample_qc>` quality control statistics, write these statistics to files, and save an annotated version of the vds, run:
+
+.. doctest::
 
     >>> vds = (hc.read('sample.vds')
-    >>>     .split_multi()
-    >>>     .sample_qc()
-    >>>     .variant_qc())
+    ...     .split_multi()
+    ...     .sample_qc()
+    ...     .variant_qc())
     >>> vds.export_variants('variantqc.tsv', 'Variant = v, va.qc.*')
     >>> vds.write('sample.qc.vds')
 
 
-To :func:`count <hail.VariantDataset.count>` the number of samples, variants, and genotypes, run::
+To :func:`count <hail.VariantDataset.count>` the number of samples, variants, and genotypes, run:
+
+.. doctest::
 
     >>> vds.count(genotypes=True)
 
-Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <../reference.html#Annotations>`_, and `expression language <../reference.html#HailExpressionLanguage>`_. To :func:`print <hail.VariantDataset.print_schema>` the current annotation schema and use these annotations to filter variants, samples, and genotypes, run::
+Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <../reference.html#Annotations>`_, and `expression language <../reference.html#HailExpressionLanguage>`_. To print the current annotation schema and use these annotations to filter variants, samples, and genotypes, run:
+
+.. doctest::
 
     >>> print('sample annotation schema:')
     >>> print(vds.sample_schema)
     >>> print('\nvariant annotation schema:')
     >>> print(vds.variant_schema)
     >>> (vds.filter_variants_expr('v.altAllele.isSNP && va.qc.gqMean >= 20')
-    >>>     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15')
-    >>>     .filter_genotypes('let ab = g.ad[1] / g.ad.sum in '
-    >>>                       '((g.isHomRef && ab <= 0.1) || '
-    >>>                       ' (g.isHet && ab >= 0.25 && ab <= 0.75) || '
-    >>>                       ' (g.isHomVar && ab >= 0.9))')
-    >>>     .write('sample.filtered.vds'))
+    ...     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15')
+    ...     .filter_genotypes('let ab = g.ad[1] / g.ad.sum in '
+    ...                       '((g.isHomRef && ab <= 0.1) || '
+    ...                       ' (g.isHet && ab >= 0.25 && ab <= 0.75) || '
+    ...                       ' (g.isHomVar && ab >= 0.9))')
+    ...     .write('sample.filtered.vds'))
 
 Try running :py:meth:`~hail.VariantDataset.count` on *sample.filtered.vds* to see how the numbers have changed. For further background and examples, continue to the :ref:`sec-overview` and :ref:`API reference <sec-api>`.
 

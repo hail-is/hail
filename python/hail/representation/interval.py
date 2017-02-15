@@ -6,6 +6,11 @@ class Interval(object):
     """
     A genomic interval marked by start and end loci.
 
+    .. testsetup::
+
+        interval1 = Interval.parse('X:100005-X:150020')
+        interval2 = Interval.parse('16:29500000-30200000')
+
     :param start: inclusive start locus
     :type start: :class:`.Locus`
     :param end: exclusive end locus
