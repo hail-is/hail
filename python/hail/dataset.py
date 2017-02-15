@@ -260,7 +260,7 @@ class VariantDataset(object):
         :param str output: Output file.
         '''
 
-        self._jvdf.aggregateIntervals(input, condition, output)
+        self._jvds.aggregateIntervals(input, condition, output)
 
     def annotate_alleles_expr(self, condition, propagate_gq=False):
         """Annotate alleles with expression.

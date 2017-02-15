@@ -236,76 +236,8 @@ object VariantDataset {
 
 class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) extends AnyVal {
 
-  def aggregateIntervals(intervalList: String, expr: String, out: String) {
-
-    val vas = vds.vaSignature
-    val sas = vds.saSignature
-    val localGlobalAnnotation = vds.globalAnnotation
-
-    val aggregationST = Map(
-      "global" -> (0, vds.globalSignature),
-      "interval" -> (1, TInterval),
-      "v" -> (2, TVariant),
-      "va" -> (3, vds.vaSignature))
-    val symTab = Map(
-      "global" -> (0, vds.globalSignature),
-      "interval" -> (1, TInterval),
-      "variants" -> (2, TAggregable(TVariant, aggregationST)))
-
-    val ec = EvalContext(symTab)
-    ec.set(1, vds.globalAnnotation)
-
-    val (names, _, f) = Parser.parseExportExprs(expr, ec)
-
-    if (names.isEmpty)
-      fatal("this module requires one or more named expr arguments")
-
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[(Interval[Locus], Variant, Annotation)](ec, { case (ec, (i, v, va)) =>
-      ec.setAll(localGlobalAnnotation, i, v, va)
-    })
-
-    val iList = IntervalListAnnotator.read(intervalList, vds.hc.hadoopConf)
-    val iListBc = vds.sparkContext.broadcast(iList)
-
-    val results = vds.variantsAndAnnotations.flatMap { case (v, va) =>
-      iListBc.value.query(v.locus).map { i => (i, (i, v, va)) }
-    }
-      .aggregateByKey(zVals)(seqOp, combOp)
-      .collectAsMap()
-
-    vds.hc.hadoopConf.writeTextFile(out) { out =>
-      val sb = new StringBuilder
-      sb.append("Contig")
-      sb += '\t'
-      sb.append("Start")
-      sb += '\t'
-      sb.append("End")
-      names.foreach { col =>
-        sb += '\t'
-        sb.append(col)
-      }
-      sb += '\n'
-
-      iList.toIterator
-        .foreachBetween { interval =>
-
-          sb.append(interval.start.contig)
-          sb += '\t'
-          sb.append(interval.start.position)
-          sb += '\t'
-          sb.append(interval.end.position)
-          val res = results.getOrElse(interval, zVals)
-          resultOp(res)
-
-          ec.setAll(localGlobalAnnotation, interval)
-          f().foreach { field =>
-            sb += '\t'
-            sb.append(field)
-          }
-        }(sb += '\n')
-
-      out.write(sb.result())
-    }
+  private def requireSplit(methodName: String) {
+    vds.requireSplit(methodName)
   }
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {

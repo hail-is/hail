@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.expr.{EvalContext, _}
+import is.hail.expr.{EvalContext, TAggregable, _}
 import is.hail.io.annotators.{BedAnnotator, IntervalListAnnotator}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.keytable.KeyTable
@@ -129,6 +129,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
+
+  private[variant] def requireSplit(methodName: String) {
+    if (!wasSplit)
+      fatal(s"method `$methodName' requires a split dataset. Use `split_multi' or `filter_multi' first.")
+  }
 
   def aggregateByKey(keyCond: String, aggCond: String): KeyTable = {
     val aggregationST = Map(
@@ -263,6 +268,79 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     seqOp: (U, Variant, String, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(Variant, U)] = {
     aggregateByVariantWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, v, s, g), combOp)
+  }
+
+  def aggregateIntervals(intervalList: String, expr: String, out: String) {
+
+    val vas = vaSignature
+    val sas = saSignature
+    val localGlobalAnnotation = globalAnnotation
+
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "interval" -> (1, TInterval),
+      "v" -> (2, TVariant),
+      "va" -> (3, vas))
+    val symTab = Map(
+      "global" -> (0, globalSignature),
+      "interval" -> (1, TInterval),
+      "variants" -> (2, TAggregable(TVariant, aggregationST)))
+
+    val ec = EvalContext(symTab)
+    ec.set(1, globalAnnotation)
+
+    val (names, _, f) = Parser.parseExportExprs(expr, ec)
+
+    if (names.isEmpty)
+      fatal("this module requires one or more named expr arguments")
+
+    val (zVals, seqOp, combOp, resultOp) =
+      Aggregators.makeFunctions[(Interval[Locus], Variant, Annotation)](ec, { case (ec, (i, v, va)) =>
+        ec.setAll(localGlobalAnnotation, i, v, va)
+      })
+
+    val iList = IntervalListAnnotator.read(intervalList, hc.hadoopConf)
+    val iListBc = sparkContext.broadcast(iList)
+
+    val results = variantsAndAnnotations.flatMap { case (v, va) =>
+      iListBc.value.query(v.locus).map { i => (i, (i, v, va)) }
+    }
+      .aggregateByKey(zVals)(seqOp, combOp)
+      .collectAsMap()
+
+    hc.hadoopConf.writeTextFile(out) { out =>
+      val sb = new StringBuilder
+      sb.append("Contig")
+      sb += '\t'
+      sb.append("Start")
+      sb += '\t'
+      sb.append("End")
+      names.foreach { col =>
+        sb += '\t'
+        sb.append(col)
+      }
+      sb += '\n'
+
+      iList.toIterator
+        .foreachBetween { interval =>
+
+          sb.append(interval.start.contig)
+          sb += '\t'
+          sb.append(interval.start.position)
+          sb += '\t'
+          sb.append(interval.end.position)
+          val res = results.getOrElse(interval, zVals)
+          resultOp(res)
+
+          ec.setAll(localGlobalAnnotation, interval)
+          f().foreach { field =>
+            sb += '\t'
+            sb.append(field)
+          }
+        }(sb += '\n')
+
+      out.write(sb.result())
+    }
   }
 
   def annotateGlobal(a: Annotation, t: Type, code: String): VariantSampleMatrix[T] = {
