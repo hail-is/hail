@@ -100,6 +100,9 @@ class ContextTests(unittest.TestCase):
         sample2.annotate_samples_list(test_resources + '/sample2.sample_list',
                                       'sa.listed')
 
+        sample2.annotate_global_expr('global.foo = 5')
+        sample2.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
+
         sample2_annot = sample2.annotate_samples_table(
             test_resources + '/sampleAnnotations.tsv',
             'Sample',

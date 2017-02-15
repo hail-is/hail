@@ -135,7 +135,15 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       fatal(s"method `$methodName' requires a split dataset. Use `split_multi' or `filter_multi' first.")
   }
 
-  def aggregateByKey(keyCond: String, aggCond: String): KeyTable = {
+  /**
+    * Aggregate by user-defined key and aggregation expressions.
+    *
+    * Equivalent of a group-by operation in SQL.
+    *
+    * @param keyExpr Named expression(s) for which fields are keys
+    * @param aggExpr Named aggregation expression(s)
+    */
+  def aggregateByKey(keyExpr: String, aggExpr: String): KeyTable = {
     val aggregationST = Map(
       "global" -> (0, globalSignature),
       "v" -> (1, TVariant),
@@ -154,8 +162,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       "sa" -> (4, saSignature),
       "g" -> (5, TGenotype)))
 
-    val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyCond, keyEC)
-    val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggCond, ec)
+    val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyExpr, keyEC)
+    val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggExpr, ec)
 
     val keySignature = TStruct((keyNames, keyTypes).zipped.map { case (n, t) => (n, t) }: _*)
     val valueSignature = TStruct((aggNames, aggTypes).zipped.map { case (n, t) => (n, t) }: _*)
@@ -270,6 +278,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     aggregateByVariantWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, v, s, g), combOp)
   }
 
+  /**
+    * Aggregate over intervals and export.
+    *
+    * @param intervalList Input interval list file
+    * @param expr Export expression
+    * @param out Output file path
+    */
   def aggregateIntervals(intervalList: String, expr: String, out: String) {
 
     val vas = vaSignature
@@ -348,6 +363,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     copy(globalSignature = newT, globalAnnotation = i(globalAnnotation, Option(a)))
   }
 
+  /**
+    * Create and destroy global annotations with expression language.
+    *
+    * @param expr Annotation expression
+    */
   def annotateGlobalExpr(expr: String): VariantSampleMatrix[T] = {
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature)))
@@ -375,6 +395,15 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       globalSignature = finalType)
   }
 
+  /**
+    * Load text file into global annotations as Array[String] or
+    *   Set[String].
+    *
+    * @param path Input text file
+    * @param root Global annotation path to store text file
+    * @param asSet If true, load text file as Set[String],
+    *   otherwise, load as Array[String]
+    */
   def annotateGlobalList(path: String, root: String, asSet: Boolean = false): VariantSampleMatrix[T] = {
     val textList = hc.hadoopConf.readFile(path) { in =>
       Source.fromInputStream(in)
@@ -405,6 +434,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def globalSignature: Type = metadata.globalSignature
 
+  /**
+    * Load delimited text file (text table) into global annotations as
+    *   Array[Struct].
+    *
+    * @param path Input text file
+    * @param root Global annotation path to store text table
+    * @param config Configuration options for importing text files
+    */
   def annotateGlobalTable(path: String, root: String,
     config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
     val annotationPath = Parser.parseAnnotationRoot(root, Annotation.GLOBAL_HEAD)
@@ -461,6 +498,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateSamples(annotation, t, i)
   }
 
+  /**
+    * Import PLINK .fam file into sample annotations.
+    *
+    * @param path Path to .fam file
+    * @param root Sample annotation path at which to store .fam file
+    * @param config .fam file configuration options
+    */
   def annotateSamplesFam(path: String, root: String = "sa.fam",
     config: FamFileConfig = FamFileConfig()): VariantSampleMatrix[T] = {
     if (!path.endsWith(".fam"))

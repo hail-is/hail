@@ -166,7 +166,7 @@ class VariantDataset(object):
         except Py4JJavaError as e:
             raise_py4j_exception(e)
 
-    def aggregate_intervals(self, input, condition, output):
+    def aggregate_intervals(self, input, expr, output):
         '''Aggregate over intervals and export.
 
         **Examples**
@@ -198,7 +198,7 @@ class VariantDataset(object):
             5         1           1000000     25024   4500        29524
             16        29500000    30200000    17222   2021        19043
 
-        The parameter ``condition`` defines the names of the column headers (in
+        The parameter ``expr`` defines the names of the column headers (in
         the previous case: ``n_SNP``, ``n_indel``, ``n_total``) and how to
         calculate the value of that column for each interval.
 
@@ -241,7 +241,7 @@ class VariantDataset(object):
         what these columns are named.  These expressions should take the form
         ``COL_NAME_1 = <expression>, COL_NAME_2 = <expression>, ...``.
 
-        ``condition`` has the following symbols in scope:
+        ``expr`` has the following symbols in scope:
 
         - ``interval`` (*Interval*): genomic interval
         - ``global``: global annotations
@@ -255,12 +255,12 @@ class VariantDataset(object):
 
         :param str input: Input interval list file.
 
-        :param str condition: Aggregation expression.
+        :param str expr: Export expression.
 
         :param str output: Output file.
         '''
 
-        self._jvds.aggregateIntervals(input, condition, output)
+        self._jvds.aggregateIntervals(input, expr, output)
 
     def annotate_alleles_expr(self, condition, propagate_gq=False):
         """Annotate alleles with expression.
@@ -288,6 +288,32 @@ class VariantDataset(object):
         """
 
         jvds = self._jvdf.annotateAllelesExpr(condition, propagate_gq)
+        return VariantDataset(self.hc, jvds)
+
+    def annotate_global_expr(self, expr):
+        """Create and destroy global annotations with expression language.
+
+        **Example**
+
+        Set an array of populations:
+
+        >>> vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS", "NFE"]')
+
+        The expression namespace contains only one variable:
+
+        - ``global``: global annotations
+
+        :param expr: Annotation expression
+        :type expr: str or list of str
+
+        :return: Annotated dataset.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        if isinstance(expr, list):
+            expr = ','.join(expr)
+
+        jvds = self._jvds.annotateGlobalExpr(expr)
         return VariantDataset(self.hc, jvds)
 
     def annotate_global_py(self, path, annotation, annotation_type):
