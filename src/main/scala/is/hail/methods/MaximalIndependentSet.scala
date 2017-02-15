@@ -21,15 +21,7 @@ object MaximalIndependentSet {
     val initialMsg = (-1, -1L)
 
     def receiveMessage(vertexId: VertexId, value: Message, message: Message): Message = {
-      if (message == initialMsg) {
-        value
-      }
-      else if (value < message) {
-        message
-      }
-      else {
-        value
-      }
+      value max message
     }
 
     def sendMsg(triplet: EdgeTriplet[Message, ED]): Iterator[(VertexId, Message)] = {
