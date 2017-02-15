@@ -568,8 +568,8 @@ class ExprSuite extends SparkSuite {
     assert(D_==(eval[Double]("qnorm(pnorm(0.5))").get, 0.5))
     assert(D_==(eval[Double]("qnorm(pnorm(-0.5))").get, -0.5))
 
-    assert(D_==(eval[Double]("qchisq1tail(pchisq1tail(0.5))").get, 0.5))
-    assert(D_==(eval[Double]("pchisq1tail(qchisq1tail(0.5))").get, 0.5))
+    assert(D_==(eval[Double]("qchisqtail(pchisqtail(0.5,1),1)").get, 0.5))
+    assert(D_==(eval[Double]("pchisqtail(qchisqtail(0.5,1),1)").get, 0.5))
 
     assert(eval[Any]("if (true) NA: Double else 0.0").isEmpty)
 
