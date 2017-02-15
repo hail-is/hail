@@ -606,6 +606,9 @@ object FunctionRegistry {
   register("pchisq1tail", { (x: Double) => chiSquaredTail(1.0, x) })
   register("qchisq1tail", { (p: Double) => inverseChiSquaredTail(1.0, p) })
 
+  register("pchisqtail", { (x: Double, df:Double) => chiSquaredTail(df, x) })
+  register("qchisqtail", { (p: Double, df:Double) => inverseChiSquaredTail(df, p) })
+
   register("!", (a: Boolean) => !a)
 
   registerConversion((x: Int) => x.toDouble, priority = 2)
