@@ -1771,7 +1771,7 @@ class VariantDataset(object):
 
         Filter samples from sample QC metrics and write output to a new dataset:
 
-        >>> vds_result = (vds.sample_qc()
+        >>> (vds.sample_qc()
         ...     .filter_samples_expr('sa.qc.callRate >= 0.99 && sa.qc.dpMean >= 10')
         ...     .write("output/filter_samples.vds"))
 
@@ -2010,11 +2010,11 @@ class VariantDataset(object):
 
         To estimate and write the full IBD matrix to *ibd.tsv*, estimated using minor allele frequencies computed from the dataset itself:
 
-        >>> vds_result = vds.ibd('output/ibd.tsv')
+        >>> vds.ibd('output/ibd.tsv')
 
         To estimate IBD using minor allele frequencies stored in ``va.panel_maf`` and write to *ibd.tsv* only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive:
 
-        >>> vds_result = vds.ibd('output/ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9)
+        >>> vds.ibd('output/ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9)
 
         **Details**
 
