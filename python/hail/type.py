@@ -191,7 +191,7 @@ class TString(Type):
         return annotation
 
     def _typecheck(self, annotation):
-        if annotation and not isinstance(annotation, str):
+        if annotation and not (isinstance(annotation, str) or isinstance(annotation, unicode)):
             raise TypeCheckError("TString expected type 'str', but found type '%s'" % type(annotation))
 
 
