@@ -31,3 +31,7 @@ table.docutils col {
     overflow: auto;
     color: #404040
 }
+
+div.nboutput div.output_area.stderr {
+    display: none;
+}
