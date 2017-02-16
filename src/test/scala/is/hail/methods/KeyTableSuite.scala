@@ -37,7 +37,7 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testSingleToPairRDD() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val kt = KeyTable.importTextTable(hc, Array(inputFile), "Sample, Status", sc.defaultMinPartitions, TextTableConfiguration())
+    val kt = hc.importKeyTable(List(inputFile), List("Sample", "Status"), None, TextTableConfiguration())
     val kt2 = KeyTable(hc, KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames)
 
     assert(kt.rdd.fullOuterJoin(kt2.rdd).forall { case (k, (v1, v2)) =>
@@ -51,14 +51,14 @@ class KeyTableSuite extends SparkSuite {
   @Test def testImportExport() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
-    val kt = KeyTable.importTextTable(hc, Array(inputFile), "Sample, Status", sc.defaultMinPartitions, TextTableConfiguration())
+    val kt = hc.importKeyTable(List(inputFile), List("Sample", "Status"), None, TextTableConfiguration())
     kt.export(sc, outputFile, null)
 
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
     intercept[FatalException] {
-      val kt2 = KeyTable.importTextTable(hc, Array(inputFile), "Sample, Status, BadKeyName", sc.defaultMinPartitions, TextTableConfiguration())
+      val kt = hc.importKeyTable(List(inputFile), List("Sample", "Status", "BadKeyName"), None, TextTableConfiguration())
     }
 
     assert(importedData == exportedData)
@@ -66,7 +66,7 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val kt1 = KeyTable.importTextTable(hc, Array(inputFile), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
+    val kt1 = hc.importKeyTable(List(inputFile), List("Sample"), None, TextTableConfiguration(impute = true))
     val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
     val kt3 = kt2.annotate("")
     val kt4 = kt3.select(kt3.fieldNames, Array("qPhen", "NotStatus"))
@@ -122,8 +122,8 @@ class KeyTableSuite extends SparkSuite {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    val ktLeft = KeyTable.importTextTable(hc, Array(inputFile1), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
-    val ktRight = KeyTable.importTextTable(hc, Array(inputFile2), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
+    val ktLeft = hc.importKeyTable(List(inputFile1), List("Sample"), None, TextTableConfiguration(impute = true))
+    val ktRight = hc.importKeyTable(List(inputFile2), List("Sample"), None, TextTableConfiguration(impute = true))
 
     val ktLeftJoin = ktLeft.leftJoin(ktRight)
     val ktRightJoin = ktLeft.rightJoin(ktRight)
