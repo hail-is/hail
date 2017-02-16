@@ -32,7 +32,7 @@ class Variant(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Variant(%s, %s, %s, %s)' % (self.contig, self.start, self.ref, self._alt_alleles)
+        return 'Variant(contig=%s, start=%s, ref=%s, alts=%s)' % (self.contig, self.start, self.ref, self._alt_alleles)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
@@ -269,7 +269,7 @@ class AltAllele(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'AltAllele(%s, %s)' % (self.ref, self.alt)
+        return 'AltAllele(ref=%s, alt=%s)' % (self.ref, self.alt)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
@@ -422,7 +422,7 @@ class Locus(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Locus(%s, %s)' % (self.contig, self.position)
+        return 'Locus(contig=%s, position=%s)' % (self.contig, self.position)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)

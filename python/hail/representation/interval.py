@@ -19,8 +19,9 @@ class Interval(object):
 
     @handle_py4j
     def __init__(self, start, end):
-        if not isinstance(start, Locus) and isinstance(end, Locus):
-            raise TypeError('expect arguments of type (Locus, Locus) but found (%s, %s)' % (type(start), type(end)))
+        if not (isinstance(start, Locus) and isinstance(end, Locus)):
+            raise TypeError('expect arguments of type (Locus, Locus) but found (%s, %s)' %
+                            (str(type(start)), str(type(end))))
         jrep = scala_object(env.hail.variant, 'Locus').makeInterval(start._jrep, end._jrep)
         self._init_from_java(jrep)
 
@@ -28,7 +29,7 @@ class Interval(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Interval(%s, %s)' % (repr(self.start), repr(self.end))
+        return 'Interval(start=%s, end=%s)' % (repr(self.start), repr(self.end))
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)

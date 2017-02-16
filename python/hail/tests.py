@@ -8,6 +8,7 @@ import unittest
 from hail import HailContext, TextTableConfig
 from hail.representation import *
 from hail.type import *
+from hail.java import *
 
 hc = None
 
@@ -216,12 +217,13 @@ class ContextTests(unittest.TestCase):
          .count())
 
         vds_assoc = (hc.import_vcf(test_resources + '/sample.vcf')
-               .split_multi()
-               .variant_qc()
-               .annotate_samples_expr('sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
-               .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
-               .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
-               .annotate_samples_expr('sa.cov2 = rnorm(0,1)'))
+                     .split_multi()
+                     .variant_qc()
+                     .annotate_samples_expr(
+            'sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
+                     .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
+                     .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
+                     .annotate_samples_expr('sa.cov2 = rnorm(0,1)'))
 
         vds_kinship = vds_assoc.filter_variants_expr('va.qc.AF > .05')
 
@@ -292,7 +294,7 @@ class ContextTests(unittest.TestCase):
         kt = (sample2.variants_keytable()
               .annotate("v2 = v")
               .key_by(["v", "v2"]))
-        sample2.annotate_variants_keytable(kt, "va.foo = table.va", ["v","v"])
+        sample2.annotate_variants_keytable(kt, "va.foo = table.va", ["v", "v"])
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
@@ -621,13 +623,12 @@ class ContextTests(unittest.TestCase):
         map5 = {Locus("1", 100): 5, Locus("5", 205): 100}
         map6 = None
         map7 = dict()
-        map8 = {Locus("1", 100): None,Locus("5", 205): 100}
+        map8 = {Locus("1", 100): None, Locus("5", 205): 100}
         maptype2 = TDict(TLocus(), TInt())
         self.assertEqual(vds.annotate_global_py(path, map5, maptype2).globals.annotation, map5)
         self.assertEqual(vds.annotate_global_py(path, map6, maptype2).globals.annotation, map6)
         self.assertEqual(vds.annotate_global_py(path, map7, maptype2).globals.annotation, map7)
         self.assertEqual(vds.annotate_global_py(path, map8, maptype2).globals.annotation, map8)
-
 
         struct1 = Struct({'field1': 5, 'field2': 10, 'field3': [1, 2]})
         struct2 = Struct({'field1': 5, 'field2': None, 'field3': None})
@@ -666,3 +667,26 @@ class ContextTests(unittest.TestCase):
         genotypetype = TGenotype()
         self.assertEqual(vds.annotate_global_py(path, genotype1, genotypetype).globals.annotation, genotype1)
         self.assertEqual(vds.annotate_global_py(path, genotype2, genotypetype).globals.annotation, genotype2)
+
+    def test_error_messages(self):
+
+        vds = hc.import_vcf('src/test/resources/sample.vcf')
+
+        def f():
+            Interval(1, 2)
+
+        self.assertRaisesRegexp(TypeError, "expected arguments of type (Locus, Locus) but found (int, int)", f)
+
+        def f():
+            vds.concordance(vds)
+
+        self.assertRaisesRegexp(FatalError,
+                                "method `concordance' requires a split dataset. Use `split_multi' or `filter_multi' first",
+                                f)
+
+        def f():
+            vds.variant_qc()
+
+        self.assertRaisesRegexp(FatalError,
+                                "method `variant QC' requires a split dataset. Use `split_multi' or `filter_multi' first",
+                                f)
