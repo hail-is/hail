@@ -57,6 +57,7 @@ object LogisticRegression {
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
+    val emptyStats = logRegTest.emptyStats
 
     vds.mapAnnotations{ case (v, va, gs) =>
       val maskedGts = gs.zipWithIndex.filter{ case (g, i) => sampleMaskBc.value(i) }.map(_._1.gt)
@@ -64,7 +65,7 @@ object LogisticRegression {
       val logRegAnnot =
         buildGtColumn(maskedGts).map { gts =>
           val X = DenseMatrix.horzcat(covBc.value, gts)
-          logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
+          logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
         }
 
       inserter(va, logRegAnnot)

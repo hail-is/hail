@@ -38,10 +38,10 @@ class LogisticRegressionSuite extends SparkSuite {
     // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
-    val qBeta = vds.queryVA("va.logreg.wald.beta")._2
-    val qSe = vds.queryVA("va.logreg.wald.se")._2
-    val qZstat = vds.queryVA("va.logreg.wald.zstat")._2
-    val qPVal = vds.queryVA("va.logreg.wald.pval")._2
+    val qBeta = vds.queryVA("va.logreg.beta")._2
+    val qSe = vds.queryVA("va.logreg.se")._2
+    val qZstat = vds.queryVA("va.logreg.zstat")._2
+    val qPVal = vds.queryVA("va.logreg.pval")._2
     val qConverged = vds.queryVA("va.logreg.fit.converged")._2
     val qExploded = vds.queryVA("va.logreg.fit.exploded")._2
 
@@ -131,9 +131,9 @@ class LogisticRegressionSuite extends SparkSuite {
     // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
-    val qBeta = vds.queryVA("va.logreg.lrt.beta")._2
-    val qChi2 = vds.queryVA("va.logreg.lrt.chi2")._2
-    val qPVal = vds.queryVA("va.logreg.lrt.pval")._2
+    val qBeta = vds.queryVA("va.logreg.beta")._2
+    val qChi2 = vds.queryVA("va.logreg.chi2")._2
+    val qPVal = vds.queryVA("va.logreg.pval")._2
     val qConverged = vds.queryVA("va.logreg.fit.converged")._2
     val qExploded = vds.queryVA("va.logreg.fit.exploded")._2
 
@@ -220,8 +220,8 @@ class LogisticRegressionSuite extends SparkSuite {
     // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
-    val qChi2 = vds.queryVA("va.logreg.score.chi2")._2
-    val qPVal = vds.queryVA("va.logreg.score.pval")._2
+    val qChi2 = vds.queryVA("va.logreg.chi2")._2
+    val qPVal = vds.queryVA("va.logreg.pval")._2
 
     val annotationMap = vds.variantsAndAnnotations
       .collect()
@@ -294,14 +294,14 @@ class LogisticRegressionSuite extends SparkSuite {
     // MAC    7
     val v5 = Variant("22", 16117953, "G", "C") // MAC   21
 
-    val qBeta = vds.queryVA("va.wald.wald.beta")._2
-    val qSe = vds.queryVA("va.wald.wald.se")._2
-    val qZstat = vds.queryVA("va.wald.wald.zstat")._2
-    val qPVal = vds.queryVA("va.wald.wald.pval")._2
-    val qPValLR = vds.queryVA("va.lrt.lrt.pval")._2
-    val qPValScore = vds.queryVA("va.score.score.pval")._2
-    val qBetaFirth = vds.queryVA("va.firth.firth.beta")._2
-    val qPValFirth = vds.queryVA("va.firth.firth.pval")._2
+    val qBeta = vds.queryVA("va.wald.beta")._2
+    val qSe = vds.queryVA("va.wald.se")._2
+    val qZstat = vds.queryVA("va.wald.zstat")._2
+    val qPVal = vds.queryVA("va.wald.pval")._2
+    val qPValLR = vds.queryVA("va.lrt.pval")._2
+    val qPValScore = vds.queryVA("va.score.pval")._2
+    val qBetaFirth = vds.queryVA("va.firth.beta")._2
+    val qPValFirth = vds.queryVA("va.firth.pval")._2
 
     val annotationMap = vds.variantsAndAnnotations
       .collect()

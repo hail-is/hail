@@ -2068,9 +2068,7 @@ class VariantDataset(object):
 
         **Annotations**
 
-        Four variant annotations are then added with root ``va.linreg`` as shown
-        in the table. These annotations can then be accessed by other methods,
-        including exporting to TSV with other variant annotations.
+        With the default root, the following four variant annotations are added.
 
         - **va.linreg.beta** (*Double*) -- fit genotype coefficient, :math:`\hat\beta_1`
         - **va.linreg.se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
@@ -2352,26 +2350,21 @@ class VariantDataset(object):
         0 for false (male). The null model sets :math:`\\beta_1 = 0`.
 
         The resulting variant annotations depend on the test statistic
-        as shown in the tables below. These annotations can then be
-        accessed by other methods, including exporting to TSV with
-        other variant annotations.
+        as shown in the tables below.
 
-        ===== ======================== ====== =====
-        Test  Annotation               Type   Value
-        ===== ======================== ====== =====
-        Wald  ``va.logreg.wald.beta``  Double fit genotype coefficient, :math:`\hat\\beta_1`
-        Wald  ``va.logreg.wald.se``    Double estimated standard error, :math:`\widehat{\mathrm{se}}`
-        Wald  ``va.logreg.wald.zstat`` Double Wald :math:`z`-statistic, equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}`
-        Wald  ``va.logreg.wald.pval``  Double Wald test p-value testing :math:`\\beta_1 = 0`
-        LRT   ``va.logreg.lrt.beta``   Double fit genotype coefficient, :math:`\hat\\beta_1`
-        LRT   ``va.logreg.lrt.chi2``   Double likelihood ratio test statistic (deviance) testing :math:`\\beta_1 = 0`
-        LRT   ``va.logreg.lrt.pval``   Double likelihood ratio test p-value
-        Firth ``va.logreg.firth.beta`` Double fit genotype coefficient, :math:`\hat\\beta_1`
-        Firth ``va.logreg.firth.chi2`` Double Firth statistic testing :math:`\\beta_1 = 0`
-        Firth ``va.logreg.firth.pval`` Double Firth test p-value
-        Score ``va.logreg.score.chi2`` Double score statistic testing :math:`\\beta_1 = 0`
-        Score ``va.logreg.score.pval`` Double score test p-value
-        ===== ======================== ====== =====
+        ========== =================== ====== =====
+        Test       Annotation          Type   Value
+        ========== =================== ====== =====
+        Wald       ``va.logreg.beta``  Double fit genotype coefficient, :math:`\hat\\beta_1`
+        Wald       ``va.logreg.se``    Double estimated standard error, :math:`\widehat{\mathrm{se}}`
+        Wald       ``va.logreg.zstat`` Double Wald :math:`z`-statistic, equal to :math:`\hat\\beta_1 / \widehat{\mathrm{se}}`
+        Wald       ``va.logreg.pval``  Double Wald p-value testing :math:`\\beta_1 = 0`
+        LRT, Firth ``va.logreg.beta``  Double fit genotype coefficient, :math:`\hat\\beta_1`
+        LRT, Firth ``va.logreg.chi2``  Double deviance statistic
+        LRT, Firth ``va.logreg.pval``  Double LRT / Firth p-value testing :math:`\\beta_1 = 0`
+        Score      ``va.logreg.chi2``  Double score statistic
+        Score      ``va.logreg.pval``  Double score p-value testing :math:`\\beta_1 = 0`
+        ========== =================== ====== =====
 
         For the Wald and likelihood ratio tests, Hail fits the logistic model for each variant using Newton iteration and only emits the above annotations when the maximum likelihood estimate of the coefficients converges. The Firth test uses a modified form of Newton iteration. To help diagnose convergence issues, Hail also emits three variant annotations which summarize the iterative fitting process:
 
@@ -2423,6 +2416,7 @@ class VariantDataset(object):
         Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`_. For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
 
         :param str test: Statistical test, one of: wald, lrt, firth, or score.
+
         :param str y: Response expression.  Must evaluate to Boolean or
             numeric with all values 0 or 1.
 
