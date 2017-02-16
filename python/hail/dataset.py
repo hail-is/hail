@@ -1793,7 +1793,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def filter_intervals(self, input, keep=True):
+    def filter_variants_intervals(self, input, keep=True):
         """Filter variants with an .interval_list file.
 
         **Examples**

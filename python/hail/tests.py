@@ -177,7 +177,7 @@ class ContextTests(unittest.TestCase):
         (sample2.filter_variants_expr('pcoin(0.5)')
          .export_variants('/tmp/sample2.variant_list', 'v'))
 
-        (sample2.filter_intervals(test_resources + '/annotinterall.interval_list')
+        (sample2.filter_variants_intervals(test_resources + '/annotinterall.interval_list')
          .count())
 
         self.assertEqual(sample2.filter_variants_list(
