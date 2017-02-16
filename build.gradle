@@ -199,7 +199,7 @@ test.dependsOn(testHail)
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
-                'Implementation-Version': '0.0.1-SNAPSHOT',
+                'Implementation-Version': '0.0.1-SNAPSHOT'
     }
     baseName = project.name + '-all'
     mergeServiceFiles()
