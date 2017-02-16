@@ -667,26 +667,3 @@ class ContextTests(unittest.TestCase):
         genotypetype = TGenotype()
         self.assertEqual(vds.annotate_global_py(path, genotype1, genotypetype).globals.annotation, genotype1)
         self.assertEqual(vds.annotate_global_py(path, genotype2, genotypetype).globals.annotation, genotype2)
-
-    def test_error_messages(self):
-
-        vds = hc.import_vcf('src/test/resources/sample.vcf')
-
-        def f():
-            Interval(1, 2)
-
-        self.assertRaisesRegexp(TypeError, "expected arguments of type (Locus, Locus) but found (int, int)", f)
-
-        def f():
-            vds.concordance(vds)
-
-        self.assertRaisesRegexp(FatalError,
-                                "method `concordance' requires a split dataset. Use `split_multi' or `filter_multi' first",
-                                f)
-
-        def f():
-            vds.variant_qc()
-
-        self.assertRaisesRegexp(FatalError,
-                                "method `variant QC' requires a split dataset. Use `split_multi' or `filter_multi' first",
-                                f)
