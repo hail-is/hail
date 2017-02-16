@@ -961,7 +961,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     maximum.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
 
     minimum.liftedZip(maximum).foreach { case (min, max) =>
-      if (min <= max) {
+      if (min >= max) {
         fatal(s"minimum must be less than or equal to maximum: $min, $max")
       }
     }

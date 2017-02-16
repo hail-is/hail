@@ -188,7 +188,7 @@ class ContextTests(unittest.TestCase):
 
         sample2.hardcalls().count()
 
-        sample2_split.ibd('/tmp/sample2.ibd')
+        sample2_split.ibd('/tmp/sample2.ibd', min=0.2, max=0.6)
 
         sample2.split_multi().impute_sex().variant_schema
 

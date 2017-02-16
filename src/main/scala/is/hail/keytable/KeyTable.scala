@@ -18,26 +18,6 @@ import scala.reflect.ClassTag
 
 object KeyTable {
 
-  def importTextTable(hc: HailContext, path: Array[String], keysStr: String,
-    nPartitions: Int, config: TextTableConfiguration): KeyTable = {
-    require(nPartitions > 1)
-
-    val files = hc.hadoopConf.globAll(path)
-    if (files.isEmpty)
-      fatal("Arguments referred to no files")
-
-    val keys = Parser.parseIdentifierList(keysStr)
-
-    val (struct, rdd) =
-      TextTableReader.read(hc.sc)(files, config, nPartitions)
-
-    val invalidKeys = keys.filter(!struct.hasField(_))
-    if (invalidKeys.nonEmpty)
-      fatal(s"invalid keys: ${ invalidKeys.mkString(", ") }")
-
-    KeyTable(hc, rdd.map(_.value), struct, keys)
-  }
-
   def annotationToSeq(a: Annotation, nFields: Int) = Option(a).map(_.asInstanceOf[Row].toSeq).getOrElse(Seq.fill[Any](nFields)(null))
 
   def setEvalContext(ec: EvalContext, k: Annotation, v: Annotation, nKeys: Int, nValues: Int) =
