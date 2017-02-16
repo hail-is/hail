@@ -6,7 +6,7 @@ import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, SparseMatrix}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop}
-import is.hail.sparkextras.{OrderedRDD, ToIndexedRowMatrixFromBlockMatrix}
+import is.hail.sparkextras.OrderedRDD
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.utils.richUtils.RichHadoopConfiguration
