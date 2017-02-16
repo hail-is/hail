@@ -6,7 +6,7 @@ import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, SparseMatrix}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop}
-import is.hail.sparkextras.{OrderedRDD, ToIndexedRowMatrixFromBlockMatrix}
+import is.hail.sparkextras.OrderedRDD
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.utils.richUtils.RichHadoopConfiguration
@@ -158,41 +158,6 @@ class UtilsSuite extends SparkSuite {
       "MEMORY_AND_DISK", "MEMORY_AND_DISK_2", "MEMORY_AND_DISK_SER", "MEMORY_AND_DISK_SER_2", "OFF_HEAP")
 
     sls.foreach { sl => StorageLevel.fromString(sl) }
-  }
-
-  @Test def toIndexedRowMatrixFromDenseBlockMatrixTest() = {
-
-    val n = 5
-    val m = 10
-
-    Prop.forAll(Gen.denseMatrix(n, m)(Gen.gaussian(0.0, 1.0))) { bmat =>
-      val smat = new DenseMatrix(n, m, bmat.data)
-
-      val blockmat = new IndexedRowMatrix(sc.parallelize(((0 until n).map(_.toLong),
-        ToIndexedRowMatrixFromBlockMatrix.rowIter(smat).toIterable)
-        .zipped.map(IndexedRow)), n, m).toBlockMatrix()
-
-      val gram1 = blockmat.multiply(blockmat.transpose)
-
-      val gram1a = smat.multiply(smat.transpose)
-      val gram1b = gram1.toIndexedRowMatrix().toBlockMatrix().toLocalMatrix()
-      val gram1c = ToIndexedRowMatrixFromBlockMatrix(gram1).toBlockMatrix().toLocalMatrix()
-
-      TestUtils.assertMatrixEqualityDouble(new BDenseMatrix(n, n, gram1a.toArray), new BDenseMatrix(n, n, gram1b.toArray))
-      TestUtils.assertMatrixEqualityDouble(new BDenseMatrix(n, n, gram1b.toArray), new BDenseMatrix(n, n, gram1c.toArray))
-
-
-      val gram2 = blockmat.transpose.multiply(blockmat)
-
-      val gram2a = smat.transpose.multiply(smat)
-      val gram2b = gram2.toIndexedRowMatrix().toBlockMatrix().toLocalMatrix()
-      val gram2c = ToIndexedRowMatrixFromBlockMatrix(gram2).toBlockMatrix().toLocalMatrix()
-
-      TestUtils.assertMatrixEqualityDouble(new BDenseMatrix(n, n, gram2a.toArray), new BDenseMatrix(n, n, gram2b.toArray))
-      TestUtils.assertMatrixEqualityDouble(new BDenseMatrix(n, n, gram2b.toArray), new BDenseMatrix(n, n, gram2c.toArray))
-
-      true
-    }
   }
 
   @Test def sortedUnionIterator() {
