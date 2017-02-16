@@ -23,6 +23,14 @@ To get started using Hail:
 
 We encourage use of the [discussion forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
 
+html
+
+<a href="https://www.youtube.com/watch?v=6WoPZ3_nIXc" <img src="www/hail_spark_summit.png" width="600" alt="Hail keynote at Spark Summit East 2017"></a>
+
+markdown
+
+[![Hail keynote at Spark Summit East 2017](www/hail_spark_summit.png)](https://www.youtube.com/watch?v=6WoPZ3_nIXc)
+
 #### Hail Team
 
 The Hail team is based in the [Neale lab](https://nealelab.squarespace.com/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/scientific-community/science/programs/psychiatric-disease/stanley-center-psychiatric-research/stanle) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
