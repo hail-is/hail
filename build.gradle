@@ -10,7 +10,6 @@ plugins {
   id 'java'
   id 'scala'
   id 'idea'
-  id 'application'
   id 'maven'
   id 'jacoco'
   id 'com.github.johnrengelman.shadow' version '1.2.3'
@@ -327,13 +326,6 @@ task coverage(dependsOn: jacocoTestReport)
 task testJar(type: Jar) {
     classifier = 'tests'
     from sourceSets.test.output
-}
-
-installDist {
-  into('python') {
-    from 'python'
-    include '**/*.py'
-  }
 }
 
 task wrapper(type: Wrapper) {
