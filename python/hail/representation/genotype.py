@@ -51,7 +51,7 @@ class Genotype(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Genotype(%s, %s, %s, %s, %s' % (self.gt, self.ad, self.dp, self.gq, self.pl)
+        return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s)' % (self.gt, self.ad, self.dp, self.gq, self.pl)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
