@@ -10,19 +10,15 @@ process.on('uncaughtException', function (err) {
 const referenceHtmlTemplate = __dirname + "/" + process.argv[2];
 const commandsHtmlTemplate = __dirname + "/" + process.argv[3];
 const template = __dirname + "/" + process.argv[4];
-const jsonCommandsFile = process.argv[5];
-const pandocOutputDir = __dirname + "/" + process.argv[6];
+const pandocOutputDir = __dirname + "/" + process.argv[5];
 
 const jsdom = require('jsdom');
 const fs = require('fs');
 
 const buildDocs = require("./buildDocs.js");
 const mjAPI = require("mathjax-node/lib/mj-page.js");
-const jsonData = require(jsonCommandsFile);
 
 mjAPI.start();
-
-buildCommands(commandsHtmlTemplate, __dirname + "/commands.html");
 
 buildReference(referenceHtmlTemplate, __dirname + "/reference.html");
 
