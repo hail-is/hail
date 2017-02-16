@@ -222,6 +222,18 @@ case object TFloat extends TNumeric {
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
 
+  override def strVCF(a: Annotation): String = {
+    if (a == null)
+      "."
+    else {
+      val f = a.asInstanceOf[Float]
+      if (f.isNaN)
+        "."
+      else
+        f.formatted("%.5e")
+    }
+  }
+
   override def genValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
@@ -236,6 +248,18 @@ case object TDouble extends TNumeric {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
+
+  override def strVCF(a: Annotation): String = {
+    if (a == null)
+      "."
+    else {
+      val f = a.asInstanceOf[Double]
+      if (f.isNaN)
+        "."
+      else
+        f.formatted("%.5e")
+    }
+  }
 
   override def genValue: Gen[Annotation] = arbitrary[Double]
 
