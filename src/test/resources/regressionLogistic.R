@@ -1,5 +1,5 @@
 suppressPackageStartupMessages(library("jsonlite"))
-#suppressPackageStartupMessages(library("logistf"))
+suppressPackageStartupMessages(library("logistf"))
 
 args <- commandArgs(trailingOnly=TRUE)
 #args <- c("/tmp/input.json", "/tmp/wald.tsv", "/tmp/lrt.tsv", "/tmp/score.tsv", "/tmp/firthB.tsv", "/tmp/firthlrt.tsv")
@@ -28,12 +28,12 @@ scorePVal <- scorefit[["Pr(>Chi)"]][2]
 
 write.table(c(scoreChi2, scorePVal), args[4], row.names=FALSE, col.names=FALSE, sep="\t")
 
-#firthfit <- logistf(y ~ X, control=logistf.control(xconv=1e-8))
-#firthcoef <- firthfit["coefficients"]
+firthfit <- logistf(y ~ X, control=logistf.control(xconv=1e-8))
+firthcoef <- firthfit["coefficients"]
 
-#write.table(firthcoef, args[5], row.names=FALSE, col.names=FALSE, sep="\t")
+write.table(firthcoef, args[5], row.names=FALSE, col.names=FALSE, sep="\t")
 
-#firthloglik <- firthfit[["loglik"]]
-#firthpval <- logistftest(firthfit)[["prob"]]
+firthloglik <- firthfit[["loglik"]]
+firthpval <- logistftest(firthfit)[["prob"]]
 
-#write.table(c(firthloglik, firthpval), args[6], row.names=FALSE, col.names=FALSE, sep="\t")
+write.table(c(firthloglik, firthpval), args[6], row.names=FALSE, col.names=FALSE, sep="\t")

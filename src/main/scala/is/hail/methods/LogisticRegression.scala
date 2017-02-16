@@ -16,7 +16,7 @@ object LogisticRegression {
     if (!vds.wasSplit)
       fatal("logreg requires bi-allelic VDS. Run split_multi or filter_multi first")
 
-    def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest)
+    def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
 
     val logRegTest = tests(test)
 
@@ -36,13 +36,13 @@ object LogisticRegression {
     if (d < 1)
       fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
-    info(s"Running logreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"Running $test logreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
-    val nullFit = nullModel.nullFit(nullModel.bInterceptOnly())
+    val nullFit = nullModel.fit()
 
     if (!nullFit.converged)
-      fatal("Failed to fit logistic regression null model (covariates only): " + (
+      fatal("Failed to fit (unregulatized) logistic regression null model (covariates only): " + (
         if (nullFit.exploded)
          s"exploded at Newton iteration ${nullFit.nIter}"
         else
@@ -63,7 +63,7 @@ object LogisticRegression {
 
       val logRegAnnot =
         buildGtColumn(maskedGts).map { gts =>
-          val X = DenseMatrix.horzcat(gts, covBc.value)
+          val X = DenseMatrix.horzcat(covBc.value, gts)
           logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
         }
 

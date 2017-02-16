@@ -1,9 +1,8 @@
 package is.hail.stats
 
-import breeze.linalg.{DenseMatrix, eigSym, svd}
+import breeze.linalg.{DenseMatrix, DenseVector, eigSym, svd}
 import org.apache.commons.math3.random.JDKRandomGenerator
-import org.apache.commons.math3.random.MersenneTwister
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 import is.hail.utils._
 
@@ -97,5 +96,21 @@ class eigSymDSuite extends SparkSuite {
     }
 
     timeSymEig()
+  }
+
+  @Test def triSolveTest() {
+    val seed = 0
+
+    val rand = new JDKRandomGenerator()
+    rand.setSeed(seed)
+
+    (1 to 5).foreach { n =>
+      val A = DenseMatrix.zeros[Double](n, n)
+      (0 until n).foreach(i => (i until n).foreach(j => A(i,j) = rand.nextGaussian()))
+
+      val x = DenseVector.fill[Double](n)(rand.nextGaussian())
+
+      TestUtils.assertVectorEqualityDouble(x, TriSolve(A, A * x))
+    }
   }
 }
