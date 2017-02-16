@@ -1,7 +1,9 @@
 from py4j.protocol import Py4JJavaError, Py4JError
 
+
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
+
 
 class Env:
     _jvm = None
@@ -67,14 +69,17 @@ def joption(x):
 def from_option(x):
     return x.get() if x.isDefined() else None
 
+
 def jindexed_seq(x):
     return env.jutils.arrayListToISeq(x)
+
 
 def jiterable_to_list(it):
     if it:
         return list(env.jutils.iterableToArrayList(it))
     else:
         return None
+
 
 def handle_py4j(func):
     def function_wrapper(*args, **kwargs):
