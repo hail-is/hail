@@ -55,20 +55,14 @@ class HailContext(object):
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
 
-        if sc:
-            jsc = sc._jsc
-        else:
-            jsc = None
+        jsc = sc._jsc if sc  else None
 
         self._jhc = scala_object(self._hail, 'HailContext').apply(
             jsc, appName, joption(master), local, log, quiet, append,
             parquet_compression, min_block_size, branching_factor, tmp_dir)
 
-        if sc:
-            self.sc = sc
-        else:
-            self.sc = SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jhc.sc()))
         self._jsc = self._jhc.sc()
+        self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
 
@@ -98,13 +92,7 @@ class HailContext(object):
         :param int max_count: The maximum number of matches to return.
         """
 
-        if isinstance(path, str):
-            files = [path]
-        else:
-            files = path
-        files = jindexed_seq(files)
-
-        self._jhc.grep(regex, files, max_count)
+        self._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
     @handle_py4j
     def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=TextTableConfig()):
@@ -129,14 +117,9 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        if isinstance(path, str):
-            files = [path]
-        else:
-            files = path
-        files = jindexed_seq(files)
-
-        jvds = self._jhc.importAnnotationsTables(files, variant_expr, joption(code),
-                                                 joption(npartitions), config._to_java())
+        jvds = self._jhc.importAnnotationsTables(jindexed_seq_args(path), variant_expr,
+                                                 joption(code), joption(npartitions),
+                                                 config._to_java())
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -162,13 +145,8 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        if isinstance(path, str):
-            files = [path]
-        else:
-            files = path
-        files = jindexed_seq(files)
-
-        jvds = self._jhc.importBgens(files, joption(sample_file), tolerance, joption(npartitions), True)
+        jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
+                                     tolerance, joption(npartitions), True)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -236,17 +214,11 @@ class HailContext(object):
         :return: A dataset imported from a .gen and .sample file.
         """
 
-        if isinstance(path, str):
-            files = [path]
-        else:
-            files = path
-        files = jindexed_seq(files)
-
-        jvds = self._jhc.importGens(files, sample_file, joption(chromosome), joption(npartitions), tolerance, compress)
+        jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(npartitions), tolerance, compress)
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_keytable(self, path, key_names, npartitions=None, config=None):
+    def import_keytable(self, path, key_names, npartitions=None, config=TextTableConfig()):
         """Import delimited text file (text table) as KeyTable.
 
         :param path: files to import.
@@ -259,30 +231,17 @@ class HailContext(object):
         :type npartitions: int or None
 
         :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig` or None
+        :type config: :class:`.TextTableConfig`
 
         :rtype: :class:`.KeyTable`
         """
 
-        path_args = []
-        if isinstance(path, str):
-            path_args.append(path)
-        else:
-            for p in path:
-                path_args.append(p)
-
-        if not isinstance(key_names, str):
-            key_names = ','.join(key_names)
-
-        if not npartitions:
-            npartitions = self.sc.defaultMinPartitions
-
         if not config:
             config = TextTableConfig()
 
-        return KeyTable(self, self._hail.keytable.KeyTable.importTextTable(
-            self._jhc, jarray(self._jvm.java.lang.String, path_args), key_names, npartitions,
-            config._to_java()))
+        jkt = self._jhc.importKeyTable(jindexed_seq_args(path), jindexed_seq_args(key_names),
+                                       joption(npartitions), config._to_java())
+        return KeyTable(self, jkt)
 
     @handle_py4j
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False,
@@ -379,13 +338,7 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        if isinstance(path, str):
-            files = [path]
-        else:
-            files = path
-        files = jindexed_seq(files)
-
-        jvds = self._jhc.readAll(files, sites_only, samples_only)
+        jvds = self._jhc.readAll(jindexed_seq_args(path), sites_only, samples_only)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -434,13 +387,7 @@ class HailContext(object):
 
         """
 
-        if isinstance(path, str):
-            files = [path]
-        else:
-            files = path
-        files = jindexed_seq(files)
-
-        jvds = self._jhc.importVCFs(files, force, force_bgz, joption(header_file),
+        jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
                                     joption(npartitions), sites_only, store_gq,
                                     pp_as_pl, skip_bad_ad, compress)
 
@@ -455,13 +402,7 @@ class HailContext(object):
 
         """
 
-        if isinstance(path, str):
-            files = [path]
-        else:
-            files = path
-        files = jindexed_seq(files)
-
-        self._jhc.indexBgen(files)
+        self._jhc.indexBgen(jindexed_seq_args(path))
 
     @handle_py4j
     def balding_nichols_model(self, populations, samples, variants, npartitions=None,

@@ -178,14 +178,14 @@ object HailContext {
     }")
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
+    new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
   }
 }
 
-case class HailContext private(sc: SparkContext,
-  sqlContext: SQLContext,
-  tmpDir: String,
-  branchingFactor: Int) {
+class HailContext private(val sc: SparkContext,
+  val sqlContext: SQLContext,
+  val tmpDir: String,
+  val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
 
   def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
@@ -337,13 +337,26 @@ case class HailContext private(sc: SparkContext,
       .copy(vaSignature = signature, wasSplit = true)
   }
 
-  def importKeytable(files: Seq[String],
+  def importKeyTable(inputs: Seq[String],
     keyNames: Seq[String],
     nPartitions: Option[Int] = None,
     config: TextTableConfiguration = TextTableConfiguration()): KeyTable = {
+    require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
-    val inputs = hadoopConf.globAll(files)
-    KeyTable.importTextTable(this, inputs, keyNames.mkString(","), nPartitions.getOrElse(sc.defaultMinPartitions), config)
+    val files = hadoopConf.globAll(inputs)
+    if (files.isEmpty)
+      fatal("Arguments referred to no files")
+
+    val keys = keyNames.flatMap(Parser.parseIdentifierList)
+
+    val (struct, rdd) =
+      TextTableReader.read(sc)(files, config, nPartitions.getOrElse(sc.defaultMinPartitions))
+
+    val invalidKeys = keys.filter(!struct.hasField(_))
+    if (invalidKeys.nonEmpty)
+      fatal(s"invalid keys: ${ invalidKeys.mkString(", ") }")
+
+    KeyTable(this, rdd.map(_.value), struct, keys.toArray)
   }
 
   def importPlink(bed: String, bim: String, fam: String,

@@ -51,7 +51,13 @@ class Genotype(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s)' % (self.gt, self.ad, self.dp, self.gq, self.pl)
+        fake_ref = 'FakeRef=True' if self._jrep.fakeRef() else ''
+        if self._jrep.isDosage():
+            return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PP=%s%s)' %\
+                   (self.gt, self.ad, self.dp, self.gq, self.dosage(), fake_ref)
+        else:
+            return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s%s)' % \
+                   (self.gt, self.ad, self.dp, self.gq, self.pl, fake_ref)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)

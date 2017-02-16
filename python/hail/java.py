@@ -74,6 +74,10 @@ def jindexed_seq(x):
     return env.jutils.arrayListToISeq(x)
 
 
+def jindexed_seq_args(x):
+    args = [x] if isinstance(x, str) else x
+    return jindexed_seq(args)
+
 def jiterable_to_list(it):
     if it:
         return list(env.jutils.iterableToArrayList(it))

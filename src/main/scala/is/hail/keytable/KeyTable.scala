@@ -18,7 +18,8 @@ import scala.reflect.ClassTag
 
 object KeyTable {
 
-  def importTextTable(hc: HailContext, path: Array[String], keysStr: String, nPartitions: Int, config: TextTableConfiguration) = {
+  def importTextTable(hc: HailContext, path: Array[String], keysStr: String,
+    nPartitions: Int, config: TextTableConfiguration): KeyTable = {
     require(nPartitions > 1)
 
     val files = hc.hadoopConf.globAll(path)

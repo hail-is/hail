@@ -1,6 +1,4 @@
-from py4j.protocol import Py4JJavaError
 from hail.java import env, handle_py4j
-
 
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
