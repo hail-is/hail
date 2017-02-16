@@ -10,7 +10,6 @@ plugins {
   id 'java'
   id 'scala'
   id 'idea'
-  id 'application'
   id 'maven'
   id 'jacoco'
   id 'com.github.johnrengelman.shadow' version '1.2.3'
@@ -35,8 +34,6 @@ buildScan {
     licenseAgreementUrl = 'https://gradle.com/terms-of-service'
     licenseAgree = 'yes'
 }
-
-mainClassName = "is.hail.driver.Main"
 
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
@@ -201,8 +198,7 @@ test.dependsOn(testHail)
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
-                'Implementation-Version': '0.0.1-SNAPSHOT',
-                'Main-Class': 'is.hail.driver.Main'
+                'Implementation-Version': '0.0.1-SNAPSHOT'
     }
     baseName = project.name + '-all'
     mergeServiceFiles()
@@ -332,13 +328,6 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 
-installDist {
-  into('python') {
-    from 'python'
-    include '**/*.py'
-  }
-}
-
 task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
 }
@@ -378,12 +367,6 @@ task setupTutorial(type: Exec) {
     executable 'scripts/setupTutorial.sh'
 }
 
-task runCommandsJson(type: JavaExec, dependsOn: ['setupDocsDirs', 'classes']) {
-    main 'is.hail.driver.Main'
-    args ('commandmeta', '-o', 'build/tmp/docs/commandOptions.json')
-    classpath sourceSets.main.runtimeClasspath
-}
-
 task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
     workingDir 'build/tmp/docs'
     commandLine 'npm', 'install'
@@ -400,8 +383,8 @@ task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
     }
 }
 
-task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'runCommandsJson', 'prepareJavascript', 'copyHtml']) {
-    args('referenceTemplate.html', 'commandsTemplate.html', 'template.html', './commandOptions.json', 'docs/')
+task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copyHtml']) {
+    args('referenceTemplate.html', 'commandsTemplate.html', 'template.html', 'docs/')
     executable 'build/tmp/docs/compileDocsNode.js'
 }
 

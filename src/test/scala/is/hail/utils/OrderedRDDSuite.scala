@@ -1,14 +1,13 @@
 package is.hail.utils
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.types._
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop, Properties}
 import is.hail.sparkextras.{OrderedPartitioner, _}
 import is.hail.variant._
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.Test
 

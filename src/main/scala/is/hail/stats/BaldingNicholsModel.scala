@@ -1,20 +1,21 @@
 package is.hail.stats
 
-import breeze.linalg._
+import breeze.linalg.{DenseVector, sum, _}
 import breeze.stats.distributions._
-import breeze.linalg.{DenseVector, sum}
-import org.apache.spark.SparkContext
-import org.apache.commons.math3.random.JDKRandomGenerator
+import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TDouble, TInt, TString, TStruct}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
+import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
 
-  def apply(sc: SparkContext, nPops: Int, nSamples: Int, nVariants: Int,
+  def apply(hc: HailContext, nPops: Int, nSamples: Int, nVariants: Int,
     popDistArrayOpt: Option[Array[Double]], FstOfPopArrayOpt: Option[Array[Double]],
     seed: Int, nPartitionsOpt: Option[Int], af_dist: Distribution): VariantDataset = {
+
+    val sc = hc.sc
 
     if (nPops < 1)
       fatal(s"Number of populations must be positive, got ${ nPops }")
@@ -141,7 +142,7 @@ object BaldingNicholsModel {
         "Fst" -> TArray(TDouble),
         "ancestralAFDist" -> ancestralAFAnnotationSignature,
         "seed" -> TInt)
-    new VariantDataset(
+    new VariantDataset(hc,
       new VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation, saSignature, vaSignature, globalSignature, wasSplit=true),
       rdd
     )

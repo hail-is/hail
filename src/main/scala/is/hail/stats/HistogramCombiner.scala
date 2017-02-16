@@ -1,8 +1,8 @@
 package is.hail.stats
 
-import is.hail.annotations.Annotation
 import java.util.Arrays.binarySearch
 
+import is.hail.annotations.Annotation
 import is.hail.expr._
 
 object HistogramCombiner {

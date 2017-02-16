@@ -1,18 +1,17 @@
 package is.hail.methods
 
-import is.hail.utils._
+import is.hail.TestUtils._
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
-import is.hail.utils.{FatalException, Interval}
 import is.hail.utils.StringEscapeUtils._
+import is.hail.utils.{FatalException, Interval, _}
 import is.hail.variant.{Genotype, Locus, Variant}
 import is.hail.{SparkSuite, TestUtils}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
-import is.hail.TestUtils._
 
 import org.scalatest._
 import Matchers._

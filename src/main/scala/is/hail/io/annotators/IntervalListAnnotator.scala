@@ -1,9 +1,9 @@
 package is.hail.io.annotators
 
-import org.apache.hadoop
 import is.hail.expr._
 import is.hail.utils.{Interval, IntervalTree, _}
 import is.hail.variant._
+import org.apache.hadoop
 
 import scala.collection.mutable
 

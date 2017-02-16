@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.annotations._
-import is.hail.driver.{ImportVCF, State}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
@@ -15,7 +14,7 @@ class KeyTableSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
     val keyNames = Array("Sample")
 
-    KeyTable(rdd, signature, keyNames)
+    KeyTable(hc, rdd, signature, keyNames)
   }
 
   def sampleKT2: KeyTable = {
@@ -24,7 +23,7 @@ class KeyTableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
     val signature = TStruct(("Sample", TString), ("field1", TArray(TInt)), ("field2", TInt))
     val keyNames = Array("Sample")
-    KeyTable(rdd, signature, keyNames)
+    KeyTable(hc, rdd, signature, keyNames)
   }
 
   def sampleKT3: KeyTable = {
@@ -33,13 +32,13 @@ class KeyTableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Annotation.fromSeq(_)))
     val signature = TStruct(("Sample", TString), ("field1", TArray(TArray(TInt))), ("field2", TArray(TInt)))
     val keyNames = Array("Sample")
-    KeyTable(rdd, signature, keyNames)
+    KeyTable(hc, rdd, signature, keyNames)
   }
 
   @Test def testSingleToPairRDD() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val kt = KeyTable.importTextTable(sc, Array(inputFile), "Sample, Status", sc.defaultMinPartitions, TextTableConfiguration())
-    val kt2 = KeyTable(KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames)
+    val kt = hc.importKeyTable(List(inputFile), List("Sample", "Status"), None, TextTableConfiguration())
+    val kt2 = KeyTable(hc, KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames)
 
     assert(kt.rdd.fullOuterJoin(kt2.rdd).forall { case (k, (v1, v2)) =>
       val res = v1 == v2
@@ -52,14 +51,14 @@ class KeyTableSuite extends SparkSuite {
   @Test def testImportExport() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
-    val kt = KeyTable.importTextTable(sc, Array(inputFile), "Sample, Status", sc.defaultMinPartitions, TextTableConfiguration())
+    val kt = hc.importKeyTable(List(inputFile), List("Sample", "Status"), None, TextTableConfiguration())
     kt.export(sc, outputFile, null)
 
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
     intercept[FatalException] {
-      val kt2 = KeyTable.importTextTable(sc, Array(inputFile), "Sample, Status, BadKeyName", sc.defaultMinPartitions, TextTableConfiguration())
+      val kt = hc.importKeyTable(List(inputFile), List("Sample", "Status", "BadKeyName"), None, TextTableConfiguration())
     }
 
     assert(importedData == exportedData)
@@ -67,7 +66,7 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val kt1 = KeyTable.importTextTable(sc, Array(inputFile), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
+    val kt1 = hc.importKeyTable(List(inputFile), List("Sample"), None, TextTableConfiguration(impute = true))
     val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
     val kt3 = kt2.annotate("")
     val kt4 = kt3.select(kt3.fieldNames, Array("qPhen", "NotStatus"))
@@ -107,7 +106,7 @@ class KeyTableSuite extends SparkSuite {
     val signature = TStruct(("field1", TInt), ("field2", TInt), ("field3", TInt))
     val keyNames = Array("field1")
 
-    val kt1 = KeyTable(rdd, signature, keyNames)
+    val kt1 = KeyTable(hc, rdd, signature, keyNames)
     val kt2 = kt1.filter("field1 < 3", keep = true)
     val kt3 = kt1.filter("field1 < 3 && field3 == 4", keep = true)
     val kt4 = kt1.filter("field1 == 5 && field2 == 9 && field3 == 0", keep = false)
@@ -123,8 +122,8 @@ class KeyTableSuite extends SparkSuite {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    val ktLeft = KeyTable.importTextTable(sc, Array(inputFile1), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
-    val ktRight = KeyTable.importTextTable(sc, Array(inputFile2), "Sample", sc.defaultMinPartitions, TextTableConfiguration(impute = true))
+    val ktLeft = hc.importKeyTable(List(inputFile1), List("Sample"), None, TextTableConfiguration(impute = true))
+    val ktRight = hc.importKeyTable(List(inputFile2), List("Sample"), None, TextTableConfiguration(impute = true))
 
     val ktLeftJoin = ktLeft.leftJoin(ktRight)
     val ktRightJoin = ktLeft.rightJoin(ktRight)
@@ -180,7 +179,7 @@ class KeyTableSuite extends SparkSuite {
     val signature = TStruct(("field1", TString), ("field2", TInt), ("field3", TInt))
     val keyNames = Array("field1")
 
-    val kt1 = KeyTable(rdd, signature, keyNames)
+    val kt1 = KeyTable(hc, rdd, signature, keyNames)
     val kt2 = kt1.aggregate("Status = field1",
       "A = field2.sum(), " +
       "B = field2.map(f => field2).sum(), " +
@@ -192,7 +191,7 @@ class KeyTableSuite extends SparkSuite {
     val result = Array(Array("Case", 12, 12, 16, 2L, 1L), Array("Control", 3, 3, 11, 2L, 0L))
     val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
     val resSignature = TStruct(("Status", TString), ("A", TInt), ("B", TInt), ("C", TInt), ("D", TLong), ("E", TLong))
-    val ktResult = KeyTable(resRDD, resSignature, keyNames = Array("Status"))
+    val ktResult = KeyTable(hc, resRDD, resSignature, keyNames = Array("Status"))
 
     assert(kt2 same ktResult)
 
@@ -206,7 +205,7 @@ class KeyTableSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
     val keyNames = Array("Sample")
 
-    val kt = KeyTable(rdd, signature, keyNames)
+    val kt = KeyTable(hc, rdd, signature, keyNames)
     assert(kt.forall("field2 == 5 && field1 != 0"))
     assert(!kt.forall("field2 == 0 && field1 == 5"))
     assert(kt.exists("""Sample == "Sample1" && field1 == 9 && field2 == 5"""))
@@ -219,7 +218,7 @@ class KeyTableSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
     val keyNames = Array("Sample")
 
-    val kt = KeyTable(rdd, signature, keyNames)
+    val kt = KeyTable(hc, rdd, signature, keyNames)
 
     val rename1 = kt.rename(Array("ID1", "ID2", "ID3"))
     assert(rename1.fieldNames sameElements Array("ID1", "ID2", "ID3"))
@@ -243,7 +242,7 @@ class KeyTableSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
     val keyNames = Array("Sample")
 
-    val kt = KeyTable(rdd, signature, keyNames)
+    val kt = KeyTable(hc, rdd, signature, keyNames)
 
     val select1 = kt.select(Array("field1"), Array("field1"))
     assert((select1.keyNames sameElements Array("field1")) && (select1.valueNames sameElements Array.empty[String]))
@@ -282,12 +281,12 @@ class KeyTableSuite extends SparkSuite {
     val result2 = Array(Array("Sample1", 9, 5), Array("Sample1", 1, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5),
       Array("Sample3", 3, 5), Array("Sample3", 4, 5))
     val resRDD2 = sc.parallelize(result2.map(Annotation.fromSeq(_)))
-    val ktResult2 = KeyTable(resRDD2, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
+    val ktResult2 = KeyTable(hc, resRDD2, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
 
     val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
       Array("Sample1", 1, 5), Array("Sample1", 1, 6), Array("Sample2", 3, 5), Array("Sample2", 3, 3))
     val resRDD3 = sc.parallelize(result3.map(Annotation.fromSeq(_)))
-    val ktResult3 = KeyTable(resRDD3, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
+    val ktResult3 = KeyTable(hc, resRDD3, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
 
     intercept[FatalException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))
@@ -298,10 +297,9 @@ class KeyTableSuite extends SparkSuite {
   }
 
   @Test def testKeyTableToDF() {
-    var s = State(sc, sqlContext, null)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf.bgz"))
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
-    val kt = s.vds
+    val kt = vds
       .variantsKT()
       .flatten()
       .select(Array("va.info.MQRankSum"), Array.empty[String])

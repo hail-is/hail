@@ -1,21 +1,23 @@
 package is.hail.io
 
-import org.apache.spark.rdd.RDD
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
-import is.hail.driver.{ImportGEN, State}
-import org.testng.annotations.Test
-import is.hail.variant._
 import is.hail.utils._
+import is.hail.variant._
+import org.apache.spark.rdd.RDD
+import org.testng.annotations.Test
 
 class LoadGenSuite extends SparkSuite {
 
   def makeRDD(genFile: String): RDD[(String, Array[Double])] = {
-    sc.textFile(genFile).map{case line =>
+    sc.textFile(genFile).map { line =>
       val arr = line.split("\\s+")
       val variant = Variant(arr(0), arr(3).toInt, arr(4), arr(5))
-      val annotations = Annotation(arr(2), arr(1)) //rsid, varid
-      val dosages = arr.drop(6).map {_.toDouble}
+      val annotations = Annotation(arr(2), arr(1))
+      //rsid, varid
+      val dosages = arr.drop(6).map {
+        _.toDouble
+      }
 
       (arr(1), dosages)
     }
@@ -25,9 +27,7 @@ class LoadGenSuite extends SparkSuite {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
 
-    var s = State(sc, sqlContext, null)
-
-    val genVDS = ImportGEN.run(s, Array("-s",sampleFile, gen)).vds
+    val genVDS = hc.importGen(gen, sampleFile)
     val genOrigData = makeRDD(gen)
 
     val genQuery = genVDS.vaSignature.query("varid")
@@ -54,10 +54,10 @@ class LoadGenSuite extends SparkSuite {
             agreeAA && agreeAB && agreeBB
 
           case None =>
-            val res = if (dosOld(n) == 0.0 && dosOld(n+1) == 0.0 && dosOld(n+2) == 0.0) //FIXME: Is this correct?
+            val res = if (dosOld(n) == 0.0 && dosOld(n + 1) == 0.0 && dosOld(n + 2) == 0.0) //FIXME: Is this correct?
               true
             else {
-              println(s"${dosOld(n)} ${dosOld(n+1)} ${dosOld(n+2)}")
+              println(s"${ dosOld(n) } ${ dosOld(n + 1) } ${ dosOld(n + 2) }")
               false
             }
             n += 3

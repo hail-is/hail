@@ -1,11 +1,9 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.utils._
-import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import is.hail.check.Prop._
-import is.hail.variant._
-import is.hail.driver.{HardCalls, State}
+import is.hail.utils._
+import is.hail.variant.{VSMSubgen, VariantSampleMatrix, _}
 import org.testng.annotations.Test
 
 class HardCallsSuite extends SparkSuite {
@@ -16,19 +14,16 @@ class HardCallsSuite extends SparkSuite {
       .toSet
 
   @Test def test() {
-    val p = forAll(VariantSampleMatrix.gen(sc, VSMSubgen.random)) { vds =>
-      var s = State(sc, sqlContext, vds)
-      s = HardCalls.run(s)
-
-      s.vds.rdd.forall { case (v, (va, gs)) =>
-          gs.forall { g =>
-            g.ad.isEmpty &&
+    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random).map(_.hardCalls())) { vds =>
+      vds.rdd.forall { case (v, (va, gs)) =>
+        gs.forall { g =>
+          g.ad.isEmpty &&
             g.dp.isEmpty &&
             g.gq.isEmpty &&
             g.pl.isEmpty &&
             !g.isDosage
-          }
-      } && gtTriples(vds) == gtTriples(s.vds)
+        }
+      } && gtTriples(vds) == gtTriples(vds)
     }
     p.check()
   }

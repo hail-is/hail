@@ -1,7 +1,6 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.driver._
 import is.hail.utils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
@@ -10,16 +9,13 @@ class TDTSuite extends SparkSuite {
 
   @Test def test() {
 
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, "src/test/resources/tdt.vcf", "-n", "4")
-    s = SplitMulti.run(s)
-    s = TDTCommand.run(s, "-f", "src/test/resources/tdt.fam")
     val out = tmpDir.createLocalTempFile("out", "txt")
-
-    s = FilterVariantsExpr.run(s, "--keep", "-c", "v.contig != \"Y\" && v.contig != \"MT\"")
-
-    ExportVariants.run(s, "-o", out, "-c", "CHROM=v.contig, POSITION=v.start, REF=v.ref, ALT=v.alt, " +
-      "T = va.tdt.nTransmitted, U = va.tdt.nUntransmitted, Chi2 = va.tdt.chi2, Pval = va.tdt.pval")
+    hc.importVCF("src/test/resources/tdt.vcf", nPartitions = Some(4))
+      .splitMulti()
+      .tdt("src/test/resources/tdt.fam")
+      .filterVariantsExpr("v.contig != \"Y\" && v.contig != \"MT\"")
+      .exportVariants(out, "CHROM=v.contig, POSITION=v.start, REF=v.ref, ALT=v.alt, " +
+        "T = va.tdt.nTransmitted, U = va.tdt.nUntransmitted, Chi2 = va.tdt.chi2, Pval = va.tdt.pval")
 
     def parse(file: String) = {
       hadoopConf.readLines(file) { lines =>

@@ -1,10 +1,9 @@
 package is.hail.stats
 
+import is.hail.utils._
+import org.apache.commons.math3.util.CombinatoricsUtils.factorialLog
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-import org.apache.commons.math3.util.CombinatoricsUtils.factorialLog
-
-import is.hail.utils._
 
 class LeveneHaldaneSuite extends TestNGSuite {
 

@@ -2,13 +2,12 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.check.Prop._
-import is.hail.io.vcf.LoadVCF
 import org.testng.annotations.Test
 
 
 class PedigreeSuite extends SparkSuite {
   @Test def test() {
-    val vds = LoadVCF(sc, "src/test/resources/pedigree.vcf")
+    val vds = hc.importVCF("src/test/resources/pedigree.vcf")
     val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration, vds.sampleIds)
     val f = tmpDir.createTempFile("pedigree", ".fam")
     ped.write(f, sc.hadoopConfiguration)

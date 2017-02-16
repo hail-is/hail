@@ -1,9 +1,10 @@
 package is.hail.io
 
+import is.hail.utils._
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
+
 import scala.collection.mutable
-import is.hail.utils._
 
 object IndexBTree {
 

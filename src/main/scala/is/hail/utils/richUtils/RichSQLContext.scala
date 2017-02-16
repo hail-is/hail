@@ -1,9 +1,9 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.sql.functions._
 import is.hail.utils._
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{Row, SQLContext}
 
 class RichSQLContext(val sqlContext: SQLContext) extends AnyVal {
   def readParquetSorted(dirname: String, selection: Option[Array[String]] = None): RDD[Row] = {

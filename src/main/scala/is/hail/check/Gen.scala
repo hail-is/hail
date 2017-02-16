@@ -6,8 +6,8 @@ import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
-import scala.math.Numeric.Implicits._
 import scala.language.higherKinds
+import scala.math.Numeric.Implicits._
 import scala.reflect.ClassTag
 
 object Parameters {

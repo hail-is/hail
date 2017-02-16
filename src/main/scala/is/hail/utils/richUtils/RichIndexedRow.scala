@@ -1,8 +1,8 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.{Vector => BVector}
-import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import is.hail.utils._
+import org.apache.spark.mllib.linalg.distributed.IndexedRow
 
 import scala.language.{higherKinds, implicitConversions}
 

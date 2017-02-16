@@ -2,9 +2,9 @@ package is.hail.asm4s
 
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 
-import org.objectweb.asm.tree._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
+import org.objectweb.asm.tree._
 
 import scala.reflect.ClassTag
 

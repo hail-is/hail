@@ -3,12 +3,10 @@ package is.hail.io
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import is.hail.driver._
 import is.hail.io.plink.PlinkLoader
-import is.hail.variant._
 import is.hail.utils._
-import is.hail.SparkSuite
-import is.hail.utils.FatalException
+import is.hail.variant._
+import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
@@ -17,8 +15,10 @@ import scala.sys.process._
 class ImportPlinkSuite extends SparkSuite {
 
   object Spec extends Properties("ImportPlink") {
-    val compGen = for (vds: VariantDataset <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
-      nPartitions: Int <- choose(1, PlinkLoader.expectedBedSize(vds.nSamples, vds.nVariants).toInt.min(10))) yield (vds, nPartitions)
+    val compGen = for {
+      vds <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random).map(_.cache().splitMulti())
+      nPartitions <- choose(1, PlinkLoader.expectedBedSize(vds.nSamples, vds.countVariants()).toInt.min(10))
+    } yield (vds, nPartitions)
 
     property("import generates same output as export") =
       forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
@@ -26,21 +26,21 @@ class ImportPlinkSuite extends SparkSuite {
         val truthRoot = tmpDir.createTempFile("truth")
         val testRoot = tmpDir.createTempFile("test")
 
-        var s = State(sc, sqlContext, vds)
+        vds.exportPlink(truthRoot)
 
-        s = SplitMulti.run(s, Array[String]())
-        s = ExportPlink.run(s, Array("-o", truthRoot))
-        if (s.vds.nSamples == 0 || s.vds.nVariants == 0) {
-          try {
-            s = ImportPlink.run(s, Array("--bfile", truthRoot, "-n", nPartitions.toString))
-            false
-          } catch {
-            case e: FatalException => true
-            case _: Throwable => false
+        if (vds.nSamples == 0) {
+          TestUtils.interceptFatal("Empty .fam file") {
+            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
           }
+          true
+        } else if (vds.countVariants() == 0) {
+          TestUtils.interceptFatal(".bim file does not contain any variants") {
+            hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
+          }
+          true
         } else {
-          s = ImportPlink.run(s, Array("--bfile", truthRoot, "-n", nPartitions.toString))
-          s = ExportPlink.run(s, Array("-o", testRoot))
+          hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
+            .exportPlink(testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
           val localTestRoot = tmpDir.createLocalTempFile("test")
@@ -60,6 +60,7 @@ class ImportPlinkSuite extends SparkSuite {
           exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0
         }
       }
+
   }
 
   @Test def testPlinkImportRandom() {

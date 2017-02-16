@@ -1,10 +1,8 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.check.Gen
-import is.hail.driver.{ImportVCF, RenameSamples, State}
-import is.hail.utils.FatalException
+import is.hail.utils.{FatalException, _}
 import org.testng.annotations.Test
 
 import scala.collection.mutable
@@ -16,12 +14,11 @@ class RenameSamplesSuite extends SparkSuite {
   }
 
   @Test def testCollision() {
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
 
     val m = mutable.Map[String, String](
-      s.vds.sampleIds(0) -> "a",
-      s.vds.sampleIds(1) -> "a"
+      vds.sampleIds(0) -> "a",
+      vds.sampleIds(1) -> "a"
     )
 
     val samplesMapFile = tmpDir.createTempFile("samples", extension = ".map")
@@ -30,19 +27,18 @@ class RenameSamplesSuite extends SparkSuite {
 
     // FIXME keyword
     intercept[FatalException] {
-      s = RenameSamples.run(s, Array("-i", samplesMapFile))
+      vds.renameSamples(samplesMapFile)
     }
   }
 
   @Test def test() {
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
 
-    val samples = s.vds.sampleIds.toSet
+    val samples = vds.sampleIds.toSet
     val newSamples = mutable.Set[String](samples.toArray: _*)
     val m = mutable.Map.empty[String, String]
     val genNewSample = Gen.identifier.filter(newS => !newSamples.contains(newS))
-    for (s <- s.vds.sampleIds) {
+    for (s <- vds.sampleIds) {
       Gen.option(genNewSample, 0.5).sample() match {
         case Some(newS) =>
           newSamples -= s
@@ -63,8 +59,8 @@ class RenameSamplesSuite extends SparkSuite {
 
     writeSampleMap(samplesMapFile, m)
 
-    s = RenameSamples.run(s, Array("-i", samplesMapFile))
+    val vds2 = vds.renameSamples(samplesMapFile)
 
-    assert(s.vds.sampleIds.toSet == newSamples)
+    assert(vds2.sampleIds.toSet == newSamples)
   }
 }

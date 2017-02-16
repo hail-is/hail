@@ -32,18 +32,19 @@ object GQByDPBins {
   // ((sample, bin), %GQ)
   def apply(vds: VariantDataset): Map[(String, Int), Double] = {
     vds
-    .flatMapWithKeys((v, s, g) => {
-      val bin = g.dp.flatMap(dpBin)
-      if (bin.isDefined && g.isCalled)
-        Some(((s, bin.get), (if (g.gq.exists(_ >= gqThreshold)) 1 else 0, 1)))
-      else
-        None
-    })
-    .foldByKey((0, 0))((a, b) => (a._1 + b._1, a._2 + b._2))
-    .mapValues(a => {
-      assert(a._2 != 0)
-      a._1.toDouble / a._2
-    })
-    .collectAsMap().toMap
+      .flatMapWithKeys((v, s, g) => {
+        val bin = g.dp.flatMap(dpBin)
+        if (bin.isDefined && g.isCalled)
+          Some(((s, bin.get), (if (g.gq.exists(_ >= gqThreshold)) 1 else 0, 1)))
+        else
+          None
+      })
+      .foldByKey((0, 0))((a, b) => (a._1 + b._1, a._2 + b._2))
+      .mapValues(a => {
+        assert(a._2 != 0)
+        a._1.toDouble / a._2
+      })
+      .collectAsMap().toMap
   }
 }
+

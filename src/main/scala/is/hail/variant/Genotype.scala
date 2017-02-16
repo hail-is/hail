@@ -2,14 +2,13 @@ package is.hail.variant
 
 import java.util
 
+import is.hail.check.{Arbitrary, Gen}
+import is.hail.expr.{TArray, TBoolean, TInt, TStruct, Type}
+import is.hail.utils.{ByteIterator, _}
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import is.hail.utils._
-import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.{TArray, TBoolean, TInt, TStruct, Type}
-import is.hail.utils.ByteIterator
 import org.json4s._
 
 import scala.collection.mutable

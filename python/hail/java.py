@@ -1,13 +1,8 @@
+from py4j.protocol import Py4JJavaError, Py4JError
+
+
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
-
-    def __init__(self, message, java_exception):
-        self.msg = message
-        self.java_exception = java_exception
-        super(FatalError)
-
-    def __str__(self):
-        return self.msg
 
 
 class Env:
@@ -75,6 +70,14 @@ def from_option(x):
     return x.get() if x.isDefined() else None
 
 
+def jindexed_seq(x):
+    return env.jutils.arrayListToISeq(x)
+
+
+def jindexed_seq_args(x):
+    args = [x] if isinstance(x, str) else x
+    return jindexed_seq(args)
+
 def jiterable_to_list(it):
     if it:
         return list(env.jutils.iterableToArrayList(it))
@@ -82,6 +85,24 @@ def jiterable_to_list(it):
         return None
 
 
-def raise_py4j_exception(e):
-    msg = env.jutils.getMinimalMessage(e.java_exception)
-    raise FatalError(msg, e.java_exception)
+def handle_py4j(func):
+    def function_wrapper(*args, **kwargs):
+        try:
+            r = func(*args, **kwargs)
+        except Py4JJavaError as e:
+            msg = env.jutils.getMinimalMessage(e.java_exception)
+            raise FatalError(msg)
+        except Py4JError as e:
+            env.jutils.log().error('hail: caught python exception: ' + str(e))
+            if e.args[0].startswith('An error occurred while calling'):
+                raise TypeError('Method %s() received at least one parameter with an invalid type. '
+                                'See doc for function signature.' % func.__name__)
+            else:
+                raise e
+        return r
+
+    function_wrapper.__doc__ = func.__doc__
+    function_wrapper.__name__ = func.__name__
+    function_wrapper.__module__ = func.__module__
+
+    return function_wrapper

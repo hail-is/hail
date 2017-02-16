@@ -1,6 +1,7 @@
 package is.hail.io.hadoop
 
 import java.io.DataOutput
+
 import org.apache.hadoop.io.BytesWritable
 
 class BytesOnlyWritable(var bytes: Array[Byte])

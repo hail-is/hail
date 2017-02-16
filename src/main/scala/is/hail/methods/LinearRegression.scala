@@ -1,12 +1,12 @@
 package is.hail.methods
 
 import breeze.linalg._
-import org.apache.commons.math3.distribution.TDistribution
-import is.hail.utils._
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.stats._
+import is.hail.utils._
 import is.hail.variant._
+import org.apache.commons.math3.distribution.TDistribution
 
 object LinearRegression {
   def `type`: Type = TStruct(

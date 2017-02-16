@@ -1,6 +1,7 @@
 package is.hail.io.hadoop
 
-import java.io.{DataOutputStream, IOException}
+import java.io.DataOutputStream
+
 import org.apache.hadoop.fs._
 import org.apache.hadoop.io._
 import org.apache.hadoop.mapred._

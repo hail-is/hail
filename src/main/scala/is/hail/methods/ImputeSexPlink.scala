@@ -1,9 +1,9 @@
 package is.hail.methods
 
-import is.hail.utils._
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats.InbreedingCombiner
+import is.hail.utils._
 import is.hail.variant.VariantDataset
 
 object ImputeSexPlink {

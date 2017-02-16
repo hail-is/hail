@@ -1,36 +1,32 @@
 package is.hail.methods
 
-import org.apache.spark.util.StatCounter
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.annotations.Annotation
-import is.hail.driver._
 import is.hail.expr._
-import is.hail.io.vcf.LoadVCF
+import is.hail.utils._
+import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
 
 
 class AnnotateGlobalSuite extends SparkSuite {
-  @Test def test(): Unit = {
+  @Test def test() {
 
-    var s = SplitMulti.run(State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sample2.vcf")), Array.empty[String])
-    s = VariantQC.run(s, Array.empty[String])
-    s = SampleQC.run(s, Array.empty[String])
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
+      .splitMulti()
+      .variantQC()
+      .sampleQC()
 
-    s = AnnotateGlobal.run(s, Array("exprbyvariant", "-c", "global.afDist = variants.map(v => va.qc.AF).stats()"))
-    s = AnnotateGlobal.run(s, Array("exprbysample", "-c", "global.singStats = samples.filter(s => sa.qc.nSingleton > 2).count()"))
-    s = AnnotateGlobal.run(s, Array("exprbyvariant", "-c", "global.anotherAnnotation.sumOver2 = global.afDist.sum / 2"))
-    s = AnnotateGlobal.run(s, Array("exprbyvariant", "-c", "global.acDist = variants.map(v => va.qc.AC).stats()"))
-    s = AnnotateGlobal.run(s, Array("exprbysample", "-c", "global.CRStats = samples.map(s => sa.qc.callRate).stats()"))
+    val (afDist, _) = vds.queryVariants("variants.map(v => va.qc.AF).stats()")
+    val (singStats, _) = vds.querySamples("samples.filter(s => sa.qc.nSingleton > 2).count()")
+    val (acDist, _) = vds.queryVariants("variants.map(v => va.qc.AC).stats()")
+    val (crStats, _) = vds.querySamples("samples.map(s => sa.qc.callRate).stats()")
 
-    val vds = s.vds
     val qSingleton = vds.querySA("sa.qc.nSingleton")._2
-    val qSingletonGlobal = vds.queryGlobal("global.singStats")._2
 
     val sCount = vds.sampleAnnotations.count(sa =>
       qSingleton(sa).exists(_.asInstanceOf[Int] > 2))
 
-    assert(qSingletonGlobal.contains(sCount))
+    assert(singStats == sCount)
 
     val qAF = vds.queryVA("va.qc.AF")._2
     val afSC = vds.variantsAndAnnotations.map(_._2)
@@ -40,10 +36,7 @@ class AnnotateGlobalSuite extends SparkSuite {
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    assert(vds.queryGlobal("global.afDist")._2
-      .contains(Annotation(afSC.mean, afSC.stdev, afSC.min, afSC.max, afSC.count, afSC.sum)))
-
-    assert(vds.queryGlobal("global.anotherAnnotation.sumOver2")._2.contains(afSC.sum / 2))
+    assert(afDist == Annotation(afSC.mean, afSC.stdev, afSC.min, afSC.max, afSC.count, afSC.sum))
 
     val qAC = vds.queryVA("va.qc.AC")._2
     val acSC = vds.variantsAndAnnotations.map(_._2)
@@ -53,9 +46,7 @@ class AnnotateGlobalSuite extends SparkSuite {
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    assert(vds.queryGlobal("global.acDist")._2
-      .contains(Annotation(acSC.mean, acSC.stdev, acSC.min,
-        acSC.max, acSC.count, acSC.sum)))
+    assert(acDist == Annotation(acSC.mean, acSC.stdev, acSC.min, acSC.max, acSC.count, acSC.sum))
 
     val qCR = vds.querySA("sa.qc.callRate")._2
     val crSC = vds.sampleAnnotations
@@ -65,10 +56,7 @@ class AnnotateGlobalSuite extends SparkSuite {
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2) })
 
-    assert(vds.queryGlobal("global.CRStats")._2
-      .contains(Annotation(crSC.mean, crSC.stdev, crSC.min,
-        crSC.max, crSC.count, crSC.sum)))
-
+    assert(crStats == Annotation(crSC.mean, crSC.stdev, crSC.min, crSC.max, crSC.count, crSC.sum))
   }
 
   @Test def testLists() {
@@ -90,13 +78,12 @@ class AnnotateGlobalSuite extends SparkSuite {
       }
     }
 
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
-    s = AnnotateGlobal.run(s, Array("list", "-i", out1, "-r", "global.geneList", "--as-set"))
-    s = AnnotateGlobal.run(s, Array("list", "-i", out2, "-r", "global.array"))
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+      .annotateGlobalList(out1, "global.geneList", asSet = true)
+      .annotateGlobalList(out2, "global.array")
 
-    val (_, anno1) = s.vds.queryGlobal("global.geneList")
-    val (_, anno2) = s.vds.queryGlobal("global.array")
+    val (_, anno1) = vds.queryGlobal("global.geneList")
+    val (_, anno2) = vds.queryGlobal("global.array")
     assert(anno1.contains(toWrite1.toSet))
     assert(anno2.contains(toWrite2: IndexedSeq[Any]))
   }
@@ -116,11 +103,10 @@ class AnnotateGlobalSuite extends SparkSuite {
       toWrite1.foreach(line => out.write(line + "\n"))
     }
 
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf"))
-    s = AnnotateGlobal.run(s, Array("table", "-i", out1, "-r", "global.genes", "-t", "PLI: Double, EXAC_LOF_COUNT: Int"))
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+      .annotateGlobalTable(out1, "global.genes", config = TextTableConfiguration(impute = true))
 
-    val (t, res) = s.vds.queryGlobal("global.genes")
+    val (t, res) = vds.queryGlobal("global.genes")
 
     assert(t == TArray(TStruct(
       ("GENE", TString),

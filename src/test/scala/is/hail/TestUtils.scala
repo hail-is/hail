@@ -51,13 +51,13 @@ object TestUtils {
   def vdsToMatrixInt(vds: VariantDataset): DenseMatrix[Int] =
     new DenseMatrix[Int](
       vds.nSamples,
-      vds.nVariants.toInt,
+      vds.countVariants.toInt,
       vds.rdd.map(_._2._2.map(_.unboxedGT)).collect().flatten)
 
   // missing is Double.NaN
   def vdsToMatrixDouble(vds: VariantDataset): DenseMatrix[Double] =
     new DenseMatrix[Double](
       vds.nSamples,
-      vds.nVariants.toInt,
+      vds.countVariants.toInt,
       vds.rdd.map(_._2._2.map(_.gt.map(_.toDouble).getOrElse(Double.NaN))).collect().flatten)
 }

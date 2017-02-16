@@ -1,20 +1,22 @@
 package is.hail.io.plink
 
-import org.apache.hadoop
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.io.LongWritable
-import org.apache.spark.SparkContext
-import is.hail.utils._
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
+import is.hail.utils._
 import is.hail.variant._
+import org.apache.hadoop
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.io.LongWritable
 
 import scala.collection.mutable
 
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
-case class FamFileConfig(isQuantitative: Boolean, delimiter: String, missingValue: String)
+case class FamFileConfig(isQuantitative: Boolean = false,
+  delimiter: String = "\\t",
+  missingValue: String = "NA")
 
 object PlinkLoader {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
@@ -108,13 +110,15 @@ object PlinkLoader {
     (m, signature)
   }
 
-  private def parseBed(bedPath: String,
+  private def parseBed(hc: HailContext,
+    bedPath: String,
     sampleIds: IndexedSeq[String],
     sampleAnnotations: IndexedSeq[Annotation],
     sampleAnnotationSignature: Type,
     variants: Array[(Variant, String)],
-    sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): VariantDataset = {
 
+    val sc = hc.sc
     val nSamples = sampleIds.length
     val variantsBc = sc.broadcast(variants)
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
@@ -129,7 +133,7 @@ object PlinkLoader {
         (v, (Annotation(rsId), vr.getValue))
     }.toOrderedRDD(fastKeys)
 
-    VariantSampleMatrix(VariantMetadata(
+    VariantSampleMatrix(hc, VariantMetadata(
       sampleIds = sampleIds,
       sampleAnnotations = sampleAnnotations,
       globalAnnotation = Annotation.empty,
@@ -139,14 +143,14 @@ object PlinkLoader {
       wasSplit = true), variantRDD)
   }
 
-  def apply(bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    sc: SparkContext, nPartitions: Option[Int] = None): VariantDataset = {
-    val (sampleInfo, signature) = parseFam(famPath, ffConfig, sc.hadoopConfiguration)
+  def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
+    nPartitions: Option[Int] = None): VariantDataset = {
+    val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)
       fatal(".fam file does not contain any samples")
 
-    val variants = parseBim(bimPath, sc.hadoopConfiguration)
+    val variants = parseBim(bimPath, hc.hadoopConf)
     val nVariants = variants.length
     if (nVariants <= 0)
       fatal(".bim file does not contain any variants")
@@ -154,7 +158,7 @@ object PlinkLoader {
     info(s"Found $nSamples samples in fam file.")
     info(s"Found $nVariants variants in bim file.")
 
-    sc.hadoopConfiguration.readFile(bedPath) { dis =>
+    hc.sc.hadoopConfiguration.readFile(bedPath) { dis =>
       val b1 = dis.read()
       val b2 = dis.read()
       val b3 = dis.read()
@@ -166,12 +170,12 @@ object PlinkLoader {
         fatal("Bed file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
     }
 
-    val bedSize = sc.hadoopConfiguration.getFileSize(bedPath)
+    val bedSize = hc.sc.hadoopConfiguration.getFileSize(bedPath)
     if (bedSize != expectedBedSize(nSamples, nVariants))
       fatal("bed file size does not match expected number of bytes based on bed and fam files")
 
-    if (bedSize < nPartitions.getOrElse(sc.defaultMinPartitions))
-      fatal(s"The number of partitions requested (${ nPartitions.getOrElse(sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
+    if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
+      fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
     val (ids, annotations) = sampleInfo.unzip
 
@@ -183,7 +187,7 @@ object PlinkLoader {
             |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
-    val vds = parseBed(bedPath, ids, annotations, signature, variants, sc, nPartitions)
+    val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions)
     vds
   }
 

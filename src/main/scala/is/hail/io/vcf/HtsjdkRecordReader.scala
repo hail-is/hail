@@ -1,11 +1,11 @@
 package is.hail.io.vcf
 
 import htsjdk.variant.variantcontext.VariantContext
-import org.apache.spark.Accumulable
-import is.hail.utils._
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.Accumulable
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable

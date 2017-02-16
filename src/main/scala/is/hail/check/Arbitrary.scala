@@ -1,8 +1,8 @@
 package is.hail.check
 
 import scala.collection.generic.CanBuildFrom
-import scala.math.Numeric.Implicits._
 import scala.language.higherKinds
+import scala.math.Numeric.Implicits._
 
 object Arbitrary {
   def apply[T](arbitrary: Gen[T]): Arbitrary[T] =

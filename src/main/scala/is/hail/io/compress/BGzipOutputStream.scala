@@ -2,6 +2,7 @@ package is.hail.io.compress
 
 import java.io.OutputStream
 import java.util.zip.{CRC32, Deflater}
+
 import org.apache.hadoop.io.compress.CompressionOutputStream
 
 class BGzipConstants {

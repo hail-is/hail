@@ -1,26 +1,21 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.driver._
-import is.hail.io.vcf.LoadVCF
 import org.testng.annotations.Test
 
 
 class AnnotateAllelesSuite extends SparkSuite {
   @Test def test() {
 
-    var s = State(sc, sqlContext, LoadVCF(sc, "src/test/resources/sample2.vcf"))
-    s = AnnotateAlleles.run(s, Array("expr", "--propagate-gq", "-c",
-      "va.gqMean = gs.map(g => g.gq).stats().mean," +
-        "va.AC = gs.map(g => g.nNonRefAlleles).sum()"))
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
+      .annotateAllelesExpr("va.gqMean = gs.map(g => g.gq).stats().mean," +
+        "va.AC = gs.map(g => g.nNonRefAlleles).sum()", propagateGQ = true)
+      .annotateVariantsExpr("va.callStatsAC = gs.callStats(g => v).AC[1:]")
 
-    s = AnnotateVariants.run(s, Array("expr", "-c",
-      "va.callStatsAC = gs.callStats(g => v).AC[1:]"))
+    val testq = vds.queryVA("va.AC")._2
+    val truthq = vds.queryVA("va.callStatsAC")._2
 
-    val testq = s.vds.queryVA("va.AC")._2
-    val truthq = s.vds.queryVA("va.callStatsAC")._2
-
-    s.vds.variantsAndAnnotations
+    vds.variantsAndAnnotations
       .collect()
       .foreach { case (v, va) =>
         assert(
@@ -35,26 +30,24 @@ class AnnotateAllelesSuite extends SparkSuite {
         )
       }
 
-    s = SplitMulti.run(s, Array("--propagate-gq"))
-    s = AnnotateVariants.run(s, Array("expr", "-c",
-      "va.splitGqMean = gs.map(g => g.gq).stats().mean"))
+    val vds2 = vds.splitMulti(propagateGQ = true)
+      .annotateVariantsExpr("va.splitGqMean = gs.map(g => g.gq).stats().mean")
 
-    val testq2 = s.vds.queryVA("va.gqMean")._2
-    val aIndexq = s.vds.queryVA("va.aIndex")._2
-    val truthq2 = s.vds.queryVA("va.splitGqMean")._2
+    val testq2 = vds2.queryVA("va.gqMean")._2
+    val aIndexq = vds2.queryVA("va.aIndex")._2
+    val truthq2 = vds2.queryVA("va.splitGqMean")._2
 
-    s.vds.variantsAndAnnotations
+    vds2.variantsAndAnnotations
       .collect()
       .foreach { case (v, va) =>
         assert(
           (testq2(va), truthq2(va), aIndexq(va)) match {
             case (Some(test), Some(truth), Some(index)) =>
-              test.asInstanceOf[IndexedSeq[Double]](index.asInstanceOf[Int]-1) == truth.asInstanceOf[Double]
+              test.asInstanceOf[IndexedSeq[Double]](index.asInstanceOf[Int] - 1) == truth.asInstanceOf[Double]
             case (None, None, _) => true
             case _ => false
           }
         )
       }
   }
-
 }

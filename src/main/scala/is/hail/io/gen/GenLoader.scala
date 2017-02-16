@@ -1,12 +1,12 @@
 package is.hail.io.gen
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.{Accumulable, SparkContext}
-import is.hail.utils._
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.io.bgen.BgenLoader
+import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.rdd.RDD
+import org.apache.spark.{Accumulable, SparkContext}
 
 import scala.collection.mutable
 

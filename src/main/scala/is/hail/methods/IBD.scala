@@ -1,13 +1,12 @@
 package is.hail.methods
 
-import org.apache.spark.rdd.RDD
-import is.hail.utils._
 import is.hail.annotations.Annotation
+import is.hail.expr.{EvalContext, Parser, TVariant, Type}
+import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
+import org.apache.spark.rdd.RDD
 
-import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
-import scala.reflect.ClassTag
 
 object IBDInfo {
   def apply(Z0: Double, Z1: Double, Z2: Double): IBDInfo = {
@@ -208,6 +207,23 @@ object IBD {
       .filter { case ((i, j), ibd) => j > i && j < nSamples && i < nSamples }
   }
 
+  def generateComputeMaf(vaSignature: Type, computeMafExpr: String): (Variant, Annotation) => Double = {
+    val mafSymbolTable = Map("v" -> (0, TVariant), "va" -> (1, vaSignature))
+    val mafEc = EvalContext(mafSymbolTable)
+    val computeMafThunk = Parser.parseTypedExpr[Double](computeMafExpr, mafEc)
+
+    { (v: Variant, va: Annotation) =>
+      mafEc.setAll(v, va)
+      val maf = computeMafThunk()
+        .getOrElse(fatal(s"The minor allele frequency expression evaluated to NA on variant $v."))
+
+      if (maf < 0.0 || maf > 1.0)
+        fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
+
+      maf
+    }
+  }
+
   def apply(vds: VariantDataset,
     computeMaf: Option[(Variant, Annotation) => Double] = None,
     bounded: Boolean = true,
@@ -222,5 +238,4 @@ object IBD {
         max.forall(ibd.ibd.PI_HAT <= _) }
       .map { case ((i, j), ibd) => ((sampleIds(i), sampleIds(j)), ibd) }
   }
-
 }

@@ -1,6 +1,4 @@
-from py4j.protocol import Py4JJavaError
-from hail.java import env, raise_py4j_exception
-
+from hail.java import env, handle_py4j
 
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
@@ -33,36 +31,12 @@ class TextTableConfig(object):
         self.missing = missing
         self.types = types
 
-    def _as_pargs(self):
-        """Configuration parameters as a list"""
-
-        pargs = ["--delimiter", self.delimiter,
-                 "--missing", self.missing]
-
-        if self.noheader:
-            pargs.append("--no-header")
-
-        if self.impute:
-            pargs.append("--impute")
-
-        if self.types:
-            pargs.append("--types")
-            pargs.append(self.types)
-
-        if self.comment:
-            pargs.append("--comment")
-            pargs.append(self.comment)
-
-        return pargs
-
     def __str__(self):
-        return " ".join(self._as_pargs())
+        return self._to_java().toString()
 
+    @handle_py4j
     def _to_java(self):
         """Convert to Java TextTableConfiguration object."""
-        try:
-            return env.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
-                                                                 self.delimiter, self.missing,
-                                                                 self.noheader, self.impute)
-        except Py4JJavaError as e:
-            raise_py4j_exception(e)
+        return env.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
+                                                           self.delimiter, self.missing,
+                                                           self.noheader, self.impute)

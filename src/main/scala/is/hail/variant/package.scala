@@ -30,5 +30,5 @@ package object variant {
 
   implicit def toRichIterableGenotype(ig: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(ig)
 
-  implicit def toRichVDS(vsm: VariantDataset): RichVDS = new RichVDS(vsm)
+  implicit def toVDSFunctions(vds: VariantDataset): VariantDatasetFunctions = new VariantDatasetFunctions(vds)
 }

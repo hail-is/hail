@@ -1,43 +1,41 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.utils._
 import is.hail.annotations.Querier
-import is.hail.driver._
+import is.hail.expr.{TBoolean, TDouble}
+import is.hail.utils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 
 class LogisticRegressionSuite extends SparkSuite {
 
   @Test def waldTestWithTwoCov() {
-    var s = State(sc, sqlContext)
+    val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
+      .splitMulti()
+      .annotateSamplesTable("src/test/resources/regressionLogistic.cov",
+        "Sample",
+        root = Some("sa.cov"),
+        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
+      .annotateSamplesTable("src/test/resources/regressionLogisticBoolean.pheno",
+        "Sample",
+        root = Some("sa.pheno"),
+        config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
+      .logreg("wald", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
-    s = ImportVCF.run(s, Array("src/test/resources/regressionLogistic.vcf"))
-
-    s = SplitMulti.run(s)
-
-    s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/regressionLogistic.cov",
-      "-e", "Sample",
-      "--root", "sa.cov",
-      "--types", "Cov1: Double, Cov2: Double"))
-
-    s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/regressionLogisticBoolean.pheno",
-      "-e", "Sample",
-      "--root", "sa.pheno",
-      "--types", "isCase: Boolean",
-      "--missing", "0"))
-
-    val vds = LogisticRegression(s.vds, "wald", "sa.pheno.isCase", Array("sa.cov.Cov1","sa.cov.Cov2"), "va.logreg")
-
-    val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
-    val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
-    val v3 = Variant("1", 3, "C", "T")   // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
-    val v6 = Variant("1", 6, "C", "T")   // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")   // x = (1, 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2, 0, 0, 0, 0)
-    val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
+    val v1 = Variant("1", 1, "C", "T")
+    // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    val v2 = Variant("1", 2, "C", "T")
+    // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
+    val v3 = Variant("1", 3, "C", "T")
+    // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
+    val v6 = Variant("1", 6, "C", "T")
+    // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    val v7 = Variant("1", 7, "C", "T")
+    // x = (1, 1, 1, 1, 1, 1, 0, 0, 0, 0)
+    val v8 = Variant("1", 8, "C", "T")
+    // x = (2, 2, 2, 2, 2, 2, 0, 0, 0, 0)
+    val v9 = Variant("1", 9, "C", "T")
+    // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
     val qBeta = vds.queryVA("va.logreg.wald.beta")._2
@@ -104,34 +102,33 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   @Test def lrTestWithTwoCov() {
-    var s = State(sc, sqlContext)
+    val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
+      .splitMulti()
+      .annotateSamplesTable("src/test/resources/regressionLogistic.cov",
+        "Sample",
+        root = Some("sa.cov"),
+        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
+      .annotateSamplesTable("src/test/resources/regressionLogisticBoolean.pheno",
+        "Sample",
+        root = Some("sa.pheno"),
+        config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
+      .logreg("lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
-    s = ImportVCF.run(s, Array("src/test/resources/regressionLogistic.vcf"))
 
-    s = SplitMulti.run(s)
-
-    s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/regressionLogistic.cov",
-      "-e", "Sample",
-      "--root", "sa.cov",
-      "--types", "Cov1: Double, Cov2: Double"))
-
-    s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/regressionLogisticBoolean.pheno",
-      "-e", "Sample",
-      "--root", "sa.pheno",
-      "--types", "isCase: Boolean",
-      "--missing", "0"))
-
-    val vds = LogisticRegression(s.vds, "lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
-
-    val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
-    val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
-    val v3 = Variant("1", 3, "C", "T")   // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
-    val v6 = Variant("1", 6, "C", "T")   // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")   // x = (1, 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2, 0, 0, 0, 0)
-    val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
+    val v1 = Variant("1", 1, "C", "T")
+    // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    val v2 = Variant("1", 2, "C", "T")
+    // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
+    val v3 = Variant("1", 3, "C", "T")
+    // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
+    val v6 = Variant("1", 6, "C", "T")
+    // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    val v7 = Variant("1", 7, "C", "T")
+    // x = (1, 1, 1, 1, 1, 1, 0, 0, 0, 0)
+    val v8 = Variant("1", 8, "C", "T")
+    // x = (2, 2, 2, 2, 2, 2, 0, 0, 0, 0)
+    val v9 = Variant("1", 9, "C", "T")
+    // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
     val qBeta = vds.queryVA("va.logreg.lrt.beta")._2
@@ -169,7 +166,7 @@ class LogisticRegressionSuite extends SparkSuite {
     */
 
     assertDouble(qBeta, v1, -0.81226793796)
-    assertDouble(qChi2, v1,  0.1503349167)
+    assertDouble(qChi2, v1, 0.1503349167)
     assertDouble(qPVal, v1, 0.6982155052)
 
     // v2 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
@@ -195,34 +192,32 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   @Test def scoreTestWithTwoCov() {
-    var s = State(sc, sqlContext)
+    val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
+      .splitMulti()
+      .annotateSamplesTable("src/test/resources/regressionLogistic.cov",
+        "Sample",
+        root = Some("sa.cov"),
+        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
+      .annotateSamplesTable("src/test/resources/regressionLogisticBoolean.pheno",
+        "Sample",
+        root = Some("sa.pheno"),
+        config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
+      .logreg("score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
-    s = ImportVCF.run(s, Array("src/test/resources/regressionLogistic.vcf"))
-
-    s = SplitMulti.run(s)
-
-    s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/regressionLogistic.cov",
-      "-e", "Sample",
-      "--root", "sa.cov",
-      "--types", "Cov1: Double, Cov2: Double"))
-
-    s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/regressionLogisticBoolean.pheno",
-      "-e", "Sample",
-      "--root", "sa.pheno",
-      "--types", "isCase: Boolean",
-      "--missing", "0"))
-
-    val vds = LogisticRegression(s.vds, "score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
-
-    val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
-    val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
-    val v3 = Variant("1", 3, "C", "T")   // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
-    val v6 = Variant("1", 6, "C", "T")   // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")   // x = (1, 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2, 0, 0, 0, 0)
-    val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
+    val v1 = Variant("1", 1, "C", "T")
+    // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    val v2 = Variant("1", 2, "C", "T")
+    // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
+    val v3 = Variant("1", 3, "C", "T")
+    // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
+    val v6 = Variant("1", 6, "C", "T")
+    // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    val v7 = Variant("1", 7, "C", "T")
+    // x = (1, 1, 1, 1, 1, 1, 0, 0, 0, 0)
+    val v8 = Variant("1", 8, "C", "T")
+    // x = (2, 2, 2, 2, 2, 2, 0, 0, 0, 0)
+    val v9 = Variant("1", 9, "C", "T")
+    // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
     val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
     val qChi2 = vds.queryVA("va.logreg.score.chi2")._2
@@ -276,44 +271,39 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   @Test def waldEpactsTest() {
-    var s = State(sc, sqlContext)
-
-    s = ImportVCF.run(s, Array("src/test/resources/regressionLogisticEpacts.vcf"))
-
-    s = SplitMulti.run(s)
-
-    s = AnnotateSamples.run(s, Array("fam",
-      "-i", "src/test/resources/regressionLogisticEpacts.fam"))
-
-    s = AnnotateSamples.run(s, Array("table",
-      "-i", "src/test/resources/regressionLogisticEpacts.cov",
-      "-e", "Sample",
-      "-r", "sa.pc",
-      "-t", "PC1: Double, PC2: Double",
-      "-e", "IND_ID"))
-
-    val vds = LogisticRegression(s.vds, "wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
-    val vds2 = LogisticRegression(vds, "lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
-    val vds3 = LogisticRegression(vds2, "score", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.score")
-    val vds4 = LogisticRegression(vds3, "firth", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.firth")
+    val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")
+      .splitMulti()
+      .annotateSamplesFam("src/test/resources/regressionLogisticEpacts.fam")
+      .annotateSamplesTable("src/test/resources/regressionLogisticEpacts.cov",
+        "IND_ID",
+        root = Some("sa.pc"),
+        config = TextTableConfiguration(types = Map("PC1" -> TDouble, "PC2" -> TDouble), missing = "0"))
+      .logreg("wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
+      .logreg("lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
+      .logreg("score", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.score")
+      .logreg("firth", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.firth")
 
     // 2535 samples from 1K Genomes Project
-    val v1 = Variant("22", 16060511, "T", "TTC") // MAC  623
-    val v2 = Variant("22", 16115878, "G", "C")   // MAC  370
-    val v3 = Variant("22", 16115882, "G", "T")   // MAC 1207
-    val v4 = Variant("22", 16117940, "T", "G")   // MAC    7
-    val v5 = Variant("22", 16117953, "G", "C")   // MAC   21
+    val v1 = Variant("22", 16060511, "T", "TTC")
+    // MAC  623
+    val v2 = Variant("22", 16115878, "G", "C")
+    // MAC  370
+    val v3 = Variant("22", 16115882, "G", "T")
+    // MAC 1207
+    val v4 = Variant("22", 16117940, "T", "G")
+    // MAC    7
+    val v5 = Variant("22", 16117953, "G", "C") // MAC   21
 
-    val qBeta = vds4.queryVA("va.wald.wald.beta")._2
-    val qSe = vds4.queryVA("va.wald.wald.se")._2
-    val qZstat = vds4.queryVA("va.wald.wald.zstat")._2
-    val qPVal = vds4.queryVA("va.wald.wald.pval")._2
-    val qPValLR = vds4.queryVA("va.lrt.lrt.pval")._2
-    val qPValScore = vds4.queryVA("va.score.score.pval")._2
-    val qBetaFirth = vds4.queryVA("va.firth.firth.beta")._2
-    val qPValFirth = vds4.queryVA("va.firth.firth.pval")._2
+    val qBeta = vds.queryVA("va.wald.wald.beta")._2
+    val qSe = vds.queryVA("va.wald.wald.se")._2
+    val qZstat = vds.queryVA("va.wald.wald.zstat")._2
+    val qPVal = vds.queryVA("va.wald.wald.pval")._2
+    val qPValLR = vds.queryVA("va.lrt.lrt.pval")._2
+    val qPValScore = vds.queryVA("va.score.score.pval")._2
+    val qBetaFirth = vds.queryVA("va.firth.firth.beta")._2
+    val qPValFirth = vds.queryVA("va.firth.firth.pval")._2
 
-    val annotationMap = vds4.variantsAndAnnotations
+    val annotationMap = vds.variantsAndAnnotations
       .collect()
       .toMap
 

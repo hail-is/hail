@@ -2,15 +2,13 @@ package is.hail.expr
 
 import breeze.linalg.DenseVector
 import is.hail.annotations.Annotation
+import is.hail.methods._
 import is.hail.stats._
+import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
-import is.hail.methods._
 
 import scala.collection.mutable
-import is.hail.utils.EitherIsAMonad._
-import org.json4s.jackson.JsonMethods
-
 import scala.language.higherKinds
 
 object FunctionRegistry {

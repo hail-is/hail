@@ -3,13 +3,13 @@ package is.hail.variant
 import java.util.ArrayList
 
 import htsjdk.samtools.SAMSequenceDictionary
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.types._
 import is.hail.annotations.Annotation
 import is.hail.expr
 import is.hail.expr.{AnnotationImpex, SparkAnnotationImpex}
 import org.apache.kudu.client.{CreateTableOptions, KuduClient}
 import org.apache.kudu.{ColumnSchema, Schema, Type}
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types._
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable

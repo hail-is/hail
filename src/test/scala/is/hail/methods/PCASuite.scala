@@ -3,7 +3,6 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TDouble, TStruct}
-import is.hail.io.vcf.LoadVCF
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 
@@ -11,7 +10,7 @@ class PCASuite extends SparkSuite {
 
   @Test def test() {
 
-    val vds = LoadVCF(sc, "src/test/resources/tiny_m.vcf")
+    val vds = hc.importVCF("src/test/resources/tiny_m.vcf")
     val (scores, loadings, eigenvalues) = SamplePCA(vds, 3, true, true, true)
     val (scoresStruct, loadingsStruct, eigenvaluesStruct) = SamplePCA(vds, 3, true, true, false)
 

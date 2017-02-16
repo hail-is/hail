@@ -5,10 +5,10 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from pyspark import SparkContext
 from hail import HailContext, TextTableConfig
 from hail.representation import *
 from hail.type import *
+from hail.java import *
 
 hc = None
 
@@ -100,6 +100,9 @@ class ContextTests(unittest.TestCase):
         sample2.annotate_samples_list(test_resources + '/sample2.sample_list',
                                       'sa.listed')
 
+        sample2.annotate_global_expr('global.foo = 5')
+        sample2.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
+
         sample2_annot = sample2.annotate_samples_table(
             test_resources + '/sampleAnnotations.tsv',
             'Sample',
@@ -134,7 +137,10 @@ class ContextTests(unittest.TestCase):
         (sample2.annotate_variants_vds(sample2, code='va.good = va.info.AF == vds.info.AF')
          .count())
 
-        (concordance1, concordance2) = (sample2_split.concordance(sample2_split))
+        glob, concordance1, concordance2 = (sample2_split.concordance(sample2_split))
+        print(glob[1][4])
+        print(glob[4][0])
+        print(glob[:][3])
         concordance1.write('/tmp/foo.vds', overwrite=True)
         concordance2.write('/tmp/foo.vds', overwrite=True)
 
@@ -156,9 +162,9 @@ class ContextTests(unittest.TestCase):
 
         sample2.filter_multi().count()
 
-        self.assertEqual(sample2.filter_samples_all().count()['nSamples'], 0)
+        self.assertEqual(sample2.drop_samples().count()['nSamples'], 0)
 
-        self.assertEqual(sample2.filter_variants_all().count()['nVariants'], 0)
+        self.assertEqual(sample2.drop_variants().count()['nVariants'], 0)
 
         sample2_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
                                         test_resources + '/sample2.vcf'])
@@ -178,13 +184,13 @@ class ContextTests(unittest.TestCase):
             test_resources + '/sample2_variants.tsv')
                          .count()['nVariants'], 21)
 
-        sample2.grm('gcta-grm-bin', '/tmp/sample2.grm')
+        sample2.split_multi().grm('/tmp/sample2.grm', 'gcta-grm-bin')
 
         sample2.hardcalls().count()
 
-        sample2_split.ibd('/tmp/sample2.ibd')
+        sample2_split.ibd('/tmp/sample2.ibd', min=0.2, max=0.6)
 
-        sample2.impute_sex().variant_schema
+        sample2.split_multi().impute_sex().variant_schema
 
         self.assertEqual(sample2.join(sample2.rename_samples(test_resources + '/sample2_rename.tsv'))
                          .count()['nSamples'], 200)
@@ -211,12 +217,13 @@ class ContextTests(unittest.TestCase):
          .count())
 
         vds_assoc = (hc.import_vcf(test_resources + '/sample.vcf')
-               .split_multi()
-               .variant_qc()
-               .annotate_samples_expr('sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
-               .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
-               .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
-               .annotate_samples_expr('sa.cov2 = rnorm(0,1)'))
+                     .split_multi()
+                     .variant_qc()
+                     .annotate_samples_expr(
+            'sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
+                     .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
+                     .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
+                     .annotate_samples_expr('sa.cov2 = rnorm(0,1)'))
 
         vds_kinship = vds_assoc.filter_variants_expr('va.qc.AF > .05')
 
@@ -232,7 +239,7 @@ class ContextTests(unittest.TestCase):
             (sample2.repartition(16, shuffle=False)
              .same(sample2)))
 
-        sample2.sparkinfo()
+        print(sample2.storage_level())
 
         sample_split.tdt(test_resources + '/sample.fam')
 
@@ -287,7 +294,7 @@ class ContextTests(unittest.TestCase):
         kt = (sample2.variants_keytable()
               .annotate("v2 = v")
               .key_by(["v", "v2"]))
-        sample2.annotate_variants_keytable(kt, "va.foo = table.va", ["v","v"])
+        sample2.annotate_variants_keytable(kt, "va.foo = table.va", ["v", "v"])
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
@@ -616,13 +623,12 @@ class ContextTests(unittest.TestCase):
         map5 = {Locus("1", 100): 5, Locus("5", 205): 100}
         map6 = None
         map7 = dict()
-        map8 = {Locus("1", 100): None,Locus("5", 205): 100}
+        map8 = {Locus("1", 100): None, Locus("5", 205): 100}
         maptype2 = TDict(TLocus(), TInt())
         self.assertEqual(vds.annotate_global_py(path, map5, maptype2).globals.annotation, map5)
         self.assertEqual(vds.annotate_global_py(path, map6, maptype2).globals.annotation, map6)
         self.assertEqual(vds.annotate_global_py(path, map7, maptype2).globals.annotation, map7)
         self.assertEqual(vds.annotate_global_py(path, map8, maptype2).globals.annotation, map8)
-
 
         struct1 = Struct({'field1': 5, 'field2': 10, 'field3': [1, 2]})
         struct2 = Struct({'field1': 5, 'field2': None, 'field3': None})

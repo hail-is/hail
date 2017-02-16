@@ -2,14 +2,14 @@ package is.hail.io.vcf
 
 import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
-import org.apache.hadoop.mapred.FileSplit
-import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{Accumulable, SparkContext}
-import is.hail.utils._
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.sparkextras.{OrderedRDD, ReorderedPartitionsRDD, ReorderedPartitionsRDDPartition}
+import is.hail.utils._
 import is.hail.variant._
+import org.apache.hadoop
+import org.apache.spark.Accumulable
+import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
@@ -96,6 +96,26 @@ object VCFReport {
 
 
 object LoadVCF {
+
+  def globAllVCFs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
+    val inputs = hConf.globAll(arguments)
+
+    if (inputs.isEmpty)
+      fatal("arguments refer to no files")
+
+    inputs.foreach { input =>
+      if (!input.endsWith(".vcf")
+        && !input.endsWith(".vcf.bgz")) {
+        if (input.endsWith(".vcf.gz")) {
+          if (!forcegz)
+            fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
+        } else
+          fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
+      }
+    }
+    inputs
+  }
+
   def lineRef(s: String): String = {
     var i = 0
     var t = 0
@@ -156,7 +176,7 @@ object LoadVCF {
       Field(line.getID, TArray(baseType), i, attrs)
   }
 
-  def apply(sc: SparkContext,
+  def apply(hc: HailContext,
     file1: String,
     files: Array[String] = null, // FIXME hack
     storeGQ: Boolean = false,
@@ -168,7 +188,8 @@ object LoadVCF {
 
     val settings = VCFSettings(storeGQ, skipGenotypes, compress, ppAsPL, skipBadAD)
 
-    val hConf = sc.hadoopConfiguration
+    val hConf = hc.hadoopConf
+    val sc = hc.sc
     val headerLines = hConf.readFile(file1) { s =>
       Source.fromInputStream(s)
         .getLines()
@@ -286,7 +307,7 @@ object LoadVCF {
 
     justVariants.unpersist()
 
-    VariantSampleMatrix(VariantMetadata(sampleIds,
+    VariantSampleMatrix(hc, VariantMetadata(sampleIds,
       Annotation.emptyIndexedSeq(sampleIds.length),
       Annotation.empty,
       TStruct.empty,

@@ -2,13 +2,11 @@ package is.hail.variant
 
 import java.nio.ByteBuffer
 
-import net.jpountz.lz4.LZ4Factory
-import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.types._
-import is.hail.utils._
 import is.hail.expr.{TBinary, TInt, TStruct, Type}
-import is.hail.utils.ByteIterator
+import is.hail.utils.{ByteIterator, _}
+import net.jpountz.lz4.LZ4Factory
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.{StructType, _}
 
 import scala.collection.mutable
 

@@ -1,13 +1,10 @@
 package is.hail.asm4s
 
-import java.io.PrintWriter
+import java.util
 
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
-import java.util
-
-import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
-import org.objectweb.asm.{ClassReader, ClassWriter, Type}
+import org.objectweb.asm.{ClassWriter, Type}
 
 import scala.language.implicitConversions
 import scala.reflect.ClassTag

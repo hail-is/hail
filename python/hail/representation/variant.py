@@ -1,4 +1,4 @@
-from hail.java import scala_object, env
+from hail.java import scala_object, env, handle_py4j
 
 
 class Variant(object):
@@ -18,6 +18,7 @@ class Variant(object):
     :type alts: str or list of str
     """
 
+    @handle_py4j
     def __init__(self, contig, start, ref, alts):
         if isinstance(contig, int):
             contig = str(contig)
@@ -31,7 +32,7 @@ class Variant(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Variant(%s, %s, %s, %s)' % (self.contig, self.start, self.ref, self._alt_alleles)
+        return 'Variant(contig=%s, start=%s, ref=%s, alts=%s)' % (self.contig, self.start, self.ref, self._alt_alleles)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
@@ -53,6 +54,7 @@ class Variant(object):
         return v
 
     @staticmethod
+    @handle_py4j
     def parse(string):
         """Parses a variant object from a string.
 
@@ -147,6 +149,7 @@ class Variant(object):
 
         return self._jrep.nAlleles()
 
+    @handle_py4j
     def allele(self, i):
         """Returns the string allele representation for the ith allele.
 
@@ -255,6 +258,7 @@ class AltAllele(object):
     :param str alt: alternate allele
     """
 
+    @handle_py4j
     def __init__(self, ref, alt):
         jaa = scala_object(env.hail.variant, 'AltAllele').apply(ref, alt)
         self._init_from_java(jaa)
@@ -265,7 +269,7 @@ class AltAllele(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'AltAllele(%s, %s)' % (self.ref, self.alt)
+        return 'AltAllele(ref=%s, alt=%s)' % (self.ref, self.alt)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
@@ -405,6 +409,7 @@ class Locus(object):
     :param int position: chromosomal position (1-indexed)
     """
 
+    @handle_py4j
     def __init__(self, contig, position):
         if isinstance(contig, int):
             contig = str(contig)
@@ -417,7 +422,7 @@ class Locus(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'Locus(%s, %s)' % (self.contig, self.position)
+        return 'Locus(contig=%s, position=%s)' % (self.contig, self.position)
 
     def __eq__(self, other):
         return self._jrep.equals(other._jrep)
@@ -437,6 +442,7 @@ class Locus(object):
         return l
 
     @staticmethod
+    @handle_py4j
     def parse(string):
         """Parses a locus object from a CHR:POS string.
 

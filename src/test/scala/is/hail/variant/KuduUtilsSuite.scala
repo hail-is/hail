@@ -1,8 +1,8 @@
 package is.hail.variant
 
+import is.hail.expr._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import is.hail.expr._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 

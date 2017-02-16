@@ -1,7 +1,6 @@
 package is.hail.methods
 
 import com.sun.jna._
-import com.sun.jna.ptr._
 
 case class IBS (N0: Long, N1: Long, N2: Long) { }
 

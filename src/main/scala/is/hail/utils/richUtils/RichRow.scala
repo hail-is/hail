@@ -1,7 +1,7 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.sql.Row
 import is.hail.variant.{GenotypeStream, Variant}
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 

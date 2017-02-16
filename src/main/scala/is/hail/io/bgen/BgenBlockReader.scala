@@ -2,13 +2,13 @@ package is.hail.io.bgen
 
 import java.util.zip.Inflater
 
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.io.LongWritable
-import org.apache.hadoop.mapred.FileSplit
 import is.hail.annotations._
 import is.hail.io._
 import is.hail.io.gen.GenReport._
 import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder, Variant}
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.io.LongWritable
+import org.apache.hadoop.mapred.FileSplit
 
 object BgenRecord {
   val dosageDivisor: Double = 32768.0

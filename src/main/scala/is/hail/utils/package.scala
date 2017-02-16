@@ -3,14 +3,14 @@ package is.hail
 import java.lang.reflect.Method
 import java.net.URI
 
+import is.hail.check.Gen
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.spark.{AccumulableParam, Partition}
-import is.hail.check.Gen
-import org.json4s.{Formats, JValue, NoTypeHints}
 import org.json4s.Extraction.decompose
 import org.json4s.jackson.Serialization
+import org.json4s.{Formats, JValue, NoTypeHints}
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
@@ -20,66 +20,16 @@ import scala.reflect.ClassTag
 package object utils extends Logging
   with richUtils.Implicits
   with utils.NumericImplicits
-  with Py4jUtils {
+  with Py4jUtils
+  with ErrorHandling {
 
   class FatalException(val msg: String, val logMsg: Option[String] = None) extends RuntimeException(msg)
 
-  def digForFatal(e: Throwable): Option[String] = {
-    val r = e match {
-      case f: FatalException =>
-        println(s"found fatal $f")
-        Some(s"${ e.getMessage }")
-      case _ =>
-        Option(e.getCause).flatMap(c => digForFatal(c))
-    }
-    r
-  }
-
-  def deepestMessage(e: Throwable): String = {
-    var iterE = e
-    while (iterE.getCause != null)
-      iterE = iterE.getCause
-
-    s"${ iterE.getClass.getSimpleName }: ${ iterE.getLocalizedMessage }"
-  }
-
-  def expandException(e: Throwable): String = {
-    val msg = e match {
-      case f: FatalException => f.logMsg.getOrElse(f.msg)
-      case _ => e.getLocalizedMessage
-    }
-    s"${ e.getClass.getName }: $msg\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
-      Option(e.getCause).map(exception => expandException(exception)).getOrElse("")
-    }"
-  }
-
-  def getMinimalMessage(e: Throwable): String = {
-    val fatalOption = digForFatal(e)
-    val prefix = if (fatalOption.isDefined) "fatal" else "caught exception"
-    val msg = fatalOption.getOrElse(deepestMessage(e))
-    log.error(s"hail: $prefix: $msg\nFrom ${ expandException(e) }")
-    msg
-  }
 
   trait Truncatable {
     def truncate: String
 
     def strings: (String, String)
-  }
-
-  def fatal(msg: String): Nothing = {
-    throw new FatalException(msg)
-  }
-
-  def fatal(msg: String, t: Truncatable): Nothing = {
-    val (screen, logged) = t.strings
-    throw new FatalException(format(msg, screen), Some(format(msg, logged)))
-  }
-
-  def fatal(msg: String, t1: Truncatable, t2: Truncatable): Nothing = {
-    val (screen1, logged1) = t1.strings
-    val (screen2, logged2) = t2.strings
-    throw new FatalException(format(msg, screen1, screen2), Some(format(msg, logged1, logged2)))
   }
 
   def format(s: String, substitutions: Any*): String = {
@@ -99,6 +49,9 @@ package object utils extends Logging
   def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
   def triangle(n: Int): Int = (n * (n + 1)) / 2
+
+  def treeAggDepth(hc: HailContext, nPartitions: Int): Int =
+    (math.log(nPartitions) / math.log(hc.branchingFactor) + 0.5).toInt.max(1)
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
@@ -364,10 +317,10 @@ package object utils extends Logging
     if (l.keySet != r.keySet) {
       println(
         s"""The maps do not have the same keys.
-            |  These keys are unique to the left-hand map: ${ l.keySet -- r.keySet }
-            |  These keys are unique to the right-hand map: ${ r.keySet -- l.keySet }
-            |  The left map is: $l
-            |  The right map is: $r
+           |  These keys are unique to the left-hand map: ${ l.keySet -- r.keySet }
+           |  These keys are unique to the right-hand map: ${ r.keySet -- l.keySet }
+           |  The left map is: $l
+           |  The right map is: $r
       """.stripMargin)
       false
     } else {
@@ -438,6 +391,26 @@ package object utils extends Logging
 
   def caseClassJSONReaderWriter[T](implicit mf: scala.reflect.Manifest[T]): JSONReaderWriter[T] = new JSONReaderWriter[T] {
     def toJSON(x: T): JValue = decompose(x)
+
     def fromJSON(jv: JValue): T = jv.extract[T]
+  }
+
+  def splitWarning(leftSplit: Boolean, left: String, rightSplit: Boolean, right: String) {
+    val msg =
+      """Merge behavior may not be as expected, as all alternate alleles are
+        |  part of the variant key.  See `annotatevariants' documentation for
+        |  more information.""".stripMargin
+    (leftSplit, rightSplit) match {
+      case (true, true) =>
+      case (false, false) => warn(
+        s"""annotating an unsplit $left from an unsplit $right
+           |  $msg""".stripMargin)
+      case (true, false) => warn(
+        s"""annotating a biallelic (split) $left from an unsplit $right
+           |  $msg""".stripMargin)
+      case (false, true) => warn(
+        s"""annotating an unsplit $left from a biallelic (split) $right
+           |  $msg""".stripMargin)
+    }
   }
 }

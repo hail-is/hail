@@ -1,7 +1,7 @@
 package is.hail.expr
 
-import is.hail.utils._
 import is.hail.annotations.{Annotation, _}
+import is.hail.utils._
 
 import scala.collection.mutable
 

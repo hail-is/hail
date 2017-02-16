@@ -1,15 +1,13 @@
 package is.hail.utils
 
-import org.apache.spark.storage.StorageLevel
 import breeze.linalg.{DenseMatrix => BDenseMatrix}
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
-import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, SparseMatrix}
+import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop}
 import is.hail.sparkextras.OrderedRDD
-import is.hail.variant._
-import is.hail.{SparkSuite, TestUtils}
 import is.hail.utils.richUtils.RichHadoopConfiguration
+import is.hail.variant._
+import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
 
 class UtilsSuite extends SparkSuite {

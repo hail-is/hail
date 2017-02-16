@@ -2,14 +2,12 @@ package is.hail.utils
 
 import java.util.regex.Pattern
 
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.kohsuke.args4j.{Option => Args4jOption}
-
-import scala.collection.mutable
 
 trait TextTableOptions {
   @Args4jOption(required = false, name = "-t", aliases = Array("--types"),

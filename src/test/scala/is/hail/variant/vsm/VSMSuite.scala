@@ -1,19 +1,17 @@
 package is.hail.variant.vsm
 
+import is.hail.TestUtils._
+import is.hail.annotations._
+import is.hail.check.Prop._
+import is.hail.check.{Gen, Parameters}
+import is.hail.expr._
+import is.hail.keytable.KeyTable
+import is.hail.sparkextras.OrderedRDD
+import is.hail.utils._
+import is.hail.variant._
+import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.annotations._
-import is.hail.check.{Gen, Parameters}
-import is.hail.check.Prop._
-import is.hail.driver._
-import is.hail.expr._
-import is.hail.io.vcf.LoadVCF
-import is.hail.keytable.KeyTable
-import is.hail.variant._
-import is.hail.utils._
-import is.hail.sparkextras.OrderedRDD
-import is.hail.TestUtils._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
@@ -48,8 +46,8 @@ object VSMSuite {
 class VSMSuite extends SparkSuite {
 
   @Test def testSame() {
-    val vds1 = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
-    val vds2 = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
+    val vds1 = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
+    val vds2 = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     assert(vds1.same(vds2))
 
     val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
@@ -148,19 +146,19 @@ class VSMSuite extends SparkSuite {
           Genotype(0),
           Genotype(1)))))).toOrderedRDD
 
-    val vdss = Array(new VariantDataset(mdata1, rdd1),
-      new VariantDataset(mdata1, rdd2),
-      new VariantDataset(mdata1, rdd3),
-      new VariantDataset(mdata2, rdd1),
-      new VariantDataset(mdata2, rdd2),
-      new VariantDataset(mdata2, rdd3),
-      new VariantDataset(mdata2, rdd4),
-      new VariantDataset(mdata2, rdd5),
-      new VariantDataset(mdata3, rdd1),
-      new VariantDataset(mdata3, rdd2),
-      new VariantDataset(mdata4, rdd1),
-      new VariantDataset(mdata4, rdd2),
-      new VariantDataset(mdata1, rdd6))
+    val vdss = Array(new VariantDataset(hc, mdata1, rdd1),
+      new VariantDataset(hc, mdata1, rdd2),
+      new VariantDataset(hc, mdata1, rdd3),
+      new VariantDataset(hc, mdata2, rdd1),
+      new VariantDataset(hc, mdata2, rdd2),
+      new VariantDataset(hc, mdata2, rdd3),
+      new VariantDataset(hc, mdata2, rdd4),
+      new VariantDataset(hc, mdata2, rdd5),
+      new VariantDataset(hc, mdata3, rdd1),
+      new VariantDataset(hc, mdata3, rdd2),
+      new VariantDataset(hc, mdata4, rdd1),
+      new VariantDataset(hc, mdata4, rdd2),
+      new VariantDataset(hc, mdata1, rdd6))
 
     for (i <- vdss.indices;
       j <- vdss.indices) {
@@ -172,23 +170,10 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testReadWrite() {
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
+    val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
       val f = tmpDir.createTempFile(extension = ".vds")
-      vds.write(sqlContext, f)
-      val vds2 = VariantSampleMatrix.read(sqlContext, f)
-      vds2.same(vds)
-    }
-
-    p.check()
-  }
-
-  @Test def testReadWriteUnpartitioned() {
-    val p = forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
-      val f = tmpDir.createTempFile(extension = ".vds")
-      vds.write(sqlContext, f)
-      hadoopConf.delete(f + "/partitioner", recursive = false)
-      val vds2 = VariantSampleMatrix.read(sqlContext, f)
-      vds2.same(vds)
+      vds.write(f)
+      hc.read(f).same(vds)
     }
 
     p.check()
@@ -197,24 +182,21 @@ class VSMSuite extends SparkSuite {
   @Test(enabled = false) def testKuduReadWrite() {
 
     val vcf = "src/test/resources/multipleChromosomes.vcf"
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array(vcf))
-    s = SplitMulti.run(s) // Kudu doesn't support multi-allelic yet
+    val vds = hc.importVCF(vcf)
+      .splitMulti()
 
     val table = "variants_test"
     val master = "quickstart.cloudera"
     hadoopConf.delete("/tmp/foo.vds", recursive = true)
 
-    s = WriteKudu.run(s, Array("-o", "/tmp/foo.vds", "-t", table, "-m", master,
-      "--vcf-seq-dict", vcf, "--rows-per-partition", "300000000", "--drop"))
+    vds.writeKudu("/tmp/foo.vds", tableName = table, master = master, drop = true, rowsPerPartition = 300000000,
+      vcfSeqDict = vcf, sampleGroup = "default")
 
-    val s2 = ReadKudu.run(s, Array("-i", "/tmp/foo.vds", "-t", table, "-m", master))
-
-    assert(s.vds.same(s2.vds))
+    assert(hc.readKudu("/tmp/foo.vds", table = table, master = master).same(vds))
   }
 
   @Test def testFilterSamples() {
-    val vds = LoadVCF(sc, "src/test/resources/sample.vcf.gz")
+    val vds = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
     val nSamples = vds.nSamples
 
@@ -248,49 +230,40 @@ class VSMSuite extends SparkSuite {
       assert(sampleKeys.toSet == keep)
 
       val filteredOut = tmpDir.createTempFile("filtered", extension = ".vds")
-      filtered.write(sqlContext, filteredOut, compress = true)
+      filtered.write(filteredOut, compress = true)
 
-      val filtered2 = VariantSampleMatrix.read(sqlContext, filteredOut)
-      assert(filtered2.same(filtered))
+      assert(hc.read(filteredOut).same(filtered))
     }
   }
 
   @Test def testSkipGenotypes() {
-    var s = State(sc, sqlContext)
-
-    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
-
     val f = tmpDir.createTempFile("sample", extension = ".vds")
-    s = Write.run(s, Array("-o", f))
+    hc.importVCF("src/test/resources/sample2.vcf")
+      .write(f)
 
-    s = Read.run(s, Array("--skip-genotypes", "-i", f))
-    s = FilterVariantsExpr.run(s, Array("--keep", "-c", "va.info.AF[0] < 0.01"))
-
-    assert(s.vds.nVariants == 234)
+    assert(hc.read(f, sitesOnly = true)
+      .filterVariantsExpr("va.info.AF[0] < 0.01")
+      .countVariants() == 234)
   }
 
   @Test def testSkipDropSame() {
-    var s = State(sc, sqlContext)
-
-    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
-
     val f = tmpDir.createTempFile("sample", extension = ".vds")
-    s = Write.run(s, Array("-o", f))
 
-    s = Read.run(s, Array("--skip-genotypes", "-i", f))
+    hc.importVCF("src/test/resources/sample2.vcf")
+      .write(f)
 
-    var s2 = Read.run(s, Array("-i", f))
-    s2 = FilterSamplesAll.run(s)
-
-    assert(s.vds.same(s2.vds))
+    assert(hc.read(f, sitesOnly = true)
+      .same(hc.read(f).dropSamples()))
   }
 
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
     val minimumRSquareValue = 0.7
+
     def vsmOfSize(size: Int): VariantSampleMatrix[Genotype] = {
       val parameters = Parameters.default.copy(size = size, count = 1)
-      VariantSampleMatrix.gen(sc, VSMSubgen.random).apply(parameters)
+      VariantSampleMatrix.gen(hc, VSMSubgen.random).apply(parameters)
     }
+
     def spaceStatsOf[T](factory: () => T): SummaryStatistics = {
       val sampleSize = 50
       val memories = for (_ <- 0 until sampleSize) yield space(factory())._2
@@ -320,7 +293,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testCoalesce() {
     val g = for (
-      vsm <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
+      vsm <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random);
       k <- Gen.choose(1, math.max(1, vsm.nPartitions)))
       yield (vsm, k)
 
@@ -332,7 +305,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testUnionRead() {
-    val g = for (vds <- VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random);
+    val g = for (vds <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random);
       variants <- Gen.const(vds.variants.collect());
       groups <- Gen.buildableOfN[Array, Int](variants.length, Gen.choose(1, 3)).map(groups => variants.zip(groups).toMap)
     ) yield (vds, groups)
@@ -343,59 +316,56 @@ class VSMSuite extends SparkSuite {
       val path3 = tmpDir.createTempFile("file3", ".vds")
 
       vds.filterVariants { case (v, _, _) => groups(v) == 1 }
-        .write(sqlContext, path1)
+        .write(path1)
 
       vds.filterVariants { case (v, _, _) => groups(v) == 2 }
-        .write(sqlContext, path2)
+        .write(path2)
 
       vds.filterVariants { case (v, _, _) => groups(v) == 3 }
-        .write(sqlContext, path3)
+        .write(path3)
 
-      Read.run(State(sc, sqlContext, null), Array(path1, path2, path3))
-        .vds.same(vds)
+      hc.readAll(Array(path1, path2, path3))
+        .same(vds)
 
     }.check()
   }
 
   @Test def testOverwrite() {
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample2.vcf"))
-
     val out = tmpDir.createTempFile("out", "vds")
-    Write.run(s, "-o", out)
+    val vds = hc.importVCF("src/test/resources/sample2.vcf")
 
-    TestUtils.interceptFatal("""File already exists""") {
-      Write.run(s, "-o", out)
+    vds.write(out)
+
+    TestUtils.interceptFatal("""file already exists""") {
+      vds.write(out)
     }
+
+    vds.write(out, overwrite = true)
   }
 
   @Test def testWritePartitioning() {
     val path = tmpDir.createTempFile(extension = ".vds")
 
-    var s = State(sc, sqlContext)
-    s = ImportVCF.run(s, Array("src/test/resources/sample.vcf", "-n", "4"))
-    s = Write.run(s, Array("-o", path))
+    hc.importVCF("src/test/resources/sample.vcf", nPartitions = Some(4))
+      .write(path)
 
     hadoopConf.delete(path + "/partitioner.json.gz", recursive = true)
 
-    var s2 = State(sc, sqlContext)
 
     interceptFatal("missing partitioner") {
-      Read.run(s2, Array(path))
+      hc.read(path)
     }
 
-    VariantSampleMatrix.writePartitioning(sqlContext, path)
+    hc.writePartitioning(path)
 
-    s2 = Read.run(s2, Array(path))
-    assert(s.vds.same(s2.vds))
+    assert(hc.read(path).same(hc.importVCF("src/test/resources/sample.vcf")))
   }
 
   @Test def testAnnotateVariantsKeyTable() {
-    forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
-      var s = State(sc, sqlContext, vds = vds)
-      s = AnnotateVariantsExpr.run(s, Array("-c", "va.bar = va"))
-      val kt = s.vds.variantsKT()
-      val resultVds = s.vds.annotateVariantsKeyTable(kt, "va.foo = table.va.bar")
+    forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+      val vds2 = vds.annotateVariantsExpr("va.bar = va")
+      val kt = vds2.variantsKT()
+      val resultVds = vds2.annotateVariantsKeyTable(kt, "va.foo = table.va.bar")
       val result = resultVds.rdd.collect()
       val (_, getFoo) = resultVds.queryVA("va.foo")
       val (_, getBar) = resultVds.queryVA("va.bar")
@@ -407,14 +377,13 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey() {
-    forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
-      var s = State(sc, sqlContext, vds = vds)
-      s = AnnotateVariantsExpr.run(s, Array("-c", "va.key = pcoin(0.5)"))
+    forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+      val vds2 = vds.annotateVariantsExpr("va.key = pcoin(0.5)")
 
-      val kt = KeyTable(sc.parallelize(Array((Annotation(true), Annotation(1)), (Annotation(false), Annotation(2)))),
+      val kt = KeyTable(hc, sc.parallelize(Array((Annotation(true), Annotation(1)), (Annotation(false), Annotation(2)))),
         TStruct(("key", TBoolean)), TStruct(("value", TInt)))
 
-      val resultVds = s.vds.annotateVariantsKeyTable(kt, Seq("va.key"), "va.foo = table.value")
+      val resultVds = vds2.annotateVariantsKeyTable(kt, Seq("va.key"), "va.foo = table.value")
       val result = resultVds.rdd.collect()
       val (_, getKey) = resultVds.queryVA("va.key")
       val (_, getFoo) = resultVds.queryVA("va.foo")
@@ -432,15 +401,13 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey2() {
-    forAll(VariantSampleMatrix.gen[Genotype](sc, VSMSubgen.random)) { vds =>
-      var s = State(sc, sqlContext, vds = vds)
-      s = AnnotateVariantsExpr.run(s, Array("-c", "va.key1 = pcoin(0.5), va.key2 = pcoin(0.5)"))
+    forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+      val vds2 = vds.annotateVariantsExpr("va.key1 = pcoin(0.5), va.key2 = pcoin(0.5)")
 
       def f(a: Boolean, b: Boolean): Int =
         if (a)
           if (b) 1 else 2
-        else
-          if (b) 3 else 4
+        else if (b) 3 else 4
 
       def makeAnnotationPair(a: Boolean, b: Boolean): (Annotation, Annotation) =
         (Annotation(a, b), Annotation(f(a, b)))
@@ -451,9 +418,9 @@ class VSMSuite extends SparkSuite {
         makeAnnotationPair(false, true),
         makeAnnotationPair(false, false)))
 
-      val kt = KeyTable(mapping, TStruct(("key1", TBoolean), ("key2", TBoolean)), TStruct(("value", TInt)))
+      val kt = KeyTable(hc, mapping, TStruct(("key1", TBoolean), ("key2", TBoolean)), TStruct(("value", TInt)))
 
-      val resultVds = s.vds.annotateVariantsKeyTable(kt, Seq("va.key1", "va.key2"), "va.foo = table.value")
+      val resultVds = vds2.annotateVariantsKeyTable(kt, Seq("va.key1", "va.key2"), "va.foo = table.value")
       val result = resultVds.rdd.collect()
       val (_, getKey1) = resultVds.queryVA("va.key1")
       val (_, getKey2) = resultVds.queryVA("va.key2")

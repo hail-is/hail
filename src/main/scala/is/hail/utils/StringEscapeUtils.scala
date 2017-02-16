@@ -2,8 +2,6 @@ package is.hail.utils
 
 import java.util.Locale
 
-import is.hail.utils._
-
 object StringEscapeUtils {
 
   def hex(ch: Char): String = Integer.toHexString(ch).toUpperCase(Locale.ENGLISH)

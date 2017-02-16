@@ -1,11 +1,12 @@
 package is.hail.stats
 
+import breeze.linalg._
+import is.hail.SparkSuite
+import is.hail.utils._
+import org.testng.annotations.Test
+
 import scala.language.postfixOps
 import scala.sys.process._
-import org.testng.annotations.Test
-import breeze.linalg._
-import is.hail.utils._
-import is.hail.SparkSuite
 
 class LogisticRegressionModelSuite extends SparkSuite {
 
