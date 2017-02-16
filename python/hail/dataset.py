@@ -2042,11 +2042,10 @@ class VariantDataset(object):
 
         Export the set of common LD pruned variants to a file:
 
-        >>> vds = (hc.read("data/example.vds")
-        >>>          .variant_qc()
-        >>>          .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
-        >>>          .ld_prune()
-        >>>          .export_variants("data/ldpruned.variants", "v"))
+        >>> vds_result = (vds.variant_qc()
+        ...                  .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
+        ...                  .ld_prune()
+        ...                  .export_variants("data/ldpruned.variants", "v"))
 
         **Notes**
 
