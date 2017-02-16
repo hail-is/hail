@@ -252,7 +252,7 @@ class VariantDataset(object):
         self._jvds.aggregateIntervals(input, expr, output)
 
     @handle_py4j
-    def annotate_alleles_expr(self, condition, propagate_gq=False):
+    def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
 
         **Examples**
@@ -269,15 +269,15 @@ class VariantDataset(object):
         using its minimal representation (see :py:meth:`split_multi` for more details).
 
 
-        :param condition: Annotation expression.
-        :type condition: str or list of str
+        :param expr: Annotation expression.
+        :type expr: str or list of str
         :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
 
         :return: Annotated dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.annotateAllelesExpr(condition, propagate_gq)
+        jvds = self._jvdf.annotateAllelesExpr(expr, propagate_gq)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -442,7 +442,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        ``condition`` is in sample context so the following symbols are in scope:
+        ``expr`` is in sample context so the following symbols are in scope:
 
         - ``s`` (*Sample*): :ref:`sample`
         - ``sa``: sample annotations
@@ -795,7 +795,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_variants_keytable(self, keytable, condition, vds_key=None):
+    def annotate_variants_keytable(self, keytable, expr, vds_key=None):
         """Annotate variants with an expression that may depend on a :py:class:`.KeyTable`.
 
         If `vds_key` is None, the keytable's key must be exactly one column and
@@ -821,7 +821,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        ``condition`` has the following symbols in scope:
+        ``expr`` has the following symbols in scope:
 
           - ``va``: variant annotations
           - ``table``: :py:class:`.KeyTable` value
@@ -832,24 +832,24 @@ class VariantDataset(object):
           - ``v`` (*Variant*): :ref:`variant`
           - ``va``: variant annotations
 
-        :param condition: Annotation expression or list of annotation expressions
-        :type condition: str or list of str
+        :param expr: Annotation expression or list of annotation expressions
+        :type expr: str or list of str
 
         :param vds_key: A list of annotation expressions to be used as the VDS's join key
         :type vds_key: None or list of str
 
-        :return: A :py:class:`.VariantDataset` with new variant annotations specified by ``condition``
+        :return: A :py:class:`.VariantDataset` with new variant annotations specified by ``expr``
 
         :rtype: :py:class:`.VariantDataset`
         """
 
-        if isinstance(condition, list):
-            condition = ','.join(condition)
+        if isinstance(expr, list):
+            expr = ','.join(expr)
 
         if vds_key is None:
-            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, condition)
+            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, expr)
         else:
-            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, vds_key, condition)
+            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, vds_key, expr)
 
         return VariantDataset(self.hc, jvds)
 
@@ -3532,10 +3532,7 @@ class VariantDataset(object):
         :rtype: :class:`.KeyTable`
         """
 
-        try:
-            return KeyTable(self.hc, self._jvds.variantsKT())
-        except Py4JJavaError as e:
-            raise_py4j_exception(e)
+        return KeyTable(self.hc, self._jvds.variantsKT())
 
     @handle_py4j
     def samples_keytable(self):
@@ -3556,17 +3553,14 @@ class VariantDataset(object):
         :rtype: :class:`.KeyTable`
         """
 
-        try:
-            return KeyTable(self.hc, self._jvds.samplesKT())
-        except Py4JJavaError as e:
-            raise_py4j_exception(e)
+        return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
-    def make_keytable(self, variant_condition, genotype_condition, key_names):
+    def make_keytable(self, variant_expr, genotype_expr, key_names):
         """Make a KeyTable with one row per variant.
 
         Per sample field names in the result are formed by concatenating the
-        sample ID with the ``genotype_condition`` left hand side with dot (.).
+        sample ID with the ``genotype_expr`` left hand side with dot (.).
         If the left hand side is empty::
 
           `` = expr
@@ -3607,11 +3601,11 @@ class VariantDataset(object):
             1:1:A:T	1	NA	0	99	NA	99
             1:2:G:C	1	1	2	89	99	93
 
-        :param variant_condition: Variant annotation expressions.
-        :type variant_condition: str or list of str
+        :param variant_expr: Variant annotation expressions.
+        :type variant_expr: str or list of str
 
-        :param genotype_condition: Genotype annotation expressions.
-        :type genotype_condition: str or list of str
+        :param genotype_expr: Genotype annotation expressions.
+        :type genotype_expr: str or list of str
 
         :param key_names: list of key columns
         :type key_names: list of str
@@ -3619,11 +3613,11 @@ class VariantDataset(object):
         :rtype: :py:class:`.KeyTable`
         """
 
-        if isinstance(variant_condition, list):
-            variant_condition = ','.join(variant_condition)
-        if isinstance(genotype_condition, list):
-            genotype_condition = ','.join(genotype_condition)
+        if isinstance(variant_expr, list):
+            variant_expr = ','.join(variant_expr)
+        if isinstance(genotype_expr, list):
+            genotype_expr = ','.join(genotype_expr)
 
-        jkt = self._jvdf.makeKT(variant_condition, genotype_condition,
+        jkt = self._jvdf.makeKT(variant_expr, genotype_expr,
                                 jarray(env.jvm.java.lang.String, key_names))
         return KeyTable(self.hc, jkt)

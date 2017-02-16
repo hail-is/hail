@@ -57,10 +57,7 @@ class KeyTable(object):
         self._column_names = None
 
     def __repr__(self):
-        try:
-            return self._jkt.toString()
-        except Py4JJavaError as e:
-            raise_py4j_exception(e)
+        return self._jkt.toString()
 
     @property
     def num_columns(self):
@@ -212,7 +209,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.filter(condition, keep))
 
     @handle_py4j
-    def annotate(self, condition):
+    def annotate(self, expr):
         """Add new columns computed from existing columns.
 
         **Examples**
@@ -224,22 +221,22 @@ class KeyTable(object):
 
         **Notes**
 
-        The scope for ``condition`` is all column names in the input :class:`KeyTable`.
+        The scope for ``expr`` is all column names in the input :class:`KeyTable`.
 
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
         and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
 
-        :param condition: Annotation expression or multiple annotation expressions.
-        :type condition: str or list of str
+        :param expr: Annotation expression or multiple annotation expressions.
+        :type expr: str or list of str
 
-        :return: A key table with new columns specified by ``condition``.
+        :return: A key table with new columns specified by ``expr``.
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(condition, list):
-            condition = ','.join(condition)
+        if isinstance(expr, list):
+            expr = ','.join(expr)
 
-        return KeyTable(self.hc, self._jkt.annotate(condition))
+        return KeyTable(self.hc, self._jkt.annotate(expr))
 
     def join(self, right, how='inner'):
         """Join two KeyTables together.
@@ -275,7 +272,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.join(right._jkt, how))
 
     @handle_py4j
-    def aggregate_by_key(self, key_condition, agg_condition):
+    def aggregate_by_key(self, key_expr, agg_expr):
         """Group by key condition and aggregate results.
 
         **Examples**
@@ -296,28 +293,28 @@ class KeyTable(object):
 
         **Notes**
 
-        The scope for both ``key_condition`` and ``agg_condition`` is all column names in the input :class:`KeyTable`.
+        The scope for both ``key_expr`` and ``agg_expr`` is all column names in the input :class:`KeyTable`.
 
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
         and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
 
-        :param key_condition: Named expression(s) for how to compute the keys of the new key table.
-        :type key_condition: str or list of str
+        :param key_expr: Named expression(s) for how to compute the keys of the new key table.
+        :type key_expr: str or list of str
 
-        :param agg_condition: Named aggregation expression(s).
-        :type agg_condition: str or list of str
+        :param agg_expr: Named aggregation expression(s).
+        :type agg_expr: str or list of str
 
-        :return: A new key table with the keys computed from the ``key_condition`` and the remaining columns computed from the ``agg_condition``.
+        :return: A new key table with the keys computed from the ``key_expr`` and the remaining columns computed from the ``agg_expr``.
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(key_condition, list):
-            key_condition = ",".join(key_condition)
+        if isinstance(key_expr, list):
+            key_expr = ",".join(key_expr)
 
-        if isinstance(agg_condition, list):
-            agg_condition = ", ".join(agg_condition)
+        if isinstance(agg_expr, list):
+            agg_expr = ", ".join(agg_expr)
 
-        return KeyTable(self.hc, self._jkt.aggregate(key_condition, agg_condition))
+        return KeyTable(self.hc, self._jkt.aggregate(key_expr, agg_expr))
 
     @handle_py4j
     def forall(self, code):
