@@ -1087,6 +1087,43 @@ class VariantDataset(object):
     def concordance(self, right):
         """Calculate call concordance with another dataset.
 
+        **Example**
+
+        >>> concordance_pair = vds.concordance(hc.read('data/example2.vds'))
+
+        **Details**
+
+        The `concordance` command computes the genotype call concordance between two bialellic datasets. The concordance
+        results are stored in a global annotation of type Array[Array[Long]], which is a 5x5 table of counts with the
+        following mapping:
+
+        0. No Data (missing variant)
+        1. No Call (missing genotype call)
+        2. Hom Ref
+        3. Heterozygous
+        4. Hom Var
+
+        The first index in array is the left dataset, the second is the right. For example, ``concordance[3][2]`` is the count of
+        genotypes which were heterozygous on the left and homozygous reference on the right. This command produces two new datasets
+        and returns them as a python tuple. The first dataset contains the concordance statistics per variant. This dataset
+        **contains no genotypes** (sites-only). It contains a new variant annotation, ``va.concordance``. This is the concordance
+        table for each variant in the outer join of the two datasets -- if the variant is present in only one dataset, all
+        of the counts will lie in the axis ``va.concordance[0][:]`` (if it is missing on the left) or ``va.concordance.map(x => x[0])``
+        (if it is missing on the right). The variant annotations from the left and right datasets are included as ``va.left``
+        and ``va.right`` -- these will be missing on one side if a variant was only present in one dataset. This vds also contains
+        the global concordance statistics in ``global.concordance``, as well as the left and right global annotations in ``global.left``
+        and ``global.right``. The second dataset contains the concordance statistics per sample. This dataset **contains no variants**
+        (samples-only). It contains a new sample annotation, ``sa.concordance``. This is a concordance table whose sum is the total number
+        of variants in the outer join of the two datasets. The sum ``sa[0].sum`` is equal to the number of variants in the right dataset
+        but not the left, and the sum ``sa.concordance.map(x => x[0]).sum)`` is equal to the number of variants in the left dataset but
+        not the right. The sample annotations from the left and right datasets are included as ``sa.left`` and ``sa.right``. This dataset
+        also contains the global concordance statistics in ``global.concordance``, as well as the left and right global annotations in
+        ``global.left`` and ``global.right``.
+
+
+
+        **Notes**
+
         Performs inner join on variants, outer join on samples.
 
         :param right: right hand dataset for concordance
