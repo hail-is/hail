@@ -5,7 +5,6 @@ import java.io.DataOutputStream
 import breeze.linalg.SparseVector
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
 import is.hail.methods.ToStandardizedIndexedRowMatrix
-import is.hail.sparkextras.ToIndexedRowMatrixFromBlockMatrix
 import is.hail.utils._
 import org.kohsuke.args4j.{Option => Args4jOption}
 
@@ -75,7 +74,7 @@ object GRM extends Command {
 
     val zeroVector = SparseVector.zeros[Double](nSamples)
 
-    val indexSortedRowMatrix = ToIndexedRowMatrixFromBlockMatrix(grm)
+    val indexSortedRowMatrix = grm.toIndexedRowMatrix
       .rows
       .map(x => (x.index, x.vector))
       .rightOuterJoin(state.sc.parallelize(0L until nSamples).map(x => (x, ())))
