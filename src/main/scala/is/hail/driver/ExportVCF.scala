@@ -66,7 +66,7 @@ object ExportVCF extends Command {
         case t =>
           sb.append(f.name)
           sb += '='
-          sb.append(t.str(value))
+          sb.append(t.strVCF(value))
           true
       }
   }

@@ -129,7 +129,7 @@ sealed abstract class Type {
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
 
-  def strVCF(a: Annotation): String = if (a == null) "." else a.toString
+  def strVCF(a: Annotation): String = if (a == null) "." else str(a)
 
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
@@ -222,6 +222,18 @@ case object TFloat extends TNumeric {
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
 
+  override def strVCF(a: Annotation): String = {
+    if (a == null)
+      "."
+    else {
+      val f = a.asInstanceOf[Float]
+      if (f.isNaN)
+        "."
+      else
+        f.formatted("%.5e")
+    }
+  }
+
   override def genValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
@@ -236,6 +248,18 @@ case object TDouble extends TNumeric {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
+
+  override def strVCF(a: Annotation): String = {
+    if (a == null)
+      "."
+    else {
+      val f = a.asInstanceOf[Double]
+      if (f.isNaN)
+        "."
+      else
+        f.formatted("%.5e")
+    }
+  }
 
   override def genValue: Gen[Annotation] = arbitrary[Double]
 
@@ -631,6 +655,26 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         f.flatMap(_.typ.fieldOption(path.tail))
     }
 
+  def setFieldAttributes(path: List[String], kv: Map[String, String]): TStruct = {
+
+    if (path.isEmpty)
+      throw new AnnotationPathException(s"Empty path for attribute annotation is not allowed.")
+
+    if (!hasField(path.head))
+      throw new AnnotationPathException(s"struct has no field ${ path.head }")
+
+    this.copy(fields.map({
+      f => if (f.name == path.head){
+        if(path.length == 1)
+          f.copy(attrs = f.attrs ++ kv)
+        else
+          f.copy(typ = f.typ.asInstanceOf[TStruct].setFieldAttributes(path.tail, kv))
+      }
+      else
+        f
+    }))
+  }
+
   override def query(p: List[String]): Querier = {
     if (p.isEmpty)
       a => Option(a)
@@ -821,7 +865,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     val newFields = fields.zip(included)
       .flatMap { case (field, incl) =>
         if (incl)
-          Some(field.name -> field.typ)
+          Some(field)
         else
           None
       }
@@ -845,7 +889,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         Annotation.fromSeq(newValues)
       }
 
-    (TStruct(newFields: _*), filterer)
+    (TStruct(newFields.zipWithIndex.map({case (f,i) => f.copy(index = i)})), filterer)
   }
 
   override def toString = if (size == 0) "Empty" else "Struct"

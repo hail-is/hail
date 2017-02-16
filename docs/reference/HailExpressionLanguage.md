@@ -108,6 +108,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - filter: `set.filter(v => expr)` -- Returns a new set subsetted to the elements where `expr` evaluated to true
      - exists: `set.exists(v => expr)` -- Returns a boolean which is true if **any** element satisfies `expr`, false otherwise
      - forall: `set.forall(v => expr)` -- returns a boolean which is true if the set is empty, or `expr` evaluates to `true` for **every** element
+     - toArray: `set.toArray` -- Returns an `Array` containing the elements of the set
 
  - Dict Operations:
      - select: `dict[key]` -- returns the value keyed by the string `key`.  Example: `global.genemap["SCN2A"]`.  This method will fail if the key is not contained in the dict.

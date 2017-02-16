@@ -7,13 +7,10 @@ import org.apache.spark.storage.StorageLevel
 import is.hail.utils._
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.utils.richUtils.RichPairIterator
 import is.hail.variant._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.kohsuke.args4j.{Option => Args4jOption}
-import scala.util.matching.Regex
-
 import scala.collection.JavaConverters._
 
 object VEP extends Command {
@@ -201,31 +198,33 @@ object VEP extends Command {
       a(4).split(","))
   }
 
+  def getCSQHeaderDefinition(cmd: Array[String], perl5lib: String, path: String) : String = {
+    val csq_header_regex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
+    val pb = new ProcessBuilder(cmd.toList.asJava)
+    val env = pb.environment()
+    if (perl5lib != null)
+      env.put("PERL5LIB", perl5lib)
+    if (path != null)
+      env.put("PATH", path)
+    val csq_header = List(Variant("1",13372,"G","C")).iterator.pipe(pb,
+      printContext,
+      printElement,
+      _ => ())
+      .flatMap(s => csq_header_regex.findFirstMatchIn(s).map(m => m.group(1)))
+
+    if(csq_header.hasNext)
+      csq_header.next()
+    else{
+      warn("Could not get VEP CSQ header")
+      ""
+    }
+
+  }
+
   def run(state: State, options: Options): State = {
     val vds = state.vds
 
     val csq = options.csq
-
-    val root = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
-
-    val rootType =
-      vds.vaSignature.getOption(root)
-        .filter { t =>
-          val r = t == (if(csq) TString else vepSignature)
-          if (!r) {
-            if (options.force)
-              warn(s"type for ${ options.root } does not match vep signature, overwriting.")
-            else
-              warn(s"type for ${ options.root } does not match vep signature.")
-          }
-          r
-        }
-
-    if (rootType.isEmpty && !options.force)
-      fatal("for performance, you should annotate variants with pre-computed VEP annotations.  Cowardly refusing to VEP annotate from scratch.  Use --force to override.")
-
-    val rootQuery = rootType
-      .map(_ => vds.vaSignature.query(root))
 
     val properties = try {
       val p = new Properties()
@@ -262,26 +261,57 @@ object VEP extends Command {
 
     val cmd =
       Array(
-      perl,
-      s"$location",
-      "--format", "vcf",
+        perl,
+        s"$location",
+        "--format", "vcf",
         if(csq) "--vcf" else "--json",
-      "--everything",
-      "--allele_number",
-      "--no_stats",
-      "--cache", "--offline",
-      "--dir", s"$cacheDir",
-      "--fasta", s"$cacheDir/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
-      "--minimal",
-      "--assembly", "GRCh37",
-      "--plugin", s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile",
-      "-o", "STDOUT")
+        "--everything",
+        "--allele_number",
+        "--no_stats",
+        "--cache", "--offline",
+        "--dir", s"$cacheDir",
+        "--fasta", s"$cacheDir/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
+        "--minimal",
+        "--assembly", "GRCh37",
+        "--plugin", s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile",
+        "-o", "STDOUT")
 
     val inputQuery = vepSignature.query("input")
 
     val csq_regex = "CSQ=[^;^\\t]+".r
 
     val localBlockSize = options.blockSize
+
+    val csq_header = getCSQHeaderDefinition(cmd, perl5lib, path)
+
+    val root = Parser.parseAnnotationRoot(options.root, Annotation.VARIANT_HEAD)
+
+    val rootType =
+      vds.vaSignature.getOption(root)
+        .filter { t =>
+          val r = if(csq) {
+            val csq_desc_match = vds.vaSignature.fieldOption(root) match {
+              case Some(f) => f.attrs("Description") == csq_header
+              case None => false
+            }
+            t == TArray(TString) && csq_desc_match
+          }
+          else t == vepSignature
+
+          if (!r) {
+            if (options.force)
+              warn(s"type for ${ options.root } does not match vep signature, overwriting.")
+            else
+              fatal(s"type for ${ options.root } does not match vep signature.")
+          }
+          r
+        }
+
+    if (rootType.isEmpty && !options.force)
+      fatal("for performance, you should annotate variants with pre-computed VEP annotations.  Cowardly refusing to VEP annotate from scratch.  Use `force=True` option to override.")
+
+    val rootQuery = rootType
+      .map(_ => vds.vaSignature.query(root))
 
     val annotations = vds.rdd.mapValues { case (va, gs) => va }
       .mapPartitions({ it =>
@@ -303,7 +333,7 @@ object VEP extends Command {
             _ => ())
             .map { s =>
               if(csq) {
-                csq_regex.findFirstIn(s).map(x => (variantFromInput(s), x.substring(4)))
+                csq_regex.findFirstIn(s).map(x => (variantFromInput(s), x.substring(4).split(","): IndexedSeq[Annotation]))
               }else{
                 val a = JSONAnnotationImpex.importAnnotation(parse(s), vepSignature)
                 val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
@@ -318,20 +348,23 @@ object VEP extends Command {
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    val (newVASignature, insertVEP) = vds.vaSignature.insert( if(csq) TString else vepSignature, root)
+    val (newVASignature, insertVEP) = vds.vaSignature.insert( if(csq) TArray(TString) else vepSignature, root)
 
     val newRDD = vds.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), vaVep)) =>
-            (v, (vaVep.map(a => insertVEP(va, Some(a))).getOrElse(va), gs))
+            (v, ( insertVEP(va, vaVep), gs))
           }
       }.asOrderedRDD
 
-    val newVDS = vds.copy(rdd = newRDD,
-      vaSignature = newVASignature)
-
-    state.copy(vds = newVDS)
+    if (csq)
+      state.copy(vds = vds.copy(rdd = newRDD,
+        vaSignature = newVASignature.asInstanceOf[TStruct]
+          .setFieldAttributes(root, Map("Description" -> csq_header))))
+    else
+      state.copy(vds = vds.copy(rdd = newRDD,
+        vaSignature = newVASignature))
   }
 
 }

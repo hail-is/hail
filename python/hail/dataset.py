@@ -1534,7 +1534,7 @@ class VariantDataset(object):
             pargs.append('--overwrite')
         self.hc._run_command(self, pargs)
 
-    def filter_alleles(self, condition, annotation=None, subset=True, keep=True, 
+    def filter_alleles(self, condition, annotation=None, subset=True, keep=True,
                        filter_altered_genotypes=False, max_shift=100):
         """Filter a user-defined set of alternate alleles for each variant.
         If all alternate alleles of a variant are filtered, the
@@ -1682,7 +1682,7 @@ class VariantDataset(object):
 
         if filter_altered_genotypes:
             pargs.append('--filterAlteredGenotypes')
-            
+
         pargs.extend(['--max-shift', str(max_shift)])
 
         return self.hc._run_command(self, pargs)
@@ -3126,6 +3126,49 @@ class VariantDataset(object):
         """Displays the number of partitions and persistence level of the dataset."""
 
         self.hc._run_command(self, ['sparkinfo'])
+
+    def set_va_attribute(self, ann_path, key, value):
+        """Sets an attribute for a variant annotation signature.
+        Attributes are key/value pairs that can be attached to a variant annotation field.
+        Of note, the following attributes are used to generate the VCF header when using export_vcf:
+        - INFO fields attributes (attached to (`va.info.XXX`)):
+            - 'Number' (default is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types)
+            - 'Description' (default is '')
+        - FILTER entries in the VCF header are generated based on the attributes of `va.filters`. Each key/value pair in the attributes will generate a FILTER entry in the VCF with ID = key and Description = value.
+
+        **Examples**
+
+        Consider the following command which adds an INFO field `test` and a filter `random` with probability 0.5:
+        >>> vds = (hc.import_vcf('data/sample.vcf')
+        >>>   .annotate_variants_expr(['va.info.test = "test"', 'va.filters = if(pcoin(0.5)) va.filters else [va.filters,["random"].toSet].toSet.flatten'])
+
+        If we now export this VDS as VCF, it would (1) be missing the FILTER entry and (2) the INFO line for our new field `test` would be:
+        ```
+        ##INFO=<ID=test,Number=1,Type=String,Description=""
+        ```
+
+        We can now set the attributes:
+        >>> vds = (vds.set_va_attributes('va.info.test','Description','This is a test for setting attributes.')
+        >>>           .set_va_attributes('va.filters','random','This is a random filter with probability 0.5'))
+
+        Exporting the VDS with the attributes now prints the following header lines:
+        ```
+        ##INFO=<ID=test,Number=1,Type=String,Description="This is a test for setting attributes."
+        ##FILTER=<ID=random,Description="This is a random filter with probability 0.5">
+        ```
+
+        :param str ann_path: Path to variant annotation beginning with `va`.
+        :param str key: Attribute key.
+        :param str value: Attribute value.
+
+        :return: Annotated dataset with new sample qc annotations.
+        :rtype: :class:`.VariantDataset`
+        """
+
+        try:
+            return VariantDataset(self.hc, self._jvds.setVAattribute(ann_path,key,value))
+        except Py4JJavaError as e:
+            raise_py4j_exception(e)
 
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.

@@ -124,6 +124,33 @@ class AnnotationsSuite extends SparkSuite {
     val readBack = Read.run(state, Array("-i", f))
 
     assert(readBack.vds.same(vds2))
+
+    //Check that adding attributes to FILTERS / INFO outputs the correct Number/Description
+    val vds_attr = vds
+      .setVAattribute("va.filters","testFilter","testFilterDesc")
+      .setVAattributes("va.info.MQ",Map("Number" -> ".", "Description" -> "testMQ", "foo" -> "bar"))
+
+    assert(vds_attr.vaSignature.fieldOption("filters")
+      .map(f => f.attrs.getOrElse("testFilter","") == "testFilterDesc")
+      .getOrElse(false))
+
+    assert(vds_attr.vaSignature.fieldOption(List("info","MQ"))
+      .map(f => f.attrs.getOrElse("foo","") == "bar")
+      .getOrElse(false))
+    assert(vds_attr.vaSignature.fieldOption(List("info","MQ"))
+      .map(f => f.attrs.getOrElse("Description","") == "testMQ")
+      .getOrElse(false))
+    assert(vds_attr.vaSignature.fieldOption(List("info","MQ"))
+      .map(f => f.attrs.getOrElse("Number","") == ".")
+      .getOrElse(false))
+
+
+    // Write VCF and check that annotaions are the same
+    val f2 = tmpDir.createTempFile("sample2", extension = ".vds")
+    vds_attr.write(sqlContext, f2)
+    val readBack2 = Read.run(state, Array("-i", f2))
+    assert(readBack2.vds.same(vds_attr))
+
   }
 
   @Test def testReadWrite() {
