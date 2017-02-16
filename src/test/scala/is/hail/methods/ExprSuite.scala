@@ -14,6 +14,9 @@ import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
 import is.hail.TestUtils._
 
+import org.scalatest._
+import Matchers._
+
 class ExprSuite extends SparkSuite {
 
   @Test def exprTest() {
@@ -593,6 +596,79 @@ class ExprSuite extends SparkSuite {
     // FIXME: parser should accept minimum Long/Int literals
     // assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
     // assert(eval[Long](Long.MinValue.toString+"l").contains(Long.MinValue))
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("even", "odd")
+      x.get("even") should contain theSameElementsAs Seq(2,4)
+      x.get("odd") should contain theSameElementsAs Seq(1,3,5)
+    }
+
+    {
+      val x = eval[Map[Int,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => k % 2)")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq(0, 1)
+      x.get(0) should contain theSameElementsAs Seq(2,4)
+      x.get(1) should contain theSameElementsAs Seq(1,3,5)
+    }
+
+    {
+      val x = eval[Map[Boolean,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => k % 2 == 0)")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq(true, false)
+      x.get(true) should contain theSameElementsAs Seq(2,4)
+      x.get(false) should contain theSameElementsAs Seq(1,3,5)
+    }
+
+    (eval[Map[String,IndexedSeq[Int]]]("[1].tail.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+      shouldBe empty)
+
+    (eval[Map[Int,IndexedSeq[Int]]]("[1].tail.groupBy(k => k % 2)").get
+      shouldBe empty)
+
+    (eval[Map[Boolean,IndexedSeq[Int]]]("[1].tail.groupBy(k => k % 2 == 0)").get
+      shouldBe empty)
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("odd")
+      x.get("odd") should contain theSameElementsAs Seq(1)
+    }
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[2].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("even")
+      x.get("even") should contain theSameElementsAs Seq(2)
+    }
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("even", "odd")
+      x.get("even") should contain theSameElementsAs Seq(2,4)
+      x.get("odd") should contain theSameElementsAs Seq(1,3,5)
+    }
+
+    (eval[Map[String,IndexedSeq[Int]]]("[1].tail.toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+      shouldBe empty)
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[1].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("odd")
+      x.get("odd") should contain theSameElementsAs Seq(1)
+    }
+
+    {
+      val x = eval[Map[String,IndexedSeq[Int]]]("[2].toSet.groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      assert(x.isDefined)
+      x.get.keySet should contain theSameElementsAs Seq("even")
+      x.get("even") should contain theSameElementsAs Seq(2)
+    }
+
   }
 
   @Test def testParseTypes() {

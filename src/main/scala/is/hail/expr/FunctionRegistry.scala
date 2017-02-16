@@ -772,6 +772,14 @@ object FunctionRegistry {
       s.map(f).asInstanceOf[Set[Set[Any]]])
   )(setHr(TTHr), unaryHr(TTHr, setHr(TUHr)), setHr(TUHr))
 
+  registerLambdaMethod("groupBy", (a: IndexedSeq[Any], f: (Any) => Any) =>
+    a.groupBy(f)
+  )(arrayHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr, arrayHr(TTHr)))
+
+  registerLambdaMethod("groupBy", (a: Set[Any], f: (Any) => Any) =>
+    a.groupBy(f)
+  )(setHr(TTHr), unaryHr(TTHr, TUHr), dictHr(TUHr, setHr(TTHr)))
+
   registerLambdaMethod("exists", (a: IndexedSeq[Any], f: (Any) => Any) =>
     a.exists { x =>
       val r = f(x)
