@@ -36,8 +36,6 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-mainClassName = "is.hail.driver.Main"
-
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
 if (!(sparkVersion ==~ /^2\..*/))
@@ -202,7 +200,6 @@ tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
                 'Implementation-Version': '0.0.1-SNAPSHOT',
-                'Main-Class': 'is.hail.driver.Main'
     }
     baseName = project.name + '-all'
     mergeServiceFiles()
