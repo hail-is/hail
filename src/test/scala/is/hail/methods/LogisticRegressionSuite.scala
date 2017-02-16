@@ -99,6 +99,11 @@ class LogisticRegressionSuite extends SparkSuite {
     assertConstant(v8)
     assertConstant(v9)
     assertConstant(v10)
+
+    assert(qBeta(annotationMap(v6)).isEmpty)
+    assert(qSe(annotationMap(v6)).isEmpty)
+    assert(qZstat(annotationMap(v6)).isEmpty)
+    assert(qPVal(annotationMap(v6)).isEmpty)
   }
 
   @Test def lrTestWithTwoCov() {
@@ -189,6 +194,10 @@ class LogisticRegressionSuite extends SparkSuite {
     assertConstant(v8)
     assertConstant(v9)
     assertConstant(v10)
+
+    assert(qBeta(annotationMap(v6)).isEmpty)
+    assert(qChi2(annotationMap(v6)).isEmpty)
+    assert(qPVal(annotationMap(v6)).isEmpty)
   }
 
   @Test def scoreTestWithTwoCov() {
@@ -268,6 +277,8 @@ class LogisticRegressionSuite extends SparkSuite {
     assertEmpty(v8)
     assertEmpty(v9)
     assertEmpty(v10)
+
+    assert(qPVal(annotationMap(v6)).isEmpty)
   }
 
   @Test def waldEpactsTest() {

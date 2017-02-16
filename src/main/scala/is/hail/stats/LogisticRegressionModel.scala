@@ -55,7 +55,7 @@ object WaldTest extends LogisticRegressionTest {
     ("pval", TDouble),
     ("fit", LogisticRegressionFit.`type`))
 
-  val emptyStats: Seq[Annotation] = Seq.fill(4)(Annotation.empty)
+  val emptyStats = Annotation.emptyIndexedSeq(4)
 }
 
 case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends LogisticRegressionStats {
@@ -90,7 +90,7 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
     ("pval", TDouble),
     ("fit", LogisticRegressionFit.`type`))
 
-  val emptyStats: Seq[Annotation] = Seq.fill(3)(Annotation.empty)
+  val emptyStats = Annotation.emptyIndexedSeq(3)
 }
 
 
@@ -133,7 +133,7 @@ object FirthTest extends LogisticRegressionTest {
     ("pval", TDouble),
     ("fit", LogisticRegressionFit.`type`))
 
-  val emptyStats: Seq[Annotation] = Seq.fill(3)(Annotation.empty)
+  val emptyStats = Annotation.emptyIndexedSeq(3)
 }
 
 
@@ -187,7 +187,7 @@ object ScoreTest extends LogisticRegressionTest {
     ("chi2", TDouble),
     ("pval", TDouble))
 
-  val emptyStats: Seq[Annotation] = Seq.fill(2)(Annotation.empty)
+  val emptyStats = Annotation.emptyIndexedSeq(2)
 }
 
 
@@ -327,4 +327,3 @@ case class LogisticRegressionFit(
 
   def toAnnotation: Annotation = Annotation(nIter, converged, exploded)
 }
-
