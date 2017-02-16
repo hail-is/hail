@@ -13,23 +13,19 @@
 
 All this functionality is exposed through **Python** and backed by distributed algorithms built on top of [Apache Spark](http://spark.apache.org/) to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on an on-prem cluster or in the cloud.
 
+[![Hail keynote at Spark Summit East 2017](www/hail_spark_summit.png)](https://www.youtube.com/watch?v=6WoPZ3_nIXc)
+
 Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06/050195) and as the core analysis platform of large-scale genomics efforts including [ExAC v2](http://exac.broadinstitute.org/) and [gnomAD](http://gnomad.broadinstitute.org/). The project began in Fall 2015 and is under very active development as we work toward a stable release, so we do not guarantee forward compatibility of formats and interfaces. Want to get involved in development? Check out the [Github repo](https://github.com/hail-is/hail) and chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev).
+
+#### Getting Started
 
 To get started using Hail:
 
-- read the docs ([Getting Started](https://hail.is/hail/getting_started.html), [Overview](https://hail.is/hail/overview.html), [Tutorial](https://hail.is/hail/tutorial.html), and [Command Reference](https://hail.is/hail/api.html))
-- join the [discussion forum](http://discuss.hail.is) 
-- chat with the Hail team and other users in the [Hail Gitter](https://gitter.im/hail-is/hail) room
+- follow the installation insturctions in [Getting Started](https://hail.is/hail/getting_started.html) 
+- try the [Tutorial](https://hail.is/hail/tutorial.html), read the [Overview](https://hail.is/hail/overview.html), and explore the [Python API](https://hail.is/hail/index.html)
+- chat with the Hail team in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 
-We encourage use of the [discussion forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
-
-html
-
-<a href="https://www.youtube.com/watch?v=6WoPZ3_nIXc" <img src="www/hail_spark_summit.png" width="600" alt="Hail keynote at Spark Summit East 2017"></a>
-
-markdown
-
-[![Hail keynote at Spark Summit East 2017](www/hail_spark_summit.png)](https://www.youtube.com/watch?v=6WoPZ3_nIXc)
+We encourage use of the [Discussion Forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
 
 #### Hail Team
 
@@ -37,7 +33,6 @@ The Hail team is based in the [Neale lab](https://nealelab.squarespace.com/) at 
 
 Contact the Hail team at
 <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
-
 
 #### Citing Hail
 
