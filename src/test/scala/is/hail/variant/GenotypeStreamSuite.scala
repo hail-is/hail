@@ -18,9 +18,9 @@ object GenotypeStreamSuite {
       val b = new GenotypeStreamBuilder(v.nAlleles)
       b ++= it
       val gs = b.result()
-      val a1 = gs.toArray
-      val a2 = gs.hardCallIterator.toArray
-      it.sameElements(a1) && a1.map(_.unboxedGT).sameElements(a2)
+      it.iterator.sameElements(gs.iterator) &&
+//        gs.iterator.sameElements(gs.genericIterator) &&
+        gs.iterator.map(_.unboxedGT).sameElements(gs.hardCallIterator)
     }
   }
 }
