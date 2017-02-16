@@ -76,7 +76,7 @@
     ```
 
  - Make sure you do not assign a result to the protected variable names `vds` in `dataset.py` and `kt1`, `kt2` in keytable.py.
- - Variables not specified in the `.. testsetup::` directive in the module-level docstring will not be available in the scope for other functions. Try not to add global variables unless absolutely necessary.
+ - Variables not specified in the module-level docstring will not be available in the scope for other functions. Try not to add global variables unless absolutely necessary.
  - Example VDS files that currently exist in `python/hail/docs/data` were generated as follows:
 
     **example1.vds**
