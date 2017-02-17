@@ -27,6 +27,8 @@ We've partnered with [Databricks](https://databricks.com/) so you can explore Ha
 - Import the Hail tutorial notebook into your Workspace using this URL:
 ```https://docs.databricks.com/_static/notebooks/hail-tutorial-sse-2017.html```
 
+- Follow the instructions in the notebook.
+
 You can also view the notebook [here](https://docs.databricks.com/spark/latest/training/1000-genomes.html).
 
 #### Getting Started
