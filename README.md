@@ -19,7 +19,7 @@ Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06
 
 #### Interactive Hail Tutorial
 
-Want to explore Hail's functionality on data from the [1000 Genomes Project](http://www.internationalgenome.org/) in just a few clicks? We've partnered with [Databricks](https://databricks.com/) to provide a live tutorial notebook.
+We've partnered with [Databricks](https://databricks.com/) so you can explore Hail's functionality on data from the [1000 Genomes Project](http://www.internationalgenome.org/) in just a few clicks.
 
 - Sign up for the free Community Edition of the Databricks platform at:
 [https://accounts.cloud.databricks.com/registration.html#signup](https://accounts.cloud.databricks.com/registration.html#signup)
