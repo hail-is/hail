@@ -276,6 +276,8 @@ class VariantDataset(object):
         :return: Annotated dataset.
         :rtype: :py:class:`.VariantDataset`
         """
+        if isinstance(expr, list):
+            expr = ",".join(expr)
 
         jvds = self._jvdf.annotateAllelesExpr(expr, propagate_gq)
         return VariantDataset(self.hc, jvds)

@@ -116,6 +116,9 @@ class ContextTests(unittest.TestCase):
          .filter_variants_expr('va.bed')
          .count())
 
+        sample.annotate_alleles_expr('va.gs = gs.callStats(g => v)').count()
+        sample.annotate_alleles_expr(['va.gs = gs.callStats(g => v)', 'va.foo = 5']).count()
+
         (sample2.annotate_variants_expr('va.nCalled = gs.filter(g => g.isCalled).count()')
          .count())
 
