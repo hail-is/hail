@@ -17,7 +17,6 @@ import scala.io.Source
 
 case class VCFSettings(storeGQ: Boolean = false,
   skipGenotypes: Boolean = false,
-  compress: Boolean = true,
   ppAsPL: Boolean = false,
   skipBadAD: Boolean = false)
 
@@ -180,13 +179,12 @@ object LoadVCF {
     file1: String,
     files: Array[String] = null, // FIXME hack
     storeGQ: Boolean = false,
-    compress: Boolean = true,
     nPartitions: Option[Int] = None,
     skipGenotypes: Boolean = false,
     ppAsPL: Boolean = false,
     skipBadAD: Boolean = false): VariantDataset = {
 
-    val settings = VCFSettings(storeGQ, skipGenotypes, compress, ppAsPL, skipBadAD)
+    val settings = VCFSettings(storeGQ, skipGenotypes, ppAsPL, skipBadAD)
 
     val hConf = hc.hadoopConf
     val sc = hc.sc

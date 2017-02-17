@@ -50,7 +50,7 @@ class BgenRecord(compressed: Boolean,
     gsb.clear()
     val bar = new ByteArrayReader(bytes)
 
-    for (_ <- 0 until nSamples) {
+    for (i <- 0 until nSamples) {
       gb.clear()
 
       val d0 = bar.readShort()
@@ -82,11 +82,10 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
   val indexPath = file + ".idx"
   val btree = new IndexBTree(indexPath, job)
 
-  val compressGS = job.getBoolean("compressGS", false)
   val tolerance = job.get("tolerance").toDouble
 
   val gb = new GenotypeBuilder(2, isDosage = true)
-  val gsb = new GenotypeStreamBuilder(2, isDosage = true, compress = compressGS)
+  val gsb = new GenotypeStreamBuilder(2, isDosage = true)
 
   seekToFirstBlockInSplit(split.getStart)
 

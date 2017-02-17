@@ -8,7 +8,7 @@ import org.testng.annotations.Test
 import scala.collection.mutable
 
 object LEB128Suite {
-  val b = new mutable.ArrayBuilder.ofByte
+  val b = new ByteArrayBuilder()
 
   def ulebReadWriteEqual(i: Int): Boolean = {
     b.clear()
