@@ -21,7 +21,7 @@ Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06
 
 To get started using Hail:
 
-- follow the installation insturctions in [Getting Started](https://hail.is/hail/getting_started.html) 
+- follow the installation instructions in [Getting Started](https://hail.is/hail/getting_started.html)
 - try the [Tutorial](https://hail.is/hail/tutorial.html), read the [Overview](https://hail.is/hail/overview.html), and explore the [Python API](https://hail.is/hail/index.html)
 - chat with the Hail team in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 
