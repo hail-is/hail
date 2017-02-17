@@ -150,6 +150,10 @@ object HailContext {
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp"): HailContext = {
 
+    val javaVersion = System.getProperty("java.version")
+    if (!javaVersion.startsWith("1.8"))
+      fatal(s"Hail requires Java 1.8, found version $javaVersion")
+
     {
       import breeze.linalg._
       import breeze.linalg.operators.{BinaryRegistry, OpMulMatrix}
