@@ -17,12 +17,24 @@ Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06
 
 [![Hail keynote at Spark Summit East 2017](www/hail_spark_summit.png)](https://www.youtube.com/watch?v=6WoPZ3_nIXc)
 
+#### Interactive Hail Tutorial
+
+Want to explore Hail's functionality on data from the [1000 Genomes Project](http://www.internationalgenome.org/) in just a few clicks? We've partnered with [Databricks](https://databricks.com/) to provide a live tutorial notebook.
+
+- Sign up for the free Community Edition of the Databricks platform at:
+[https://accounts.cloud.databricks.com/registration.html#signup](https://accounts.cloud.databricks.com/registration.html#signup)
+
+- Import the Hail tutorial notebook into your Workspace using this URL:
+```https://docs.databricks.com/_static/notebooks/hail-tutorial-sse-2017.html```
+
+You can also view the notebook [here](https://docs.databricks.com/spark/latest/training/1000-genomes.html).
+
 #### Getting Started
 
-To get started using Hail:
+To get started using Hail on your data:
 
 - follow the installation instructions in [Getting Started](https://hail.is/hail/getting_started.html)
-- try the [Tutorial](https://hail.is/hail/tutorial.html), read the [Overview](https://hail.is/hail/overview.html), and explore the [Python API](https://hail.is/hail/index.html)
+- check out the [Overview](https://hail.is/hail/overview.html), [Tutorial](https://hail.is/hail/tutorial.html), and [Python API](https://hail.is/hail/index.html)
 - chat with the Hail team in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 
 We encourage use of the [Discussion Forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
