@@ -134,7 +134,9 @@ sealed abstract class Type {
 
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
-  def genValue: Gen[Annotation] = Gen.const(Annotation.empty)
+  def genNonmissingValue: Gen[Annotation] = Gen.const(Annotation.empty)
+
+  def genValue: Gen[Annotation] = Gen.oneOfGen(Gen.const(Annotation.empty), genNonmissingValue)
 
   def isRealizable: Boolean = children.forall(_.isRealizable)
 
@@ -149,7 +151,7 @@ case object TBinary extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Array[Byte]]
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf(arbitrary[Byte])
+  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf(arbitrary[Byte])
 }
 
 case object TBoolean extends Type {
@@ -159,7 +161,7 @@ case object TBoolean extends Type {
 
   def parse(s: String): Annotation = s.toBoolean
 
-  override def genValue: Gen[Annotation] = arbitrary[Boolean]
+  override def genNonmissingValue: Gen[Annotation] = arbitrary[Boolean]
 }
 
 case object TChar extends Type {
@@ -168,7 +170,7 @@ case object TChar extends Type {
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
     && a.asInstanceOf[String].length == 1)
 
-  override def genValue: Gen[Annotation] = arbitrary[String]
+  override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
     .filter(_.nonEmpty)
     .map(s => s.substring(0, 1))
 }
@@ -201,7 +203,7 @@ case object TInt extends TIntegral {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
-  override def genValue: Gen[Annotation] = arbitrary[Int]
+  override def genNonmissingValue: Gen[Annotation] = arbitrary[Int]
 }
 
 case object TLong extends TIntegral {
@@ -211,7 +213,7 @@ case object TLong extends TIntegral {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 
-  override def genValue: Gen[Annotation] = arbitrary[Long]
+  override def genNonmissingValue: Gen[Annotation] = arbitrary[Long]
 }
 
 case object TFloat extends TNumeric {
@@ -223,7 +225,7 @@ case object TFloat extends TNumeric {
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
 
-  override def genValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
+  override def genNonmissingValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float], tolerance))
@@ -238,7 +240,7 @@ case object TDouble extends TNumeric {
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
 
-  override def genValue: Gen[Annotation] = arbitrary[Double]
+  override def genNonmissingValue: Gen[Annotation] = arbitrary[Double]
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double], tolerance))
@@ -249,7 +251,7 @@ case object TString extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
-  override def genValue: Gen[Annotation] = arbitrary[String]
+  override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 }
 
 case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -413,7 +415,7 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] =
+  override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 }
 
@@ -438,7 +440,7 @@ case class TSet(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
+  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
 }
 
 case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -474,7 +476,7 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] =
+  override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
@@ -490,7 +492,7 @@ case object TSample extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
-  override def genValue: Gen[Annotation] = Gen.identifier
+  override def genNonmissingValue: Gen[Annotation] = Gen.identifier
 }
 
 case object TGenotype extends Type {
@@ -498,7 +500,7 @@ case object TGenotype extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
-  override def genValue: Gen[Annotation] = Genotype.genArb
+  override def genNonmissingValue: Gen[Annotation] = Genotype.genArb
 }
 
 case object TAltAllele extends Type {
@@ -506,7 +508,7 @@ case object TAltAllele extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
 
-  override def genValue: Gen[Annotation] = AltAllele.gen
+  override def genNonmissingValue: Gen[Annotation] = AltAllele.gen
 }
 
 case object TVariant extends Type {
@@ -514,7 +516,7 @@ case object TVariant extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
-  override def genValue: Gen[Annotation] = Variant.gen
+  override def genNonmissingValue: Gen[Annotation] = Variant.gen
 }
 
 case object TLocus extends Type {
@@ -522,7 +524,7 @@ case object TLocus extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
 
-  override def genValue: Gen[Annotation] = Locus.gen
+  override def genNonmissingValue: Gen[Annotation] = Locus.gen
 }
 
 case object TInterval extends Type {
@@ -530,7 +532,7 @@ case object TInterval extends Type {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 
-  override def genValue: Gen[Annotation] = Interval.gen(Locus.gen)
+  override def genNonmissingValue: Gen[Annotation] = Interval.gen(Locus.gen)
 }
 
 case class Field(name: String, typ: Type,
@@ -882,7 +884,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genValue: Gen[Annotation] = {
+  override def genNonmissingValue: Gen[Annotation] = {
     if (size == 0)
       Gen.const(Annotation.empty)
     else
