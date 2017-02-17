@@ -24,8 +24,8 @@ We've partnered with [Databricks](https://databricks.com/) so you can explore Ha
 - Sign up for the free Community Edition of the Databricks platform at:
 [https://accounts.cloud.databricks.com/registration.html#signup](https://accounts.cloud.databricks.com/registration.html#signup)
 
-- Import the Hail tutorial notebook into your Workspace using this URL:
-```https://docs.databricks.com/_static/notebooks/hail-tutorial-sse-2017.html```
+- Import the Hail tutorial notebook into your Workspace using this URL: https://docs.databricks.com/_static/notebooks/hail-tutorial-sse-2017.html
+
 
 - Follow the instructions in the notebook.
 
