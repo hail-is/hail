@@ -56,7 +56,7 @@ object LinearRegression {
       val lrb = new LinRegBuilder(yBc.value)
       gs.iterator.zipWithIndex.foreach { case (g, i) => if (sampleMaskBc.value(i)) lrb.merge(g) }
 
-      val linRegAnnot = lrb.stats(yBc.value, n, combinedMinAC).map { stats =>
+      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC).map { stats =>
         val (x, xx, xy) = stats
 
         val qtx = QtBc.value * x
@@ -73,7 +73,9 @@ object LinearRegression {
         Annotation(b, se, t, p)
       }
 
-      inserter(va, linRegAnnot)
+      val newAnnotation = inserter(va, linregAnnot)
+      assert(newVAS.typeCheck(newAnnotation))
+      newAnnotation
     }.copy(vaSignature = newVAS)
   }
 }

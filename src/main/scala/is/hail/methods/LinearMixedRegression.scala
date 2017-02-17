@@ -156,7 +156,7 @@ object LinearMixedRegression {
             .foldLeft(new SparseGtBuilder()){ case (b, (g, i)) => b.merge(g) }
             .toSparseGtVector(n)
 
-        val lmmregStat =
+        val lmmregAnnot =
           if (!isConstant) {
             val x: Vector[Double] = if (af <= sparsityThreshold) x0 else x0.toDenseVector
             val (b, s2, chi2, p) = scalerLMMBc.value.likelihoodRatioTest(TBc.value * x)
@@ -165,7 +165,9 @@ object LinearMixedRegression {
           } else
             None
 
-        inserter(va, lmmregStat)
+        val newAnnotation = inserter(va, lmmregAnnot)
+        assert(newVAS.typeCheck(newAnnotation))
+        newAnnotation
       }.copy(vaSignature = newVAS)
     }
     else

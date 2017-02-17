@@ -8,18 +8,19 @@ import is.hail.expr._
 abstract class LogisticRegressionTest extends Serializable {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResult[LogisticRegressionStats]
   def `type`: Type
+  val emptyStats: Seq[Annotation]
 }
 
 abstract class LogisticRegressionStats {
-  def toAnnotation: Annotation
+  def toAnnotations: Seq[Annotation]
 }
 
 class LogisticRegressionTestResult[+T <: LogisticRegressionStats](val stats: Option[T]) {
-  def toAnnotation: Annotation = Annotation(stats.fold(Annotation.empty)(_.toAnnotation))
+  def toAnnotation(emptyStats: Seq[Annotation]): Annotation = Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats))
 }
 
 class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override val stats: Option[T], val fitStats: LogisticRegressionFit) extends LogisticRegressionTestResult[T](stats) {
-  override def toAnnotation: Annotation = Annotation(stats.fold(Annotation.empty)(_.toAnnotation), fitStats.toAnnotation)
+  override def toAnnotation(emptyStats: Seq[Annotation]): Annotation = Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats) :+ fitStats.toAnnotation)
 }
 
 
@@ -48,20 +49,17 @@ object WaldTest extends LogisticRegressionTest {
   }
 
   def `type`: Type = TStruct(
-    ("wald", WaldStats.`type`),
-    ("fit", LogisticRegressionFit.`type`))
-}
-
-object WaldStats {
-  def `type`: Type = TStruct(
     ("beta", TDouble),
     ("se", TDouble),
     ("zstat", TDouble),
-    ("pval", TDouble))
+    ("pval", TDouble),
+    ("fit", LogisticRegressionFit.`type`))
+
+  val emptyStats = Annotation.emptyIndexedSeq(4)
 }
 
 case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends LogisticRegressionStats {
-  def toAnnotation: Annotation = Annotation(b(-1), se(-1), z(-1), p(-1))
+  def toAnnotations: Seq[Annotation] = Seq(b(-1), se(-1), z(-1), p(-1))
 }
 
 
@@ -87,19 +85,18 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
   }
 
   def `type` = TStruct(
-    ("lrt", LikelihoodRatioStats.`type`),
-    ("fit", LogisticRegressionFit.`type`))
-}
-
-object LikelihoodRatioStats {
-  def `type`: Type = TStruct(
     ("beta", TDouble),
     ("chi2", TDouble),
-    ("pval", TDouble))
+    ("pval", TDouble),
+    ("fit", LogisticRegressionFit.`type`))
+
+  val emptyStats = Annotation.emptyIndexedSeq(3)
 }
 
+
+
 case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotation = Annotation(b(-1), chi2, p)
+  def toAnnotations: Seq[Annotation] = Seq(b(-1), chi2, p)
 }
 
 
@@ -131,19 +128,17 @@ object FirthTest extends LogisticRegressionTest {
   }
 
   def `type` = TStruct(
-    ("firth", LikelihoodRatioStats.`type`),
-    ("fit", LogisticRegressionFit.`type`))
-}
-
-object FirthStats {
-  def `type`: Type = TStruct(
     ("beta", TDouble),
     ("chi2", TDouble),
-    ("pval", TDouble))
+    ("pval", TDouble),
+    ("fit", LogisticRegressionFit.`type`))
+
+  val emptyStats = Annotation.emptyIndexedSeq(3)
 }
 
+
 case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotation = Annotation(b(-1), chi2, p)
+  def toAnnotations: Seq[Annotation] = Seq(b(-1), chi2, p)
 }
 
 
@@ -189,17 +184,15 @@ object ScoreTest extends LogisticRegressionTest {
   }
 
   def `type`: Type = TStruct(
-    ("score", ScoreStats.`type`))
-}
-
-object ScoreStats {
-  def `type`: Type = TStruct(
     ("chi2", TDouble),
     ("pval", TDouble))
+
+  val emptyStats = Annotation.emptyIndexedSeq(2)
 }
 
+
 case class ScoreStats(chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotation = Annotation(chi2, p)
+  def toAnnotations: Seq[Annotation] = Seq(chi2, p)
 }
 
 
@@ -334,4 +327,3 @@ case class LogisticRegressionFit(
 
   def toAnnotation: Annotation = Annotation(nIter, converged, exploded)
 }
-
