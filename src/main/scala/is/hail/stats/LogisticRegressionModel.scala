@@ -12,15 +12,15 @@ abstract class LogisticRegressionTest extends Serializable {
 }
 
 abstract class LogisticRegressionStats {
-  def toAnnotation: Seq[Annotation]
+  def toAnnotations: Seq[Annotation]
 }
 
 class LogisticRegressionTestResult[+T <: LogisticRegressionStats](val stats: Option[T]) {
-  def toAnnotation(emptyStats: Seq[Annotation]): Annotation = Annotation.fromSeq(stats.map(_.toAnnotation).getOrElse(emptyStats))
+  def toAnnotation(emptyStats: Seq[Annotation]): Annotation = Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats))
 }
 
 class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override val stats: Option[T], val fitStats: LogisticRegressionFit) extends LogisticRegressionTestResult[T](stats) {
-  override def toAnnotation(emptyStats: Seq[Annotation]): Annotation = Annotation.fromSeq(stats.map(_.toAnnotation).getOrElse(emptyStats) :+ fitStats.toAnnotation)
+  override def toAnnotation(emptyStats: Seq[Annotation]): Annotation = Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats) :+ fitStats.toAnnotation)
 }
 
 
@@ -59,7 +59,7 @@ object WaldTest extends LogisticRegressionTest {
 }
 
 case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends LogisticRegressionStats {
-  def toAnnotation: Seq[Annotation] = Seq(b(-1), se(-1), z(-1), p(-1))
+  def toAnnotations: Seq[Annotation] = Seq(b(-1), se(-1), z(-1), p(-1))
 }
 
 
@@ -96,7 +96,7 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
 
 
 case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotation: Seq[Annotation] = Seq(b(-1), chi2, p)
+  def toAnnotations: Seq[Annotation] = Seq(b(-1), chi2, p)
 }
 
 
@@ -138,7 +138,7 @@ object FirthTest extends LogisticRegressionTest {
 
 
 case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotation: Seq[Annotation] = Seq(b(-1), chi2, p)
+  def toAnnotations: Seq[Annotation] = Seq(b(-1), chi2, p)
 }
 
 
@@ -192,7 +192,7 @@ object ScoreTest extends LogisticRegressionTest {
 
 
 case class ScoreStats(chi2: Double, p: Double) extends LogisticRegressionStats {
-  def toAnnotation: Seq[Annotation] = Seq(chi2, p)
+  def toAnnotations: Seq[Annotation] = Seq(chi2, p)
 }
 
 

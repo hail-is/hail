@@ -608,9 +608,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def annotateSamples(annotation: (String) => Option[Annotation], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
       val sa = sampleAnnotations(i)
-      val newAnnotation = annotation(id)
-      newAnnotation.foreach(newSignature.typeCheck)
-      inserter(sa, newAnnotation)
+      val newAnnotation = inserter(sa, annotation(id))
+      newSignature.typeCheck(newAnnotation)
+      newAnnotation
     }
 
     copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
