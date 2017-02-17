@@ -350,10 +350,10 @@ class HailContext(object):
 
         **Notes**
 
-        Hail is designed to be maximally compatible with files in the [VCF v4.2 spec](https://samtools.github.io/hts-specs/VCFv4.2.pdf).
+        Hail is designed to be maximally compatible with files in the `VCF v4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
 
         :py:meth:`~hail.HailContext.import_vcf` takes a list of VCF files to load. All files must have the same header and the same set of samples in the same order
-        (e.g., a dataset split by chromosome). Files can be specified as [Hadoop glob patterns](reference.html#hadoopglob).
+        (e.g., a dataset split by chromosome). Files can be specified as Hadoop glob patterns.
 
         Ensuring the VCF files is correctly prepared for import: VCFs should either be uncompressed (".vcf") or block compressed
         (".vcf.bgz").  If you have a large compressed VCF that ends in ".vcf.gz", it is likely that the file is actually block-compressed,
@@ -361,8 +361,8 @@ class HailContext(object):
         it to hail using the `force` optional parameter. However, this is not recommended -- all parsing will have to take place on one node, because
         gzip decompression is not parallelizable. In this case, import could take significantly longer.
 
-        Hail makes certain assumptions about the genotype fields, see [Representation](reference.html#Representation). On import, Hail filters
-        (sets to no-call) any genotype that violates these assumptions. Hail interpets the format fields: GT, AD, OD, DP, GQ, PL; all others are
+        Hail makes certain assumptions about the genotype fields, see `Representation <https://hail.is/hail/representation/hail.representation.Genotype.html>`_. On import, Hail filters
+        (sets to no-call) any genotype that violates these assumptions. Hail interprets the format fields: GT, AD, OD, DP, GQ, PL; all others are
         silently dropped.
 
         :py:meth:`~hail.HailContext.import_vcf` does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all
@@ -375,8 +375,7 @@ class HailContext(object):
         - **va.filters** (*Set[String]*) -- set containing the list of filters applied to a variant. Accessible using `va.filters.contains("VQSRTranche99.5...")`, for example
         - **va.rsid** (*String*) -- rsid of the variant, if it has one ("." otherwise)
         - **va.qual** (*Double*) -- the number in the qual field
-        - **va.info** (*T*) -- matches (with proper capitalization) any defined info field. Data types match the type specified
-        in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array (accessed with array\[index\]).
+        - **va.info** (*T*) -- matches (with proper capitalization) any defined info field. Data types match the type specified in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array (accessed with array\[index\]).
 
 
         :param path: .vcf files to read.
