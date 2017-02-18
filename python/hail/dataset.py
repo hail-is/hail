@@ -2369,9 +2369,9 @@ class VariantDataset(object):
         The :py:meth:`~hail.VariantDataset.logreg` command performs,
         for each variant, a significance test of the genotype in
         predicting a binary (case-control) phenotype based on the
-        logistic regression model. Hail supports the Wald test,
-        likelihood ratio test (LRT), Firth test, and Rao score test. Hail only
-        includes samples for which phenotype and all covariates are
+        logistic regression model. Hail supports the Wald test ('wald'),
+        likelihood ratio test ('lrt'), Rao score test ('score'), and the Firth test ('firth'). Hail only
+        includes samples for which the phenotype and all covariates are
         defined. For each variant, Hail imputes missing genotypes as
         the mean of called genotypes.
 
@@ -2454,7 +2454,7 @@ class VariantDataset(object):
 
         Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`_. For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
 
-        :param str test: Statistical test, one of: wald, lrt, firth, or score.
+        :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
 
         :param str y: Response expression.  Must evaluate to Boolean or
             numeric with all values 0 or 1.
