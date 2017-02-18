@@ -111,11 +111,6 @@
             {% if READTHEDOCS and current_version %}
               {%- set nav_version = current_version %}
             {% endif %}
-            {% if nav_version %}
-              <div class="version">
-                {{ nav_version }}
-              </div>
-            {% endif %}
           {% endif %}
 
           {% include "searchbox.html" %}

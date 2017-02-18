@@ -3,8 +3,8 @@
 }
 
 .wy-nav-side {
-    position: absolute;
-    top: -1px;
+    position: fixed;
+    top: 14px;
 }
 
 .wy-body-for-nav {
