@@ -2370,7 +2370,7 @@ class VariantDataset(object):
         for each variant, a significance test of the genotype in
         predicting a binary (case-control) phenotype based on the
         logistic regression model. Hail supports the Wald test ('wald'),
-        likelihood ratio test ('lrt'), Rao score test ('score'), and the Firth test ('firth'). Hail only
+        likelihood ratio test ('lrt'), Rao score test ('score'), and Firth test ('firth'). Hail only
         includes samples for which the phenotype and all covariates are
         defined. For each variant, Hail imputes missing genotypes as
         the mean of called genotypes.
