@@ -1,5 +1,5 @@
 from py4j.protocol import Py4JJavaError, Py4JError
-
+from decorator import decorator
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -84,25 +84,18 @@ def jiterable_to_list(it):
     else:
         return None
 
-
-def handle_py4j(func):
-    def function_wrapper(*args, **kwargs):
-        try:
-            r = func(*args, **kwargs)
-        except Py4JJavaError as e:
-            msg = env.jutils.getMinimalMessage(e.java_exception)
-            raise FatalError(msg)
-        except Py4JError as e:
-            env.jutils.log().error('hail: caught python exception: ' + str(e))
-            if e.args[0].startswith('An error occurred while calling'):
-                raise TypeError('Method %s() received at least one parameter with an invalid type. '
-                                'See doc for function signature.' % func.__name__)
-            else:
-                raise e
-        return r
-
-    function_wrapper.__doc__ = func.__doc__
-    function_wrapper.__name__ = func.__name__
-    function_wrapper.__module__ = func.__module__
-
-    return function_wrapper
+@decorator
+def handle_py4j(func, *args, **kwargs):
+    try:
+        r = func(*args, **kwargs)
+    except Py4JJavaError as e:
+        msg = env.jutils.getMinimalMessage(e.java_exception)
+        raise FatalError(msg)
+    except Py4JError as e:
+        env.jutils.log().error('hail: caught python exception: ' + str(e))
+        if e.args[0].startswith('An error occurred while calling'):
+            raise TypeError('Method %s() received at least one parameter with an invalid type. '
+                            'See doc for function signature.' % func.__name__)
+        else:
+            raise e
+    return r
