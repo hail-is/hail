@@ -3,8 +3,11 @@
 }
 
 .wy-nav-side {
-    position: absolute;
-    top: -1px;
+    position: fixed;
+}
+
+.wy-side-nav-search {
+    padding-top: 4em;
 }
 
 .wy-body-for-nav {
