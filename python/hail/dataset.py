@@ -234,7 +234,7 @@ class VariantDataset(object):
 
         - ``interval`` (*Interval*): genomic interval
         - ``global``: global annotations
-        - ``variants`` (*Aggregable[Variant]*): aggregable of :ref:`variant`s Aggregator namespace below.
+        - ``variants`` (*Aggregable[Variant]*): aggregable of :py:class:`~hail.representation.Variant` s Aggregator namespace below.
 
         The ``variants`` aggregator has the following namespace:
 
@@ -2000,6 +2000,13 @@ class VariantDataset(object):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
+        **Notes**
+
+        We have used the same implementation as `PLINK v1.7 <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`_.
+
+        1. X chromosome variants are selected from the VDS: ``v.contig == "X" || v.contig == "23"``
+        2. Variants with a minor allele frequency less than the threshold given by ``maf-threshold`` are removed
+
         :param float maf_threshold: Minimum minor allele frequency threshold.
 
         :param bool include_par: Include pseudoautosomal regions.
@@ -2056,7 +2063,7 @@ class VariantDataset(object):
         missing genotypes as the mean of called genotypes.
 
         Assuming there are sample annotations ``sa.pheno.height``,
-        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.pheno.PC1``, the command:
+        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the command:
 
         >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale', 'sa.cov.PC1'])
 
@@ -2307,7 +2314,7 @@ class VariantDataset(object):
 
           M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{\\frac{m}{n} \sum_{k=1}^n (C_{ij}-2p_j)^2}},
 
-        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes each variant column to have empirical variance $1/m$, which gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the :math:`n \\times n` sample correlation or realized relationship matrix (RRM) :math:`K` as simply
+        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes each variant column to have empirical variance :math:`1/m`, which gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the :math:`n \\times n` sample correlation or realized relationship matrix (RRM) :math:`K` as simply
 
         .. math::
 
