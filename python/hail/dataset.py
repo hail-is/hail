@@ -2002,6 +2002,8 @@ class VariantDataset(object):
 
         **Examples**
 
+        Remove samples where imputed sex does not equal reported sex:
+
         >>> imputed_sex_vds = (vds.impute_sex()
         ...     .annotate_samples_expr('sa.sexcheck = sa.pheno.isFemale == sa.imputesex.isFemale')
         ...     .filter_samples_expr('sa.sexcheck || isMissing(sa.sexcheck)'))
