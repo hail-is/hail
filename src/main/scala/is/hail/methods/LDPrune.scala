@@ -340,7 +340,7 @@ object LDPrune {
 
     val sc = vds.sparkContext
 
-    val nVariantsInitial = vds.nVariants
+    val nVariantsInitial = vds.countVariants()
     val nPartitionsInitial = vds.nPartitions
     val nSamples = vds.nSamples
 

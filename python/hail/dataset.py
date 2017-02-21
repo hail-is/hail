@@ -2035,6 +2035,7 @@ class VariantDataset(object):
 
         return VariantDataset(self.hc, self._jvdf.join(right._jvds))
 
+    @handle_py4j
     def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
         """Prune variants in linkage disequilibrium (LD).
 
@@ -2045,7 +2046,7 @@ class VariantDataset(object):
         >>> vds_result = (vds.variant_qc()
         ...                  .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
         ...                  .ld_prune()
-        ...                  .export_variants("data/ldpruned.variants", "v"))
+        ...                  .export_variants("output/ldpruned.variants", "v"))
 
         **Notes**
 
@@ -2076,11 +2077,10 @@ class VariantDataset(object):
 
         :rtype: VariantDataset
         """
-        try:
-            memory_per_core = int(memory_per_core * 1024 * 1024)
-            return VariantDataset(self.hc, env.hail.methods.LDPrune.ldPrune(self._jvds, r2, window, num_cores, memory_per_core))
-        except Py4JJavaError as e:
-            self._raise_py4j_exception(e)
+
+        memory_per_core = int(memory_per_core * 1024 * 1024)
+        return VariantDataset(self.hc, env.hail.methods.LDPrune.ldPrune(self._jvds, r2, window, num_cores, memory_per_core))
+
 
     @handle_py4j
     def linreg(self, y, covariates=[], root='va.linreg', min_ac=1, min_af=0.0):
