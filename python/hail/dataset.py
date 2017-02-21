@@ -2002,7 +2002,9 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> imputed_sex_vds = vds.impute_sex()
+        >>> imputed_sex_vds = (vds.impute_sex()
+        ...     .annotate_samples_expr('sa.sexcheck = sa.pheno.isFemale == sa.imputesex.isFemale')
+        ...     .filter_samples_expr('sa.sexcheck || isMissing(sa.sexcheck)'))
 
         **Notes**
 
