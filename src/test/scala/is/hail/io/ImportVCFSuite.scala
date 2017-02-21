@@ -1,8 +1,8 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.io.vcf.{LoadVCF, VCFReport}
-import is.hail.variant.Genotype
+import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF, VCFReport}
+import is.hail.variant.{Genotype, Variant}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 
@@ -114,5 +114,51 @@ class ImportVCFSuite extends SparkSuite {
         .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080))))
     }
     assert(e.getMessage.contains("FatalException"))
+  }
+
+  @Test def testHaploid() {
+    val vds = hc.importVCF("src/test/resources/haploid.vcf")
+    val r = vds
+      .expand()
+      .collect()
+      .map { case (v,s,g) => ((v,s), g)}
+      .toMap
+
+    hc.report()
+    val v1 = Variant("X", 16050036, "A", "C")
+    val v2 = Variant("X", 16061250, "T", Array("A", "C"))
+
+    val s1 = "C1046::HG02024"
+    val s2 = "C1046::HG02025"
+
+    assert(r(v1, s1) == Genotype(
+      Some(0),
+      Some(Array(10, 0)),
+      Some(10),
+      Some(44),
+      Some(Array(0,44,180))
+    ))
+    assert(r(v1, s2) == Genotype(
+      Some(2),
+      Some(Array(0,6)),
+      Some(7),
+      Some(70),
+      Some(Array(70, HtsjdkRecordReader.haploidNonsensePL, 0))
+    ))
+    assert(r(v2, s1) == Genotype(
+      Some(5),
+      Some(Array(0,0,11)),
+      Some(11),
+      Some(33),
+      Some(Array(396,402,411,33,33,0))
+    ))
+    assert(r(v2, s2) == Genotype(
+      Some(5),
+      Some(Array(0, 0, 9)),
+      Some(9),
+      Some(24),
+      Some(Array(24, HtsjdkRecordReader.haploidNonsensePL, 40, HtsjdkRecordReader.haploidNonsensePL,
+        HtsjdkRecordReader.haploidNonsensePL, 0))
+    ))
   }
 }

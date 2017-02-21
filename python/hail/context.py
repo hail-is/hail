@@ -382,6 +382,20 @@ class HailContext(object):
         - **va.info** (*T*) -- matches (with proper capitalization) any defined info field. Data types match the type specified in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array (accessed with array\[index\]).
 
 
+        Since Hail's genotype representation does not yet support ploidy other than 2,
+        this module imports haploid genotypes as diploid. Hail fills in missing indices
+        in PL / PP arrays with 1000 to support the standard VCF / VDS genotype schema.
+
+        Below are two sample haploid genotypes and diploid equivalents that Hail sees.
+
+        .. code-block:: text
+
+            Haploid:     1:0,6:7:70:70,0
+            Imported as: 1/1:0,6:7:70:70,1000,0
+
+            Haploid:     2:0,0,9:9:24:24,40,0
+            Imported as: 2/2:0,0,9:9:24:24,1000,40,1000:1000:0
+
         :param path: .vcf files to read.
         :type path: str or list of str
 
