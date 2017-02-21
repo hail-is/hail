@@ -2950,6 +2950,33 @@ class VariantDataset(object):
         r, t = self.query_variants_typed(exprs)
         return r
 
+    def query_genotypes_typed(self, exprs):
+        """Perform aggregation queries over genotypes, and returns python objects and types.
+
+        **Examples**
+
+        >>> gq_hist, t = vds.query_genotypes_typed(
+        ...     'gs.map(g => g.gq).hist(0, 100, 100)')
+
+        See :py:meth:`.query_variants` for more information.
+
+        :param exprs: one or more query expressions
+        :type exprs: str or list of str
+
+        :rtype: (list, list of :class:`.Type`)
+        """
+
+        if not isinstance(exprs, list):
+            exprs = [exprs]
+        result_list = self._jvdf.queryGenotypes(jarray(env.jvm.java.lang.String, exprs))
+        ptypes = [Type._from_java(x._2()) for x in result_list]
+        annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+        return annotations, ptypes
+
+    def query_genotypes(self, exprs):
+        r, t = self.query_genotypes_typed(exprs)
+        return r
+
     @handle_py4j
     def rename_samples(self, mapping):
         """Rename samples.

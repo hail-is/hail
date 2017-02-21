@@ -58,6 +58,24 @@ case class Arity3Aggregator[T, U, V, W, X](retType: Type, ctor: (U, V, W) => Typ
   }
 }
 
+case class Arity5Aggregator[T, U, V, W, X, Y, Z](retType: Type, ctor: (U, V, W, X, Y) => TypedAggregator[Z]) extends Fun {
+  def subst() = Arity5Aggregator[T, U, V, W, X, Y, Z](retType.subst(), ctor)
+
+  def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = {
+    assert(transformations.length == 6)
+
+    Arity5Aggregator[T, U, V, W, X, Y, Z](retType, { (u, v, w, x, y) =>
+      new TransformedAggregator(ctor(
+        transformations(1).f(u).asInstanceOf[U],
+        transformations(2).f(v).asInstanceOf[V],
+        transformations(3).f(w).asInstanceOf[W],
+        transformations(4).f(x).asInstanceOf[X],
+        transformations(5).f(y).asInstanceOf[Y]),
+        transformations(0))
+    })
+  }
+}
+
 case class UnaryLambdaAggregator[T, U, V](retType: Type, ctor: ((Any) => Any) => TypedAggregator[V]) extends Fun {
   def subst() = UnaryLambdaAggregator[T, U, V](retType.subst(), ctor)
 

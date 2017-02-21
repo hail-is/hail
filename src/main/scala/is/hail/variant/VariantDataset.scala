@@ -4,7 +4,7 @@ import java.io.FileNotFoundException
 
 import is.hail.HailContext
 import is.hail.annotations.{Annotation, _}
-import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TString, TStruct, Type, _}
+import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
 import is.hail.io._
 import is.hail.io.annotators.IntervalListAnnotator
 import is.hail.io.plink.ExportBedBimFam
@@ -1205,6 +1205,42 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       ret = ret.annotateGlobal(eig, pcSchema, eigenRoot.get)
     }
     ret
+  }
+
+
+  def queryGenotypes(expr: String): (Annotation, Type) = {
+    val qv = queryGenotypes(Array(expr))
+    assert(qv.length == 1)
+    qv.head
+  }
+
+  def queryGenotypes(exprs: Array[String]): Array[(Annotation, Type)] = {
+    val aggregationST = Map(
+      "global" -> (0, vds.globalSignature),
+      "g" -> (1, TGenotype),
+      "v" -> (2, TVariant),
+      "va" -> (3, vds.vaSignature),
+      "s" -> (4, TSample),
+      "sa" -> (5, vds.saSignature))
+    val ec = EvalContext(Map(
+      "global" -> (0, vds.globalSignature),
+      "gs" -> (1, TAggregable(TGenotype, aggregationST))))
+
+    val ts = exprs.map(e => Parser.parseExpr(e, ec))
+
+    val localGlobalAnnotation = vds.globalAnnotation
+    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[(Genotype, Variant, Annotation, String, Annotation)](ec,
+      { case (ec, (g, v, va, s, sa)) =>
+      ec.setAll(localGlobalAnnotation, g, v, va, s, sa)
+    })
+
+    val result = vds.expandWithAll()
+        .map { case (v, va, s, sa, g) => (g, v, va, s, sa) }
+      .treeAggregate(zVal)(seqOp, combOp, depth = treeAggDepth(vds.hc, vds.nPartitions))
+    resOp(result)
+
+    ec.set(0, localGlobalAnnotation)
+    ts.map { case (t, f) => (f().orNull, t) }
   }
 
   def sampleQC(): VariantDataset = SampleQC(vds)
