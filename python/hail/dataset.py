@@ -2006,6 +2006,29 @@ class VariantDataset(object):
 
         1. X chromosome variants are selected from the VDS: ``v.contig == "X" || v.contig == "23"``
         2. Variants with a minor allele frequency less than the threshold given by ``maf-threshold`` are removed
+        3. Variants in the pseudoautosomal region `(X:60001-2699520) || (X:154931044-155260560)` are included if the ``include_par``
+        optional parameter is set to true.
+        4. The minor allele frequency (maf) per variant is calculated.
+        5. For each variant and sample with a non-missing genotype call, :math:`E`, the expected number of homozygotes (from population MAF),
+        is computed as :math:`1.0 - (2.0*maf*(1.0-maf))`.
+        6. For each variant and sample with a non-missing genotype call, :math:`O`, the observed number of homozygotes, is computed as
+        `0 = heterozygote; 1 = homozygote`
+        7. For each variant and sample with a non-missing genotype call, :math:`N` is incremented by 1
+        8. For each sample, :math:`E`, :math:`O`, and :math:`N` are combined across variants
+        9. :math:`F` is calculated by :math:`(O - E) / (N - E)`
+        10. A sex is assigned to each sample with the following criteria: `F < 0.2 => Female; F > 0.8 => Male`. Use ``female-threshold``
+        and ``male-threshold`` to change this behavior.
+
+        **Annotations**
+
+        The below annotations can be accessed with ``sa.imputesex``.
+        - **isFemale** (*Boolean*) -- True if the imputed sex is female, false if male, missing if undetermined
+        - **Fstat** (*Double*) -- Inbreeding coefficient
+        - **nTotal** (*Long*) -- Total number of variants considered
+        - **nCalled**  (*Long*) -- Number of variants with a genotype call
+        - **expectedHoms** (*Double*) -- Expected number of homozygotes
+        - **observedHoms** (*Long*) -- Observed number of homozygotes
+
 
         :param float maf_threshold: Minimum minor allele frequency threshold.
 
