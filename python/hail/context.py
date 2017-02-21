@@ -346,7 +346,11 @@ class HailContext(object):
     @handle_py4j
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
                    sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
-        """Import .vcf files as VariantDataset
+        """Import .vcf files as :py:class:`.VariantDataset`
+
+        **Examples**
+
+        >>> vds = hc.import_vcf('data/example2.vcf.bgz')
 
         **Notes**
 
@@ -355,10 +359,10 @@ class HailContext(object):
         :py:meth:`~hail.HailContext.import_vcf` takes a list of VCF files to load. All files must have the same header and the same set of samples in the same order
         (e.g., a dataset split by chromosome). Files can be specified as Hadoop glob patterns.
 
-        Ensuring the VCF files is correctly prepared for import: VCFs should either be uncompressed (".vcf") or block compressed
+        Ensure that the VCF file is correctly prepared for import: VCFs should either be uncompressed (".vcf") or block compressed
         (".vcf.bgz").  If you have a large compressed VCF that ends in ".vcf.gz", it is likely that the file is actually block-compressed,
         and you should rename the file to ".vcf.bgz" accordingly. If you actually have a standard gzipped file, it is possible to import
-        it to hail using the `force` optional parameter. However, this is not recommended -- all parsing will have to take place on one node, because
+        it to hail using the ``force`` optional parameter. However, this is not recommended -- all parsing will have to take place on one node because
         gzip decompression is not parallelizable. In this case, import could take significantly longer.
 
         Hail makes certain assumptions about the genotype fields, see `Representation <https://hail.is/hail/representation/hail.representation.Genotype.html>`_. On import, Hail filters
@@ -404,7 +408,7 @@ class HailContext(object):
             the entire genotype to missing.
 
         :return: A dataset imported from the VCF file
-        :rtype: :class:`.VariantDataset`
+        :rtype: :py:class:`.VariantDataset`
 
         """
 
