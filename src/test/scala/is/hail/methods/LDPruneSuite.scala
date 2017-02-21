@@ -4,7 +4,6 @@ import breeze.linalg.{Vector => BVector}
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.driver._
 import is.hail.variant._
 import is.hail.utils._
 import org.testng.annotations.Test
@@ -150,20 +149,16 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testIdenticalVariants() {
-    var s = State(sc, sqlContext, null)
-    s = ImportVCF.run(s, Array("-i", "src/test/resources/ldprune2.vcf", "-n", "2"))
-    s = SplitMulti.run(s, Array.empty[String])
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 700, nCores = 4, memoryPerCore = bytesPerCore)
-    assert(prunedVds.nVariants == 1)
+    val vds = hc.importVCF("src/test/resources/ldprune2.vcf", nPartitions = Option(2)).splitMulti()
+    val prunedVds = LDPrune.ldPrune(vds, 0.2, 700, nCores = 4, memoryPerCore = bytesPerCore)
+    assert(prunedVds.countVariants() == 1)
   }
 
   @Test def testMultipleChr() = {
     val r2 = 0.2
     val window = 500
-    var s = State(sc, sqlContext, null)
-    s = ImportVCF.run(s, Array("-i", "src/test/resources/ldprune_multchr.vcf", "-n", "10"))
-    s = SplitMulti.run(s, Array.empty[String])
-    val prunedVds = LDPrune.ldPrune(s.vds, r2, window, nCores = 4, memoryPerCore = bytesPerCore)
+    val vds = hc.importVCF("src/test/resources/ldprune_multchr.vcf", nPartitions = Option(10)).splitMulti()
+    val prunedVds = LDPrune.ldPrune(vds, r2, window, nCores = 4, memoryPerCore = bytesPerCore)
     assert(uncorrelated(prunedVds, r2, window))
   }
 
@@ -219,10 +214,8 @@ class LDPruneSuite extends SparkSuite {
 
     property("uncorrelated") =
       forAll(compGen) { case (r2: Double, window: Int, nPartitions: Int) =>
-        var s = State(sc, sqlContext, null)
-        s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz", "-n", s"$nPartitions"))
-        s = SplitMulti.run(s, Array.empty[String])
-        val prunedVds = LDPrune.ldPrune(s.vds, r2, window, nCores = 4, memoryPerCore = bytesPerCore)
+        val vds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(nPartitions)).splitMulti()
+        val prunedVds = LDPrune.ldPrune(vds, r2, window, nCores = 4, memoryPerCore = bytesPerCore)
         uncorrelated(prunedVds, r2, window)
       }
   }
@@ -232,40 +225,33 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testInputs() {
-    def setup() = {
-      var s = State(sc, sqlContext, null)
-      s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz", "-n", "10"))
-      SplitMulti.run(s, Array.empty[String])
+    def vds = {
+      hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10)).splitMulti()
     }
 
     // memory per core requirement
     intercept[FatalException] {
-      val s = setup()
-      s.copy(vds = LDPrune.ldPrune(s.vds, 0.2, 1000, nCores = 1, memoryPerCore = 0))
+      val prunedVds = LDPrune.ldPrune(vds, 0.2, 1000, nCores = 1, memoryPerCore = 0)
     }
 
     // r2 negative
     intercept[FatalException] {
-      val s = setup()
-      s.copy(vds = LDPrune.ldPrune(s.vds, -0.1, 1000, nCores = 1, memoryPerCore = 1000))
+      val prunedVds = LDPrune.ldPrune(vds, -0.1, 1000, nCores = 1, memoryPerCore = 1000)
     }
 
     // r2 > 1
     intercept[FatalException] {
-      val s = setup()
-      val prunedVds = LDPrune.ldPrune(s.vds, 1.1, 1000, nCores = 1, memoryPerCore = 1000)
+      val prunedVds = LDPrune.ldPrune(vds, 1.1, 1000, nCores = 1, memoryPerCore = 1000)
     }
 
     // window negative
     intercept[FatalException] {
-      val s = setup()
-      s.copy(vds = LDPrune.ldPrune(s.vds, 0.5, -2, nCores = 1, memoryPerCore = 1000))
+      val prunedVds = LDPrune.ldPrune(vds, 0.5, -2, nCores = 1, memoryPerCore = 1000)
     }
 
     // parallelism negative
     intercept[FatalException] {
-      val s = setup()
-      s.copy(vds = LDPrune.ldPrune(s.vds, 0.5, -2, nCores = -1, memoryPerCore = 1000))
+      val prunedVds = LDPrune.ldPrune(vds, 0.5, -2, nCores = -1, memoryPerCore = 1000)
     }
   }
 
@@ -283,20 +269,17 @@ class LDPruneSuite extends SparkSuite {
   }
 
   @Test def testWindow() {
-    var s = State(sc, sqlContext, null)
-    s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz"))
-    s = SplitMulti.run(s, Array.empty[String])
-    val prunedVds = LDPrune.ldPrune(s.vds, 0.2, 100000, nCores = 4, memoryPerCore = 200000)
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz").splitMulti()
+    val prunedVds = LDPrune.ldPrune(vds, 0.2, 100000, nCores = 4, memoryPerCore = 200000)
     assert(uncorrelated(prunedVds, 0.2, 1000))
   }
 
   @Test def testNoPrune() {
-    var s = State(sc, sqlContext, null)
-    s = ImportVCF.run(s, Array("-i", "src/test/resources/sample.vcf.bgz"))
-    val nSamples = s.vds.nSamples
-    val vds = s.vds.filterVariants { case (v, va, gs) => v.isBiallelic && LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples).isDefined }
-    val prunedVds = LDPrune.ldPrune(vds, 1, 0, nCores = 4, memoryPerCore = 200000)
-    val nVariantsExpected = vds.nVariants
-    assert(prunedVds.nVariants == nVariantsExpected)
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
+      .splitMulti()
+    val nSamples = vds.nSamples
+    val filteredVds = vds.filterVariants{ case (v, va, gs) => v.isBiallelic && LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples).isDefined }
+    val prunedVds = LDPrune.ldPrune(filteredVds, 1, 0, nCores = 4, memoryPerCore = 200000)
+    assert(prunedVds.countVariants() == filteredVds.countVariants())
   }
 }
