@@ -60,7 +60,7 @@ object GenReport {
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext,
             nPartitions: Option[Int] = None, tolerance: Double = 0.02,
-            compress: Boolean = false, chromosome: Option[String] = None): GenResult = {
+            chromosome: Option[String] = None): GenResult = {
 
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
@@ -75,7 +75,7 @@ object GenLoader {
 
     val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
       .map(_.map { l =>
-        readGenLine(l, nSamples, tolerance, compress, reportAcc, chromosome)
+        readGenLine(l, nSamples, tolerance, reportAcc, chromosome)
       }.value)
 
     val signatures = TStruct("rsid" -> TString, "varid" -> TString)
@@ -84,7 +84,7 @@ object GenLoader {
   }
 
   def readGenLine(line: String, nSamples: Int,
-                  tolerance: Double, compress: Boolean,
+                  tolerance: Double,
                   reportAcc: Accumulable[mutable.Map[Int, Int], Int],
                   chromosome: Option[String] = None): (Variant, (Annotation, Iterable[Genotype])) = {
 
@@ -115,7 +115,7 @@ object GenLoader {
       fatal("Number of dosages does not match number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
     val dosageArray = new Array[Int](3)
-    val gsb = new GenotypeStreamBuilder(2, isDosage = true, compress)
+    val gsb = new GenotypeStreamBuilder(2, isDosage = true)
     val gb = new GenotypeBuilder(2, isDosage = true)
 
     for (i <- dosages.indices by 3) {

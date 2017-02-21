@@ -8,11 +8,11 @@ package object variant {
   type VariantDataset = VariantSampleMatrix[Genotype]
 
   class RichIterableGenotype(val ig: Iterable[Genotype]) extends AnyVal {
-    def toGenotypeStream(v: Variant, isDosage: Boolean, compress: Boolean): GenotypeStream =
+    def toGenotypeStream(v: Variant, isDosage: Boolean): GenotypeStream =
       ig match {
         case gs: GenotypeStream => gs
         case _ =>
-          val b: GenotypeStreamBuilder = new GenotypeStreamBuilder(v.nAlleles, isDosage = isDosage, compress = compress)
+          val b: GenotypeStreamBuilder = new GenotypeStreamBuilder(v.nAlleles, isDosage = isDosage)
           b ++= ig
           b.result()
       }

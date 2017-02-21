@@ -277,7 +277,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
-        compress = true,
         keepStar = true,
         isDosage = isDosage,
         insertSplitAnnots = { (va, index, wasSplit) =>
@@ -371,10 +370,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.withGenotypeStream().copy(rdd = vds.rdd.persist(level))
   }
 
-  def withGenotypeStream(compress: Boolean = true): VariantDataset = {
+  def withGenotypeStream(): VariantDataset = {
     val isDosage = vds.isDosage
     vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
-      (va, gs.toGenotypeStream(v, isDosage, compress = compress))
+      (va, gs.toGenotypeStream(v, isDosage))
     }.asOrderedRDD)
   }
 
@@ -1183,13 +1182,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   /**
     *
     * @param propagateGQ Propagate GQ instead of computing from PL
-    * @param compress Don't compress genotype streams
     * @param keepStar Do not filter * alleles
     * @param maxShift Maximum possible position change during minimum representation calculation
     */
-  def splitMulti(propagateGQ: Boolean = false, compress: Boolean = true, keepStar: Boolean = false,
+  def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false,
     maxShift: Int = 100): VariantDataset = {
-    SplitMulti(vds, propagateGQ, compress, keepStar, maxShift)
+    SplitMulti(vds, propagateGQ, keepStar, maxShift)
   }
 
   /**
@@ -1223,7 +1221,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     VEP.annotate(vds, config, root, csq, force, blockSize)
   }
 
-  def write(dirname: String, overwrite: Boolean = false, compress: Boolean = true) {
+  def write(dirname: String, overwrite: Boolean = false) {
     require(dirname.endsWith(".vds"), "variant dataset write paths must end in '.vds'")
 
     if (overwrite)
@@ -1231,7 +1229,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     else if (vds.hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
 
-    writeMetadata(vds.hc.sqlContext, dirname, compress)
+    writeMetadata(vds.hc.sqlContext, dirname)
 
     val vaSignature = vds.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
@@ -1244,7 +1242,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val rowRDD = vds.rdd.map { case (v, (va, gs)) =>
       Row.fromSeq(Array(v.toRow,
         if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-        gs.toGenotypeStream(v, isDosage, compress).toRow))
+        gs.toGenotypeStream(v, isDosage).toRow))
     }
     vds.hc.sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
@@ -1258,7 +1256,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       StructField("gs", GenotypeStream.schema, nullable = false)
     ))
 
-  private def writeMetadata(sqlContext: SQLContext, dirname: String, compress: Boolean = true) {
+  private def writeMetadata(sqlContext: SQLContext, dirname: String) {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -1303,10 +1301,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def writeKudu(dirname: String, tableName: String,
     master: String, vcfSeqDict: String, rowsPerPartition: Int,
-    sampleGroup: String, compress: Boolean = true, drop: Boolean = false) {
+    sampleGroup: String, drop: Boolean = false) {
     requireSplit("write Kudu")
 
-    writeMetadata(vds.hc.sqlContext, dirname, compress)
+    writeMetadata(vds.hc.sqlContext, dirname)
 
     val vaSignature = vds.vaSignature
     val isDosage = vds.isDosage
@@ -1317,7 +1315,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         KuduAnnotationImpex.exportAnnotation(Annotation(
           v.toRow,
           va,
-          gs.toGenotypeStream(v, isDosage, compress).toRow,
+          gs.toGenotypeStream(v, isDosage).toRow,
           sampleGroup), rowType).asInstanceOf[Row]
       }
 

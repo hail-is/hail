@@ -21,7 +21,7 @@ case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Lon
 object BgenLoader {
 
   def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, compress: Boolean, nPartitions: Option[Int] = None): VariantDataset = {
+    tolerance: Double, nPartitions: Option[Int] = None): VariantDataset = {
     require(files.nonEmpty)
     val samples = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
       .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
@@ -35,7 +35,6 @@ object BgenLoader {
 
     val nSamples = samples.length
 
-    hc.hadoopConf.setBoolean("compressGS", compress)
     hc.hadoopConf.setDouble("tolerance", tolerance)
 
     val sc = hc.sc

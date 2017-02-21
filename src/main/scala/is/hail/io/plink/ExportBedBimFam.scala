@@ -1,5 +1,6 @@
 package is.hail.io.plink
 
+import is.hail.utils.ByteArrayBuilder
 import is.hail.variant._
 
 import scala.collection.mutable
@@ -7,7 +8,7 @@ import scala.collection.mutable
 object ExportBedBimFam {
 
   def makeBedRow(gs: Iterable[Genotype]): Array[Byte] = {
-    val ab = new mutable.ArrayBuilder.ofByte()
+    val ab = new ByteArrayBuilder()
     var j = 0
     var b = 0
     for (g <- gs) {

@@ -145,7 +145,7 @@ object HailContext {
     logFile: String = "hail.log",
     quiet: Boolean = false,
     append: Boolean = false,
-    parquetCompression: String = "uncompressed",
+    parquetCompression: String = "snappy",
     blockSize: Long = 1L,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp"): HailContext = {
@@ -255,16 +255,14 @@ class HailContext private(val sc: SparkContext,
   def importBgen(file: String,
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None,
-    compress: Boolean = true): VariantDataset = {
-    importBgens(List(file), sampleFile, tolerance, nPartitions, compress)
+    nPartitions: Option[Int] = None): VariantDataset = {
+    importBgens(List(file), sampleFile, tolerance, nPartitions)
   }
 
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None,
-    compress: Boolean = true): VariantDataset = {
+    nPartitions: Option[Int] = None): VariantDataset = {
 
     val inputs = hadoopConf.globAll(files)
 
@@ -276,24 +274,22 @@ class HailContext private(val sc: SparkContext,
         fatal("unknown input file type")
     }
 
-    BgenLoader.load(this, inputs, sampleFile, tolerance, compress, nPartitions)
+    BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions)
   }
 
   def importGen(file: String,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2,
-    compress: Boolean = true): VariantDataset = {
-    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, compress)
+    tolerance: Double = 0.2): VariantDataset = {
+    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance)
   }
 
   def importGens(files: Seq[String],
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2,
-    compress: Boolean = true): VariantDataset = {
+    tolerance: Double = 0.2): VariantDataset = {
     val inputs = hadoopConf.globAll(files)
 
     if (inputs.isEmpty)
@@ -310,7 +306,7 @@ class HailContext private(val sc: SparkContext,
 
     //FIXME: can't specify multiple chromosomes
     val results = inputs.map(f => GenLoader(f, sampleFile, sc, nPartitions,
-      tolerance, compress, chromosome))
+      tolerance, chromosome))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.length > 0)
@@ -363,11 +359,9 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false,
-    compress: Boolean = true): VariantDataset = {
+    quantPheno: Boolean = false): VariantDataset = {
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
-    hadoopConf.setBoolean("compressGS", compress)
 
     PlinkLoader(this, bed, bim, fam,
       ffConfig, nPartitions)
@@ -377,10 +371,9 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false,
-    compress: Boolean = true): VariantDataset = {
+    quantPheno: Boolean = false): VariantDataset = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, compress)
+      nPartitions, delimiter, missing, quantPheno)
   }
 
   def read(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {
@@ -453,10 +446,9 @@ class HailContext private(val sc: SparkContext,
     sitesOnly: Boolean = false,
     storeGQ: Boolean = false,
     ppAsPL: Boolean = false,
-    skipBadAD: Boolean = false,
-    compress: Boolean = true): VariantDataset = {
+    skipBadAD: Boolean = false): VariantDataset = {
     importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, sitesOnly,
-      storeGQ, ppAsPL, skipBadAD, compress)
+      storeGQ, ppAsPL, skipBadAD)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
@@ -466,8 +458,7 @@ class HailContext private(val sc: SparkContext,
     sitesOnly: Boolean = false,
     storeGQ: Boolean = false,
     ppAsPL: Boolean = false,
-    skipBadAD: Boolean = false,
-    compress: Boolean = true): VariantDataset = {
+    skipBadAD: Boolean = false): VariantDataset = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
@@ -483,7 +474,6 @@ class HailContext private(val sc: SparkContext,
       header,
       inputs,
       storeGQ,
-      compress,
       nPartitions,
       sitesOnly,
       ppAsPL,

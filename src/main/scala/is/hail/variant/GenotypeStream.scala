@@ -3,10 +3,10 @@ package is.hail.variant
 import java.nio.ByteBuffer
 
 import is.hail.expr.{TBinary, TInt, TStruct, Type}
-import is.hail.utils.{ByteIterator, _}
+import is.hail.utils._
 import net.jpountz.lz4.LZ4Factory
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{StructType, _}
+import org.apache.spark.sql.types._
 
 import scala.collection.mutable
 
@@ -37,7 +37,7 @@ object LZ4Utils {
     compressed.take(compressedLen)
   }
 
-  def decompress(decompLen: Int, a: Array[Byte]) = {
+  def decompress(decompLen: Int, a: Array[Byte]): Array[Byte] = {
     val decomp = Array.ofDim[Byte](decompLen)
     val compLen = decompressor.decompress(a, 0, decomp, 0, decompLen)
     assert(compLen == a.length)
@@ -76,14 +76,6 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
       case Some(decompLen) =>
         GenotypeStream(nAlleles, isDosage, None, LZ4Utils.decompress(decompLen, a))
       case None => this
-    }
-  }
-
-  def compressed: GenotypeStream = {
-    decompLenOption match {
-      case Some(_) => this
-      case None =>
-        GenotypeStream(nAlleles, isDosage, Some(a.length), LZ4Utils.compress(a))
     }
   }
 
@@ -126,10 +118,10 @@ object GenotypeStream {
   }
 }
 
-class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false, compress: Boolean = true)
+class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false)
   extends mutable.Builder[Genotype, GenotypeStream] {
 
-  val b = new mutable.ArrayBuilder.ofByte
+  val b: ByteArrayBuilder = new ByteArrayBuilder()
 
   override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
     val gb = new GenotypeBuilder(nAlleles, isDosage)
@@ -152,11 +144,5 @@ class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false, compress: 
     b.clear()
   }
 
-  override def result(): GenotypeStream = {
-    val a = b.result()
-    if (compress)
-      GenotypeStream(nAlleles, isDosage, Some(a.length), LZ4Utils.compress(a))
-    else
-      GenotypeStream(nAlleles, isDosage, None, a)
-  }
+  override def result(): GenotypeStream = GenotypeStream(nAlleles, isDosage, None, b.result())
 }

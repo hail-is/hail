@@ -40,7 +40,7 @@ class HailContext(object):
     """
 
     def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
-                 log='hail.log', quiet=False, append=False, parquet_compression='uncompressed',
+                 log='hail.log', quiet=False, append=False, parquet_compression='snappy',
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
 
         from pyspark import SparkContext
@@ -123,7 +123,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None, compress=True):
+    def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
         """Import .bgen files as VariantDataset
 
         :param path: .bgen files to import.
@@ -139,18 +139,16 @@ class HailContext(object):
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
-        :param bool compress: compress in-memory representation on import
-
         :return A dataset imported from the bgen file.
         :rtype: :class:`.VariantDataset`
         """
 
         jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                     tolerance, joption(npartitions), True)
+                                     tolerance, joption(npartitions))
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None, compress=True):
+    def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None):
         """Import .gen files as VariantDataset.
 
         **Examples**
@@ -208,13 +206,11 @@ class HailContext(object):
         :param chromosome: Chromosome if not listed in the .gen file.
         :type chromosome: str or None
 
-        :param bool compress: compress in-memory representation
-
         :rtype: :class:`.VariantDataset`
         :return: A dataset imported from a .gen and .sample file.
         """
 
-        jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(npartitions), tolerance, compress)
+        jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(npartitions), tolerance)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -244,8 +240,7 @@ class HailContext(object):
         return KeyTable(self, jkt)
 
     @handle_py4j
-    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False,
-                     compress=True):
+    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """Import PLINK binary file (BED, BIM, FAM) as VariantDataset
 
         **Examples**
@@ -306,14 +301,12 @@ class HailContext(object):
 
         :param bool quantpheno: If True, FAM phenotype is interpreted as quantitative.
 
-        :param bool compress: Compress in-memory representation
-
         :return: A dataset imported from a PLINK binary file.
 
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jhc.importPlink(bed, bim, fam, joption(npartitions), delimiter, missing, quantpheno, compress)
+        jvds = self._jhc.importPlink(bed, bim, fam, joption(npartitions), delimiter, missing, quantpheno)
 
         return VariantDataset(self, jvds)
 
@@ -352,7 +345,7 @@ class HailContext(object):
 
     @handle_py4j
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
-                   sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, compress=False):
+                   sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
         """Import .vcf files as VariantDataset
 
         :param path: .vcf files to read.
@@ -380,8 +373,6 @@ class HailContext(object):
             wrong number of elements to missing, rather than setting
             the entire genotype to missing.
 
-        :param bool compress: compress in-memory representation
-
         :return: A dataset imported from the VCF file
         :rtype: :class:`.VariantDataset`
 
@@ -389,7 +380,7 @@ class HailContext(object):
 
         jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
                                     joption(npartitions), sites_only, store_gq,
-                                    pp_as_pl, skip_bad_ad, compress)
+                                    pp_as_pl, skip_bad_ad)
 
         return VariantDataset(self, jvds)
 

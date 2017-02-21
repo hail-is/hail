@@ -1493,7 +1493,7 @@ class VariantDataset(object):
         :param bool overwrite: If True, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
         """
 
-        self._jvdf.write(output, overwrite, True)
+        self._jvdf.write(output, overwrite)
 
     @handle_py4j
     def filter_alleles(self, condition, annotation='va = va', subset=True, keep=True,
@@ -3028,7 +3028,7 @@ class VariantDataset(object):
         return self._jvds.storageLevel()
 
     @handle_py4j
-    def split_multi(self, propagate_gq=False, compress=True, keep_star_alleles=False, max_shift=100):
+    def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
         **Examples**
@@ -3143,7 +3143,6 @@ class VariantDataset(object):
           smallest PL values.  Intended to be used in conjunction with
           ``import_vcf(store_gq=True)``.  This option will be obviated
           in the future by generic genotype schemas.  Experimental.
-        :param bool compress: Compress in-memory representation
         :param bool keep_star_alleles: Do not filter out * alleles.
         :param int max_shift: maximum number of base pairs by which
           a split variant can move.  Affects memory usage, and will
@@ -3154,7 +3153,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.splitMulti(propagate_gq, compress, keep_star_alleles, max_shift)
+        jvds = self._jvdf.splitMulti(propagate_gq, keep_star_alleles, max_shift)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

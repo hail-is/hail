@@ -409,7 +409,7 @@ object Genotype {
         f(i + 1, m, mi, count)
     }
 
-    f(0, 0, a(0), 1)
+    f(1, a(0), 0, 1)
   }
 
   def weightsToLinear[T: Numeric](a: Array[T]): Array[Int] = {
@@ -860,7 +860,7 @@ class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {
       setFakeRef()
   }
 
-  def write(b: mutable.ArrayBuilder[Byte]) {
+  def write(b: ByteArrayBuilder) {
     val hasGT = Genotype.flagHasGT(isBiallelic, flags)
     val hasAD = Genotype.flagHasAD(flags)
     val hasDP = Genotype.flagHasDP(flags)

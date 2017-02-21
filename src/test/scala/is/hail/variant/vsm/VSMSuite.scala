@@ -230,7 +230,7 @@ class VSMSuite extends SparkSuite {
       assert(sampleKeys.toSet == keep)
 
       val filteredOut = tmpDir.createTempFile("filtered", extension = ".vds")
-      filtered.write(filteredOut, compress = true)
+      filtered.write(filteredOut)
 
       assert(hc.read(filteredOut).same(filtered))
     }

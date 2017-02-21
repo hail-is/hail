@@ -18,7 +18,6 @@ object SplitMulti {
     va: Annotation,
     it: Iterable[Genotype],
     propagateGQ: Boolean,
-    compress: Boolean,
     isDosage: Boolean,
     keepStar: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation,
@@ -42,7 +41,7 @@ object SplitMulti {
       return Iterator()
 
     val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isDosage) }
-    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isDosage, compress) }
+    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isDosage) }
 
     for (g <- it) {
 
@@ -126,7 +125,7 @@ object SplitMulti {
       "."
     else str
 
-  def apply(vds: VariantDataset, propagateGQ: Boolean = false, compress: Boolean = true, keepStar: Boolean = false,
+  def apply(vds: VariantDataset, propagateGQ: Boolean = false, keepStar: Boolean = false,
     maxShift: Int = 100): VariantDataset = {
 
     if (vds.wasSplit) {
@@ -156,7 +155,6 @@ object SplitMulti {
       it.flatMap { case (v, (va, gs)) =>
         split(v, va, gs,
           propagateGQ = propagateGQ,
-          compress = compress,
           keepStar = keepStar,
           isDosage = isDosage,
           insertSplitAnnots = { (va, index, wasSplit) =>
@@ -171,7 +169,6 @@ object SplitMulti {
       LocalVariantSortIterator(it.flatMap { case (v, (va, gs)) =>
         split(v, va, gs,
           propagateGQ = propagateGQ,
-          compress = compress,
           keepStar = keepStar,
           isDosage = isDosage,
           insertSplitAnnots = { (va, index, wasSplit) =>

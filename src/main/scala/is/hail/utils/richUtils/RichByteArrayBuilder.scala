@@ -1,8 +1,10 @@
 package is.hail.utils.richUtils
 
+import is.hail.utils.ByteArrayBuilder
+
 import scala.collection.mutable
 
-class RichArrayBuilderOfByte(val b: mutable.ArrayBuilder[Byte]) extends AnyVal {
+class RichByteArrayBuilder(val b: ByteArrayBuilder) extends AnyVal {
   def writeULEB128(x0: Int) {
     require(x0 >= 0, s"tried to write negative ULEB value `${ x0 }'")
 

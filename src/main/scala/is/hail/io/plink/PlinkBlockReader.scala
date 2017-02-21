@@ -35,11 +35,10 @@ object PlinkBlockReader {
 class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[PlinkRecord](job, split) {
   var variantIndex: Long = 0L
   val nSamples = job.getInt("nSamples", 0)
-  val compressGS = job.getBoolean("compressGS", false)
   val blockLength = (nSamples + 3) / 4
 
   val gb = new GenotypeBuilder(2, isDosage = false)
-  val gsb = new GenotypeStreamBuilder(2, isDosage = false, compress = compressGS)
+  val gsb = new GenotypeStreamBuilder(2, isDosage = false)
 
   seekToFirstBlockInSplit(split.getStart)
 
