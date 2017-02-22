@@ -336,12 +336,12 @@ object Genotype {
 
   def schema: DataType = StructType(Array(
     StructField("gt", IntegerType),
-    StructField("ad", ArrayType(IntegerType)),
+    StructField("ad", ArrayType(IntegerType, containsNull = false)),
     StructField("dp", IntegerType),
     StructField("gq", IntegerType),
-    StructField("px", ArrayType(IntegerType)),
-    StructField("fakeRef", BooleanType),
-    StructField("isDosage", BooleanType)))
+    StructField("px", ArrayType(IntegerType, containsNull = false)),
+    StructField("fakeRef", BooleanType, nullable = false),
+    StructField("isDosage", BooleanType, nullable = false)))
 
   def t: Type = TStruct(
     "gt" -> TInt,
