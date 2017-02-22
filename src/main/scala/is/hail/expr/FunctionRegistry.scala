@@ -670,6 +670,7 @@ object FunctionRegistry {
   }(aggregableHr(boxedfloatHr), aggregableHr(boxeddoubleHr))
 
   registerMethod("split", (s: String, p: String) => s.split(p): IndexedSeq[String])
+  registerMethod("split", (s: String, p: String, n:Int) => s.split(p, n): IndexedSeq[String])
 
   registerMethod("oneHotAlleles", (g: Genotype, v: Variant) => g.oneHotAlleles(v).orNull)
 
