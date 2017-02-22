@@ -57,8 +57,10 @@ class ContextTests(unittest.TestCase):
 
         vcf.write('/tmp/sample.vds', overwrite=True)
         vds = hc.read('/tmp/sample.vds')
-
         self.assertTrue(vcf.same(vds))
+
+        vcf.write('/tmp/sample.pq.vds', parquet_genotypes=True, overwrite=True)
+        self.assertTrue(vcf.same(hc.read('/tmp/sample.pq.vds')))
 
         bn = hc.balding_nichols_model(3, 10, 100, 8)
         bn_count = bn.count()

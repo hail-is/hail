@@ -17,7 +17,7 @@ import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
 import org.apache.kudu.spark.kudu.{KuduContext, _}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -36,7 +36,7 @@ object VariantDataset {
     val sc = hc.sc
     val hConf = sc.hadoopConfiguration
 
-    val metadata = readMetadata(hConf, dirname, skipGenotypes)
+    val (metadata, parquetGenotypes) = readMetadata(hConf, dirname, skipGenotypes)
     val vaSignature = metadata.vaSignature
 
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
@@ -52,14 +52,25 @@ object VariantDataset {
           .map(row => (row.getVariant(0),
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
               Iterable.empty[Genotype])))
-      else
-        sqlContext.readParquetSorted(parquetFile)
-          .map { row =>
+      else {
+        val rdd = sqlContext.readParquetSorted(parquetFile)
+        if (parquetGenotypes)
+          rdd.map { row =>
+            val v = row.getVariant(0)
+            (v,
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                row.getSeq[Row](2).lazyMap { rg =>
+                  new RowGenotype(rg): Genotype
+                }))
+          }
+        else
+          rdd.map { row =>
             val v = row.getVariant(0)
             (v,
               (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
                 row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
           }
+      }
 
       val partitioner: OrderedPartitioner[Locus, Variant] =
         try {
@@ -81,7 +92,7 @@ object VariantDataset {
   }
 
   private def readMetadata(hConf: hadoop.conf.Configuration, dirname: String,
-    requireParquetSuccess: Boolean = true): VariantMetadata = {
+    requireParquetSuccess: Boolean = true): (VariantMetadata, Boolean) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
@@ -156,6 +167,15 @@ object VariantDataset {
       case _ => false
     }
 
+    val parquetGenotypes = fields.get("parquetGenotypes") match {
+      case Some(t: JBool) => t.value
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JBool' in field `parquetGenotypes', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case _ => false
+    }
+
     val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
     val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
     val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
@@ -179,14 +199,14 @@ object VariantDataset {
     val ids = sampleInfo.map(_._1)
     val annotations = sampleInfo.map(_._2)
 
-    VariantMetadata(ids, annotations, globalAnnotation,
-      saSignature, vaSignature, globalSignature, wasSplit, isDosage)
+    (VariantMetadata(ids, annotations, globalAnnotation,
+      saSignature, vaSignature, globalSignature, wasSplit, isDosage), parquetGenotypes)
   }
 
   def readKudu(hc: HailContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
-    val metadata = readMetadata(hc.hadoopConf, dirname, requireParquetSuccess = false)
+    val (metadata, _) = readMetadata(hc.hadoopConf, dirname, requireParquetSuccess = false)
     val vaSignature = metadata.vaSignature
     val isDosage = metadata.isDosage
 
@@ -1122,7 +1142,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def makeSchemaForKudu(): StructType =
-    makeSchema().add(StructField("sample_group", StringType, nullable = false))
+    makeSchema(parquetGenotypes = false).add(StructField("sample_group", StringType, nullable = false))
 
   /**
     *
@@ -1221,7 +1241,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     VEP.annotate(vds, config, root, csq, force, blockSize)
   }
 
-  def write(dirname: String, overwrite: Boolean = false) {
+  def write(dirname: String, overwrite: Boolean = false, parquetGenotypes: Boolean = false) {
     require(dirname.endsWith(".vds"), "variant dataset write paths must end in '.vds'")
 
     if (overwrite)
@@ -1229,7 +1249,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     else if (vds.hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
 
-    writeMetadata(vds.hc.sqlContext, dirname)
+    writeMetadata(vds.hc.sqlContext, dirname, parquetGenotypes = parquetGenotypes)
 
     val vaSignature = vds.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
@@ -1242,21 +1262,28 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val rowRDD = vds.rdd.map { case (v, (va, gs)) =>
       Row.fromSeq(Array(v.toRow,
         if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-        gs.toGenotypeStream(v, isDosage).toRow))
+        if (parquetGenotypes)
+          gs.lazyMap(_.toRow).toArray[Row]: IndexedSeq[Row]
+        else
+          gs.toGenotypeStream(v, isDosage).toRow))
     }
-    vds.hc.sqlContext.createDataFrame(rowRDD, makeSchema())
+    vds.hc.sqlContext.createDataFrame(rowRDD, makeSchema(parquetGenotypes = parquetGenotypes))
       .write.parquet(dirname + "/rdd.parquet")
-    // .saveAsParquetFile(dirname + "/rdd.parquet")
   }
 
-  def makeSchema(): StructType =
+  def makeSchema(parquetGenotypes: Boolean): StructType =
     StructType(Array(
       StructField("variant", Variant.schema, nullable = false),
       StructField("annotations", vds.vaSignature.schema),
-      StructField("gs", GenotypeStream.schema, nullable = false)
+      StructField("gs",
+        if (parquetGenotypes)
+          ArrayType(Genotype.schema, containsNull = false)
+        else
+          GenotypeStream.schema,
+        nullable = false)
     ))
 
-  private def writeMetadata(sqlContext: SQLContext, dirname: String) {
+  private def writeMetadata(sqlContext: SQLContext, dirname: String, parquetGenotypes: Boolean) {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -1289,6 +1316,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       ("version", JInt(VariantSampleMatrix.fileVersion)),
       ("split", JBool(vds.wasSplit)),
       ("isDosage", JBool(vds.isDosage)),
+      ("parquetGenotypes", JBool(parquetGenotypes)),
       ("sample_annotation_schema", JString(saSchemaString)),
       ("variant_annotation_schema", JString(vaSchemaString)),
       ("global_annotation_schema", JString(globalSchemaString)),
@@ -1304,7 +1332,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     sampleGroup: String, drop: Boolean = false) {
     requireSplit("write Kudu")
 
-    writeMetadata(vds.hc.sqlContext, dirname)
+    writeMetadata(vds.hc.sqlContext, dirname, parquetGenotypes = false)
 
     val vaSignature = vds.vaSignature
     val isDosage = vds.isDosage
