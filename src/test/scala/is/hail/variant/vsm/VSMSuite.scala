@@ -169,10 +169,20 @@ class VSMSuite extends SparkSuite {
     }
   }
 
-  @Test def testReadWrite() {
+  @Test def testWriteRead() {
     val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
-      val f = tmpDir.createTempFile(extension = ".vds")
+      val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f)
+      hc.read(f).same(vds)
+    }
+
+    p.check()
+  }
+
+  @Test def testWriteParquetRead() {
+    val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+      val f = tmpDir.createTempFile(extension = "vds")
+      vds.write(f, parquetGenotypes = true)
       hc.read(f).same(vds)
     }
 

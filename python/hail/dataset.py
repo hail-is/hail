@@ -1479,7 +1479,7 @@ class VariantDataset(object):
         self._jvdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
 
     @handle_py4j
-    def write(self, output, overwrite=False):
+    def write(self, output, overwrite=False, parquet_genotypes=False):
         """Write as VDS file.
 
         **Examples**
@@ -1488,12 +1488,15 @@ class VariantDataset(object):
 
         >>> vds.write("output/sample.vds")
 
-        :param str output: Path of .vds file to write.
+        :param str output: Path of VDS file to write.
 
         :param bool overwrite: If True, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
+
+        :param bool parquet_genotypes: If True, store genotypes as Parquet rather than Hail's serialization.  The resulting VDS will be larger and slower in Hail but the genotypes will be accessible from other tools that support Parquet.
+
         """
 
-        self._jvdf.write(output, overwrite)
+        self._jvdf.write(output, overwrite, parquet_genotypes)
 
     @handle_py4j
     def filter_alleles(self, condition, annotation='va = va', subset=True, keep=True,

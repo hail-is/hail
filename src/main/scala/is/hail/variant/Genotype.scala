@@ -54,8 +54,6 @@ class GTPair(val p: Int) extends AnyVal {
 }
 
 abstract class Genotype extends Serializable {
-  val fakeRef: Boolean
-  val isDosage: Boolean
 
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
@@ -97,7 +95,6 @@ abstract class Genotype extends Serializable {
       .append(isDosage)
       .toHashCode
 
-  def unboxedGT: Int
 
   def gt: Option[Int] =
     if (unboxedGT >= 0)
@@ -105,19 +102,37 @@ abstract class Genotype extends Serializable {
     else
       None
 
+  def unboxedGT: Int
+
   def ad: Option[Array[Int]]
 
   def dp: Option[Int]
 
-  def od: Option[Int]
+  def od: Option[Int] =
+    dp.flatMap(dpx =>
+      ad.map(adx => dpx - adx.sum))
 
   def gq: Option[Int]
 
   def px: Option[Array[Int]]
 
-  def pl: Option[Array[Int]]
+  def fakeRef: Boolean
 
-  def dosage: Option[Array[Double]]
+  def isDosage: Boolean
+
+  def pl: Option[Array[Int]] =
+    px.map(x =>
+      if (isDosage)
+        Genotype.linearToPhred(x)
+      else
+        x)
+
+  def dosage: Option[Array[Double]] =
+    px.map(x =>
+      if (isDosage)
+        x.map(_ / 32768.0)
+      else
+        Genotype.phredToDosage(x))
 
   def isHomRef: Boolean = unboxedGT == 0
 
@@ -264,6 +279,43 @@ abstract class Genotype extends Serializable {
     ("px", px.map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)),
     ("fakeRef", JBool(fakeRef)),
     ("isDosage", JBool(isDosage)))
+}
+
+class RowGenotype(r: Row) extends Genotype {
+  def unboxedGT: Int =
+    if (r.isNullAt(0))
+      -1
+    else
+      r.getInt(0)
+
+  def ad: Option[Array[Int]] =
+    if (r.isNullAt(1))
+      None
+    else
+      Some(r.getSeq(1).toArray)
+
+  def dp: Option[Int] =
+    if (r.isNullAt(2))
+      None
+    else
+      Some(r.getInt(2))
+
+  def gq: Option[Int] =
+    if (r.isNullAt(3))
+      None
+    else
+      Some(r.getInt(3))
+
+  def px: Option[Array[Int]] =
+    if (r.isNullAt(4))
+      None
+    else
+      Some(r.getSeq(4).toArray)
+
+  // not nullable
+  def fakeRef: Boolean = r.getBoolean(5)
+
+  def isDosage: Boolean = r.getBoolean(6)
 }
 
 object Genotype {
@@ -755,12 +807,6 @@ class GenericGenotype(private val _gt: Int,
     else
       None
 
-  def od: Option[Int] =
-    if (_dp >= 0 && _ad != null)
-      Some(_dp - _ad.sum)
-    else
-      None
-
   def gq: Option[Int] =
     if (_gq >= 0)
       Some(_gq)
@@ -768,22 +814,6 @@ class GenericGenotype(private val _gt: Int,
       None
 
   def px: Option[Array[Int]] = Option(_px)
-
-  def pl: Option[Array[Int]] =
-    if (_px == null)
-      None
-    else if (!isDosage)
-      Some(_px)
-    else
-      Some(Genotype.linearToPhred(_px))
-
-  def dosage: Option[Array[Double]] =
-    if (_px == null)
-      None
-    else if (isDosage)
-      Some(_px.map(_ / 32768.0))
-    else
-      Some(Genotype.phredToDosage(_px))
 }
 
 class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {
