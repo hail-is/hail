@@ -413,4 +413,20 @@ package object utils extends Logging
            |  $msg""".stripMargin)
     }
   }
+
+  def box(i: Int): java.lang.Integer = i
+  def box(l: Long): java.lang.Long = l
+  def box(f: Float): java.lang.Float = f
+  def box(d: Double): java.lang.Double = d
+  def box(b: Boolean): java.lang.Boolean = b
+
+  def intArraySum(a: Array[Int]): Int = {
+    var s = 0
+    var i = 0
+    while (i < a.length) {
+      s += a(i)
+      i += 1
+    }
+    s
+  }
 }
