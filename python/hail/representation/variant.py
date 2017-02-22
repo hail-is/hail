@@ -74,6 +74,7 @@ class Variant(object):
     def contig(self):
         """
         Chromosome identifier.
+
         :rtype: str
         """
         return self._contig
@@ -82,6 +83,7 @@ class Variant(object):
     def start(self):
         """
         Chromosomal position (1-based).
+
         :rtype: int
         """
         return self._start
