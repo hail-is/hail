@@ -8,8 +8,6 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 
-import scala.collection.mutable
-
 object LogisticRegression {
 
   def apply(vds: VariantDataset, test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
