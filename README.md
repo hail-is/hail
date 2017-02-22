@@ -17,7 +17,7 @@ Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06
 
 [![Hail keynote at Spark Summit East 2017](www/hail_spark_summit.png)](https://www.youtube.com/watch?v=6WoPZ3_nIXc)
 
-#### Interactive Hail Tutorial
+#### Interactive Tutorial
 
 We've partnered with [Databricks](https://databricks.com/) so you can explore Hail's functionality on data from the [1000 Genomes Project](http://www.internationalgenome.org/) in just a few clicks.
 
