@@ -48,7 +48,7 @@ Several Hail commands provide the ability to perform a broad array of computatio
      - length: `str.length` -- returns the length of the string
      - concatenate: `str1 + str2` -- returns the two strings joined start-to-end
      - split: `str.split(delimiter)` -- returns an array of strings, split on the given regular expression `delimiter`. If you need to    split on special characters, escape them with double backslash (\\\\). See Regular expression syntax: https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html
-     - split: `str.split(delimiter, limit)` -- returns an array of strings, split on the given regular expression `delimiter`. `limit` controls the maximum number of splits. Setting `limit` to negative disables limiting the number of splits and trailing empty strings are preserved, so "a,b,,".split(",", -1) gives ["a", "b", "", ""] whereas "a,b,,".split(",") gives ["a","b"].
+     - split: `str.split(delimiter, limit)` -- returns an array of strings, split on the given regular expression `delimiter`. `limit` controls the maximum number of splits. Setting `limit` to negative disables limiting the number of splits. Trailing empty strings are preserved, so ",a,b,,".split(",", -1) gives ["", "a", "b", "", ""] whereas ",a,b,,".split(",") gives ["", "a", "b"].
 
  - String conversions:
     - toInt: `str.toInt`
