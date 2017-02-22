@@ -54,7 +54,7 @@ object LinearRegression {
 
     vds.mapAnnotations { case (v, va, gs) =>
       val lrb = new LinRegBuilder(yBc.value)
-      gs.iterator.zipWithIndex.foreach { case (g, i) => if (sampleMaskBc.value(i)) lrb.merge(g) }
+      gs.hardCallIterator.zipWithIndex.foreach { case (gt, i) => if (sampleMaskBc.value(i)) lrb.merge(gt) }
 
       val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC)
         .map { stats =>

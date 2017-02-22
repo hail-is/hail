@@ -59,16 +59,14 @@ object LogisticRegression {
     val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
     val emptyStats = logRegTest.emptyStats
 
-    vds.mapAnnotations { case (v, va, gs) =>
-      val maskedGts = gs.zipWithIndex.filter { case (g, i) => sampleMaskBc.value(i) }.map(_._1.gt)
+    vds.mapAnnotations{ case (v, va, gs) =>
+      val maskedGts = gs.hardCallIterator.zipWithIndex.filter{ case (g, i) => sampleMaskBc.value(i) }.map(_._1).toArray
 
       val logregAnnot =
-        buildGtColumn(maskedGts)
-          .map { gts =>
-            val X = DenseMatrix.horzcat(covBc.value, gts)
-            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
-          }
-          .orNull
+        buildGtColumn(maskedGts).map { gts =>
+          val X = DenseMatrix.horzcat(covBc.value, gts)
+          logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
+        }
 
       val newAnnotation = inserter(va, logregAnnot)
       assert(newVAS.typeCheck(newAnnotation))
