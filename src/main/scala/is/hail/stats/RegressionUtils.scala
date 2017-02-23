@@ -79,7 +79,6 @@ object RegressionUtils {
     else {
       val gtMean = gtSum.toDouble / nCalled
       val gtArray = gts.map(g => if (g != -1) g.toDouble else gtMean).toArray
-      println(gtArray.toIndexedSeq)
       Some(new DenseMatrix(gtArray.length, 1, gtArray))
     }
   }
@@ -121,7 +120,7 @@ class SparseGtBuilder extends Serializable {
     this
   }
 
-  def toSparseGtVector(nSamples: Int): SparseGtVectorAndStats = {
+  def toSparseGtVectorAndStats(nSamples: Int): SparseGtVectorAndStats = {
     val missingRowIndicesArray = missingRowIndices.result()
     val nMissing = missingRowIndicesArray.size
     val nPresent = nSamples - nMissing

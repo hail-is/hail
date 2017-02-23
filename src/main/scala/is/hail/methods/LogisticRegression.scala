@@ -60,7 +60,7 @@ object LogisticRegression {
     val emptyStats = logRegTest.emptyStats
 
     vds.mapAnnotations{ case (v, va, gs) =>
-      val maskedGts = gs.hardCallIterator.zipWithIndex.filter{ case (g, i) => sampleMaskBc.value(i) }.map(_._1).toArray
+      val maskedGts = gs.hardCallIterator.unsafeFilter(sampleMaskBc.value.toIterator).toArray
 
       val logregAnnot =
         buildGtColumn(maskedGts).map { gts =>
