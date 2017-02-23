@@ -143,15 +143,15 @@ class ConcordanceSuite extends SparkSuite {
       val (_, innerJoinQuery) = samples.querySA("sa.concordance.map(x => x[1:])[1:]")
 
       samples.sampleIdsAndAnnotations.foreach { case (s, sa) =>
-        assert(queryUnique1Sum(sa).contains(uniqueVds2Variants))
-        assert(queryUnique2Sum(sa).contains(uniqueVds1Variants))
-        assert(innerJoinQuery(sa).contains(innerJoinSamples(s)))
+        assert(queryUnique1Sum(sa) == uniqueVds2Variants)
+        assert(queryUnique2Sum(sa) == uniqueVds1Variants)
+        assert(innerJoinQuery(sa) == innerJoinSamples(s))
       }
 
       val (_, variantQuery) = variants.queryVA("va.concordance")
       variants.variantsAndAnnotations.collect()
         .foreach { case (v, va) =>
-          innerJoinVariants.get(v).forall(variantQuery(va).contains)
+          innerJoinVariants.get(v).forall(variantQuery(va) == _)
         }
       true
     }.check()

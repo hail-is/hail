@@ -28,7 +28,7 @@ class InfoScoreSuite extends SparkSuite {
     val (_, nQuerier) = vds.queryVA("va.infoScore.nIncluded")
 
     val hailResult = vds.rdd.mapValues { case (va, gs) =>
-      (infoQuerier(va).map(_.asInstanceOf[Double]), nQuerier(va).map(_.asInstanceOf[Int]))
+      (Option(infoQuerier(va)).map(_.asInstanceOf[Double]), Option(nQuerier(va)).map(_.asInstanceOf[Int]))
     }
       .map { case (v, (info, n)) => (v.toString, (info, n)) }.collectAsMap()
 

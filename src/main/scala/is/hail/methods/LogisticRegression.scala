@@ -23,18 +23,18 @@ object LogisticRegression {
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
-    if (! y.forall(yi => yi == 0d || yi == 1d))
+    if (!y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all values equal to 0 or 1")
 
     if (!tests.isDefinedAt(test))
-      fatal(s"Supported tests are ${tests.keys.mkString(", ")}, got: $test")
+      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
 
     val n = y.size
     val k = cov.cols
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
     info(s"Running $test logreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
@@ -44,9 +44,9 @@ object LogisticRegression {
     if (!nullFit.converged)
       fatal("Failed to fit (unregulatized) logistic regression null model (covariates only): " + (
         if (nullFit.exploded)
-         s"exploded at Newton iteration ${nullFit.nIter}"
+          s"exploded at Newton iteration ${ nullFit.nIter }"
         else
-         "Newton iteration failed to converge"))
+          "Newton iteration failed to converge"))
 
     val sc = vds.sparkContext
     val sampleMaskBc = sc.broadcast(sampleMask)
@@ -59,14 +59,16 @@ object LogisticRegression {
     val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
     val emptyStats = logRegTest.emptyStats
 
-    vds.mapAnnotations{ case (v, va, gs) =>
-      val maskedGts = gs.zipWithIndex.filter{ case (g, i) => sampleMaskBc.value(i) }.map(_._1.gt)
+    vds.mapAnnotations { case (v, va, gs) =>
+      val maskedGts = gs.zipWithIndex.filter { case (g, i) => sampleMaskBc.value(i) }.map(_._1.gt)
 
       val logregAnnot =
-        buildGtColumn(maskedGts).map { gts =>
-          val X = DenseMatrix.horzcat(covBc.value, gts)
-          logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
-        }
+        buildGtColumn(maskedGts)
+          .map { gts =>
+            val X = DenseMatrix.horzcat(covBc.value, gts)
+            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
+          }
+          .orNull
 
       val newAnnotation = inserter(va, logregAnnot)
       assert(newVAS.typeCheck(newAnnotation))

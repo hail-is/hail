@@ -24,14 +24,14 @@ class AnnotateGlobalSuite extends SparkSuite {
     val qSingleton = vds.querySA("sa.qc.nSingleton")._2
 
     val sCount = vds.sampleAnnotations.count(sa =>
-      qSingleton(sa).exists(_.asInstanceOf[Int] > 2))
+      qSingleton(sa).asInstanceOf[Int] > 2)
 
     assert(singStats == sCount)
 
     val qAF = vds.queryVA("va.qc.AF")._2
     val afSC = vds.variantsAndAnnotations.map(_._2)
       .aggregate(new StatCounter())({ case (statC, va) =>
-        val af = qAF(va)
+        val af = Option(qAF(va))
         af.foreach(o => statC.merge(o.asInstanceOf[Double]))
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2) })
@@ -41,7 +41,7 @@ class AnnotateGlobalSuite extends SparkSuite {
     val qAC = vds.queryVA("va.qc.AC")._2
     val acSC = vds.variantsAndAnnotations.map(_._2)
       .aggregate(new StatCounter())({ case (statC, va) =>
-        val ac = qAC(va)
+        val ac = Option(qAC(va))
         ac.foreach(o => statC.merge(o.asInstanceOf[Int]))
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2) })
@@ -51,7 +51,7 @@ class AnnotateGlobalSuite extends SparkSuite {
     val qCR = vds.querySA("sa.qc.callRate")._2
     val crSC = vds.sampleAnnotations
       .aggregate(new StatCounter())({ case (statC, sa) =>
-        val cr = qCR(sa)
+        val cr = Option(qCR(sa))
         cr.foreach(o => statC.merge(o.asInstanceOf[Double]))
         statC
       }, { case (sc1, sc2) => sc1.merge(sc2) })
@@ -84,8 +84,8 @@ class AnnotateGlobalSuite extends SparkSuite {
 
     val (_, anno1) = vds.queryGlobal("global.geneList")
     val (_, anno2) = vds.queryGlobal("global.array")
-    assert(anno1.contains(toWrite1.toSet))
-    assert(anno2.contains(toWrite2: IndexedSeq[Any]))
+    assert(anno1 == toWrite1.toSet)
+    assert(anno2 == (toWrite2: IndexedSeq[Any]))
   }
 
   @Test def testTable() {
@@ -113,13 +113,13 @@ class AnnotateGlobalSuite extends SparkSuite {
       ("PLI", TDouble),
       ("EXAC_LOF_COUNT", TInt))))
 
-    assert(res.contains(IndexedSeq(
+    assert(res == IndexedSeq(
       Annotation("Gene1", "0.12312".toDouble, 2),
       Annotation("Gene2", "0.99123".toDouble, 0),
       Annotation("Gene3", null, null),
       Annotation("Gene4", "0.9123".toDouble, 10),
       Annotation("Gene5", "0.0001".toDouble, 202)
-    )))
+    ))
 
   }
 }

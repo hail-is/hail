@@ -75,7 +75,7 @@ class ImputeSexSuite extends SparkSuite {
           val (_, fQuery) = mappedVDS.querySA("sa.imputesex.Fstat")
 
           val hailResult = mappedVDS.sampleIdsAndAnnotations.map { case (sample, sa) =>
-            (sample, (imputedSexQuery(sa).map(_.asInstanceOf[Int]), fQuery(sa).map(_.asInstanceOf[Double])))
+            (sample, (Option(imputedSexQuery(sa)).map(_.asInstanceOf[Int]), Option(fQuery(sa)).map(_.asInstanceOf[Double])))
           }.toMap
 
           assert(plinkResult.keySet == hailResult.keySet)

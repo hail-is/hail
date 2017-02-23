@@ -32,14 +32,14 @@ object RegressionUtils {
     val yToDouble = toDouble(yT, ySA)
     val yIS = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       ec.setAll(s, sa)
-      yQ().map(yToDouble)
+      Option(yQ()).map(yToDouble)
     }
 
     val (covT, covQ) = Parser.parseExprs(covSA.mkString(","), ec)
     val covToDouble = (covT, covSA).zipped.map(toDouble)
     val covIS = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       ec.setAll(s, sa)
-      (covQ(), covToDouble).zipped.map(_.map(_))
+      (covQ().map(Option(_)), covToDouble).zipped.map(_.map(_))
     }
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =

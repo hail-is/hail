@@ -50,13 +50,13 @@ class LinearRegressionSuite extends SparkSuite {
       .toMap
 
     def assertInt(q: Querier, v: Variant, value: Int) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Int], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Int], value))
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Double], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
 
     def assertEmpty(q: Querier, v: Variant) =
-      assert(q(annotationMap(v)).isEmpty)
+      assert(q(annotationMap(v)) == null)
 
     /*
     comparing to output of R code:
@@ -135,10 +135,10 @@ class LinearRegressionSuite extends SparkSuite {
       .toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Double], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
 
     def assertEmpty(q: Querier, v: Variant) =
-      assert(q(annotationMap(v)).isEmpty)
+      assert(q(annotationMap(v)) == null)
 
     /*
     comparing to output of R code:
@@ -205,13 +205,13 @@ class LinearRegressionSuite extends SparkSuite {
       .toMap
 
     def assertInt(q: Querier, v: Variant, value: Int) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Int], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Int], value))
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Double], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
 
     def assertEmpty(q: Querier, v: Variant) =
-      assert(q(annotationMap(v)).isEmpty)
+      assert(q(annotationMap(v)) == null)
 
     /*
     comparing to output of R code:
@@ -282,13 +282,13 @@ class LinearRegressionSuite extends SparkSuite {
       .toMap
 
     def assertInt(q: Querier, v: Variant, value: Int) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Int], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Int], value))
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Double], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
 
     def assertEmpty(q: Querier, v: Variant) =
-      assert(q(annotationMap(v)).isEmpty)
+      assert(q(annotationMap(v)) == null)
 
     /*
     comparing to output of R code:
@@ -379,29 +379,29 @@ class LinearRegressionSuite extends SparkSuite {
 
     def qBeta = vds.queryVA("va.linreg.beta")._2
 
-    assert(qBeta(annotationMap(v1)).isEmpty)
-    assert(qBeta(annotationMap(v2)).isDefined)
+    assert(qBeta(annotationMap(v1)) == null)
+    assert(qBeta(annotationMap(v2)) != null)
 
     // only 6 samples are included, so 12 alleles total
     vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.3)
 
-    assert(qBeta(annotationMap(v1)).isEmpty)
-    assert(qBeta(annotationMap(v2)).isDefined)
+    assert(qBeta(annotationMap(v1)) == null)
+    assert(qBeta(annotationMap(v2)) != null)
 
     vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.4)
 
-    assert(qBeta(annotationMap(v1)).isEmpty)
-    assert(qBeta(annotationMap(v2)).isEmpty)
+    assert(qBeta(annotationMap(v1)) == null)
+    assert(qBeta(annotationMap(v2)) == null)
 
     vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 0.3)
 
-    assert(qBeta(annotationMap(v1)).isEmpty)
-    assert(qBeta(annotationMap(v2)).isDefined)
+    assert(qBeta(annotationMap(v1)) == null)
+    assert(qBeta(annotationMap(v2)) != null)
 
     vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", 5, 0.1)
 
-    assert(qBeta(annotationMap(v1)).isEmpty)
-    assert(qBeta(annotationMap(v2)).isEmpty)
+    assert(qBeta(annotationMap(v1)) == null)
+    assert(qBeta(annotationMap(v2)) == null)
   }
 
   @Test def testFiltersFatals() {

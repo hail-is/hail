@@ -207,6 +207,6 @@ object VariantQC {
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature, "qc")
     vds.mapAnnotationsWithAggregate(new VariantQCCombiner, newVAS)((comb, v, va, s, sa, g) => comb.merge(g),
       (comb1, comb2) => comb1.merge(comb2),
-      (va, comb) => insertQC(va, Some(comb.asAnnotation)))
+      (va, comb) => insertQC(va, comb.asAnnotation))
   }
 }

@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{EvalContext, Parser, TVariant, Type}
+import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
@@ -210,12 +210,14 @@ object IBD {
   def generateComputeMaf(vaSignature: Type, computeMafExpr: String): (Variant, Annotation) => Double = {
     val mafSymbolTable = Map("v" -> (0, TVariant), "va" -> (1, vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
-    val computeMafThunk = Parser.parseTypedExpr[Double](computeMafExpr, mafEc)
+    val computeMafThunk = Parser.parseTypedExpr[Any](computeMafExpr, mafEc)(boxeddoubleHr)
 
     { (v: Variant, va: Annotation) =>
       mafEc.setAll(v, va)
-      val maf = computeMafThunk()
-        .getOrElse(fatal(s"The minor allele frequency expression evaluated to NA on variant $v."))
+      val maf = computeMafThunk().asInstanceOf[java.lang.Double]
+
+      if (maf == null)
+        fatal(s"The minor allele frequency expression evaluated to NA on variant $v.")
 
       if (maf < 0.0 || maf > 1.0)
         fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
@@ -235,7 +237,8 @@ object IBD {
     computeIBDMatrix(vds, computeMaf, bounded)
       .filter { case (_, ibd) =>
         min.forall(ibd.ibd.PI_HAT >= _) &&
-        max.forall(ibd.ibd.PI_HAT <= _) }
+          max.forall(ibd.ibd.PI_HAT <= _)
+      }
       .map { case ((i, j), ibd) => ((sampleIds(i), sampleIds(j)), ibd) }
   }
 }

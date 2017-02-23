@@ -158,7 +158,7 @@ object SplitMulti {
           keepStar = keepStar,
           isDosage = isDosage,
           insertSplitAnnots = { (va, index, wasSplit) =>
-            insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+            insertSplit(insertIndex(va, index), wasSplit)
           },
           f = (v: Variant) => partitionerBc.value.getPartition(v) != i)
       }
@@ -172,7 +172,7 @@ object SplitMulti {
           keepStar = keepStar,
           isDosage = isDosage,
           insertSplitAnnots = { (va, index, wasSplit) =>
-            insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+            insertSplit(insertIndex(va, index), wasSplit)
           },
           f = (v: Variant) => partitionerBc.value.getPartition(v) == i)
       }, localMaxShift)

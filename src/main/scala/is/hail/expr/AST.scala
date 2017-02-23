@@ -347,14 +347,14 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         if (rhs.length != 1)
           parseError("str expects 1 argument")
         if (!rhs.head.`type`.isRealizable)
-          parseError(s"Argument to str has unrealizable type: ${rhs.head.`type`}")
+          parseError(s"Argument to str has unrealizable type: ${ rhs.head.`type` }")
         TString
 
       case ("json", rhs) =>
         if (rhs.length != 1)
           parseError("json expects 1 argument")
         if (!rhs.head.`type`.isRealizable)
-          parseError(s"Argument to json has unrealizable type: ${rhs.head.`type`}")
+          parseError(s"Argument to json has unrealizable type: ${ rhs.head.`type` }")
         TString
 
       case ("merge", rhs) =>
@@ -507,8 +507,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
       AST.evalCompose[IndexedSeq[_]](ec, structArray) { is =>
         is.filter(_ != null)
-          .map(_.asInstanceOf[Row])
-          .flatMap(r => querier(r).map(x => (x, deleter(r))))
+          .map { r => (querier(r), deleter(r)) }
+          .filter { case (k, v) => k != null }
           .toMap
       }
 
@@ -588,7 +588,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
           .valueOr(x => fatal(x.message))
 
       case _ => FunctionRegistry.lookupAggregatorTransformation(ec)(t, args.map(_.`type`).toSeq, method)(lhs, args)
-          .valueOr(x => fatal(x.message))
+        .valueOr(x => fatal(x.message))
     }
   }
 }

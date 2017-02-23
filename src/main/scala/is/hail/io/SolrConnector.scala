@@ -231,7 +231,7 @@ object SolrConnector {
               vparsed.foreach {
                 case (name, spec, t, f) =>
                   vEC.setAll(v, va)
-                  f().foreach(x => documentAddField(document, escapeString(name), t, x))
+                  documentAddField(document, escapeString(name), t, f())
               }
 
               gs.iterator.zipWithIndex.foreach {
@@ -243,7 +243,7 @@ object SolrConnector {
                       case (name, spec, t, f) =>
                         gEC.setAll(v, va, s, sa, g)
                         // __ can't appear in escaped string
-                        f().foreach(x => documentAddField(document, escapeString(s) + "__" + escapeString(name), t, x))
+                        documentAddField(document, escapeString(s) + "__" + escapeString(name), t, f())
                     }
                   }
               }

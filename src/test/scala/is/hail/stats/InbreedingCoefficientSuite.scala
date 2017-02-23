@@ -69,7 +69,7 @@ class InbreedingCoefficientSuite extends SparkSuite {
           val (_, nCalledQuery) = vds3.querySA("sa.het.nCalled")
 
           val hailResult = vds3.sampleIdsAndAnnotations.map { case (sample, sa) =>
-            (sample, (fQuery(sa).map(_.asInstanceOf[Double]), obsHomQuery(sa).map(_.asInstanceOf[Long]), expHomQuery(sa).map(_.asInstanceOf[Double]), nCalledQuery(sa).map(_.asInstanceOf[Long])))
+            (sample, (Option(fQuery(sa)).map(_.asInstanceOf[Double]), Option(obsHomQuery(sa)).map(_.asInstanceOf[Long]), Option(expHomQuery(sa)).map(_.asInstanceOf[Double]), Option(nCalledQuery(sa)).map(_.asInstanceOf[Long])))
           }.toMap
 
           assert(plinkResult.keySet == hailResult.keySet)

@@ -43,8 +43,8 @@ class ImportAnnotationsSuite extends SparkSuite {
       .forall {
         case (id, sa) =>
           fileMap.get(id).forall { case (status, qphen) =>
-            status.liftedZip(q1(sa)).exists { case (v1, v2) => v1 == v2 } &&
-              (qphen.isEmpty && q2(sa).isEmpty || qphen.liftedZip(q2(sa)).exists { case (v1, v2) => v1 == v2 })
+            status.liftedZip(Option(q1(sa))).exists { case (v1, v2) => v1 == v2 } &&
+              (qphen.isEmpty && Option(q2(sa)).isEmpty || qphen.liftedZip(Option(q2(sa))).exists { case (v1, v2) => v1 == v2 })
           }
       })
   }
@@ -61,7 +61,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       val q = vds.querySA(query)._2
       vds.sampleIds
         .zip(vds.sampleAnnotations)
-        .map { case (id, sa) => (id, q(sa)) }
+        .map { case (id, sa) => (id, Option(q(sa))) }
         .toMap
     }
 
@@ -127,9 +127,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     val (_, querier2) = vds.querySA("sa.test2")
     val (_, querier3) = vds.querySA("sa.test3")
 
-    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier1(sa).get == false })
-    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier3(sa).get == true })
-    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier2(sa).get == sampleList2.contains(sample) })
+    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier1(sa) == false })
+    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier3(sa) == true })
+    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier2(sa) == sampleList2.contains(sample) })
   }
 
   @Test def testVariantTSVAnnotator() {
@@ -161,7 +161,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .foreach {
         case (v, (va, gs)) =>
           val (rand1, rand2, gene) = fileMap(v)
-          assert(q1(va).contains(Annotation(rand1.getOrElse(null), rand2.getOrElse(null), gene.getOrElse(null))))
+          assert(q1(va) == Annotation(rand1.getOrElse(null), rand2.getOrElse(null), gene.getOrElse(null)))
       }
 
     val anno1alternate = vds.annotateVariantsTable("src/test/resources/variantAnnotations.alternateformat.tsv",
@@ -195,12 +195,12 @@ class ImportAnnotationsSuite extends SparkSuite {
       .collect()
       .toMap
 
-    val q = anno1.queryVA("va.other")._2
+    val (_, q) = anno1.queryVA("va.other")
 
     anno1.rdd.collect()
       .foreach {
         case (v, (va, gs)) =>
-          assert(q(va) == otherMap.get(v))
+          assert(q(va) == otherMap.getOrElse(v, null))
       }
   }
 
@@ -223,16 +223,16 @@ class ImportAnnotationsSuite extends SparkSuite {
         case (v, va) =>
           assert(v.start <= 14000000 ||
             v.start >= 17000000 ||
-            q1(va).contains(false))
+            q1(va) == false)
       }
 
     bed2r.variantsAndAnnotations
       .collect()
       .foreach {
         case (v, va) =>
-          (v.start <= 14000000 && q2(va).contains("gene1")) ||
-            (v.start >= 17000000 && q2(va).contains("gene2")) ||
-            q2(va).isEmpty
+          (v.start <= 14000000 && q2(va) == "gene1") ||
+            (v.start >= 17000000 && q2(va) == "gene2") ||
+            q2(va) == null
       }
 
     assert(bed3r.same(bed2r))
@@ -317,7 +317,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .zipWithIndex
       .foreach {
         case (s, i) =>
-          assert(q(vds2.sampleAnnotations(i)) == Some(5))
+          assert(q(vds2.sampleAnnotations(i)) == 5)
       }
 
   }

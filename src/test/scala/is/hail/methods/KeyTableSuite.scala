@@ -139,8 +139,8 @@ class KeyTableSuite extends SparkSuite {
     val (_, leftJoinKeyQuery) = ktLeftJoin.query("Sample")
     val (_, rightJoinKeyQuery) = ktRightJoin.query("Sample")
 
-    val leftKeys = ktLeft.rdd.map { case (k, v) => leftKeyQuery(k, v).map(_.asInstanceOf[String]) }.collect().toSet
-    val rightKeys = ktRight.rdd.map { case (k, v) => rightKeyQuery(k, v).map(_.asInstanceOf[String]) }.collect().toSet
+    val leftKeys = ktLeft.rdd.map { case (k, v) => Option(leftKeyQuery(k, v)).map(_.asInstanceOf[String]) }.collect().toSet
+    val rightKeys = ktRight.rdd.map { case (k, v) => Option(rightKeyQuery(k, v)).map(_.asInstanceOf[String]) }.collect().toSet
 
     val nIntersectRows = leftKeys.intersect(rightKeys).size
     val nUnionRows = rightKeys.union(leftKeys).size
@@ -150,7 +150,7 @@ class KeyTableSuite extends SparkSuite {
       ktLeftJoin.nKeys == nExpectedKeys &&
       ktLeftJoin.nValues == nExpectedValues &&
       ktLeftJoin.filter { case (k, v) =>
-        !rightKeys.contains(leftJoinKeyQuery(k, v).map(_.asInstanceOf[String]))
+        !rightKeys.contains(Option(leftJoinKeyQuery(k, v)).map(_.asInstanceOf[String]))
       }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
     )
 
@@ -158,7 +158,7 @@ class KeyTableSuite extends SparkSuite {
       ktRightJoin.nKeys == nExpectedKeys &&
       ktRightJoin.nValues == nExpectedValues &&
       ktRightJoin.filter { case (k, v) =>
-        !leftKeys.contains(rightJoinKeyQuery(k, v).map(_.asInstanceOf[String]))
+        !leftKeys.contains(Option(rightJoinKeyQuery(k, v)).map(_.asInstanceOf[String]))
       }.forall("isMissing(Status) && isMissing(qPhen)"))
 
     assert(ktOuterJoin.nRows == nUnionRows &&

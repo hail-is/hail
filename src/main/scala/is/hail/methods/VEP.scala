@@ -178,7 +178,7 @@ object VEP {
     val rootType =
       vds.vaSignature.getOption(parsedRoot)
         .filter { t =>
-          val r = t == (if(csq) TString else vepSignature)
+          val r = t == (if (csq) TString else vepSignature)
           if (!r) {
             if (force)
               warn(s"type for $parsedRoot does not match vep signature, overwriting.")
@@ -229,20 +229,20 @@ object VEP {
 
     val cmd =
       Array(
-      perl,
-      s"$location",
-      "--format", "vcf",
-        if(csq) "--vcf" else "--json",
-      "--everything",
-      "--allele_number",
-      "--no_stats",
-      "--cache", "--offline",
-      "--dir", s"$cacheDir",
-      "--fasta", s"$cacheDir/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
-      "--minimal",
-      "--assembly", "GRCh37",
-      "--plugin", s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile",
-      "-o", "STDOUT")
+        perl,
+        s"$location",
+        "--format", "vcf",
+        if (csq) "--vcf" else "--json",
+        "--everything",
+        "--allele_number",
+        "--no_stats",
+        "--cache", "--offline",
+        "--dir", s"$cacheDir",
+        "--fasta", s"$cacheDir/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
+        "--minimal",
+        "--assembly", "GRCh37",
+        "--plugin", s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile",
+        "-o", "STDOUT")
 
     val inputQuery = vepSignature.query("input")
 
@@ -260,7 +260,7 @@ object VEP {
           env.put("PATH", path)
 
         it.filter { case (v, va) =>
-          rootQuery.flatMap(q => q(va)).isEmpty
+          rootQuery.forall(q => q(va) == null)
         }
           .map { case (v, _) => v }
           .grouped(localBlockSize)
@@ -269,15 +269,15 @@ object VEP {
             printElement,
             _ => ())
             .map { s =>
-              if(csq) {
-                csq_regex.findFirstIn(s).map(x => (variantFromInput(s), x.substring(4)))
-              }else{
+              if (csq) {
+                val x = csq_regex.findFirstIn(s).get
+                (variantFromInput(s), x.substring(4))
+              } else {
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
-                val v = variantFromInput(inputQuery(a).get.asInstanceOf[String])
-                Option((v, a))
+                val v = variantFromInput(inputQuery(a).asInstanceOf[String])
+                (v, a)
               }
             }
-            .flatten
             .toArray
             .sortBy(_._1))
       }, preservesPartitioning = true)
@@ -285,7 +285,7 @@ object VEP {
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    val (newVASignature, insertVEP) = vds.vaSignature.insert( if(csq) TString else vepSignature, parsedRoot)
+    val (newVASignature, insertVEP) = vds.vaSignature.insert(if (csq) TString else vepSignature, parsedRoot)
 
     val newRDD = vds.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>

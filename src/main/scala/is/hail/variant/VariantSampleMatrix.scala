@@ -172,13 +172,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val ktRDD = mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
         keyEC.setAll(localGlobalAnnotation, v, va, s, sa, g)
-        val key = Annotation.fromSeq(keyF().map(_.orNull))
+        val key = Annotation.fromSeq(keyF())
         (key, Annotation(localGlobalAnnotation, v, va, s, sa, g))
       }
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
-        (k, Annotation.fromSeq(aggF().map(_.orNull)))
+        (k, Annotation.fromSeq(aggF()))
       }
 
     KeyTable(hc, ktRDD, keySignature, valueSignature)
@@ -355,7 +355,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def annotateGlobal(a: Annotation, t: Type, code: String): VariantSampleMatrix[T] = {
     val (newT, i) = insertGlobal(t, Parser.parseAnnotationRoot(code, Annotation.GLOBAL_HEAD))
-    copy(globalSignature = newT, globalAnnotation = i(globalAnnotation, Option(a)))
+    copy(globalSignature = newT, globalAnnotation = i(globalAnnotation, a))
   }
 
   /**
@@ -417,7 +417,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (newGlobalSig, inserter) = insertGlobal(sig, rootPath)
 
     copy(
-      globalAnnotation = inserter(globalAnnotation, Some(toInsert)),
+      globalAnnotation = inserter(globalAnnotation, toInsert),
       globalSignature = newGlobalSig)
   }
 
@@ -451,7 +451,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       .collect(): IndexedSeq[Annotation]
 
     copy(
-      globalAnnotation = inserter(globalAnnotation, Some(table)),
+      globalAnnotation = inserter(globalAnnotation, table),
       globalSignature = finalType)
   }
 
@@ -460,7 +460,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val isBc = sparkContext.broadcast(is)
     val (newSignature, inserter) = insertVA(TBoolean, path)
     copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
-      (inserter(va, Some(isBc.value.contains(Locus(v.contig, v.start)))), gs)
+      (inserter(va, isBc.value.contains(v.locus)), gs)
     }.asOrderedRDD,
       vaSignature = newSignature)
   }
@@ -479,16 +479,16 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
       val queries = isBc.value.query(v.locus)
       val toIns = if (all)
-        Some(queries.flatMap(mBc.value))
+        queries.flatMap(mBc.value)
       else {
-        queries.flatMap(mBc.value).headOption
+        queries.flatMap(mBc.value).headOption.orNull
       }
       (inserter(va, toIns), gs)
     }.asOrderedRDD,
       vaSignature = newSignature)
   }
 
-  def annotateSamples(signature: Type, path: List[String], annotation: (String) => Option[Annotation]): VariantSampleMatrix[T] = {
+  def annotateSamples(signature: Type, path: List[String], annotation: (String) => Annotation): VariantSampleMatrix[T] = {
     val (t, i) = insertSA(signature, path)
     annotateSamples(annotation, t, i)
   }
@@ -533,7 +533,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def annotateSamples(annotations: Map[String, Annotation], signature: Type, code: String): VariantSampleMatrix[T] = {
     val (t, i) = insertSA(signature, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
-    annotateSamples(annotations.get _, t, i)
+    annotateSamples(s => annotations.getOrElse(s, null), t, i)
   }
 
   def annotateSamplesTable(path: String, sampleExpr: String,
@@ -548,7 +548,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (struct, rdd) = TextTableReader.read(sparkContext)(Array(path), config)
 
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
+    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
       if (isCode) {
         val ec = EvalContext(Map(
           "sa" -> (0, saSignature),
@@ -560,11 +560,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val sampleQuery = struct.parseInStructScope[String](sampleExpr)
 
     val map = rdd
-      .flatMap {
+      .map {
         _.map { a =>
-          sampleQuery(a).map(s => (s, a))
+          (sampleQuery(a), a)
         }.value
       }
+      .filter { case (s, a) => s != null }
       .collect()
       .toMap
 
@@ -579,7 +580,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       warn(s"There were ${ onlyTable.size } samples present in the table but not in the VDS.")
     }
 
-    annotateSamples(map.get _, finalType, inserter)
+    annotateSamples(s => map.getOrElse(s, null), finalType, inserter)
   }
 
   def annotateSamplesVDS(other: VariantSampleMatrix[_],
@@ -592,7 +593,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       case _ => fatal("this module requires one of `root' or 'code', but not both")
     }
 
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
+    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
       if (isCode) {
         val ec = EvalContext(Map(
           "sa" -> (0, saSignature),
@@ -602,10 +603,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         insertSA(other.saSignature, Parser.parseAnnotationRoot(annotationExpr, Annotation.SAMPLE_HEAD))
 
     val m = other.sampleIdsAndAnnotations.toMap
-    annotateSamples(m.get _, finalType, inserter)
+    annotateSamples(s => m.getOrElse(s, null), finalType, inserter)
   }
 
-  def annotateSamples(annotation: (String) => Option[Annotation], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
+  def annotateSamples(annotation: (String) => Annotation, newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
       val sa = sampleAnnotations(i)
       val newAnnotation = inserter(sa, annotation(id))
@@ -688,11 +689,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val thisRdd = rdd.map { case (v, (va, gs)) =>
       vdsKeyEc.setAll(v, va)
-      (Annotation.fromSeq(vdsKeyFs.map(f => f().orNull)), (v, va))
+      (Annotation.fromSeq(vdsKeyFs.map(_ ())), (v, va))
     }
 
     val variantKeyedRdd = ktRdd.join(thisRdd)
-      .map { case (_, (table, (v, va))) => (v, inserter(va, Some(table))) }
+      .map { case (_, (table, (v, va))) => (v, inserter(va, table)) }
 
     val ordRdd = OrderedRDD(variantKeyedRdd, None, None)
 
@@ -724,7 +725,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       case _ => fatal("this module requires one of `root' or 'code', but not both")
     }
 
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
+    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
       if (isCode) {
         val ec = EvalContext(Map(
           "va" -> (0, vaSignature),
@@ -736,11 +737,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
 
     import is.hail.variant.LocusImplicits.orderedKey
-    val lociRDD = locusRDD.flatMap {
+    val lociRDD = locusRDD.map {
       _.map { a =>
-        locusQuery(a).map(l => (l, a))
+        (locusQuery(a), a)
       }.value
-    }.toOrderedRDD(rdd.orderedPartitioner.mapMonotonic)
+    }
+      .filter { case (l, a) => l != null }
+      .toOrderedRDD(rdd.orderedPartitioner.mapMonotonic)
 
     annotateLoci(lociRDD, finalType, inserter)
   }
@@ -752,7 +755,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val newRDD = rdd
       .mapMonotonic(OrderedKeyFunction(_.locus), { case (v, vags) => (v, vags) })
       .orderedLeftJoinDistinct(lociRDD)
-      .map { case (l, ((v, (va, gs)), annotation)) => (v, (inserter(va, annotation), gs)) }
+      .map { case (l, ((v, (va, gs)), annotation)) => (v, (inserter(va, annotation.orNull), gs)) }
 
     // we safely use the non-shuffling apply method of OrderedRDD because orderedLeftJoinDistinct preserves the
     // (Variant) ordering of the left RDD
@@ -783,21 +786,24 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       case _ => fatal("this module requires one of `root' or 'code', but not both")
     }
 
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
+    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
       if (isCode) {
         val ec = EvalContext(Map(
           "va" -> (0, vaSignature),
           "table" -> (1, struct)))
         Annotation.buildInserter(annotationExpr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else insertVA(struct, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
+      } else
+        insertVA(struct, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
 
     val variantQuery = struct.parseInStructScope[Variant](variantExpr)
 
-    val keyedRDD = variantRDD.flatMap {
+    val keyedRDD = variantRDD.map {
       _.map { a =>
-        variantQuery(a).map(v => (v, a))
+        (variantQuery(a), a)
       }.value
-    }.toOrderedRDD(rdd.orderedPartitioner)
+    }
+      .filter { case (v, a) => v != null }
+      .toOrderedRDD(rdd.orderedPartitioner)
 
     annotateVariants(keyedRDD, finalType, inserter)
   }
@@ -806,7 +812,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     inserter: Inserter): VariantSampleMatrix[T] = {
     val newRDD = rdd.orderedLeftJoinDistinct(otherRDD)
       .mapValues { case ((va, gs), annotation) =>
-        (inserter(va, annotation), gs)
+        (inserter(va, annotation.orNull), gs)
       }.asOrderedRDD
     copy(rdd = newRDD, vaSignature = newSignature)
   }
@@ -820,7 +826,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       case _ => fatal("this module requires one of `root' or 'code', but not both")
     }
 
-    val (finalType, inserter): (Type, (Annotation, Option[Annotation]) => Annotation) =
+    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
       if (isCode) {
         val ec = EvalContext(Map(
           "va" -> (0, vaSignature),
@@ -1097,14 +1103,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     copy(rdd = minrepped.smartShuffleAndSort(rdd.orderedPartitioner, maxShift))
   }
 
-  def queryGlobal(path: String): (Type, Option[Annotation]) = {
+  def queryGlobal(path: String): (Type, Annotation) = {
     val st = Map(Annotation.GLOBAL_HEAD -> (0, globalSignature))
     val ec = EvalContext(st)
     val a = ec.a
 
     val (t, f) = Parser.parseExpr(path, ec)
 
-    val f2: Annotation => Option[Any] = { annotation =>
+    val f2: Annotation => Any = { annotation =>
       a(0) = annotation
       f()
     }
@@ -1120,7 +1126,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (t, f) = Parser.parseExpr(code, ec)
 
-    val f2: Annotation => Option[Any] = { annotation =>
+    val f2: Annotation => Any = { annotation =>
       a(0) = annotation
       f()
     }
@@ -1155,7 +1161,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     resOp(results)
     ec.set(0, localGlobalAnnotation)
 
-    ts.map { case (t, f) => (f().orNull, t) }.toArray
+    ts.map { case (t, f) => (f(), t) }.toArray
   }
 
   def queryVA(code: String): (Type, Querier) = {
@@ -1166,7 +1172,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (t, f) = Parser.parseExpr(code, ec)
 
-    val f2: Annotation => Option[Any] = { annotation =>
+    val f2: Annotation => Any = { annotation =>
       a(0) = annotation
       f()
     }
@@ -1204,7 +1210,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     resOp(result)
 
     ec.setAll(localGlobalAnnotation)
-    ts.map { case (t, f) => (f().orNull, t) }.toArray
+    ts.map { case (t, f) => (f(), t) }.toArray
   }
 
   /**
