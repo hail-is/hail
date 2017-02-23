@@ -7,23 +7,19 @@ abstract class IntIterator {
   def hasNext: Boolean
 
   // requires that hasNext is called exactly once between each call to nextInt
-  def unsafeFilter(that: Iterator[Boolean]): IntIterator = {
-    val it = this
-
-    new IntIterator {
-      def nextInt(): Int = it.nextInt()
+  def unsafeFilter(that: Iterator[Boolean]): IntIterator = new IntIterator {
+      def nextInt(): Int = IntIterator.this.nextInt()
 
       def hasNext: Boolean = {
-        while (that.hasNext && it.hasNext) {
+        while (that.hasNext && IntIterator.this.hasNext) {
           if (that.next())
             return true
           else
-            it.nextInt()
+            IntIterator.this.nextInt()
         }
         false
       }
     }
-  }
 
   def toArray: Array[Int] = {
     val b = new mutable.ArrayBuilder.ofInt
@@ -32,13 +28,10 @@ abstract class IntIterator {
     b.result()
   }
 
-  def toBoxedIntIterator: Iterator[Int] = {
-    val it = this
-    new Iterator[Int] {
-      def hasNext: Boolean = it.hasNext
-      def next(): Int = it.nextInt()
+  def toBoxedIntIterator: Iterator[Int] = new Iterator[Int] {
+      def hasNext: Boolean = IntIterator.this.hasNext
+      def next(): Int = IntIterator.this.nextInt()
     }
-  }
 
   def foreach(f: Int => Unit) {
     while (hasNext)
