@@ -200,8 +200,6 @@ object FunctionRegistry {
       case f: UnarySpecial[_, _] =>
         val t = lhs.eval(ec)
         () => f(t)
-      case f: OptionUnaryFun[_, _] =>
-        AST.evalFlatCompose(ec, lhs)(f)
       case f: BinaryFun[_, _, _] =>
         AST.evalCompose(ec, lhs, args(0))(f)
       case f: BinarySpecial[_, _, _] =>
@@ -298,8 +296,6 @@ object FunctionRegistry {
       case f: UnarySpecial[_, _] =>
         val t = args(0).eval(ec)
         () => f(t)
-      case f: OptionUnaryFun[_, _] =>
-        AST.evalFlatCompose(ec, args(0))(f)
       case f: BinaryFun[_, _, _] =>
         AST.evalCompose(ec, args(0), args(1))(f)
       case f: BinarySpecial[_, _, _] =>
@@ -364,16 +360,6 @@ object FunctionRegistry {
   def registerSpecial[T, U](name: String, impl: (() => Any) => U)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FunType(hrt.typ), UnarySpecial[T, U](hru.typ, impl))
-  }
-
-  def registerOptionMethod[T, U](name: String, impl: T => Option[U])
-    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, MethodType(hrt.typ), OptionUnaryFun[T, U](hru.typ, impl))
-  }
-
-  def registerOption[T, U](name: String, impl: T => Option[U])
-    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
-    bind(name, FunType(hrt.typ), OptionUnaryFun[T, U](hru.typ, impl))
   }
 
   def registerUnaryNAFilteredCollectionMethod[T, U](name: String, impl: TraversableOnce[T] => U)
@@ -473,15 +459,50 @@ object FunctionRegistry {
     def typ = TV
   }
 
-  registerOptionMethod("gt", { (x: Genotype) => x.gt })
-  registerOptionMethod("gtj", { (x: Genotype) => x.gt.map(gtx => Genotype.gtPair(gtx).j) })
-  registerOptionMethod("gtk", { (x: Genotype) => x.gt.map(gtx => Genotype.gtPair(gtx).k) })
-  registerOptionMethod("ad", { (x: Genotype) => x.ad.map(a => a: IndexedSeq[Int]) })
-  registerOptionMethod("dp", { (x: Genotype) => x.dp })
-  registerOptionMethod("od", { (x: Genotype) => x.od })
-  registerOptionMethod("gq", { (x: Genotype) => x.gq })
-  registerOptionMethod("pl", { (x: Genotype) => x.pl.map(a => a: IndexedSeq[Int]) })
-  registerOptionMethod("dosage", { (x: Genotype) => x.dosage.map(a => a: IndexedSeq[Double]) })
+  registerMethod("gt", { (x: Genotype) =>
+    val gt = x.unboxedGT
+    if (gt == -1)
+      null
+    else
+      box(gt)
+  })
+  registerMethod("gtj", { (x: Genotype) =>
+    val gt = x.unboxedGT
+    if (gt == -1)
+      null
+    else
+      box(Genotype.gtPair(gt).j)
+  })
+  registerMethod("gtk", { (x: Genotype) =>
+    val gt = x.unboxedGT
+    if (gt == -1)
+      null
+    else
+      box(Genotype.gtPair(gt).k)
+  })
+  registerMethod("ad", { (x: Genotype) => x.unboxedAD: IndexedSeq[Int] })
+  registerMethod("dp", { (x: Genotype) =>
+    val dp = x.unboxedDP
+    if (dp == -1)
+      null
+    else
+      box(dp)
+  })
+  registerMethod("od", { (x: Genotype) =>
+    if (x.hasOD)
+      box(x.od_)
+    else
+      null
+  })
+  registerMethod("gq", { (x: Genotype) =>
+    val gq = x.unboxedGQ
+    if (gq == -1)
+      null
+    else
+      box(gq)
+  })
+  registerMethod("pl", { (x: Genotype) => x.unboxedPL: IndexedSeq[Int] })
+  registerMethod("dosage", { (x: Genotype) => x.unboxedDosage: IndexedSeq[Double] })
   registerMethod("isHomRef", { (x: Genotype) => x.isHomRef })
   registerMethod("isHet", { (x: Genotype) => x.isHet })
   registerMethod("isHomVar", { (x: Genotype) => x.isHomVar })
@@ -490,9 +511,28 @@ object FunctionRegistry {
   registerMethod("isHetRef", { (x: Genotype) => x.isHetRef })
   registerMethod("isCalled", { (x: Genotype) => x.isCalled })
   registerMethod("isNotCalled", { (x: Genotype) => x.isNotCalled })
-  registerOptionMethod("nNonRefAlleles", { (x: Genotype) => x.nNonRefAlleles })
-  registerOptionMethod("pAB", { (x: Genotype) => x.pAB() })
-  registerOptionMethod("fractionReadsRef", { (x: Genotype) => x.fractionReadsRef() })
+  registerMethod("nNonRefAlleles", { (x: Genotype) =>
+    if (x.hasNNonRefAlleles)
+      box(x.nNonRefAlleles_)
+    else
+      null
+  })(genotypeHr, boxedintHr)
+  registerMethod("pAB", { (x: Genotype) =>
+    if (x.hasPAB)
+      box(x.pAB_())
+    else
+      null
+  })
+  registerMethod("fractionReadsRef", { (x: Genotype) =>
+    if (x.unboxedAD != null) {
+      val s = intArraySum(x.unboxedAD)
+      if (s != 0)
+        box(x.unboxedAD(0).toDouble / s)
+      else
+        null
+    } else
+      null
+  })
   registerMethod("fakeRef", { (x: Genotype) => x.fakeRef })
   registerMethod("isDosage", { (x: Genotype) => x.isDosage })
   registerMethod("contig", { (x: Variant) => x.contig })
@@ -534,25 +574,25 @@ object FunctionRegistry {
   registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Float]) => x.sum })
   registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Double]) => x.sum })
 
-  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Int]) => if (x.nonEmpty) x.min else null })(intHr, boxedintHr)
-  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Long]) => if (x.nonEmpty) x.min else null })(longHr, boxedlongHr)
-  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Float]) => if (x.nonEmpty) x.min else null })(floatHr, boxedfloatHr)
-  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Double]) => if (x.nonEmpty) x.min else null })(doubleHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.min) else null })(intHr, boxedintHr)
+  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.min) else null })(longHr, boxedlongHr)
+  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.min) else null })(floatHr, boxedfloatHr)
+  registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.min) else null })(doubleHr, boxeddoubleHr)
 
-  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Int]) => if (x.nonEmpty) x.max else null })(intHr, boxedintHr)
-  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Long]) => if (x.nonEmpty) x.max else null })(longHr, boxedlongHr)
-  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Float]) => if (x.nonEmpty) x.max else null })(floatHr, boxedfloatHr)
-  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Double]) => if (x.nonEmpty) x.max else null })(doubleHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.max) else null })(intHr, boxedintHr)
+  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.max) else null })(longHr, boxedlongHr)
+  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.max) else null })(floatHr, boxedfloatHr)
+  registerUnaryNAFilteredCollectionMethod("max", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.max) else null })(doubleHr, boxeddoubleHr)
 
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Int]) => if (x.nonEmpty) breeze.stats.median(DenseVector(x.toArray)) else null })(intHr, boxedintHr)
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Long]) => if (x.nonEmpty) breeze.stats.median(DenseVector(x.toArray)) else null })(longHr, boxedlongHr)
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Float]) => if (x.nonEmpty) breeze.stats.median(DenseVector(x.toArray)) else null })(floatHr, boxedfloatHr)
-  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Double]) => if (x.nonEmpty) breeze.stats.median(DenseVector(x.toArray)) else null })(doubleHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null })(intHr, boxedintHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null })(longHr, boxedlongHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null })(floatHr, boxedfloatHr)
+  registerUnaryNAFilteredCollectionMethod("median", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(breeze.stats.median(DenseVector(x.toArray))) else null })(doubleHr, boxeddoubleHr)
 
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Int]) => if (x.nonEmpty) x.sum / x.size.toDouble else null })(intHr, boxeddoubleHr)
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Long]) => if (x.nonEmpty) x.sum / x.size.toDouble else null })(longHr, boxeddoubleHr)
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Float]) => if (x.nonEmpty) x.sum / x.size.toDouble else null })(floatHr, boxeddoubleHr)
-  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Double]) => if (x.nonEmpty) x.sum / x.size.toDouble else null })(doubleHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null })(intHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null })(longHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Float]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null })(floatHr, boxeddoubleHr)
+  registerUnaryNAFilteredCollectionMethod("mean", { (x: TraversableOnce[Double]) => if (x.nonEmpty) box(x.sum / x.size.toDouble) else null })(doubleHr, boxeddoubleHr)
 
   register("range", { (x: Int) => 0 until x: IndexedSeq[Int] })
   register("range", { (x: Int, y: Int) => x until y: IndexedSeq[Int] })
@@ -600,9 +640,9 @@ object FunctionRegistry {
 
   register("pnorm", { (x: Double) => pnorm(x) })
   register("qnorm", { (p: Double) => qnorm(p) })
-  
-  register("pchisqtail", { (x: Double, df:Double) => chiSquaredTail(df, x) })
-  register("qchisqtail", { (p: Double, df:Double) => inverseChiSquaredTail(df, p) })
+
+  register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(df, x) })
+  register("qchisqtail", { (p: Double, df: Double) => inverseChiSquaredTail(df, p) })
 
   register("!", (a: Boolean) => !a)
 
@@ -611,60 +651,60 @@ object FunctionRegistry {
   registerConversion { (x: Int) => x.toLong }
   registerConversion { (x: Float) => x.toDouble }
 
-  registerConversion((x: IndexedSeq[Any]) => x.map { xi =>
+  registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
     if (xi == null)
       null
     else
-      xi.asInstanceOf[Int].toDouble
+      box(xi.toDouble)
   }, priority = 2)(arrayHr(boxedintHr), arrayHr(boxeddoubleHr))
 
-  registerConversion((x: IndexedSeq[Any]) => x.map { xi =>
+  registerConversion((x: IndexedSeq[java.lang.Long]) => x.map { xi =>
     if (xi == null)
       null
     else
-      xi.asInstanceOf[Long].toDouble
+      box(xi.toDouble)
   })(arrayHr(boxedlongHr), arrayHr(boxeddoubleHr))
 
-  registerConversion((x: IndexedSeq[Any]) => x.map { xi =>
+  registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
     if (xi == null)
       null
     else
-      xi.asInstanceOf[Int].toLong
+      box(xi.asInstanceOf[Int].toLong)
   })(arrayHr(boxedintHr), arrayHr(boxedlongHr))
 
-  registerConversion((x: IndexedSeq[Any]) => x.map { xi =>
+  registerConversion((x: IndexedSeq[java.lang.Float]) => x.map { xi =>
     if (xi == null)
       null
     else
-      xi.asInstanceOf[Float].toDouble
+      box(xi.toDouble)
   })(arrayHr(boxedfloatHr), arrayHr(boxeddoubleHr))
 
   register("gtj", (i: Int) => Genotype.gtPair(i).j)
   register("gtk", (i: Int) => Genotype.gtPair(i).k)
   register("gtIndex", (j: Int, k: Int) => Genotype.gtIndex(j, k))
 
-  registerConversion((x: Any) =>
+  registerConversion((x: java.lang.Integer) =>
     if (x != null)
-      x.asInstanceOf[Int].toDouble
+      box(x.toDouble)
     else
       null, priority = 2)(aggregableHr(boxedintHr), aggregableHr(boxeddoubleHr))
-  registerConversion { (x: Any) =>
+  registerConversion { (x: java.lang.Long) =>
     if (x != null)
-      x.asInstanceOf[Long].toDouble
+      box(x.toDouble)
     else
       null
   }(aggregableHr(boxedlongHr), aggregableHr(boxeddoubleHr))
 
-  registerConversion { (x: Any) =>
+  registerConversion { (x: java.lang.Integer) =>
     if (x != null)
-      x.asInstanceOf[Int].toLong
+      box(x.toLong)
     else
       null
   }(aggregableHr(boxedintHr), aggregableHr(boxedlongHr))
 
-  registerConversion { (x: Any) =>
+  registerConversion { (x: java.lang.Float) =>
     if (x != null)
-      x.asInstanceOf[Float].toDouble
+      box(x.toDouble)
     else
       null
   }(aggregableHr(boxedfloatHr), aggregableHr(boxeddoubleHr))
@@ -890,7 +930,7 @@ object FunctionRegistry {
       def typ = InbreedingCombiner.signature
     })
 
-  registerLambdaAggregator[Any, (Any) => Any, Any]("fraction", (f: (Any) => Any) => new FractionAggregator(f))(
+  registerLambdaAggregator[Any, (Any) => Any, java.lang.Double]("fraction", (f: (Any) => Any) => new FractionAggregator(f))(
     aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boxeddoubleHr)
 
   registerAggregator("take", (n: Int) => new TakeAggregator(n))(
@@ -1063,10 +1103,12 @@ object FunctionRegistry {
   register("%", (x: Int, y: Int) => java.lang.Math.floorMod(x, y))
   register("%", (x: Long, y: Long) => java.lang.Math.floorMod(x, y))
   register("%", (x: Float, y: Float) => {
-    val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
+    val t = x % y
+    if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
   })
   register("%", (x: Double, y: Double) => {
-    val t = x % y; if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
+    val t = x % y
+    if (x >= 0 && y > 0 || x <= 0 && y < 0 || t == 0) t else t + y
   })
 
   register("+", (x: String, y: Any) => x + y)(stringHr, TTHr, stringHr)
@@ -1080,14 +1122,14 @@ object FunctionRegistry {
     val x1 = f1()
     if (x1 != null) {
       if (x1.asInstanceOf[Boolean])
-        true
+        box(true)
       else
-        f2()
+        f2().asInstanceOf[java.lang.Boolean]
     } else {
       val x2 = f2()
       if (x2 != null
         && x2.asInstanceOf[Boolean])
-        true
+        box(true)
       else
         null
     }
@@ -1097,14 +1139,14 @@ object FunctionRegistry {
     val x = f1()
     if (x != null) {
       if (x.asInstanceOf[Boolean])
-        f2()
+        f2().asInstanceOf[java.lang.Boolean]
       else
-        false
+        box(false)
     } else {
       val x2 = f2()
       if (x2 != null
         && !x2.asInstanceOf[Boolean])
-        false
+        box(false)
       else
         null
     }

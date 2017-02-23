@@ -210,11 +210,11 @@ object IBD {
   def generateComputeMaf(vaSignature: Type, computeMafExpr: String): (Variant, Annotation) => Double = {
     val mafSymbolTable = Map("v" -> (0, TVariant), "va" -> (1, vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
-    val computeMafThunk = Parser.parseTypedExpr[Any](computeMafExpr, mafEc)(boxeddoubleHr)
+    val computeMafThunk = Parser.parseTypedExpr[java.lang.Double](computeMafExpr, mafEc)
 
     { (v: Variant, va: Annotation) =>
       mafEc.setAll(v, va)
-      val maf = computeMafThunk().asInstanceOf[java.lang.Double]
+      val maf = computeMafThunk()
 
       if (maf == null)
         fatal(s"The minor allele frequency expression evaluated to NA on variant $v.")

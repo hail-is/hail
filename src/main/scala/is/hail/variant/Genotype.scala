@@ -55,6 +55,36 @@ class GTPair(val p: Int) extends AnyVal {
 
 abstract class Genotype extends Serializable {
 
+  def unboxedGT: Int
+
+  def unboxedAD: Array[Int]
+
+  def unboxedDP: Int
+
+  def unboxedGQ: Int
+
+  def unboxedPX: Array[Int]
+
+  def fakeRef: Boolean
+
+  def isDosage: Boolean
+
+  def unboxedPL: Array[Int] =
+    if (unboxedPX == null)
+      null
+    else if (isDosage)
+      Genotype.linearToPhred(unboxedPX)
+    else
+      unboxedPX
+
+  def unboxedDosage: Array[Double] =
+    if (unboxedPX == null)
+      null
+    else if (isDosage)
+      unboxedPX.map(_ / 32768.0)
+    else
+      Genotype.phredToDosage(unboxedPX)
+
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
     assert(gt.forall(i => i >= 0 && i < nGenotypes))
@@ -97,42 +127,40 @@ abstract class Genotype extends Serializable {
 
 
   def gt: Option[Int] =
-    if (unboxedGT >= 0)
+    if (unboxedGT == -1)
+      None
+    else
       Some(unboxedGT)
+
+  def ad: Option[Array[Int]] = Option(unboxedAD)
+
+  def dp: Option[Int] =
+    if (unboxedDP == -1)
+      None
+    else
+      Some(unboxedDP)
+
+  def hasOD: Boolean = unboxedDP != -1 && unboxedAD != null
+
+  def od_ : Int = unboxedDP - intArraySum(unboxedAD)
+
+  def od: Option[Int] =
+    if (hasOD)
+      Some(od_)
     else
       None
 
-  def unboxedGT: Int
+  def gq: Option[Int] =
+    if (unboxedGQ == -1)
+      None
+    else
+      Some(unboxedGQ)
 
-  def ad: Option[Array[Int]]
+  def px: Option[Array[Int]] = Option(unboxedPX)
 
-  def dp: Option[Int]
+  def pl: Option[Array[Int]] = Option(unboxedPL)
 
-  def od: Option[Int] =
-    dp.flatMap(dpx =>
-      ad.map(adx => dpx - adx.sum))
-
-  def gq: Option[Int]
-
-  def px: Option[Array[Int]]
-
-  def fakeRef: Boolean
-
-  def isDosage: Boolean
-
-  def pl: Option[Array[Int]] =
-    px.map(x =>
-      if (isDosage)
-        Genotype.linearToPhred(x)
-      else
-        x)
-
-  def dosage: Option[Array[Double]] =
-    px.map(x =>
-      if (isDosage)
-        x.map(_ / 32768.0)
-      else
-        Genotype.phredToDosage(x))
+  def dosage: Option[Array[Double]] = Option(unboxedDosage)
 
   def isHomRef: Boolean = unboxedGT == 0
 
@@ -174,10 +202,24 @@ abstract class Genotype extends Serializable {
       GenotypeType.NoCall
     }
 
+  def hasNNonRefAlleles: Boolean = unboxedGT != -1
+
+  def nNonRefAlleles_ : Int = Genotype.gtPair(unboxedGT).nNonRefAlleles
+
   def nNonRefAlleles: Option[Int] =
-    if (unboxedGT >= 0)
-      Some(Genotype.gtPair(unboxedGT).nNonRefAlleles)
+    if (hasNNonRefAlleles)
+      Some(nNonRefAlleles_)
     else
+      None
+
+  def fractionReadsRef(): Option[Double] =
+    if (unboxedAD != null) {
+      val s = intArraySum(unboxedAD)
+      if (s != 0)
+        Some(unboxedAD(0).toDouble / s)
+      else
+        None
+    } else
       None
 
   def oneHotAlleles(nAlleles: Int): Option[IndexedSeq[Int]] = {
@@ -251,22 +293,24 @@ abstract class Genotype extends Serializable {
     b.result()
   }
 
-  def pAB(theta: Double = 0.5): Option[Double] = ad.flatMap { arr =>
-    if (isHet) {
-      val gtPair = Genotype.gtPair(unboxedGT)
-      val aDepth = arr(gtPair.j)
-      val bDepth = arr(gtPair.k)
-      val d = new BinomialDistribution(aDepth + bDepth, theta)
-      val minDepth = aDepth.min(bDepth)
-      val minp = d.probability(minDepth)
-      val mincp = d.cumulativeProbability(minDepth)
-      Some((2 * mincp - minp).min(1.0).max(0.0))
-    } else None
+  def hasPAB: Boolean = unboxedAD != null && isHet
+
+  def pAB_(theta: Double = 0.5): Double = {
+    val gtPair = Genotype.gtPair(unboxedGT)
+    val aDepth = unboxedAD(gtPair.j)
+    val bDepth = unboxedAD(gtPair.k)
+    val d = new BinomialDistribution(aDepth + bDepth, theta)
+    val minDepth = aDepth.min(bDepth)
+    val minp = d.probability(minDepth)
+    val mincp = d.cumulativeProbability(minDepth)
+    (2 * mincp - minp).min(1.0).max(0.0)
   }
 
-  def fractionReadsRef(): Option[Double] = ad.flatMap {
-    arr => divOption(arr(0), arr.sum)
-  }
+  def pAB(theta: Double = 0.5): Option[Double] =
+    if (hasPAB)
+      Some(pAB_(theta))
+    else
+      None
 
   def toRow: Row =
     Row(gt.orNull, ad.map(_.toSeq).orNull, dp.orNull, gq.orNull, px.map(_.toSeq).orNull, fakeRef, isDosage)
@@ -288,29 +332,29 @@ class RowGenotype(r: Row) extends Genotype {
     else
       r.getInt(0)
 
-  def ad: Option[Array[Int]] =
+  def unboxedAD: Array[Int] =
     if (r.isNullAt(1))
-      None
+      null
     else
-      Some(r.getSeq(1).toArray)
+      r.getSeq(1).toArray
 
-  def dp: Option[Int] =
+  def unboxedDP: Int =
     if (r.isNullAt(2))
-      None
+      -1
     else
-      Some(r.getInt(2))
+      r.getInt(2)
 
-  def gq: Option[Int] =
+  def unboxedGQ: Int =
     if (r.isNullAt(3))
-      None
+      -1
     else
-      Some(r.getInt(3))
+      r.getInt(3)
 
-  def px: Option[Array[Int]] =
+  def unboxedPX: Array[Int] =
     if (r.isNullAt(4))
-      None
+      null
     else
-      Some(r.getSeq(4).toArray)
+      r.getSeq(4).toArray
 
   // not nullable
   def fakeRef: Boolean = r.getBoolean(5)
@@ -799,21 +843,13 @@ class GenericGenotype(private val _gt: Int,
 
   def unboxedGT: Int = _gt
 
-  def ad: Option[Array[Int]] = Option(_ad)
+  def unboxedAD: Array[Int] = _ad
 
-  def dp: Option[Int] =
-    if (_dp >= 0)
-      Some(_dp)
-    else
-      None
+  def unboxedDP: Int = _dp
 
-  def gq: Option[Int] =
-    if (_gq >= 0)
-      Some(_gq)
-    else
-      None
+  def unboxedGQ: Int = _gq
 
-  def px: Option[Array[Int]] = Option(_px)
+  def unboxedPX: Array[Int] = _px
 }
 
 class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {

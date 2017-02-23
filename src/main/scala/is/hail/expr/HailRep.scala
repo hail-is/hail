@@ -33,23 +33,23 @@ trait HailRepFunctions {
     def typ = TDouble
   }
 
-  object boxedboolHr extends HailRep[Any] {
+  implicit object boxedboolHr extends HailRep[java.lang.Boolean] {
     def typ = TBoolean
   }
 
-  object boxedintHr extends HailRep[Any] {
+  implicit object boxedintHr extends HailRep[java.lang.Integer] {
     def typ = TInt
   }
 
-  object boxedlongHr extends HailRep[Any] {
+  implicit object boxedlongHr extends HailRep[java.lang.Long] {
     def typ = TLong
   }
 
-  object boxedfloatHr extends HailRep[Any] {
+  implicit object boxedfloatHr extends HailRep[java.lang.Float] {
     def typ = TFloat
   }
 
-  object boxeddoubleHr extends HailRep[Any] {
+  implicit object boxeddoubleHr extends HailRep[java.lang.Double] {
     def typ = TDouble
   }
 

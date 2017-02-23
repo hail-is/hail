@@ -92,18 +92,6 @@ case class UnarySpecial[T, U](retType: Type, f: (() => Any) => U) extends Fun wi
   def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = ???
 }
 
-case class OptionUnaryFun[T, U](retType: Type, f: (T) => Option[U]) extends Fun with Serializable with ((T) => Option[U]) {
-  def apply(t: T): Option[U] = f(t)
-
-  def subst() = OptionUnaryFun(retType.subst(), f)
-
-  def convertArgs(transformations: Array[UnaryFun[Any, Any]]): Fun = {
-    require(transformations.length == 1)
-
-    OptionUnaryFun[Any, Any](retType, (a) => f(transformations(0).f(a).asInstanceOf[T]))
-  }
-}
-
 case class BinaryFun[T, U, V](retType: Type, f: (T, U) => V) extends Fun with Serializable with ((T, U) => V) {
   def apply(t: T, u: U): V = f(t, u)
 

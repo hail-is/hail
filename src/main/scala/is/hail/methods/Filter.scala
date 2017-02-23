@@ -1,11 +1,11 @@
 package is.hail.methods
 
 object Filter {
-  def keepThis(a: Any, keep: Boolean): Boolean =
+  def boxedKeepThis(a: java.lang.Boolean, keep: Boolean): Boolean =
     if (a == null)
       false
     else
-      keepThis(a.asInstanceOf[Boolean], keep)
+      keepThis(a, keep)
 
   def keepThis(b: Boolean, keep: Boolean): Boolean =
     if (keep)
