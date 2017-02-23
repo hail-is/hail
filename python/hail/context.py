@@ -357,7 +357,7 @@ class HailContext(object):
         Hail is designed to be maximally compatible with files in the `VCF v4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
 
         :py:meth:`~hail.HailContext.import_vcf` takes a list of VCF files to load. All files must have the same header and the same set of samples in the same order
-        (e.g., a dataset split by chromosome). Files can be specified as `Hadoop glob patterns <https://hail.is/hail/other_resources.html#hadoop-glob-patterns>`_.
+        (e.g., a dataset split by chromosome). Files can be specified as `Hadoop glob patterns <hadoop_glob_patterns.html>`_.
 
         Ensure that the VCF file is correctly prepared for import: VCFs should either be uncompressed (*.vcf*) or block compressed
         (*.vcf.bgz*).  If you have a large compressed VCF that ends in *.vcf.gz*, it is likely that the file is actually block-compressed,
@@ -365,7 +365,7 @@ class HailContext(object):
         it to Hail using the ``force`` optional parameter. However, this is not recommended -- all parsing will have to take place on one node because
         gzip decompression is not parallelizable. In this case, import could take significantly longer.
 
-        Hail makes certain assumptions about the genotype fields, see `Representation <https://hail.is/hail/representation/hail.representation.Genotype.html>`_. On import, Hail filters
+        Hail makes certain assumptions about the genotype fields, see :class:`Representation <hail.representation.Genotype>`. On import, Hail filters
         (sets to no-call) any genotype that violates these assumptions. Hail interprets the format fields: GT, AD, OD, DP, GQ, PL; all others are
         silently dropped.
 

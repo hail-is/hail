@@ -1,32 +1,12 @@
-.. _sec-other_resources:
+.. _sec-other-resources:
 
 ===============
 Other Resources
 ===============
 
+.. toctree::
+    :maxdepth: 2
+ 
+    Hadoop Glob Patterns <hadoop_glob_patterns>
+    SQL <sql>
 
---------------------
-Hadoop Glob Patterns
---------------------
-
-+-------------------+----------------------------------------------------------------------------------------+
-| Pattern           |                                   Description                                          |
-+===================+========================================================================================+
-| ``?``             | | Matches any single character                                                         |
-+-------------------+----------------------------------------------------------------------------------------+
-| ``*``             | | Matches zero or more characters                                                      |
-+-------------------+----------------------------------------------------------------------------------------+
-| ``[abc]``         | | Matches a single character from character set {a,b,c}.                               |
-+-------------------+----------------------------------------------------------------------------------------+
-| ``[a-b]``         | | Matches a single character from the character range {a...b}. Note that the "^"       |
-|                   | | character must occur immediately to the right of the opening bracket.                |
-+-------------------+----------------------------------------------------------------------------------------+
-| ``[^a]``          | | Matches a single character that is not from character set or range {a}. Note that    |
-|                   | | the "^"character must occur immediately to the right of the opening bracket.         |
-+-------------------+----------------------------------------------------------------------------------------+
-| ``\c``            | | Removes (escapes) any special meaning of character c.                                |
-+-------------------+----------------------------------------------------------------------------------------+
-| ``{ab,cd}``       | | Matches a string from the string set {ab, cd}.                                       |
-+-------------------+----------------------------------------------------------------------------------------+
-|``{ab,c{de, fh}}`` | | Matches a string from the string set {ab, cde, cfh}.                                 |
-+-------------------+----------------------------------------------------------------------------------------+
