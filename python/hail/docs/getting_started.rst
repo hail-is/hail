@@ -59,13 +59,14 @@ The single command
 
 creates a Hail JAR file at ``build/libs/hail-all-spark.jar``. The initial build takes time as `Gradle <https://gradle.org/>`_ installs all Hail dependencies.
 
-Add the following environmental variables and make an alias for Hail by filling in the paths to **SPARK_HOME** and **HAIL_HOME** below::
+Add the following environmental variables by filling in the paths to **SPARK_HOME** and **HAIL_HOME** below and exporting all four of them (consider adding them to your .bashrc)::
 
-    $ SPARK_HOME=/path/to/spark
-    $ HAIL_HOME=/path/to/hail
-    $ alias hail="PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$HAIL_HOME/python SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar python"
+    $ export SPARK_HOME=/path/to/spark
+    $ export HAIL_HOME=/path/to/hail
+    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip" 
+    $ export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
 
-Running ``hail`` on the command line will open an interactive Python shell.
+Running ``ipython`` on the command line will open an interactive Python shell.
 
 Here are a few simple things to try in order. To import the ``hail`` module and start a :py:class:`~hail.HailContext`, run:
 
