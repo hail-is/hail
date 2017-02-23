@@ -334,7 +334,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
-    val f: () => Any = Parser.parseTypedExpr[Any](code, ec)(boxedboolHr)
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     rdd.forall { case (k, v) =>
       KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
@@ -342,7 +342,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
       if (b == null)
         false
       else
-        b.asInstanceOf[Boolean]
+        b
     }
   }
 
@@ -351,7 +351,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
-    val f: () => Any = Parser.parseTypedExpr[Any](code, ec)(boxedboolHr)
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     rdd.exists { case (k, v) =>
       KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
@@ -359,7 +359,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
       if (b == null)
         false
       else
-        b.asInstanceOf[Boolean]
+        b
     }
   }
 

@@ -829,7 +829,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val ec = EvalContext(symTab)
     ec.set(5, vds.globalAnnotation)
-    val f: () => Any = Parser.parseTypedExpr[Any](filterExpr, ec)(boxedboolHr)
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val sampleIdsBc = vds.sampleIdsBc
     val sampleAnnotationsBc = vds.sampleAnnotationsBc
@@ -842,7 +842,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       (v: Variant, va: Annotation, s: String, sa: Annotation, g: Genotype) => {
         ec.setAll(v, va, s, sa, g)
 
-        if (Filter.keepThis(f(), localKeep))
+        if (Filter.boxedKeepThis(f(), localKeep))
           g
         else
           noCall
@@ -878,7 +878,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val ec = Aggregators.sampleEC(vds)
 
-    val f: () => Any = Parser.parseTypedExpr[Any](filterExpr, ec)(boxedboolHr)
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, ec)
 
@@ -887,7 +887,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val p = (s: String, sa: Annotation) => {
       sampleAggregationOption.foreach(f => f.apply(s))
       ec.setAll(localGlobalAnnotation, s, sa)
-      Filter.keepThis(f(), localKeep)
+      Filter.boxedKeepThis(f(), localKeep)
     }
 
     vds.filterSamples(p)
@@ -903,7 +903,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val localGlobalAnnotation = vds.globalAnnotation
     val ec = Aggregators.variantEC(vds)
 
-    val f: () => Any = Parser.parseTypedExpr[Any](filterExpr, ec)(boxedboolHr)
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
     val aggregatorOption = Aggregators.buildVariantAggregations(vds, ec)
 
@@ -912,7 +912,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       aggregatorOption.foreach(f => f(v, va, gs))
 
       ec.setAll(localGlobalAnnotation, v, va)
-      Filter.keepThis(f(), localKeep)
+      Filter.boxedKeepThis(f(), localKeep)
     }
 
     vds.filterVariants(p)
