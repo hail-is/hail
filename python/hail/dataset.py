@@ -1978,7 +1978,7 @@ class VariantDataset(object):
         String*`.
 
         Conceptually, the output is a symmetric, sample-by-sample matrix. The
-        output Key Table has the following form
+        output key table has the following form
 
         .. code-block: text
 
