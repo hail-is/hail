@@ -52,7 +52,9 @@ object MaximalIndependentSet {
   }
 
 
-  def ofIBDMatrix(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double): Set[String] = {
+  def ofIBDMatrix(inputRDD: RDD[((Int, Int), Double)], thresh: Double, vertexIDs: Seq[Int]): Set[Long] = {
+    val sc = inputRDD.sparkContext
+
     //Filter RDD to remove edges above threshold
     val filteredRDD = inputRDD.filter(_._2 <= thresh)
 
@@ -60,22 +62,14 @@ object MaximalIndependentSet {
     val vertexPairs = inputRDD.keys
 
     //Collect all vertices.
-    val allVertices = vertexPairs.flatMap[String]{case (v1, v2) => List(v1, v2)}.distinct()
+    //val allVertices: RDD[Int] = vertexPairs.flatMap[Int]{case (v1, v2) => List(v1, v2)}.distinct()
 
-    val numberedVertices: RDD[(String, VertexId)] = allVertices.zipWithIndex()
+    val edges: RDD[Edge[Double]] = filteredRDD.map{case((v1, v2), weight) => Edge(v1, v2, weight)}
 
-    val verticesToNumbers = numberedVertices.collectAsMap()
-    val numbersToVertices = numberedVertices.map{case (name, id) => (id, name)}.collectAsMap()
+    val vertices: RDD[(VertexId, Null)] = sc.parallelize(vertexIDs).map(id => (id, null))
 
+    val graph: Graph[Null, Double] = Graph(vertices, edges)
 
-    val edges: RDD[Edge[Double]] = filteredRDD.map{case((v1, v2), weight) => Edge(verticesToNumbers(v1), verticesToNumbers(v2), weight)}
-
-    val vertices: VertexRDD[String] = VertexRDD[String](numberedVertices.map{ case (id, index) => (index, id)})
-
-    val stringGraph: Graph[String, Double] = Graph(vertices, edges)
-
-    val mis = apply(stringGraph, true)
-
-    mis.map(numbersToVertices(_))
+    apply(graph, undirected = true)
   }
 }

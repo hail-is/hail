@@ -287,3 +287,24 @@ object IBD {
   }
 
 }
+
+object IBDPrune {
+  def apply(vds: VariantDataset,
+    threshold: Double,
+    computeMaf: Option[(Variant, Annotation) => Double] = None,
+    bounded: Boolean = true): VariantDataset = {
+
+    val sampleIDs: IndexedSeq[String] = vds.sampleIds
+
+    print("Matrix compute time")
+
+    val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
+      .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
+
+    print("MIS TIME")
+    val setToKeep: Set[String] = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size)
+      .map(id =>sampleIDs(id.toInt))
+
+    vds.filterSamples((id, _) => setToKeep.contains(id))
+  }
+}

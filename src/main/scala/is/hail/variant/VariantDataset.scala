@@ -999,6 +999,14 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     IBD.toKeyTable(vds.hc, IBD.validateAndCall(vds, computeMafExpr, bounded, minimum, maximum))
   }
 
+  def ibdPrune(threshold: Double, computeMafExpr: Option[String] = None, bounded: Boolean = true): VariantDataset = {
+    requireSplit("IBD Prune")
+
+    val computeMaf = None
+
+    IBDPrune(vds, threshold)
+  }
+
   /**
     *
     * @param mafThreshold Minimum minor allele frequency threshold
