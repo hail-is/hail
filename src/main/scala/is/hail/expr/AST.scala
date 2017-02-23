@@ -15,6 +15,12 @@ import scala.util.parsing.input.{Position, Positional}
 case class EvalContext(st: SymbolTable,
   a: ArrayBuffer[Any],
   aggregations: ArrayBuffer[(Int, CPS[Any], Aggregator)]) {
+  st.foreach {
+    case (name, (i, t: TAggregable)) =>
+      require(t.symTab.exists { case (_, (j, t2)) => j == i && t2 == t.elementType },
+        s"did not find binding for type ${t.elementType} at index $i in agg symbol table for `$name'")
+    case _ =>
+  }
 
   def setAll(args: Any*) {
     var i = 0

@@ -139,7 +139,7 @@ object FunctionRegistry {
         val u = args(0).eval(EvalContext())()
 
         if (u == null)
-          fatal("Argument evaluated to missing in call to aggregator $name")
+          fatal(s"Argument evaluated to missing in call to aggregator $name")
 
         ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
           u.asInstanceOf[u])))
@@ -155,46 +155,16 @@ object FunctionRegistry {
         val w = args(2).eval(EvalContext())()
 
         if (u == null)
-          fatal("Argument 1 evaluated to missing in call to aggregator $name")
-        if (v == null)
-          fatal("Argument 2 evaluated to missing in call to aggregator $name")
-        if (w == null)
-          fatal("Argument 3 evaluated to missing in call to aggregator $name")
-
-        ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
-          u.asInstanceOf[u],
-          v.asInstanceOf[v],
-          w.asInstanceOf[w])))
-        () => localA(idx)
-
-      case aggregator: Arity5Aggregator[_, u, v, w, x, y, _] =>
-        val localA = ec.a
-        val idx = localA.length
-        localA += null
-
-        val u = args(0).eval(EvalContext())()
-        val v = args(1).eval(EvalContext())()
-        val w = args(2).eval(EvalContext())()
-        val x = args(3).eval(EvalContext())()
-        val y = args(4).eval(EvalContext())()
-
-        if (u == null)
           fatal(s"Argument 1 evaluated to missing in call to aggregator $name")
         if (v == null)
           fatal(s"Argument 2 evaluated to missing in call to aggregator $name")
         if (w == null)
           fatal(s"Argument 3 evaluated to missing in call to aggregator $name")
-        if (x == null)
-          fatal(s"Argument 3 evaluated to missing in call to aggregator $name")
-        if (y == null)
-          fatal(s"Argument 3 evaluated to missing in call to aggregator $name")
 
         ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
           u.asInstanceOf[u],
           v.asInstanceOf[v],
-          w.asInstanceOf[w],
-          x.asInstanceOf[x],
-          y.asInstanceOf[y])))
+          w.asInstanceOf[w])))
         () => localA(idx)
 
       case aggregator: UnaryLambdaAggregator[t, u, v] =>
@@ -240,7 +210,7 @@ object FunctionRegistry {
 
         val v = args(1).eval(EvalContext())()
         if (v == null)
-          fatal("Argument evaluated to missing in call to aggregator $name")
+          fatal(s"Argument evaluated to missing in call to aggregator $name")
 
         ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(g, v.asInstanceOf[v])))
         () => localA(idx)
@@ -498,12 +468,6 @@ object FunctionRegistry {
   def registerAggregator[T, U, V, W, X](name: String, ctor: (U, V, W) => TypedAggregator[X], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
     bind(name, MethodType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity3Aggregator[T, U, V, W, X](hrx.typ, ctor), MetaData(Option(docstring), argNames))
-  }
-
-  def registerAggregator[T, U, V, W, X, Y, Z](name: String, ctor: (U, V, W, X, Y) => TypedAggregator[Z])
-    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y],
-      hrz: HailRep[Z]) = {
-    bind(name, MethodType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ, hry.typ), Arity5Aggregator[T, U, V, W, X, Y, Z](hrx.typ, ctor))
   }
 
   val TT = TVariable("T")

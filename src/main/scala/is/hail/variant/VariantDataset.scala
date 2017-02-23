@@ -16,6 +16,7 @@ import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
 import org.apache.kudu.spark.kudu.{KuduContext, _}
+import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -1229,14 +1230,30 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
     val localGlobalAnnotation = vds.globalAnnotation
-    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[(Genotype, Variant, Annotation, String, Annotation)](ec,
-      { case (ec, (g, v, va, s, sa)) =>
-      ec.setAll(localGlobalAnnotation, g, v, va, s, sa)
+    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Genotype](ec, { case (ec, g) =>
+      ec.set(1, g)
     })
 
-    val result = vds.expandWithAll()
-        .map { case (v, va, s, sa, g) => (g, v, va, s, sa) }
-      .treeAggregate(zVal)(seqOp, combOp, depth = treeAggDepth(vds.hc, vds.nPartitions))
+    val sampleIdsBc = vds.sampleIdsBc
+    val sampleAnnotationsBc = vds.sampleAnnotationsBc
+    val globalBc = vds.sparkContext.broadcast(vds.globalAnnotation)
+
+    val result = vds.rdd.mapPartitions { it =>
+      val zv = zVal.map(_.copy())
+      ec.set(0, globalBc.value)
+      it.foreach { case (v, (va, gs)) =>
+        var i = 0
+        ec.set(2, v)
+        ec.set(3, va)
+        gs.foreach { g =>
+          ec.set(4, sampleIdsBc.value(i))
+          ec.set(5, sampleAnnotationsBc.value(i))
+          seqOp(zv, g)
+          i += 1
+        }
+      }
+      Iterator(zv)
+    }.fold(zVal.map(_.copy()))(combOp)
     resOp(result)
 
     ec.set(0, localGlobalAnnotation)
