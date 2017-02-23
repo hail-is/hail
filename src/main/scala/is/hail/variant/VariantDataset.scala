@@ -1110,19 +1110,22 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         }
       }).toSeq: _*)
 
+    val localNSamples = vds.nSamples
     val localSampleIdsBc = vds.sampleIdsBc
     val localSampleAnnotationsBc = vds.sampleAnnotationsBc
 
     KeyTable(vds.hc,
       vds.rdd.mapPartitions { it =>
-        val ab = mutable.ArrayBuilder.make[Any]
+        val n = vNames.length + gNames.length * localNSamples
 
         it.map { case (v, (va, gs)) =>
-          ab.clear()
+          val a = new Array[Any](n)
 
+          var j = 0
           vEC.setAll(v, va)
           vf().foreach { x =>
-            ab += x
+            a(j) = x
+            j += 1
           }
 
           gs.iterator.zipWithIndex.foreach { case (g, i) =>
@@ -1130,11 +1133,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
             val sa = localSampleAnnotationsBc.value(i)
             gEC.setAll(v, va, s, sa, g)
             gf().foreach { x =>
-              ab += x
+              a(j) = x
+              j += 1
             }
           }
 
-          Row.fromSeq(ab.result()): Annotation
+          assert(j == n)
+          Row.fromSeq(a): Annotation
         }
       },
       sig,

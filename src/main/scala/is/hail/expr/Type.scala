@@ -108,7 +108,7 @@ sealed abstract class Type {
     if (path.nonEmpty)
       throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
-      a => a
+      identity[Annotation]
   }
 
   def toPrettyString(compact: Boolean = false, printAttrs: Boolean = false): String = {
@@ -636,7 +636,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def query(p: List[String]): Querier = {
     if (p.isEmpty)
-      a => a
+      identity[Annotation]
     else {
       selfField(p.head) match {
         case Some(f) =>

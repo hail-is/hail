@@ -460,7 +460,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val isBc = sparkContext.broadcast(is)
     val (newSignature, inserter) = insertVA(TBoolean, path)
     copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
-      (inserter(va, isBc.value.contains(Locus(v.contig, v.start))), gs)
+      (inserter(va, isBc.value.contains(v.locus)), gs)
     }.asOrderedRDD,
       vaSignature = newSignature)
   }
