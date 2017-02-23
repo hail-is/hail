@@ -46,26 +46,26 @@ object Parser extends JavaTokenParsers {
     (t.`type`, t.eval(ec))
   }
 
-  def parseExpr(code: String, ec: EvalContext): (Type, () => Option[Any]) = {
+  def parseExpr(code: String, ec: EvalContext): (Type, () => Any) = {
     val (t, f) = eval(expr.parse(code), ec)
-    (t, () => Option(f()))
+    (t, f)
   }
 
-  def parseTypedExpr[T](code: String, ec: EvalContext)(implicit hr: HailRep[T]): () => Option[T] = {
+  def parseTypedExpr[T](code: String, ec: EvalContext)(implicit hr: HailRep[T]): () => T = {
     val (t, f) = parseExpr(code, ec)
     if (t != hr.typ)
       fatal(s"expression has wrong type: expected `${ hr.typ }', got $t")
 
-    () => f().map(_.asInstanceOf[T])
+    () => f().asInstanceOf[T]
   }
 
-  def parseExprs(code: String, ec: EvalContext): (Array[Type], () => Array[Option[Any]]) = {
+  def parseExprs(code: String, ec: EvalContext): (Array[Type], () => Array[Any]) = {
     val (types, fs) = args.parse(code).map(eval(_, ec)).unzip
-    (types.toArray, () => fs.map(f => Option(f())).toArray)
+    (types.toArray, () => fs.map(f => f()).toArray)
   }
 
   def parseAnnotationExprs(code: String, ec: EvalContext, expectedHead: Option[String]): (
-    Array[List[String]], Array[Type], () => Array[Option[Any]]) = {
+    Array[List[String]], Array[Type], () => Array[Any]) = {
     val (maybeNames, types, f) = parseNamedExprs[List[String]](code, annotationIdentifier, ec,
       (t, s) => t.map(_ :+ s))
 
@@ -90,7 +90,7 @@ object Parser extends JavaTokenParsers {
       else
         n
     }, types, () => {
-      f().map(Option(_))
+      f()
     })
   }
 
@@ -114,7 +114,7 @@ object Parser extends JavaTokenParsers {
       })
   }
 
-  def parseNamedExprs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[Option[Any]]) = {
+  def parseNamedExprs(code: String, ec: EvalContext): (Array[String], Array[Type], () => Array[Any]) = {
     val (maybeNames, types, f) = parseNamedExprs[String](code, identifier, ec,
       (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))
 
@@ -123,7 +123,7 @@ object Parser extends JavaTokenParsers {
 
     val names = maybeNames.map(_.get)
 
-    (names, types, () => f().map(Option(_)))
+    (names, types, f)
   }
 
   def parseNamedExprs[T](code: String, name: Parser[T], ec: EvalContext, concat: (Option[T], String) => Option[T]): (
@@ -205,7 +205,10 @@ object Parser extends JavaTokenParsers {
 
     (names, types, () => {
       fs.foreach(_ ())
-      a
+
+      val newa = new Array[Any](nValues)
+      System.arraycopy(a, 0, newa, 0, nValues)
+      newa
     })
   }
 
@@ -535,7 +538,7 @@ object Parser extends JavaTokenParsers {
   def solr_named_arg: Parser[(String, Map[String, AnyRef], AST)] =
     identifier ~ opt(solr_field_spec) ~ ("=" ~> expr) ^^ { case id ~ spec ~ expr => (id, spec.getOrElse(Map.empty), expr) }
 
-  def parseSolrNamedArgs(code: String, ec: EvalContext): Array[(String, Map[String, AnyRef], Type, () => Option[Any])] = {
+  def parseSolrNamedArgs(code: String, ec: EvalContext): Array[(String, Map[String, AnyRef], Type, () => Any)] = {
     val args = parseAll(solr_named_args, code) match {
       case Success(result, _) => result.asInstanceOf[Array[(String, Map[String, AnyRef], AST)]]
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
@@ -546,7 +549,7 @@ object Parser extends JavaTokenParsers {
       if (!t.isRealizable)
         fatal(s"unrealizable type in Solr export expression: $t")
       val f = ast.eval(ec)
-      (id, spec, t, () => Option(f()))
+      (id, spec, t, f)
     }
   }
 }

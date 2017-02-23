@@ -134,14 +134,14 @@ class IntervalSuite extends SparkSuite {
     assert(t == TSet(TString))
 
     vds.rdd.foreach { case (v, (va, gs)) =>
-      val a = q(va).get.asInstanceOf[Set[String]]
+      val a = q(va).asInstanceOf[Set[String]]
 
       if (v.start == 17348324)
         simpleAssert(a == Set("A", "B"))
       else if (v.start >= 17333902 && v.start <= 17370919)
         simpleAssert(a == Set("A"))
       else
-        simpleAssert(a.isEmpty)
+        simpleAssert(a == Set())
     }
 
     @Test def testAggregate() {

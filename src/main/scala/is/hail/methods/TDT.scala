@@ -112,7 +112,7 @@ object TDT {
           val chi2 = calcTDTstat(t, u)
           val pval = chiSquaredTail(1.0, chi2)
           val tdtAnnotation = Annotation(t, u, chi2, pval)
-          (v, (inserter(va, Some(tdtAnnotation)), gs))
+          (v, (inserter(va, tdtAnnotation), gs))
         }
       }
     }, preservesPartitioning = true).asOrderedRDD).copy(vaSignature = newVA)

@@ -22,9 +22,9 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
     val q4 = vds.querySA("sa.`hi there i have spaces`.another")._2
     val head = vds.sampleAnnotations.head
     vds.sampleAnnotations.foreach { sa =>
-      assert(D_==(qCall(sa).get.asInstanceOf[Double], qMiss(sa).map(x => (100 - x.asInstanceOf[Double]) / 100).get) &&
-        q3(sa).contains(5) &&
-        q4(sa).contains(true))
+      assert(D_==(qCall(sa).asInstanceOf[Double], Option(qMiss(sa)).map(x => (100 - x.asInstanceOf[Double]) / 100).get) &&
+        q3(sa) == 5 &&
+        q4(sa) == true)
     }
   }
 
@@ -47,12 +47,9 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
     vds.variantsAndAnnotations
       .collect()
       .foreach { case (v, va) =>
-        assert(q(va) == qCallRate(va).map(_.asInstanceOf[Double] * 100) &&
-          q2(va) == qPass(va).map(_.asInstanceOf[Boolean] match {
-            case true => 1
-            case false => 0
-          }) &&
-          q3(va) == qQual(va).map(x => 5 / (x.asInstanceOf[Double] - 5)))
+        assert(Option(q(va)) == Option(qCallRate(va)).map(_.asInstanceOf[Double] * 100) &&
+          Option(q2(va)) == Option(qPass(va)).map(_.asInstanceOf[Boolean].toInt) &&
+          Option(q3(va)) == Option(qQual(va)).map(x => 5 / (x.asInstanceOf[Double] - 5)))
       }
   }
 }

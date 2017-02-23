@@ -130,10 +130,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val annotationMap = vds.variantsAndAnnotations.collect().toMap
 
-    def assertInt(q: Querier, v: Variant, value: Int) = q(annotationMap(v)).get.asInstanceOf[Int] == value
+    def assertInt(q: Querier, v: Variant, value: Int) = q(annotationMap(v)).asInstanceOf[Int] == value
 
     def assertDouble(q: Querier, v: Variant, value: Double) = {
-      val x = q(annotationMap(v)).get.asInstanceOf[Double]
+      val x = q(annotationMap(v)).asInstanceOf[Double]
       assert(D_==(x, value))
     }
 
@@ -262,7 +262,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val annotationMap = vds.variantsAndAnnotations.collect().toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double) = {
-      val x = q(annotationMap(v)).get.asInstanceOf[Double]
+      val x = q(annotationMap(v)).asInstanceOf[Double]
       // println(x, value, v)
       assert(D_==(x, value))
     }
@@ -350,12 +350,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
     // vds.metadata.globalSignature.pretty(sb, 0, printAttrs = true)
     // println(sb.result())
 
-    val fitDelta = vds.queryGlobal("global.lmmreg.delta")._2.get.asInstanceOf[Double]
-    val fitSigmaG2 = vds.queryGlobal("global.lmmreg.sigmaG2")._2.get.asInstanceOf[Double]
-    val fitBeta = vds.queryGlobal("global.lmmreg.beta")._2.get.asInstanceOf[Map[String, Double]]
+    val fitDelta = vds.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]
+    val fitSigmaG2 = vds.queryGlobal("global.lmmreg.sigmaG2")._2.asInstanceOf[Double]
+    val fitBeta = vds.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]]
 
     //Making sure type on this is not an array, but an IndexedSeq.
-    val evals = vds.queryGlobal("global.lmmreg.evals")._2.get.asInstanceOf[IndexedSeq[Double]]
+    val evals = vds.queryGlobal("global.lmmreg.evals")._2.asInstanceOf[IndexedSeq[Double]]
 
     val linBeta = (C.t * C) \ (C.t * y)
     val linRes = norm(y - C * linBeta)

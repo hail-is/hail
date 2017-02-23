@@ -48,7 +48,7 @@ object ImputeSexPlink {
         v.contig == "X" || v.contig == "23" || v.contig == "25"
     }
       .mapAnnotations { case (v, va, gs) =>
-        query.map(_.apply(va).orNull)
+        query.map(_.apply(va))
           .getOrElse {
             var nAlt = 0
             var nTot = 0

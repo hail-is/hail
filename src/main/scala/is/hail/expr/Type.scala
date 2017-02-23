@@ -99,7 +99,7 @@ sealed abstract class Type {
     if (path.nonEmpty)
       TStruct.empty.insert(signature, path)
     else
-      (signature, (a, toIns) => toIns.orNull)
+      (signature, (a, toIns) => toIns)
   }
 
   def query(fields: String*): Querier = query(fields.toList)
@@ -108,7 +108,7 @@ sealed abstract class Type {
     if (path.nonEmpty)
       throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
-      a => Option(a)
+      a => a
   }
 
   def toPrettyString(compact: Boolean = false, printAttrs: Boolean = false): String = {
@@ -636,7 +636,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def query(p: List[String]): Querier = {
     if (p.isEmpty)
-      a => Option(a)
+      a => a
     else {
       selfField(p.head) match {
         case Some(f) =>
@@ -644,7 +644,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
           val localIndex = f.index
           a =>
             if (a == Annotation.empty)
-              None
+              null
             else
               q(a.asInstanceOf[Row].get(localIndex))
         case None => throw new AnnotationPathException(s"struct has no field ${ p.head }")
@@ -689,7 +689,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
     if (p.isEmpty)
-      (signature, (a, toIns) => toIns.orNull)
+      (signature, (a, toIns) => toIns)
     else {
       val key = p.head
       val f = selfField(key)
@@ -806,13 +806,15 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     filter(fn)
   }
 
-  def parseInStructScope[T](code: String)(implicit hr: HailRep[T]): (Annotation) => Option[T] = {
+  def parseInStructScope[T >: Null](code: String)(implicit hr: HailRep[T]): (Annotation) => T = {
     val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val f = Parser.parseTypedExpr[T](code, ec)
 
     (a: Annotation) => {
-      Option(a).flatMap { annotation =>
-        ec.setAll(annotation.asInstanceOf[Row].toSeq: _*)
+      if (a == null)
+        null
+      else {
+        ec.setAll(a.asInstanceOf[Row].toSeq: _*)
         f()
       }
     }
@@ -822,11 +824,12 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     val included = fields.map(f)
 
     val newFields = fields.zip(included)
-      .flatMap { case (field, incl) =>
-        if (incl)
-          Some(field.name -> field.typ)
-        else
-          None
+      .flatMap {
+        case (field, incl) =>
+          if (incl)
+            Some(field.name -> field.typ)
+          else
+            None
       }
 
     val newSize = newFields.size
@@ -839,10 +842,11 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       else {
         val r = a.asInstanceOf[Row]
         val newValues = included.zipWithIndex
-          .flatMap { case (incl, i) =>
-            if (incl)
-              Some(r.get(i))
-            else None
+          .flatMap {
+            case (incl, i) =>
+              if (incl)
+                Some(r.get(i))
+              else None
           }
         assert(newValues.length == newSize)
         Annotation.fromSeq(newValues)
@@ -879,7 +883,9 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       a.isInstanceOf[Row] && {
         val r = a.asInstanceOf[Row]
         r.length == fields.length &&
-          r.toSeq.zip(fields).forall { case (v, f) => f.typ.typeCheck(v) }
+          r.toSeq.zip(fields).forall {
+            case (v, f) => f.typ.typeCheck(v)
+          }
       }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
@@ -896,8 +902,9 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null
       && fields.zip(a1.asInstanceOf[Row].toSeq).zip(a2.asInstanceOf[Row].toSeq)
-      .forall { case ((f, x1), x2) =>
-        f.typ.valuesSimilar(x1, x2, tolerance)
+      .forall {
+        case ((f, x1), x2) =>
+          f.typ.valuesSimilar(x1, x2, tolerance)
       })
 
 }

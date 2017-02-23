@@ -258,7 +258,7 @@ object SampleQC {
 
     val r = results(vds)
     vds.annotateSamples(SampleQCCombiner.signature, List("qc"), { (x: String) =>
-      r.get(x).map(_.asAnnotation)
+      r.get(x).map(_.asAnnotation).orNull
     })
   }
 }

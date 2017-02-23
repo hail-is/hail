@@ -128,7 +128,7 @@ class FilterSuite extends SparkSuite {
     val missingVariants = keepOneSample.variantsAndAnnotations
       .collect()
       .filter { case (v, va) =>
-        q(va).isEmpty
+        q(va) == null
       }
       .map(_._1)
 
@@ -147,7 +147,7 @@ class FilterSuite extends SparkSuite {
     var vds = hc.importVCF("src/test/resources/sample.vcf")
     val (sigs, i) = vds.insertVA(TInt, "weird name \t test")
     vds = vds
-      .mapAnnotations((v, va, gs) => i(va, Some(1000)))
+      .mapAnnotations((v, va, gs) => i(va, 1000))
       .copy(vaSignature = sigs)
     assert(vds.filterVariantsExpr("va.`weird name \\t test` > 500").countVariants() == vds.countVariants)
 

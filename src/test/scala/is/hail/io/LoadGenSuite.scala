@@ -31,7 +31,7 @@ class LoadGenSuite extends SparkSuite {
     val genOrigData = makeRDD(gen)
 
     val genQuery = genVDS.vaSignature.query("varid")
-    val newRDD: RDD[(String, Iterable[Genotype])] = genVDS.rdd.map { case (v, (va, gs)) => (genQuery(va).get.toString, gs) }
+    val newRDD: RDD[(String, Iterable[Genotype])] = genVDS.rdd.map { case (v, (va, gs)) => (genQuery(va).toString, gs) }
 
     val res = newRDD.fullOuterJoin(genOrigData).forall { case (v, (gs, dos)) =>
       val gs1 = gs.get

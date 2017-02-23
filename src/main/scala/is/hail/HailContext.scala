@@ -231,22 +231,24 @@ class HailContext private(val sc: SparkContext,
         TextTableReader.read(sc)(files, config)
     }
 
-    val (finalType, fn): (Type, (Annotation, Option[Annotation]) => Annotation) = code.map { code =>
+    val (finalType, fn): (Type, (Annotation, Annotation) => Annotation) = code.map { code =>
       val ec = EvalContext(Map(
         "va" -> (0, TStruct.empty),
         "table" -> (1, struct)))
       Annotation.buildInserter(code, TStruct.empty, ec, Annotation.VARIANT_HEAD)
-    }.getOrElse((struct, (_: Annotation, anno: Option[Annotation]) => anno.orNull))
+    }.getOrElse((struct, (_ : Annotation, anno: Annotation) => anno))
 
     val ec = EvalContext(struct.fields.map(f => (f.name, f.typ)): _*)
     val variantFn = Parser.parseTypedExpr[Variant](variantExpr, ec)
 
-    val keyedRDD = rdd.flatMap {
+    val keyedRDD = rdd.map {
       _.map { a =>
         ec.setAll(a.asInstanceOf[Row].toSeq: _*)
-        variantFn().map(v => (v, (fn(null, Some(a)), Iterable.empty[Genotype])))
+        (variantFn(), (fn(null, a), Iterable.empty[Genotype]))
       }.value
-    }.toOrderedRDD
+    }
+      .filter { case (v, _) => v != null }
+      .toOrderedRDD
 
     VariantSampleMatrix(this, VariantMetadata(Array.empty[String], IndexedSeq.empty[Annotation], Annotation.empty,
       TStruct.empty, finalType, TStruct.empty), keyedRDD)

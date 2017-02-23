@@ -130,7 +130,12 @@ object ExportVCF {
       .getAsOption[TStruct]("info")
     val infoQuery: (Annotation) => Option[(Annotation, TStruct)] = infoSignature.map { struct =>
       val (_, f) = vds.queryVA("va.info")
-      (a: Annotation) => f(a).map(value => (value, struct))
+      (a: Annotation) => {
+        if (a == null)
+          None
+        else
+          Some((f(a), struct))
+      }
     }.getOrElse((a: Annotation) => None)
 
     val hasSamples = vds.nSamples > 0
@@ -232,7 +237,7 @@ object ExportVCF {
       sb.append(v.start)
       sb += '\t'
 
-      sb.append(idQuery.flatMap(_ (a))
+      sb.append(idQuery.flatMap(q => Option(q(a)))
         .getOrElse("."))
 
       sb += '\t'
@@ -242,13 +247,13 @@ object ExportVCF {
         sb.append(aa.alt))(sb += ',')
       sb += '\t'
 
-      sb.append(qualQuery.flatMap(_ (a))
+      sb.append(qualQuery.flatMap(q => Option(q(a)))
         .map(_.asInstanceOf[Double].formatted("%.2f"))
         .getOrElse("."))
 
       sb += '\t'
 
-      filterQuery.flatMap(_ (a))
+      filterQuery.flatMap(q => Option(q(a)))
         .map(_.asInstanceOf[Set[String]]) match {
         case Some(f) =>
           if (f.nonEmpty)

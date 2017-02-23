@@ -19,10 +19,13 @@ class AggregateByKeySuite extends SparkSuite {
     val (_, saHetQuery) = vds.querySA("sa.nHet")
 
     val ktSampleResults = kt.rdd.map { case (k, v) =>
-      (ktSampleQuery(k, v).map(_.asInstanceOf[String]), ktHetQuery(k, v).map(_.asInstanceOf[Int]))
+      println(k, v)
+      (Option(ktSampleQuery(k, v)).map(_.asInstanceOf[String]), Option(ktHetQuery(k, v)).map(_.asInstanceOf[Int]))
     }.collectAsMap()
 
-    assert(vds.sampleIdsAndAnnotations.forall { case (sid, sa) => saHetQuery(sa) == ktSampleResults(Option(sid)) })
+    println(ktSampleResults)
+
+    assert(vds.sampleIdsAndAnnotations.forall { case (sid, sa) => Option(saHetQuery(sa)) == ktSampleResults(Option(sid)) })
   }
 
   @Test def replicateVariantAggregation() {
@@ -37,10 +40,10 @@ class AggregateByKeySuite extends SparkSuite {
     val (_, vaHetQuery) = vds.queryVA("va.nHet")
 
     val ktVariantResults = kt.rdd.map { case (k, v) =>
-      (ktVariantQuery(k, v).map(_.asInstanceOf[Variant]), ktHetQuery(k, v).map(_.asInstanceOf[Int]))
+      (Option(ktVariantQuery(k, v)).map(_.asInstanceOf[Variant]), Option(ktHetQuery(k, v)).map(_.asInstanceOf[Int]))
     }.collectAsMap()
 
-    assert(vds.variantsAndAnnotations.forall { case (v, va) => vaHetQuery(va) == ktVariantResults(Option(v)) })
+    assert(vds.variantsAndAnnotations.forall { case (v, va) => Option(vaHetQuery(va)) == ktVariantResults(Option(v)) })
   }
 
   @Test def replicateGlobalAggregation() {
@@ -54,8 +57,8 @@ class AggregateByKeySuite extends SparkSuite {
     val (_, ktHetQuery) = kt.query("nHet")
     val (_, globalHetResult) = vds.queryGlobal("global.nHet")
 
-    val ktGlobalResult = kt.rdd.map { case (k, v) => ktHetQuery(k, v).map(_.asInstanceOf[Int]) }.collect().head
-    val vdsGlobalResult = globalHetResult.map(_.asInstanceOf[Int])
+    val ktGlobalResult = kt.rdd.map { case (k, v) => Option(ktHetQuery(k, v)).map(_.asInstanceOf[Int]) }.collect().head
+    val vdsGlobalResult = Option(globalHetResult).map(_.asInstanceOf[Int])
 
     assert(ktGlobalResult == vdsGlobalResult)
   }

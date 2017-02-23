@@ -38,11 +38,11 @@ class AggregatorSuite extends SparkSuite {
       .foreach { case (v, (va, gs)) =>
         assert(qCallRate(va) == qCallRateQC(va))
         assert(qAC(va) == qACQC(va))
-        assert(D_==(qAF(va).get.asInstanceOf[Double], qAFQC(va).get.asInstanceOf[Double]))
-        assert(gqStatsMean(va).zip(gqStatsMeanQC(va)).forall {
+        assert(D_==(qAF(va).asInstanceOf[Double], qAFQC(va).asInstanceOf[Double]))
+        assert(Option(gqStatsMean(va)).zip(Option(gqStatsMeanQC(va))).forall {
           case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
         })
-        assert(gqStatsStDev(va).zip(gqStatsStDevQC(va)).forall {
+        assert(Option(gqStatsStDev(va)).zip(Option(gqStatsStDevQC(va))).forall {
           case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
         })
 
@@ -52,15 +52,15 @@ class AggregatorSuite extends SparkSuite {
           s
         }, { case (s1, s2) => s1.merge(s2) })
 
-        assert(gqStatsHetMean(va).zip(Option(gqSC.mean)).forall {
+        assert(Option(gqStatsHetMean(va)).zip(Option(gqSC.mean)).forall {
           case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
         })
-        assert(gqStatsHetStDev(va).zip(Option(gqSC.stdev)).forall {
+        assert(Option(gqStatsHetStDev(va)).zip(Option(gqSC.stdev)).forall {
           case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
         })
 
         val lowGqGtsData = gs.filter(_.gq.exists(_ < 60))
-        assert(lowGqGts(va).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
+        assert(Option(lowGqGts(va)).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
 
       }
   }
@@ -92,16 +92,16 @@ class AggregatorSuite extends SparkSuite {
       .foreach {
         case (s, sa) =>
           assert(qCallRate(sa) == qCallRateQC(sa))
-          assert(gqStatsMean(sa).zip(gqStatsMeanQC(sa)).forall {
+          assert(Option(gqStatsMean(sa)).zip(Option(gqStatsMeanQC(sa))).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
-          assert(gqStatsStDev(sa).zip(gqStatsStDevQC(sa)).forall {
+          assert(Option(gqStatsStDev(sa)).zip(Option(gqStatsStDevQC(sa))).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
-          assert(gqStatsHetMean(sa).zip(gqHetMap.get(s).map(_.mean)).forall {
+          assert(Option(gqStatsHetMean(sa)).zip(gqHetMap.get(s).map(_.mean)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
-          assert(gqStatsHetStDev(sa).zip(gqHetMap.get(s).map(_.stdev)).forall {
+          assert(Option(gqStatsHetStDev(sa)).zip(gqHetMap.get(s).map(_.stdev)).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
       }
@@ -117,7 +117,7 @@ class AggregatorSuite extends SparkSuite {
       val (_, querier) = vds2.queryVA("va.same")
       vds2.variantsAndAnnotations
         .forall { case (v, va) =>
-          querier(va).exists(_.asInstanceOf[Boolean])
+          Option(querier(va)).exists(_.asInstanceOf[Boolean])
         }
     }
     p.check()
@@ -231,8 +231,8 @@ class AggregatorSuite extends SparkSuite {
     val (_, qTakeBy) = vds.queryVA("va.takeBy")
 
     val va = vds.variantsAndAnnotations.map(_._2).collect().head
-    assert(qTake(va).contains(IndexedSeq[Any](11, null, 20)))
-    assert(qTakeBy(va).contains(IndexedSeq[Any](55, null, 11)))
+    assert(qTake(va) == IndexedSeq[Any](11, null, 20))
+    assert(qTakeBy(va) == IndexedSeq[Any](55, null, 11))
   }
 
   @Test def testTransformations() {

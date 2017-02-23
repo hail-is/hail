@@ -204,7 +204,7 @@ case class JSONExtractInterval(start: Locus, end: Locus) {
 }
 
 object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
-  def jsonExtractVariant(t: Type, variantFields: String): Any => Option[Variant] = {
+  def jsonExtractVariant(t: Type, variantFields: String): Any => Variant = {
     val ec = EvalContext(Map(
       "root" -> (0, t)))
 
@@ -227,26 +227,26 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
 
       val vfs = f()
 
-      vfs(0).flatMap { chr =>
-        vfs(1).flatMap { pos =>
-          vfs(2).flatMap { ref =>
-            vfs(3).map { alt =>
-              Variant(chr.asInstanceOf[String],
-                pos.asInstanceOf[Int],
-                ref.asInstanceOf[String],
-                alt.asInstanceOf[IndexedSeq[String]].toArray)
-            }
-          }
-        }
-      }
+      val chr = vfs(0)
+      val pos = vfs(1)
+      val ref = vfs(2)
+      val alt = vfs(3)
+
+      if (chr != null && pos != null && ref != null && alt != null)
+        Variant(chr.asInstanceOf[String],
+          pos.asInstanceOf[Int],
+          ref.asInstanceOf[String],
+          alt.asInstanceOf[IndexedSeq[String]].toArray)
+      else
+        null
     }
   }
 
-  def jsonExtractSample(t: Type, sampleExpr: String): Any => Option[String] = {
+  def jsonExtractSample(t: Type, sampleExpr: String): Any => String = {
     val ec = EvalContext(Map(
       "root" -> (0, t)))
 
-    val f: () => Option[String] = Parser.parseTypedExpr[String](sampleExpr, ec)
+    val f: () => String = Parser.parseTypedExpr[String](sampleExpr, ec)
 
     (root: Annotation) => {
       ec.setAll(root)

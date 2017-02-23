@@ -300,7 +300,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         keepStar = true,
         isDosage = isDosage,
         insertSplitAnnots = { (va, index, wasSplit) =>
-          insertSplit(insertIndex(va, Some(index)), Some(wasSplit))
+          insertSplit(insertIndex(va, index), wasSplit)
         },
         f = _ => true)
         .map({
@@ -312,7 +312,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
       inserters.zipWithIndex.foldLeft(va) {
         case (va, (inserter, i)) =>
-          inserter(va, Some(annotations.map(_ (i).getOrElse(Annotation.empty)).toArray[Any]: IndexedSeq[Any]))
+          inserter(va, annotations.map(_ (i)).toArray[Any]: IndexedSeq[Any])
       }
 
     }.copy(vaSignature = finalType)
@@ -469,9 +469,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
       sb.append(v.contig)
       sb += ' '
-      sb.append(varidQuery(va).getOrElse(v.toString))
+      sb.append(Option(varidQuery(va)).getOrElse(v.toString))
       sb += ' '
-      sb.append(rsidQuery(va).getOrElse("."))
+      sb.append(Option(rsidQuery(va)).getOrElse("."))
       sb += ' '
       sb.append(v.start)
       sb += ' '
@@ -655,7 +655,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       .sampleIdsAndAnnotations
       .map { case (s, sa) =>
         ec.setAll(s, sa)
-        val a = f()
+        val a = f().map(Option(_))
         famFns.map(_ (a)).mkString("\t")
       }
 
@@ -829,7 +829,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val ec = EvalContext(symTab)
     ec.set(5, vds.globalAnnotation)
-    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](filterExpr, ec)
+    val f: () => Any = Parser.parseTypedExpr[Any](filterExpr, ec)(boxedboolHr)
 
     val sampleIdsBc = vds.sampleIdsBc
     val sampleAnnotationsBc = vds.sampleAnnotationsBc
@@ -878,7 +878,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val ec = Aggregators.sampleEC(vds)
 
-    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](filterExpr, ec)
+    val f: () => Any = Parser.parseTypedExpr[Any](filterExpr, ec)(boxedboolHr)
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, ec)
 
@@ -903,7 +903,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val localGlobalAnnotation = vds.globalAnnotation
     val ec = Aggregators.variantEC(vds)
 
-    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](filterExpr, ec)
+    val f: () => Any = Parser.parseTypedExpr[Any](filterExpr, ec)(boxedboolHr)
 
     val aggregatorOption = Aggregators.buildVariantAggregations(vds, ec)
 
@@ -1122,7 +1122,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
           vEC.setAll(v, va)
           vf().foreach { x =>
-            ab += x.orNull
+            ab += x
           }
 
           gs.iterator.zipWithIndex.foreach { case (g, i) =>
@@ -1130,7 +1130,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
             val sa = localSampleAnnotationsBc.value(i)
             gEC.setAll(v, va, s, sa, g)
             gf().foreach { x =>
-              ab += x.orNull
+              ab += x
             }
           }
 

@@ -399,12 +399,12 @@ class VSMSuite extends SparkSuite {
       val (_, getFoo) = resultVds.queryVA("va.foo")
 
       result.forall { case (v, (va, gs)) =>
-        if (getKey(va).get.asInstanceOf[Boolean]) {
-          assert(getFoo(va).get == 1)
-          getFoo(va).get == 1
+        if (getKey(va).asInstanceOf[Boolean]) {
+          assert(getFoo(va) == 1)
+          getFoo(va) == 1
         } else {
-          assert(getFoo(va).get == 2)
-          getFoo(va).get == 2
+          assert(getFoo(va) == 2)
+          getFoo(va) == 2
         }
       }
     }.check()
@@ -437,7 +437,7 @@ class VSMSuite extends SparkSuite {
       val (_, getFoo) = resultVds.queryVA("va.foo")
 
       result.forall { case (v, (va, gs)) =>
-        getFoo(va).get == f(getKey1(va).get.asInstanceOf[Boolean], getKey2(va).get.asInstanceOf[Boolean])
+        getFoo(va) == f(getKey1(va).asInstanceOf[Boolean], getKey2(va).asInstanceOf[Boolean])
       }
     }.check()
   }

@@ -59,10 +59,18 @@ object CassandraConnector {
       fatal(s"unsupported type: $t")
   }
 
-  def toCassValue(a: Option[Any], t: Type): AnyRef = t match {
-    case TArray(elementType) => a.map(_.asInstanceOf[Seq[_]].asJava).orNull
-    case TSet(elementType) => a.map(_.asInstanceOf[Set[_]].asJava).orNull
-    case _ => a.map(_.asInstanceOf[AnyRef]).orNull
+  def toCassValue(a: Any, t: Type): AnyRef = t match {
+    case TArray(elementType) =>
+      if (a == null)
+        null
+      else
+        a.asInstanceOf[Seq[_]].asJava
+    case TSet(elementType) =>
+      if (a == null)
+        null
+      else
+        a.asInstanceOf[Set[_]].asJava
+    case _ => a.asInstanceOf[AnyRef]
   }
 
   def escapeString(name: String): String =
@@ -158,8 +166,8 @@ object CassandraConnector {
     if (tableMetadata == null) {
       info(s"creating table ${ qualifiedTable }")
       try {
-        session.execute(s"CREATE TABLE $qualifiedTable (${escapeString("dataset_id")} text, chrom text, start int, ref text, alt text, " +
-          s"PRIMARY KEY ((${escapeString("dataset_id")}, chrom, start), ref, alt))") // WITH COMPACT STORAGE")
+        session.execute(s"CREATE TABLE $qualifiedTable (${ escapeString("dataset_id") } text, chrom text, start int, ref text, alt text, " +
+          s"PRIMARY KEY ((${ escapeString("dataset_id") }, chrom, start), ref, alt))") // WITH COMPACT STORAGE")
       } catch {
         case e: Exception => fatal(s"exportvariantscass: unable to create table ${ qualifiedTable }: ${ e }")
       }

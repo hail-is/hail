@@ -36,7 +36,7 @@ object LinearRegression {
     if (d < 1)
       fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg on $n samples with $k ${plural(k, "covariate")} including intercept...")
+    info(s"Running linreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
@@ -52,26 +52,28 @@ object LinearRegression {
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(LinearRegression.`type`, pathVA)
 
-    vds.mapAnnotations{ case (v, va, gs) =>
+    vds.mapAnnotations { case (v, va, gs) =>
       val lrb = new LinRegBuilder(yBc.value)
       gs.iterator.zipWithIndex.foreach { case (g, i) => if (sampleMaskBc.value(i)) lrb.merge(g) }
 
-      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC).map { stats =>
-        val (x, xx, xy) = stats
+      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC)
+        .map { stats =>
+          val (x, xx, xy) = stats
 
-        val qtx = QtBc.value * x
-        val qty = QtyBc.value
-        val xxp: Double = xx - (qtx dot qtx)
-        val xyp: Double = xy - (qtx dot qty)
-        val yyp: Double = yypBc.value
+          val qtx = QtBc.value * x
+          val qty = QtyBc.value
+          val xxp: Double = xx - (qtx dot qtx)
+          val xyp: Double = xy - (qtx dot qty)
+          val yyp: Double = yypBc.value
 
-        val b = xyp / xxp
-        val se = math.sqrt((yyp / xxp - b * b) / d)
-        val t = b / se
-        val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+          val b = xyp / xxp
+          val se = math.sqrt((yyp / xxp - b * b) / d)
+          val t = b / se
+          val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-        Annotation(b, se, t, p)
-      }
+          Annotation(b, se, t, p)
+        }
+        .orNull
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))

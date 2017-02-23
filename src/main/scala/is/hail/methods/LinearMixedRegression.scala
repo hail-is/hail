@@ -161,9 +161,9 @@ object LinearMixedRegression {
             val x: Vector[Double] = if (af <= sparsityThreshold) x0 else x0.toDenseVector
             val (b, s2, chi2, p) = scalerLMMBc.value.likelihoodRatioTest(TBc.value * x)
 
-            Some(Annotation(b, s2, chi2, p, af, nHomRef, nHet, nHomVar, nMissing))
+            Annotation(b, s2, chi2, p, af, nHomRef, nHet, nHomVar, nMissing)
           } else
-            None
+            null
 
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))

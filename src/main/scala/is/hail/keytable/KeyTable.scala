@@ -143,14 +143,14 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
   def mapAnnotations[T](f: (Annotation, Annotation) => T)(implicit tct: ClassTag[T]): RDD[T] =
     rdd.map { case (k, v) => f(k, v) }
 
-  def query(code: String): (Type, (Annotation, Annotation) => Option[Any]) = {
+  def query(code: String): (Type, (Annotation, Annotation) => Any) = {
     val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
     val (t, f) = Parser.parseExpr(code, ec)
 
-    val f2: (Annotation, Annotation) => Option[Any] = {
+    val f2: (Annotation, Annotation) => Any = {
       case (k, v) =>
         KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
         f()
@@ -165,7 +165,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
 
     val (t, f) = Parser.parseExpr(code, ec)
 
-    val f2: (Annotation) => Option[Any] = { a =>
+    val f2: (Annotation) => Any = { a =>
       KeyTable.setEvalContext(ec, a, nFieldsLocal)
       f()
     }
@@ -210,7 +210,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
-    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](cond, ec)
+    val f: () => Boolean = Parser.parseTypedExpr[Boolean](cond, ec)
 
     val p = (k: Annotation, v: Annotation) => {
       KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
@@ -334,11 +334,15 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
-    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](code, ec)
+    val f: () => Any = Parser.parseTypedExpr[Any](code, ec)(boxedboolHr)
 
     rdd.forall { case (k, v) =>
       KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
-      f().getOrElse(false)
+      val b = f()
+      if (b == null)
+        false
+      else
+        b.asInstanceOf[Boolean]
     }
   }
 
@@ -347,11 +351,15 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
     val nKeysLocal = nKeys
     val nValuesLocal = nValues
 
-    val f: () => Option[Boolean] = Parser.parseTypedExpr[Boolean](code, ec)
+    val f: () => Any = Parser.parseTypedExpr[Any](code, ec)(boxedboolHr)
 
     rdd.exists { case (k, v) =>
       KeyTable.setEvalContext(ec, k, v, nKeysLocal, nValuesLocal)
-      f().getOrElse(false)
+      val b = f()
+      if (b == null)
+        false
+      else
+        b.asInstanceOf[Boolean]
     }
   }
 
@@ -431,14 +439,14 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
         it.map {
           a =>
             KeyTable.setEvalContext(keyEC, a, localNFields)
-            val key = Annotation.fromSeq(keyF().map(_.orNull))
+            val key = Annotation.fromSeq(keyF())
             (key, a)
         }
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map {
         case (k, agg) =>
           resultOp(agg)
-          (k, Annotation.fromSeq(aggF().map(_.orNull)))
+          (k, Annotation.fromSeq(aggF()))
       }
 
     KeyTable(hc, newRDD, keySignature, valueSignature)

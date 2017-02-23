@@ -38,8 +38,8 @@ trait JoinAnnotator {
 
     val inserters = inserterBuilder.result()
 
-    val insF = (left: Annotation, right: Option[Annotation]) => {
-      ec.setAll(left, right.orNull)
+    val insF = (left: Annotation, right: Annotation) => {
+      ec.setAll(left, right)
 
       var newAnnotation = left
       val queries = f()

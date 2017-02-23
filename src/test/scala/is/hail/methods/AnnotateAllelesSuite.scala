@@ -18,36 +18,22 @@ class AnnotateAllelesSuite extends SparkSuite {
     vds.variantsAndAnnotations
       .collect()
       .foreach { case (v, va) =>
-        assert(
-          (testq(va), truthq(va)) match {
-            case (Some(test), Some(truth)) =>
-              test.asInstanceOf[IndexedSeq[Int]]
-                .zip(truth.asInstanceOf[IndexedSeq[Int]])
-                .forall({ case (x, y) => x == y })
-            case (None, None) => true
-            case _ => false
-          }
-        )
+        assert(testq(va) == truthq(va))
       }
 
     val vds2 = vds.splitMulti(propagateGQ = true)
       .annotateVariantsExpr("va.splitGqMean = gs.map(g => g.gq).stats().mean")
 
-    val testq2 = vds2.queryVA("va.gqMean")._2
-    val aIndexq = vds2.queryVA("va.aIndex")._2
-    val truthq2 = vds2.queryVA("va.splitGqMean")._2
+    val (_, testq2) = vds2.queryVA("va.gqMean")
+    val (_, aIndexq) = vds2.queryVA("va.aIndex")
+    val (_, truthq2) = vds2.queryVA("va.splitGqMean")
 
     vds2.variantsAndAnnotations
       .collect()
       .foreach { case (v, va) =>
         assert(
-          (testq2(va), truthq2(va), aIndexq(va)) match {
-            case (Some(test), Some(truth), Some(index)) =>
-              test.asInstanceOf[IndexedSeq[Double]](index.asInstanceOf[Int] - 1) == truth.asInstanceOf[Double]
-            case (None, None, _) => true
-            case _ => false
-          }
-        )
+          testq2(va).asInstanceOf[IndexedSeq[Double]](
+            aIndexq(va).asInstanceOf[Int] - 1) == truthq2(va))
       }
   }
 }

@@ -122,15 +122,14 @@ class FisherExactTestSuite extends SparkSuite {
         val (_, q8) = vds2.queryVA("va.fet.ci95Upper")
 
         vds2.variantsAndAnnotations.forall { case (v, va) =>
-          val result = FisherExactTest(q1(va).get.asInstanceOf[Long].toInt, q2(va).get.asInstanceOf[Long].toInt,
-            q3(va).get.asInstanceOf[Long].toInt, q4(va).get.asInstanceOf[Long].toInt)
-          val annotationResult = Array(q5(va).asInstanceOf[Option[Double]], q6(va).asInstanceOf[Option[Double]],
-            q7(va).asInstanceOf[Option[Double]], q8(va).asInstanceOf[Option[Double]])
+          val result = FisherExactTest(q1(va).asInstanceOf[Long].toInt, q2(va).asInstanceOf[Long].toInt,
+            q3(va).asInstanceOf[Long].toInt, q4(va).asInstanceOf[Long].toInt)
+          val annotationResult = Array(Option(q5(va)).asInstanceOf[Option[Double]],
+            Option(q6(va)).asInstanceOf[Option[Double]],
+            Option(q7(va)).asInstanceOf[Option[Double]],
+            Option(q8(va)).asInstanceOf[Option[Double]])
 
-          if (result sameElements annotationResult)
-            true
-          else
-            false
+          result sameElements annotationResult
         }
       }
   }

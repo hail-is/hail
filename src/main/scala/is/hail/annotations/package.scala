@@ -8,11 +8,11 @@ package object annotations {
 
   type Deleter = (Annotation) => Annotation
 
-  type Querier = (Annotation) => Option[Any]
+  type Querier = (Annotation) => Any
 
-  type Inserter = (Annotation, Option[Any]) => Annotation
+  type Inserter = (Annotation, Any) => Annotation
 
-  type Assigner = (Annotation, Option[Any]) => Annotation
+  type Assigner = (Annotation, Any) => Annotation
 
   type Merger = (Annotation, Annotation) => Annotation
 

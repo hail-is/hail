@@ -50,13 +50,13 @@ class LogisticRegressionSuite extends SparkSuite {
       .toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Double], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
 
-    def assertExploded(v: Variant) = assert(qExploded(annotationMap(v)).get.asInstanceOf[Boolean])
+    def assertExploded(v: Variant) = assert(qExploded(annotationMap(v)).asInstanceOf[Boolean])
 
-    def assertNotConverged(v: Variant) = assert(!qConverged(annotationMap(v)).get.asInstanceOf[Boolean])
+    def assertNotConverged(v: Variant) = assert(!qConverged(annotationMap(v)).asInstanceOf[Boolean])
 
-    def assertConstant(v: Variant) = assert(qConverged(annotationMap(v)).isEmpty)
+    def assertConstant(v: Variant) = assert(qConverged(annotationMap(v)) == null)
 
     /*
     comparing to output of R code:
@@ -100,10 +100,10 @@ class LogisticRegressionSuite extends SparkSuite {
     assertConstant(v9)
     assertConstant(v10)
 
-    assert(qBeta(annotationMap(v6)).isEmpty)
-    assert(qSe(annotationMap(v6)).isEmpty)
-    assert(qZstat(annotationMap(v6)).isEmpty)
-    assert(qPVal(annotationMap(v6)).isEmpty)
+    assert(qBeta(annotationMap(v6)) == null)
+    assert(qSe(annotationMap(v6)) == null)
+    assert(qZstat(annotationMap(v6)) == null)
+    assert(qPVal(annotationMap(v6)) == null)
   }
 
   @Test def lrTestWithTwoCov() {
@@ -147,13 +147,13 @@ class LogisticRegressionSuite extends SparkSuite {
       .toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Double], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
 
-    def assertExploded(v: Variant) = assert(qExploded(annotationMap(v)).get.asInstanceOf[Boolean])
+    def assertExploded(v: Variant) = assert(qExploded(annotationMap(v)).asInstanceOf[Boolean])
 
-    def assertNotConverged(v: Variant) = assert(!qConverged(annotationMap(v)).get.asInstanceOf[Boolean])
+    def assertNotConverged(v: Variant) = assert(!qConverged(annotationMap(v)).asInstanceOf[Boolean])
 
-    def assertConstant(v: Variant) = assert(qConverged(annotationMap(v)).isEmpty)
+    def assertConstant(v: Variant) = assert(qConverged(annotationMap(v)) == null)
 
     /*
     comparing to output of R code:
@@ -195,9 +195,9 @@ class LogisticRegressionSuite extends SparkSuite {
     assertConstant(v9)
     assertConstant(v10)
 
-    assert(qBeta(annotationMap(v6)).isEmpty)
-    assert(qChi2(annotationMap(v6)).isEmpty)
-    assert(qPVal(annotationMap(v6)).isEmpty)
+    assert(qBeta(annotationMap(v6)) == null)
+    assert(qChi2(annotationMap(v6)) == null)
+    assert(qPVal(annotationMap(v6)) == null)
   }
 
   @Test def scoreTestWithTwoCov() {
@@ -237,9 +237,9 @@ class LogisticRegressionSuite extends SparkSuite {
       .toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Double], value))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
 
-    def assertEmpty(v: Variant) = assert(qChi2(annotationMap(v)).isEmpty)
+    def assertEmpty(v: Variant) = assert(qChi2(annotationMap(v)) == null)
 
     /*
     comparing to output of R code:
@@ -278,7 +278,7 @@ class LogisticRegressionSuite extends SparkSuite {
     assertEmpty(v9)
     assertEmpty(v10)
 
-    assert(qPVal(annotationMap(v6)).isEmpty)
+    assert(qPVal(annotationMap(v6)) == null)
   }
 
   @Test def waldEpactsTest() {
@@ -319,7 +319,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double, tol: Double = 1e-4) =
-      assert(D_==(q(annotationMap(v)).get.asInstanceOf[Double], value, tol))
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value, tol))
 
     // Comparing to output of b.wald, b.lrt, and b.score in EPACTS
     // for five 1KG project variants with no missing genotypes

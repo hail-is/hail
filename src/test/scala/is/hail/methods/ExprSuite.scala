@@ -90,13 +90,13 @@ class ExprSuite extends SparkSuite {
     // used to force serialization of values
     def eval[T](s: String): Option[T] = {
       val f = Parser.parseExpr(s, ec)._2
-      val r = f().map(_.asInstanceOf[T])
+      val r = Option(f()).map(_.asInstanceOf[T])
       rdd.map(_ => r).collect().head // force serialization
     }
 
     def evalWithType[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parseExpr(s, ec)
-      (t, f().map(_.asInstanceOf[T]))
+      (t, Option(f()).map(_.asInstanceOf[T]))
     }
 
     assert(eval[Int]("is.toInt").contains(-37))
@@ -762,7 +762,7 @@ class ExprSuite extends SparkSuite {
 
     def eval[T](s: String): (Type, Option[T]) = {
       val (t, f) = Parser.parseExpr(s, ec)
-      (t, f().map(_.asInstanceOf[T]))
+      (t, Option(f()).map(_.asInstanceOf[T]))
     }
 
     assert(Parser.parseExpr("if (c) 0 else 0", ec)._1 == TInt)
