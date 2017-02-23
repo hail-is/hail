@@ -366,9 +366,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     // println(s"truth / lmm / lin: beta(0) = ${beta(0)} / ${fitBeta("intercept")} / ${linBeta(0)}")
     // (1 until c).foreach( i => println(s"truth / lmm / lin: beta($i) = ${beta(i)} / ${fitBeta(s"sa.covs.cov$i")} / ${linBeta(i)}"))
 
-    assert(D_==(delta, 0.8314409887870612))
-    assert(D_==(fitDelta, 0.8410147169942509))
-    assert(D_==(delta, fitDelta, 0.05))
+    assert(D_==(delta, fitDelta, 0.05), s"$delta == $fitDelta +- 0.05")
     assert(D_==(sigmaG2, fitSigmaG2, 0.05))
     assert(math.abs(beta(0) - fitBeta("intercept")) < 0.05)
     assert(math.abs(beta(1) - fitBeta("sa.covs.cov1")) < 0.05)
