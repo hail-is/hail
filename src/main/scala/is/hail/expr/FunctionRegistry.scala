@@ -462,9 +462,9 @@ object FunctionRegistry {
   registerMethod("gt", { (x: Genotype) =>
     val gt = x.unboxedGT
     if (gt == -1)
-      box(gt)
-    else
       null
+    else
+      box(gt)
   })
   registerMethod("gtj", { (x: Genotype) =>
     val gt = x.unboxedGT

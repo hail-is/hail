@@ -140,7 +140,7 @@ abstract class Genotype extends Serializable {
     else
       Some(unboxedDP)
 
-  def hasOD: Boolean = unboxedDP == -1 || unboxedAD == null
+  def hasOD: Boolean = unboxedDP != -1 && unboxedAD != null
 
   def od_ : Int = unboxedDP - intArraySum(unboxedAD)
 
@@ -156,9 +156,9 @@ abstract class Genotype extends Serializable {
     else
       Some(unboxedGQ)
 
-  def px: Option[Array[Int]] = Some(unboxedPX)
+  def px: Option[Array[Int]] = Option(unboxedPX)
 
-  def pl: Option[Array[Int]] = Some(unboxedPL)
+  def pl: Option[Array[Int]] = Option(unboxedPL)
 
   def dosage: Option[Array[Double]] = Option(unboxedDosage)
 
@@ -210,6 +210,16 @@ abstract class Genotype extends Serializable {
     if (hasNNonRefAlleles)
       Some(nNonRefAlleles_)
     else
+      None
+
+  def fractionReadsRef(): Option[Double] =
+    if (unboxedAD != null) {
+      val s = intArraySum(unboxedAD)
+      if (s != 0)
+        Some(unboxedAD(0).toDouble / s)
+      else
+        None
+    } else
       None
 
   def oneHotAlleles(nAlleles: Int): Option[IndexedSeq[Int]] = {
