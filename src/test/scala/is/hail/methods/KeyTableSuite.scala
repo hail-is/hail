@@ -35,19 +35,6 @@ class KeyTableSuite extends SparkSuite {
     KeyTable(hc, rdd, signature, keyNames)
   }
 
-  @Test def testSingleToPairRDD() = {
-    val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val kt = hc.importKeyTable(List(inputFile), List("Sample", "Status"), None, TextTableConfiguration())
-    val kt2 = KeyTable(hc, KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues), kt.signature, kt.keyNames)
-
-    assert(kt.rdd.fullOuterJoin(kt2.rdd).forall { case (k, (v1, v2)) =>
-      val res = v1 == v2
-      if (!res)
-        println(s"k=$k v1=$v1 v2=$v2 res=${ v1 == v2 }")
-      res
-    })
-  }
-
   @Test def testImportExport() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
@@ -71,28 +58,27 @@ class KeyTableSuite extends SparkSuite {
     val kt3 = kt2.annotate("")
     val kt4 = kt3.select(kt3.fieldNames, Array("qPhen", "NotStatus"))
 
-    val kt1ValueNames = kt1.valueNames.toSet
-    val kt2ValueNames = kt2.valueNames.toSet
+    val kt1FieldNames = kt1.fieldNames.toSet
+    val kt2FieldNames = kt2.fieldNames.toSet
 
     assert(kt1.nKeys == 1)
     assert(kt2.nKeys == 1)
-    assert(kt1.nValues == 2 && kt2.nValues == 5)
-    assert(kt1.keySignature == kt2.keySignature)
-    assert(kt1ValueNames ++ Set("qPhen2", "NotStatus", "X") == kt2ValueNames)
+    assert(kt1.nFields == 3 && kt2.nFields == 6)
+    assert(kt1.keyFields.zip(kt2.keyFields).forall{ case (fd1, fd2) => fd1.name == fd2.name && fd1.typ == fd2.typ})
+    assert(kt1FieldNames ++ Set("qPhen2", "NotStatus", "X") == kt2FieldNames)
     assert(kt2 same kt3)
 
     def getDataAsMap(kt: KeyTable) = {
       val fieldNames = kt.fieldNames
       val nFields = kt.nFields
-      KeyTable.toSingleRDD(kt.rdd, kt.nKeys, kt.nValues)
-        .map { a => fieldNames.zip(KeyTable.annotationToSeq(a, nFields)).toMap }.collect().toSet
+      kt.rdd.map { a => fieldNames.zip(KeyTable.annotationToSeq(a, nFields)).toMap }.collect().toSet
     }
 
     val kt3data = getDataAsMap(kt3)
     val kt4data = getDataAsMap(kt4)
 
     assert(kt4.keyNames.toSet == Set("qPhen", "NotStatus") &&
-      kt4.valueNames.toSet == Set("qPhen2", "X", "Sample", "Status") &&
+      kt4.fieldNames.toSet -- kt4.keyNames == Set("qPhen2", "X", "Sample", "Status") &&
       kt3data == kt4data
     )
 
@@ -125,12 +111,12 @@ class KeyTableSuite extends SparkSuite {
     val ktLeft = hc.importKeyTable(List(inputFile1), List("Sample"), None, TextTableConfiguration(impute = true))
     val ktRight = hc.importKeyTable(List(inputFile2), List("Sample"), None, TextTableConfiguration(impute = true))
 
-    val ktLeftJoin = ktLeft.leftJoin(ktRight)
-    val ktRightJoin = ktLeft.rightJoin(ktRight)
-    val ktInnerJoin = ktLeft.innerJoin(ktRight)
-    val ktOuterJoin = ktLeft.outerJoin(ktRight)
+    val ktLeftJoin = ktLeft.join(ktRight, "left")
+    val ktRightJoin = ktLeft.join(ktRight, "right")
+    val ktInnerJoin = ktLeft.join(ktRight, "inner")
+    val ktOuterJoin = ktLeft.join(ktRight, "outer")
 
-    val nExpectedValues = ktLeft.nValues + ktRight.nValues
+    val nExpectedFields = ktLeft.nFields + ktRight.nFields - ktRight.nKeys
 
     val i: IndexedSeq[Int] = Array(1,2,3)
 
@@ -139,8 +125,8 @@ class KeyTableSuite extends SparkSuite {
     val (_, leftJoinKeyQuery) = ktLeftJoin.query("Sample")
     val (_, rightJoinKeyQuery) = ktRightJoin.query("Sample")
 
-    val leftKeys = ktLeft.rdd.map { case (k, v) => Option(leftKeyQuery(k, v)).map(_.asInstanceOf[String]) }.collect().toSet
-    val rightKeys = ktRight.rdd.map { case (k, v) => Option(rightKeyQuery(k, v)).map(_.asInstanceOf[String]) }.collect().toSet
+    val leftKeys = ktLeft.rdd.map { a => Option(leftKeyQuery(a)).map(_.asInstanceOf[String]) }.collect().toSet
+    val rightKeys = ktRight.rdd.map { a => Option(rightKeyQuery(a)).map(_.asInstanceOf[String]) }.collect().toSet
 
     val nIntersectRows = leftKeys.intersect(rightKeys).size
     val nUnionRows = rightKeys.union(leftKeys).size
@@ -148,29 +134,46 @@ class KeyTableSuite extends SparkSuite {
 
     assert(ktLeftJoin.nRows == ktLeft.nRows &&
       ktLeftJoin.nKeys == nExpectedKeys &&
-      ktLeftJoin.nValues == nExpectedValues &&
-      ktLeftJoin.filter { case (k, v) =>
-        !rightKeys.contains(Option(leftJoinKeyQuery(k, v)).map(_.asInstanceOf[String]))
+      ktLeftJoin.nFields == nExpectedFields &&
+      ktLeftJoin.filter { a =>
+        !rightKeys.contains(Option(leftJoinKeyQuery(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
     )
 
     assert(ktRightJoin.nRows == ktRight.nRows &&
       ktRightJoin.nKeys == nExpectedKeys &&
-      ktRightJoin.nValues == nExpectedValues &&
-      ktRightJoin.filter { case (k, v) =>
-        !leftKeys.contains(Option(rightJoinKeyQuery(k, v)).map(_.asInstanceOf[String]))
+      ktRightJoin.nFields == nExpectedFields &&
+      ktRightJoin.filter { a =>
+        !leftKeys.contains(Option(rightJoinKeyQuery(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(Status) && isMissing(qPhen)"))
 
     assert(ktOuterJoin.nRows == nUnionRows &&
       ktOuterJoin.nKeys == ktLeft.nKeys &&
-      ktOuterJoin.nValues == nExpectedValues)
+      ktOuterJoin.nFields == nExpectedFields)
 
     assert(ktInnerJoin.nRows == nIntersectRows &&
       ktInnerJoin.nKeys == nExpectedKeys &&
-      ktInnerJoin.nValues == nExpectedValues)
+      ktInnerJoin.nFields == nExpectedFields)
 
     val outputFile = tmpDir.createTempFile("join", "tsv")
     ktLeftJoin.export(sc, outputFile, null)
+  }
+
+  @Test def testJoinDiffKeyNames() = {
+    val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
+    val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
+
+    val ktLeft = hc.importKeyTable(List(inputFile1), List("Sample"), None, TextTableConfiguration(impute = true))
+    val ktRight = hc.importKeyTable(List(inputFile2), List("Sample"), None, TextTableConfiguration(impute = true)).rename(Map("Sample" -> "sample"))
+    val ktBad = ktRight.select(ktRight.fieldNames, Array("qPhen2"))
+
+    intercept[FatalException]{
+      val ktJoinBad = ktLeft.join(ktBad, "left")
+      assert(ktJoinBad.keyNames sameElements Array("Sample"))
+    }
+
+    val ktJoin = ktLeft.join(ktRight, "left")
+    assert(ktJoin.keyNames sameElements Array("Sample"))
   }
 
   @Test def testAggregate() {
@@ -245,16 +248,16 @@ class KeyTableSuite extends SparkSuite {
     val kt = KeyTable(hc, rdd, signature, keyNames)
 
     val select1 = kt.select(Array("field1"), Array("field1"))
-    assert((select1.keyNames sameElements Array("field1")) && (select1.valueNames sameElements Array.empty[String]))
+    assert((select1.keyNames sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
 
     val select2 = kt.select(Array("Sample", "field2", "field1"), Array("Sample"))
-    assert((select2.keyNames sameElements Array("Sample")) && (select2.valueNames sameElements Array("field2", "field1")))
+    assert((select2.keyNames sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
 
     val select3 = kt.select(Array("field2", "field1", "Sample"), Array.empty[String])
-    assert((select3.keyNames sameElements Array.empty[String]) && (select3.valueNames sameElements Array("field2", "field1", "Sample")))
+    assert((select3.keyNames sameElements Array.empty[String]) && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
     val select4 = kt.select(Array.empty[String], Array.empty[String])
-    assert((select4.keyNames sameElements Array.empty[String]) && (select4.valueNames sameElements Array.empty[String]))
+    assert((select4.keyNames sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
 
     intercept[FatalException](kt.select(Array.empty[String], Array("Sample")))
 
