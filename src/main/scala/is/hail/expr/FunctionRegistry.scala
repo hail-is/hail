@@ -471,14 +471,14 @@ object FunctionRegistry {
     if (gt == -1)
       null
     else
-      Genotype.gtPair(gt).j: java.lang.Integer
+      box(Genotype.gtPair(gt).j)
   })
   registerMethod("gtk", { (x: Genotype) =>
     val gt = x.unboxedGT
     if (gt == -1)
       null
     else
-      Genotype.gtPair(gt).k: java.lang.Integer
+      box(Genotype.gtPair(gt).k)
   })
   registerMethod("ad", { (x: Genotype) => x.unboxedAD: IndexedSeq[Int] })
   registerMethod("dp", { (x: Genotype) =>
