@@ -41,18 +41,35 @@ object MaximalIndependentSet {
       Graph(toBeComputed.vertices.leftZipJoin(toBeComputed.degrees) { (v, _, degree) => (degree.getOrElse(0), v) }, toBeComputed.edges)
     }
 
-    var graph = updateVertexDegrees(g)
+    var graph1: Graph[Message, ED] = updateVertexDegrees(g)
+    var graph2: Graph[Message, ED] = null
     val edgeDirection = if (undirected) EdgeDirection.Either else EdgeDirection.Out
 
     var i = 0
-    while(graph.numEdges > 0 && i < 100) {
+    while(graph1.numEdges > 0 && i < 100) {
+      if (i == 1) {
+        while (true) {
+
+        }
+      }
+      if (graph2 != null) {
+        graph2.unpersist()
+      }
       i += 1
-      info(s"$i: ${graph.numVertices}")
-      graph = graph.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
-      graph = graph.subgraph(_ => true, (id, value) => value match { case (maxDegrees, maxID) => maxID != id || maxDegrees == 0})
-      graph = updateVertexDegrees(graph)
+      info(s"$i: ${graph1.numVertices}")
+      var newGraph = graph1.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
+      newGraph = newGraph.subgraph(_ => true, (id, value) => value match { case (maxDegrees, maxID) => maxID != id || maxDegrees == 0})
+      newGraph = updateVertexDegrees(newGraph)
+      graph2 = graph1
+      graph1 = newGraph
+      graph1.persist()
+      graph1.vertices.count()
+      graph1.edges.count()
     }
-    graph.vertices.keys.collect().toSet
+    if (graph2 != null) {
+      graph2.unpersist()
+    }
+    graph1.vertices.keys.collect().toSet
   }
 
 
