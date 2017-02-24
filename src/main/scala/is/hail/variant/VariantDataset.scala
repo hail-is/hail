@@ -38,8 +38,11 @@ object VariantDataset {
 
     val (metadata, parquetGenotypes) = readMetadata(hConf, dirname, skipGenotypes)
     val vaSignature = metadata.vaSignature
-
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
+
+    val genotypeSignature = metadata.genotypeSignature
+    val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
+    val isGenericGenotype = metadata.isGenericGenotype
     val isDosage = metadata.isDosage
 
     val parquetFile = dirname + "/rdd.parquet"
@@ -54,7 +57,18 @@ object VariantDataset {
               Iterable.empty[Genotype])))
       else {
         val rdd = sqlContext.readParquetSorted(parquetFile)
-        if (parquetGenotypes)
+        if (isGenericGenotype)
+          rdd.map{ row =>
+            val v = row.getVariant(0)
+            (v,
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                row.getSeq[Row](2).lazyMap { g =>
+                  val ag = if (gRequiresConversion) SparkAnnotationImpex.importAnnotation(g, genotypeSignature) else g
+                  Genotype(-1) // placeholder until change VDS type
+                }
+              ))
+          }
+        else if (parquetGenotypes)
           rdd.map { row =>
             val v = row.getVariant(0)
             (v,
@@ -176,9 +190,19 @@ object VariantDataset {
       case _ => false
     }
 
+    val isGenericGenotype = fields.get("isGenericGenotype") match {
+      case Some(t: JBool) => t.value
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JBool' in field `isGenericGenotype', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case _ => false
+    }
+
     val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
     val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
     val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
+    val genotypeSignature = Parser.parseType(getAndCastJSON[JString]("genotype_schema").s)
 
     val sampleInfoSchema = TStruct(("id", TString), ("annotation", saSignature))
     val sampleInfo = getAndCastJSON[JArray]("sample_annotations")
@@ -200,7 +224,7 @@ object VariantDataset {
     val annotations = sampleInfo.map(_._2)
 
     (VariantMetadata(ids, annotations, globalAnnotation,
-      saSignature, vaSignature, globalSignature, wasSplit, isDosage), parquetGenotypes)
+      saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype), parquetGenotypes)
   }
 
   def readKudu(hc: HailContext, dirname: String, tableName: String,
@@ -1259,6 +1283,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val vaSignature = vds.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
+    val genotypeSignature = vds.genotypeSignature
+    val isGenericGenotype = vds.isGenericGenotype
+    val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
+
     vds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
       Serialization.write(vds.rdd.orderedPartitioner.toJSON, out)
     }
@@ -1267,7 +1295,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val rowRDD = vds.rdd.map { case (v, (va, gs)) =>
       Row.fromSeq(Array(v.toRow,
         if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-        if (parquetGenotypes)
+        if (isGenericGenotype)
+          gs.lazyMap{ g => if (gRequiresConversion) SparkAnnotationImpex.exportAnnotation(g, genotypeSignature).asInstanceOf[Row] else g.toRow }.toArray[Row]: IndexedSeq[Row]
+        else if (parquetGenotypes)
           gs.lazyMap(_.toRow).toArray[Row]: IndexedSeq[Row]
         else
           gs.toGenotypeStream(v, isDosage).toRow))
@@ -1281,7 +1311,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       StructField("variant", Variant.schema, nullable = false),
       StructField("annotations", vds.vaSignature.schema),
       StructField("gs",
-        if (parquetGenotypes)
+        if (vds.isGenericGenotype)
+          ArrayType(vds.genotypeSignature.schema, containsNull = false)
+        else if (parquetGenotypes)
           ArrayType(Genotype.schema, containsNull = false)
         else
           GenotypeStream.schema,
@@ -1308,6 +1340,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.globalSignature.pretty(sb, printAttrs = true, compact = true)
     val globalSchemaString = sb.result()
 
+    sb.clear()
+    vds.genotypeSignature.pretty(sb, printAttrs = true, compact = true)
+    val genotypeSchemaString = sb.result()
+
     val sampleInfoSchema = TStruct(("id", TString), ("annotation", vds.saSignature))
     val sampleInfoJson = JArray(
       vds.sampleIdsAndAnnotations
@@ -1321,10 +1357,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       ("version", JInt(VariantSampleMatrix.fileVersion)),
       ("split", JBool(vds.wasSplit)),
       ("isDosage", JBool(vds.isDosage)),
+      ("isGenericGenotype", JBool(vds.isGenericGenotype)),
       ("parquetGenotypes", JBool(parquetGenotypes)),
       ("sample_annotation_schema", JString(saSchemaString)),
       ("variant_annotation_schema", JString(vaSchemaString)),
       ("global_annotation_schema", JString(globalSchemaString)),
+      ("genotype_schema", JString(genotypeSchemaString)),
       ("sample_annotations", sampleInfoJson),
       ("global_annotation", JSONAnnotationImpex.exportAnnotation(vds.globalAnnotation, vds.globalSignature))
     )

@@ -94,7 +94,8 @@ case class VSMSubgen[T](
           ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v.nAlleles)).resize(subsubsizes(2)))
           yield (v, (va, ts))).resize(l))
       yield {
-        VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, wasSplit = wasSplit, isDosage = isDosage),
+        val genotypeSig = TGenotype
+        VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, genotypeSig, wasSplit = wasSplit, isDosage = isDosage),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
       }
 }
@@ -129,6 +130,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
+
+  def genotypeSignature = metadata.genotypeSignature
+
+  def isGenericGenotype: Boolean = metadata.isGenericGenotype
 
   /**
     * Aggregate by user-defined key and aggregation expressions.
@@ -1347,12 +1352,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     saSignature: Type = saSignature,
     vaSignature: Type = vaSignature,
     globalSignature: Type = globalSignature,
+    genotypeSignature: Type = genotypeSignature,
     wasSplit: Boolean = wasSplit,
-    isDosage: Boolean = isDosage)
+    isDosage: Boolean = isDosage,
+    isGenericGenotype: Boolean = isGenericGenotype)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](hc,
       VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
-        saSignature, vaSignature, globalSignature, wasSplit, isDosage), rdd)
+        saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype), rdd)
 
   def samplesKT(): KeyTable = {
     KeyTable(hc, sparkContext.parallelize(sampleIdsAndAnnotations)

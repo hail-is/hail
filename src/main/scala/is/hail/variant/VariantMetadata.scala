@@ -19,7 +19,7 @@ object VariantMetadata {
     TStruct.empty,
     TStruct.empty,
     TStruct.empty,
-    wasSplit)
+    wasSplit = wasSplit)
 
   def apply(
     sampleIds: Array[String],
@@ -39,8 +39,10 @@ case class VariantMetadata(
   saSignature: Type,
   vaSignature: Type,
   globalSignature: Type,
+  genotypeSignature: Type = TGenotype,
   wasSplit: Boolean = false,
-  isDosage: Boolean = false) {
+  isDosage: Boolean = false,
+  isGenericGenotype: Boolean = false) {
 
   def nSamples: Int = sampleIds.length
 }
