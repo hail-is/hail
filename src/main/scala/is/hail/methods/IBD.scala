@@ -261,10 +261,10 @@ object IBD {
       .map { case ((i, j), ibd) => ((sampleIds(i), sampleIds(j)), ibd) }
   }
 
-  private val ibdKeySignature = TStruct(("i", TString), ("j", TString))
+  private val ibdSignature = TStruct(("i", TString), ("j", TString)).merge(ExtendedIBDInfo.signature)._1
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((String, String), ExtendedIBDInfo)]): KeyTable = {
-    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => (Annotation(i, j), eibd.toAnnotation) }
-    KeyTable(sc, ktRdd, ibdKeySignature, ExtendedIBDInfo.signature)
+    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => Annotation(i, j, eibd.toAnnotation) }
+    KeyTable(sc, ktRdd, ibdSignature, Array("i", "j"))
   }
 
   private def generateComputeMaf(vds: VariantDataset, computeMafExpr: String): (Variant, Annotation) => Double = {

@@ -239,7 +239,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.annotate(expr))
 
     def join(self, right, how='inner'):
-        """Join two KeyTables together.
+        """Join two key tables together.
 
         **Examples**
 
@@ -259,9 +259,9 @@ class KeyTable(object):
 
         The non-key fields in ``kt2`` must have non-overlapping column names with ``kt1``.
 
-        Both KeyTables must have the same number of keys and the corresponding types of each key must be the same (order matters), but the key names can be different.
-        For example, if ``kt1`` has the key schema ``Struct{("a", Int), ("b", String)}``, ``kt1`` can be merged with a KeyTable that has a key schema equal to
-        ``Struct{("b", Int), ("c", String)}`` but cannot be merged to a KeyTable with key schema ``Struct{("b", "String"), ("a", Int)}``. The ``kt_joined`` will have the same key names and schema as ``kt1``.
+        Both key tables must have the same number of keys and the corresponding types of each key must be the same (order matters), but the key names can be different.
+        For example, if ``kt1`` has the key schema ``Struct{("a", Int), ("b", String)}``, ``kt1`` can be merged with a key table that has a key schema equal to
+        ``Struct{("b", Int), ("c", String)}`` but cannot be merged to a key table with key schema ``Struct{("b", "String"), ("a", Int)}``. ``kt_joined`` will have the same key names and schema as ``kt1``.
 
         :param  right: KeyTable to join
         :type right: :class:`.KeyTable`
@@ -284,7 +284,7 @@ class KeyTable(object):
 
         >>> kt_ht_by_sex = kt1.aggregate_by_key("SEX = SEX", "MEAN_HT = HT.stats().mean")
 
-        The result of :py:meth:`.aggregate_by_key` is a KeyTable ``kt_ht_by_sex`` with the following data:
+        The result of :py:meth:`.aggregate_by_key` is a key table ``kt_ht_by_sex`` with the following data:
 
         +--------+----------+
         |   SEX  |MEAN_HT   |

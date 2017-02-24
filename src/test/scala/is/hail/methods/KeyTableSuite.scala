@@ -64,7 +64,7 @@ class KeyTableSuite extends SparkSuite {
     assert(kt1.nKeys == 1)
     assert(kt2.nKeys == 1)
     assert(kt1.nFields == 3 && kt2.nFields == 6)
-    assert(kt1.keyFields.zip(kt2.keyFields).forall{ case (fd1, fd2) => fd1.name == fd2.name && fd1.typ == fd2.typ})
+    assert(kt1.keyFields.zip(kt2.keyFields).forall { case (fd1, fd2) => fd1.name == fd2.name && fd1.typ == fd2.typ })
     assert(kt1FieldNames ++ Set("qPhen2", "NotStatus", "X") == kt2FieldNames)
     assert(kt2 same kt3)
 
@@ -118,7 +118,7 @@ class KeyTableSuite extends SparkSuite {
 
     val nExpectedFields = ktLeft.nFields + ktRight.nFields - ktRight.nKeys
 
-    val i: IndexedSeq[Int] = Array(1,2,3)
+    val i: IndexedSeq[Int] = Array(1, 2, 3)
 
     val (_, leftKeyQuery) = ktLeft.query("Sample")
     val (_, rightKeyQuery) = ktRight.query("Sample")
@@ -167,7 +167,7 @@ class KeyTableSuite extends SparkSuite {
     val ktRight = hc.importKeyTable(List(inputFile2), List("Sample"), None, TextTableConfiguration(impute = true)).rename(Map("Sample" -> "sample"))
     val ktBad = ktRight.select(ktRight.fieldNames, Array("qPhen2"))
 
-    intercept[FatalException]{
+    intercept[FatalException] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
       assert(ktJoinBad.keyNames sameElements Array("Sample"))
     }
@@ -185,10 +185,10 @@ class KeyTableSuite extends SparkSuite {
     val kt1 = KeyTable(hc, rdd, signature, keyNames)
     val kt2 = kt1.aggregate("Status = field1",
       "A = field2.sum(), " +
-      "B = field2.map(f => field2).sum(), " +
-      "C = field2.map(f => field2 + field3).sum(), " +
-      "D = field2.count(), " +
-      "E = field2.filter(f => field2 == 3).count()"
+        "B = field2.map(f => field2).sum(), " +
+        "C = field2.map(f => field2 + field3).sum(), " +
+        "D = field2.count(), " +
+        "E = field2.filter(f => field2 == 3).count()"
     )
 
     val result = Array(Array("Case", 12, 12, 16, 2L, 1L), Array("Control", 3, 3, 11, 2L, 0L))
@@ -304,6 +304,7 @@ class KeyTableSuite extends SparkSuite {
 
     val kt = vds
       .variantsKT()
+      .expandTypes()
       .flatten()
       .select(Array("va.info.MQRankSum"), Array.empty[String])
 

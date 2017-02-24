@@ -39,7 +39,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
 
   def fields = signature.fields
 
-  def keyFields = keyNames.flatMap{ n => signature.fieldOption(n)}
+  def keyFields = keyNames.flatMap { n => signature.fieldOption(n) }
 
   def schema = signature.schema
 
@@ -59,7 +59,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
     val keyIndices = keyFields.map(_.index)
     val nFieldsLocal = nFields
 
-    rdd.map{ a =>
+    rdd.map { a =>
       val r = KeyTable.annotationToSeq(a, nFieldsLocal).zipWithIndex
       val keyRow = keyIndices.map(i => r(i)._1)
       (Annotation.fromSeq(keyRow), a)
@@ -245,7 +245,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
           .getOrElse(Seq.fill[Any](size1)(null))
         val s2 = Option(a2).map(_.asInstanceOf[Row].toSeq)
           .getOrElse(Seq.fill[Any](size2)(null))
-        val newValues = s1 ++  mergeIndices.map(i => s2(i))
+        val newValues = s1 ++ mergeIndices.map(i => s2(i))
         assert(newValues.size == targetSize)
         Annotation.fromSeq(newValues)
       }
@@ -312,27 +312,27 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
     val localTypes = fields.map(_.typ)
 
     rdd.mapPartitions { it =>
-        val sb = new StringBuilder()
-        val nulls: Seq[Any] = Array.fill[Annotation](localNFields)(null)
+      val sb = new StringBuilder()
+      val nulls: Seq[Any] = Array.fill[Annotation](localNFields)(null)
 
-        it.map { r =>
-          sb.clear()
+      it.map { r =>
+        sb.clear()
 
-          val r2 =
-            if (r == null)
-              nulls
-            else
-              r.asInstanceOf[Row].toSeq
-          assert(r2.length == localTypes.length)
+        val r2 =
+          if (r == null)
+            nulls
+          else
+            r.asInstanceOf[Row].toSeq
+        assert(r2.length == localTypes.length)
 
-          r2.zip(localTypes)
-            .foreachBetween { case (x, t) =>
-              sb.append(t.str(x))
-            }(sb += '\t')
+        r2.zip(localTypes)
+          .foreachBetween { case (x, t) =>
+            sb.append(t.str(x))
+          }(sb += '\t')
 
-          sb.result()
-        }
-      }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")))
+        sb.result()
+      }
+    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")))
   }
 
   def aggregate(keyCond: String, aggCond: String): KeyTable = {
@@ -397,9 +397,13 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
 
   def flatten(): KeyTable = {
     val localSignature = signature
+    val keySignature = TStruct(keyFields)
+    val flattenedSignature = Annotation.flattenType(localSignature).asInstanceOf[TStruct]
+    val flattenedKeyNames = Annotation.flattenType(keySignature).asInstanceOf[TStruct].fields.map(_.name).toArray
+
     KeyTable(hc, rdd.map { a => Annotation.flattenAnnotation(a, localSignature) },
-      Annotation.flattenType(signature).asInstanceOf[TStruct],
-      keyNames)
+      flattenedSignature,
+      flattenedKeyNames)
   }
 
   def toDF(sqlContext: SQLContext): DataFrame = {
