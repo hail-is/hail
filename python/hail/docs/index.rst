@@ -16,7 +16,7 @@ Contents
     Tutorial <tutorial.ipynb>
     Hail Objects <hail_objects>
     Python API <api>
-    SQL <sql>
+    Other Resources <other_resources>
 
 ==================
 Indices and tables
