@@ -120,13 +120,13 @@ class KeyTableSuite extends SparkSuite {
 
     val i: IndexedSeq[Int] = Array(1, 2, 3)
 
-    val (_, leftKeyQuery) = ktLeft.query("Sample")
-    val (_, rightKeyQuery) = ktRight.query("Sample")
-    val (_, leftJoinKeyQuery) = ktLeftJoin.query("Sample")
-    val (_, rightJoinKeyQuery) = ktRightJoin.query("Sample")
+    val (_, leftKeyQuerier) = ktLeft.rowQuerier("Sample")
+    val (_, rightKeyQuerier) = ktRight.rowQuerier("Sample")
+    val (_, leftJoinKeyQuerier) = ktLeftJoin.rowQuerier("Sample")
+    val (_, rightJoinKeyQuerier) = ktRightJoin.rowQuerier("Sample")
 
-    val leftKeys = ktLeft.rdd.map { a => Option(leftKeyQuery(a)).map(_.asInstanceOf[String]) }.collect().toSet
-    val rightKeys = ktRight.rdd.map { a => Option(rightKeyQuery(a)).map(_.asInstanceOf[String]) }.collect().toSet
+    val leftKeys = ktLeft.rdd.map { a => Option(leftKeyQuerier(a)).map(_.asInstanceOf[String]) }.collect().toSet
+    val rightKeys = ktRight.rdd.map { a => Option(rightKeyQuerier(a)).map(_.asInstanceOf[String]) }.collect().toSet
 
     val nIntersectRows = leftKeys.intersect(rightKeys).size
     val nUnionRows = rightKeys.union(leftKeys).size
@@ -136,7 +136,7 @@ class KeyTableSuite extends SparkSuite {
       ktLeftJoin.nKeys == nExpectedKeys &&
       ktLeftJoin.nFields == nExpectedFields &&
       ktLeftJoin.filter { a =>
-        !rightKeys.contains(Option(leftJoinKeyQuery(a)).map(_.asInstanceOf[String]))
+        !rightKeys.contains(Option(leftJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
     )
 
@@ -144,7 +144,7 @@ class KeyTableSuite extends SparkSuite {
       ktRightJoin.nKeys == nExpectedKeys &&
       ktRightJoin.nFields == nExpectedFields &&
       ktRightJoin.filter { a =>
-        !leftKeys.contains(Option(rightJoinKeyQuery(a)).map(_.asInstanceOf[String]))
+        !leftKeys.contains(Option(rightJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(Status) && isMissing(qPhen)"))
 
     assert(ktOuterJoin.nRows == nUnionRows &&

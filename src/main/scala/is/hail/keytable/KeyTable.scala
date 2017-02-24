@@ -18,7 +18,11 @@ import scala.reflect.ClassTag
 
 object KeyTable {
 
-  def annotationToSeq(a: Annotation, nFields: Int) = Option(a).map(_.asInstanceOf[Row].toSeq).getOrElse(Seq.fill[Any](nFields)(null))
+  def annotationToSeq(a: Annotation, nFields: Int): Seq[Any] =
+    if (a == null)
+      Array.fill[Any](nFields)(null)
+    else
+      a.asInstanceOf[Row].toSeq
 
   def setEvalContext(ec: EvalContext, a: Annotation, nFields: Int) =
     ec.setAll(annotationToSeq(a, nFields): _*)
@@ -32,14 +36,19 @@ object KeyTable {
   }
 }
 
-case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
+case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
   signature: TStruct, keyNames: Array[String]) {
-  require(fieldNames.areDistinct() && keyNames.areDistinct())
-  require(keyNames.forall(fieldNames.contains(_)))
+
+  if (!fieldNames.areDistinct())
+    fatal(s"Column names are not distinct: ${fieldNames.duplicates().mkString(", ")}")
+  if (!keyNames.areDistinct())
+    fatal(s"Key names are not distinct: ${keyNames.duplicates().mkString(", ")}")
+  if (!keyNames.forall(fieldNames.contains(_)))
+    fatal(s"Key names found that are not column names: ${keyNames.filterNot(fieldNames.contains(_)).mkString(", ")}")
 
   def fields = signature.fields
 
-  def keyFields = keyNames.flatMap { n => signature.fieldOption(n) }
+  def keyFields = keyNames.map(signature.fieldIdx).map(i => fields(i))
 
   def schema = signature.schema
 
@@ -51,17 +60,18 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
 
   def nKeys = keyNames.length
 
-  def typeCheck() = rdd.forall { a => signature.typeCheck(a) }
-
-  def printSchema(): Unit = println(signature.toPrettyString())
+  def typeCheck() = {
+    val localSignature = signature
+    rdd.forall { a => localSignature.typeCheck(a) }
+  }
 
   def withKeys(): RDD[(Annotation, Annotation)] = {
     val keyIndices = keyFields.map(_.index)
     val nFieldsLocal = nFields
 
     rdd.map { a =>
-      val r = KeyTable.annotationToSeq(a, nFieldsLocal).zipWithIndex
-      val keyRow = keyIndices.map(i => r(i)._1)
+      val r = KeyTable.annotationToSeq(a, nFieldsLocal)
+      val keyRow = keyIndices.map(i => r(i))
       (Annotation.fromSeq(keyRow), a)
     }
   }
@@ -105,7 +115,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
 
   def mapAnnotations[T](f: (Annotation) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(a => f(a))
 
-  def query(code: String): (Type, Querier) = {
+  def rowQuerier(code: String): (Type, Querier) = {
     val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val nFieldsLocal = nFields
 
@@ -149,7 +159,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
   }
 
   def filter(p: Annotation => Boolean): KeyTable =
-    copy(rdd = rdd.filter { a => p(a) })
+    copy(rdd = rdd.filter(p))
 
   def filter(cond: String, keep: Boolean): KeyTable = {
     val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
@@ -168,11 +178,11 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
   def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {
     val keyNamesNotInSelectedFields = newKeys.diff(fieldsSelect)
     if (keyNamesNotInSelectedFields.nonEmpty)
-      fatal(s"Key fields `${ keyNamesNotInSelectedFields.mkString(", ") }' must be present in selected fields.")
+      fatal(s"Key columns `${ keyNamesNotInSelectedFields.mkString(", ") }' must be present in selected columns.")
 
     val fieldsNotExist = fieldsSelect.diff(fieldNames)
     if (fieldsNotExist.nonEmpty)
-      fatal(s"Selected fields `${ fieldsNotExist.mkString(", ") }' do not exist in KeyTable. Choose from `${ fieldNames.mkString(", ") }'.")
+      fatal(s"Selected columns `${ fieldsNotExist.mkString(", ") }' do not exist in key table. Choose from `${ fieldNames.mkString(", ") }'.")
 
     val fieldTransform = fieldsSelect.map(cn => fieldNames.indexOf(cn))
 
@@ -199,14 +209,14 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
     }
 
     if (duplicateFieldNames.nonEmpty)
-      fatal(s"Found duplicate field names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
+      fatal(s"Found duplicate column names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
 
     KeyTable(hc, rdd, newSignature, newKeyNames)
   }
 
   def rename(newFieldNames: Array[String]): KeyTable = {
     if (newFieldNames.length != nFields)
-      fatal(s"Found ${ newFieldNames.length } new field names but need $nFields.")
+      fatal(s"Found ${ newFieldNames.length } new column names but need $nFields.")
 
     rename((fieldNames, newFieldNames).zipped.toMap)
   }
@@ -218,14 +228,14 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
   def join(other: KeyTable, joinType: String): KeyTable = {
     if (keyNames.length != other.keyNames.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
-        s"""Both KeyTables must have the same number of keys and the types of keys must be identical. Order matters.
+        s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
            |Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
            |Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
 
     val overlappingFields = fieldNames.toSet.intersect(other.fieldNames.toSet) -- keyNames -- other.keyNames
     if (overlappingFields.nonEmpty)
       fatal(
-        s"""Fields that are not keys cannot be present in both KeyTables.
+        s"""Columns that are not keys cannot be present in both key tables.
            |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
     val mergeFields = other.fields.filterNot(fd => other.keyNames.contains(fd.name))
@@ -241,10 +251,8 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
       if (a1 == null && a2 == null)
         Annotation.empty
       else {
-        val s1 = Option(a1).map(_.asInstanceOf[Row].toSeq)
-          .getOrElse(Seq.fill[Any](size1)(null))
-        val s2 = Option(a2).map(_.asInstanceOf[Row].toSeq)
-          .getOrElse(Seq.fill[Any](size2)(null))
+        val s1 = KeyTable.annotationToSeq(a1, size1)
+        val s2 = KeyTable.annotationToSeq(a2, size2)
         val newValues = s1 ++ mergeIndices.map(i => s2(i))
         assert(newValues.size == targetSize)
         Annotation.fromSeq(newValues)
@@ -325,10 +333,9 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[Annotation],
             r.asInstanceOf[Row].toSeq
         assert(r2.length == localTypes.length)
 
-        r2.zip(localTypes)
-          .foreachBetween { case (x, t) =>
-            sb.append(t.str(x))
-          }(sb += '\t')
+        localTypes.indices.foreachBetween{ i =>
+          sb.append(localTypes(i).str(r2(i)))
+        }(sb += '\t')
 
         sb.result()
       }

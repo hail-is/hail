@@ -14,15 +14,15 @@ class AggregateByKeySuite extends SparkSuite {
 
     val kt = vds.aggregateByKey("Sample = s", "nHet = g.map(g => g.isHet.toInt).sum()")
 
-    val (_, ktHetQuery) = kt.query("nHet")
-    val (_, ktSampleQuery) = kt.query("Sample")
-    val (_, saHetQuery) = vds.querySA("sa.nHet")
+    val (_, ktHetQuerier) = kt.rowQuerier("nHet")
+    val (_, ktSampleQuerier) = kt.rowQuerier("Sample")
+    val (_, saHetQuerier) = vds.querySA("sa.nHet")
 
     val ktSampleResults = kt.rdd.map { a =>
-      (Option(ktSampleQuery(a)).map(_.asInstanceOf[String]), Option(ktHetQuery(a)).map(_.asInstanceOf[Int]))
+      (Option(ktSampleQuerier(a)).map(_.asInstanceOf[String]), Option(ktHetQuerier(a)).map(_.asInstanceOf[Int]))
     }.collectAsMap()
 
-    assert(vds.sampleIdsAndAnnotations.forall { case (sid, sa) => Option(saHetQuery(sa)) == ktSampleResults(Option(sid)) })
+    assert(vds.sampleIdsAndAnnotations.forall { case (sid, sa) => Option(saHetQuerier(sa)) == ktSampleResults(Option(sid)) })
   }
 
   @Test def replicateVariantAggregation() {
@@ -32,15 +32,15 @@ class AggregateByKeySuite extends SparkSuite {
 
     val kt = vds.aggregateByKey("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum()")
 
-    val (_, ktHetQuery) = kt.query("nHet")
-    val (_, ktVariantQuery) = kt.query("Variant")
-    val (_, vaHetQuery) = vds.queryVA("va.nHet")
+    val (_, ktHetQuerier) = kt.rowQuerier("nHet")
+    val (_, ktVariantQuerier) = kt.rowQuerier("Variant")
+    val (_, vaHetQuerier) = vds.queryVA("va.nHet")
 
     val ktVariantResults = kt.rdd.map { a =>
-      (Option(ktVariantQuery(a)).map(_.asInstanceOf[Variant]), Option(ktHetQuery(a)).map(_.asInstanceOf[Int]))
+      (Option(ktVariantQuerier(a)).map(_.asInstanceOf[Variant]), Option(ktHetQuerier(a)).map(_.asInstanceOf[Int]))
     }.collectAsMap()
 
-    assert(vds.variantsAndAnnotations.forall { case (v, va) => Option(vaHetQuery(va)) == ktVariantResults(Option(v)) })
+    assert(vds.variantsAndAnnotations.forall { case (v, va) => Option(vaHetQuerier(va)) == ktVariantResults(Option(v)) })
   }
 
   @Test def replicateGlobalAggregation() {
@@ -51,10 +51,10 @@ class AggregateByKeySuite extends SparkSuite {
     vds = vds.annotateGlobal(vds.queryVariants("variants.map(v => va.nHet).sum()")._1, TLong, "global.nHet")
     val kt = vds.aggregateByKey("", "nHet = g.map(g => g.isHet.toInt).sum()")
 
-    val (_, ktHetQuery) = kt.query("nHet")
+    val (_, ktHetQuerier) = kt.rowQuerier("nHet")
     val (_, globalHetResult) = vds.queryGlobal("global.nHet")
 
-    val ktGlobalResult = kt.rdd.map { a => Option(ktHetQuery(a)).map(_.asInstanceOf[Int]) }.collect().head
+    val ktGlobalResult = kt.rdd.map { a => Option(ktHetQuerier(a)).map(_.asInstanceOf[Int]) }.collect().head
     val vdsGlobalResult = Option(globalHetResult).map(_.asInstanceOf[Int])
 
     assert(ktGlobalResult == vdsGlobalResult)
