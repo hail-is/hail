@@ -46,7 +46,6 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
   // FIXME why is cast necessary?
   cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
   cn.methods.asInstanceOf[util.List[MethodNode]].add(init)
-  val il = mn.instructions
 
   init.instructions.add(new IntInsnNode(ALOAD, 0))
   init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
@@ -95,8 +94,7 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
     val l = new mutable.ArrayBuffer[AbstractInsnNode]()
     c.emit(l)
     val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
-    if (dupes.nonEmpty)
-      println(s"dupes: $dupes")
+    assert(dupes.nonEmpty, s"some instructions were repeated in the instruciton list: $dupes")
     l.foreach(mn.instructions.add _)
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
@@ -109,7 +107,7 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
     //   // compute without frames first in case frame tester fails miserably
     //   val cwNoMaxesNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
     //   cn.accept(cwNoMaxesNoFrames)
-    //   val cr = new ClassReader(cwNoMaxesNoFrames.toByteArray())
+    //   val cr = new ClassReader(cwNoMaxesNoFrames.toByteArray)
     //   val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
     //   cr.accept(tcv, 0)
 
@@ -133,13 +131,13 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
       cn.accept(cw)
 
       val sw = new StringWriter()
-      CheckClassAdapter.verify(new ClassReader(cw.toByteArray()), false, new PrintWriter(sw))
-      if (sw.toString().length() != 0) {
+      CheckClassAdapter.verify(new ClassReader(cw.toByteArray), false, new PrintWriter(sw))
+      if (sw.toString.length != 0) {
         println("Verify Output for " + name + ":")
         try {
           val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
-          out.write(sw.toString())
-          out.close()
+          out.write(sw.toString)
+          out.close
         } catch {
           case e: IOException => System.out.println("Exception " + e)
         }
@@ -213,8 +211,6 @@ class Function1Builder[A >: Null, R >: Null](implicit act: ClassTag[A], ati: Typ
 
   def result(c: Code[R]): (A) => R = {
     val bytes = classAsBytes(c)
-    val klass = act.runtimeClass
-    // FIXME: thread-safe?
     val localName = name.replaceAll("/",".")
 
     new Function1[A, R] with java.io.Serializable {
@@ -244,8 +240,6 @@ class FunctionZToZBuilder(implicit zct: ClassTag[Boolean], zti: TypeInfo[Boolean
 
   def result(c: Code[Boolean]): (Boolean) => Boolean = {
     val bytes = classAsBytes(c)
-    val klass = zct.runtimeClass
-    // FIXME: thread-safe?
     val localName = name.replaceAll("/",".")
 
     new Function1[Boolean, Boolean] with java.io.Serializable {
@@ -275,8 +269,6 @@ class FunctionZToIBuilder(implicit act: ClassTag[Boolean], ati: TypeInfo[Boolean
 
   def result(c: Code[Int]): (Boolean) => Int = {
     val bytes = classAsBytes(c)
-    val klass = act.runtimeClass
-    // FIXME: thread-safe?
     val localName = name.replaceAll("/",".")
 
     new Function1[Boolean, Int] with java.io.Serializable {
@@ -380,7 +372,6 @@ class Function2Builder[A1 >: Null, A2 >: Null, R >: Null]
           }
         }
 
-        // f(a1.asInstanceOf[Array[AnyRef]], a2.asInstanceOf[mutable.ArrayBuffer[AnyRef]]).asInstanceOf[R]
         f(a1, a2).asInstanceOf[R]
       }
     }
