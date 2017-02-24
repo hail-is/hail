@@ -370,9 +370,10 @@ object Invokeable {
     isStatic = false,
     isInterface = false,
     INVOKESPECIAL,
-    Type.getConstructorDescriptor(c))
+    Type.getConstructorDescriptor(c),
+    implicitly[ClassTag[Void]].runtimeClass)
 
-  def apply[T, S](m: Method)(implicit tct: ClassTag[T]): Invokeable[T, S] = {
+  def apply[T, S](m: Method)(implicit tct: ClassTag[T], sct: ClassTag[S]): Invokeable[T, S] = {
     val isInterface = m.getDeclaringClass.isInterface
     val isStatic = Modifier.isStatic(m.getModifiers)
     assert(!(isInterface && isStatic))
@@ -385,7 +386,8 @@ object Invokeable {
         INVOKESTATIC
       else
         INVOKEVIRTUAL,
-      Type.getMethodDescriptor(m))
+      Type.getMethodDescriptor(m),
+      m.getReturnType)
   }
 
   def lookupMethod[T, S](method: String, parameterTypes: Array[Class[_]])(implicit tct: ClassTag[T], sct: ClassTag[S]): Invokeable[T, S] = {
@@ -417,7 +419,8 @@ class Invokeable[T, S](val name: String,
                        val isStatic: Boolean,
                        val isInterface: Boolean,
                        val invokeOp: Int,
-                       val descriptor: String)(implicit tct: ClassTag[T], sct: ClassTag[S]) {
+                       val descriptor: String,
+                       val concreteReturnType: Class[_])(implicit tct: ClassTag[T], sct: ClassTag[S]) {
   def invoke(lhs: Code[T], args: Array[Code[_]]): Code[S] =
     new Code[S] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -426,8 +429,9 @@ class Invokeable[T, S](val name: String,
         args.foreach(_.emit(il))
         il += (new MethodInsnNode(invokeOp,
           Type.getInternalName(tct.runtimeClass), name, descriptor, isInterface))
-        if (m.getReturnType != sct.runtimeClass) {
-          // if `m`'s return type is a generic type, we must use an explicit cast
+        if (concreteReturnType != sct.runtimeClass) {
+          // if `m`'s return type is a generic type, we must use an explicit
+          // cast to the expected type
           il += (new TypeInsnNode(CHECKCAST, Type.getInternalName(sct.runtimeClass)))
         }
       }
