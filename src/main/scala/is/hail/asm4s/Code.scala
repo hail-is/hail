@@ -417,7 +417,7 @@ class Invokeable[T, S](val name: String,
                        val isStatic: Boolean,
                        val isInterface: Boolean,
                        val invokeOp: Int,
-                       val descriptor: String)(implicit tct: ClassTag[T]) {
+                       val descriptor: String)(implicit tct: ClassTag[T], sct: ClassTag[S]) {
   def invoke(lhs: Code[T], args: Array[Code[_]]): Code[S] =
     new Code[S] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -426,7 +426,10 @@ class Invokeable[T, S](val name: String,
         args.foreach(_.emit(il))
         il += (new MethodInsnNode(invokeOp,
           Type.getInternalName(tct.runtimeClass), name, descriptor, isInterface))
-        // il += (new TypeInsnNode(CHECKCAST, Type.getInternalName(sct.runtimeClass)))
+        if (m.getReturnType != sct.runtimeClass) {
+          // if `m`'s return type is a generic type, we must use an explicit cast
+          il += (new TypeInsnNode(CHECKCAST, Type.getInternalName(sct.runtimeClass)))
+        }
       }
     }
 }

@@ -1915,17 +1915,16 @@ object FunctionRegistry {
 
     registerCode(name, (xs: Code[IndexedSeq[T]], y: Code[T]) => for (
       (storey, refy) <- CM.memoize(y);
-      liftedF <- CM.mapIS(xs, (xOpt: Code[T]) =>
-        xOpt.mapNull((x: Code[T]) => f(Code.checkcast[T](x.asInstanceOf[Code[AnyRef]]), refy)))
-    ) yield Code(storey, liftedF), null
-    )(arrayHr(hrboxedt), hrt, arrayHr(hrboxeds))
+      liftedF <- CM.mapIS(xs, (xOpt: Code[T]) => xOpt.mapNull((x: Code[T]) => f(x, refy)))
+    ) yield Code(storey, liftedF),
+      null)(arrayHr(hrboxedt), hrt, arrayHr(hrboxeds))
 
     registerCode(name, (x: Code[T], ys: Code[IndexedSeq[T]]) => for (
       (storex, refx) <- CM.memoize(x);
       liftedF <- CM.mapIS(ys, (yOpt: Code[T]) =>
-          yOpt.mapNull((y: Code[T]) => f(refx, Code.checkcast[T](y.asInstanceOf[Code[AnyRef]]))))
-    ) yield Code(storex, liftedF), null
-    )(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
+          yOpt.mapNull((y: Code[T]) => f(refx, y)))
+    ) yield Code(storex, liftedF),
+      null)(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
 
     registerCode(name, (xs: Code[IndexedSeq[T]], ys: Code[IndexedSeq[T]]) => for (
       (stxs, _xs) <- CM.memoize(xs);
@@ -2169,7 +2168,7 @@ object FunctionRegistry {
         il += (new InsnNode(DUP)) // L L
         il += (new JumpInsnNode(IFNULL, lnullorfalse)) // L
         il += (new InsnNode(DUP)) // L L
-        (Code.checkcast[java.lang.Boolean](Code._empty[java.lang.Boolean]).invoke[Boolean]("booleanValue")).emit(il) // L Z
+        (Code._empty[java.lang.Boolean].invoke[Boolean]("booleanValue")).emit(il) // L Z
         il += (new JumpInsnNode(isZero, ldone)) // L
 
         // left = null or false
@@ -2183,7 +2182,7 @@ object FunctionRegistry {
         il += (new InsnNode(DUP)) // L R R
         il += (new JumpInsnNode(IFNULL, lsecond)) // L R; both are null so either one works
         il += (new InsnNode(DUP)) // L R R
-        (Code.checkcast[java.lang.Boolean](Code._empty[java.lang.Boolean]).invoke[Boolean]("booleanValue")).emit(il) // L R Z
+        (Code._empty[java.lang.Boolean].invoke[Boolean]("booleanValue")).emit(il) // L R Z
         il += (new JumpInsnNode(isNotZero, lsecond)) // L R; stack indexing is from right to left
 
         il += (lfirst) // B A
