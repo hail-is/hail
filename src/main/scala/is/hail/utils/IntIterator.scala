@@ -12,7 +12,7 @@ abstract class IntIterator {
 
   def hasNext: Boolean
 
-  // requires that hasNext is called exactly once between each call to nextInt
+  // requires that hasNext is called exactly once before each call to nextInt
   // requires that `this` and `that` are of equal length
   def unsafeFilter(that: Iterator[Boolean]): IntIterator = new IntIterator {
     def nextInt(): Int = self.nextInt()
