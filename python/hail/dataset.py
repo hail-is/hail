@@ -1946,36 +1946,47 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.hardCalls())
 
     @handle_py4j
-    def ibd(self, output, maf=None, bounded=True, parallel_write=False, min=None, max=None):
+    def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
         **Examples**
 
-        To estimate and write the full IBD matrix to *ibd.tsv*, estimated using minor allele frequencies computed from the dataset itself:
+        To calculate a full IBD matrix, using minor allele frequencies computed
+        from the dataset itself:
 
-        >>> vds.ibd('output/ibd.tsv')
+        >>> vds.ibd()
 
-        To estimate IBD using minor allele frequencies stored in ``va.panel_maf`` and write to *ibd.tsv* only those sample pairs with ``pi_hat`` between 0.2 and 0.9 inclusive:
+        To calculate an IBD matrix containing only pairs of samples with
+        ``pi_hat`` in [0.2, 0.9], using minor allele frequencies stored in
+        ``va.panel_maf``:
 
-        >>> vds.ibd('output/ibd.tsv', maf='va.panel_maf', min=0.2, max=0.9)
+        >>> vds.ibd(maf='va.panel_maf', min=0.2, max=0.9)
 
         **Details**
 
-        The implementation is based on the IBD algorithm described in the `PLINK paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`_.
+        The implementation is based on the IBD algorithm described in the `PLINK
+        paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`_.
 
-        :py:meth:`~hail.VariantDataset.ibd` requires the dataset to be bi-allelic (otherwise run :py:meth:`~hail.VariantDataset.split_multi`) and does not perform LD pruning. Linkage disequilibrium may bias the result so consider filtering variants first.
+        :py:meth:`~hail.VariantDataset.ibd` requires the dataset to be
+        bi-allelic (otherwise run :py:meth:`~hail.VariantDataset.split_multi`)
+        and does not perform LD pruning. Linkage disequilibrium may bias the
+        result so consider filtering variants first.
 
-        Conceptually, the output is a symmetric, sample-by-sample matrix. The output .tsv has the following form
+        The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
+        j: String, ibd: { Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double },
+        ibs0: Long, ibs1: Long, ibs2: Long }*. The key list is: `*i: String, j:
+        String*`.
+
+        Conceptually, the output is a symmetric, sample-by-sample matrix. The
+        output key table has the following form
 
         .. code-block: text
 
-            SAMPLE_ID_1	SAMPLE_ID_2	Z0	Z1	Z2	PI_HAT
-            sample1	sample2	1.0000	0.0000	0.0000	0.0000
-            sample1	sample3	1.0000	0.0000	0.0000	0.0000
-            sample1	sample4	0.6807	0.0000	0.3193	0.3193
-            sample1	sample5	0.1966	0.0000	0.8034	0.8034
-
-        :param str output: Output .tsv file for IBD matrix.
+            i		j	ibd.Z0	ibd.Z1	ibd.Z2	ibd.PI_HAT ibs0	ibs1	ibs2
+            sample1	sample2	1.0000	0.0000	0.0000	0.0000 ...
+            sample1	sample3	1.0000	0.0000	0.0000	0.0000 ...
+            sample1	sample4	0.6807	0.0000	0.3193	0.3193 ...
+            sample1	sample5	0.1966	0.0000	0.8034	0.8034 ...
 
         :param maf: Expression for the minor allele frequency.
         :type maf: str or None
@@ -1984,19 +1995,22 @@ class VariantDataset(object):
             and PI_HAT to take on biologically meaningful values
             (in the range [0,1]).
 
-        :param bool parallel_write: write out matrix in parallel
-            (uses output as a base directory)
-
-        :param min: "Sample pairs with a PI_HAT below this value will
+        :param min: Sample pairs with a PI_HAT below this value will
             not be included in the output. Must be in [0,1].
         :type min: float or None
 
         :param max: Sample pairs with a PI_HAT above this value will
             not be included in the output. Must be in [0,1].
         :type max: float or None
+
+        :return: A :py:class:`.KeyTable` mapping pairs of samples to their IBD
+            statistics
+
+        :rtype: :py:class:`.KeyTable`
+
         """
 
-        self._jvdf.ibd(output, joption(maf), bounded, parallel_write, joption(min), joption(max))
+        return self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max))
 
     @handle_py4j
     def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):

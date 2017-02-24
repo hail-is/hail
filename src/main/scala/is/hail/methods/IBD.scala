@@ -1,5 +1,10 @@
 package is.hail.methods
 
+import org.apache.spark.rdd.RDD
+import is.hail.HailContext
+import is.hail.expr.{EvalContext, Parser, TStruct, TDouble, TLong, TString, TVariant}
+import is.hail.utils._
+import is.hail.keytable.KeyTable
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
@@ -12,6 +17,9 @@ object IBDInfo {
   def apply(Z0: Double, Z1: Double, Z2: Double): IBDInfo = {
     IBDInfo(Z0, Z1, Z2, Z1 / 2 + Z2)
   }
+
+  val signature =
+    TStruct(("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble), ("PI_HAT", TDouble))
 }
 
 case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
@@ -19,6 +27,13 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
     IBDInfo(Z0 - that.Z0, Z1 - that.Z1, Z2 - that.Z2, PI_HAT - that.PI_HAT)
 
   def hasNaNs: Boolean = Array(Z0, Z1, Z2, PI_HAT).exists(_.isNaN)
+
+  def toAnnotation: Annotation = Annotation(Z0, Z1, Z2, PI_HAT)
+}
+
+object ExtendedIBDInfo {
+  val signature =
+    TStruct(("ibd", IBDInfo.signature), ("ibs0", TLong), ("ibs1", TLong), ("ibs2", TLong))
 }
 
 case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
@@ -26,6 +41,8 @@ case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
     ExtendedIBDInfo(ibd.pointwiseMinus(that.ibd), ibs0 - that.ibs0, ibs1 - that.ibs1, ibs2 - that.ibs2)
 
   def hasNaNs: Boolean = ibd.hasNaNs
+
+  def toAnnotation: Annotation = Annotation(ibd.toAnnotation, ibs0, ibs1, ibs2)
 }
 
 case class IBSExpectations(
@@ -207,23 +224,25 @@ object IBD {
       .filter { case ((i, j), ibd) => j > i && j < nSamples && i < nSamples }
   }
 
-  def generateComputeMaf(vaSignature: Type, computeMafExpr: String): (Variant, Annotation) => Double = {
-    val mafSymbolTable = Map("v" -> (0, TVariant), "va" -> (1, vaSignature))
-    val mafEc = EvalContext(mafSymbolTable)
-    val computeMafThunk = Parser.parseTypedExpr[java.lang.Double](computeMafExpr, mafEc)
 
-    { (v: Variant, va: Annotation) =>
-      mafEc.setAll(v, va)
-      val maf = computeMafThunk()
+  def validateAndCall(vds: VariantDataset,
+    computeMafExpr: Option[String],
+    bounded: Boolean,
+    min: Option[Double],
+    max: Option[Double]): RDD[((String, String), ExtendedIBDInfo)] = {
 
-      if (maf == null)
-        fatal(s"The minor allele frequency expression evaluated to NA on variant $v.")
+    min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
+    max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
 
-      if (maf < 0.0 || maf > 1.0)
-        fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
-
-      maf
+    min.liftedZip(max).foreach { case (min, max) =>
+      if (min > max) {
+        fatal(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
+      }
     }
+
+    val computeMaf = computeMafExpr.map(generateComputeMaf(vds, _))
+
+    apply(vds, computeMaf, bounded, min, max)
   }
 
   def apply(vds: VariantDataset,
@@ -241,4 +260,30 @@ object IBD {
       }
       .map { case ((i, j), ibd) => ((sampleIds(i), sampleIds(j)), ibd) }
   }
+
+  private val ibdKeySignature = TStruct(("i", TString), ("j", TString))
+  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((String, String), ExtendedIBDInfo)]): KeyTable = {
+    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => (Annotation(i, j), eibd.toAnnotation) }
+    KeyTable(sc, ktRdd, ibdKeySignature, ExtendedIBDInfo.signature)
+  }
+
+  private def generateComputeMaf(vds: VariantDataset, computeMafExpr: String): (Variant, Annotation) => Double = {
+    val mafSymbolTable = Map("v" -> (0, TVariant), "va" -> (1, vds.vaSignature))
+    val mafEc = EvalContext(mafSymbolTable)
+    val computeMafThunk = Parser.parseTypedExpr[java.lang.Double](computeMafExpr, mafEc)
+
+    { (v: Variant, va: Annotation) =>
+      mafEc.setAll(v, va)
+      val maf = computeMafThunk()
+
+      if (maf == null)
+        fatal(s"The minor allele frequency expression evaluated to NA on variant $v.")
+
+      if (maf < 0.0 || maf > 1.0)
+        fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
+
+      maf
+    }
+  }
+
 }
