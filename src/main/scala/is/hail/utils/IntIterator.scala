@@ -13,12 +13,12 @@ abstract class IntIterator {
   def hasNext: Boolean
 
   // requires that hasNext is called exactly once between each call to nextInt
-  // requires that `this` is at least as long as `that` (excess `this` is filtered)
+  // requires that `this` and `that` are of equal length
   def unsafeFilter(that: Iterator[Boolean]): IntIterator = new IntIterator {
     def nextInt(): Int = self.nextInt()
 
     def hasNext: Boolean = {
-      while (that.hasNext && self.hasNext) {
+      while (that.hasNext) {
         if (that.next())
           return true
         else
