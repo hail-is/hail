@@ -94,7 +94,7 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
     val l = new mutable.ArrayBuffer[AbstractInsnNode]()
     c.emit(l)
     val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
-    assert(dupes.nonEmpty, s"some instructions were repeated in the instruction list: $dupes")
+    assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${dupes: Seq[Any]}")
     l.foreach(mn.instructions.add _)
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
