@@ -151,12 +151,12 @@ object LinearMixedRegression {
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       vds2.mapAnnotations { case (v, va, gs) =>
-        val SparseGtVectorAndStats(x0, isConstant, af, nHomRef, nHet, nHomVar, nMissing) =
-          gs.hardCallIterator
-            .unsafeFilter(sampleMaskBc.value.toIterator)
-            .toBoxedIntIterator
-            .foldLeft(new SparseGtBuilder()){ case (b, gt) => b.merge(gt) }
-            .toSparseGtVectorAndStats(n)
+        val sb = new SparseGtBuilder()
+        gs.hardCallIterator
+          .unsafeFilter(sampleMaskBc.value.toIterator)
+          .foreach{ gt: Int => sb.merge(gt) }
+
+        val SparseGtVectorAndStats(x0, isConstant, af, nHomRef, nHet, nHomVar, nMissing) = sb.toSparseGtVectorAndStats(n)
 
         val lmmregAnnot =
           if (!isConstant) {

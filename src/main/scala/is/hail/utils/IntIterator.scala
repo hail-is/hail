@@ -1,5 +1,8 @@
 package is.hail.utils
 
+import breeze.linalg.DenseVector
+import is.hail.stats.{LinRegBuilder, SparseGtBuilder, SparseGtVectorAndStats}
+
 import scala.collection.mutable
 
 abstract class IntIterator {
@@ -28,11 +31,6 @@ abstract class IntIterator {
       b += nextInt()
     b.result()
   }
-
-  def toBoxedIntIterator: Iterator[Int] = new Iterator[Int] {
-      def hasNext: Boolean = IntIterator.this.hasNext
-      def next(): Int = IntIterator.this.nextInt()
-    }
 
   def foreach(f: Int => Unit) {
     while (hasNext)

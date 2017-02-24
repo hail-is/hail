@@ -206,7 +206,7 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
       missingRowIndicesArray.foreach(valsXArray(_) = meanX)
 
       // variant is atomic => combOp merge not called => rowsXArray is sorted (as expected by SparseVector constructor)
-      assert(rowsXArray.isIncreasing)
+      // assert(rowsXArray.isIncreasing)
 
       val x = new SparseVector[Double](rowsXArray, valsXArray, n)
       val xx = sumXX + meanX * meanX * nMissing
