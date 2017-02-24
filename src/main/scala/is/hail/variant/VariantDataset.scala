@@ -1257,7 +1257,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     resOp(result)
 
     ec.set(0, localGlobalAnnotation)
-    ts.map { case (t, f) => (f().orNull, t) }
+    ts.map { case (t, f) => (f(), t) }
   }
 
   def sampleQC(): VariantDataset = SampleQC(vds)
