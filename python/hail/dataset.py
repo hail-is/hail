@@ -2015,7 +2015,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def ibd_prune(self, threshold, computeMafExpr = None, bounded = True):
-        return self._jvdf.ibdPrune(threshold, joption(computeMafExpr), bounded)
+        return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(computeMafExpr), bounded))
 
 
     @handle_py4j

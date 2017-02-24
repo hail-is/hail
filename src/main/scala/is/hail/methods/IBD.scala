@@ -10,6 +10,7 @@ import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
+import is.hail.utils._
 
 import scala.language.higherKinds
 
@@ -296,12 +297,9 @@ object IBDPrune {
 
     val sampleIDs: IndexedSeq[String] = vds.sampleIds
 
-    print("Matrix compute time")
-
     val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
       .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
-
-    print("MIS TIME")
+    info("MIS Reached")
     val setToKeep: Set[String] = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size)
       .map(id =>sampleIDs(id.toInt))
 

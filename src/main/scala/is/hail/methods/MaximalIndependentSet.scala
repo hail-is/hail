@@ -3,6 +3,7 @@ package is.hail.methods
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.graphx._
+import is.hail.utils._
 
 import scala.reflect.ClassTag
 
@@ -43,7 +44,10 @@ object MaximalIndependentSet {
     var graph = updateVertexDegrees(g)
     val edgeDirection = if (undirected) EdgeDirection.Either else EdgeDirection.Out
 
-    while(graph.numEdges > 0) {
+    var i = 0
+    while(graph.numEdges > 0 && i < 100) {
+      i += 1
+      info(s"$i: ${graph.numVertices}")
       graph = graph.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
       graph = graph.subgraph(_ => true, (id, value) => value match { case (maxDegrees, maxID) => maxID != id || maxDegrees == 0})
       graph = updateVertexDegrees(graph)
@@ -56,7 +60,7 @@ object MaximalIndependentSet {
     val sc = inputRDD.sparkContext
 
     //Filter RDD to remove edges above threshold
-    val filteredRDD = inputRDD.filter(_._2 <= thresh)
+    val filteredRDD = inputRDD.filter(_._2 >= thresh)
 
     //Throw away weights
     val vertexPairs = inputRDD.keys
