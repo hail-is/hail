@@ -346,7 +346,7 @@ class HailContext(object):
     @handle_py4j
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
                    sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
-        """Import .vcf files as :py:class:`.VariantDataset`
+        """Import VCF file(s) as :py:class:`.VariantDataset`
 
         **Examples**
 
@@ -372,6 +372,20 @@ class HailContext(object):
         :py:meth:`~hail.HailContext.import_vcf` does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all
         these records will be imported and will not be collapsed into a single variant.
 
+        Since Hail's genotype representation does not yet support ploidy other than 2,
+        this method imports haploid genotypes as diploid. Hail fills in missing indices
+        in PL / PP arrays with 1000 to support the standard VCF / VDS "genotype schema.
+
+        Below are two example haploid genotypes and diploid equivalents that Hail sees.
+
+        .. code-block:: text
+
+            Haploid:     1:0,6:7:70:70,0
+            Imported as: 1/1:0,6:7:70:70,1000,0
+
+            Haploid:     2:0,0,9:9:24:24,40,0
+            Imported as: 2/2:0,0,9:9:24:24,1000,40,1000:1000:0
+
 
         **Annotations**
 
@@ -381,8 +395,7 @@ class HailContext(object):
         - **va.qual** (*Double*) -- the number in the qual field
         - **va.info** (*T*) -- matches (with proper capitalization) any defined info field. Data types match the type specified in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array (accessed with array\[index\]).
 
-
-        :param path: .vcf files to read.
+        :param path: VCF file(s) to read.
         :type path: str or list of str
 
         :param bool force: If True, load .gz files serially.
@@ -409,7 +422,6 @@ class HailContext(object):
 
         :return: A dataset imported from the VCF file
         :rtype: :py:class:`.VariantDataset`
-
         """
 
         jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),

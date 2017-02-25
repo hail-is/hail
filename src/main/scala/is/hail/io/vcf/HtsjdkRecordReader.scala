@@ -60,9 +60,9 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
           } catch {
             case e: Exception =>
               fatal(
-                s"""variant $v: INFO field ${f.name}:
-                    |  unable to convert $a (of class ${a.getClass.getCanonicalName}) to ${f.typ}:
-                    |  caught $e""".stripMargin)
+                s"""variant $v: INFO field ${ f.name }:
+                   |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
+                   |  caught $e""".stripMargin)
           }
         }: _*)
       assert(sig.typeCheck(a))
@@ -85,9 +85,13 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
       val alleles = g.getAlleles.asScala
-      assert(alleles.length == 2, s"expected 2 alleles in genotype, but found ${alleles.length}")
+      assert(alleles.length == 1 || alleles.length == 2,
+        s"expected 1 or 2 alleles in genotype, but found ${ alleles.length }")
       val a0 = alleles(0)
-      val a1 = alleles(1)
+      val a1 = if (alleles.length == 2)
+        alleles(1)
+      else
+        a0
 
       assert(a0.isCalled || a0.isNoCall)
       assert(a1.isCalled || a1.isNoCall)
@@ -103,6 +107,17 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
         else null
       }
       else g.getPL
+
+      // support haploid genotypes
+      if (alleles.length == 1 && pl != null) {
+        val expandedPL = Array.fill(v.nGenotypes)(HtsjdkRecordReader.haploidNonsensePL)
+        var i = 0
+        while (i < pl.length) {
+          expandedPL(triangle(i + 1) - 1) = pl(i)
+          i += 1
+        }
+        pl = expandedPL
+      }
 
       if (g.hasPL) {
         val minPL = pl.min
@@ -208,6 +223,9 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
 }
 
 object HtsjdkRecordReader {
+
+  val haploidNonsensePL = 1000
+
   def apply(headerLines: Array[String], codec: htsjdk.variant.vcf.VCFCodec): HtsjdkRecordReader = {
     codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
     new HtsjdkRecordReader(codec)
