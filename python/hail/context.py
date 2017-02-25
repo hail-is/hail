@@ -247,9 +247,9 @@ class HailContext(object):
 
         Import data from a PLINK binary file:
 
-        >>> hc.import_plink(bed="data/test.bed",
-        ...                 bim="data/test.bim",
-        ...                 fam="data/test.fam")
+        >>> vds = hc.import_plink(bed="data/test.bed",
+        ...                       bim="data/test.bim",
+        ...                       fam="data/test.fam")
 
         **Implementation Details**
 
