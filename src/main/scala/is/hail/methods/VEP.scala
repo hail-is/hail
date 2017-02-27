@@ -221,11 +221,15 @@ object VEP {
 
     val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
     if (humanAncestor == null)
-      fatal("property `hail.vep.human_ancestor' required")
+      fatal("property `hail.vep.lof.human_ancestor' required")
 
     val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
     if (conservationFile == null)
-      fatal("property `hail.vep.conservation_file' required")
+      fatal("property `hail.vep.lof.conservation_file' required")
+
+    val fasta = properties.getProperty("hail.vep.fasta")
+    if (fasta == null)
+      fatal("property `hail.vep.fasta' required")
 
     val cmd =
       Array(
@@ -238,7 +242,7 @@ object VEP {
         "--no_stats",
         "--cache", "--offline",
         "--dir", s"$cacheDir",
-        "--fasta", s"$cacheDir/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
+        "--fasta", s"$fasta",
         "--minimal",
         "--assembly", "GRCh37",
         "--plugin", s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile",
@@ -291,7 +295,7 @@ object VEP {
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), vaVep)) =>
-            (v, (vaVep.map(a => insertVEP(va, Some(a))).getOrElse(va), gs))
+            (v, (insertVEP(va, vaVep.orNull), gs))
           }
       }.asOrderedRDD
 
