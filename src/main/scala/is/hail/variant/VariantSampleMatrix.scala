@@ -160,14 +160,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyExpr, keyEC)
     val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggExpr, ec)
 
-    val signature = TStruct((keyNames ++ aggNames, keyTypes ++ aggTypes).zipped.map { case (n, t) => (n, t) }: _*)
+    val signature = TStruct((keyNames ++ aggNames, keyTypes ++ aggTypes).zipped.toSeq: _*)
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
-      KeyTable.setEvalContext(ec, a, 6)
+      ec.setAll(a.asInstanceOf[Row].toSeq: _*)
     })
 
     val localGlobalAnnotation = globalAnnotation
-    val nKeysLocal = keyNames.length
 
     val ktRDD = mapPartitionsWithAll { it =>
       it.map { case (v, va, s, sa, g) =>
@@ -178,7 +177,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
-        Annotation.fromSeq(KeyTable.annotationToSeq(k, nKeysLocal) ++ aggF())
+        Annotation.fromSeq(k.asInstanceOf[Row].toSeq ++ aggF())
       }
 
     KeyTable(hc, ktRDD, signature, keyNames)
@@ -659,7 +658,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (finalType, inserter) =
       buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val keyedRDD = kt.withKeys().map { case (k: Row, a) => (k(0).asInstanceOf[Variant], a)}
+    val keyedRDD = kt.keyedRDD().map { case (k: Row, a) => (k(0).asInstanceOf[Variant], a)}
 
     val ordRdd = OrderedRDD(keyedRDD, None, None)
 
@@ -685,7 +684,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (finalType, inserter) =
       buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val ktRdd = kt.withKeys()
+    val ktRdd = kt.keyedRDD()
 
     val thisRdd = rdd.map { case (v, (va, gs)) =>
       vdsKeyEc.setAll(v, va)

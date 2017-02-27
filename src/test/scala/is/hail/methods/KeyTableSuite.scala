@@ -5,6 +5,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class KeyTableSuite extends SparkSuite {
@@ -71,7 +72,7 @@ class KeyTableSuite extends SparkSuite {
     def getDataAsMap(kt: KeyTable) = {
       val fieldNames = kt.fieldNames
       val nFields = kt.nFields
-      kt.rdd.map { a => fieldNames.zip(KeyTable.annotationToSeq(a, nFields)).toMap }.collect().toSet
+      kt.rdd.map { a => fieldNames.zip(a.asInstanceOf[Row].toSeq).toMap }.collect().toSet
     }
 
     val kt3data = getDataAsMap(kt3)
@@ -120,10 +121,10 @@ class KeyTableSuite extends SparkSuite {
 
     val i: IndexedSeq[Int] = Array(1, 2, 3)
 
-    val (_, leftKeyQuerier) = ktLeft.rowQuerier("Sample")
-    val (_, rightKeyQuerier) = ktRight.rowQuerier("Sample")
-    val (_, leftJoinKeyQuerier) = ktLeftJoin.rowQuerier("Sample")
-    val (_, rightJoinKeyQuerier) = ktRightJoin.rowQuerier("Sample")
+    val (_, leftKeyQuerier) = ktLeft.queryRow("Sample")
+    val (_, rightKeyQuerier) = ktRight.queryRow("Sample")
+    val (_, leftJoinKeyQuerier) = ktLeftJoin.queryRow("Sample")
+    val (_, rightJoinKeyQuerier) = ktRightJoin.queryRow("Sample")
 
     val leftKeys = ktLeft.rdd.map { a => Option(leftKeyQuerier(a)).map(_.asInstanceOf[String]) }.collect().toSet
     val rightKeys = ktRight.rdd.map { a => Option(rightKeyQuerier(a)).map(_.asInstanceOf[String]) }.collect().toSet
@@ -191,6 +192,7 @@ class KeyTableSuite extends SparkSuite {
         "E = field2.filter(f => field2 == 3).count()"
     )
 
+    kt2.export(sc, "test.tsv", null)
     val result = Array(Array("Case", 12, 12, 16, 2L, 1L), Array("Control", 3, 3, 11, 2L, 0L))
     val resRDD = sc.parallelize(result.map(Annotation.fromSeq(_)))
     val resSignature = TStruct(("Status", TString), ("A", TInt), ("B", TInt), ("C", TInt), ("D", TLong), ("E", TLong))
