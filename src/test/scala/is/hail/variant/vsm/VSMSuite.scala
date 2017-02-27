@@ -446,18 +446,4 @@ class VSMSuite extends SparkSuite {
     val vds = hc.read("src/test/resources/sample.vds")
     vds.countVariants()
   }
-
-  @Test def testGenotypeSchema() {
-    val path = tmpDir.createTempFile(extension = ".vds")
-
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Some(4))
-    assert(!vds.isGenericGenotype)
-
-    vds.copy(isGenericGenotype = true).write(path)
-    val vdsGenericGenotypes = hc.read(path)
-
-    assert(vdsGenericGenotypes.isGenericGenotype && vdsGenericGenotypes.genotypeSignature == TGenotype &&
-      vdsGenericGenotypes.rdd.forall{ case (v, (va, gs)) => gs.forall(_.isNotCalled)} // all genotypes set to missing for now
-    )
-  }
 }

@@ -45,6 +45,9 @@ object VariantDataset {
     val isGenericGenotype = metadata.isGenericGenotype
     val isDosage = metadata.isDosage
 
+    if (isGenericGenotype)
+      fatal("Cannot read datasets with generic genotypes.")
+
     val parquetFile = dirname + "/rdd.parquet"
 
     val orderedRDD = if (skipVariants)
@@ -57,17 +60,7 @@ object VariantDataset {
               Iterable.empty[Genotype])))
       else {
         val rdd = sqlContext.readParquetSorted(parquetFile)
-        if (isGenericGenotype)
-          rdd.map { row =>
-            val v = row.getVariant(0)
-            (v,
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getSeq[Row](2).lazyMap { g =>
-                  val ag = if (gRequiresConversion) SparkAnnotationImpex.importAnnotation(g, genotypeSignature) else g
-                  Genotype(-1) // placeholder until change VDS type
-                }
-                ))
-          } else if (parquetGenotypes)
+        if (parquetGenotypes)
           rdd.map { row =>
             val v = row.getVariant(0)
             (v,
@@ -103,7 +96,7 @@ object VariantDataset {
       orderedRDD)
   }
 
-  private def readMetadata(hConf: hadoop.conf.Configuration, dirname: String,
+  def readMetadata(hConf: hadoop.conf.Configuration, dirname: String,
     requireParquetSuccess: Boolean = true): (VariantMetadata, Boolean) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
@@ -996,8 +989,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     *                       the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
     * @param bounded Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
     *                (e.g. outside of [0,1]).
-    * @param parallelWrite This option writes the IBD table as a directory of sharded files. Without this option,
-    *                      the output is coalesced to a single file
     * @param minimum Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
     * @param maximum Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
     */
@@ -1262,7 +1253,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def write(dirname: String, overwrite: Boolean = false, parquetGenotypes: Boolean = false) {
     require(dirname.endsWith(".vds"), "variant dataset write paths must end in '.vds'")
-    require(!(parquetGenotypes && vds.isGenericGenotype), "cannot have both `parquetGenotypes' and `isGenericGenotype' equal to true")
 
     if (overwrite)
       vds.hadoopConf.delete(dirname, recursive = true)
@@ -1275,8 +1265,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
     val genotypeSignature = vds.genotypeSignature
-    val isGenericGenotype = vds.isGenericGenotype
-    val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
+    require(genotypeSignature == TGenotype, s"Expecting a genotype signature of TGenotype, but found `${genotypeSignature.toPrettyString()}'")
 
     vds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
       Serialization.write(vds.rdd.orderedPartitioner.toJSON, out)
@@ -1286,9 +1275,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val rowRDD = vds.rdd.map { case (v, (va, gs)) =>
       Row.fromSeq(Array(v.toRow,
         if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-        if (isGenericGenotype)
-          gs.lazyMap { g => if (gRequiresConversion) SparkAnnotationImpex.exportAnnotation(g, genotypeSignature).asInstanceOf[Row] else g.toRow }.toArray[Row]: IndexedSeq[Row]
-        else if (parquetGenotypes)
+        if (parquetGenotypes)
           gs.lazyMap(_.toRow).toArray[Row]: IndexedSeq[Row]
         else
           gs.toGenotypeStream(v, isDosage).toRow))
@@ -1303,9 +1290,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       StructField("variant", Variant.schema, nullable = false),
       StructField("annotations", vds.vaSignature.schema),
       StructField("gs",
-        if (vds.isGenericGenotype)
-          ArrayType(vds.genotypeSignature.schema, containsNull = false)
-        else if (parquetGenotypes)
+        if (parquetGenotypes)
           ArrayType(Genotype.schema, containsNull = false)
         else
           GenotypeStream.schema,
@@ -1419,4 +1404,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     info("Written to Kudu")
   }
+
+  def toGDS: GenericDataset = vds.mapValues(g => g: Any).copy(isGenericGenotype = true)
 }
