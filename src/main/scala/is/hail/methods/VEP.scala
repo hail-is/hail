@@ -295,7 +295,7 @@ object VEP {
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
           .map { case (v, ((va, gs), vaVep)) =>
-            (v, (vaVep.map(a => insertVEP(va, Some(a))).getOrElse(va), gs))
+            (v, (insertVEP(va, vaVep.orNull), gs))
           }
       }.asOrderedRDD
 
