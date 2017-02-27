@@ -33,6 +33,7 @@ class VariantDataset(object):
         self._sa_schema = None
         self._va_schema = None
         self._global_schema = None
+        self._genotype_schema = None
         self._sample_ids = None
         self._num_samples = None
         self._jvdf_cache = None
@@ -2804,6 +2805,20 @@ class VariantDataset(object):
         if self._va_schema is None:
             self._va_schema = Type._from_java(self._jvds.vaSignature())
         return self._va_schema
+
+    @property
+    def genotype_schema(self):
+        """
+        Returns the signature of the genotypes contained in this VDS.
+
+        >>> print(vds.genotype_schema)
+
+        :rtype: :class:`.Type`
+        """
+
+        if self._genotype_schema is None:
+            self._genotype_schema = Type._from_java(self._jvds.genotypeSignature())
+        return self._genotype_schema
 
     @handle_py4j
     def query_samples_typed(self, exprs):

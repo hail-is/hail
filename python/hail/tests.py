@@ -197,6 +197,8 @@ class ContextTests(unittest.TestCase):
 
         sample2.split_multi().impute_sex().variant_schema
 
+        self.assertTrue(isinstance(sample2.genotype_schema, TGenotype))
+
         self.assertEqual(sample2.join(sample2.rename_samples(test_resources + '/sample2_rename.tsv'))
                          .count()['nSamples'], 200)
 
