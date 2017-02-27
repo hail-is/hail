@@ -17,12 +17,6 @@ import scala.reflect.ClassTag
 
 
 object KeyTable {
-  def annotationToSeq(a: Annotation, nFields: Int): Seq[Any] =
-    if (a == null)
-      Array.fill[Any](nFields)(null)
-    else
-      a.asInstanceOf[Row].toSeq
-
   def fromDF(hc: HailContext, df: DataFrame, keyNames: Array[String]): KeyTable = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     KeyTable(hc, df.rdd.map { r =>
@@ -244,20 +238,16 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val targetSize = newSignature.size
 
     val merger = (a1: Annotation, a2: Annotation) => {
-      if (a1 == null && a2 == null)
-        Annotation.empty
-      else {
-        val result = Array.fill[Any](targetSize)(null)
-        if (a1 != null) {
-          val r1 = a1.asInstanceOf[Row].toSeq
-          r1.indices.foreach { i => result(i) = r1(i) }
-        }
-        if (a2 != null) {
-          val r2 = a2.asInstanceOf[Row].toSeq
-          mergeIndices.zipWithIndex.foreach { case (i, j) => result(size1 + j) = r2(i)}
-        }
-        Annotation.fromSeq(result)
+      val result = Array.fill[Any](targetSize)(null)
+      if (a1 != null) {
+        val r1 = a1.asInstanceOf[Row].toSeq
+        r1.indices.foreach { i => result(i) = r1(i) }
       }
+      if (a2 != null) {
+        val r2 = a2.asInstanceOf[Row].toSeq
+        mergeIndices.zipWithIndex.foreach { case (i, j) => result(size1 + j) = r2(i)}
+      }
+      Annotation.fromSeq(result)
     }
 
     val rddLeft = keyedRDD()
