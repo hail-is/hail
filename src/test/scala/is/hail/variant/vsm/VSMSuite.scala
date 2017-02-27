@@ -442,6 +442,11 @@ class VSMSuite extends SparkSuite {
     }.check()
   }
 
+  @Test def testImportOldVDS() {
+    val vds = hc.read("src/test/resources/sample.vds")
+    vds.countVariants()
+  }
+
   @Test def testGenotypeSchema() {
     val path = tmpDir.createTempFile(extension = ".vds")
 
