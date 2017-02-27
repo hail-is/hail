@@ -1,6 +1,12 @@
 package is.hail.methods
 
-import is.hail.expr.{TArray, TBoolean, TDouble, TInt, TString, TStruct}
+import java.io.{FileInputStream, IOException}
+import java.util.Properties
+
+import is.hail.annotations.Annotation
+import is.hail.expr.{Parser, TArray, TBoolean, TDouble, TInt, TString, TStruct}
+import is.hail.utils.{fatal, warn}
+import is.hail.variant.VariantDataset
 
 
 class Nirvana {
@@ -30,7 +36,7 @@ class Nirvana {
       "jointSomaticNormalQuality" -> TInt,
       "copyNumber" -> TInt,
       "strandBias" -> TDouble,
-      "recalibratedQual ity" -> TDouble,
+      "recalibratedQuality" -> TDouble,
       "samples" -> TArray(TStruct(
         "variantFreq" -> TDouble,
         "totalDepth" -> TInt,
@@ -165,5 +171,51 @@ class Nirvana {
     ))
   )
 
+  def annotate(vds: VariantDataset, config: String, root: String = "va.nirvana", force: Boolean = false): VariantDataset = {
+    val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
+
+    val rootType =
+      vds.vaSignature.getOption(parsedRoot)
+        .filter { t =>
+          val r = t == nirvanaSignature
+          if (!r) {
+            if (force)
+              warn(s"type for $parsedRoot does not match Nirvana signature, overwriting.")
+            else
+              warn(s"type for $parsedRoot does not match Nirvana signature.")
+          }
+          r
+        }
+
+    if (rootType.isEmpty && !force)
+      fatal("for performance, you should annotate variants with pre-computed Nirvana annotations.  Cowardly refusing to " +
+        "Nirvana annotate from scratch.  Use 'force' to override.")
+
+    val properties = try {
+      val p = new Properties()
+      val is = new FileInputStream(config)
+      p.load(is)
+      is.close()
+      p
+    } catch {
+      case e: IOException =>
+        fatal(s"could not open file: ${ e.getMessage }")
+    }
+
+    val dotnet = properties.getProperty("hail.nirvana.dotnet")
+
+    val nirvanaLocation = properties.getProperty("hail.nirvana.location")
+    if (nirvanaLocation == null)
+      fatal("property `hail.nirvana.location' required")
+
+    val cmd = Array(
+      dotnet,
+
+
+    )
+
+
+    ???
+  }
 
 }
