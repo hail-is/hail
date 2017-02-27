@@ -158,7 +158,7 @@ class HailContext(object):
         >>> (hc.import_gen('data/example.gen', sample_file='data/example.sample')
         ...    .write('output/gen_example1.vds'))
 
-        Load multiple files at the same time with `Hadoop glob patterns <../reference.html#hadoopglob>`_:
+        Load multiple files at the same time with :ref:`Hadoop glob patterns <sec-hadoop-glob>`:
 
         >>> (hc.import_gen('data/example.chr*.gen', sample_file='data/example.sample')
         ...    .write('output/gen_example2.vds'))
@@ -357,7 +357,7 @@ class HailContext(object):
         Hail is designed to be maximally compatible with files in the `VCF v4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
 
         :py:meth:`~hail.HailContext.import_vcf` takes a list of VCF files to load. All files must have the same header and the same set of samples in the same order
-        (e.g., a dataset split by chromosome). Files can be specified as `Hadoop glob patterns <hadoop_glob_patterns.html>`_.
+        (e.g., a dataset split by chromosome). Files can be specified as :ref:`Hadoop glob patterns <sec-hadoop-glob>`.
 
         Ensure that the VCF file is correctly prepared for import: VCFs should either be uncompressed (*.vcf*) or block compressed
         (*.vcf.bgz*).  If you have a large compressed VCF that ends in *.vcf.gz*, it is likely that the file is actually block-compressed,
