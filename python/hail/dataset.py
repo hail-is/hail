@@ -1917,6 +1917,10 @@ class VariantDataset(object):
     @handle_py4j
     def grm(self, output, format, id_file=None, n_file=None):
         """Compute the Genetic Relatedness Matrix (GRM).
+        
+        The mathematical definition of the GRM is documented in :py:meth:`~hail.VariantDataset.pca`.
+        
+        The gcta output formats are compatible with `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
 
         :param str output: Output file.
 
