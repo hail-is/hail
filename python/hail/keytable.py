@@ -295,8 +295,8 @@ class KeyTable(object):
 
         The scope for both ``key_expr`` and ``agg_expr`` is all column names in the input :class:`KeyTable`.
 
-        For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
-        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
+        For more information, see the documentation on writing :ref:`expressions <overview-expressions>`
+        and using the `Hail's Expression Language <https://hail.is/expr_lang.html>`_
 
         :param key_expr: Named expression(s) for how to compute the keys of the new key table.
         :type key_expr: str or list of str
