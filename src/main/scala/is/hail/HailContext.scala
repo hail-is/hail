@@ -263,12 +263,6 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
 
-    inputs.foreach { input =>
-      if (!input.endsWith(".gen")) {
-        fatal("unknown input file type")
-      }
-    }
-
     val samples = BgenLoader.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
 
@@ -337,7 +331,7 @@ class HailContext private(val sc: SparkContext,
       nPartitions, delimiter, missing, quantPheno)
   }
 
-  def checkDatasetSchemasCompatible[T](datasets: Array[VariantSampleMatrix[T]], inputs: Array[String]): Unit = {
+  def checkDatasetSchemasCompatible[T](datasets: Array[VariantSampleMatrix[T]], inputs: Array[String]) {
     val sampleIds = datasets.head.sampleIds
     val vaSchema = datasets.head.vaSignature
     val wasSplit = datasets.head.wasSplit

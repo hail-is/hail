@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.check.Gen
-import is.hail.utils.{FatalException, _}
+import is.hail.utils.{HailException, _}
 import org.testng.annotations.Test
 
 import scala.collection.mutable
@@ -22,7 +22,7 @@ class RenameSamplesSuite extends SparkSuite {
     )
 
     // FIXME keyword
-    intercept[FatalException] {
+    intercept[HailException] {
       vds.renameSamples(m.toMap)
     }
   }

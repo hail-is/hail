@@ -52,7 +52,7 @@ object RegressionUtils {
 
     val yArray = yForCompleteSamples.map(_.get).toArray
     if (yArray.toSet.size == 1)
-      fatal(s"Constant phenotype: all complete samples have phenotype ${ yArray(0) }")
+      fatal(s"Constant phenotype: all complete samples have phenotype ${yArray(0)}")
     val y = DenseVector(yArray)
 
     val k = covT.size

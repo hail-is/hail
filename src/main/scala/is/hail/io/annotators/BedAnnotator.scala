@@ -20,11 +20,9 @@ object BedAnnotator {
           line.value.matches("""^\w+=("[\w\d ]+"|\d+).*"""))
 
       if (remainder.isEmpty)
-        fatal("bed file contains no interval lines")
+        fatal("bed file contains no non-header lines")
 
       val dataLines = remainder.toArray
-      if (dataLines.isEmpty)
-        fatal("bed file contains no data lines")
       val next = dataLines
         .head
         .value

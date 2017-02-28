@@ -100,8 +100,7 @@ object TextTableReader {
       if (filt.isEmpty)
         fatal(
           s"""invalid file: no lines remaining after comment filter
-              |  Offending file: `$firstFile'
-           """.stripMargin)
+              |  Offending file: $firstFile""".stripMargin)
       else
         filt.next().value
     }

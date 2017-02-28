@@ -6,20 +6,15 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
-import is.hail.utils.{FatalException, Interval, _}
+import is.hail.utils.{Interval, _}
 import is.hail.variant.{Call, Genotype, Locus, Variant}
 import is.hail.{SparkSuite, TestUtils}
+import org.apache.spark.sql.Row
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.scalatest.Matchers._
+import org.scalatest._
 import org.testng.annotations.Test
-import org.scalatest._
-import Matchers._
-
-import scala.collection.mutable
-import org.scalatest._
-import Matchers._
-import matchers._
-import org.apache.spark.sql.Row
 
 class ExprSuite extends SparkSuite {
 
@@ -455,8 +450,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[Any]]("""[1, 2, 3.0, 4]""").contains(IndexedSeq(1, 2, 3.0, 4)))
     assert(eval[Double]("""[1, 2, 3.0, 4].max()""").contains(4.0))
 
-    intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
-    intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
+    intercept[HailException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
+    intercept[HailException](eval[IndexedSeq[Any]]("""[] """))
 
     val (t, r) = evalWithType[Annotation](""" {field1: 1, field2: 2 } """)
     assert(r.contains(Annotation(1, 2)))
@@ -847,7 +842,7 @@ class ExprSuite extends SparkSuite {
 
     assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
     assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
-    intercept[FatalException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
+    intercept[HailException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
   }
 
   @Test def testTypePretty() {

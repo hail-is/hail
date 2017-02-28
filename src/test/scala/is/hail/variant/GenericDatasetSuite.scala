@@ -19,7 +19,7 @@ class GenericDatasetSuite extends SparkSuite {
 
     gds.write(path)
 
-    intercept[FatalException] {
+    intercept[HailException] {
       hc.read(path)
     }
 

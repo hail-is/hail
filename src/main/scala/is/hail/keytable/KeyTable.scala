@@ -83,7 +83,7 @@ object KeyTable {
         fatal(
           s"""
              |corrupt KeyTable: invalid metadata file.
-             |  caught exception: ${ expandException(e) }
+             |  caught exception: ${ expandException(e, logMessage = true) }
           """.stripMargin)
     }
 

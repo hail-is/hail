@@ -1,5 +1,4 @@
-from py4j.protocol import Py4JJavaError, Py4JError
-from decorator import decorator
+import py4j
 
 
 class FatalError(Exception):
@@ -101,6 +100,7 @@ def jarray_to_list(a):
     return list(a) if a else None
 
 
+<<<<<<< HEAD
 @decorator
 def handle_py4j(func, *args, **kwargs):
     try:
@@ -116,3 +116,30 @@ def handle_py4j(func, *args, **kwargs):
         else:
             raise e
     return r
+=======
+def capture_py4j_exception(f):
+    def deco(*a, **kw):
+        try:
+            return f(*a, **kw)
+        except py4j.protocol.Py4JJavaError as e:
+            tpl = env.jutils.handleForPython(e.java_exception)
+            deepest, full = tpl._1(), tpl._2()
+
+            raise FatalError('%s\n\nJava stack trace:\n%s\n\nERROR SUMMARY: %s' % (deepest, full, deepest))
+        except py4j.protocol.Py4JError as e:
+            if e.args[0].startswith('An error occurred while calling'):
+                msg = 'An error occurred while calling into JVM, probably due to invalid parameter types'
+                raise FatalError('%s\n\nJava stack trace:\n%s\n\nERROR SUMMARY: %s' % (msg, e.message, msg))
+
+    return deco
+
+
+def install_exception_handler():
+    original = py4j.protocol.get_return_value
+    patched = capture_py4j_exception(original)
+    py4j.protocol.get_return_value = patched
+    py4j.java_gateway.get_return_value = patched
+
+
+install_exception_handler()
+>>>>>>> Better error checking

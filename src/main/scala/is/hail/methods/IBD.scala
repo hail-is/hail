@@ -282,6 +282,7 @@ object IBD {
 
       if (maf < 0.0 || maf > 1.0)
         fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
+
       maf
     }
   }

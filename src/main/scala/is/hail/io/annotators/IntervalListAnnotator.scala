@@ -58,8 +58,7 @@ object IntervalListAnnotator {
               """invalid interval format.  Acceptable formats:
                 |  `chr:start-end'
                 |  `chr  start  end' (tab-separated)
-                |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
-              """.stripMargin)
+                |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')""".stripMargin)
           }
         }.value)
         .toArray

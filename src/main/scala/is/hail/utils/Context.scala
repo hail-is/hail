@@ -6,13 +6,16 @@ abstract class Context {
 
 case class TextContext(line: String, file: String, position: Option[Int]) extends Context {
   def wrapException(e: Throwable): Nothing = {
-    val msg = e match {
-      case _: FatalException => e.getMessage
-      case _ => s"caught $e"
+    e match {
+      case _: HailException =>
+        fatal(
+          s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: ${ e.getMessage }
+             |  offending line: @1""".stripMargin, line)
+      case _ => e.getMessage
+        fatal(
+          s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: caught ${ e.getClass.getName() }: ${ e.getMessage }
+             |  offending line: @1""".stripMargin, line)
     }
-    fatal(
-      s"""$file${ position.map(ln => ":" + (ln + 1)).getOrElse("") }: $msg
-         |  offending line: @1""".stripMargin, line)
   }
 }
 

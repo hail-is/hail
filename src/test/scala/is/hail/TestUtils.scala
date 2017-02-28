@@ -9,7 +9,7 @@ object TestUtils {
   import org.scalatest.Assertions._
 
   def interceptFatal(regex: String)(f: => Any) {
-    val thrown = intercept[FatalException](f)
+    val thrown = intercept[HailException](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     if (!p)
       println(

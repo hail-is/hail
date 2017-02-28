@@ -128,7 +128,7 @@ object VariantDataset {
         s"""
            |corrupt VDS: invalid metadata file.
            |  Recreate VDS with current version of Hail.
-           |  caught exception: ${ expandException(e) }
+           |  caught exception: ${ expandException(e, logMessage = true) }
          """.stripMargin)
     }
 
@@ -566,7 +566,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       famColumns.get(name) match {
         case Some((colt, j, formatter)) =>
           if (colt != t)
-            fatal("invalid type for .fam file column $h: expected $colt, got $t")
+            fatal(s"invalid type for .fam file column $i: expected $colt, got $t")
           famFns(j) = (a: Array[Option[Any]]) => formatter(a(i))
 
         case None =>

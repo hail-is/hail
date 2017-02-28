@@ -45,7 +45,7 @@ object BaldingNicholsModel {
 
     val nPartitions = nPartitionsOpt.getOrElse(Math.max((nSamples.toLong * nVariants / 1000000).toInt, 8))
     if (nPartitions < 1)
-      fatal(s"Number of partitions must be positive, got $nPartitions")
+      fatal(s"Number of partitions must be >= 1, got $nPartitions")
 
     af_dist match {
       case u: UniformDist =>
