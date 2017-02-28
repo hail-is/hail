@@ -59,6 +59,22 @@ object VariantSampleMatrix {
   def gen[T](hc: HailContext,
     gen: VSMSubgen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     gen.gen(hc)
+
+  def genGeneric(hc: HailContext): Gen[VariantSampleMatrix[Annotation]] =
+    for (tSig <- Type.genArb.resize(3);
+      vsm <- VSMSubgen[Annotation](
+        sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
+        saSigGen = Type.genArb,
+        vaSigGen = Type.genArb,
+        globalSigGen = Type.genArb,
+        tSig = tSig,
+        saGen = (t: Type) => t.genValue,
+        vaGen = (t: Type) => t.genValue,
+        globalGen = (t: Type) => t.genValue,
+        vGen = Variant.gen,
+        tGen = (v: Variant) => tSig.genValue.resize(20),
+        isGenericGenotype = true).gen(hc)
+    ) yield vsm
 }
 
 case class VSMSubgen[T](
@@ -66,13 +82,15 @@ case class VSMSubgen[T](
   saSigGen: Gen[Type],
   vaSigGen: Gen[Type],
   globalSigGen: Gen[Type],
+  tSig: Type,
   saGen: (Type) => Gen[Annotation],
   vaGen: (Type) => Gen[Annotation],
   globalGen: (Type) => Gen[Annotation],
   vGen: Gen[Variant],
-  tGen: (Int) => Gen[T],
+  tGen: (Variant) => Gen[T],
   isDosage: Boolean = false,
-  wasSplit: Boolean = false) {
+  wasSplit: Boolean = false,
+  isGenericGenotype: Boolean = false) {
 
   def gen(hc: HailContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (size <- Gen.size;
@@ -92,11 +110,10 @@ case class VSMSubgen[T](
         for (subsubsizes <- Gen.partitionSize(3);
           v <- vGen.resize(subsubsizes(0));
           va <- vaGen(vaSig).resize(subsubsizes(1));
-          ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v.nAlleles)).resize(subsubsizes(2)))
+          ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
           yield (v, (va, ts))).resize(l))
       yield {
-        val genotypeSig = TGenotype
-        VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, genotypeSig, wasSplit = wasSplit, isDosage = isDosage),
+        VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isDosage = isDosage, isGenericGenotype = isGenericGenotype),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
       }
 }
@@ -107,6 +124,7 @@ object VSMSubgen {
     saSigGen = Type.genArb,
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,
+    tSig = TGenotype,
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genValue,
@@ -1301,6 +1319,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     if (!metadataSame)
       println("metadata were not the same")
     val vaSignatureBc = sparkContext.broadcast(vaSignature)
+    val gSignatureBc = sparkContext.broadcast(genotypeSignature)
     var printed = false
     metadataSame &&
       rdd
@@ -1317,9 +1336,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
               printed = true
             }
             val genotypesSame = (it1, it2).zipped.forall { case (g1, g2) =>
-              if (g1 != g2)
+              val gSame = gSignatureBc.value.valuesSimilar(g1, g2, tolerance)
+              if (!gSame)
                 println(s"genotypes $g1, $g2 were not the same")
-              g1 == g2
+              gSame
             }
             annotationsSame && genotypesSame
           case (v, _) =>
