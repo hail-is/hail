@@ -2011,7 +2011,7 @@ class VariantDataset(object):
 
         """
 
-        return self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max))
+        return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
     def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
