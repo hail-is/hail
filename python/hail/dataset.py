@@ -5213,6 +5213,10 @@ class VariantDataset(object):
         jvds = self._jvds.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
+    def nirvana(self, config, block_size, root):
+        jvds = self._jvdf.nirvana(config, block_size, root)
+        return VariantDataset(self.hc, jvds)
+
     @handle_py4j
     def variants_table(self):
         """Convert variants and variant annotations to a KeyTable.
