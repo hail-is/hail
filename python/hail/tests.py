@@ -622,8 +622,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(vds.annotate_global_py(path, arr3, arrtype).globals.annotation, arr3)
         self.assertEqual(vds.annotate_global_py(path, arr4, arrtype).globals.annotation, arr4)
 
-        set1 = set([1, 2, 3, 4])
-        set2 = set([1, 2, None, 4])
+        set1 = {1, 2, 3, 4}
+        set2 = {1, 2, None, 4}
         set3 = None
         set4 = set()
         settype = TSet(TInt())
@@ -689,5 +689,3 @@ class ContextTests(unittest.TestCase):
         genotypetype = TGenotype()
         self.assertEqual(vds.annotate_global_py(path, genotype1, genotypetype).globals.annotation, genotype1)
         self.assertEqual(vds.annotate_global_py(path, genotype2, genotypetype).globals.annotation, genotype2)
-
-    def test_intervals(self):
