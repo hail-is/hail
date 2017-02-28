@@ -156,11 +156,11 @@ object Code {
   def boxFloat(cf: Code[Float]): Code[java.lang.Float] = Code.newInstance[java.lang.Float, Float](cf)
   def boxDouble(cd: Code[Double]): Code[java.lang.Double] = Code.newInstance[java.lang.Double, Double](cd)
 
-  def booleanValue(x: Code[java.lang.Boolean]): Code[Boolean] = Code.checkcast[java.lang.Boolean](x).invoke[Boolean]("booleanValue");
-  def intValue(x: Code[java.lang.Number]): Code[Int] = Code.checkcast[java.lang.Number](x).invoke[Int]("intValue");
-  def longValue(x: Code[java.lang.Number]): Code[Long] = Code.checkcast[java.lang.Number](x).invoke[Long]("longValue");
-  def floatValue(x: Code[java.lang.Number]): Code[Float] = Code.checkcast[java.lang.Number](x).invoke[Float]("floatValue");
-  def doubleValue(x: Code[java.lang.Number]): Code[Double] = Code.checkcast[java.lang.Number](x).invoke[Double]("doubleValue");
+  def booleanValue(x: Code[java.lang.Boolean]): Code[Boolean] = x.invoke[Boolean]("booleanValue");
+  def intValue(x: Code[java.lang.Number]): Code[Int] = x.invoke[Int]("intValue");
+  def longValue(x: Code[java.lang.Number]): Code[Long] = x.invoke[Long]("longValue");
+  def floatValue(x: Code[java.lang.Number]): Code[Float] = x.invoke[Float]("floatValue");
+  def doubleValue(x: Code[java.lang.Number]): Code[Double] = x.invoke[Double]("doubleValue");
 }
 
 trait Code[+T] {
@@ -371,7 +371,7 @@ object Invokeable {
     isInterface = false,
     INVOKESPECIAL,
     Type.getConstructorDescriptor(c),
-    implicitly[ClassTag[Void]].runtimeClass)
+    implicitly[ClassTag[Unit]].runtimeClass)
 
   def apply[T, S](m: Method)(implicit tct: ClassTag[T], sct: ClassTag[S]): Invokeable[T, S] = {
     val isInterface = m.getDeclaringClass.isInterface

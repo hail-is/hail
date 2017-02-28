@@ -137,7 +137,7 @@ object FunctionRegistry {
     val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
       .valueOr(x => fatal(x.message))
 
-    m match {
+    (m match {
       case aggregator: Arity0Aggregator[_, _] =>
         for (
           aggregationResultThunk <- addAggregation(args(0), aggregator.ctor());
@@ -180,6 +180,7 @@ object FunctionRegistry {
 
       case aggregator: UnaryLambdaAggregator[t, u, v] =>
         val Lambda(_, param, body) = args(1)
+        val TFunction(Seq(paramType), _) = argTypes(1)
 
         for (
           ec <- ec();
@@ -191,14 +192,14 @@ object FunctionRegistry {
             case _ => st
           };
 
-          namesAndIndices = bodyST.toSeq.map { case (name, (i, _)) => (name, i) };
           bodyFn = (for (
             fb <- fb();
-            bindings = (namesAndIndices.map { case (name, i) =>
-              (name, ret(fb.arg2.invoke[Int, AnyRef]("apply", i)))
-            } :+ ((param, ret(fb.arg2.invoke[Int, AnyRef]("apply", idx)))));
+            bindings = (bodyST.toSeq
+              .map { case (name, (i, typ)) =>
+              (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(namesAndIndices.map(_._1), ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -212,6 +213,7 @@ object FunctionRegistry {
 
       case aggregator: BinaryLambdaAggregator[t, u, v, w] =>
         val Lambda(_, param, body) = args(1)
+        val TFunction(Seq(paramType), _) = argTypes(1)
 
         for (
           ec <- ec();
@@ -223,14 +225,14 @@ object FunctionRegistry {
             case _ => st
           };
 
-          namesAndIndices = bodyST.toSeq.map { case (name, (i, _)) => (name, i) };
           bodyFn = (for (
             fb <- fb();
-            bindings = (namesAndIndices.map { case (name, i) =>
-              (name, ret(fb.arg2.invoke[Int, AnyRef]("apply", i)))
-            } :+ ((param, ret(fb.arg2.invoke[Int, AnyRef]("apply", idx)))));
+            bindings = (bodyST.toSeq
+              .map { case (name, (i, typ)) =>
+              (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(namesAndIndices.map(_._1), ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -266,6 +268,7 @@ object FunctionRegistry {
       }
       case f: BinaryLambdaFun[t, _, _] =>
         val Lambda(_, param, body) = args(1)
+        val TFunction(Seq(paramType), _) = argTypes(1)
         args(0).`type` match {
           case tagg: TAggregable =>
             if (!tagg.symTab.isEmpty)
@@ -277,13 +280,14 @@ object FunctionRegistry {
           f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any]).asInstanceOf[AnyRef])
 
         for (
-          lamc <- createLambda(param, body.compile());
+          lamc <- createLambda(param, paramType, body.compile());
           res <- AST.evalComposeCodeM(args(0)) { xs =>
             invokePrimitive2[AnyRef, AnyRef, AnyRef](g)(xs, lamc)
           }
         ) yield res
       case f: Arity3LambdaFun[t, _, v, _] =>
         val Lambda(_, param, body) = args(1)
+        val TFunction(Seq(paramType), _) = argTypes(1)
         args(0).`type` match {
           case tagg: TAggregable =>
             if (!tagg.symTab.isEmpty)
@@ -295,7 +299,7 @@ object FunctionRegistry {
           f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any], y.asInstanceOf[v]).asInstanceOf[AnyRef])
 
         for (
-          lamc <- createLambda(param, body.compile());
+          lamc <- createLambda(param, paramType, body.compile());
           res <- AST.evalComposeCodeM(args(0), args(2)) { (xs, y) =>
             invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(xs, lamc, y)
           }
@@ -315,7 +319,7 @@ object FunctionRegistry {
         yield result.asInstanceOf[Code[AnyRef]]
       case x =>
         throw new RuntimeException(s"whoops, forgot to implement funreg for ${x.getClass} $x")
-    }
+    }).map(Code.checkcast(_)(m.retType.scalaClassTag))
   }
 
   def callAggregatorTransformation(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): CMCodeCPS[AnyRef] = {
@@ -329,6 +333,7 @@ object FunctionRegistry {
     m match {
       case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
         val Lambda(_, param, body) = args(0)
+        val TFunction(Seq(paramType), _) = typs(0)
 
         { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
           st <- currentSymbolTable();
@@ -340,15 +345,14 @@ object FunctionRegistry {
 
           fb <- fb();
 
-          externalNamesAndIndices = bodyST.toSeq.map { case (name, (i, _)) => (name, i) };
-          externalBindings = externalNamesAndIndices.map { case (name, i) =>
-            (name, ret(fb.arg2.invoke[Int, AnyRef]("apply", i)))
+          externalBindings = bodyST.toSeq.map { case (name, (i, typ)) =>
+            (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
           };
 
           g = { (_x: Code[AnyRef]) =>
             for (
               (stx, x) <- memoize(_x);
-              bindings = externalBindings :+ ((param, ret(x)));
+              bindings = externalBindings :+ ((param, paramType, ret(x)));
               cbody <- bindRepInRaw(bindings)(body.compile())
             ) yield Code(stx, cbody)
           } : (Code[AnyRef] => CM[Code[AnyRef]]);

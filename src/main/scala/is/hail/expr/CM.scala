@@ -6,10 +6,10 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object preCM {
-  case class E(m: Map[String, Code[AnyRef]], fb: Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef])
+  case class E(m: Map[String, (Type, Code[AnyRef])], fb: Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef])
   case class S(fa: Array[AnyRef], ec: EvalContext)
 
-  def emptyE = E(Map[String, Code[AnyRef]](), new Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]())
+  def emptyE = E(Map[String, (Type, Code[AnyRef])](), new Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]())
   def emptyS(ec: EvalContext) = S(Array[AnyRef](), ec)
 }
 
@@ -49,17 +49,17 @@ case class CM[+T](mt: (E, S) => (T, S)) {
       }
     }
   }
-  def run(bindings: Seq[(String, AnyRef)], ec: EvalContext)(implicit ev: T <:< Code[AnyRef]): () => AnyRef = {
-    val names = bindings.map(_._1)
-    val values: mutable.ArrayBuffer[AnyRef] = bindings.map(_._2).to[mutable.ArrayBuffer]
-    val f: mutable.ArrayBuffer[AnyRef] => AnyRef = runWithDelayedValues(names, ec)
+  def run(bindings: Seq[(String, Type, AnyRef)], ec: EvalContext)(implicit ev: T <:< Code[AnyRef]): () => AnyRef = {
+    val typedNames = bindings.map { case (name, typ, _) => (name, typ) }
+    val values: mutable.ArrayBuffer[AnyRef] = bindings.map(_._3).to[mutable.ArrayBuffer]
+    val f: mutable.ArrayBuffer[AnyRef] => AnyRef = runWithDelayedValues(typedNames, ec)
 
     () => f(values)
   }
-  def runWithDelayedValues(names: Seq[String], ec: EvalContext)(implicit ev: T <:< Code[AnyRef]): mutable.ArrayBuffer[AnyRef] => AnyRef = {
+  def runWithDelayedValues(typedNames: Seq[(String, Type)], ec: EvalContext)(implicit ev: T <:< Code[AnyRef]): mutable.ArrayBuffer[AnyRef] => AnyRef = {
     val e = emptyE
-    val codeBindings = names.zipWithIndex.map { case (name, i) =>
-      (name, e.fb.arg2.invoke[Int, AnyRef]("apply", i))
+    val codeBindings = typedNames.zipWithIndex.map { case ((name, typ), i) =>
+      (name, (typ, Code.checkcast(e.fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
     }
     val e2 = e.copy(m = codeBindings.toMap)
 
@@ -87,7 +87,7 @@ object CM {
   def ret[T](t: T): CM[T] = CM((e,a) => (t, a))
 
   def fb(): CM[Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]] = CM { (e, s) => (e.fb, s) }
-  def availableBindings(): CM[Map[String, Code[AnyRef]]] = CM { case (e, s) => (e.m, s) }
+  def availableBindings(): CM[Map[String, (Type, Code[AnyRef])]] = CM { case (e, s) => (e.m, s) }
 
   def addForeignFun(f: AnyRef): CM[Int] = CM { (e, s) => (s.fa.length, s.copy(fa = f +: s.fa)) }
   def foreignFunArray(): CM[Code[Array[AnyRef]]] = fb().map(_.arg1)
@@ -123,25 +123,25 @@ object CM {
   ) yield (x.store(c), x.load().asInstanceOf[Code[T]])
 
   // references to its argument will be duplicated
-  def bindInRaw[T](name: String, c: Code[AnyRef])(body: CM[Code[T]]): CM[Code[T]] = CM { case (e, s) =>
-    body.mt(e.copy(m = e.m + ((name, c))), s)
+  def bindInRaw[T](name: String, typ: Type, c: Code[AnyRef])(body: CM[Code[T]]): CM[Code[T]] = CM { case (e, s) =>
+    body.mt(e.copy(m = e.m + ((name, (typ, c)))), s)
   }
-  def bindRepInRaw[T](bindings: Seq[(String, CM[Code[AnyRef]])])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
+  def bindRepInRaw[T](bindings: Seq[(String, Type, CM[Code[AnyRef]])])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
     case Seq() => body
-    case Seq((name, cmc), rest @ _*) =>
-      cmc.flatMap(c => bindInRaw(name, c)(bindRepInRaw(rest)(body)))
+    case Seq((name, typ, cmc), rest @ _*) =>
+      cmc.flatMap(c => bindInRaw(name, typ, c)(bindRepInRaw(rest)(body)))
   }
   // its argument is stored in a local variable, only refernece to the variable
   // are dupliacted
-  def bindIn[T](name: String, c: Code[AnyRef])(body: CM[Code[T]]): CM[Code[T]] =
-    memoize(c).flatMap { case (st, v) => bindInRaw(name, v)(body.map(x => Code(st, x))) }
-  def bindRepIn[T](bindings: Seq[(String, CM[Code[AnyRef]])])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
+  def bindIn[T](name: String, typ: Type, c: Code[AnyRef])(body: CM[Code[T]]): CM[Code[T]] =
+    memoize(c).flatMap { case (st, v) => bindInRaw(name, typ, v)(body.map(x => Code(st, x))) }
+  def bindRepIn[T](bindings: Seq[(String, Type, CM[Code[AnyRef]])])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
     case Seq() => body
-    case Seq((name, cmc), rest @ _*) =>
-      cmc.flatMap(c => bindIn(name, c)(bindRepIn(rest)(body)))
+    case Seq((name, typ, cmc), rest @ _*) =>
+      cmc.flatMap(c => bindIn(name, typ, c)(bindRepIn(rest)(body)))
   }
   def lookup(name: String): CM[Code[AnyRef]] = CM { case (e, s) =>
-    (e.m(name), s)
+    (e.m(name)._2, s)
   }
 
   def invokePrimitive1Pure[A,R](f: (A) => R)
@@ -162,16 +162,16 @@ object CM {
   def invokePrimitive4[A,B,C,D,R](f: (A, B, C, D) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D])
     (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], rct: ClassTag[R]) : CM[Code[R]] =
     foreignFun(f).map(_.invoke[R]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass), Array(a, b, c, d)))
-  def createLambda[T <: AnyRef](name: String, body: CM[Code[T]])(implicit tti: TypeInfo[T]): CM[Code[(AnyRef) => T]] = {
+  def createLambda[T <: AnyRef](name: String, typ: Type, body: CM[Code[T]])(implicit tti: TypeInfo[T]): CM[Code[(AnyRef) => T]] = {
     val cc = (for (
       v <- initialValueArray();
-      result <- bindInRaw(name, v.invoke[Int, AnyRef]("apply", 0))(body)
+      result <- bindInRaw(name, typ, Code.checkcast(v.invoke[Int, AnyRef]("apply", 0))(typ.scalaClassTag))(body)
     ) yield result)
     for (
       bindings <- availableBindings();
-      cvalues = CompilationHelp.arrayOf(bindings.map(_._2).toIndexedSeq);
+      cvalues = CompilationHelp.arrayOf(bindings.map { case (_, (_, code)) => code }.toIndexedSeq);
       ec <- ec();
-      compiledCode = cc.runWithDelayedValues(name +: bindings.map(_._1).toSeq, ec);
+      compiledCode = cc.runWithDelayedValues((name, typ) +: bindings.map { case (name, (typ, _)) => (name, typ) }.toSeq, ec);
       f <- invokePrimitive1(((vs: Array[AnyRef]) => (x: AnyRef) => compiledCode((x +: vs).to[mutable.ArrayBuffer])).asInstanceOf[AnyRef => AnyRef])(cvalues)
     ) yield f.asInstanceOf[Code[AnyRef => T]]
   }

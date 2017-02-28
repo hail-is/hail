@@ -241,9 +241,9 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   def run(ec: EvalContext): () => AnyRef = this.compile().run(ec)
 
   def runAggregator(ec: EvalContext): CPS[Any] = {
-    val names = ec.st.toSeq
-      .sortBy { case (nanme, (i, _)) => i }
-      .map { case (name, _) => name }
+    val typedNames = ec.st.toSeq
+      .sortBy { case (_, (i, _)) => i }
+      .map { case (name, (_, typ)) => (name, typ) }
     val values = ec.a.asInstanceOf[mutable.ArrayBuffer[AnyRef]]
 
     val idx = ec.a.length
@@ -257,7 +257,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
       // these calls as non-stack-modifying functions so we must include a pop
       // to reset the stack.
     ) yield Code(k.invoke[AnyRef, AnyRef]("apply", me), Code._pop[Unit])
-    }).map(x => Code(x, Code._null[AnyRef])).runWithDelayedValues(names, ec)
+    }).map(x => Code(x, Code._null[AnyRef])).runWithDelayedValues(typedNames, ec)
 
     { (k: (Any => Unit)) =>
       localA(idx) = k
@@ -315,7 +315,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case t: TStruct =>
       val Some(f) = t.selfField(rhs)
       val i = f.index
-      AST.evalComposeCode[Row](lhs) { r: Code[Row] => r.invoke[Int, AnyRef]("get", i) }
+      AST.evalComposeCode[Row](lhs) { r: Code[Row] => Code.checkcast(r.invoke[Int, AnyRef]("get", i))(f.typ.scalaClassTag) }
 
     case t => FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
       .valueOr {
@@ -635,7 +635,7 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
-  def compile() = CM.bindRepIn(bindings.map(x => (x._1, x._2.compile())))(body.compile())
+  def compile() = CM.bindRepIn(bindings.map { case (name, expr) => (name, expr.`type`, expr.compile()) })(body.compile())
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
@@ -684,7 +684,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
       ec <- elseTree.compile();
       cc <- cond.compile();
       result <- cc.mapNullM((cc: Code[AnyRef]) =>
-        coerce(Code.checkcast[java.lang.Boolean](cc).invoke[Boolean]("booleanValue").mux(tc, ec)))
+        coerce(cc.invoke[Boolean]("booleanValue").mux(tc, ec)))
     ) yield result
   }
 }

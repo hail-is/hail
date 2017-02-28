@@ -143,9 +143,9 @@ class ExprSuite extends SparkSuite {
 
     val bindings = symTab.toSeq
       .sortBy { case (name, (i, _)) => i }
-      .map { case (name, _) => name }
+      .map { case (name, (_, typ)) => (name, typ) }
       .zip(a)
-      .map { case (name, value) => (name, value.asInstanceOf[AnyRef]) }
+      .map { case ((name, typ), value) => (name, typ, value.asInstanceOf[AnyRef]) }
     def eval[T](s: String): Option[T] = {
       val compiledCode = Parser.parseToAST(s, ec).compile().run(bindings, ec)
       val compileResult = Option(compiledCode().asInstanceOf[T])

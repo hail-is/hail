@@ -43,10 +43,10 @@ object ParserUtils {
 
 object Parser extends JavaTokenParsers {
   private def evalNoTypeCheck(t: AST, ec: EvalContext): () => Any = {
-    val names = ec.st.toSeq
-      .sortBy { case (nanme, (i, _)) => i }
-      .map { case (name, _) => name }
-    val f = t.compile().runWithDelayedValues(names.toSeq, ec)
+    val typedNames = ec.st.toSeq
+      .sortBy { case (name, (i, _)) => i }
+      .map { case (name, (_, typ)) => (name, typ) }
+    val f = t.compile().runWithDelayedValues(typedNames.toSeq, ec)
 
     // FIXME: ec.a is actually mutable.ArrayBuffer[AnyRef] because Annotation is
     // actually AnyRef, but there's a lot to change
