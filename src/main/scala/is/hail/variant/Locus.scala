@@ -9,6 +9,7 @@ import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructT
 import org.json4s._
 
 import scala.reflect.ClassTag
+import scala.util.parsing.combinator.JavaTokenParsers
 
 object LocusImplicits {
   /* We cannot add this to the Locus companion object because it breaks serialization. */
@@ -52,19 +53,57 @@ object Locus {
     }
   }
 
-  def parseInterval(str: String): Interval[Locus] = {
-    str.split("-") match {
-      case Array(start, end) =>
-        val startLocus = Locus.parse(start)
-        val endLocus = end.split(":") match {
-          case Array(pos) => Locus(startLocus.contig, pos.toInt)
-          case Array(chr, pos) => Locus(chr, pos.toInt)
-          case a => fatal(s"expected end locus in format CHR:POS or POS, but found ${a.length} colon-delimited fields")
-        }
-        Interval(startLocus, endLocus)
-      case a => fatal(s"expected 2 dash-delimited fields, but found ${a.length}")
+  object LocusIntervalParser extends JavaTokenParsers {
+    def parseInterval(input: String): Interval[Locus] = {
+      parse[Interval[Locus]](interval, input) match {
+        case Success(r, _) => r
+        case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
+      }
+    }
+
+    def interval: Parser[Interval[Locus]] = {
+      "\\A".r ~> locus ~ "-" ~ locus <~ "\\Z".r ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |||
+        "\\A".r ~> locus ~ "-" ~ pos <~ "\\Z".r ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copy(position = p2)) } |||
+        "\\A".r ~> contig <~ "\\Z".r ^^ { c => Interval(Locus(c, 0), Locus(c, Int.MaxValue)) } |||
+        "\\A".r ~> contig ~ "-" ~ contig <~ "\\Z".r ^^ { case c1 ~ _ ~ c2 => Interval(Locus(c1, 0), Locus(c2, Int.MaxValue)) }
+    }
+
+    def locus: Parser[Locus] = {
+      contig ~ ":" ~ pos ^^ { case c ~ _ ~ p => Locus(c, p) }
+    }
+
+    def contig: Parser[String] = "\\w+".r
+
+    def coerceInt(s: String): Int = try {
+      s.toInt
+    } catch {
+      case e: java.lang.NumberFormatException => Int.MaxValue
+    }
+
+    def exp10(i: Int): Int = {
+      var mult = 1
+      var j = 0
+      while (j < i) {
+        mult *= 10
+        j += 1
+      }
+      mult
+    }
+
+    def pos: Parser[Int] = {
+      "[sS][Tt][Aa][Rr][Tt]".r ^^ { _ => 0 } |||
+        "[Ee][Nn][Dd]".r ^^ { _ => Int.MaxValue } |||
+        "\\d+".r ^^ { i => coerceInt(i) } |||
+        "\\d+".r <~ "[Kk]".r ^^ { i => coerceInt(i) * 1000 } |||
+        "\\d+".r <~ "[Mm]".r ^^ { i => coerceInt(i) * 1000000 } |||
+        "\\d+".r ~ "." ~ "\\d{1,3}".r ~ "[Kk]".r ^^ { case lft ~ _ ~ rt ~ _ => coerceInt(lft + rt) * exp10(3 - rt.length) } |||
+        "\\d+".r ~ "." ~ "\\d{1,6}".r ~ "[Mm]".r ^^ { case lft ~ _ ~ rt ~ _ => coerceInt(lft + rt) * exp10(6 - rt.length) }
     }
   }
+
+  def parseInterval(str: String): Interval[Locus] = LocusIntervalParser.parseInterval(str)
+
+  def parseIntervals(arr: Array[String]): Array[Interval[Locus]] = arr.map(parseInterval)
 
   def makeInterval(start: Locus, end: Locus): Interval[Locus] = Interval(start, end)
 }

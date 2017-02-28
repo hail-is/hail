@@ -1,6 +1,7 @@
 from py4j.protocol import Py4JJavaError, Py4JError
 from decorator import decorator
 
+
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
 
@@ -10,6 +11,7 @@ class Env:
     _gateway = None
     _hail_package = None
     _jutils = None
+    _hc = None
 
     @property
     def jvm(self):
@@ -34,6 +36,12 @@ class Env:
         if not Env._jutils:
             Env._jutils = scala_package_object(self.hail.utils)
         return Env._jutils
+
+    @property
+    def hc(self):
+        if not Env._hc:
+            raise EnvironmentError('no Hail context initialized, create one first')
+        return Env._hc
 
 
 env = Env()
@@ -78,15 +86,18 @@ def jindexed_seq_args(x):
     args = [x] if isinstance(x, str) else x
     return jindexed_seq(args)
 
+
 def jiterable_to_list(it):
     if it:
         return list(env.jutils.iterableToArrayList(it))
     else:
         return None
 
+
 def jarray_to_list(a):
     return list(a) if a else None
-    
+
+
 @decorator
 def handle_py4j(func, *args, **kwargs):
     try:

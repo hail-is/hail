@@ -3,6 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.type import Type
+from hail.representation import Interval, IntervalTree
 from hail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
 
@@ -1836,42 +1837,50 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def filter_variants_intervals(self, input, keep=True):
-        """Filter variants with an .interval_list file.
+    def filter_variants_intervals(self, intervals, keep=True):
+        """Filter variants with an interval list.
 
         **Examples**
 
-        If *intervals.txt* contains intervals in the interval_list format, the
-        following expression will produce a :py:class:`.VariantDataset` containg
-        only variants included by the given intervals:
+        >>> from hail.representation import *
+        >>> vds_result = vds.filter_variants_intervals(IntervalTree.read('data/intervals.txt'))
+        >>> vds_result = vds.filter_variants_intervals(IntervalTree.parse_all(['1:50M-75M', '2:START-400000','3-22']))
+        >>> vds_result = vds.filter_variants_intervals(Interval(Locus('17', 38449840), Locus('17', 38530994)))
+        >>> vds_result = vds.filter_variants_intervals(Interval.parse('17:38449840-38530994'))
 
-        >>> vds_result = vds.filter_variants_intervals('data/intervals.txt')
+        This method takes an argument either of :class:`.Interval` or :class:`.IntervalTree`.
 
-        **The File Format**
+        Based on the ``keep`` argument, this method will either restrict to variants in the
+        supplied interval range, or remove all variants in that range.  Note that intervals
+        are left-inclusive, and right-exclusive.  The below interval includes the locus
+        ``15:100000`` but not ``15:101000``.
 
-        Hail expects an interval file to contain either three or five fields per
-        line in the following formats:
+        >>> interval = Interval.parse('15:100000-101000')
 
-        - ``contig:start-end``
-        - ``contig  start  end`` (tab-separated)
-        - ``contig  start  end  direction  target`` (tab-separated)
+        To supply a file containing intervals, use :py:meth:`.IntervalTree.read`:
 
-        In either case, Hail only uses the ``contig``, ``start``, and ``end``
-        fields.  Each variant is evaluated against each line in the interval
-        file, and any match will mark the variant to be included if
-        ``keep=True`` and excluded if ``keep=False``.
+        >>> vds_result = vds.filter_variants_intervals(IntervalTree.read('data/intervals.txt'))
 
-        .. note::
+        With ``keep = True``, this method performs predicate pushdown, meaning that data shards
+        that don't overlap any supplied interval will not be loaded at all.  This property
+        enables ``filter_variants_intervals`` to be used for reasonably low-latency single-
+        variant queries on large datasets:
 
-            ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``
+        >>>  # We are interested in the variant 15:100203:A:T
+        >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start == 100203')  # slow
+        >>> vds_filtered = vds.filter_variants_intervals(Interval.parse('15:100203-100204'))  # very fast
 
-        :param str input: Path to .interval_list file.
+        :param intervals: interval or interval tree object
+        :type intervals: s:class:`.Interval` or :class:`.IntervalTree`
 
         :return: Filtered dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.filterIntervals(input, keep)
+        if isinstance(intervals, Interval):
+            intervals = IntervalTree(intervals)
+
+        jvds = self._jvds.filterIntervals(intervals._jrep, keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

@@ -182,7 +182,14 @@ class ContextTests(unittest.TestCase):
         (sample2.filter_variants_expr('pcoin(0.5)')
          .export_variants('/tmp/sample2.variant_list', 'v'))
 
-        (sample2.filter_variants_intervals(test_resources + '/annotinterall.interval_list')
+        (sample2.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
+         .count())
+
+        sample2.filter_variants_intervals(Interval.parse('1:100-end')).count()
+        sample2.filter_variants_intervals(IntervalTree.parse_all(['1:100-end', '3-22'])).count()
+        sample2.filter_variants_intervals(IntervalTree([Interval.parse('1:100-end')])).count()
+
+        (sample2.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
          .count())
 
         self.assertEqual(sample2.filter_variants_list(
@@ -682,3 +689,5 @@ class ContextTests(unittest.TestCase):
         genotypetype = TGenotype()
         self.assertEqual(vds.annotate_global_py(path, genotype1, genotypetype).globals.annotation, genotype1)
         self.assertEqual(vds.annotate_global_py(path, genotype2, genotypetype).globals.annotation, genotype2)
+
+    def test_intervals(self):

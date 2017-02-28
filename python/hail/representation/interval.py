@@ -1,5 +1,5 @@
-from hail.java import scala_object, env, handle_py4j
-from hail.representation import Locus
+from hail.java import *
+from hail.representation.variant import Locus
 
 
 class Interval(object):
@@ -52,15 +52,39 @@ class Interval(object):
     def parse(string):
         """Parses a genomic interval from string representation.
 
-        There are two acceptable representations, CHR:POS-CHR:POS
-        and CHR:POS-POS.  In the second case, the second locus is
-        assumed to have the same chromosome.  The second locus must
-        be ordered after the first (later chromosome / position).
-
-        Example:
+        **Examples**:
 
         >>> interval_1 = Interval.parse('X:100005-X:150020')
         >>> interval_2 = Interval.parse('16:29500000-30200000')
+        >>> interval_3 = Interval.parse('16:29.5M-30.2M')  # same as interval_2
+        >>> interval_4 = Interval.parse('16:30000000-END')
+        >>> interval_5 = Interval.parse('16:30M-END')  # same as interval_4
+        >>> interval_6 = Interval.parse('1-22')  # autosomes
+        >>> interval_7 = Interval.parse('X')  # all of chromosome X
+
+
+        There are several acceptable representations.
+
+        ``CHR1:POS1-CHR2:POS2`` is the fully specified representation, and
+        we use this to define the various shortcut representations.
+
+        In a ``POS`` field, ``start`` (``Start``, ``START``) stands for 0.
+
+        In a ``POS`` field, ``end`` (``End``, ``END``) stands for max int.
+
+        In a ``POS`` field, the qualifiers ``m`` (``M``) and ``k`` (``K``) multiply
+        the given number by 10**6 and 10**3, respectively. These models permit
+        decimals, so long as the number of digits in the mantissa is smaller than
+        the exponent (6 for M, 3 for K).
+
+        ``CHR:POS1-POS2`` stands for ``CHR:POS1-CHR:POS2``
+
+        ``CHR1-CHR2`` stands for ``CHR1:START-CHR2:END``
+
+        ``CHR`` stands for ``CHR:START-CHR:END``
+
+        Note that the start locus must precede the start locus.
+
 
         :rtype: :class:`.Interval`
         """
@@ -115,3 +139,86 @@ class Interval(object):
         :rtype: bool"""
 
         return self._jrep.overlaps(interval._jrep)
+
+
+class IntervalTree(object):
+    """An object used for efficient filtering of genomic intervals.
+
+    :param intervals: list of intervals to index in tree representation
+    :type intervals: list of :class:`.Interval`
+    """
+
+    def __init__(self, intervals):
+        jarr = jarray(env.hail.utils.Interval, [i._jrep for i in intervals])
+        jrep = scala_object(env.hail.utils, 'IntervalTree').apply(jarr, True)
+        self._jrep = jrep
+
+    @classmethod
+    def _init_from_java(cls, jrep):
+        itree = IntervalTree.__new__(cls)
+        itree._jrep = jrep
+        return itree
+
+    @staticmethod
+    @handle_py4j
+    def parse_all(cls, interval_strings):
+        """Parse a list of strings into an interval list
+
+        :param interval_strings: list of interval strings to be parsed
+        :type interval_strings: list of str
+
+        :rtype: :class:`.IntervalTree`
+        """
+
+        jrep = env.jutils.parseIntervalList(interval_strings)
+
+        return IntervalTree._init_from_java(jrep)
+
+    @staticmethod
+    @handle_py4j
+    def read(path):
+        """Read an interval tree from a file.
+
+        **The File Format**
+
+        Hail expects an interval file to contain either three or five fields per
+        line in the following formats:
+
+        - ``contig:start-end``
+        - ``contig  start  end`` (tab-separated)
+        - ``contig  start  end  direction  target`` (tab-separated)
+
+        In either case, Hail only uses the ``contig``, ``start``, and ``end``
+        fields.  Each variant is evaluated against each line in the interval
+        file, and any match will mark the variant to be included if
+        ``keep=True`` and excluded if ``keep=False``.
+
+        .. note::
+
+            ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``
+
+        .. note::
+
+            Hail uses the following ordering for contigs: 1-22 sorted numerically, then X, Y, MT,
+            then alphabetically for any contig not matching the standard human chromosomes.
+
+        :param path: file name
+
+        :rtype: :class:`.IntervalTree`
+        """
+
+        jrep = scala_object(env.hail.io.annotators, 'IntervalListAnnotator').read(path,
+                                                                                  env.hc._jhc.hadoopConfiguration(),
+                                                                                  True)
+
+        return IntervalTree._init_from_java(jrep)
+
+    @property
+    def intervals(self):
+        """Access a sorted iterator of genomic intervals.
+
+        :rtype: iterator of :class:`.Interval`
+        """
+
+        return (Interval._from_java(j_interval) for j_interval in
+                env.jutils.iterableToArrayList(self._jrep.toIterable()))

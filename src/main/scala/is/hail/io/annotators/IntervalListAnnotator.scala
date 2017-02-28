@@ -28,8 +28,7 @@ object IntervalListAnnotator {
                 """invalid interval format.  Acceptable formats:
                   |  `chr:start-end'
                   |  `chr  start  end' (tab-separated)
-                  |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
-                """.
+                  |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')""".
                   stripMargin)
             }
             m.updateValue(k, Nil, prev => v :: prev)
@@ -41,33 +40,32 @@ object IntervalListAnnotator {
   }
 
   def read(filename: String, hConf: hadoop.conf.Configuration, prune: Boolean = false): IntervalTree[Locus] = {
-    hConf.readLines(filename) {
-      s =>
-        val intervals = s
-          .filter(line => !line.value.isEmpty && line.value(0) != '@')
-          .map(_.map {
-            case intervalRegex(contig, start_str, end_str) =>
+    hConf.readLines(filename) { lines =>
+      val intervals = lines
+        .filter(line => !line.value.isEmpty && line.value(0) != '@')
+        .map(_.map {
+          case intervalRegex(contig, startStr, endStr) =>
+            // interval list is 1-based, inclusive: [start, end]
+            Interval(Locus(contig, startStr.toInt),
+              Locus(contig, endStr.toInt + 1))
+          case str => str.split("\t") match {
+            case Array(contig, start, end, direction, _) =>
+              if (!(direction == "+" || direction == "-"))
+                fatal(s"expect `+' or `-' in the `direction' field, but found $direction")
               // interval list is 1-based, inclusive: [start, end]
-              Interval(Locus(contig, start_str.toInt),
-                Locus(contig, end_str.toInt + 1))
-            case str => str.split("\t") match {
-              case Array(contig, start, end, direction, _) =>
-                if (!(direction == "+" || direction == "-"))
-                  fatal(s"expect `+' or `-' in the `direction' field, but found $direction")
-                // interval list is 1-based, inclusive: [start, end]
-                Interval(Locus(contig, start.toInt),
-                  Locus(contig, end.toInt + 1))
-              case _ => fatal(
-                """invalid interval format.  Acceptable formats:
-                  |  `chr:start-end'
-                  |  `chr  start  end' (tab-separated)
-                  |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
-                """.stripMargin)
-            }
-          }.value)
-          .toArray
+              Interval(Locus(contig, start.toInt),
+                Locus(contig, end.toInt + 1))
+            case _ => fatal(
+              """invalid interval format.  Acceptable formats:
+                |  `chr:start-end'
+                |  `chr  start  end' (tab-separated)
+                |  `chr  start  end  strand  target' (tab-separated, strand is `+' or `-')
+              """.stripMargin)
+          }
+        }.value)
+        .toArray
 
-        IntervalTree(intervals, prune = prune)
+      IntervalTree(intervals, prune = prune)
     }
   }
 
