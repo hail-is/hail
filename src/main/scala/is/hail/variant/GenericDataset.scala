@@ -27,7 +27,8 @@ object GenericDataset {
     val genotypeSignature = metadata.genotypeSignature
     val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
     val isGenericGenotype = metadata.isGenericGenotype
-    require(isGenericGenotype, "Can only read datasets with generic genotypes.")
+    
+    require(isGenericGenotype && !parquetGenotypes, "Can only read datasets with generic genotypes.")
 
     val parquetFile = dirname + "/rdd.parquet"
 
@@ -82,13 +83,14 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
 
   def write(dirname: String, overwrite: Boolean = false): Unit = {
     require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
+    require(gds.isGenericGenotype, "Can only write datasets with generic genotypes.")
 
     if (overwrite)
       gds.hadoopConf.delete(dirname, recursive = true)
     else if (gds.hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
 
-    writeMetadata(gds.hc.sqlContext, dirname)
+    gds.writeMetadata(dirname, parquetGenotypes = false)
 
     val vaSignature = gds.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
@@ -123,52 +125,4 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     ))
   }
 
-  def writeMetadata(sqlContext: SQLContext, dirname: String) {
-    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
-      fatal(s"output path ending in `.vds' required, found `$dirname'")
-
-    val hConf = gds.hc.hadoopConf
-    hConf.mkDir(dirname)
-
-    val sb = new StringBuilder
-
-    gds.saSignature.pretty(sb, printAttrs = true, compact = true)
-    val saSchemaString = sb.result()
-
-    sb.clear()
-    gds.vaSignature.pretty(sb, printAttrs = true, compact = true)
-    val vaSchemaString = sb.result()
-
-    sb.clear()
-    gds.globalSignature.pretty(sb, printAttrs = true, compact = true)
-    val globalSchemaString = sb.result()
-
-    sb.clear()
-    gds.genotypeSignature.pretty(sb, printAttrs = true, compact = true)
-    val genotypeSchemaString = sb.result()
-
-    val sampleInfoJson = JArray(
-      gds.sampleIdsAndAnnotations
-        .map { case (id, annotation) =>
-          JObject(List(("id", JString(id)), ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, gds.saSignature))))
-        }
-        .toList
-    )
-
-    val json = JObject(
-      ("version", JInt(VariantSampleMatrix.fileVersion)),
-      ("split", JBool(gds.wasSplit)),
-      ("isDosage", JBool(gds.isDosage)),
-      ("isGenericGenotype", JBool(true)),
-      ("parquetGenotypes", JBool(false)),
-      ("sample_annotation_schema", JString(saSchemaString)),
-      ("variant_annotation_schema", JString(vaSchemaString)),
-      ("global_annotation_schema", JString(globalSchemaString)),
-      ("genotype_schema", JString(genotypeSchemaString)),
-      ("sample_annotations", sampleInfoJson),
-      ("global_annotation", JSONAnnotationImpex.exportAnnotation(gds.globalAnnotation, gds.globalSignature))
-    )
-
-    hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))
-  }
 }

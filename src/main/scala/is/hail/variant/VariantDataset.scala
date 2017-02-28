@@ -1259,7 +1259,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     else if (vds.hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
 
-    writeMetadata(vds.hc.sqlContext, dirname, parquetGenotypes = parquetGenotypes)
+    vds.writeMetadata(dirname, parquetGenotypes = parquetGenotypes)
 
     val vaSignature = vds.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
@@ -1298,62 +1298,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     ))
   }
 
-  private def writeMetadata(sqlContext: SQLContext, dirname: String, parquetGenotypes: Boolean) {
-    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
-      fatal(s"output path ending in `.vds' required, found `$dirname'")
-
-    val hConf = vds.hc.hadoopConf
-    hConf.mkDir(dirname)
-
-    val sb = new StringBuilder
-
-    vds.saSignature.pretty(sb, printAttrs = true, compact = true)
-    val saSchemaString = sb.result()
-
-    sb.clear()
-    vds.vaSignature.pretty(sb, printAttrs = true, compact = true)
-    val vaSchemaString = sb.result()
-
-    sb.clear()
-    vds.globalSignature.pretty(sb, printAttrs = true, compact = true)
-    val globalSchemaString = sb.result()
-
-    sb.clear()
-    vds.genotypeSignature.pretty(sb, printAttrs = true, compact = true)
-    val genotypeSchemaString = sb.result()
-
-    val sampleInfoSchema = TStruct(("id", TString), ("annotation", vds.saSignature))
-    val sampleInfoJson = JArray(
-      vds.sampleIdsAndAnnotations
-        .map { case (id, annotation) =>
-          JObject(List(("id", JString(id)), ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, vds.saSignature))))
-        }
-        .toList
-    )
-
-    val json = JObject(
-      ("version", JInt(VariantSampleMatrix.fileVersion)),
-      ("split", JBool(vds.wasSplit)),
-      ("isDosage", JBool(vds.isDosage)),
-      ("isGenericGenotype", JBool(vds.isGenericGenotype)),
-      ("parquetGenotypes", JBool(parquetGenotypes)),
-      ("sample_annotation_schema", JString(saSchemaString)),
-      ("variant_annotation_schema", JString(vaSchemaString)),
-      ("global_annotation_schema", JString(globalSchemaString)),
-      ("genotype_schema", JString(genotypeSchemaString)),
-      ("sample_annotations", sampleInfoJson),
-      ("global_annotation", JSONAnnotationImpex.exportAnnotation(vds.globalAnnotation, vds.globalSignature))
-    )
-
-    hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))
-  }
-
   def writeKudu(dirname: String, tableName: String,
     master: String, vcfSeqDict: String, rowsPerPartition: Int,
     sampleGroup: String, drop: Boolean = false) {
     requireSplit("write Kudu")
 
-    writeMetadata(vds.hc.sqlContext, dirname, parquetGenotypes = false)
+    vds.writeMetadata(dirname, parquetGenotypes = false)
 
     val vaSignature = vds.vaSignature
     val isDosage = vds.isDosage
