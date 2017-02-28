@@ -52,12 +52,12 @@ class MaximalIndependentSetSuite extends SparkSuite {
   @Test def ofIBDMatrixTest1() {
     val input: RDD[((Int, Int), Double)] = sc.parallelize(Array(
       ((1, 2), 0.3), ((2, 3), 0.3), ((2, 4), 0.3),
-      ((4, 6), 0.0), ((6, 5), 0.0), ((7, 6), 0.0),
-      ((6, 8), 0.0)
+      ((4, 6), 1.0), ((6, 5), 1.0), ((7, 6), 1.0),
+      ((6, 8), 1.0)
     ))
 
-    assert(MaximalIndependentSet.ofIBDMatrix(input, 0.8, 1 to 7) == Set(1, 3, 4, 5, 7, 8))
-    assert(MaximalIndependentSet.ofIBDMatrix(input, 0.2, 1 to 7) == Set(1, 2, 3, 4, 5, 7, 8))
+    assert(MaximalIndependentSet.ofIBDMatrix(input, 0.0, 1 to 7) == Set(1, 3, 4, 5, 7, 8))
+    assert(MaximalIndependentSet.ofIBDMatrix(input, 0.4, 1 to 7) == Set(1, 2, 3, 4, 5, 7, 8))
   }
 
   @Test def ofIBDMatrixTest2() {
@@ -65,14 +65,14 @@ class MaximalIndependentSetSuite extends SparkSuite {
       ((1, 2), .4), ((3, 4), .3)
     ))
 
-    assert(MaximalIndependentSet.ofIBDMatrix(input, 0.5, 1 to 4).size == 2)
+    assert(MaximalIndependentSet.ofIBDMatrix(input, 0.2, 1 to 4).size == 2)
   }
 
   @Test def largeComponentWithTwoSubComponents() {
     val input: RDD[((Int, Int), Double)] = sc.parallelize(Array(
       (1, 2), (1, 3), (2, 4), (2, 5), (3, 4), (3, 5),
       (8, 6), (8, 7), (6, 4), (6, 5), (7, 4), (7, 5)
-    ).map(x => (x, 1.0)))
+    ).map(x => (x, .7)))
 
     MaximalIndependentSet.ofIBDMatrix(input, 0.8, 1 to 8) == (Set(2, 3, 6, 7))
   }

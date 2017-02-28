@@ -47,24 +47,24 @@ object MaximalIndependentSet {
 
     var i = 0
     while(graph1.numEdges > 0 && i < 100) {
-      if (i == 1) {
-        while (true) {
-
-        }
-      }
       if (graph2 != null) {
         graph2.unpersist()
       }
       i += 1
       info(s"$i: ${graph1.numVertices}")
-      var newGraph = graph1.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
-      newGraph = newGraph.subgraph(_ => true, (id, value) => value match { case (maxDegrees, maxID) => maxID != id || maxDegrees == 0})
+      val pregelGraph = graph1.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
+      val idSet = pregelGraph.vertices
+        .filter(tuple => tuple match {case (id, value) => value match  {case (maxDegrees, maxID) => maxID == id && maxDegrees != 0}})
+        .map(_._1).collect().toSet
+      //newGraph = newGraph.subgraph(_ => true, (id, value) => value match { case (maxDegrees, maxID) => maxID != id || maxDegrees == 0})
+      var newGraph = graph1.subgraph(_ => true, (id, value) => !idSet.contains(id))
       newGraph = updateVertexDegrees(newGraph)
       graph2 = graph1
       graph1 = newGraph
-      graph1.persist()
+      graph1 = graph1.persist()
       graph1.vertices.count()
       graph1.edges.count()
+      graph1.triplets
     }
     if (graph2 != null) {
       graph2.unpersist()
@@ -76,7 +76,7 @@ object MaximalIndependentSet {
   def ofIBDMatrix(inputRDD: RDD[((Int, Int), Double)], thresh: Double, vertexIDs: Seq[Int]): Set[Long] = {
     val sc = inputRDD.sparkContext
 
-    //Filter RDD to remove edges above threshold
+    //Filter RDD to keep edges above threshold
     val filteredRDD = inputRDD.filter(_._2 >= thresh)
 
     //Throw away weights
