@@ -113,7 +113,7 @@ class ImportVCFSuite extends SparkSuite {
         .collect()
         .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080))))
     }
-    assert(e.getMessage.contains("FatalException"))
+    assert(e.getMessage.contains("is.hail.utils.HailException: sample_bad_AD.vcf: invalid AD field"))
   }
 
   @Test def testHaploid() {
