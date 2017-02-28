@@ -2985,8 +2985,8 @@ class VariantDataset(object):
         It is far faster to execute multiple queries in one method than
         to execute multiple query methods.  This:
 
-        >>> [result1] = vds.query_genotypes('gs.count()')[0]
-        >>> [result2] = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.isHet).count()')[0]
+        >>> [result1] = vds.query_genotypes('gs.count()')
+        >>> [result2] = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.isHet).count()')
 
         will be nearly twice as slow as this:
 
@@ -3013,11 +3013,11 @@ class VariantDataset(object):
 
         Compute global GQ histogram
 
-        >>> [gq_hist] = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')[0]
+        >>> [gq_hist] = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')
 
         Compute call rate
 
-        >>> [call_rate] = vds.query_genotypes('gs.fraction(g => g.isCalled)')[0]
+        >>> [call_rate] = vds.query_genotypes('gs.fraction(g => g.isCalled)')
 
         :param exprs: One or more query expressions.
         :type exprs: str or list of str
