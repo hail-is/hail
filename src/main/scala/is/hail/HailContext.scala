@@ -382,7 +382,7 @@ class HailContext private(val sc: SparkContext,
       nPartitions, delimiter, missing, quantPheno)
   }
 
-  def checkDatasets[T](datasets: Array[VariantSampleMatrix[T]], inputs: Array[String]): Unit = {
+  def checkDatasetSchemasCompatible[T](datasets: Array[VariantSampleMatrix[T]], inputs: Array[String]): Unit = {
     val sampleIds = datasets.head.sampleIds
     val vaSchema = datasets.head.vaSignature
     val wasSplit = datasets.head.wasSplit
@@ -430,7 +430,7 @@ class HailContext private(val sc: SparkContext,
     val vdses = inputs.map(input => VariantDataset.read(this, input,
       skipGenotypes = sitesOnly, skipVariants = samplesOnly))
 
-    checkDatasets(vdses, inputs)
+    checkDatasetSchemasCompatible(vdses, inputs)
 
     vdses(0).copy(rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
   }
@@ -447,7 +447,7 @@ class HailContext private(val sc: SparkContext,
     val gdses = inputs.map(input => GenericDataset.read(this, input,
       skipGenotypes = sitesOnly, skipVariants = samplesOnly))
 
-    checkDatasets(gdses, inputs)
+    checkDatasetSchemasCompatible(gdses, inputs)
 
     gdses(0).copy(rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
   }
