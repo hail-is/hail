@@ -336,7 +336,7 @@ class LinearRegressionSuite extends SparkSuite {
         root = Some("sa.pheno"),
         config = TextTableConfiguration(missing = "0"))
 
-    interceptFatal("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
+    interceptUserException("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
       vds.linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
     }
   }
@@ -353,7 +353,7 @@ class LinearRegressionSuite extends SparkSuite {
         root = Some("sa.pheno"),
         config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
 
-    interceptFatal("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
+    interceptUserException("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
       vds.linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", 1, 0.0)
     }
   }
@@ -412,11 +412,11 @@ class LinearRegressionSuite extends SparkSuite {
         root = Some("sa.pheno"),
         config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
 
-    interceptFatal("Minumum alternate allele count must be a positive integer, got 0") {
+    interceptUserException("Minumum alternate allele count must be a positive integer, got 0") {
       vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", 0, 0.0)
     }
 
-    interceptFatal("Minumum alternate allele frequency must lie in") {
+    interceptUserException("Minumum alternate allele frequency must lie in") {
       vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", 1, 2.0)
     }
   }

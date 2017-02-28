@@ -61,7 +61,7 @@ object CalculateConcordance {
     require(left.wasSplit && right.wasSplit, "passed unsplit dataset to Concordance")
     val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
     if (overlap.isEmpty)
-      fatal("No overlapping samples between datasets")
+      abort("No overlapping samples between datasets")
 
     info(
       s"""Found ${ overlap.size } overlapping samples

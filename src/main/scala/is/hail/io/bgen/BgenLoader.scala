@@ -49,13 +49,13 @@ object BgenLoader {
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.length > 0)
-      fatal(
+      abort(
         s"""The following BGEN files did not contain the expected number of samples $nSamples:
             |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
 
     val noVariants = results.filter(_.nVariants == 0).map(_.file)
     if (noVariants.length > 0)
-      fatal(
+      abort(
         s"""The following BGEN files did not contain at least 1 variant:
             |  ${ noVariants.mkString("\n  ") })""".stripMargin)
 
@@ -128,7 +128,7 @@ object BgenLoader {
   def readSamples(hConf: org.apache.hadoop.conf.Configuration, file: String): Array[String] = {
     val bState = readState(hConf, file)
     if (!bState.hasIds)
-      fatal(s"BGEN file `$file' contains no sample ID block, coimport a `.sample' file")
+      abort(s"BGEN file `$file' contains no sample ID block, coimport a `.sample' file")
 
     hConf.readFile(file) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
@@ -138,10 +138,10 @@ object BgenLoader {
       val nSamples = reader.readInt()
 
       if (nSamples != bState.nSamples)
-        fatal("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
+        abort("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
 
       if (sampleIdSize + bState.headerLength > bState.dataStart - 4)
-        fatal("BGEN file is malformed -- offset is smaller than length of header")
+        abort("BGEN file is malformed -- offset is smaller than length of header")
 
       (0 until nSamples).map { i =>
         reader.readLengthAndString(2)
@@ -185,7 +185,7 @@ object BgenLoader {
       .toSeq
 
     if (magicNumber != Seq(0, 0, 0, 0) && magicNumber != Seq(98, 103, 101, 110))
-      fatal(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")
+      abort(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")
 
     if (headerLength > 20)
       reader.skipBytes(headerLength.toInt - 20)
@@ -194,7 +194,7 @@ object BgenLoader {
     val compression = (flags & 1) != 0
     val version = flags >> 2 & 0xf
     if (version != 1)
-      fatal(s"Hail supports BGEN version 1.1, got version 1.$version")
+      abort(s"Hail supports BGEN version 1.1, got version 1.$version")
 
     val hasIds = (flags >> 30 & 1) != 0
     BgenHeader(compression, nSamples, nVariants, headerLength, dataStart, hasIds)

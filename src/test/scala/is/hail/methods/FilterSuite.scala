@@ -151,7 +151,7 @@ class FilterSuite extends SparkSuite {
       .copy(vaSignature = sigs)
     assert(vds.filterVariantsExpr("va.`weird name \\t test` > 500").countVariants() == vds.countVariants)
 
-    TestUtils.interceptFatal("invalid escape character.*backtick identifier.*\\\\i")(
+    TestUtils.interceptUserException("invalid escape character.*backtick identifier.*\\\\i")(
       vds.filterVariantsExpr("va.`bad\\input` == 5"))
   }
 

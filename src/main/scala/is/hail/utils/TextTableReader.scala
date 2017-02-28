@@ -77,7 +77,7 @@ object TextTableReader {
       line.foreach { l =>
         val split = l.split(delimiter)
         if (split.length != nFields)
-          fatal(s"expected $nFields fields, but found ${ split.length }")
+          abort(s"expected $nFields fields, but found ${ split.length }")
 
         var i = 0
         while (i < nFields) {
@@ -134,10 +134,9 @@ object TextTableReader {
         .filter(line => commentChar.forall(pattern => !line.value.startsWith(pattern)))
 
       if (filt.isEmpty)
-        fatal(
+        abort(
           s"""invalid file: no lines remaining after comment filter
-              |  Offending file: `$firstFile'
-           """.stripMargin)
+              |  Offending file: $firstFile""".stripMargin)
       else
         filt.next().value
     }
@@ -154,7 +153,7 @@ object TextTableReader {
 
     val duplicates = columns.duplicates()
     if (duplicates.nonEmpty) {
-      fatal(s"invalid header: found duplicate columns [${
+      abort(s"invalid header: found duplicate columns [${
         duplicates.map(x => '"' + x + '"').mkString(", ")
       }]")
     }
@@ -215,7 +214,7 @@ object TextTableReader {
 
           val split = line.split(separator, -1)
           if (split.length != nField)
-            fatal(s"expected $nField fields, but found ${ split.length } fields")
+            abort(s"expected $nField fields, but found ${ split.length } fields")
 
           var i = 0
           while (i < nField) {
@@ -228,7 +227,7 @@ object TextTableReader {
                 a(i) = TableAnnotationImpex.importAnnotation(field, t)
             } catch {
               case e: Exception =>
-                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $t in column "$name" """)
+                abort(s"""${ e.getClass.getName }: could not convert "$field" to $t in column "$name" """)
             }
             i += 1
           }

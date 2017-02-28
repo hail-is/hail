@@ -77,7 +77,7 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(m("E").contains(Annotation(null, null, null, null, null)))
     assert(m("F").isEmpty)
 
-    interceptFatal("non-numeric") {
+    interceptUserException("non-numeric") {
       vds.annotateSamplesFam("src/test/resources/importFamCaseControlNumericException.fam")
     }
 

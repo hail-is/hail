@@ -189,7 +189,7 @@ object VEP {
         }
 
     if (rootType.isEmpty && !force)
-      fatal("for performance, you should annotate variants with pre-computed VEP annotations.  Cowardly refusing to VEP annotate from scratch.  Use --force to override.")
+      abort("for performance, you should annotate variants with pre-computed VEP annotations.  Cowardly refusing to VEP annotate from scratch.  Use --force to override.")
 
     val rootQuery = rootType
       .map(_ => vds.vaSignature.query(parsedRoot))
@@ -202,7 +202,7 @@ object VEP {
       p
     } catch {
       case e: IOException =>
-        fatal(s"could not open file: ${ e.getMessage }")
+        abort(s"could not open file: ${ e.getMessage }")
     }
 
     val perl = properties.getProperty("hail.vep.perl", "perl")
@@ -213,23 +213,23 @@ object VEP {
 
     val location = properties.getProperty("hail.vep.location")
     if (location == null)
-      fatal("property `hail.vep.location' required")
+      abort("property `hail.vep.location' required")
 
     val cacheDir = properties.getProperty("hail.vep.cache_dir")
     if (cacheDir == null)
-      fatal("property `hail.vep.cache_dir' required")
+      abort("property `hail.vep.cache_dir' required")
 
     val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
     if (humanAncestor == null)
-      fatal("property `hail.vep.lof.human_ancestor' required")
+      abort("property `hail.vep.lof.human_ancestor' required")
 
     val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
     if (conservationFile == null)
-      fatal("property `hail.vep.lof.conservation_file' required")
+      abort("property `hail.vep.lof.conservation_file' required")
 
     val fasta = properties.getProperty("hail.vep.fasta")
     if (fasta == null)
-      fatal("property `hail.vep.fasta' required")
+      abort("property `hail.vep.fasta' required")
 
     val cmd =
       Array(

@@ -6,7 +6,7 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
-import is.hail.utils.{FatalException, Interval, _}
+import is.hail.utils.{HailException, Interval, _}
 import is.hail.variant.{Genotype, Locus, Variant}
 import is.hail.{SparkSuite, TestUtils}
 import org.json4s._
@@ -249,16 +249,16 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Set[_]]("""[[0].toSet, [1].toSet, nullset].filter(s => isDefined(s)).toSet.flatMap(x => x)""").contains(Set(0, 1)))
 
-    TestUtils.interceptFatal("""No function found.*flatMap""")(
+    TestUtils.interceptUserException("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(0)"""))
 
-    TestUtils.interceptFatal("""No function found.*flatMap""")(
+    TestUtils.interceptUserException("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(x => x)"""))
 
-    TestUtils.interceptFatal("""No function found.*flatMap""")(
+    TestUtils.interceptUserException("""No function found.*flatMap""")(
       eval[Set[_]]("""iset.flatMap(x => [x])"""))
 
-    TestUtils.interceptFatal("""No function found.*flatMap""")(
+    TestUtils.interceptUserException("""No function found.*flatMap""")(
       eval[IndexedSeq[_]]("""a.flatMap(x => [x].toSet)"""))
 
     assert(eval[IndexedSeq[_]](""" [[1], [2, 3], [4, 5, 6]].flatten() """).contains(IndexedSeq(1, 2, 3, 4, 5, 6)))
@@ -278,16 +278,16 @@ class ExprSuite extends SparkSuite {
     assert(eval[Set[_]](""" [[0].toSet, nullset].toSet.flatten() """).isEmpty)
     assert(eval[Set[_]](""" [nullset, [1].toSet].toSet.flatten() """).isEmpty)
 
-    TestUtils.interceptFatal("""No function found.*flatten""")(
+    TestUtils.interceptUserException("""No function found.*flatten""")(
       eval[Set[_]](""" [iset, [2, 3, 4].toSet].flatten() """))
 
-    TestUtils.interceptFatal("""No function found.*flatten""")(
+    TestUtils.interceptUserException("""No function found.*flatten""")(
       eval[Set[_]](""" [[1], [2, 3, 4]].toSet.flatten() """))
 
-    TestUtils.interceptFatal("""No function found.*flatten""")(
+    TestUtils.interceptUserException("""No function found.*flatten""")(
       eval[Set[_]](""" [0].flatten() """))
 
-    TestUtils.interceptFatal("""No function found.*flatten""")(
+    TestUtils.interceptUserException("""No function found.*flatten""")(
       eval[Set[_]](""" [[0]].flatten(0) """))
 
 
@@ -374,8 +374,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[Any]]("""[1, 2, 3.0, 4]""").contains(IndexedSeq(1, 2, 3.0, 4)))
     assert(eval[Double]("""[1, 2, 3.0, 4].max""").contains(4.0))
 
-    intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
-    intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
+    intercept[UserException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
+    intercept[UserException](eval[IndexedSeq[Any]]("""[] """))
 
     val (t, r) = evalWithType[Annotation](""" {field1: 1, field2: 2 } """)
     assert(r.contains(Annotation(1, 2)))
@@ -452,32 +452,32 @@ class ExprSuite extends SparkSuite {
     assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, {c: false, d: true}) """).contains(Annotation(null, null, false, true)))
     assert(eval[Annotation]("""merge({a: 1, b: 2}, NA: Struct{c: Boolean, d: Boolean}) """).contains(Annotation(1, 2, null, null)))
     assert(eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, NA: Struct{c: Boolean, d: Boolean}) """).isEmpty)
-    TestUtils.interceptFatal("cannot merge structs with same-name fields")(
+    TestUtils.interceptUserException("cannot merge structs with same-name fields")(
       eval[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true, a: 1, b: 0}) """).contains(Annotation(1, 2, false, true)))
-    TestUtils.interceptFatal("invalid arguments to `merge'")(
+    TestUtils.interceptUserException("invalid arguments to `merge'")(
       eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}) """).isEmpty)
-    TestUtils.interceptFatal("invalid arguments to `merge'")(
+    TestUtils.interceptUserException("invalid arguments to `merge'")(
       eval[Annotation]("""merge(NA: Struct{a: Int, b: Int}, 5) """).isEmpty)
 
     assert(eval[Annotation](""" select({a:1,b:2}, a) """).contains(Annotation(1)))
     assert(eval[Boolean](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,`\tweird\t`) == drop(x, c) """).contains(true))
-    TestUtils.interceptFatal("too few arguments for method `select'")(
+    TestUtils.interceptUserException("too few arguments for method `select'")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x) """))
-    TestUtils.interceptFatal("invalid arguments for method `select'")(
+    TestUtils.interceptUserException("invalid arguments for method `select'")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, 5,6,7) """))
-    TestUtils.interceptFatal("invalid arguments for method `select'\\s+Duplicate identifiers found")(
+    TestUtils.interceptUserException("invalid arguments for method `select'\\s+Duplicate identifiers found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,a,b,c,c) """))
-    TestUtils.interceptFatal("invalid arguments for method `select'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
+    TestUtils.interceptUserException("invalid arguments for method `select'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,c,d,e) """))
 
     assert(eval[Annotation](""" drop({a:1,b:2}, a) """).contains(Annotation(2)))
-    TestUtils.interceptFatal("too few arguments for method `drop'")(
+    TestUtils.interceptUserException("too few arguments for method `drop'")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x) """))
-    TestUtils.interceptFatal("invalid arguments for method `drop'")(
+    TestUtils.interceptUserException("invalid arguments for method `drop'")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, 5,6,7) """))
-    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Duplicate identifiers found")(
+    TestUtils.interceptUserException("invalid arguments for method `drop'\\s+Duplicate identifiers found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,a,b,c,c) """))
-    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
+    TestUtils.interceptUserException("invalid arguments for method `drop'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,b,c,d,e) """))
 
     assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
@@ -496,10 +496,10 @@ class ExprSuite extends SparkSuite {
 
     // FIXME catch parse errors
     assert(eval(""" "\``\''" """) == eval(""" "``''" """))
-    TestUtils.interceptFatal("""invalid escape character.*string.*\\a""")(eval[String](""" "this is bad \a" """))
-    TestUtils.interceptFatal("""unterminated string literal""")(eval[String](""" "unclosed string \" """))
-    TestUtils.interceptFatal("""invalid escape character.*backtick identifier.*\\i""")(eval[String](""" let `bad\identifier` = 0 in 0 """))
-    TestUtils.interceptFatal("""unterminated backtick identifier""")(eval[String](""" let `bad\identifier = 0 in 0 """))
+    TestUtils.interceptUserException("""invalid escape character.*string.*\\a""")(eval[String](""" "this is bad \a" """))
+    TestUtils.interceptUserException("""unterminated string literal""")(eval[String](""" "unclosed string \" """))
+    TestUtils.interceptUserException("""invalid escape character.*backtick identifier.*\\i""")(eval[String](""" let `bad\identifier` = 0 in 0 """))
+    TestUtils.interceptUserException("""unterminated backtick identifier""")(eval[String](""" let `bad\identifier = 0 in 0 """))
 
     assert(D_==(eval[Double]("log(56.toLong)").get, math.log(56)))
     assert(D_==(eval[Double]("exp(5.6)").get, math.exp(5.6)))
@@ -538,7 +538,7 @@ class ExprSuite extends SparkSuite {
       eval[IndexedSeq[Int]]("""[1] + [2,3,4] """)
     }
 
-    interceptFatal("No function found") {
+    interceptUserException("No function found") {
       eval[Double](""" log(Variant("22", 123, "A", "T")) """)
     }
 
@@ -677,7 +677,7 @@ class ExprSuite extends SparkSuite {
 
     assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
     assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
-    intercept[FatalException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
+    intercept[UserException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
   }
 
   @Test def testTypePretty() {

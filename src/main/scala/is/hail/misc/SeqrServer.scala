@@ -332,17 +332,17 @@ object SeqrServer {
     table: String = null) {
 
     if ((url == null) == (zkHost == null))
-      fatal("exactly one of -u or -z required")
+      abort("exactly one of -u or -z required")
 
     if (zkHost != null && collection == null)
-      fatal("-c required with -z")
+      abort("-c required with -z")
 
     if ((address == null) != (keyspace == null)
       || (address == null) != (table == null))
-      fatal("none or all of -a, -k, -t required")
+      abort("none or all of -a, -k, -t required")
 
     if (solrOnly != (address == null))
-      fatal("either --solr-only or all of -a, -k and -t required, but not both")
+      abort("either --solr-only or all of -a, -k and -t required, but not both")
 
     val jsonFieldSet = jsonFields.split(",").map(_.trim).filter(_.nonEmpty).toSet
 

@@ -21,10 +21,10 @@ object IntervalListAnnotator {
             val (k, v) = line.split("\t") match {
               case Array(contig, start, end, direction, target) =>
                 if (!(direction == "+" || direction == "-"))
-                  fatal(s"expect `+' or `-' in the `direction' field, but found $direction")
+                  abort(s"expect `+' or `-' in the `direction' field, but found $direction")
                 // interval list is 1-based, inclusive: [start, end]
                 (Interval(Locus(contig, start.toInt), Locus(contig, end.toInt + 1)), target)
-              case _ => fatal(
+              case _ => abort(
                 """invalid interval format.  Acceptable formats:
                   |  `chr:start-end'
                   |  `chr  start  end' (tab-separated)
@@ -53,11 +53,11 @@ object IntervalListAnnotator {
             case str => str.split("\t") match {
               case Array(contig, start, end, direction, _) =>
                 if (!(direction == "+" || direction == "-"))
-                  fatal(s"expect `+' or `-' in the `direction' field, but found $direction")
+                  abort(s"expect `+' or `-' in the `direction' field, but found $direction")
                 // interval list is 1-based, inclusive: [start, end]
                 Interval(Locus(contig, start.toInt),
                   Locus(contig, end.toInt + 1))
-              case _ => fatal(
+              case _ => abort(
                 """invalid interval format.  Acceptable formats:
                   |  `chr:start-end'
                   |  `chr  start  end' (tab-separated)
@@ -87,13 +87,13 @@ object IntervalListAnnotator {
       lines =>
 
         if (lines.isEmpty)
-          fatal("empty interval file")
+          abort("empty interval file")
 
         val firstLine = lines.next()
         firstLine.map {
           case intervalRegex(contig, start_str, end_str) => false
           case line if line.split("""\s+""").length == 5 => true
-          case _ => fatal("unsupported interval list format")
+          case _ => abort("unsupported interval list format")
         }.value
     }
 

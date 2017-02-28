@@ -90,7 +90,7 @@ object VariantDataset {
           jv.fromJSON[OrderedPartitioner[Locus, Variant]]
         } catch {
           case _: FileNotFoundException =>
-            fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
+            abort("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
         }
 
       OrderedRDD(rdd, partitioner)
@@ -106,22 +106,22 @@ object VariantDataset {
   private def readMetadata(hConf: hadoop.conf.Configuration, dirname: String,
     requireParquetSuccess: Boolean = true): (VariantMetadata, Boolean) = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
-      fatal(s"input path ending in `.vds' required, found `$dirname'")
+      abort(s"input path ending in `.vds' required, found `$dirname'")
 
     if (!hConf.exists(dirname))
-      fatal(s"no VDS found at `$dirname'")
+      abort(s"no VDS found at `$dirname'")
 
     val metadataFile = dirname + "/metadata.json.gz"
     val pqtSuccess = dirname + "/rdd.parquet/_SUCCESS"
 
     if (!hConf.exists(pqtSuccess) && requireParquetSuccess)
-      fatal(
+      abort(
         s"""corrupt VDS: no parquet success indicator
            |  Unexpected shutdown occurred during `write'
            |  Recreate VDS.""".stripMargin)
 
     if (!hConf.exists(metadataFile))
-      fatal(
+      abort(
         s"""corrupt or outdated VDS: invalid metadata
            |  No `metadata.json.gz' file found in VDS directory
            |  Recreate VDS with current version of Hail.""".stripMargin)
@@ -130,18 +130,18 @@ object VariantDataset {
       hConf.readFile(metadataFile)(
         in => JsonMethods.parse(in))
     } catch {
-      case e: Throwable => fatal(
+      case e: Throwable => abort(
         s"""
            |corrupt VDS: invalid metadata file.
            |  Recreate VDS with current version of Hail.
-           |  caught exception: ${ expandException(e) }
+           |  caught exception: ${ expandException(e, logMessage = true) }
          """.stripMargin)
     }
 
     val fields = json match {
       case jo: JObject => jo.obj.toMap
       case _ =>
-        fatal(
+        abort(
           s"""corrupt VDS: invalid metadata value
              |  Recreate VDS with current version of Hail.""".stripMargin)
     }
@@ -150,12 +150,12 @@ object VariantDataset {
       fields.get(fname) match {
         case Some(t: T) => t
         case Some(other) =>
-          fatal(
+          abort(
             s"""corrupt VDS: invalid metadata
                |  Expected `${ tct.runtimeClass.getName }' in field `$fname', but got `${ other.getClass.getName }'
                |  Recreate VDS with current version of Hail.""".stripMargin)
         case None =>
-          fatal(
+          abort(
             s"""corrupt VDS: invalid metadata
                |  Missing field `$fname'
                |  Recreate VDS with current version of Hail.""".stripMargin)
@@ -164,7 +164,7 @@ object VariantDataset {
     val version = getAndCastJSON[JInt]("version").num
 
     if (version != VariantSampleMatrix.fileVersion)
-      fatal(
+      abort(
         s"""Invalid VDS: old version [$version]
            |  Recreate VDS with current version of Hail.
          """.stripMargin)
@@ -172,7 +172,7 @@ object VariantDataset {
     val wasSplit = getAndCastJSON[JBool]("split").value
     val isDosage = fields.get("isDosage") match {
       case Some(t: JBool) => t.value
-      case Some(other) => fatal(
+      case Some(other) => abort(
         s"""corrupt VDS: invalid metadata
            |  Expected `JBool' in field `isDosage', but got `${ other.getClass.getName }'
            |  Recreate VDS with current version of Hail.""".stripMargin)
@@ -181,7 +181,7 @@ object VariantDataset {
 
     val parquetGenotypes = fields.get("parquetGenotypes") match {
       case Some(t: JBool) => t.value
-      case Some(other) => fatal(
+      case Some(other) => abort(
         s"""corrupt VDS: invalid metadata
            |  Expected `JBool' in field `parquetGenotypes', but got `${ other.getClass.getName }'
            |  Recreate VDS with current version of Hail.""".stripMargin)
@@ -216,7 +216,7 @@ object VariantDataset {
       .map {
         case JObject(List(("id", JString(id)), ("annotation", jv: JValue))) =>
           (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations"))
-        case other => fatal(
+        case other => abort(
           s"""corrupt VDS: invalid metadata
              |  Invalid sample annotation metadata
              |  Recreate VDS with current version of Hail.""".stripMargin)
@@ -288,7 +288,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   private def requireSplit(methodName: String) {
     if (!vds.wasSplit)
-      fatal(s"method `$methodName' requires a split dataset. Use `split_multi' or `filter_multi' first.")
+      abort(s"method `$methodName' requires a split dataset. Use `split_multi' or `filter_multi' first.")
   }
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
@@ -414,7 +414,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       StorageLevel.fromString(storageLevel)
     } catch {
       case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
+        abort(s"unknown StorageLevel `$storageLevel'")
     }
 
     vds.withGenotypeStream().copy(rdd = vds.rdd.persist(level))
@@ -439,7 +439,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     requireSplit("concordance")
 
     if (!other.wasSplit)
-      fatal("method `concordance' requires both datasets to be split, but found unsplit right-hand VDS.")
+      abort("method `concordance' requires both datasets to be split, but found unsplit right-hand VDS.")
 
     CalculateConcordance(vds, other)
   }
@@ -650,18 +650,18 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       famColumns.get(name) match {
         case Some((colt, j, formatter)) =>
           if (colt != t)
-            fatal("invalid type for .fam file column $h: expected $colt, got $t")
+            abort(s"invalid type for .fam file column $i: expected $colt, got $t")
           famFns(j) = (a: Array[Option[Any]]) => formatter(a(i))
 
         case None =>
-          fatal(s"no .fam file column $name")
+          abort(s"no .fam file column $name")
       }
     }
 
     val spaceRegex = """\s+""".r
     val badSampleIds = vds.sampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
     if (badSampleIds.nonEmpty) {
-      fatal(
+      abort(
         s"""Found ${ badSampleIds.length } sample IDs with whitespace
            |  Please run `renamesamples' to fix this problem before exporting to plink format
            |  Bad sample IDs: @1 """.stripMargin, badSampleIds)
@@ -1045,7 +1045,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
     if (vds.saSignature != right.saSignature) {
-      fatal(
+      abort(
         s"""cannot join datasets with different sample schemata
            |  left sample schema: @1
            |  right sample schema: @2""".stripMargin,
@@ -1056,7 +1056,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val newSampleIds = vds.sampleIds ++ right.sampleIds
     val duplicates = newSampleIds.duplicates()
     if (duplicates.nonEmpty)
-      fatal("duplicate sample IDs: @1", duplicates)
+      abort("duplicate sample IDs: @1", duplicates)
 
     val joined = vds.rdd.orderedInnerJoinDistinct(right.rdd)
       .mapValues { case ((lva, lgs), (rva, rgs)) =>
@@ -1193,7 +1193,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     requireSplit("PCA")
 
     if (k < 1)
-      fatal(
+      abort(
         s"""requested invalid number of components: $k
            |  Expect componenents >= 1""".stripMargin)
 
@@ -1267,7 +1267,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     if (overwrite)
       vds.hadoopConf.delete(dirname, recursive = true)
     else if (vds.hadoopConf.exists(dirname))
-      fatal(s"file already exists at `$dirname'")
+      abort(s"file already exists at `$dirname'")
 
     writeMetadata(vds.hc.sqlContext, dirname, parquetGenotypes = parquetGenotypes)
 
@@ -1315,7 +1315,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   private def writeMetadata(sqlContext: SQLContext, dirname: String, parquetGenotypes: Boolean) {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
-      fatal(s"output path ending in `.vds' required, found `$dirname'")
+      abort(s"output path ending in `.vds' required, found `$dirname'")
 
     val hConf = vds.hc.hadoopConf
     hConf.mkDir(dirname)

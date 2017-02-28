@@ -57,7 +57,7 @@ class KeyTableSuite extends SparkSuite {
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
-    intercept[FatalException] {
+    intercept[UserException] {
       val kt = hc.importKeyTable(List(inputFile), List("Sample", "Status", "BadKeyName"), None, TextTableConfiguration())
     }
 
@@ -226,11 +226,11 @@ class KeyTableSuite extends SparkSuite {
     val rename2 = kt.rename(Map("field1" -> "ID1"))
     assert(rename2.fieldNames sameElements Array("Sample", "ID1", "field2"))
 
-    intercept[FatalException](kt.rename(Array("ID1")))
+    intercept[UserException](kt.rename(Array("ID1")))
 
-    intercept[FatalException](kt.rename(Map("field1" -> "field2")))
+    intercept[UserException](kt.rename(Map("field1" -> "field2")))
 
-    intercept[FatalException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
+    intercept[UserException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
 
     val outputFile = tmpDir.createTempFile("rename", "tsv")
     rename2.export(sc, outputFile, null)
@@ -256,9 +256,9 @@ class KeyTableSuite extends SparkSuite {
     val select4 = kt.select(Array.empty[String], Array.empty[String])
     assert((select4.keyNames sameElements Array.empty[String]) && (select4.valueNames sameElements Array.empty[String]))
 
-    intercept[FatalException](kt.select(Array.empty[String], Array("Sample")))
+    intercept[UserException](kt.select(Array.empty[String], Array("Sample")))
 
-    intercept[FatalException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
+    intercept[UserException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
 
     val outputFile1 = tmpDir.createTempFile("select1", "tsv")
     select1.export(sc, outputFile1, null)
@@ -288,7 +288,7 @@ class KeyTableSuite extends SparkSuite {
     val resRDD3 = sc.parallelize(result3.map(Annotation.fromSeq(_)))
     val ktResult3 = KeyTable(hc, resRDD3, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
 
-    intercept[FatalException](kt1.explode(Array("Sample")))
+    intercept[UserException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))
     assert(ktResult3.same(kt3.explode(Array("field1", "field2", "field1"))))
 

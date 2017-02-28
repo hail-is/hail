@@ -18,7 +18,7 @@ object LinearRegression {
   def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, minAC: Int, minAF: Double): VariantDataset = {
 
     if (!vds.wasSplit)
-      fatal("linreg requires bi-allelic VDS. Run split_multi or filter_multi first")
+      abort("linreg requires bi-allelic VDS. Run split_multi or filter_multi first")
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
@@ -28,13 +28,13 @@ object LinearRegression {
     val d = n - k - 1
 
     if (minAC < 1)
-      fatal(s"Minumum alternate allele count must be a positive integer, got $minAC")
+      abort(s"Minumum alternate allele count must be a positive integer, got $minAC")
     if (minAF < 0d || minAF > 1d)
-      fatal(s"Minumum alternate allele frequency must lie in [0.0, 1.0], got $minAF")
+      abort(s"Minumum alternate allele frequency must lie in [0.0, 1.0], got $minAF")
     val combinedMinAC = math.max(minAC, (math.ceil(2 * n * minAF) + 0.5).toInt)
 
     if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+      abort(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
     info(s"Running linreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 

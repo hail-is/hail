@@ -37,7 +37,7 @@ object ImputeSexPlink {
       val (t, f) = vds.queryVA(code)
       t match {
         case TDouble => f
-        case other => fatal(s"invalid population frequency.  Expected Double, but got `$other'")
+        case other => abort(s"invalid population frequency.  Expected Double, but got `$other'")
       }
     }
 

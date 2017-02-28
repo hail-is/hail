@@ -5,7 +5,7 @@ import com.datastax.driver.core.schemabuilder.SchemaBuilder
 import com.datastax.driver.core.{Cluster, Session}
 import is.hail.expr.{EvalContext, Parser, TArray, TBoolean, TDouble, TFloat, TGenotype, TInt, TLong, TSample, TSet, TString, TVariant, Type}
 import is.hail.utils.StringEscapeUtils.escapeStringSimple
-import is.hail.utils.{fatal, info, warn}
+import is.hail.utils._
 import is.hail.variant.VariantDataset
 
 import scala.collection.JavaConverters._
@@ -56,7 +56,7 @@ object CassandraConnector {
     case TArray(elementType) => s"list<${ toCassType(elementType) }>"
     case TSet(elementType) => s"set<${ toCassType(elementType) }>"
     case _ =>
-      fatal(s"unsupported type: $t")
+      abort(s"unsupported type: $t")
   }
 
   def toCassValue(a: Any, t: Type): AnyRef = t match {

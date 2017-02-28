@@ -346,7 +346,7 @@ class VSMSuite extends SparkSuite {
 
     vds.write(out)
 
-    TestUtils.interceptFatal("""file already exists""") {
+    TestUtils.interceptUserException("""file already exists""") {
       vds.write(out)
     }
 
@@ -362,7 +362,7 @@ class VSMSuite extends SparkSuite {
     hadoopConf.delete(path + "/partitioner.json.gz", recursive = true)
 
 
-    interceptFatal("missing partitioner") {
+    interceptUserException("missing partitioner") {
       hc.read(path)
     }
 

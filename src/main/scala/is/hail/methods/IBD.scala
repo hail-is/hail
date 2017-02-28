@@ -236,7 +236,7 @@ object IBD {
 
     min.liftedZip(max).foreach { case (min, max) =>
       if (min > max) {
-        fatal(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
+        abort(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
       }
     }
 
@@ -277,10 +277,10 @@ object IBD {
       val maf = computeMafThunk()
 
       if (maf == null)
-        fatal(s"The minor allele frequency expression evaluated to NA on variant $v.")
+        abort(s"The minor allele frequency expression evaluated to NA on variant $v.")
 
       if (maf < 0.0 || maf > 1.0)
-        fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
+        abort(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
 
       maf
     }

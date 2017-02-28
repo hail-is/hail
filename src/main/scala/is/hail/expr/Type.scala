@@ -586,7 +586,7 @@ object TStruct {
     val sNames = names.asScala.toArray
     val sTypes = types.asScala.toArray
     if (sNames.length != sTypes.length)
-      fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
+      abort(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
 
     TStruct(sNames.zip(sTypes): _*)
   }
@@ -759,7 +759,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       .intersect(other.fields.map(_.name).toSet)
 
     if (intersect.nonEmpty)
-      fatal(
+      abort(
         s"""Invalid merge operation: cannot merge structs with same-name ${ plural(intersect.size, "field") }
            |  Found these fields in both structs: [ ${
           intersect.map(s => prettyIdentifier(s)).mkString(", ")
@@ -792,7 +792,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   def filter(set: Set[String], include: Boolean = true): (TStruct, Deleter) = {
     val notFound = set.filter(name => selfField(name).isEmpty).map(prettyIdentifier)
     if (notFound.nonEmpty)
-      fatal(
+      abort(
         s"""invalid struct filter operation: ${
           plural(notFound.size, s"field ${ notFound.head }", s"fields [ ${ notFound.mkString(", ") } ]")
         } not found

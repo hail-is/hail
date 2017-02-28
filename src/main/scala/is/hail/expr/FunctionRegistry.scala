@@ -119,7 +119,7 @@ object FunctionRegistry {
         val u = args(0).eval(EvalContext())()
 
         if (u == null)
-          fatal("Argument evaluated to missing in call to aggregator $name")
+          fatal(s"Argument evaluated to missing in call to aggregator $name")
 
         ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
           u.asInstanceOf[u])))
@@ -135,11 +135,11 @@ object FunctionRegistry {
         val w = args(2).eval(EvalContext())()
 
         if (u == null)
-          fatal("Argument 1 evaluated to missing in call to aggregator $name")
+          fatal(s"Argument 1 evaluated to missing in call to aggregator $name")
         if (v == null)
-          fatal("Argument 2 evaluated to missing in call to aggregator $name")
+          fatal(s"Argument 2 evaluated to missing in call to aggregator $name")
         if (w == null)
-          fatal("Argument 3 evaluated to missing in call to aggregator $name")
+          fatal(s"Argument 3 evaluated to missing in call to aggregator $name")
 
         ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(
           u.asInstanceOf[u],
@@ -190,7 +190,7 @@ object FunctionRegistry {
 
         val v = args(1).eval(EvalContext())()
         if (v == null)
-          fatal("Argument evaluated to missing in call to aggregator $name")
+          fatal(s"Argument evaluated to missing in call to aggregator $name")
 
         ec.aggregations += ((idx, lhs.evalAggregator(ec), aggregator.ctor(g, v.asInstanceOf[v])))
         () => localA(idx)
@@ -904,11 +904,11 @@ object FunctionRegistry {
 
   registerAggregator[Double, Double, Double, Int, Any]("hist", (start: Double, end: Double, bins: Int) => {
     if (bins <= 0)
-      fatal(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
+      abort(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
 
     val binSize = (end - start) / bins
     if (binSize <= 0)
-      fatal(
+      abort(
         s"""invalid bin size from given arguments (start = $start, end = $end, bins = $bins)
            |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
                   """.stripMargin)

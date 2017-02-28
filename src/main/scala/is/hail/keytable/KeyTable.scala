@@ -223,11 +223,11 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
   def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {
     val keyNamesNotInSelectedFields = newKeys.diff(fieldsSelect)
     if (keyNamesNotInSelectedFields.nonEmpty)
-      fatal(s"Key fields `${ keyNamesNotInSelectedFields.mkString(", ") }' must be present in selected fields.")
+      abort(s"Key fields `${ keyNamesNotInSelectedFields.mkString(", ") }' must be present in selected fields.")
 
     val fieldsNotExist = fieldsSelect.diff(fieldNames)
     if (fieldsNotExist.nonEmpty)
-      fatal(s"Selected fields `${ fieldsNotExist.mkString(", ") }' do not exist in KeyTable. Choose from `${ fieldNames.mkString(", ") }'.")
+      abort(s"Selected fields `${ fieldsNotExist.mkString(", ") }' do not exist in KeyTable. Choose from `${ fieldNames.mkString(", ") }'.")
 
     val fieldTransform = fieldsSelect.map(cn => fieldNames.indexOf(cn))
 
@@ -255,14 +255,14 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
     }
 
     if (duplicateFieldNames.nonEmpty)
-      fatal(s"Found duplicate field names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
+      abort(s"Found duplicate field names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
 
     KeyTable(hc, rdd, newKeySignature, newValueSignature)
   }
 
   def rename(newFieldNames: Array[String]): KeyTable = {
     if (newFieldNames.length != nFields)
-      fatal(s"Found ${ newFieldNames.length } new field names but need $nFields.")
+      abort(s"Found ${ newFieldNames.length } new field names but need $nFields.")
 
     rename((fieldNames, newFieldNames).zipped.toMap)
   }
@@ -273,14 +273,14 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
 
   def join(other: KeyTable, joinType: String): KeyTable = {
     if (keySignature != other.keySignature)
-      fatal(
+      abort(
         s"""Key signatures must be identical.
            |Left signature: ${ keySignature.toPrettyString(compact = true) }
            |Right signature: ${ other.keySignature.toPrettyString(compact = true) }""".stripMargin)
 
     val overlappingFields = valueNames.toSet.intersect(other.valueNames.toSet)
     if (overlappingFields.nonEmpty)
-      fatal(
+      abort(
         s"""Fields that are not keys cannot be present in both key-tables.
            |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
@@ -289,7 +289,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
       case "right" => rightJoin(other)
       case "inner" => innerJoin(other)
       case "outer" => outerJoin(other)
-      case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
+      case _ => abort("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
     }
   }
 
@@ -494,7 +494,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
     val explodeField = signature.fieldOption(columnName) match {
       case Some(x) => x
       case None =>
-        fatal(
+        abort(
           s"""Input field name `${ columnName }' not found in KeyTable.
              |KeyTable field names are `${ fieldNames.mkString(", ") }'.""".stripMargin)
     }
@@ -503,7 +503,7 @@ case class KeyTable(@transient hc: HailContext, @transient rdd: RDD[(Annotation,
 
     val explodeType = explodeField.typ match {
       case t: TIterable => t.elementType
-      case _ => fatal(s"Require Array or Set. Column `$columnName' has type `${ explodeField.typ }'.")
+      case _ => abort(s"Require Array or Set. Column `$columnName' has type `${ explodeField.typ }'.")
     }
 
     val newSignature = signature.copy(fields = fields.updated(index, Field(columnName, explodeType, index)))

@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 class BiallelicMethodsSuite extends SparkSuite {
 
   def catchError[T](f: => T) {
-    TestUtils.interceptFatal("requires a split dataset")(f)
+    TestUtils.interceptUserException("requires a split dataset")(f)
   }
 
   @Test def test() {
