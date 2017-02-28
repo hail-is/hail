@@ -2821,7 +2821,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> low_callrate_samples, t = vds.query_samples_typed(
+        >>> [low_callrate_samples], [t] = vds.query_samples_typed(
         ...    'samples.filter(s => sa.qc.callRate < 0.95).collect()')
 
         See :py:meth:`.query_samples` for more information.
@@ -2844,7 +2844,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> low_callrate_samples = vds.query_samples(
+        >>> [low_callrate_samples] = vds.query_samples(
         ...     'samples.filter(s => sa.qc.callRate < 0.95).collect()')
 
         **Details**
@@ -2882,7 +2882,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> lof_variant_count, t = vds.query_variants_typed(
+        >>> [lof_variant_count], [t] = vds.query_variants_typed(
         ...     'variants.filter(v => va.consequence == "LOF").count()')
 
         See :py:meth:`.query_variants` for more information.
@@ -2906,7 +2906,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> lof_variant_count = vds.query_variants(
+        >>> [lof_variant_count] = vds.query_variants(
         ...    'variants.filter(v => va.consequence == "LOF").count()')
 
         **Notes**
@@ -2933,13 +2933,13 @@ class VariantDataset(object):
         It is far faster to execute multiple queries in one method than
         to execute multiple query methods.  This:
 
-        >>> result1 = vds.query_variants('variants.count()')
-        >>> result2 = vds.query_variants('variants.filter(v => v.altAllele().isSNP()).count()')
+        >>> [result1] = vds.query_variants('variants.count()')
+        >>> [result2] = vds.query_variants('variants.filter(v => v.altAllele.isSNP()).count()')
 
         will be nearly twice as slow as this:
 
-        >>> exprs = ['variants.count()', 'variants.filter(v => v.altAllele().isSNP()).count()']
-        >>> results = vds.query_variants(exprs)
+        >>> exprs = ['variants.count()', 'variants.filter(v => v.altAllele.isSNP()).count()']
+        >>> [num_variants, num_snps] = vds.query_variants(exprs)
 
         :param exprs: one or more query expressions
         :type exprs: str or list of str
@@ -2955,7 +2955,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> gq_hist, t = vds.query_genotypes_typed(
+        >>> [gq_hist], [t] = vds.query_genotypes_typed(
         ...     'gs.map(g => g.gq).hist(0, 100, 100)')
 
         See :py:meth:`.query_genotypes` for more information.
@@ -2963,16 +2963,15 @@ class VariantDataset(object):
         This method evaluates Hail expressions over genotypes, along with
         all variant and sample metadata for that genotype. The ``exprs``
         argument requires either a list of strings or a single string
-        (which will be interpreted as a list with one element).  The method
-        returns a list of results (which contains one element if the input
-        parameter was a single str).
+        The method returns a list of results and a list of types (which
+        each contain one element if the input parameter was a single str).
 
         The namespace of the expressions includes:
 
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype`
 
-        Map and filter expressions on this aggregable have the additional
+        Map and filter expressions on this aggregable have the following
         namespace:
 
         - ``global``: global annotations
@@ -2986,15 +2985,15 @@ class VariantDataset(object):
         It is far faster to execute multiple queries in one method than
         to execute multiple query methods.  This:
 
-        >>> result1 = vds.query_genotypes('gs.count()')[0]
-        >>> result2 = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.isHet).count()')[0]
+        >>> [result1] = vds.query_genotypes('gs.count()')[0]
+        >>> [result2] = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.isHet).count()')[0]
 
         will be nearly twice as slow as this:
 
         >>> exprs = ['gs.count()', 'gs.filter(g => v.altAllele.isSNP() && g.isHet).count()']
-        >>> results = vds.query_genotypes(exprs)
+        >>> [results] = vds.query_genotypes(exprs)
 
-        :param exprs: one or more query expressions
+        :param exprs: One or more query expressions.
         :type exprs: str or list of str
 
         :rtype: (list, list of :class:`.Type`)
@@ -3014,13 +3013,13 @@ class VariantDataset(object):
 
         Compute global GQ histogram
 
-        >>> gq_hist = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')[0]
+        >>> [gq_hist] = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')[0]
 
         Compute call rate
 
-        >>> call_rate = vds.query_genotypes('gs.fraction(g => g.isCalled)')[0]
+        >>> [call_rate] = vds.query_genotypes('gs.fraction(g => g.isCalled)')[0]
 
-        :param exprs: one or more query expressions
+        :param exprs: One or more query expressions.
         :type exprs: str or list of str
 
         :rtype: list
