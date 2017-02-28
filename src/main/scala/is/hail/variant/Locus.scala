@@ -48,7 +48,7 @@ object Locus {
   def parse(str: String): Locus = {
     str.split(":") match {
       case Array(chr, pos) => Locus(chr, pos.toInt)
-      case a => fatal(s"expected 2 colon-delimited fields, but found ${ a.length }")
+      case a => abort(s"expected 2 colon-delimited fields, but found ${ a.length }")
     }
   }
 
@@ -59,10 +59,10 @@ object Locus {
         val endLocus = end.split(":") match {
           case Array(pos) => Locus(startLocus.contig, pos.toInt)
           case Array(chr, pos) => Locus(chr, pos.toInt)
-          case a => fatal(s"expected end locus in format CHR:POS or POS, but found ${a.length} colon-delimited fields")
+          case a => abort(s"expected end locus in format CHR:POS or POS, but found ${a.length} colon-delimited fields")
         }
         Interval(startLocus, endLocus)
-      case a => fatal(s"expected 2 dash-delimited fields, but found ${a.length}")
+      case a => abort(s"expected 2 dash-delimited fields, but found ${a.length}")
     }
   }
 

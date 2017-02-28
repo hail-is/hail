@@ -151,19 +151,19 @@ class AggregatorSuite extends SparkSuite {
       assert(nGreater == definedGq.count(_ > 80))
     }
 
-    TestUtils.interceptFatal("""invalid bin size""") {
+    TestUtils.interceptUserException("""invalid bin size""") {
       vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(0, 0, 10)")
     }
 
-    TestUtils.interceptFatal("""method `hist' expects `bins' argument to be > 0""") {
+    TestUtils.interceptUserException("""method `hist' expects `bins' argument to be > 0""") {
       vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(0, 10, 0)")
     }
 
-    TestUtils.interceptFatal("""invalid bin size""") {
+    TestUtils.interceptUserException("""invalid bin size""") {
       vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(10, 0, 5)")
     }
 
-    TestUtils.interceptFatal("""symbol.*va.*not found""") {
+    TestUtils.interceptUserException("""symbol.*va.*not found""") {
       vds.annotateVariantsExpr("va = gs.map(g => g.gq).hist(10, 0, va.info.AC[0])")
     }
   }
@@ -172,17 +172,17 @@ class AggregatorSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
 
     val dummy = tmpDir.createTempFile("out")
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
+    TestUtils.interceptUserException("unrealizable type.*Aggregable\\[Genotype\\]")(
       vds.exportVariants(dummy, "gs"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int\\]")(
+    TestUtils.interceptUserException("unrealizable type.*Aggregable\\[Int\\]")(
       vds.exportVariants(dummy, "gs.map(g => 5)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
+    TestUtils.interceptUserException("unrealizable type.*Aggregable\\[Genotype\\]")(
       vds.exportVariants(dummy, "gs.filter(x => false)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
+    TestUtils.interceptUserException("unrealizable type.*Aggregable\\[Genotype\\]")(
       vds.annotateVariantsExpr("va = gs"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Int\\]")(
+    TestUtils.interceptUserException("unrealizable type.*Aggregable\\[Int\\]")(
       vds.annotateVariantsExpr("va = gs.map(g => 5)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
+    TestUtils.interceptUserException("unrealizable type.*Aggregable\\[Genotype\\]")(
       vds.annotateVariantsExpr("va = gs.filter(g => true)"))
   }
 

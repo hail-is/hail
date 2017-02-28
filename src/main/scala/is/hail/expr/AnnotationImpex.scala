@@ -211,16 +211,16 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     val (types, f) = Parser.parseExprs(variantFields, ec)
 
     if (types.length != 4)
-      fatal(s"wrong number of variant field expressions: expected 4, got ${ types.length }")
+      abort(s"wrong number of variant field expressions: expected 4, got ${ types.length }")
 
     if (types(0) != TString)
-      fatal(s"wrong type for chromosome field: expected String, got ${ types(0) }")
+      abort(s"wrong type for chromosome field: expected String, got ${ types(0) }")
     if (types(1) != TInt)
-      fatal(s"wrong type for pos field: expected Int, got ${ types(1) }")
+      abort(s"wrong type for pos field: expected Int, got ${ types(1) }")
     if (types(2) != TString)
-      fatal(s"wrong type for ref field: expected String, got ${ types(2) }")
+      abort(s"wrong type for ref field: expected String, got ${ types(2) }")
     if (types(3) != TArray(TString))
-      fatal(s"wrong type for alt field: expected Array[String], got ${ types(3) }")
+      abort(s"wrong type for alt field: expected Array[String], got ${ types(3) }")
 
     (root: Annotation) => {
       ec.setAll(root)

@@ -20,7 +20,7 @@ object ParserUtils {
   def error(pos: Position, msg: String): Nothing = {
     val lineContents = pos.longString.split("\n").head
     val prefix = s"<input>:${ pos.line }:"
-    fatal(
+    abort(
       s"""$msg
          |$prefix$lineContents
          |${ " " * prefix.length }${
@@ -31,7 +31,7 @@ object ParserUtils {
   def error(pos: Position, msg: String, tr: Truncatable): Nothing = {
     val lineContents = pos.longString.split("\n").head
     val prefix = s"<input>:${ pos.line }:"
-    fatal(
+    abort(
       s"""$msg
          |$prefix$lineContents
          |${ " " * prefix.length }${
@@ -54,7 +54,7 @@ object Parser extends JavaTokenParsers {
   def parseTypedExpr[T](code: String, ec: EvalContext)(implicit hr: HailRep[T]): () => T = {
     val (t, f) = parseExpr(code, ec)
     if (t != hr.typ)
-      fatal(s"expression has wrong type: expected `${ hr.typ }', got $t")
+      abort(s"expression has wrong type: expected `${ hr.typ }', got $t")
 
     () => f().asInstanceOf[T]
   }
@@ -70,14 +70,14 @@ object Parser extends JavaTokenParsers {
       (t, s) => t.map(_ :+ s))
 
     if (maybeNames.exists(_.isEmpty))
-      fatal("left-hand side required in annotation expression")
+      abort("left-hand side required in annotation expression")
 
     val names = maybeNames.map(_.get)
 
     expectedHead.foreach { h =>
       names.foreach { n =>
         if (n.head != h)
-          fatal(
+          abort(
             s"""invalid annotation path `${ n.map(prettyIdentifier).mkString(".") }'
                |  Path should begin with `$h'
            """.stripMargin)
@@ -102,7 +102,7 @@ object Parser extends JavaTokenParsers {
     val noneNamed = names.forall(_.isEmpty)
 
     if (!allNamed && !noneNamed)
-      fatal(
+      abort(
         """export expressions require either all arguments named or none
           |  Hint: exploded structs (e.g. va.info.*) count as named arguments""".stripMargin)
 
@@ -119,7 +119,7 @@ object Parser extends JavaTokenParsers {
       (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))
 
     if (maybeNames.exists(_.isEmpty))
-      fatal("left-hand side required in named expression")
+      abort("left-hand side required in named expression")
 
     val names = maybeNames.map(_.get)
 
@@ -140,7 +140,7 @@ object Parser extends JavaTokenParsers {
             t.size
 
           case t =>
-            fatal("cannot splat non-struct type: $t")
+            abort(s"cannot splat non-struct type: $t")
         }
       } else
         1
@@ -158,7 +158,7 @@ object Parser extends JavaTokenParsers {
       val t = ast.`type`
 
       if (!t.isRealizable)
-        fatal(s"unrealizable type in export expression: $t")
+        abort(s"unrealizable type in export expression: $t")
 
       val f = ast.eval(ec)
       if (splat) {
@@ -248,13 +248,13 @@ object Parser extends JavaTokenParsers {
   def parseAnnotationRoot(code: String, root: String): List[String] = {
     val path = parseAll(annotationIdentifier, code) match {
       case Success(result, _) => result.asInstanceOf[List[String]]
-      case NoSuccess(msg, _) => fatal(msg)
+      case NoSuccess(msg, _) => abort(msg)
     }
 
     if (path.isEmpty)
-      fatal(s"expected an annotation path starting in `$root', but got an empty path")
+      abort(s"expected an annotation path starting in `$root', but got an empty path")
     else if (path.head != root)
-      fatal(s"expected an annotation path starting in `$root', but got a path starting in '${ path.head }'")
+      abort(s"expected an annotation path starting in `$root', but got a path starting in '${ path.head }'")
     else
       path.tail
   }
@@ -547,7 +547,7 @@ object Parser extends JavaTokenParsers {
       ast.typecheck(ec)
       val t = ast.`type`
       if (!t.isRealizable)
-        fatal(s"unrealizable type in Solr export expression: $t")
+        abort(s"unrealizable type in Solr export expression: $t")
       val f = ast.eval(ec)
       (id, spec, t, f)
     }

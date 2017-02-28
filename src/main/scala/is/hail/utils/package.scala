@@ -23,8 +23,6 @@ package object utils extends Logging
   with Py4jUtils
   with ErrorHandling {
 
-  class FatalException(val msg: String, val logMsg: Option[String] = None) extends RuntimeException(msg)
-
 
   trait Truncatable {
     def truncate: String
@@ -59,7 +57,7 @@ package object utils extends Logging
 
   def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A]): Unit =
     if (ord.lt(a, low) || ord.gt(a, high)) {
-      fatal(s"$name cannot lie outside [$low, $high]: $a")
+      abort(s"$name cannot lie outside [$low, $high]: $a")
     }
 
   def printTime[T](block: => T) = {

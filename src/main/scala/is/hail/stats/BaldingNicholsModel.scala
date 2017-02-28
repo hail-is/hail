@@ -18,41 +18,41 @@ object BaldingNicholsModel {
     val sc = hc.sc
 
     if (nPops < 1)
-      fatal(s"Number of populations must be positive, got ${ nPops }")
+      abort(s"Number of populations must be positive, got ${ nPops }")
 
     if (nSamples < 1)
-      fatal(s"Number of samples must be positive, got ${ nSamples }")
+      abort(s"Number of samples must be positive, got ${ nSamples }")
 
     if (nVariants < 1)
-      fatal(s"Number of variants must be positive, got ${ nVariants }")
+      abort(s"Number of variants must be positive, got ${ nVariants }")
 
     val popDistArray = popDistArrayOpt.getOrElse(Array.fill[Double](nPops)(1d))
 
     if (popDistArray.size != nPops)
-      fatal(s"Got ${ nPops } populations but ${ popDistArray.size } population ${ plural(popDistArray.size, "probability", "probabilities") }")
+      abort(s"Got ${ nPops } populations but ${ popDistArray.size } population ${ plural(popDistArray.size, "probability", "probabilities") }")
     popDistArray.foreach(p =>
       if (p < 0d)
-        fatal(s"Population probabilities must be non-negative, got $p"))
+        abort(s"Population probabilities must be non-negative, got $p"))
 
     val FstOfPopArray = FstOfPopArrayOpt.getOrElse(Array.fill(nPops)(0.1))
 
     if (FstOfPopArray.size != nPops)
-      fatal(s"Got ${ nPops } populations but ${ FstOfPopArray.size } ${ plural(FstOfPopArray.size, "value") }")
+      abort(s"Got ${ nPops } populations but ${ FstOfPopArray.size } ${ plural(FstOfPopArray.size, "value") }")
 
     FstOfPopArray.foreach(f =>
       if (f <= 0d || f >= 1d)
-        fatal(s"F_st values must satisfy 0.0 < F_st < 1.0, got $f"))
+        abort(s"F_st values must satisfy 0.0 < F_st < 1.0, got $f"))
 
     val nPartitions = nPartitionsOpt.getOrElse(Math.max((nSamples.toLong * nVariants / 1000000).toInt, 8))
     if (nPartitions <= 1)
-      fatal(s"Number of partitions must be positive, got $nPartitions")
+      abort(s"Number of partitions must be positive, got $nPartitions")
 
     af_dist match {
       case u: UniformDist =>
         if (u.minVal < 0)
-          fatal(s"minVal ${u.minVal} must be at least 0")
+          abort(s"minVal ${u.minVal} must be at least 0")
         else if (u.maxVal > 1)
-          fatal(s"maxVal ${u.maxVal} must be at most 1")
+          abort(s"maxVal ${u.maxVal} must be at most 1")
       case _ =>
     }
 

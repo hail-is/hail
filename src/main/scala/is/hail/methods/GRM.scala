@@ -18,6 +18,9 @@ object GRM {
 
   def apply(vds: VariantDataset, path: String, format: String,
     idFile: Option[String] = None, nFile: Option[String] = None) {
+    if (!Set("rel", "gcta-grm-bin", "gcta-grm").contains(format))
+      abort(s"unknown format `$format', expect one of `rel', `gcta-grm', `gcta-grm-bin'")
+
     val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
 
     val nSamples = vds.nSamples
@@ -57,7 +60,7 @@ object GRM {
       }
       .sortBy(_.index)
 
-    format match {
+    (format: @unchecked) match {
       case "rel" =>
         indexSortedRowMatrix
           .map { (row: IndexedRow) =>
@@ -118,8 +121,6 @@ object GRM {
               writeFloatLittleEndian(s, nVariants.toFloat)
           }
         }
-
-      case _ => fatal(s"unknown output format `$format'")
     }
   }
 }

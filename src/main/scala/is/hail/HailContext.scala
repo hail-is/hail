@@ -110,7 +110,7 @@ object HailContext {
     }
 
     if (problems.nonEmpty)
-      fatal(
+      abort(
         s"""Found problems with SparkContext configuration:
            |  ${ problems.mkString("\n  ") }""".stripMargin)
   }
@@ -152,7 +152,7 @@ object HailContext {
 
     val javaVersion = System.getProperty("java.version")
     if (!javaVersion.startsWith("1.8"))
-      fatal(s"Hail requires Java 1.8, found version $javaVersion")
+      abort(s"Hail requires Java 1.8, found version $javaVersion")
 
     {
       import breeze.linalg._
@@ -223,12 +223,12 @@ class HailContext private(val sc: SparkContext,
     config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
     val files = hadoopConf.globAll(paths)
     if (files.isEmpty)
-      fatal("Arguments referred to no files")
+      abort("Arguments referred to no files")
 
     val (struct, rdd) = nPartitions match {
       case Some(n) =>
         if (n < 1)
-          fatal("requested number of partitions in -n/--npartitions must be positive")
+          abort(s"requested number of partitions must be positive, found $n")
         else
           TextTableReader.read(sc)(files, config, n)
       case None =>
@@ -273,11 +273,11 @@ class HailContext private(val sc: SparkContext,
     val inputs = hadoopConf.globAll(files)
 
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+      abort("arguments refer to no files")
 
     inputs.foreach { input =>
       if (!input.endsWith(".bgen"))
-        fatal("unknown input file type")
+        abort("unknown input file type")
     }
 
     BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions)
@@ -299,13 +299,7 @@ class HailContext private(val sc: SparkContext,
     val inputs = hadoopConf.globAll(files)
 
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
-
-    inputs.foreach { input =>
-      if (!input.endsWith(".gen")) {
-        fatal("unknown input file type")
-      }
-    }
+      abort("arguments refer to no files")
 
     val samples = BgenLoader.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
@@ -316,13 +310,13 @@ class HailContext private(val sc: SparkContext,
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
     if (unequalSamples.length > 0)
-      fatal(
+      abort(
         s"""The following GEN files did not contain the expected number of samples $nSamples:
            |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
 
     val noVariants = results.filter(_.nVariants == 0).map(_.file)
     if (noVariants.length > 0)
-      fatal(
+      abort(
         s"""The following GEN files did not contain at least 1 variant:
            |  ${ noVariants.mkString("\n  ") })""".stripMargin)
 
@@ -347,7 +341,7 @@ class HailContext private(val sc: SparkContext,
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
-      fatal("Arguments referred to no files")
+      abort("Arguments referred to no files")
 
     val keys = keyNames.flatMap(Parser.parseIdentifierList)
 
@@ -356,7 +350,7 @@ class HailContext private(val sc: SparkContext,
 
     val invalidKeys = keys.filter(!struct.hasField(_))
     if (invalidKeys.nonEmpty)
-      fatal(s"invalid keys: ${ invalidKeys.mkString(", ") }")
+      abort(s"invalid keys: ${ invalidKeys.mkString(", ") }")
 
     KeyTable(this, rdd.map(_.value), struct, keys.toArray)
   }
@@ -389,7 +383,7 @@ class HailContext private(val sc: SparkContext,
   def readAll(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+      abort("arguments refer to no files")
 
     val vdses = inputs.map(input => VariantDataset.read(this, input,
       skipGenotypes = sitesOnly, skipVariants = samplesOnly))
@@ -405,17 +399,17 @@ class HailContext private(val sc: SparkContext,
       val vas = vds.vaSignature
       val path = inputs(i)
       if (ids != sampleIds) {
-        fatal(
+        abort(
           s"""cannot read datasets with different sample IDs or sample ordering
              |  IDs in reference file $reference: @1
              |  IDs in file $path: @2""".stripMargin, sampleIds, ids)
       } else if (wasSplit != vds.wasSplit) {
-        fatal(
+        abort(
           s"""cannot combine split and unsplit datasets
              |  Reference file $reference split status: $wasSplit
              |  File $path split status: ${ vds.wasSplit }""".stripMargin)
       } else if (vas != vaSchema) {
-        fatal(
+        abort(
           s"""cannot read datasets with different variant annotation schemata
              |  Schema in reference file $reference: @1
              |  Schema in file $path: @2""".stripMargin,
@@ -498,11 +492,11 @@ class HailContext private(val sc: SparkContext,
     val inputs = hadoopConf.globAll(files)
 
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+      abort("arguments refer to no files")
 
     inputs.foreach { input =>
       if (!input.endsWith(".bgen")) {
-        fatal(s"unknown input file: $input")
+        abort(s"unknown input file: $input")
       }
     }
 

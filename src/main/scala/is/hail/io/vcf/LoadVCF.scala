@@ -100,16 +100,16 @@ object LoadVCF {
     val inputs = hConf.globAll(arguments)
 
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+      abort("arguments refer to no files")
 
     inputs.foreach { input =>
       if (!input.endsWith(".vcf")
         && !input.endsWith(".vcf.bgz")) {
         if (input.endsWith(".vcf.gz")) {
           if (!forcegz)
-            fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
+            abort(".gz cannot be loaded in parallel, use .bgz or -f override")
         } else
-          fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
+          abort(s"unknown input file type `$input', expect .vcf[.bgz]")
       }
     }
     inputs
@@ -202,7 +202,7 @@ object LoadVCF {
         .getHeaderValue
         .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
     } catch {
-      case e: TribbleException => fatal(
+      case e: TribbleException => abort(
         s"""encountered problem with file $file1
             |  ${ e.getLocalizedMessage }""".stripMargin)
     }
@@ -236,7 +236,7 @@ object LoadVCF {
 
     val headerLine = headerLines.last
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
-      fatal(
+      abort(
         s"""corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'
             |  found: @1""".stripMargin, headerLine)
 

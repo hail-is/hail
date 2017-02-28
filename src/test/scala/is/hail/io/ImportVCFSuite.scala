@@ -113,7 +113,7 @@ class ImportVCFSuite extends SparkSuite {
         .collect()
         .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080))))
     }
-    assert(e.getMessage.contains("FatalException"))
+    assert(e.getMessage.contains("is.hail.utils.HailException: sample_bad_AD.vcf: invalid AD field"))
   }
 
   @Test def testHaploid() {
@@ -121,7 +121,7 @@ class ImportVCFSuite extends SparkSuite {
     val r = vds
       .expand()
       .collect()
-      .map { case (v,s,g) => ((v,s), g)}
+      .map { case (v, s, g) => ((v, s), g) }
       .toMap
 
     hc.report()
@@ -136,21 +136,21 @@ class ImportVCFSuite extends SparkSuite {
       Some(Array(10, 0)),
       Some(10),
       Some(44),
-      Some(Array(0,44,180))
+      Some(Array(0, 44, 180))
     ))
     assert(r(v1, s2) == Genotype(
       Some(2),
-      Some(Array(0,6)),
+      Some(Array(0, 6)),
       Some(7),
       Some(70),
       Some(Array(70, HtsjdkRecordReader.haploidNonsensePL, 0))
     ))
     assert(r(v2, s1) == Genotype(
       Some(5),
-      Some(Array(0,0,11)),
+      Some(Array(0, 0, 11)),
       Some(11),
       Some(33),
-      Some(Array(396,402,411,33,33,0))
+      Some(Array(396, 402, 411, 33, 33, 0))
     ))
     assert(r(v2, s2) == Genotype(
       Some(5),

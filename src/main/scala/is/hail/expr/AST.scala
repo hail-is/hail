@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.annotations._
 import is.hail.utils.EitherIsAMonad._
-import is.hail.utils.{FatalException, _}
+import is.hail.utils.{HailException, _}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
@@ -265,20 +265,22 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       val i = f.index
       AST.evalCompose[Row](ec, lhs)(_.get(i))
 
-    case (t, name) => FunctionRegistry.lookupMethod(ec)(t, Seq(), name)(lhs, Seq())
+    case (t, name) =>
+      val localPos = posn
+      FunctionRegistry.lookupMethod(ec)(t, Seq(), name)(lhs, Seq())
       .valueOr {
         case FunctionRegistry.NotFound(name, typ) =>
-          fatal(
+          ParserUtils.error(localPos, 
             s"""`$t' has neither a field nor a method named `$name'
                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
                |    counts.sum""".stripMargin)
-        case otherwise => fatal(otherwise.message)
+        case otherwise => abort(otherwise.message)
       }
   }
 
   def evalAggregator(ec: EvalContext): CPS[Any] =
     FunctionRegistry.lookupAggregatorTransformation(ec)(lhs.`type`, Seq(), rhs)(lhs, Seq())
-      .valueOr { x => fatal(x.message) }
+      .valueOr { x => abort(x.message) }
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -368,7 +370,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         val (t, _) = try {
           t1.merge(t2)
         } catch {
-          case f: FatalException => parseError(
+          case f: HailException => parseError(
             s"""invalid arguments for method `$fn'
                |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
@@ -448,7 +450,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         val (tNew, _) = try {
           struct.filter(identifiers.toSet, include = fn == "select")
         } catch {
-          case f: FatalException => parseError(
+          case f: UserException => parseError(
             s"""invalid arguments for method `$fn'
                |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
@@ -513,7 +515,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       }
 
     case (_, _) => FunctionRegistry.lookupFun(ec)(fn, args.map(_.`type`).toSeq)(args)
-      .valueOr(x => fatal(x.message))
+      .valueOr(x => abort(x.message))
   }
 
   def evalAggregator(ec: EvalContext): CPS[Any] = throw new UnsupportedOperationException
@@ -572,10 +574,10 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       val funType = TFunction(Array(it.elementType), body.`type`)
 
       FunctionRegistry.lookupMethod(ec)(it, funType +: rest.map(_.`type`), method)(lhs, args)
-        .valueOr(x => fatal(x.message))
+        .valueOr(x => abort(x.message))
 
     case (t, _, _) => FunctionRegistry.lookupMethod(ec)(t, args.map(_.`type`).toSeq, method)(lhs, args)
-      .valueOr(x => fatal(x.message))
+      .valueOr(x => abort(x.message))
   }
 
   def evalAggregator(ec: EvalContext): CPS[Any] = {
@@ -585,10 +587,10 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         val funType = TFunction(Array(t.elementType), body.`type`)
 
         FunctionRegistry.lookupAggregatorTransformation(ec)(t, funType +: rest.map(_.`type`), method)(lhs, args)
-          .valueOr(x => fatal(x.message))
+          .valueOr(x => abort(x.message))
 
       case _ => FunctionRegistry.lookupAggregatorTransformation(ec)(t, args.map(_.`type`).toSeq, method)(lhs, args)
-        .valueOr(x => fatal(x.message))
+        .valueOr(x => abort(x.message))
     }
   }
 }

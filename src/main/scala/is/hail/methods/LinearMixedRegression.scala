@@ -40,10 +40,10 @@ object LinearMixedRegression {
     forceGrammian: Boolean): VariantDataset = {
 
     if (!assocVds.wasSplit)
-      fatal("lmmreg requires bi-allelic VDS for association. Run split_multi or filter_multi first")
+      abort("lmmreg requires bi-allelic VDS for association. Run split_multi or filter_multi first")
 
     if (!kinshipVds.wasSplit)
-      fatal("lmmreg requires bi-allelic VDS for kinship. Run split_multi or filter_multi first")
+      abort("lmmreg requires bi-allelic VDS for kinship. Run split_multi or filter_multi first")
 
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
@@ -54,26 +54,26 @@ object LinearMixedRegression {
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
-        fatal(s"delta must be positive, got ${ delta }"))
+        abort(s"delta must be positive, got ${ delta }"))
 
     val covNames = "intercept" +: covSA
 
     val useBlock = (forceBlock, forceGrammian) match {
       case (false, false) => y.length > 3000 // for small matrices, computeGrammian fits in memory and runs faster than BlockMatrix product
-      case (true, true) => fatal("Cannot force both Block and Grammian")
+      case (true, true) => abort("Cannot force both Block and Grammian")
       case (b, _) => b
     }
     
     val filtKinshipVds = kinshipVds.filterSamples((s, sa) => completeSamplesSet(s))
     if (filtKinshipVds.sampleIds != completeSamples)
-      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
+      abort("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
 
     val n = y.size
     val k = cov.cols
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
+      abort(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
 
@@ -259,9 +259,9 @@ object DiagLMM {
     val approxLogDelta = gridLogLkhd.maxBy(_._2)._1
 
     if (approxLogDelta == logmin)
-      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta lower search boundary e^$logmin = ${FastMath.exp(logmin)}, indicating negligible enviromental component of variance. The model is likely ill-specified.")
+      abort(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta lower search boundary e^$logmin = ${FastMath.exp(logmin)}, indicating negligible enviromental component of variance. The model is likely ill-specified.")
     else if (approxLogDelta == logmax)
-      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta upper search boundary e^$logmax = ${FastMath.exp(logmax)}, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
+      abort(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta upper search boundary e^$logmax = ${FastMath.exp(logmax)}, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
 
     val searchInterval = new SearchInterval(-10d, 10d, approxLogDelta)
     val goal = GoalType.MAXIMIZE

@@ -66,7 +66,7 @@ object GenLoader {
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
 
     if (sampleIds.length != sampleIds.toSet.size)
-      fatal(s"Duplicate sample IDs exist in $sampleFile")
+      abort(s"Duplicate sample IDs exist in $sampleFile")
 
     val nSamples = sampleIds.length
 
@@ -112,7 +112,7 @@ object GenLoader {
     }
 
     if (dosages.length != (3 * nSamples))
-      fatal("Number of dosages does not match number of samples. If no chromosome column is included, use -c to input the chromosome.")
+      abort("Number of dosages does not match number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
     val dosageArray = new Array[Int](3)
     val gsb = new GenotypeStreamBuilder(2, isDosage = true)

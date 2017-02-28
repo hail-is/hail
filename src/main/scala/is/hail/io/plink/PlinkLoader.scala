@@ -35,7 +35,7 @@ object PlinkLoader {
             case x => x
           }
           (Variant(recodedContig, bpPos.toInt, allele2, allele1), rsId)
-        case other => fatal(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
+        case other => abort(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
       }
     }.value
     ).toArray)
@@ -60,11 +60,11 @@ object PlinkLoader {
 
         val split = line.split(delimiter)
         if (split.length != 6)
-          fatal(s"expected 6 fields, but found ${ split.length }")
+          abort(s"expected 6 fields, but found ${ split.length }")
         val Array(fam, kid, dad, mom, isFemale, pheno) = split
 
         if (kidSet(kid))
-          fatal(s".fam sample name is not unique: $kid")
+          abort(s".fam sample name is not unique: $kid")
         else
           kidSet += kid
 
@@ -78,7 +78,7 @@ object PlinkLoader {
           case "0" => null
           case "1" => false
           case "2" => true
-          case _ => fatal(s"Invalid sex: `$isFemale'. Male is `1', female is `2', unknown is `0'")
+          case _ => abort(s"Invalid sex: `$isFemale'. Male is `1', female is `2', unknown is `0'")
         }
 
         val pheno1 =
@@ -86,7 +86,7 @@ object PlinkLoader {
             pheno match {
               case ffConfig.missingValue => null
               case numericRegex() => pheno.toDouble
-              case _ => fatal(s"Invalid quantitative phenotype: `$pheno'. Value must be numeric or `${ ffConfig.missingValue }'")
+              case _ => abort(s"Invalid quantitative phenotype: `$pheno'. Value must be numeric or `${ ffConfig.missingValue }'")
             }
           else
             pheno match {
@@ -96,7 +96,7 @@ object PlinkLoader {
               case "0" => null
               case "-9" => null
               case "N/A" => null
-              case numericRegex() => fatal(s"Invalid case-control phenotype: `$pheno'. Control is `1', case is `2', missing is `0', `-9', `${ ffConfig.missingValue }', or non-numeric.")
+              case numericRegex() => abort(s"Invalid case-control phenotype: `$pheno'. Control is `1', case is `2', missing is `0', `-9', `${ ffConfig.missingValue }', or non-numeric.")
               case _ => null
             }
 
@@ -105,7 +105,7 @@ object PlinkLoader {
     }
 
     if (m.isEmpty)
-      fatal("Empty .fam file")
+      abort("Empty .fam file")
 
     (m, signature)
   }
@@ -148,12 +148,12 @@ object PlinkLoader {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)
-      fatal(".fam file does not contain any samples")
+      abort(".fam file does not contain any samples")
 
     val variants = parseBim(bimPath, hc.hadoopConf)
     val nVariants = variants.length
     if (nVariants <= 0)
-      fatal(".bim file does not contain any variants")
+      abort(".bim file does not contain any variants")
 
     info(s"Found $nSamples samples in fam file.")
     info(s"Found $nVariants variants in bim file.")
@@ -164,18 +164,18 @@ object PlinkLoader {
       val b3 = dis.read()
 
       if (b1 != 108 || b2 != 27)
-        fatal("First two bytes of bed file do not match PLINK magic numbers 108 & 27")
+        abort("First two bytes of bed file do not match PLINK magic numbers 108 & 27")
 
       if (b3 == 0)
-        fatal("Bed file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
+        abort("Bed file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
     }
 
     val bedSize = hc.sc.hadoopConfiguration.getFileSize(bedPath)
     if (bedSize != expectedBedSize(nSamples, nVariants))
-      fatal("bed file size does not match expected number of bytes based on bed and fam files")
+      abort("bed file size does not match expected number of bytes based on bed and fam files")
 
     if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
-      fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
+      abort(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
     val (ids, annotations) = sampleInfo.unzip
 

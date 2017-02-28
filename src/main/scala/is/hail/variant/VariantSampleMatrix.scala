@@ -307,7 +307,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (names, _, f) = Parser.parseExportExprs(expr, ec)
 
     if (names.isEmpty)
-      fatal("this module requires one or more named expr arguments")
+      abort("this module requires one or more named expr arguments")
 
     val (zVals, seqOp, combOp, resultOp) =
       Aggregators.makeFunctions[(Interval[Locus], Variant, Annotation)](ec, { case (ec, (i, v, va)) =>
@@ -508,14 +508,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def annotateSamplesFam(path: String, root: String = "sa.fam",
     config: FamFileConfig = FamFileConfig()): VariantSampleMatrix[T] = {
     if (!path.endsWith(".fam"))
-      fatal("input file must end in .fam")
+      abort("input file must end in .fam")
 
     val (info, signature) = PlinkLoader.parseFam(path, config, hc.hadoopConf)
 
     val duplicateIds = info.map(_._1).duplicates().toArray
     if (duplicateIds.nonEmpty) {
       val n = duplicateIds.length
-      fatal(
+      abort(
         s"""found $n duplicate sample ${ plural(n, "id") }:
            |  @1""".stripMargin, duplicateIds)
     }
@@ -548,7 +548,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (isCode, annotationExpr) = (root, code) match {
       case (Some(r), None) => (false, r)
       case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
+      case _ => abort("this module requires one of `root' or 'code', but not both")
     }
 
     val (struct, rdd) = TextTableReader.read(sparkContext)(Array(path), config)
@@ -595,7 +595,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (isCode, annotationExpr) = (root, code) match {
       case (Some(r), None) => (false, r)
       case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
+      case _ => abort("this module requires one of `root' or 'code', but not both")
     }
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
@@ -655,7 +655,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val ktKeyTypes = kt.keySignature.fields.map(_.typ)
 
     if (ktKeyTypes.size != 1 || ktKeyTypes(0) != TVariant)
-      fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${ kt.keySignature }'")
+      abort(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${ kt.keySignature }'")
 
     val ktSig = kt.signature
 
@@ -681,7 +681,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val keyTypes = kt.keySignature.fields.map(_.typ)
     if (keyTypes != vdsKeyType)
-      fatal(s"Key signature of KeyTable, `$keyTypes', must match type of computed key, `$vdsKeyType'.")
+      abort(s"Key signature of KeyTable, `$keyTypes', must match type of computed key, `$vdsKeyType'.")
 
     val ktSig = kt.signature
 
@@ -720,14 +720,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
     val files = hc.hadoopConf.globAll(paths)
     if (files.isEmpty)
-      fatal("Arguments referred to no files")
+      abort("Arguments referred to no files")
 
     val (struct, locusRDD) = TextTableReader.read(sparkContext)(files, config, nPartitions)
 
     val (isCode, annotationExpr) = (root, code) match {
       case (Some(r), None) => (false, r)
       case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
+      case _ => abort("this module requires one of `root' or 'code', but not both")
     }
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
@@ -781,14 +781,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
     val files = hc.hadoopConf.globAll(paths)
     if (files.isEmpty)
-      fatal("Arguments referred to no files")
+      abort("Arguments referred to no files")
 
     val (struct, variantRDD) = TextTableReader.read(sparkContext)(files, config, nPartitions)
 
     val (isCode, annotationExpr) = (root, code) match {
       case (Some(r), None) => (false, r)
       case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
+      case _ => abort("this module requires one of `root' or 'code', but not both")
     }
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
@@ -828,7 +828,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (isCode, annotationExpr) = (root, code) match {
       case (Some(r), None) => (false, r)
       case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
+      case _ => abort("this module requires one of `root' or 'code', but not both")
     }
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
@@ -1230,7 +1230,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           _.split("\t") match {
             case Array(old, news) => (old, news)
             case _ =>
-              fatal("Invalid input. Use two tab-separated columns.")
+              abort("Invalid input. Use two tab-separated columns.")
           }
         }.toMap
     }
@@ -1240,7 +1240,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       .map { s =>
         val news = m.getOrElse(s, s)
         if (newSamples.contains(news))
-          fatal(s"duplicate sample ID `$news' after rename")
+          abort(s"duplicate sample ID `$news' after rename")
         newSamples += news
         news
       }
@@ -1410,7 +1410,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       }
 
     if (foundError)
-      fatal("found one or more type check errors")
+      abort("found one or more type check errors")
   }
 
   def sampleIdsAndAnnotations: IndexedSeq[(String, Annotation)] = sampleIds.zip(sampleAnnotations)

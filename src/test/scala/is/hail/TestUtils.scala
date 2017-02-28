@@ -8,8 +8,18 @@ object TestUtils {
 
   import org.scalatest.Assertions._
 
+  def interceptUserException(regex: String)(f: => Any) {
+    val thrown = intercept[UserException](f)
+    val p = regex.r.findFirstIn(thrown.getMessage).isDefined
+    if (!p)
+      println(
+        s"""expected fatal exception with pattern `$regex'
+           |  Found: ${thrown.getMessage} """.stripMargin)
+    assert(p)
+  }
+
   def interceptFatal(regex: String)(f: => Any) {
-    val thrown = intercept[FatalException](f)
+    val thrown = intercept[HailException](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     if (!p)
       println(
