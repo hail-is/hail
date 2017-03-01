@@ -161,4 +161,11 @@ class ImportVCFSuite extends SparkSuite {
         HtsjdkRecordReader.haploidNonsensePL, 0))
     ))
   }
+
+  @Test def testGeneric() {
+    val path = tmpDir.createTempFile(extension = ".vds")
+    val vcf = "src/test/resources/sample.vcf.bgz"
+    val gds = hc.importVCFGeneric(vcf)
+    gds.write(path)
+  }
 }

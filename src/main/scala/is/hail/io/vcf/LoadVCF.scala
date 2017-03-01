@@ -1,10 +1,11 @@
 package is.hail.io.vcf
 
 import htsjdk.tribble.TribbleException
-import htsjdk.variant.vcf.{VCFHeaderLineCount, VCFHeaderLineType, VCFInfoHeaderLine}
+import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr._
+import is.hail.expr.{TStruct, _}
+import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
@@ -19,6 +20,8 @@ case class VCFSettings(storeGQ: Boolean = false,
   skipGenotypes: Boolean = false,
   ppAsPL: Boolean = false,
   skipBadAD: Boolean = false)
+
+case class LoadVCFResult[T](rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])], sampleIds: Array[String], vaSignature: TStruct, gSignature: Type)
 
 object VCFReport {
   val GTPLMismatch = 1
@@ -139,7 +142,7 @@ object LoadVCF {
     Variant(contig, start.toInt, ref, alts.split(","))
   }
 
-  def infoNumberToString(line: VCFInfoHeaderLine): String = line.getCountType match {
+  def headerNumberToString(line: VCFCompoundHeaderLine): String = line.getCountType match {
     case VCFHeaderLineCount.A => "A"
     case VCFHeaderLineCount.G => "G"
     case VCFHeaderLineCount.R => "R"
@@ -147,7 +150,7 @@ object LoadVCF {
     case VCFHeaderLineCount.UNBOUNDED => "."
   }
 
-  def infoTypeToString(line: VCFInfoHeaderLine): String = line.getType match {
+  def headerTypeToString(line: VCFCompoundHeaderLine): String = line.getType match {
     case VCFHeaderLineType.Integer => "Integer"
     case VCFHeaderLineType.Flag => "Flag"
     case VCFHeaderLineType.Float => "Float"
@@ -155,7 +158,7 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def infoField(line: VCFInfoHeaderLine, i: Int): Field = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int): Field = {
     val baseType = line.getType match {
       case VCFHeaderLineType.Integer => TInt
       case VCFHeaderLineType.Float => TDouble
@@ -165,8 +168,8 @@ object LoadVCF {
     }
 
     val attrs = Map("Description" -> line.getDescription,
-      "Number" -> infoNumberToString(line),
-      "Type" -> infoTypeToString(line))
+      "Number" -> headerNumberToString(line),
+      "Type" -> headerTypeToString(line))
     if (line.isFixedCount &&
       (line.getCount == 1 ||
         (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
@@ -175,17 +178,23 @@ object LoadVCF {
       Field(line.getID, TArray(baseType), i, attrs)
   }
 
-  def apply(hc: HailContext,
+  def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T]): Option[TStruct] = {
+    if (lines.size > 0)
+      Some(TStruct(lines
+        .zipWithIndex
+        .map { case (line, i) => headerField(line, i) }
+        .toArray))
+    else None
+  }
+
+  def apply[T](hc: HailContext,
+    reader: HtsjdkRecordReader[T],
     file1: String,
-    files: Array[String] = null, // FIXME hack
-    storeGQ: Boolean = false,
+    files: Array[String] = null,
     nPartitions: Option[Int] = None,
     skipGenotypes: Boolean = false,
-    ppAsPL: Boolean = false,
-    skipBadAD: Boolean = false): VariantDataset = {
-
-    val settings = VCFSettings(storeGQ, skipGenotypes, ppAsPL, skipBadAD)
-
+    settings: VCFSettings = null,
+    genericGenotypes: Boolean = false): LoadVCFResult[T] = {
     val hConf = hc.hadoopConf
     val sc = hc.sc
     val headerLines = hConf.readFile(file1) { s =>
@@ -216,14 +225,10 @@ object LoadVCF {
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
+    val infoSignature = headerSignature(infoHeader)
 
-    val infoSignature = if (infoHeader.size > 0)
-      Some(TStruct(infoHeader
-        .zipWithIndex
-        .map { case (line, i) => infoField(line, i) }
-        .toArray))
-    else None
-
+    val formatHeader = header.getFormatHeaderLines
+    val genotypeSignature: Type = if (genericGenotypes) headerSignature(formatHeader).getOrElse(TStruct.empty) else TGenotype
 
     val variantAnnotationSignatures = TStruct(
       Array(
@@ -249,6 +254,7 @@ object LoadVCF {
           .drop(9)
 
     val infoSignatureBc = infoSignature.map(sig => sc.broadcast(sig))
+    val genotypeSignatureBc = sc.broadcast(genotypeSignature)
 
     val headerLinesBc = sc.broadcast(headerLines)
 
@@ -277,13 +283,14 @@ object LoadVCF {
       }
       .toMap
 
-    val genotypes = lines
+    val rdd = lines
       .mapPartitionsWithIndex { case (i, lines) =>
         val file = partitionFile(i)
         val reportAcc = reportAccs(file)
 
         val codec = new htsjdk.variant.vcf.VCFCodec()
-        val reader = HtsjdkRecordReader(headerLinesBc.value, codec)
+        codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
+
         lines.flatMap { l => l.map { line =>
           if (line.isEmpty || line(0) == '#')
             None
@@ -296,8 +303,7 @@ object LoadVCF {
               reportAcc += VCFReport.Symbolic
               None
             } else
-              Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value),
-                settings))
+              Some(reader.readRecord(codec, reportAcc, vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value, settings))
           }
         }.value
         }
@@ -305,12 +311,49 @@ object LoadVCF {
 
     justVariants.unpersist()
 
-    VariantSampleMatrix(hc, VariantMetadata(sampleIds,
-      Annotation.emptyIndexedSeq(sampleIds.length),
-      Annotation.empty,
-      TStruct.empty,
-      variantAnnotationSignatures,
-      TStruct.empty), genotypes)
+    LoadVCFResult(rdd = rdd, sampleIds = sampleIds, vaSignature = variantAnnotationSignatures, gSignature = genotypeSignature)
   }
 
+  def apply(hc: HailContext,
+    file1: String,
+    files: Array[String], // FIXME hack
+    storeGQ: Boolean,
+    nPartitions: Option[Int],
+    skipGenotypes: Boolean,
+    ppAsPL: Boolean,
+    skipBadAD: Boolean): VariantDataset = {
+
+    val settings = VCFSettings(storeGQ, skipGenotypes, ppAsPL, skipBadAD)
+    val reader = new GenotypeRecordReader()
+
+    val result = LoadVCF(hc, reader, file1, files, nPartitions, skipGenotypes, settings, genericGenotypes = false)
+
+    VariantSampleMatrix(hc, VariantMetadata(result.sampleIds,
+      Annotation.emptyIndexedSeq(result.sampleIds.length),
+      Annotation.empty,
+      TStruct.empty,
+      result.vaSignature,
+      TStruct.empty,
+      TGenotype,
+      isGenericGenotype = false), result.rdd)
+  }
+
+  def apply(hc: HailContext,
+    file1: String,
+    files: Array[String], // FIXME hack
+    nPartitions: Option[Int],
+    skipGenotypes: Boolean): GenericDataset = {
+
+    val reader = new GenericRecordReader()
+    val result = LoadVCF(hc, reader, file1, files, nPartitions, skipGenotypes, settings = null, genericGenotypes = true)
+
+    VariantSampleMatrix(hc, VariantMetadata(result.sampleIds,
+      Annotation.emptyIndexedSeq(result.sampleIds.length),
+      Annotation.empty,
+      TStruct.empty,
+      result.vaSignature,
+      TStruct.empty,
+      result.gSignature,
+      isGenericGenotype = true), result.rdd)
+  }
 }
