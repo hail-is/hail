@@ -268,22 +268,28 @@ object VEP {
         }
           .map { case (v, _) => v }
           .grouped(localBlockSize)
-          .flatMap(_.iterator.pipe(pb,
-            printContext,
-            printElement,
-            _ => ())
-            .map { s =>
-              if (csq) {
-                val x = csq_regex.findFirstIn(s).get
-                (variantFromInput(s), x.substring(4))
-              } else {
+          .flatMap { block =>
+            val jt = block.iterator.pipe(pb,
+              printContext,
+              printElement,
+              _ => ())
+
+            val kt = if (csq)
+              jt.filter(s => !s.isEmpty && s(0) != '#')
+                .map { s =>
+                  val x = csq_regex.findFirstIn(s).get
+                  (variantFromInput(s), x.substring(4))
+                }
+            else
+              jt.map { s =>
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
                 val v = variantFromInput(inputQuery(a).asInstanceOf[String])
                 (v, a)
               }
-            }
-            .toArray
-            .sortBy(_._1))
+
+            kt.toArray
+              .sortBy(_._1)
+          }
       }, preservesPartitioning = true)
       .persist(StorageLevel.MEMORY_AND_DISK)
 
