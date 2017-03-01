@@ -16,6 +16,8 @@ import scala.language.implicitConversions
 
 case class CompleteGenotype(gt: Int, ad: Array[Int], dp: Int, gq: Int, pl: Array[Int]) {
   def toGenotype: Genotype = new GenericGenotype(gt, ad, dp, gq, pl, false, false)
+
+  override def toString: String = s"$gt:${ad.mkString(",")}:$dp:$gq:${pl.mkString(",")}"
 }
 
 object GenotypeType extends Enumeration {
@@ -329,7 +331,7 @@ abstract class Genotype extends Serializable {
     ("isDosage", JBool(isDosage)))
 
   def toCompleteGenotype: Option[CompleteGenotype] = {
-    if (unboxedGT > 0 && unboxedAD != null && unboxedDP > 0 && unboxedGQ > 0 && unboxedPX != null)
+    if (unboxedGT >= 0 && unboxedAD != null && unboxedDP >= 0 && unboxedGQ >= 0 && unboxedPX != null)
       Some(CompleteGenotype(unboxedGT, unboxedAD, unboxedDP, unboxedGQ, unboxedPX))
     else
       None
