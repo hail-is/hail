@@ -13,7 +13,7 @@ import is.hail.methods.DuplicateReport
 import is.hail.misc.SeqrServer
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, Genotype, VSMSubgen, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -240,7 +240,7 @@ class HailContext private(val sc: SparkContext,
         "va" -> (0, TStruct.empty),
         "table" -> (1, struct)))
       Annotation.buildInserter(code, TStruct.empty, ec, Annotation.VARIANT_HEAD)
-    }.getOrElse((struct, (_ : Annotation, anno: Annotation) => anno))
+    }.getOrElse((struct, (_: Annotation, anno: Annotation) => anno))
 
     val ec = EvalContext(struct.fields.map(f => (f.name, f.typ)): _*)
     val variantFn = Parser.parseTypedExpr[Variant](variantExpr, ec)
@@ -382,25 +382,14 @@ class HailContext private(val sc: SparkContext,
       nPartitions, delimiter, missing, quantPheno)
   }
 
-  def read(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {
-    readAll(List(file), sitesOnly, samplesOnly)
-  }
-
-  def readAll(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {
-    val inputs = hadoopConf.globAll(files)
-    if (inputs.isEmpty)
-      fatal("arguments refer to no files")
-
-    val vdses = inputs.map(input => VariantDataset.read(this, input,
-      skipGenotypes = sitesOnly, skipVariants = samplesOnly))
-
-    val sampleIds = vdses.head.sampleIds
-    val vaSchema = vdses.head.vaSignature
-    val wasSplit = vdses.head.wasSplit
+  def checkDatasetSchemasCompatible[T](datasets: Array[VariantSampleMatrix[T]], inputs: Array[String]): Unit = {
+    val sampleIds = datasets.head.sampleIds
+    val vaSchema = datasets.head.vaSignature
+    val wasSplit = datasets.head.wasSplit
     val reference = inputs(0)
 
-    vdses.indices.tail.foreach { i =>
-      val vds = vdses(i)
+    datasets.indices.tail.foreach { i =>
+      val vds = datasets(i)
       val ids = vds.sampleIds
       val vas = vds.vaSignature
       val path = inputs(i)
@@ -425,10 +414,42 @@ class HailContext private(val sc: SparkContext,
       }
     }
 
-    if (vdses.length > 1)
+    if (datasets.length > 1)
       info(s"Using sample and global annotations from ${ inputs(0) }")
+  }
+
+  def read(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {
+    readAll(List(file), sitesOnly, samplesOnly)
+  }
+
+  def readAll(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {
+    val inputs = hadoopConf.globAll(files)
+    if (inputs.isEmpty)
+      fatal("arguments refer to no files")
+
+    val vdses = inputs.map(input => VariantDataset.read(this, input,
+      skipGenotypes = sitesOnly, skipVariants = samplesOnly))
+
+    checkDatasetSchemasCompatible(vdses, inputs)
 
     vdses(0).copy(rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
+  }
+
+  def readGDS(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false): GenericDataset = {
+    readAllGDS(List(file), sitesOnly, samplesOnly)
+  }
+
+  def readAllGDS(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false): GenericDataset = {
+    val inputs = hadoopConf.globAll(files)
+    if (inputs.isEmpty)
+      fatal("arguments refer to no files")
+
+    val gdses = inputs.map(input => GenericDataset.read(this, input,
+      skipGenotypes = sitesOnly, skipVariants = samplesOnly))
+
+    checkDatasetSchemasCompatible(gdses, inputs)
+
+    gdses(0).copy(rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
   }
 
   /**

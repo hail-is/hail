@@ -17,6 +17,7 @@ import org.apache.hadoop
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{SparkContext, SparkEnv}
+import org.json4s._
 import org.json4s.jackson.Serialization
 
 import scala.collection.JavaConverters._
@@ -1425,5 +1426,55 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         "v" -> TVariant,
         "va" -> vaSignature),
       Array("v"))
+  }
+
+  def writeMetadata(dirname: String, parquetGenotypes: Boolean) {
+    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
+      fatal(s"output path ending in `.vds' required, found `$dirname'")
+
+    val sqlContext = hc.sqlContext
+    val hConf = hc.hadoopConf
+    hConf.mkDir(dirname)
+
+    val sb = new StringBuilder
+
+    saSignature.pretty(sb, printAttrs = true, compact = true)
+    val saSchemaString = sb.result()
+
+    sb.clear()
+    vaSignature.pretty(sb, printAttrs = true, compact = true)
+    val vaSchemaString = sb.result()
+
+    sb.clear()
+    globalSignature.pretty(sb, printAttrs = true, compact = true)
+    val globalSchemaString = sb.result()
+
+    sb.clear()
+    genotypeSignature.pretty(sb, printAttrs = true, compact = true)
+    val genotypeSchemaString = sb.result()
+
+    val sampleInfoJson = JArray(
+      sampleIdsAndAnnotations
+        .map { case (id, annotation) =>
+          JObject(List(("id", JString(id)), ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, saSignature))))
+        }
+        .toList
+    )
+
+    val json = JObject(
+      ("version", JInt(VariantSampleMatrix.fileVersion)),
+      ("split", JBool(wasSplit)),
+      ("isDosage", JBool(isDosage)),
+      ("isGenericGenotype", JBool(isGenericGenotype)),
+      ("parquetGenotypes", JBool(parquetGenotypes)),
+      ("sample_annotation_schema", JString(saSchemaString)),
+      ("variant_annotation_schema", JString(vaSchemaString)),
+      ("global_annotation_schema", JString(globalSchemaString)),
+      ("genotype_schema", JString(genotypeSchemaString)),
+      ("sample_annotations", sampleInfoJson),
+      ("global_annotation", JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature))
+    )
+
+    hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))
   }
 }

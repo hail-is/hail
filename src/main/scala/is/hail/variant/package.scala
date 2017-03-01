@@ -1,11 +1,13 @@
 package is.hail
 
+import is.hail.annotations.Annotation
 import is.hail.utils.IntIterator
 
 import scala.language.implicitConversions
 
 package object variant {
   type VariantDataset = VariantSampleMatrix[Genotype]
+  type GenericDataset = VariantSampleMatrix[Annotation]
 
   class RichIterableGenotype(val ig: Iterable[Genotype]) extends AnyVal {
     def toGenotypeStream(v: Variant, isDosage: Boolean): GenotypeStream =
@@ -31,4 +33,5 @@ package object variant {
   implicit def toRichIterableGenotype(ig: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(ig)
 
   implicit def toVDSFunctions(vds: VariantDataset): VariantDatasetFunctions = new VariantDatasetFunctions(vds)
+  implicit def toGDSFunctions(gds: GenericDataset): GenericDatasetFunctions = new GenericDatasetFunctions(gds)
 }
