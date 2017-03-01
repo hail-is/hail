@@ -1349,6 +1349,27 @@ class VariantDataset(object):
         return dict(self._jvdf.count(genotypes).toJavaMap())
 
     @handle_py4j
+    def de_novo(self, fam_file, reference_AF_expr, extra_fields_expr=None, pl_threshold=20,
+                min_p_de_novo=0.05,max_parent_AB=0.05, min_child_AB=0.20, min_depth_ratio=0.10):
+        """Call de novo variation
+
+        :param str fam_file:
+        :param str reference_AF_expr:
+        :param extra_fields_expr:
+        :type extra_fields_expr: str or None
+        :param int pl_threshold:
+        :param float min_p_de_novo:
+        :param float max_parent_AB:
+        :param float min_child_AB:
+        :param float min_depth_ratio:
+        :return:
+        """
+
+        jkt = self._jvdf.deNovo(fam_file, reference_AF_expr, joption(extra_fields_expr),
+                                 pl_threshold, min_p_de_novo, max_parent_AB, min_child_AB, min_depth_ratio)
+        return KeyTable(self.hc, jkt)
+
+    @handle_py4j
     def deduplicate(self):
         """Remove duplicate variants.
 

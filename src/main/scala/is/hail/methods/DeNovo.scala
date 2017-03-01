@@ -39,8 +39,8 @@ object DeNovo {
 
   def call(vds: VariantDataset, famFile: String,
     referenceAFExpr: String,
-    extraFieldsExpr: String,
-    plThreshold: Int = 20,
+    extraFieldsExpr: Option[String] = None,
+    minGQ: Int = 20,
     minimumPDeNovo: Double = 0.05,
     maxParentAB: Double = 0.05,
     minChildAB: Double = 0.20,
@@ -56,7 +56,7 @@ object DeNovo {
     val popFreqQuery: (Annotation) => Option[Double] =
       (a: Annotation) => Option(popFrequencyF(a)).map(_.asInstanceOf[Double])
 
-    val additionalOutput = Option(extraFieldsExpr).map { cond =>
+    val additionalOutput = extraFieldsExpr.map { cond =>
       val symTab = Map(
         "v" -> (0, TVariant),
         "va" -> (1, vds.vaSignature),
@@ -96,7 +96,7 @@ object DeNovo {
 
     val sc = vds.sparkContext
     val trioIndexBc = sc.broadcast(trios.map(t => (idMapping(t.kid), idMapping(t.dad), idMapping(t.mom))))
-    val sampleTrioRolesBc = sc.broadcast(vds.sampleIds.map(sampleTrioRoles).toArray)
+    val sampleTrioRolesBc = sc.broadcast(vds.sampleIds.map(sampleTrioRoles.getOrElse(_, Nil)).toArray)
     val triosBc = sc.broadcast(trios)
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
 
@@ -113,8 +113,8 @@ object DeNovo {
         var nAltAlleles = 0
 
         gs.foreach { g =>
-          val roles = sampleTrioRolesBc.value(i)
           g.toCompleteGenotype.foreach { cg =>
+            val roles = sampleTrioRolesBc.value(i)
             roles.foreach { case (ri, ci) => arr.update(ri, ci, cg) }
 
             nAltAlleles += 2
@@ -124,7 +124,6 @@ object DeNovo {
         }
 
         val computedFrequency = nAltAlleles.toDouble / totalAlleles.toDouble
-
         val popFrequency = popFreqQuery(va).getOrElse(0d)
         if (popFrequency < 0 || popFrequency > 1)
           fatal(
@@ -133,104 +132,111 @@ object DeNovo {
 
         val frequency = math.max(math.max(computedFrequency, popFrequency), MIN_PRIOR)
 
-        (0 until nTrios)
-          .filter { i =>
-            arr(i, 0) == null || arr(i, 0).gt != 1 ||
-              arr(i, 1) == null || arr(i, 1).gt != 0 ||
-              arr(i, 2) == null || arr(i, 2).gt != 0
-          }.flatMap { i =>
+        (0 until nTrios).flatMap { i =>
+          val kid = arr(i, 0)
+          val dad = arr(i, 1)
+          val mom = arr(i, 2)
 
-          val kidGt = arr(i, 0)
-          val dadGt = arr(i, 1)
-          val momGt = arr(i, 2)
+          if (kid == null || kid.gt != 1 ||
+            dad == null || dad.gt != 0 ||
+            mom == null || mom.gt != 0 ||
+            kid.pl(0) <= minGQ ||
+            (kid.ad(0) == 0) && (kid.ad(1) == 0) ||
+            (dad.ad(0) == 0) && (dad.ad(1) == 0) ||
+            (mom.ad(0) == 0) && (mom.ad(1) == 0) ||
+            kid.ad(0).toDouble / (kid.ad(0) + kid.ad(1)) <= minChildAB ||
+            dad.ad(0).toDouble / (dad.ad(0) + dad.ad(1)) > maxParentAB ||
+            mom.ad(0).toDouble / (mom.ad(0) + mom.ad(1)) > maxParentAB)
+            None
+          else {
 
-          // fixme precomputed
-          val kidP = kidGt.pl.map(x => math.pow(10, -x / 10d))
-          val dadP = dadGt.pl.map(x => math.pow(10, -x / 10d))
-          val momP = momGt.pl.map(x => math.pow(10, -x / 10d))
+            println(s"found candidate: ${ kid } / $dad / $mom")
+            // fixme precomputed
+            val kidP = kid.pl.map(x => math.pow(10, -x / 10d))
+            val dadP = dad.pl.map(x => math.pow(10, -x / 10d))
+            val momP = mom.pl.map(x => math.pow(10, -x / 10d))
 
-          val pDeNovoData = dadP(0) * momP(0) * kidP(1) * PRIOR
+            val pDeNovoData = dadP(0) * momP(0) * kidP(1) * PRIOR
 
-          val pDataOneHet = (dadP(1) * momP(0) + dadP(0) * momP(1)) * kidP(1)
-          val pOneParentHet = 1 - math.pow(1 - frequency, 4)
-          val pMhipData = pDataOneHet * pOneParentHet
+            val pDataOneHet = (dadP(1) * momP(0) + dadP(0) * momP(1)) * kidP(1)
+            val pOneParentHet = 1 - math.pow(1 - frequency, 4)
+            val pMhipData = pDataOneHet * pOneParentHet
 
-          val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMhipData)
+            val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMhipData)
 
-          val momAdRatio = momGt.ad(1).toDouble / momGt.ad.sum
+            val momAdRatio = mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1))
+            val dadAdRatio = dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1))
+            val kidAdRatio = kid.ad(1).toDouble / (kid.ad(0) + kid.ad(1))
 
-          val dadAdRatio = dadGt.ad(1).toDouble / dadGt.ad.sum
+            val kidDp = kid.dp
+            val dpRatio = kidDp.toDouble / (mom.dp + dad.dp)
 
-          val kidAdRatio = kidGt.ad(1).toDouble / kidGt.ad.sum
-
-          val kidDp = kidGt.dp
-          val dpRatio = kidDp.toDouble / (momGt.dp + dadGt.dp)
-
-          // Below is the core calling algorithm
-          val genotypeAnnotation = if (v.altAllele.isIndel) {
-            if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
-              Some("HIGH_indel")
-            else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
-              Some("MEDIUM_indel")
-            else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.2))
-              Some("LOW_indel")
-            else None
-          } else {
-            if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
-              ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
-              ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10))
-            )
-              Some("HIGH_SNV")
-            else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
-              ((pTrueDeNovo > 0.5) && (kidAdRatio > minDepthRatio) && (nAltAlleles == 1))
-            )
-              Some("MEDIUM_SNV")
-            else if ((pTrueDeNovo > minimumPDeNovo) && (kidAdRatio > minDepthRatio))
-              Some("LOW_SNV")
-            else None
-          }
-
-          genotypeAnnotation.map { str =>
-
-            val defaults: Array[Annotation] = Array(
-              v,
-              triosBc.value(i).kid,
-              triosBc.value(i).dad,
-              triosBc.value(i).mom,
-              triosBc.value(i).sex.map(s => s == Sex.Female).orNull,
-              triosBc.value(i).pheno.map(p => p == Phenotype.Case).orNull,
-              str,
-              kidGt.toGenotype,
-              dadGt.toGenotype,
-              momGt.toGenotype,
-              dpRatio,
-              pTrueDeNovo)
-
-            val fullRow = additionalOutput match {
-              case Some((ec, _, fs)) =>
-                val t = triosBc.value(i)
-                val kidId = t.kid
-                val dadId = t.dad
-                val momId = t.mom
-
-                val (kidIndex, dadIndex, momIndex) = trioIndexBc.value(i)
-
-                ec.set(0, v)
-                ec.set(1, va)
-                ec.set(2, localGlobal)
-                ec.set(3, Annotation(arr(i, 0), localAnnotationsBc.value(kidIndex)))
-                ec.set(4, Annotation(arr(i, 1), localAnnotationsBc.value(dadIndex)))
-                ec.set(5, Annotation(arr(i, 2), localAnnotationsBc.value(momIndex)))
-
-                val results = fs()
-                val combined = defaults ++ results
-                assert(combined.length == nFields)
-                combined
-              case None => defaults
+            // Below is the core calling algorithm
+            val genotypeAnnotation = if (v.altAllele.isIndel) {
+              if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
+                Some("HIGH_indel")
+              else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
+                Some("MEDIUM_indel")
+              else if ((pTrueDeNovo > minimumPDeNovo) && (kidAdRatio > minDepthRatio))
+                Some("LOW_indel")
+              else None
+            } else {
+              if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
+                ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
+                ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10))
+              )
+                Some("HIGH_SNV")
+              else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
+                ((pTrueDeNovo > 0.5) && (kidAdRatio > minDepthRatio) && (nAltAlleles == 1))
+              )
+                Some("MEDIUM_SNV")
+              else if ((pTrueDeNovo > minimumPDeNovo) && (kidAdRatio > minDepthRatio))
+                Some("LOW_SNV")
+              else None
             }
-            Annotation.fromSeq(fullRow)
+
+            genotypeAnnotation.map { str =>
+
+              val defaults: Array[Annotation] = Array(
+                v,
+                triosBc.value(i).kid,
+                triosBc.value(i).dad,
+                triosBc.value(i).mom,
+                triosBc.value(i).sex.map(s => s == Sex.Female).orNull,
+                triosBc.value(i).pheno.map(p => p == Phenotype.Case).orNull,
+                str,
+                kid.toGenotype,
+                dad.toGenotype,
+                mom.toGenotype,
+                dpRatio,
+                pTrueDeNovo)
+
+              val fullRow = additionalOutput match {
+                case Some((ec, _, fs)) =>
+                  val t = triosBc.value(i)
+                  val kidId = t.kid
+                  val dadId = t.dad
+                  val momId = t.mom
+
+                  val (kidIndex, dadIndex, momIndex) = trioIndexBc.value(i)
+
+                  ec.set(0, v)
+                  ec.set(1, va)
+                  ec.set(2, localGlobal)
+                  ec.set(3, Annotation(arr(i, 0), localAnnotationsBc.value(kidIndex)))
+                  ec.set(4, Annotation(arr(i, 1), localAnnotationsBc.value(dadIndex)))
+                  ec.set(5, Annotation(arr(i, 2), localAnnotationsBc.value(momIndex)))
+
+                  val results = fs()
+                  val combined = defaults ++ results
+                  assert(combined.length == nFields)
+                  combined
+                case None => defaults
+              }
+              Annotation.fromSeq(fullRow)
+            }
           }
-        }
+        }.iterator
       }
     }.cache()
 
