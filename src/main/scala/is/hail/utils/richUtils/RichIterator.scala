@@ -30,7 +30,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def pipe(pb: ProcessBuilder,
     printHeader: (String => Unit) => Unit,
     printElement: (String => Unit, T) => Unit,
-    printFooter: (String => Unit) => Unit): Iterator[String] = {
+    printFooter: (String => Unit) => Unit): (Iterator[String], Process) = {
 
     val command = pb.command().asScala.mkString(" ")
 
@@ -58,7 +58,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     }.start()
 
     // Return an iterator that read lines from the process's stdout
-    Source.fromInputStream(proc.getInputStream).getLines()
+    (Source.fromInputStream(proc.getInputStream).getLines(), proc)
   }
 
 }
