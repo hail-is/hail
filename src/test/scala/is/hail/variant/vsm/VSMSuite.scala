@@ -390,8 +390,8 @@ class VSMSuite extends SparkSuite {
     forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.key = pcoin(0.5)")
 
-      val kt = KeyTable(hc, sc.parallelize(Array((Annotation(true), Annotation(1)), (Annotation(false), Annotation(2)))),
-        TStruct(("key", TBoolean)), TStruct(("value", TInt)))
+      val kt = KeyTable(hc, sc.parallelize(Array(Annotation(true, 1), Annotation(false, 2))),
+        TStruct(("key", TBoolean), ("value", TInt)), Array("key"))
 
       val resultVds = vds2.annotateVariantsKeyTable(kt, Seq("va.key"), "va.foo = table.value")
       val result = resultVds.rdd.collect()
@@ -419,16 +419,16 @@ class VSMSuite extends SparkSuite {
           if (b) 1 else 2
         else if (b) 3 else 4
 
-      def makeAnnotationPair(a: Boolean, b: Boolean): (Annotation, Annotation) =
-        (Annotation(a, b), Annotation(f(a, b)))
+      def makeAnnotation(a: Boolean, b: Boolean): Annotation =
+        Annotation(a, b, f(a, b))
 
       val mapping = sc.parallelize(Array(
-        makeAnnotationPair(true, true),
-        makeAnnotationPair(true, false),
-        makeAnnotationPair(false, true),
-        makeAnnotationPair(false, false)))
+        makeAnnotation(true, true),
+        makeAnnotation(true, false),
+        makeAnnotation(false, true),
+        makeAnnotation(false, false)))
 
-      val kt = KeyTable(hc, mapping, TStruct(("key1", TBoolean), ("key2", TBoolean)), TStruct(("value", TInt)))
+      val kt = KeyTable(hc, mapping, TStruct(("key1", TBoolean), ("key2", TBoolean), ("value", TInt)), Array("key1", "key2"))
 
       val resultVds = vds2.annotateVariantsKeyTable(kt, Seq("va.key1", "va.key2"), "va.foo = table.value")
       val result = resultVds.rdd.collect()

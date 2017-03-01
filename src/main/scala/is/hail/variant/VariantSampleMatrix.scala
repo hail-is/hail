@@ -165,11 +165,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyExpr, keyEC)
     val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggExpr, ec)
 
-    val keySignature = TStruct((keyNames, keyTypes).zipped.map { case (n, t) => (n, t) }: _*)
-    val valueSignature = TStruct((aggNames, aggTypes).zipped.map { case (n, t) => (n, t) }: _*)
+    val signature = TStruct((keyNames ++ aggNames, keyTypes ++ aggTypes).zipped.toSeq: _*)
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
-      KeyTable.setEvalContext(ec, a, 6)
+      ec.setAll(a.asInstanceOf[Row].toSeq: _*)
     })
 
     val localGlobalAnnotation = globalAnnotation
@@ -183,10 +182,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
-        (k, Annotation.fromSeq(aggF()))
+        Annotation.fromSeq(k.asInstanceOf[Row].toSeq ++ aggF())
       }
 
-    KeyTable(hc, ktRDD, keySignature, valueSignature)
+    KeyTable(hc, ktRDD, signature, keyNames)
   }
 
   def aggregateBySample[U](zeroValue: U)(
@@ -652,10 +651,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def annotateVariantsKeyTable(kt: KeyTable, code: String): VariantSampleMatrix[T] = {
-    val ktKeyTypes = kt.keySignature.fields.map(_.typ)
+    val ktKeyTypes = kt.keyFields.map(_.typ)
 
-    if (ktKeyTypes.size != 1 || ktKeyTypes(0) != TVariant)
-      fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${ kt.keySignature }'")
+    if (ktKeyTypes.length != 1 || ktKeyTypes(0) != TVariant)
+      fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${ ktKeyTypes.mkString(", ") }'")
 
     val ktSig = kt.signature
 
@@ -664,7 +663,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (finalType, inserter) =
       buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val keyedRDD = kt.rdd.map { case (k: Row, v) => (k(0).asInstanceOf[Variant], kt.mergeKeyAndValue(k, v)) }
+    val keyedRDD = kt.keyedRDD().map { case (k: Row, a) => (k(0).asInstanceOf[Variant], a) }
 
     val ordRdd = OrderedRDD(keyedRDD, None, None)
 
@@ -679,9 +678,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, vdsKeyEc)).unzip
 
-    val keyTypes = kt.keySignature.fields.map(_.typ)
-    if (keyTypes != vdsKeyType)
-      fatal(s"Key signature of KeyTable, `$keyTypes', must match type of computed key, `$vdsKeyType'.")
+    val keyTypes = kt.keyFields.map(_.typ)
+    if (!(keyTypes sameElements vdsKeyType))
+      fatal(s"Key signature of KeyTable, `${ keyTypes.mkString(", ") }', must match type of computed key, `${ vdsKeyType.mkString(", ") }'.")
 
     val ktSig = kt.signature
 
@@ -690,7 +689,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (finalType, inserter) =
       buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val ktRdd = kt.rdd.map { case (k, v) => (k, kt.mergeKeyAndValue(k, v)) }
+    val ktRdd = kt.keyedRDD()
 
     val thisRdd = rdd.map { case (v, (va, gs)) =>
       vdsKeyEc.setAll(v, va)
@@ -974,7 +973,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
-    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
 
