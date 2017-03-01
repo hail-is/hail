@@ -269,7 +269,7 @@ object VEP {
           .map { case (v, _) => v }
           .grouped(localBlockSize)
           .flatMap { block =>
-            val jt = block.iterator.pipe(pb,
+            val (jt, proc) = block.iterator.pipe(pb,
               printContext,
               printElement,
               _ => ())
@@ -286,9 +286,15 @@ object VEP {
                 val v = variantFromInput(inputQuery(a).asInstanceOf[String])
                 (v, a)
               }
-
-            kt.toArray
+            
+            val r = kt.toArray
               .sortBy(_._1)
+
+            val rc = proc.waitFor()
+            if (rc != 0)
+              fatal(s"vep command failed with non-zero exit status $rc")
+
+            r
           }
       }, preservesPartitioning = true)
       .persist(StorageLevel.MEMORY_AND_DISK)
