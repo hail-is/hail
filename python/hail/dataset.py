@@ -2015,6 +2015,20 @@ class VariantDataset(object):
 
     @handle_py4j
     def ibd_prune(self, threshold, computeMafExpr = None, bounded = True):
+        """
+        Prune dataset based on PI_HAT values of IBD computation.
+
+        **Examples**
+
+        Prune down to dataset such that no two samples have a PI_HAT value greater than or equal to .4
+
+        >>> vds.ibd_prune(.4)
+
+        :param threshold: The minimum PI_HAT value between samples that will be present in the pruned dataset.
+        :param computeMafExpr:
+        :param bounded: Forces the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically meaningful values (in therange [0,1]).
+        :return:
+        """
         return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(computeMafExpr), bounded))
 
 

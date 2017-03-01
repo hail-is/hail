@@ -10,10 +10,6 @@ import scala.reflect.ClassTag
 object MaximalIndependentSet {
 
   def apply[VD: ClassTag, ED: ClassTag](g: Graph[VD, ED], undirected: Boolean = false): Set[Long] = {
-    // Initially set each vertex to its own degree.
-    // Start a pregel run, everyone passing a (degree, ID) pair.
-    //  -On message reception, if current degree is greater than received degree, update status to to reflect this, alert neighbors
-    //  -If current degree < received degree, status does not change, don't bother sending alert.
 
     type Message = (Int, VertexId)
     val pairOrd = implicitly[Ordering[Message]]
@@ -45,13 +41,11 @@ object MaximalIndependentSet {
     var graph2: Graph[Message, ED] = null
     val edgeDirection = if (undirected) EdgeDirection.Either else EdgeDirection.Out
 
-    var i = 0
-    while(graph1.numEdges > 0 && i < 100) {
+    while(graph1.numEdges > 0) {
       if (graph2 != null) {
         graph2.unpersist()
       }
-      i += 1
-      info(s"$i: ${graph1.numVertices}")
+
       val pregelGraph = graph1.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
       val idSet = pregelGraph.vertices
         .filter(tuple => tuple match {case (id, value) => value match  {case (maxDegrees, maxID) => maxID == id && maxDegrees != 0}})
@@ -72,14 +66,7 @@ object MaximalIndependentSet {
   def ofIBDMatrix(inputRDD: RDD[((Int, Int), Double)], thresh: Double, vertexIDs: Seq[Int]): Set[Long] = {
     val sc = inputRDD.sparkContext
 
-    //Filter RDD to keep edges above threshold
     val filteredRDD = inputRDD.filter(_._2 >= thresh)
-
-    //Throw away weights
-    val vertexPairs = inputRDD.keys
-
-    //Collect all vertices.
-    //val allVertices: RDD[Int] = vertexPairs.flatMap[Int]{case (v1, v2) => List(v1, v2)}.distinct()
 
     val edges: RDD[Edge[Double]] = filteredRDD.map{case((v1, v2), weight) => Edge(v1, v2, weight)}
 

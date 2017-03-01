@@ -262,6 +262,7 @@ object IBD {
       .map { case ((i, j), ibd) => ((sampleIds(i), sampleIds(j)), ibd) }
   }
 
+
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString), ("j", TString)).merge(ExtendedIBDInfo.signature)
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((String, String), ExtendedIBDInfo)]): KeyTable = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation) }
@@ -282,7 +283,6 @@ object IBD {
 
       if (maf < 0.0 || maf > 1.0)
         fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
-
       maf
     }
   }
@@ -299,7 +299,7 @@ object IBDPrune {
 
     val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
       .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
-    info("MIS Reached")
+
     val setToKeep: Set[String] = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size)
       .map(id =>sampleIDs(id.toInt))
 
