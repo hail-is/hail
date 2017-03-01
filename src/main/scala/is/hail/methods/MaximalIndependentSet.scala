@@ -56,15 +56,11 @@ object MaximalIndependentSet {
       val idSet = pregelGraph.vertices
         .filter(tuple => tuple match {case (id, value) => value match  {case (maxDegrees, maxID) => maxID == id && maxDegrees != 0}})
         .map(_._1).collect().toSet
-      //newGraph = newGraph.subgraph(_ => true, (id, value) => value match { case (maxDegrees, maxID) => maxID != id || maxDegrees == 0})
       var newGraph = graph1.subgraph(_ => true, (id, value) => !idSet.contains(id))
       newGraph = updateVertexDegrees(newGraph)
       graph2 = graph1
       graph1 = newGraph
       graph1 = graph1.persist()
-      graph1.vertices.count()
-      graph1.edges.count()
-      graph1.triplets
     }
     if (graph2 != null) {
       graph2.unpersist()
