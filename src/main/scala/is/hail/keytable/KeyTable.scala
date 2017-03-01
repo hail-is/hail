@@ -138,8 +138,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     val inserters = inserterBuilder.result()
 
-    val nFieldsLocal = nFields
-
     val annotF: Annotation => Annotation = { a =>
       ec.setAll(a.asInstanceOf[Row].toSeq: _*)
 
@@ -292,12 +290,12 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     }
   }
 
-  def export(sc: SparkContext, output: String, typesFile: String) {
-    val hConf = sc.hadoopConfiguration
+  def export(output: String, typesFile: Boolean = false) {
+    val hConf = hc.hadoopConf
     hConf.delete(output, recursive = true)
 
     Option(typesFile).foreach { file =>
-      exportTypes(file, hConf, fields.map(f => (f.name, f.typ)))
+      exportTypes(output + ".types", hConf, fields.map(f => (f.name, f.typ)))
     }
 
     val localTypes = fields.map(_.typ)
@@ -307,7 +305,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
       it.map { a =>
         sb.clear()
-        val r = a.asInstanceOf[Row].toSeq
+        val r = a.asInstanceOf[Row]
 
         localTypes.indices.foreachBetween { i =>
           sb.append(localTypes(i).str(r(i)))

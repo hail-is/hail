@@ -31,22 +31,21 @@ object DeNovo {
 
   val dpCutoff = .10
 
-  def validGt(g: Genotype): Boolean = g.pl.isDefined && g.ad.isDefined && g.gq.isDefined && g.dp.isDefined
-
-  def validParent(g: Genotype): Boolean = g.isHomRef && validGt(g)
-
-  def validProband(g: Genotype): Boolean = g.isHet && validGt(g)
-
   val HEADER = Array("Chr", "Pos", "Ref", "Alt", "Proband_ID", "Father_ID",
     "Mother_ID", "Proband_Sex", "Proband_AffectedStatus", "Validation_likelihood", "Proband_PL_AA",
     "Father_PL_AB", "Mother_PL_AB", "Proband_AD_Ratio", "Father_AD_Ratio",
     "Mother_AD_Ratio", "DP_Proband", "DP_Father", "DP_Mother", "DP_Ratio",
     "P_de_novo")
 
-  def call(vds: VariantDataset, famFile: String, referenceAFExpr: String, extraFieldsExpr: String): KeyTable = {
+  def call(vds: VariantDataset, famFile: String,
+    referenceAFExpr: String,
+    extraFieldsExpr: String,
+    plThreshold: Int = 20,
+    minimumPDeNovo: Double = 0.05,
+    maxParentAB: Double = 0.05,
+    minChildAB: Double = 0.20,
+    minDepthRatio: Double = 0.10): KeyTable = {
     require(vds.wasSplit)
-
-    val sc = vds.sparkContext
 
     val ped = Pedigree.read(famFile, vds.hadoopConf, vds.sampleIds)
 
@@ -95,8 +94,8 @@ object DeNovo {
 
     val idMapping = vds.sampleIds.zipWithIndex.toMap
 
+    val sc = vds.sparkContext
     val trioIndexBc = sc.broadcast(trios.map(t => (idMapping(t.kid), idMapping(t.dad), idMapping(t.mom))))
-
     val sampleTrioRolesBc = sc.broadcast(vds.sampleIds.map(sampleTrioRoles).toArray)
     val triosBc = sc.broadcast(trios)
     val trioSexBc = sc.broadcast(trios.map(_.sex.get))
@@ -183,10 +182,10 @@ object DeNovo {
             )
               Some("HIGH_SNV")
             else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
-              ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.2) && (nAltAlleles == 1))
+              ((pTrueDeNovo > 0.5) && (kidAdRatio > minDepthRatio) && (nAltAlleles == 1))
             )
               Some("MEDIUM_SNV")
-            else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.2))
+            else if ((pTrueDeNovo > minimumPDeNovo) && (kidAdRatio > minDepthRatio))
               Some("LOW_SNV")
             else None
           }
@@ -235,7 +234,6 @@ object DeNovo {
       }
     }.cache()
 
-    KeyTable(vds.hc, rdd, schema)
-    ???
+    KeyTable(vds.hc, rdd, schema, Array.empty)
   }
 }
