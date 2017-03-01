@@ -275,7 +275,7 @@ object VEP {
               _ => ())
 
             val kt = if (csq)
-              jt.filter(s => s.isEmpty || s(0) == '#')
+              jt.filter(s => !s.isEmpty && s(0) != '#')
                 .map { s =>
                   val x = csq_regex.findFirstIn(s).get
                   (variantFromInput(s), x.substring(4))
