@@ -148,4 +148,9 @@ class IBDSuite extends SparkSuite {
       (x: ExtendedIBDInfo, y: ExtendedIBDInfo) => AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y)))
   }
 
+  @Test def ibdSchemaCorrect() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val us = IBD.toKeyTable(vds.hc, IBD(vds)).typeCheck()
+  }
+
 }
