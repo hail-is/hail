@@ -46,7 +46,7 @@ object MaximalIndependentSet {
     while (hasEdges) {
       val filteredGraph = updateVertexDegrees(originalGraph.subgraph(_ => true, (id, value) => !idSetToDelete.contains(id)))
       filteredGraph.persist()
-      println(s"Remaining edges: ${filteredGraph.numEdges} Remaining vertices: ${filteredGraph.numVertices}")
+      
       if(filteredGraph.numEdges == 0) {
         hasEdges = false
       }
