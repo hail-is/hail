@@ -609,10 +609,6 @@ def process_autosome_variant(line, Fam, PL_pos, AD_pos, DP_pos, args,
         if not entry.startswith(('0/1', '1/0')):
             continue
 
-        # if (labels[column] == 'FIpEHPEo3' and line[1] == "486"):
-        #     print 'HERE! %s' % entry
-
-
         # If a het site has been found, check if the het is a child
         if am_kid[column - 9] == 'N':
             continue
@@ -627,18 +623,11 @@ def process_autosome_variant(line, Fam, PL_pos, AD_pos, DP_pos, args,
         else:
             (child_PL, child_AD_ratio) = child_data
 
-        # if (labels[column] == 'FIpEHPEo3' and line[1] == "486"):
-        #     print "passed childh cuts"
-
         # Check that the parents are both homozygous reference
         if not line[dad_pos].startswith('0/0'):
             continue
         if not line[mom_pos].startswith('0/0'):
             continue
-
-        # if (labels[column] == 'FIpEHPEo3' and line[1] == "486"):
-        #     print "passed parent startswith"
-
 
         dad_record = line[dad_pos].split(':')
         mom_record = line[mom_pos].split(':')
@@ -648,21 +637,12 @@ def process_autosome_variant(line, Fam, PL_pos, AD_pos, DP_pos, args,
         dad_AD_info = dad_record[AD_pos]
         mom_AD_info = mom_record[AD_pos]
 
-        if (labels[column] == 'TrqFpuadpo' and line[1] == "497"):
-            print(dad_record, mom_record)
-            print(dad_AD_info, mom_AD_info)
-            print("max ab ratio: %f" % args.maxparentAB)
-
         # Make sure that both parent genotypes pass AD and DP filters
         parent_AD_ratios = parent_AD_cuts(dad_AD_info, mom_AD_info, args)
         if parent_AD_ratios is None:
             continue
         else:
             (dad_AD_ratio, mom_AD_ratio) = parent_AD_ratios
-
-        if (labels[column] == 'FIpEHPEo3' and line[1] == "486"):
-            print 'PASSED AD CHECK' % entry
-
 
         child_dp = entry.split(':')[DP_pos]
 
@@ -709,9 +689,6 @@ def process_autosome_variant(line, Fam, PL_pos, AD_pos, DP_pos, args,
                                                     variant_annotation,
                                                     prob_true_dn, dp_ratio,
                                                     child_dp)
-
-        # if (labels[column] == 'FIpEHPEo3'):
-        #     print 'HERE! %f' % qual_flag
 
         if args.annotatevar:
             (var_gene, var_category) = snpeff_annotate(variant_annotation)

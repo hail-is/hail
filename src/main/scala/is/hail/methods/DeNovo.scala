@@ -21,21 +21,70 @@ object DeNovo {
     "Proband_gt" -> TGenotype,
     "Mother_gt" -> TGenotype,
     "Father_gt" -> TGenotype,
-    "DP_Ratio" -> TDouble,
     "P_de_novo" -> TDouble)
 
 
-  val PRIOR = 1.0 / 30000000
+  private val PRIOR = 1.0 / 30000000
 
-  val MIN_PRIOR = 100.0 / 30000000
+  private val MIN_PRIOR = 100.0 / 30000000
 
-  val dpCutoff = .10
+  def callAutosomal(kid: CompleteGenotype, dad: CompleteGenotype, mom: CompleteGenotype, isSNP: Boolean,
+    prior: Double, minPDeNovo: Double, nAltAlleles: Int, minDpRatio: Double): Option[(String, Double)] = {
 
-  val HEADER = Array("Chr", "Pos", "Ref", "Alt", "Proband_ID", "Father_ID",
-    "Mother_ID", "Proband_Sex", "Proband_AffectedStatus", "Validation_likelihood", "Proband_PL_AA",
-    "Father_PL_AB", "Mother_PL_AB", "Proband_AD_Ratio", "Father_AD_Ratio",
-    "Mother_AD_Ratio", "DP_Proband", "DP_Father", "DP_Mother", "DP_Ratio",
-    "P_de_novo")
+    val kidP = kid.pl.map(x => math.pow(10, -x / 10d))
+    val dadP = dad.pl.map(x => math.pow(10, -x / 10d))
+    val momP = mom.pl.map(x => math.pow(10, -x / 10d))
+
+    val kidSum = kidP.sum
+    val dadSum = dadP.sum
+    val momSum = momP.sum
+
+    (0 until 3).foreach { i =>
+      kidP(i) = kidP(i) / kidSum
+      dadP(i) = dadP(i) / dadSum
+      momP(i) = momP(i) / momSum
+    }
+
+    val pDeNovoData = dadP(0) * momP(0) * kidP(1) * PRIOR
+
+    val pDataOneHet = (dadP(1) * momP(0) + dadP(0) * momP(1)) * kidP(1)
+    val pOneParentHet = 1 - math.pow(1 - prior, 4)
+    val pMissedHetInParent = pDataOneHet * pOneParentHet
+
+    val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMissedHetInParent)
+
+    val kidAdRatio = kid.ad(1).toDouble / (kid.ad(0) + kid.ad(1))
+
+    val kidDp = kid.dp
+    val dpRatio = kidDp.toDouble / (mom.dp + dad.dp)
+
+    // Below is the core calling algorithm
+    if (pTrueDeNovo < minPDeNovo)
+      None
+    else if (!isSNP) {
+      if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
+        Some("HIGH_indel", pTrueDeNovo)
+      else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
+        Some("MEDIUM_indel", pTrueDeNovo)
+      else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
+        Some("LOW_indel", pTrueDeNovo)
+      else None
+    } else {
+      if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
+        ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
+        ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10))
+      )
+        Some("HIGH_SNV", pTrueDeNovo)
+      else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
+        ((pTrueDeNovo > 0.5) && (kidAdRatio > minDpRatio) && (nAltAlleles == 1))
+      )
+        Some("MEDIUM_SNV", pTrueDeNovo)
+      else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
+        Some("LOW_SNV", pTrueDeNovo)
+      else None
+    }
+  }
+
 
   def call(vds: VariantDataset, famFile: String,
     referenceAFExpr: String,
@@ -150,14 +199,14 @@ object DeNovo {
           val kid = arr(i, 0)
           val dad = arr(i, 1)
           val mom = arr(i, 2)
-//          if (kid != null && kid.gt == 1 &&
-//          dad != null && dad.gt == 0 &&
-//          mom != null && mom.gt == 0)
-//            println(s"right genotypes: $kid / $dad / $mom")
+          //          if (kid != null && kid.gt == 1 &&
+          //          dad != null && dad.gt == 0 &&
+          //          mom != null && mom.gt == 0)
+          //            println(s"right genotypes: $kid / $dad / $mom")
 
-//          if (kid == "FIpEHPEo3" && v.start == 486)
-//            println(dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) > maxParentAB,
-//              mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) > maxParentAB)
+          //          if (kid == "FIpEHPEo3" && v.start == 486)
+          //            println(dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) > maxParentAB,
+          //              mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) > maxParentAB)
 
           if (kid == null || kid.gt != 1 ||
             dad == null || dad.gt != 0 ||
@@ -173,66 +222,10 @@ object DeNovo {
             None
           else {
 
-//            println(s"found candidate: ${ kid } / $dad / $mom")
-            //            // fixme precomputed
-            //
-            //            if (v.start == 171493)
-            //              println(s"at variant $v, vcfFreq = ${computedFrequency}, espFreq = ${popFrequency}")
+            val annotation = callAutosomal(kid, dad, mom, v.altAllele.isSNP, frequency,
+              minimumPDeNovo, nAltAlleles, minDepthRatio)
 
-            val kidP = kid.pl.map(x => math.pow(10, -x / 10d))
-            val dadP = dad.pl.map(x => math.pow(10, -x / 10d))
-            val momP = mom.pl.map(x => math.pow(10, -x / 10d))
-
-            val kidSum = kidP.sum
-            val dadSum = dadP.sum
-            val momSum = momP.sum
-
-            (0 until 3).foreach { i =>
-              kidP(i) = kidP(i) / kidSum
-              dadP(i) = dadP(i) / dadSum
-              momP(i) = momP(i) / momSum
-            }
-
-            val pDeNovoData = dadP(0) * momP(0) * kidP(1) * PRIOR
-
-            val pDataOneHet = (dadP(1) * momP(0) + dadP(0) * momP(1)) * kidP(1)
-            val pOneParentHet = 1 - math.pow(1 - frequency, 4)
-            val pMissedHetInParent = pDataOneHet * pOneParentHet
-
-            val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMissedHetInParent)
-
-            val kidAdRatio = kid.ad(1).toDouble / (kid.ad(0) + kid.ad(1))
-
-            val kidDp = kid.dp
-            val dpRatio = kidDp.toDouble / (mom.dp + dad.dp)
-
-            // Below is the core calling algorithm
-            val genotypeAnnotation = if (pTrueDeNovo < minimumPDeNovo)
-              None
-            else if (v.altAllele.isIndel) {
-              if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
-                Some("HIGH_indel")
-              else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
-                Some("MEDIUM_indel")
-              else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-                Some("LOW_indel")
-              else None
-            } else {
-              if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
-                ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
-                ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10))
-              )
-                Some("HIGH_SNV")
-              else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
-                ((pTrueDeNovo > 0.5) && (kidAdRatio > minDepthRatio) && (nAltAlleles == 1))
-              )
-                Some("MEDIUM_SNV")
-              else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-                Some("LOW_SNV")
-              else None
-            }
-
-            genotypeAnnotation.map { str =>
+            annotation.map { case (str, p) =>
 
               val defaults: Array[Annotation] = Array(
                 v,
@@ -245,8 +238,7 @@ object DeNovo {
                 kid.toGenotype,
                 dad.toGenotype,
                 mom.toGenotype,
-                dpRatio,
-                pTrueDeNovo)
+                p)
 
               val fullRow = additionalOutput match {
                 case Some((ec, _, fs)) =>
