@@ -683,7 +683,7 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
       tc <- thenTree.compile();
       ec <- elseTree.compile();
       cc <- cond.compile();
-      result <- cc.mapNullM((cc: Code[AnyRef]) =>
+      result <- cc.asInstanceOf[Code[java.lang.Boolean]].mapNullM((cc: Code[java.lang.Boolean]) =>
         coerce(cc.invoke[Boolean]("booleanValue").mux(tc, ec)))
     ) yield result
   }

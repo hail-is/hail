@@ -410,7 +410,7 @@ case class TAggregable(elementType: Type) extends TContainer {
 
   override def desc: String = TAggregable.desc
 
-  override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregable is not realizable")
+  override def scalaClassTag: ClassTag[_ <: AnyRef] = elementType.scalaClassTag
 }
 
 abstract class TContainer extends Type {
