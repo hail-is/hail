@@ -553,16 +553,4 @@ class CodeObject[T >: Null](val lhs: Code[T])(implicit tct: ClassTag[T], tti: Ty
     result <- cnonnullcase(x)
   ) yield Code(stx,
     x.ifNull[U](Code._null[U], result))
-
-  // def mapNull[U >: Null](cnonnullcase: Code[T] => Code[U]): Code[U] =
-  //   new Code[U] {
-  //     def emit(il: Growable[AbstractInsnNode]): Unit = {
-  //       val lnull = new LabelNode
-  //       lhs.emit(il)
-  //       il += new InsnNode(DUP)
-  //       il += new JumpInsnNode(IFNULL, lnull)
-  //       cnonnullcase(Code.empty[T]).emit(il)
-  //       il += lnull
-  //     }
-  //   }
 }
