@@ -46,16 +46,16 @@ AltAllele
 
 **Variable Name:** ``v.altAlleles[idx]`` or ``v.altAllele`` (biallelic)
 
-- **<altAllele>.ref** (*String*) -- Reference allele sequence
-- **<altAllele>.alt** (*String*)  -- alternate allele sequence
-- **<altAllele>.isSNP** (*Boolean*) -- true if both ``v.ref`` and ``v.alt`` are single bases
-- **<altAllele>.isMNP** (*Boolean*) -- true if ``v.ref`` and ``v.alt`` are the same (>1) length
-- **<altAllele>.isIndel** (*Boolean*) -- true if ``v.ref`` and ``v.alt`` are not the same length
-- **<altAllele>.isInsertion** (*Boolean*) -- true if ``v.ref`` is shorter than ``v.alt``
-- **<altAllele>.isDeletion** (*Boolean*) -- true if ``v.ref`` is longer than ``v.alt``
-- **<altAllele>.isComplex** (*Boolean*) -- true if ``v`` is not an indel, but ``v.ref`` and ``v.alt`` length do not match
-- **<altAllele>.isTransition** (*Boolean*) -- true if the polymorphism is a purine-purine or pyrimidine-pyrimidine switch
-- **<altAllele>.isTransversion** (*Boolean*) -- true if the polymorphism is a purine-pyrimidine flip
+- **<altAllele>.ref** (*String*) -- reference allele base sequence
+- **<altAllele>.alt** (*String*)  -- alternate allele base sequence
+- **<altAllele>.isSNP** (*Boolean*) -- true if ``v.ref`` and ``v.alt`` are the same length and differ in one position
+- **<altAllele>.isMNP** (*Boolean*) -- true if ``v.ref`` and ``v.alt`` are the same length and differ in more than one position
+- **<altAllele>.isIndel** (*Boolean*) -- true if an insertion or a deletion
+- **<altAllele>.isInsertion** (*Boolean*) -- true if ``v.alt`` begins with and is longer than ``v.ref``
+- **<altAllele>.isDeletion** (*Boolean*) -- true if ``v.ref`` begins with and is longer than ``v.alt``
+- **<altAllele>.isComplex** (*Boolean*) -- true if not a SNP, MNP, or indel
+- **<altAllele>.isTransition** (*Boolean*) -- true if a purine-purine or pyrimidine-pyrimidine SNP
+- **<altAllele>.isTransversion** (*Boolean*) -- true if a purine-pyrimidine SNP
 
 .. _locus:
 
