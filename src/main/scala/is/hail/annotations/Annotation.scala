@@ -15,6 +15,8 @@ object Annotation {
 
   final val GLOBAL_HEAD = "global"
 
+  final val GENOTYPE_HEAD = "g"
+
   def empty: Annotation = null
 
   def emptyIndexedSeq(n: Int): IndexedSeq[Annotation] = Array.fill[Annotation](n)(Annotation.empty)
