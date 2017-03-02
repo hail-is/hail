@@ -1,7 +1,7 @@
 package is.hail.vds
 
 import is.hail.SparkSuite
-import is.hail.expr.TLong
+import is.hail.expr.TInt
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
@@ -48,7 +48,7 @@ class AggregateByKeySuite extends SparkSuite {
     var vds = hc.importVCF(inputVCF)
       .annotateVariantsExpr("va.nHet = gs.filter(g => g.isHet).count().toInt")
 
-    vds = vds.annotateGlobal(vds.queryVariants("variants.map(v => va.nHet).sum()")._1, TLong, "global.nHet")
+    vds = vds.annotateGlobal(vds.queryVariants("variants.map(v => va.nHet).sum()")._1, TInt, "global.nHet")
     val kt = vds.aggregateByKey("", "nHet = g.map(g => g.isHet.toInt).sum()")
 
     val (_, ktHetQuerier) = kt.queryRow("nHet")
