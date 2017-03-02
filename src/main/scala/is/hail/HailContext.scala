@@ -7,7 +7,7 @@ import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.gen.{GenLoader, GenReport}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
-import is.hail.io.vcf.{LoadVCF, VCFReport}
+import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
 import is.hail.methods.DuplicateReport
 import is.hail.misc.SeqrServer
@@ -497,18 +497,45 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val vds = LoadVCF(this,
-      header,
-      inputs,
-      storeGQ,
-      nPartitions,
-      sitesOnly,
-      ppAsPL,
-      skipBadAD)
+    val settings = VCFSettings(storeGQ, sitesOnly, ppAsPL, skipBadAD)
+    val reader = new GenotypeRecordReader(settings)
+    val vds = LoadVCF(this, reader, header, inputs, nPartitions, sitesOnly)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
     vds
+  }
+
+  def importVCFGeneric(file: String, force: Boolean = false,
+    forceBGZ: Boolean = false,
+    headerFile: Option[String] = None,
+    nPartitions: Option[Int] = None,
+    sitesOnly: Boolean = false): GenericDataset = {
+    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, sitesOnly)
+  }
+
+  def importVCFsGeneric(files: Seq[String], force: Boolean = false,
+    forceBGZ: Boolean = false,
+    headerFile: Option[String] = None,
+    nPartitions: Option[Int] = None,
+    sitesOnly: Boolean = false): GenericDataset = {
+
+    val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
+
+    val header = headerFile.getOrElse(inputs.head)
+
+    val codecs = sc.hadoopConfiguration.get("io.compression.codecs")
+
+    if (forceBGZ)
+      hadoopConf.set("io.compression.codecs",
+        codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
+
+    val reader = new GenericRecordReader()
+    val gds = LoadVCF(this, reader, header, inputs, nPartitions, sitesOnly)
+
+    hadoopConf.set("io.compression.codecs", codecs)
+
+    gds
   }
 
   def indexBgen(file: String) {

@@ -22,15 +22,11 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   }
 }
 
-class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializable {
+abstract class HtsjdkRecordReader[T] extends Serializable {
 
   import HtsjdkRecordReader._
 
-  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    vc: VariantContext,
-    infoSignature: Option[TStruct],
-    vcfSettings: VCFSettings): (Variant, (Annotation, Iterable[Genotype])) = {
-
+  def readVariantInfo(vc: VariantContext, infoSignature: Option[TStruct]): (Variant, Annotation) = {
     val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filters: Set[String] = {
       if (vc.filtersWereApplied && vc.isNotFiltered)
@@ -73,6 +69,29 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
       case Some(infoAnnotation) => Annotation(rsid, vc.getPhredScaledQual, filters, pass, infoAnnotation)
       case None => Annotation(rsid, vc.getPhredScaledQual, filters, pass)
     }
+
+    (v, va)
+  }
+
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+    vc: VariantContext,
+    infoSignature: Option[TStruct],
+    genotypeSignature: Type): (Variant, (Annotation, Iterable[T]))
+
+  def genericGenotypes: Boolean
+}
+
+class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordReader[Genotype] {
+  def genericGenotypes = false
+
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+    vc: VariantContext,
+    infoSignature: Option[TStruct],
+    genotypeSignature: Type): (Variant, (Annotation, Iterable[Genotype])) = {
+
+    val (v, va) = readVariantInfo(vc, infoSignature)
+
+    val nAlleles = v.nAlleles
 
     if (vcfSettings.skipGenotypes)
       return (v, (va, Iterable.empty))
@@ -222,14 +241,46 @@ class HtsjdkRecordReader(codec: htsjdk.variant.vcf.VCFCodec) extends Serializabl
   }
 }
 
+class GenericRecordReader extends HtsjdkRecordReader[Annotation] {
+  def genericGenotypes = true
+
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+    vc: VariantContext,
+    infoSignature: Option[TStruct],
+    genotypeSignature: Type): (Variant, (Annotation, Iterable[Annotation])) = {
+
+    val (v, va) = readVariantInfo(vc, infoSignature)
+
+    val gs = vc.getGenotypes.iterator.asScala.map { g =>
+      val a = Annotation(
+        genotypeSignature.asInstanceOf[TStruct].fields.map { f =>
+
+          val a = f.name match {
+            case "GT" => g.getGenotypeString
+            case _ => g.getAnyAttribute(f.name)
+          }
+
+          try {
+            HtsjdkRecordReader.cast(a, f.typ)
+          } catch {
+            case e: Exception =>
+              fatal(
+                s"""variant $v: Genotype field ${ f.name }:
+                 |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
+                 |  caught $e""".stripMargin)
+          }
+        }: _*)
+      assert(genotypeSignature.typeCheck(a))
+      a
+    }.toIterable
+
+    (v, (va, gs))
+  }
+}
+
 object HtsjdkRecordReader {
 
   val haploidNonsensePL = 1000
-
-  def apply(headerLines: Array[String], codec: htsjdk.variant.vcf.VCFCodec): HtsjdkRecordReader = {
-    codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
-    new HtsjdkRecordReader(codec)
-  }
 
   def cast(value: Any, t: Type): Any = {
     ((value, t): @unchecked) match {
@@ -249,14 +300,34 @@ object HtsjdkRecordReader {
       case (s: String, TInt) => s.toInt
       case (s: String, TDouble) => if (s == "nan") Double.NaN else s.toDouble
 
-      case (a: java.util.ArrayList[_], TArray(TInt)) =>
-        a.asScala.iterator.map(_.asInstanceOf[String].toInt).toArray: IndexedSeq[Int]
-      case (a: java.util.ArrayList[_], TArray(TDouble)) =>
-        a.asScala.iterator.map(_.asInstanceOf[String].toDouble).toArray: IndexedSeq[Double]
-      case (a: java.util.ArrayList[_], TArray(TString)) =>
-        a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
-      case (a: java.util.ArrayList[_], TArray(TChar)) =>
-        a.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
+      case (i: Int, TInt) => i
+      case (d: Double, TInt) => d.toInt
+
+      case (d: Double, TDouble) => d
+      case (f: Float, TDouble) => f.toDouble
+
+      case (f: Float, TFloat) => f
+      case (d: Double, TFloat) => d.toFloat
+
+      case (l: java.util.List[_], TArray(TInt)) =>
+        l.asScala.iterator.map {
+          case s: String => s.toInt
+          case i: Int => i
+        }.toArray: IndexedSeq[Int]
+      case (l: java.util.List[_], TArray(TDouble)) =>
+        l.asScala.iterator.map {
+          case s: String => s.toDouble
+          case i: Int => i.toDouble
+          case d: Double => d
+        }.toArray: IndexedSeq[Double]
+      case (l: java.util.List[_], TArray(TString)) =>
+        l.asScala.iterator.map {
+          case s: String => s
+          case i: Int => i.toString
+          case d: Double => d.toString
+        }.toArray[String]: IndexedSeq[String]
+      case (l: java.util.List[_], TArray(TChar)) =>
+        l.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
     }
   }
 }
