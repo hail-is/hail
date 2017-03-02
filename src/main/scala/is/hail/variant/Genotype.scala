@@ -742,7 +742,8 @@ object Genotype {
     gt
   }
 
-  def genDosage(nAlleles: Int): Gen[Genotype] = {
+  def genDosage(v: Variant): Gen[Genotype] = {
+    val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
     for (px <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
       val gt = px.flatMap(gtFromLinear)
@@ -752,7 +753,8 @@ object Genotype {
     }
   }
 
-  def genExtreme(nAlleles: Int): Gen[Genotype] = {
+  def genExtreme(v: Variant): Gen[Genotype] = {
+    val nAlleles = v.nAlleles
     val m = Int.MaxValue / (nAlleles + 1)
     val nGenotypes = triangle(nAlleles)
     for (gt: Option[Int] <- Gen.option(Gen.choose(0, nGenotypes - 1));
@@ -779,7 +781,8 @@ object Genotype {
     }
   }
 
-  def genRealistic(nAlleles: Int): Gen[Genotype] = {
+  def genRealistic(v: Variant): Gen[Genotype] = {
+    val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
     for (callRate <- Gen.choose(0d, 1d);
       alleleFrequencies <- Gen.buildableOfN[Array, Double](nAlleles, Gen.choose(1e-6, 1d)) // avoid divison by 0
@@ -809,12 +812,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v.nAlleles), genRealistic(v.nAlleles), genDosage(v.nAlleles)))
+      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosage(v)))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v.nAlleles), genRealistic(v.nAlleles), genDosage(v.nAlleles)))
+      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosage(v)))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)

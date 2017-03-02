@@ -1,6 +1,7 @@
 package is.hail.variant
 
 import is.hail.SparkSuite
+import is.hail.check.Prop._
 import is.hail.utils._
 import is.hail.expr.TGenotype
 import org.testng.annotations.Test
@@ -22,7 +23,14 @@ class GenericDatasetSuite extends SparkSuite {
       hc.read(path)
     }
 
-    val gds2 = hc.readGDS(path)
-    assert(gds same gds2)
+    assert(gds same hc.readGDS(path))
+
+    val p = forAll(VariantSampleMatrix.genGeneric(hc)) { gds =>
+      val f = tmpDir.createTempFile(extension = "vds")
+      gds.write(f)
+      hc.readGDS(f).same(gds)
+    }
+
+    p.check()
   }
 }

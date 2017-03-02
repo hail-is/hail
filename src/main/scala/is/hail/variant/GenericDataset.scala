@@ -121,7 +121,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     StructType(Array(
       StructField("variant", Variant.schema, nullable = false),
       StructField("annotations", gds.vaSignature.schema),
-      StructField("gs", ArrayType(gds.genotypeSignature.schema, containsNull = false))
+      StructField("gs", ArrayType(gds.genotypeSignature.schema))
     ))
   }
 
