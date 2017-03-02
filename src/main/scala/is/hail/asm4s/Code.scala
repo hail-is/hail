@@ -13,7 +13,7 @@ import scala.reflect.ClassTag
 object Code {
   def apply[T](insn: => AbstractInsnNode): Code[T] = new Code[T] {
     def emit(il: Growable[AbstractInsnNode]): Unit = {
-      il += (insn)
+      il += insn
     }
   }
 
@@ -70,8 +70,8 @@ object Code {
   def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
-        il += (new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass)))
-        il += (new InsnNode(DUP))
+        il += new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass))
+        il += new InsnNode(DUP)
         Invokeable.lookupConstructor[T](parameterTypes).invoke(null, args).emit(il)
       }
     }
@@ -92,7 +92,7 @@ object Code {
     new Code[Array[T]] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         size.emit(il)
-        il += (tti.newArray())
+        il += tti.newArray()
       }
     }
   }
@@ -102,13 +102,13 @@ object Code {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         val l1 = new LabelNode
         val l2 = new LabelNode
-        il += (l1)
+        il += l1
         condition.emit(il)
-        il += (new LdcInsnNode(0))
-        il += (new JumpInsnNode(IF_ICMPEQ, l2))
+        il += new LdcInsnNode(0)
+        il += new JumpInsnNode(IF_ICMPEQ, l2)
         body.emit(il)
-        il += (new JumpInsnNode(GOTO, l1))
-        il += (l2)
+        il += new JumpInsnNode(GOTO, l1)
+        il += l2
       }
     }
   }
@@ -174,8 +174,8 @@ trait Code[+T] {
         val lfalse = new LabelNode
         self.emit(il)
         rhs.emit(il)
-        il += (new JumpInsnNode(opcode, ltrue))
-        il += (new JumpInsnNode(GOTO, lfalse))
+        il += new JumpInsnNode(opcode, ltrue)
+        il += new JumpInsnNode(GOTO, lfalse)
         (ltrue, lfalse)
       }
     }
@@ -185,12 +185,12 @@ trait CodeConditional extends Code[Boolean] { self =>
   def emit(il: Growable[AbstractInsnNode]): Unit = {
     val lafter = new LabelNode
     val (ltrue, lfalse) = emitConditional(il)
-    il += (lfalse)
-    il += (new LdcInsnNode(0))
-    il += (new JumpInsnNode(GOTO, lafter))
-    il += (ltrue)
-    il += (new LdcInsnNode(1))
-    il += (lafter)
+    il += lfalse
+    il += new LdcInsnNode(0)
+    il += new JumpInsnNode(GOTO, lafter)
+    il += ltrue
+    il += new LdcInsnNode(1)
+    il += lafter
   }
 
   // returns (ltrue, lfalse)
@@ -216,8 +216,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
           val ltrue = new LabelNode
           val lfalse = new LabelNode
           lhs.emit(il)
-          il += (new JumpInsnNode(IFEQ, lfalse))
-          il += (new JumpInsnNode(GOTO, ltrue))
+          il += new JumpInsnNode(IFEQ, lfalse)
+          il += new JumpInsnNode(GOTO, ltrue)
           (ltrue, lfalse)
         }
       }
@@ -232,13 +232,13 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         val lafter = new LabelNode
         val (ltrue, lfalse) = cond.emitConditional(il)
-        il += (lfalse)
+        il += lfalse
         celse.emit(il)
-        il += (new JumpInsnNode(GOTO, lafter))
-        il += (ltrue)
+        il += new JumpInsnNode(GOTO, lafter)
+        il += ltrue
         cthen.emit(il)
         // fall through
-        il += (lafter)
+        il += lafter
       }
     }
   }
@@ -427,12 +427,12 @@ class Invokeable[T, S](val name: String,
         if (!isStatic && lhs != null)
           lhs.emit(il)
         args.foreach(_.emit(il))
-        il += (new MethodInsnNode(invokeOp,
+        il += new MethodInsnNode(invokeOp
           Type.getInternalName(tct.runtimeClass), name, descriptor, isInterface))
         if (concreteReturnType != sct.runtimeClass) {
           // if `m`'s return type is a generic type, we must use an explicit
           // cast to the expected type
-          il += (new TypeInsnNode(CHECKCAST, Type.getInternalName(sct.runtimeClass)))
+          il += new TypeInsnNode(CHECKCAST, Type.getInternalName(sct.runtimeClass))
         }
       }
     }
@@ -452,7 +452,7 @@ class LocalRef[T](i: Int)(implicit tti: TypeInfo[T]) {
   def load(): Code[T] =
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
-        il += (new IntInsnNode(tti.loadOp, i))
+        il += new IntInsnNode(tti.loadOp, i)
       }
     }
 
@@ -460,7 +460,7 @@ class LocalRef[T](i: Int)(implicit tti: TypeInfo[T]) {
     new Code[Unit] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         rhs.emit(il)
-        il += (new IntInsnNode(tti.storeOp, i))
+        il += new IntInsnNode(tti.storeOp, i)
       }
     }
 
@@ -479,7 +479,7 @@ class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic)
           lhs.emit(il)
-        il += (new FieldInsnNode(getOp,
+        il += new FieldInsnNode(getOp
           Type.getInternalName(tct.runtimeClass), f.getName, sti.name))
       }
     }
@@ -490,7 +490,7 @@ class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
         if (!isStatic)
           lhs.emit(il)
         rhs.emit(il)
-        il += (new FieldInsnNode(putOp,
+        il += new FieldInsnNode(putOp
           Type.getInternalName(tct.runtimeClass), f.getName, sti.name))
       }
     }
@@ -528,13 +528,13 @@ class CodeObject[T >: Null](val lhs: Code[T])(implicit tct: ClassTag[T], tti: Ty
         val lnull = new LabelNode
         val lafter = new LabelNode
         lhs.emit(il)
-        il += (new JumpInsnNode(IFNULL, lnull))
+        il += new JumpInsnNode(IFNULL, lnull)
         cnonnullcase.emit(il)
-        il += (new JumpInsnNode(GOTO, lafter))
-        il += (lnull)
+        il += new JumpInsnNode(GOTO, lafter)
+        il += lnull
         cnullcase.emit(il)
         // fall through
-        il += (lafter)
+        il += lafter
       }
     }
 
@@ -559,10 +559,10 @@ class CodeObject[T >: Null](val lhs: Code[T])(implicit tct: ClassTag[T], tti: Ty
   //     def emit(il: Growable[AbstractInsnNode]): Unit = {
   //       val lnull = new LabelNode
   //       lhs.emit(il)
-  //       il += (new InsnNode(DUP))
-  //       il += (new JumpInsnNode(IFNULL, lnull))
+  //       il += new InsnNode(DUP)
+  //       il += new JumpInsnNode(IFNULL, lnull)
   //       cnonnullcase(Code.empty[T]).emit(il)
-  //       il += (lnull)
+  //       il += lnull
   //     }
   //   }
 }

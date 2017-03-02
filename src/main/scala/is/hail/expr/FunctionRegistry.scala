@@ -2169,31 +2169,31 @@ object FunctionRegistry {
         val lsecond = new LabelNode
 
         left.emit(il) // L
-        il += (new InsnNode(DUP)) // L L
-        il += (new JumpInsnNode(IFNULL, lnullorfalse)) // L
-        il += (new InsnNode(DUP)) // L L
+        il += new InsnNode(DUP) // L L
+        il += new JumpInsnNode(IFNULL, lnullorfalse) // L
+        il += new InsnNode(DUP) // L L
         (Code._empty[java.lang.Boolean].invoke[Boolean]("booleanValue")).emit(il) // L Z
-        il += (new JumpInsnNode(isZero, ldone)) // L
+        il += new JumpInsnNode(isZero, ldone) // L
 
         // left = null or false
-        il += (lnullorfalse) // L
-        il += (new InsnNode(DUP)) // L L
+        il += lnullorfalse // L
+        il += new InsnNode(DUP) // L L
         right.emit(il) // L L R
-        il += (new InsnNode(SWAP)) // L R L
-        il += (new JumpInsnNode(IFNONNULL, lfirst)) // L R; stack indexing is from right to left
+        il += new InsnNode(SWAP) // L R L
+        il += new JumpInsnNode(IFNONNULL, lfirst) // L R; stack indexing is from right to left
 
         // left = null
-        il += (new InsnNode(DUP)) // L R R
-        il += (new JumpInsnNode(IFNULL, lsecond)) // L R; both are null so either one works
-        il += (new InsnNode(DUP)) // L R R
+        il += new InsnNode(DUP) // L R R
+        il += new JumpInsnNode(IFNULL, lsecond) // L R; both are null so either one works
+        il += new InsnNode(DUP) // L R R
         (Code._empty[java.lang.Boolean].invoke[Boolean]("booleanValue")).emit(il) // L R Z
-        il += (new JumpInsnNode(isNotZero, lsecond)) // L R; stack indexing is from right to left
+        il += new JumpInsnNode(isNotZero, lsecond) // L R; stack indexing is from right to left
 
-        il += (lfirst) // B A
-        il += (new InsnNode(SWAP)) // A B
-        il += (lsecond) // A B
-        il += (new InsnNode(POP)) // A
-        il += (ldone) // A
+        il += lfirst // B A
+        il += new InsnNode(SWAP) // A B
+        il += lsecond // A B
+        il += new InsnNode(POP) // A
+        il += ldone // A
       }
     }
   }

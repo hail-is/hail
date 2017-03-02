@@ -184,7 +184,7 @@ package object asm4s {
 
   implicit def toCode[T](insn: => AbstractInsnNode): Code[T] = new Code[T] {
     def emit(il: Growable[AbstractInsnNode]): Unit = {
-      il += (insn)
+      il += insn
     }
   }
 
