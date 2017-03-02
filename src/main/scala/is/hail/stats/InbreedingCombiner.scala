@@ -1,16 +1,16 @@
 package is.hail.stats
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{TDouble, TInt, TStruct}
+import is.hail.expr.{TDouble, TLong, TStruct}
 import is.hail.utils._
 import is.hail.variant.Genotype
 
 object InbreedingCombiner {
   def signature = TStruct("Fstat" -> TDouble,
-    "nTotal" -> TInt,
-    "nCalled" -> TInt,
+    "nTotal" -> TLong,
+    "nCalled" -> TLong,
     "expectedHoms" -> TDouble,
-    "observedHoms" -> TInt)
+    "observedHoms" -> TLong)
 }
 
 class InbreedingCombiner extends Serializable {

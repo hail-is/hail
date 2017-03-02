@@ -104,5 +104,9 @@ class InbreedingCoefficientSuite extends SparkSuite {
   @Test def testIbcPlinkVersion() {
     Spec.check()
   }
+
+  @Test def signatureIsCorrect() {
+    assert(InbreedingCombiner.signature.typeCheck((new InbreedingCombiner()).asAnnotation))
+  }
 }
 
