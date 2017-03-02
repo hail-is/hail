@@ -3,9 +3,14 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.expr._
+import is.hail.utils._
 import is.hail.variant.{GTPair, GenericGenotype, Genotype, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.commons.math3.distribution.{BinomialDistribution, NormalDistribution}
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
+
+import scala.io.Source
+import scala.sys.process._
 
 class DeNovoSuite extends SparkSuite {
 
@@ -81,23 +86,87 @@ class DeNovoSuite extends SparkSuite {
   }
 
   @Test def test2() {
-    val (vds, ped) = gen.resize(100000).sample()
+    //    val (vds, ped) = gen.sample()
+    //
+    //    val vds2 = vds.annotateVariantsExpr("va.callStats = gs.callStats(g => v)")
+    //      .annotateVariantsExpr("va.esp = max(va.callStats.AF[1] + runif(-0.05, 0.05), 0)")
+    //      .cache()
+    //    vds2.exportVariants("/tmp/fake_esp.txt",
+    //      "Chromosome = v.contig, Position = v.start, Ref = v.ref, Alt = v.alt, 4 = 0, 5 = 0, " +
+    //        "6 = 0, 7 = 0, 8 = 0, AC_EA = va.esp, AN_EA = 1, 11 = 0, AC_AA = 0, AN_AA = 0, 12 = 0")
+    //
+    //    println(vds2.queryVariants("variants.map(v => {v: v, va:va}).collect()"))
+    //    vds2.exportVCF("/tmp/test_realistic.vcf")
+    //    ped.write("/tmp/test.fam", hc.hadoopConf)
+    //
+    //    ped.writeSummary("/tmp/summary", hc.hadoopConf)
+    //    val kt = vds2.deNovo("/tmp/test.fam", "va.esp")
+    //
+    //    println(s"found ${ kt.nRows } de novo events")
+    //    kt.rdd.collect().foreach(println)
 
-    val vds2 = vds.annotateVariantsExpr("va.callStats = gs.callStats(g => v)")
-      .annotateVariantsExpr("va.esp = max(va.callStats.AF[1] + runif(-0.05, 0.05), 0)")
-      .cache()
-    vds2.exportVariants("/tmp/fake_esp.txt",
-      "Chromosome = v.contig, Position = v.start, Ref = v.ref, Alt = v.alt, 4 = 0, 5 = 0, " +
-        "6 = 0, 7 = 0, 8 = 0, AC_EA = va, AN_EA = 1, 11 = 0, AC_AA = 0, AN_AA = 0, 12 = 0")
+    val vcfOut = "/tmp/out.vcf"
+    val famOut = "/tmp/out.fam"
+    val espOut = "/tmp/out.esp"
+    //    val vcfOut = tmpDir.createTempFile("out", "vcf")
+    //    val famOut = tmpDir.createTempFile("out", "fam")
+    //    val espOut = tmpDir.createTempFile("out", "esp")
+    Prop.forAll(gen) { case (vds, ped) =>
+      val vds2 = vds
+        .filterVariantsExpr("v.contig == \"1\"")
+        .annotateVariantsExpr("va.callStats = gs.callStats(g => v), va.filters = [\"PASS\"].toSet")
+        .annotateVariantsExpr("va.esp = max(va.callStats.AF[1] + runif(-0.05, 0.05), 0), " +
+          "va.info.AC = va.callStats.AC[1:], va.info.AN=va.callStats.AN, va.info.AF = va.callStats.AF[1:]")
+        .cache()
+      vds2.exportVariants(espOut,
+        "Chromosome = v.contig, Position = v.start, Ref = v.ref, Alt = v.alt, 4 = 0, 5 = 0, " +
+          "6 = 0, 7 = 0, 8 = 0, AC_EA = va.esp, AN_EA = 1, 11 = 0, AC_AA = 0, AN_AA = 0, 12 = 0")
+      vds2.exportVCF(vcfOut)
+      ped.write(famOut, hc.hadoopConf)
 
-    println(vds2.queryVariants("variants.map(v => {v: v, va:va}).collect()"))
-    vds2.exportVCF("/tmp/test_realistic.vcf")
-    ped.write("/tmp/test.fam", hc.hadoopConf)
+      val vcfURI = uriPath(vcfOut)
+      val famURI = uriPath(famOut)
+      val espURI = uriPath(espOut)
+      //      println(s"VCF URI IS ${vcfURI}")
+      val callerOutputString = s"python src/test/resources/de_novo_finder_3.py $vcfURI $famURI $espURI" !!
 
-    ped.writeSummary("/tmp/summary", hc.hadoopConf)
-    val kt = vds2.deNovo("/tmp/test.fam", "va.esp")
+      println(callerOutputString)
+      val cm = callerOutputString.split("\n")
+        .iterator
+        .dropWhile(l => l.startsWith("#") || l.startsWith("Chr"))
+        .map { l =>
+          val line = l.split("\t")
+          val chr = line(0)
+          val pos = line(1).toInt
+          val ref = line(3)
+          val alt = line(4)
+          val kid = line(5)
+          val pdn = line(20).toDouble
+          val anno = line(21)
+          ((Variant(chr, pos, ref, alt), kid), (pdn, anno))
+        }.toMap
 
-    println(s"found ${kt.nRows} de novo events")
-    kt.rdd.collect().foreach(println)
+      val kt = vds2.deNovo(famOut, "va.esp")
+
+      val ktOut = kt.rdd
+        .map(_.asInstanceOf[Row])
+        .map { r =>
+          val v = r.getAs[Variant](0)
+          val kid = r.getAs[String](1)
+          val pdn = r.getAs[Double](11)
+          val anno = r.getAs[String](6)
+          ((v, kid), (pdn, anno))
+        }.collect()
+
+      ktOut.forall { case ((v, kid), (pdn, anno)) =>
+        println(v, kid, pdn, anno)
+        println(cm.get((v, kid)))
+        cm.get((v, kid)).exists { case (cPdn, cAnno) =>
+          println(D_==(cPdn, pdn) && cAnno == anno)
+          D_==(cPdn, pdn) && cAnno == anno
+        }
+      }
+    }.check()
+
   }
 }

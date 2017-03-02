@@ -150,10 +150,14 @@ object DeNovo {
           val kid = arr(i, 0)
           val dad = arr(i, 1)
           val mom = arr(i, 2)
-          if (kid != null && kid.gt == 1 &&
-          dad != null && dad.gt == 0 &&
-          mom != null && mom.gt == 0)
-            println(s"right genotypes: $kid / $dad / $mom")
+//          if (kid != null && kid.gt == 1 &&
+//          dad != null && dad.gt == 0 &&
+//          mom != null && mom.gt == 0)
+//            println(s"right genotypes: $kid / $dad / $mom")
+
+//          if (kid == "FIpEHPEo3" && v.start == 486)
+//            println(dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) > maxParentAB,
+//              mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) > maxParentAB)
 
           if (kid == null || kid.gt != 1 ||
             dad == null || dad.gt != 0 ||
@@ -163,13 +167,13 @@ object DeNovo {
             (dad.ad(0) == 0) && (dad.ad(1) == 0) ||
             (mom.ad(0) == 0) && (mom.ad(1) == 0) ||
             kid.ad(0).toDouble / (kid.ad(0) + kid.ad(1)) <= minChildAB ||
-            dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) > maxParentAB ||
-            mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) > maxParentAB ||
+            dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) >= maxParentAB ||
+            mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) >= maxParentAB ||
             kid.dp.toDouble / (mom.dp + dad.dp) < minDepthRatio)
             None
           else {
 
-            println(s"found candidate: ${ kid } / $dad / $mom")
+//            println(s"found candidate: ${ kid } / $dad / $mom")
             //            // fixme precomputed
             //
             //            if (v.start == 171493)
