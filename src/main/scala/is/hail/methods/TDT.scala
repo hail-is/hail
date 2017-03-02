@@ -88,7 +88,7 @@ object TDT {
       val arr = MultiArray2.fill(nTrio, 3)(NoCall)
       it.map { case (v, (va, gs)) =>
         if (v.isMitochondrial || v.inYNonPar)
-          (v, (inserter(va, None), gs))
+          (v, (inserter(va, null), gs))
         else {
           gs.iterator.zipWithIndex.foreach { case (g, i) =>
             sampleTrioRolesBc.value(i).foreach { case (tIdx, rIdx) =>
