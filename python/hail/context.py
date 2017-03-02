@@ -432,7 +432,7 @@ class HailContext(object):
 
     @handle_py4j
     def index_bgen(self, path):
-        """Index .bgen files.  import_bgen cannot run with these indicies.
+        """Index .bgen files.  import_bgen cannot run without these indices.
 
         :param path: .bgen files to index.
         :type path: str or list of str
