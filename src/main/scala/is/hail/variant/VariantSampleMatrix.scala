@@ -78,7 +78,7 @@ object VariantSampleMatrix {
 }
 
 case class VSMSubgen[T](
-  sampleIdGen: Gen[IndexedSeq[String]],
+  sampleIdGen: Gen[String],
   saSigGen: Gen[Type],
   vaSigGen: Gen[Type],
   globalSigGen: Gen[Type],
@@ -90,28 +90,35 @@ case class VSMSubgen[T](
   tGen: (Variant) => Gen[T],
   isDosage: Boolean = false,
   wasSplit: Boolean = false,
-  isGenericGenotype: Boolean = false) {
+  isGenericGenotype: Boolean = false,
+  nSampleOverride: Option[Int] = None,
+  nVariantOverride: Option[Int] = None) {
 
   def gen(hc: HailContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
-    for (size <- Gen.size;
-      subsizes <- Gen.partitionSize(5).resize(size / 10);
-      vaSig <- vaSigGen.resize(subsizes(0));
-      saSig <- saSigGen.resize(subsizes(1));
-      globalSig <- globalSigGen.resize(subsizes(2));
-      global <- globalGen(globalSig).resize(subsizes(3));
-      nPartitions <- Gen.choose(1, 10);
+    for {size <- Gen.size
+      subsizes <- Gen.partitionSize(5).resize(size / 10)
+      vaSig <- vaSigGen.resize(subsizes(0))
+      saSig <- saSigGen.resize(subsizes(1))
+      globalSig <- globalSigGen.resize(subsizes(2))
+      global <- globalGen(globalSig).resize(subsizes(3))
+      nPartitions <- Gen.choose(1, 10)
 
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9);
+      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9)
 
-      sampleIds <- sampleIdGen.resize(w);
-      nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
-      rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
-        for (subsubsizes <- Gen.partitionSize(3);
+      sampleIds <- nSampleOverride.map(ns => Gen.distinctBuildableOfN[Array, String](ns, sampleIdGen))
+        .getOrElse(Gen.distinctBuildableOf[Array, String](sampleIdGen).resize(w))
+      saValues <- Gen.buildableOfN[Array, Annotation](sampleIds.length, saGen(saSig)).resize(subsizes(4))
+      rows <- {
+        val g = (for (subsubsizes <- Gen.partitionSize(3);
           v <- vGen.resize(subsubsizes(0));
           va <- vaGen(vaSig).resize(subsubsizes(1));
-          ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
-          yield (v, (va, ts))).resize(l))
+          ts <- Gen.buildableOfN[Iterable, T](sampleIds.length, tGen(v.nAlleles)).resize(subsubsizes(2)))
+          yield (v, (va, ts))).resize(l)
+        nVariantOverride.map(nVariants => Gen.distinctBuildableOfN[Array, (Variant, (Annotation, Iterable[T]))](nVariants, g))
+          .getOrElse(
+            Gen.distinctBuildableOf[Array, (Variant, (Annotation, Iterable[T]))](g).resize(l))
+      }
+    }
       yield {
         VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isDosage = isDosage, isGenericGenotype = isGenericGenotype),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
@@ -120,7 +127,7 @@ case class VSMSubgen[T](
 
 object VSMSubgen {
   val random = VSMSubgen[Genotype](
-    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
+    sampleIdGen = Gen.identifier,
     saSigGen = Type.genArb,
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,
@@ -132,7 +139,7 @@ object VSMSubgen {
     tGen = Genotype.genExtreme)
 
   val plinkSafeBiallelic = random.copy(
-    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.plinkSafeIdentifier),
+    sampleIdGen = Gen.plinkSafeIdentifier,
     vGen = VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2)).gen,
     wasSplit = true)
 
@@ -992,7 +999,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
-  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
 

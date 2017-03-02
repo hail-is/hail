@@ -57,7 +57,7 @@ object Pedigree {
         .flatMap { line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
           val splitLine = line.split("\\s+") // FIXME: fails on names with spaces, will fix in PR for adding .fam to annotations by giving delimiter option
           if (splitLine.size != 6)
-            fatal(s"Require 6 fields per line in .fam, but this line has ${splitLine.size}: $line")
+            fatal(s"Require 6 fields per line in .fam, but this line has ${ splitLine.size }: $line")
           val Array(fam, kid, dad, mom, sex, pheno) = splitLine
           if (sampleSet(kid)) {
             if (readSampleSet(kid))
@@ -78,7 +78,7 @@ object Pedigree {
         }.toArray
 
       if (nSamplesDiscarded > 0)
-        warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
+        warn(s"$nSamplesDiscarded ${ plural(nSamplesDiscarded, "sample") } discarded from .fam: missing from variant data set.")
 
       new Pedigree(trios)
     }
@@ -88,7 +88,7 @@ object Pedigree {
   def nuclearFams(completeTrios: IndexedSeq[CompleteTrio]): Map[(String, String), IndexedSeq[String]] =
     completeTrios.groupBy(t => (t.dad, t.mom)).mapValues(_.map(_.kid)).force
 
-  def gen(sampleIds: IndexedSeq[String]): Gen[Pedigree] = {
+  def gen(sampleIds: IndexedSeq[String], completeTrios: Boolean = false): Gen[Pedigree] = {
     Gen.parameterized { p =>
       val rng = p.rng
       Gen.shuffle(sampleIds)
@@ -97,18 +97,20 @@ object Pedigree {
             .filter(_ => rng.nextUniform(0, 1) > 0.25)
             .map { g =>
               val r = rng.nextUniform(0, 1)
-              if (r < 0.10)
-                g.take(1)
-              if (r < 0.20)
+              if (completeTrios || r > 0.20)
+                g
+              else if (r > 0.10)
                 g.take(2)
               else
-                g
+                g.take(1)
             }
           val trios = groups.map { g =>
             val (kid, mom, dad) = (g(0),
               if (g.length >= 2) Some(g(1)) else None,
               if (g.length >= 3) Some(g(2)) else None)
-            Trio(kid, fam = None, mom = mom, dad = dad, sex = None, pheno = None)
+            Trio(kid, fam = None, mom = mom, dad = dad,
+              pheno = Some(Gen.oneOf(Phenotype.Case, Phenotype.Control).sample()),
+              sex = Some(Gen.oneOf(Sex.Female, Sex.Male).sample()))
           }
             .toArray
           new Pedigree(trios)
@@ -118,7 +120,7 @@ object Pedigree {
 
   def genWithIds(): Gen[(IndexedSeq[String], Pedigree)] = {
     for (ids <- Gen.distinctBuildableOf(Gen.identifier);
-         ped <- gen(ids))
+      ped <- gen(ids))
       yield (ids, ped)
   }
 }
@@ -157,9 +159,11 @@ class Pedigree(val trios: IndexedSeq[Trio]) {
   // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
   def write(filename: String, hConf: hadoop.conf.Configuration) {
     def sampleIdOrElse(s: Option[String]) = s.getOrElse("0")
+
     def toLine(t: Trio): String =
       t.fam.getOrElse("0") + "\t" + t.kid + "\t" + sampleIdOrElse(t.dad) + "\t" +
         sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0")
+
     val lines = trios.map(toLine)
     hConf.writeTable(filename, lines)
   }

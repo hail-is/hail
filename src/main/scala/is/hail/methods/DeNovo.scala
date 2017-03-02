@@ -81,6 +81,8 @@ object DeNovo {
     val nSamplesDiscarded = ped.trios.length - trios.length
     val nTrios = trios.size
 
+    info(s"Calling de novo events for $nTrios trios")
+
     if (nSamplesDiscarded > 0)
       warn(s"$nSamplesDiscarded ${ plural(nSamplesDiscarded, "sample") } discarded from .fam: missing from data set.")
     val sampleTrioRoles = mutable.Map.empty[String, List[(Int, Int)]]
@@ -148,6 +150,10 @@ object DeNovo {
           val kid = arr(i, 0)
           val dad = arr(i, 1)
           val mom = arr(i, 2)
+          if (kid != null && kid.gt == 1 &&
+          dad != null && dad.gt == 0 &&
+          mom != null && mom.gt == 0)
+            println(s"right genotypes: $kid / $dad / $mom")
 
           if (kid == null || kid.gt != 1 ||
             dad == null || dad.gt != 0 ||
@@ -163,7 +169,7 @@ object DeNovo {
             None
           else {
 
-            //            println(s"found candidate: ${ kid } / $dad / $mom")
+            println(s"found candidate: ${ kid } / $dad / $mom")
             //            // fixme precomputed
             //
             //            if (v.start == 171493)
