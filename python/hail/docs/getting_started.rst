@@ -125,22 +125,6 @@ Try running :py:meth:`~hail.VariantDataset.count` on *sample.filtered.vds* to se
 
 Note that during each run Hail writes a ``hail.log`` file in the current directory; this is useful to developers for debugging.
 
-Building with other versions of Spark 2
-=======================================
-
-Hail should work with other versions of Spark 2.  To build against a
-different version, such as Spark 2.1.0, modify the above
-instructions as follows:
-
- - Set the Spark version in the gradle command
-  .. code-block:: text
-      
-      $ ./gradlew -Dspark.version=2.1.0 shadowJar
-
- - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.1.0-bin-hadoop2.7*
-
- - The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
-
 Running on a CDH Spark cluster
 ==============================
 
@@ -219,6 +203,22 @@ Running in the cloud
 
 `Google <https://cloud.google.com/dataproc/>`_ and `Amazon <https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance and exceptional scalability to tens of thousands of cores without the overhead of installing and managing an on-prem cluster.
 To get started running Hail on the Google Cloud Platform, see this `forum post <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_.
+
+Building with other versions of Spark 2
+=======================================
+
+Hail should work with other versions of Spark 2.  To build against a
+different version, such as Spark 2.1.0, modify the above
+instructions as follows:
+
+ - Set the Spark version in the gradle command
+  .. code-block:: text
+
+      $ ./gradlew -Dspark.version=2.1.0 shadowJar
+
+ - ``SPARK_HOME`` should point to an installation of the desired version of Spark, such as *spark-2.1.0-bin-hadoop2.7*
+
+ - The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
 
 ---------------
 BLAS and LAPACK
