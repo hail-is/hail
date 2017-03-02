@@ -192,9 +192,7 @@ object LoadVCF {
     file1: String,
     files: Array[String] = null,
     nPartitions: Option[Int] = None,
-    skipGenotypes: Boolean = false,
-    settings: VCFSettings = null,
-    genericGenotypes: Boolean = false): LoadVCFResult[T] = {
+    skipGenotypes: Boolean = false): LoadVCFResult[T] = {
     val hConf = hc.hadoopConf
     val sc = hc.sc
     val headerLines = hConf.readFile(file1) { s =>
@@ -228,7 +226,7 @@ object LoadVCF {
     val infoSignature = headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val genotypeSignature: Type = if (genericGenotypes) headerSignature(formatHeader).getOrElse(TStruct.empty) else TGenotype
+    val genotypeSignature: Type = if (reader.genericGenotypes) headerSignature(formatHeader).getOrElse(TStruct.empty) else TGenotype
 
     val variantAnnotationSignatures = TStruct(
       Array(
@@ -303,7 +301,7 @@ object LoadVCF {
               reportAcc += VCFReport.Symbolic
               None
             } else
-              Some(reader.readRecord(codec, reportAcc, vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value, settings))
+              Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value))
           }
         }.value
         }
@@ -312,48 +310,5 @@ object LoadVCF {
     justVariants.unpersist()
 
     LoadVCFResult(rdd = rdd, sampleIds = sampleIds, vaSignature = variantAnnotationSignatures, gSignature = genotypeSignature)
-  }
-
-  def apply(hc: HailContext,
-    file1: String,
-    files: Array[String], // FIXME hack
-    storeGQ: Boolean,
-    nPartitions: Option[Int],
-    skipGenotypes: Boolean,
-    ppAsPL: Boolean,
-    skipBadAD: Boolean): VariantDataset = {
-
-    val settings = VCFSettings(storeGQ, skipGenotypes, ppAsPL, skipBadAD)
-    val reader = new GenotypeRecordReader()
-
-    val result = LoadVCF(hc, reader, file1, files, nPartitions, skipGenotypes, settings, genericGenotypes = false)
-
-    VariantSampleMatrix(hc, VariantMetadata(result.sampleIds,
-      Annotation.emptyIndexedSeq(result.sampleIds.length),
-      Annotation.empty,
-      TStruct.empty,
-      result.vaSignature,
-      TStruct.empty,
-      TGenotype,
-      isGenericGenotype = false), result.rdd)
-  }
-
-  def apply(hc: HailContext,
-    file1: String,
-    files: Array[String], // FIXME hack
-    nPartitions: Option[Int],
-    skipGenotypes: Boolean): GenericDataset = {
-
-    val reader = new GenericRecordReader()
-    val result = LoadVCF(hc, reader, file1, files, nPartitions, skipGenotypes, settings = null, genericGenotypes = true)
-
-    VariantSampleMatrix(hc, VariantMetadata(result.sampleIds,
-      Annotation.emptyIndexedSeq(result.sampleIds.length),
-      Annotation.empty,
-      TStruct.empty,
-      result.vaSignature,
-      TStruct.empty,
-      result.gSignature,
-      isGenericGenotype = true), result.rdd)
   }
 }

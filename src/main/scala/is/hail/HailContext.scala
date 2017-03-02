@@ -7,7 +7,7 @@ import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
 import is.hail.io.bgen.BgenLoader
 import is.hail.io.gen.{GenLoader, GenReport}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
-import is.hail.io.vcf.{LoadVCF, VCFReport}
+import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
 import is.hail.methods.DuplicateReport
 import is.hail.misc.SeqrServer
@@ -497,18 +497,20 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val vds = LoadVCF(this,
-      header,
-      inputs,
-      storeGQ,
-      nPartitions,
-      sitesOnly,
-      ppAsPL,
-      skipBadAD)
+    val settings = VCFSettings(storeGQ, sitesOnly, ppAsPL, skipBadAD)
+    val reader = new GenotypeRecordReader(settings)
+    val result = LoadVCF(this, reader, header, inputs, nPartitions, sitesOnly)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
-    vds
+    VariantSampleMatrix(this, VariantMetadata(result.sampleIds,
+      Annotation.emptyIndexedSeq(result.sampleIds.length),
+      Annotation.empty,
+      TStruct.empty,
+      result.vaSignature,
+      TStruct.empty,
+      TGenotype,
+      isGenericGenotype = reader.genericGenotypes), result.rdd)
   }
 
   def importVCFGeneric(file: String, force: Boolean = false,
@@ -535,15 +537,19 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val gds = LoadVCF(this,
-      header,
-      inputs,
-      nPartitions,
-      sitesOnly)
+    val reader = new GenericRecordReader()
+    val result = LoadVCF(this, reader, header, inputs, nPartitions, sitesOnly)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
-    gds
+    VariantSampleMatrix(this, VariantMetadata(result.sampleIds,
+      Annotation.emptyIndexedSeq(result.sampleIds.length),
+      Annotation.empty,
+      TStruct.empty,
+      result.vaSignature,
+      TStruct.empty,
+      result.gSignature,
+      isGenericGenotype = reader.genericGenotypes), result.rdd)
   }
 
   def indexBgen(file: String) {

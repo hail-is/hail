@@ -73,21 +73,21 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
     (v, va)
   }
 
-  def readRecord(codec: htsjdk.variant.vcf.VCFCodec,
-    reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type,
-    vcfSettings: VCFSettings): (Variant, (Annotation, Iterable[T]))
+    genotypeSignature: Type): (Variant, (Annotation, Iterable[T]))
+
+  def genericGenotypes: Boolean
 }
 
-class GenotypeRecordReader extends HtsjdkRecordReader[Genotype] {
-  def readRecord(codec: htsjdk.variant.vcf.VCFCodec,
-    reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordReader[Genotype] {
+  def genericGenotypes = false
+
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type,
-    vcfSettings: VCFSettings): (Variant, (Annotation, Iterable[Genotype])) = {
+    genotypeSignature: Type): (Variant, (Annotation, Iterable[Genotype])) = {
 
     val (v, va) = readVariantInfo(vc, infoSignature)
 
@@ -242,12 +242,12 @@ class GenotypeRecordReader extends HtsjdkRecordReader[Genotype] {
 }
 
 class GenericRecordReader extends HtsjdkRecordReader[Annotation] {
-  def readRecord(codec: htsjdk.variant.vcf.VCFCodec,
-    reportAcc: Accumulable[mutable.Map[Int, Int], Int],
+  def genericGenotypes = true
+
+  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type,
-    vcfSettings: VCFSettings): (Variant, (Annotation, Iterable[Annotation])) = {
+    genotypeSignature: Type): (Variant, (Annotation, Iterable[Annotation])) = {
 
     val (v, va) = readVariantInfo(vc, infoSignature)
 
@@ -298,7 +298,7 @@ object HtsjdkRecordReader {
       case (s: String, TString) => s
       case (s: String, TChar) => s
       case (s: String, TInt) => s.toInt
-      case (s: String, TDouble) => if (s == "nan" || s == "?" || s == "NA") Double.NaN else s.toDouble
+      case (s: String, TDouble) => if (s == "nan") Double.NaN else s.toDouble
 
       case (i: Int, TInt) => i
       case (d: Double, TInt) => d.toInt
