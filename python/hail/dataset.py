@@ -1917,8 +1917,14 @@ class VariantDataset(object):
     @handle_py4j
     def grm(self, output, format, id_file=None, n_file=None):
         """Compute the Genetic Relatedness Matrix (GRM).
-        
-        The mathematical definition of the GRM is documented in :py:meth:`~hail.VariantDataset.pca`.
+                
+        The genetic relationship matrix (GRM) encodes genetic correlation between each pair of samples. It is defined as :math:`MM^T` where :math:`M` is a standardized version of the genotype matrix, computed as follows. Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes in the VariantDataset, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+
+        .. math::
+
+          M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
+
+        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes genotype variances to a common value :math:`1/m` for variants in Hardy-Weinberg equilibrium and is further motivated in the paper cited above. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)  The factor :math:`1/m` gives each sample row approximately unit total variance (assuming linkage equilibrium) so that the diagonal entries of the GRM are approximately 1.
         
         The gcta output formats are compatible with `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
 
