@@ -7,42 +7,6 @@ import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.kohsuke.args4j.{Option => Args4jOption}
-
-trait TextTableOptions {
-  @Args4jOption(required = false, name = "-t", aliases = Array("--types"),
-    usage = "Define types of fields in annotations files")
-  var types: String = _
-
-  @Args4jOption(required = false, name = "-m", aliases = Array("--missing"),
-    usage = "Specify identifier to be treated as missing")
-  var missingIdentifier: String = "NA"
-
-  @Args4jOption(required = false, name = "-d", aliases = Array("--delimiter"),
-    usage = "Field delimiter regex")
-  var separator: String = "\\t"
-
-  @Args4jOption(required = false, name = "--comment",
-    usage = "Skip lines beginning with the given pattern")
-  var commentChar: String = _
-
-  @Args4jOption(required = false, name = "--no-header",
-    usage = "indicate that the file has no header and columns should be indicated by `_1, _2, ... _N' (0-indexed)")
-  var noHeader: Boolean = _
-
-  @Args4jOption(required = false, name = "--impute",
-    usage = "impute column types from the file")
-  var impute: Boolean = _
-
-  def config: TextTableConfiguration = TextTableConfiguration(
-    types = Parser.parseAnnotationTypes(Option(types).getOrElse("")),
-    noHeader = noHeader,
-    impute = impute,
-    separator = separator,
-    missing = missingIdentifier,
-    commentChar = Option(commentChar)
-  )
-}
 
 object TextTableConfiguration {
   def apply(types: String, commentChar: String, separator: String, missing: String, noHeader: Boolean, impute: Boolean): TextTableConfiguration =
