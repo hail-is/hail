@@ -2027,7 +2027,8 @@ class VariantDataset(object):
         **Notes**
 
         As this is still actively being developed, dataset returned by this function may change in near future
-        as a result of algorithmic improvements.
+        as a result of algorithmic improvements. As it currently stands, this algorithm will work very well on
+        tons of small families, but be rather slow on fewer but larger families.
 
 
         :param threshold: The minimum PI_HAT value between samples that will be present in the pruned dataset.
