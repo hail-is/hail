@@ -112,18 +112,30 @@ object DeNovo {
         var totalAlleles = 0
         var nAltAlleles = 0
 
+        var ii = 0
+        while (ii < nTrios) {
+          var jj = 0
+          while (jj < 3) {
+            arr.update(ii, jj, null)
+            jj += 1
+          }
+          ii += 1
+        }
+
         gs.foreach { g =>
           g.toCompleteGenotype.foreach { cg =>
             val roles = sampleTrioRolesBc.value(i)
             roles.foreach { case (ri, ci) => arr.update(ri, ci, cg) }
 
-            nAltAlleles += 2
+            nAltAlleles += cg.gt
             totalAlleles += 2
           }
           i += 1
         }
 
-        val computedFrequency = nAltAlleles.toDouble / totalAlleles.toDouble
+        // correct for observed genotype
+        val computedFrequency = (nAltAlleles.toDouble - 1) / totalAlleles.toDouble
+
         val popFrequency = popFreqQuery(va).getOrElse(0d)
         if (popFrequency < 0 || popFrequency > 1)
           fatal(
@@ -145,39 +157,54 @@ object DeNovo {
             (dad.ad(0) == 0) && (dad.ad(1) == 0) ||
             (mom.ad(0) == 0) && (mom.ad(1) == 0) ||
             kid.ad(0).toDouble / (kid.ad(0) + kid.ad(1)) <= minChildAB ||
-            dad.ad(0).toDouble / (dad.ad(0) + dad.ad(1)) > maxParentAB ||
-            mom.ad(0).toDouble / (mom.ad(0) + mom.ad(1)) > maxParentAB)
+            dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) > maxParentAB ||
+            mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) > maxParentAB ||
+            kid.dp.toDouble / (mom.dp + dad.dp) < minDepthRatio)
             None
           else {
 
-            println(s"found candidate: ${ kid } / $dad / $mom")
-            // fixme precomputed
+            //            println(s"found candidate: ${ kid } / $dad / $mom")
+            //            // fixme precomputed
+            //
+            //            if (v.start == 171493)
+            //              println(s"at variant $v, vcfFreq = ${computedFrequency}, espFreq = ${popFrequency}")
+
             val kidP = kid.pl.map(x => math.pow(10, -x / 10d))
             val dadP = dad.pl.map(x => math.pow(10, -x / 10d))
             val momP = mom.pl.map(x => math.pow(10, -x / 10d))
+
+            val kidSum = kidP.sum
+            val dadSum = dadP.sum
+            val momSum = momP.sum
+
+            (0 until 3).foreach { i =>
+              kidP(i) = kidP(i) / kidSum
+              dadP(i) = dadP(i) / dadSum
+              momP(i) = momP(i) / momSum
+            }
 
             val pDeNovoData = dadP(0) * momP(0) * kidP(1) * PRIOR
 
             val pDataOneHet = (dadP(1) * momP(0) + dadP(0) * momP(1)) * kidP(1)
             val pOneParentHet = 1 - math.pow(1 - frequency, 4)
-            val pMhipData = pDataOneHet * pOneParentHet
+            val pMissedHetInParent = pDataOneHet * pOneParentHet
 
-            val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMhipData)
+            val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMissedHetInParent)
 
-            val momAdRatio = mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1))
-            val dadAdRatio = dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1))
             val kidAdRatio = kid.ad(1).toDouble / (kid.ad(0) + kid.ad(1))
 
             val kidDp = kid.dp
             val dpRatio = kidDp.toDouble / (mom.dp + dad.dp)
 
             // Below is the core calling algorithm
-            val genotypeAnnotation = if (v.altAllele.isIndel) {
+            val genotypeAnnotation = if (pTrueDeNovo < minimumPDeNovo)
+              None
+            else if (v.altAllele.isIndel) {
               if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
                 Some("HIGH_indel")
               else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
                 Some("MEDIUM_indel")
-              else if ((pTrueDeNovo > minimumPDeNovo) && (kidAdRatio > minDepthRatio))
+              else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
                 Some("LOW_indel")
               else None
             } else {
@@ -190,7 +217,7 @@ object DeNovo {
                 ((pTrueDeNovo > 0.5) && (kidAdRatio > minDepthRatio) && (nAltAlleles == 1))
               )
                 Some("MEDIUM_SNV")
-              else if ((pTrueDeNovo > minimumPDeNovo) && (kidAdRatio > minDepthRatio))
+              else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
                 Some("LOW_SNV")
               else None
             }
