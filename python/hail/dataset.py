@@ -2014,7 +2014,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
-    def ibd_prune(self, threshold, computeMafExpr = None, bounded = True):
+    def ibd_prune(self, threshold,maf = None, bounded = True):
         """
         Prune dataset based on PI_HAT values of IBD computation.
 
@@ -2024,12 +2024,20 @@ class VariantDataset(object):
 
         >>> vds.ibd_prune(.4)
 
+        **Notes**
+
+        As this is still actively being developed, dataset returned by this function may change in near future
+        as a result of algorithmic improvements.
+
+
         :param threshold: The minimum PI_HAT value between samples that will be present in the pruned dataset.
-        :param computeMafExpr:
-        :param bounded: Forces the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically meaningful values (in therange [0,1]).
-        :return:
+        :param maf: Expression for the minor allele frequency.
+        :param bounded: Forces the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically meaningful values (in the range [0,1]).
+
+        :return: A :py:class:`.VariantDataset` that contains only samples such that no two samples have a PI_Hat value greater than threshold.
+        :rtype: :py:class:`.VariantDataset`
         """
-        return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(computeMafExpr), bounded))
+        return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(maf), bounded))
 
 
     @handle_py4j

@@ -1,9 +1,7 @@
 package is.hail.methods
 
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.graphx._
-import is.hail.utils._
 
 import scala.reflect.ClassTag
 
@@ -37,29 +35,31 @@ object MaximalIndependentSet {
       Graph(toBeComputed.vertices.leftZipJoin(toBeComputed.degrees) { (v, _, degree) => (degree.getOrElse(0), v) }, toBeComputed.edges)
     }
 
-    var graph1: Graph[Message, ED] = updateVertexDegrees(g)
-    var graph2: Graph[Message, ED] = null
+    val originalGraph: Graph[Message, ED] = updateVertexDegrees(g)
+    originalGraph.persist()
+
     val edgeDirection = if (undirected) EdgeDirection.Either else EdgeDirection.Out
 
-    while(graph1.numEdges > 0) {
-      if (graph2 != null) {
-        graph2.unpersist()
+    var idSetToDelete = Set[VertexId]()
+    var hasEdges = true
+
+    while (hasEdges) {
+      val filteredGraph = updateVertexDegrees(originalGraph.subgraph(_ => true, (id, value) => !idSetToDelete.contains(id)))
+      filteredGraph.persist()
+      println(s"Remaining edges: ${filteredGraph.numEdges} Remaining vertices: ${filteredGraph.numVertices}")
+      if(filteredGraph.numEdges == 0) {
+        hasEdges = false
       }
 
-      val pregelGraph = graph1.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
-      val idSet = pregelGraph.vertices
+      val pregelGraph = filteredGraph.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
+
+      idSetToDelete = idSetToDelete.union(pregelGraph.vertices
         .filter(tuple => tuple match {case (id, value) => value match  {case (maxDegrees, maxID) => maxID == id && maxDegrees != 0}})
-        .map(_._1).collect().toSet
-      var newGraph = graph1.subgraph(_ => true, (id, value) => !idSet.contains(id))
-      newGraph = updateVertexDegrees(newGraph)
-      graph2 = graph1
-      graph1 = newGraph
-      graph1 = graph1.persist()
+        .map(_._1).collect().toSet)
+
+      filteredGraph.unpersist()
     }
-    if (graph2 != null) {
-      graph2.unpersist()
-    }
-    graph1.vertices.keys.collect().toSet
+    originalGraph.subgraph(_ => true, (id, value) => !idSetToDelete.contains(id)).vertices.keys.collect().toSet
   }
 
 

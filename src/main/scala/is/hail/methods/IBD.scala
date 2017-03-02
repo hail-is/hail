@@ -300,8 +300,12 @@ object IBDPrune {
     val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
       .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
 
+    info("Performing IBD Prune")
+
     val setToKeep: Set[String] = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size)
       .map(id =>sampleIDs(id.toInt))
+
+    info("Pruning Complete")
 
     vds.filterSamples((id, _) => setToKeep.contains(id))
   }
