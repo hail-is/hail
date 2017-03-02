@@ -477,7 +477,7 @@ class VariantDataset(object):
 
         >>> vds_result = vds.annotate_samples_fam("data/myStudy.fam")
 
-        In Hail, unlike Plink, the user must *explicitly* distinguish between
+        In Hail, unlike PLINK, the user must *explicitly* distinguish between
         case-control and quantitative phenotypes. Importing a quantitative
         phenotype without ``quantpheno=True`` will return an error
         (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
@@ -1936,7 +1936,7 @@ class VariantDataset(object):
 
           G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(G_{ij}-2p_j)(G_{kj}-2p_j)}{2 p_j (1-p_j)}
         
-        The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>_` as created by the `PLINK command <https://www.cog-genomics.org/plink2/distance#make_rel>`_ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
+        The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>_` as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`_ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
 
         :param str output: Output file.
 
@@ -2558,7 +2558,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The code above outputs four TSV files according to the `Plink mendel
+        The code above outputs four TSV files according to the `PLINK mendel
         formats <https://www.cog-genomics.org/plink2/formats#mendel>`_:
 
         - ``mydata.mendel`` -- all mendel errors: FID KID CHR SNP CODE ERROR
