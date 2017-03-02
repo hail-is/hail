@@ -153,7 +153,7 @@ class DeNovoSuite extends SparkSuite {
         .map { r =>
           val v = r.getAs[Variant](0)
           val kid = r.getAs[String](1)
-          val pdn = r.getAs[Double](11)
+          val pdn = r.getAs[Double](10)
           val anno = r.getAs[String](6)
           ((v, kid), (pdn, anno))
         }.collect()
@@ -162,8 +162,8 @@ class DeNovoSuite extends SparkSuite {
         println(v, kid, pdn, anno)
         println(cm.get((v, kid)))
         cm.get((v, kid)).exists { case (cPdn, cAnno) =>
-          println(D_==(cPdn, pdn) && cAnno == anno)
-          D_==(cPdn, pdn) && cAnno == anno
+          println(D_==(cPdn, pdn, tolerance = 1e-4) && cAnno == anno)
+          D_==(cPdn, pdn, tolerance = 1e-4) && cAnno == anno
         }
       }
     }.check()
