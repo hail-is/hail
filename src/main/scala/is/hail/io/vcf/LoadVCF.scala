@@ -15,13 +15,12 @@ import org.apache.spark.storage.StorageLevel
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.io.Source
+import scala.reflect.ClassTag
 
 case class VCFSettings(storeGQ: Boolean = false,
   skipGenotypes: Boolean = false,
   ppAsPL: Boolean = false,
   skipBadAD: Boolean = false)
-
-case class LoadVCFResult[T](rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])], sampleIds: Array[String], vaSignature: TStruct, gSignature: Type)
 
 object VCFReport {
   val GTPLMismatch = 1
@@ -192,7 +191,7 @@ object LoadVCF {
     file1: String,
     files: Array[String] = null,
     nPartitions: Option[Int] = None,
-    skipGenotypes: Boolean = false): LoadVCFResult[T] = {
+    skipGenotypes: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     val hConf = hc.hadoopConf
     val sc = hc.sc
     val headerLines = hConf.readFile(file1) { s =>
@@ -309,6 +308,13 @@ object LoadVCF {
 
     justVariants.unpersist()
 
-    LoadVCFResult(rdd = rdd, sampleIds = sampleIds, vaSignature = variantAnnotationSignatures, gSignature = genotypeSignature)
+    VariantSampleMatrix[T](hc, VariantMetadata(sampleIds,
+      Annotation.emptyIndexedSeq(sampleIds.length),
+      Annotation.empty,
+      TStruct.empty,
+      variantAnnotationSignatures,
+      TStruct.empty,
+      genotypeSignature,
+      isGenericGenotype = reader.genericGenotypes), rdd)
   }
 }
