@@ -141,10 +141,81 @@ instructions as follows:
 
  - The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
 
-Running on a Spark cluster and in the cloud
-===========================================
+Running on a CDH Spark cluster
+==============================
 
-The ``build/libs/hail-all-spark.jar`` can be submitted using ``spark-submit``. See the `Spark documentation <http://spark.apache.org/docs/latest/cluster-overview.html>`_ for details.
+Hail uses Spark 2, so first install Spark 2 on your CDH cluster by following `these instructions
+<https://www.cloudera.com/documentation/spark2/latest/topics/spark2_installing.html>`_.
+You should work on a gateway node on the cluster that has the Hadoop and Spark packages
+installed on it.
+
+Create the Hail JAR file and a zipfile of the Python code by running:
+
+  .. code-block:: text
+
+    $ ./gradlew shadowJar archiveZip
+
+Then set the following environment variables::
+
+    $ export SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2
+    $ export HAIL_HOME=/path/to/hail
+    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip"
+
+Create an interactive Python shell by running the following (note ``pyspark2`` is the CDH
+version of Spark 2's ``pyspark``).
+
+  .. code-block:: text
+
+    $ pyspark2 --jars build/libs/hail-all-spark.jar \
+               --py-files build/distributions/hail-python.zip \
+               --conf spark.hadoop.io.compression.codecs=org.apache.hadoop.io.compress.DefaultCodec,is.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec \
+               --conf spark.sql.files.openCostInBytes=1099511627776 \
+               --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+               --conf spark.hadoop.mapreduce.input.fileinputformat.split.minsize=1099511627776 \
+               --conf spark.hadoop.parquet.block.size=1099511627776
+
+Check that you can successfully create a ``HailContext`` by running the following
+commands. Note that you have to pass in the existing ``SparkContext`` instance ``sc``
+to the ``HailContext`` constructor.
+
+  .. code-block:: python
+
+    >>> import hail
+    >>> hc = hail.HailContext(sc)
+
+In a separate shell, copy a VCF file to HDFS:
+
+  .. code-block:: text
+
+    $ hadoop fs -put src/test/resources/sample.vcf sample.vcf
+
+To convert *sample.vcf* into Hail's **.vds** format, run:
+
+  .. code-block:: python
+
+    >>> hc.import_vcf('sample.vcf').write('sample.vds')
+
+It is also possible to run Hail non-interactively, by passing a Python script to
+``spark2-submit``. In this case, it is not necessary to set any environment variables.
+
+For example,
+
+  .. code-block:: text
+
+    $ spark2-submit --jars build/libs/hail-all-spark.jar \
+                    --py-files build/distributions/hail-python.zip \
+                    hailscript.py
+
+runs the script `hailscript.py`:
+
+  .. code-block:: python
+
+    import hail
+    hc = hail.HailContext()
+    hc.import_vcf('sample.vcf').write('sample.vds')
+
+Running in the cloud
+====================
 
 `Google <https://cloud.google.com/dataproc/>`_ and `Amazon <https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance and exceptional scalability to tens of thousands of cores without the overhead of installing and managing an on-prem cluster.
 To get started running Hail on the Google Cloud Platform, see this `forum post <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_.
