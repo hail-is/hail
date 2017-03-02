@@ -1,8 +1,5 @@
 package is.hail.utils
 
-import breeze.linalg.DenseVector
-import is.hail.stats.{LinRegBuilder, SparseGtBuilder, SparseGtVectorAndStats}
-
 import scala.collection.mutable
 
 abstract class IntIterator {
