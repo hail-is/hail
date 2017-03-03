@@ -2822,7 +2822,7 @@ class VariantDataset(object):
         **Examples**
 
         >>> [low_callrate_samples], [t] = vds.query_samples_typed(
-        ...    'samples.filter(s => sa.qc.callRate < 0.95).collect()')
+        ...    ['samples.filter(s => sa.qc.callRate < 0.95).collect()'])
 
         See :py:meth:`.query_samples` for more information.
 
@@ -2832,7 +2832,8 @@ class VariantDataset(object):
         """
 
         if not isinstance(exprs, list):
-            exprs = [exprs]
+            raise TypeError("argument 'exprs' must be a list of str, but found %s" % str(type(exprs)))
+
         result_list = self._jvds.querySamples(jarray(env.jvm.java.lang.String, exprs))
         ptypes = [Type._from_java(x._2()) for x in result_list]
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
@@ -2844,8 +2845,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [low_callrate_samples] = vds.query_samples(
-        ...     'samples.filter(s => sa.qc.callRate < 0.95).collect()')
+        >>> [low_callrate_samples] = vds.query_samples(['samples.filter(s => sa.qc.callRate < 0.95).collect()'])
 
         **Details**
 
@@ -2868,7 +2868,7 @@ class VariantDataset(object):
         - ``sa``: sample annotations
 
         :param exprs: one or more query expressions
-        :type exprs: str or list of str
+        :type exprs: list of str
 
         :rtype: list
         """
@@ -2892,9 +2892,9 @@ class VariantDataset(object):
 
         :rtype: (list, list of :class:`.Type`)
         """
-
         if not isinstance(exprs, list):
-            exprs = [exprs]
+            raise TypeError("argument 'exprs' must be a list of str, but found %s" % str(type(exprs)))
+
         result_list = self._jvds.queryVariants(jarray(env.jvm.java.lang.String, exprs))
         ptypes = [Type._from_java(x._2()) for x in result_list]
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
@@ -2933,8 +2933,8 @@ class VariantDataset(object):
         It is far faster to execute multiple queries in one method than
         to execute multiple query methods.  This:
 
-        >>> [result1] = vds.query_variants('variants.count()')
-        >>> [result2] = vds.query_variants('variants.filter(v => v.altAllele.isSNP()).count()')
+        >>> [result1] = vds.query_variants(['variants.count()'])
+        >>> [result2] = vds.query_variants(['variants.filter(v => v.altAllele.isSNP()).count()'])
 
         will be nearly twice as slow as this:
 
@@ -2985,13 +2985,13 @@ class VariantDataset(object):
         It is far faster to execute multiple queries in one method than
         to execute multiple query methods.  This:
 
-        >>> [result1] = vds.query_genotypes('gs.count()')
-        >>> [result2] = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.isHet).count()')
+        >>> [result1] = vds.query_genotypes(['gs.count()'])
+        >>> [result2] = vds.query_genotypes(['gs.filter(g => v.altAllele.isSNP() && g.isHet).count()'])
 
         will be nearly twice as slow as this:
 
         >>> exprs = ['gs.count()', 'gs.filter(g => v.altAllele.isSNP() && g.isHet).count()']
-        >>> [results] = vds.query_genotypes(exprs)
+        >>> [geno_count, snp_hets] = vds.query_genotypes(exprs)
 
         :param exprs: One or more query expressions.
         :type exprs: str or list of str
@@ -3000,7 +3000,8 @@ class VariantDataset(object):
         """
 
         if not isinstance(exprs, list):
-            exprs = [exprs]
+            raise TypeError("argument 'exprs' must be a list of str, but found %s" % str(type(exprs)))
+
         result_list = self._jvdf.queryGenotypes(jarray(env.jvm.java.lang.String, exprs))
         ptypes = [Type._from_java(x._2()) for x in result_list]
         annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
@@ -3013,11 +3014,11 @@ class VariantDataset(object):
 
         Compute global GQ histogram
 
-        >>> [gq_hist] = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')
+        >>> [gq_hist] = vds.query_genotypes(['gs.map(g => g.gq).hist(0, 100, 100)'])
 
         Compute call rate
 
-        >>> [call_rate] = vds.query_genotypes('gs.fraction(g => g.isCalled)')
+        >>> [call_rate] = vds.query_genotypes(['gs.fraction(g => g.isCalled)'])
 
         :param exprs: One or more query expressions.
         :type exprs: str or list of str
