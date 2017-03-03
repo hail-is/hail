@@ -469,6 +469,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     maxParentAB: Double = 0.05,
     minChildAB: Double = 0.20,
     minDepthRatio: Double = 0.10): KeyTable = {
+    requireSplit("de novo")
+
     DeNovo.call(vds, famFile, referenceAFExpr, extraFieldsExpr,
       plThreshold, minimumPDeNovo,
       maxParentAB, minChildAB,

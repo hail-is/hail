@@ -1130,10 +1130,51 @@ class VariantDataset(object):
                 min_p_de_novo=0.05,max_parent_AB=0.05, min_child_AB=0.20, min_depth_ratio=0.10):
         """Call de novo variation
 
-        :param str fam_file:
-        :param str reference_AF_expr:
-        :param extra_fields_expr:
+        This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`_.
+        It is reproduced in Hail with her permission and assistance.  See the link above for a full specification of the model.
+
+        This method does not support multiallelic variants.
+
+        This method produces a :class:`.KeyTable` with the following columns:
+
+            - **variant** (*Variant*) -- Variant within which the de novo event is found.
+
+            - **probandID** (*String*) -- Sample ID of proband.
+
+            - **fatherID** (*String*) -- Sample ID of father.
+
+            - **motherID** (*String*) -- Sample ID of mother.
+
+            - **isFemale** (*Boolean*) -- Sex of proband.
+
+            - **isCase** (*Boolean*) -- Case status of proband.
+
+            - **validationLikelihood** (*String*) -- Validation likelihood of event.  One of: 'HIGH', 'MEDIUM', 'LOW'
+
+            - **probandGt** (*Genotype*) -- Genotype of the proband
+
+            - **fatherGt** (*Genotype*) -- Genotype of the father
+
+            - **motherGt** (*Genotype*) -- Genotype of the mother
+
+            - **pDeNovo** (*Double*) -- Probability that the event is a true de novo, computed by the model.
+
+        The scope of ``extra_field_expressions` includes
+
+        - ``v`` (*Variant*): :ref:`variant`
+        - ``va``: variant annotations
+        - ``global``: global annotations
+        - ``proband`` (**): aggregable of :ref:`genotype` for variant ``v``
+
+
+        :param str fam_file: Path to .fam file.
+
+        :param str reference_AF_expr: Hail expression designating the reference allele frequency. Has variant
+                   annotations in scope.
+
+        :param extra_fields_expr: Specify additional fields to be included in the key table.
         :type extra_fields_expr: str or None
+
         :param int pl_threshold:
         :param float min_p_de_novo:
         :param float max_parent_AB:
@@ -1141,6 +1182,10 @@ class VariantDataset(object):
         :param float min_depth_ratio:
         :return:
         """
+
+        if extra_fields_expr:
+            if isinstance(extra_fields_expr, list):
+                extra_fields_expr = ','.join(extra_fields_expr)
 
         jkt = self._jvdf.deNovo(fam_file, reference_AF_expr, joption(extra_fields_expr),
                                  pl_threshold, min_p_de_novo, max_parent_AB, min_child_AB, min_depth_ratio)
@@ -1155,6 +1200,32 @@ class VariantDataset(object):
         """
 
         return VariantDataset(self.hc, self._jvdf.deduplicate())
+
+    @handle_py4j
+    def de_novo(self, fam_file, extra_fields_expr=None,pl_threshold=20,
+                min_p_de_novo=0.05,max_parent_ab=0.05,
+                min_child_ab=0.20, min_dp_ratio=0.10):
+        """Call de novo variation from trio data.
+
+
+
+        :param str fam_file:
+
+        :param extra_fields_expr:
+        :type extra_fields_expr: str, list of str, or None
+
+        :param int pl_threshold:
+
+        :param float min_p_de_novo:
+
+        :param float max_parent_ab:
+
+        :param float min_child_ab:
+
+        :param float min_dp_ratio:
+
+        :rtype: :py:class:`.KeyTable`
+        """
 
     @handle_py4j
     def downsample_variants(self, keep):
