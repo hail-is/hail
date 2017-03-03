@@ -1231,6 +1231,74 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @typecheck_method(ped=Pedigree,
+                      population_AF=strlike,
+                      min_GQ=integral,
+                      min_p=numeric,
+                      max_parent_AB=numeric,
+                      min_child_AB=numeric,
+                      min_depth_ratio=numeric)
+    def de_novo(self, ped, population_AF, min_GQ=20, min_p=0.05,
+                max_parent_AB=0.05, min_child_AB=0.20, min_depth_ratio=0.10):
+        """Call de novo variation from trio data.
+
+        **Examples**
+
+        Call de novo events and export them to a file:
+
+        >>> pedigree = Pedigree.read('data/myStudy.fam')
+        >>> priors = hc.import_table('data/gnomadFreq.tsv', impute=True).key_by('Variant')
+        >>> denovo_kt = (vds.annotate_variants_table(priors, root='va.gnomAD')
+        ...                  .de_novo(pedigree, 'va.gnomAD'))
+        >>> denovo_kt.export('denovo_calls.tsv')
+
+        **Notes**
+
+        This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`_.
+        It is reproduced in Hail with her permission and assistance. See the link above
+        for a full specification of the model.
+
+        This method does not support multiallelic variants.
+
+        This method produces a :py:class:`.KeyTable` with the following columns:
+
+            - **variant** (*Variant*) -- Variant within which the de novo event is found.
+            - **probandID** (*String*) -- Sample ID of proband.
+            - **fatherID** (*String*) -- Sample ID of father.
+            - **motherID** (*String*) -- Sample ID of mother.
+            - **isFemale** (*Boolean*) -- Sex of proband.
+            - **confidence** (*String*) -- Validation likelihood of event.  One of: 'HIGH', 'MEDIUM', 'LOW'
+            - **probandGt** (*Genotype*) -- Genotype of the proband
+            - **fatherGt** (*Genotype*) -- Genotype of the father
+            - **motherGt** (*Genotype*) -- Genotype of the mother
+            - **pDeNovo** (*Double*) -- Posterior probability that the event is a true de novo, computed by the model.
+
+        The git commit of the version implemented in Hail is ``bde3e40``.
+
+        :param ped: Pedigree object.
+        :type ped: :class:`.Pedigree`
+
+        :param str population_AF_expr: Hail expression designating the reference allele frequency.
+
+        :param int pl_threshold: minimum GQ for de novo consideration
+
+        :param float min_p_de_novo: minimum probability for "LOW" bin
+
+        :param float max_parent_AB: maximum allele balance for homozygous parent
+
+        :param float min_child_AB: minimum allele balance for heterozygous proband
+
+        :param float min_depth_ratio: minimum ratio of proband depth to parent depth
+
+        :rtype: :class:`.KeyTable`
+        """
+
+        jkt = self._jvdf.deNovo(ped._jrep, population_AF, min_GQ, min_p,
+                                max_parent_AB, min_child_AB, min_depth_ratio)
+        return KeyTable(self.hc, jkt)
+
+    @handle_py4j
+    @record_method
     def deduplicate(self):
         """Remove duplicate variants.
 

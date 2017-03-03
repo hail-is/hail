@@ -1886,7 +1886,7 @@ object FunctionRegistry {
 
   registerAggregator[Any, Set[Any]]("collectAsSet", () => new CollectSetAggregator(),
     """
-    Returns the set of all unique elements in the aggregable.
+    Returns the vset of all unique elements in the aggregable.
     """
   )(aggregableHr(TTHr), setHr(TTHr))
 
