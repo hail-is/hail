@@ -123,10 +123,12 @@ class DeNovoSuite extends SparkSuite {
 
       println(s"found ${ ktOut.length } de novo calls")
       val p1 = ktOut.forall { case ((v, kid), (pdn, anno, isf)) =>
+        val variantRoot = if (v.altAllele.isSNP) "_SNV" else "_indel"
+        val adjAnno = anno + variantRoot
         cm.get((v, kid)).exists { case (cPdn, cAnno) =>
-          val p = D_==(cPdn, pdn, tolerance = 1e-4) && cAnno == anno
+          val p = D_==(cPdn, pdn, tolerance = 1e-4) && cAnno == adjAnno
           if (!p)
-            println(s"MISMATCH: ${ v }, $kid, $pdn, $anno, isFemale=$isf")
+            println(s"MISMATCH: ${ v }, $kid, $pdn, $adjAnno, isFemale=$isf")
           p
         }
       }

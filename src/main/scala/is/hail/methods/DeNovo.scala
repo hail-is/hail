@@ -72,24 +72,24 @@ object DeNovo {
       None
     else if (!isSNP) {
       if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
-        Some("HIGH_indel", pTrueDeNovo)
+        Some("HIGH", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
-        Some("MEDIUM_indel", pTrueDeNovo)
+        Some("MEDIUM", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-        Some("LOW_indel", pTrueDeNovo)
+        Some("LOW", pTrueDeNovo)
       else None
     } else {
       if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
         ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
         ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10))
       )
-        Some("HIGH_SNV", pTrueDeNovo)
+        Some("HIGH", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
         ((pTrueDeNovo > 0.5) && (nAltAlleles == 1))
       )
-        Some("MEDIUM_SNV", pTrueDeNovo)
+        Some("MEDIUM", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-        Some("LOW_SNV", pTrueDeNovo)
+        Some("LOW", pTrueDeNovo)
       else None
     }
   }
@@ -133,22 +133,22 @@ object DeNovo {
       None
     else if (!isSNP) {
       if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
-        Some("HIGH_indel", pTrueDeNovo)
+        Some("HIGH", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
-        Some("MEDIUM_indel", pTrueDeNovo)
+        Some("MEDIUM", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-        Some("LOW_indel", pTrueDeNovo)
+        Some("LOW", pTrueDeNovo)
       else None
     } else {
       if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
         ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
         ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10)))
-        Some("HIGH_SNV", pTrueDeNovo)
+        Some("HIGH", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
         ((pTrueDeNovo > 0.5) && (kidAdRatio > minDpRatio) && (nAltAlleles == 1)))
-        Some("MEDIUM_SNV", pTrueDeNovo)
+        Some("MEDIUM", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-        Some("LOW_SNV", pTrueDeNovo)
+        Some("LOW", pTrueDeNovo)
       else None
     }
   }
