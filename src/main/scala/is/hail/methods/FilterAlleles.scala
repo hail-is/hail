@@ -22,7 +22,7 @@ object FilterAlleles {
       "v" -> (0, TVariant),
       "va" -> (1, vds.vaSignature),
       "aIndex" -> (2, TInt)))
-    val conditionE = Parser.parseTypedExpr[Boolean](filterExpr, conditionEC)
+    val conditionE = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, conditionEC)
 
     val annotationEC = EvalContext(Map(
       "v" -> (0, TVariant),
@@ -44,7 +44,7 @@ object FilterAlleles {
         val index = aai + 1
         conditionEC.setAll(v, va, index)
         oldToNew(index) =
-          if (Filter.keepThis(conditionE(), keep)) {
+          if (Filter.boxedKeepThis(conditionE(), keep)) {
             alive += 1
             alive
           } else

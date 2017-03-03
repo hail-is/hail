@@ -161,7 +161,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     val p = (a: Annotation) => {
       ec.setAll(a.asInstanceOf[Row].toSeq: _*)
-      Filter.keepThis(f(), keep)
+      Filter.boxedKeepThis(f(), keep)
     }
 
     filter(p)
