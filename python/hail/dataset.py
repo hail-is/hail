@@ -1838,7 +1838,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def filter_variants_intervals(self, intervals, keep=True):
-        """Filter variants with an interval list.
+        """Filter variants with an interval or interval tree.
 
         **Examples**
 
@@ -1861,10 +1861,10 @@ class VariantDataset(object):
 
         >>> vds_result = vds.filter_variants_intervals(IntervalTree.read('data/intervals.txt'))
 
-        With ``keep = True``, this method performs predicate pushdown, meaning that data shards
+        This method performs predicate pushdown when ``keep`` is ``True``, meaning that data shards
         that don't overlap any supplied interval will not be loaded at all.  This property
-        enables ``filter_variants_intervals`` to be used for reasonably low-latency single-
-        variant queries on large datasets:
+        enables ``filter_variants_intervals`` to be used for reasonably low-latency queries of one
+        or more variants, even on large datasets:
 
         >>>  # We are interested in the variant 15:100203:A:T
         >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start == 100203')  # slow
