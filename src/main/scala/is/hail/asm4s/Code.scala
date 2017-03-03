@@ -427,8 +427,8 @@ class Invokeable[T, S](val name: String,
         if (!isStatic && lhs != null)
           lhs.emit(il)
         args.foreach(_.emit(il))
-        il += new MethodInsnNode(invokeOp
-          Type.getInternalName(tct.runtimeClass), name, descriptor, isInterface))
+        il += new MethodInsnNode(invokeOp,
+          Type.getInternalName(tct.runtimeClass), name, descriptor, isInterface)
         if (concreteReturnType != sct.runtimeClass) {
           // if `m`'s return type is a generic type, we must use an explicit
           // cast to the expected type
@@ -479,8 +479,8 @@ class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic)
           lhs.emit(il)
-        il += new FieldInsnNode(getOp
-          Type.getInternalName(tct.runtimeClass), f.getName, sti.name))
+        il += new FieldInsnNode(getOp,
+          Type.getInternalName(tct.runtimeClass), f.getName, sti.name)
       }
     }
 
@@ -490,8 +490,8 @@ class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
         if (!isStatic)
           lhs.emit(il)
         rhs.emit(il)
-        il += new FieldInsnNode(putOp
-          Type.getInternalName(tct.runtimeClass), f.getName, sti.name))
+        il += new FieldInsnNode(putOp,
+          Type.getInternalName(tct.runtimeClass), f.getName, sti.name)
       }
     }
 }
