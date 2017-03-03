@@ -128,7 +128,7 @@ object FunctionRegistry {
         AST.evalComposeCodeM[t](lhs)(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
       case fn =>
         throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
-    }).map(Code.checkcast(_)(m.retType.scalaClassTag))
+    }).map(_.map(Code.checkcast(_)(m.retType.scalaClassTag)))
   }
 
   def call(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[Code[AnyRef]] = {
