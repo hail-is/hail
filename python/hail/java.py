@@ -84,6 +84,9 @@ def jiterable_to_list(it):
     else:
         return None
 
+def jarray_to_list(a):
+    return list(a) if a else None
+    
 @decorator
 def handle_py4j(func, *args, **kwargs):
     try:

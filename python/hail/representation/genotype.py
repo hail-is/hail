@@ -73,10 +73,10 @@ class Genotype(object):
         g = Genotype.__new__(cls)
         g._init_from_java(jrep)
         g._gt = from_option(jrep.gt())
-        g._ad = jiterable_to_list(from_option(jrep.ad()))
+        g._ad = jarray_to_list(from_option(jrep.ad()))
         g._dp = from_option(jrep.dp())
         g._gq = from_option(jrep.gq())
-        g._pl = jiterable_to_list(from_option(jrep.pl()))
+        g._pl = jarray_to_list(from_option(jrep.pl()))
         return g
 
     @property
