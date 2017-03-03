@@ -1406,12 +1406,17 @@ class VariantDataset(object):
         :param extra_fields_expr: Specify additional fields to be included in the key table.
         :type extra_fields_expr: str or None
 
-        :param int pl_threshold:
-        :param float min_p_de_novo:
-        :param float max_parent_AB:
-        :param float min_child_AB:
-        :param float min_depth_ratio:
-        :return:
+        :param int pl_threshold: minimum GQ for de novo consideration
+
+        :param float min_p_de_novo: minimum probability for "LOW" bin
+
+        :param float max_parent_AB: maximum allele balance for homozygous parent
+
+        :param float min_child_AB: minimum allele balance for heterozygous proband
+
+        :param float min_depth_ratio: minimum ratio of proband depth to parent depth
+
+        :rtype: :class:`.KeyTable`
         """
 
         if extra_fields_expr:
@@ -1431,32 +1436,6 @@ class VariantDataset(object):
         """
 
         return VariantDataset(self.hc, self._jvds.deduplicate())
-
-    @handle_py4j
-    def de_novo(self, fam_file, extra_fields_expr=None,pl_threshold=20,
-                min_p_de_novo=0.05,max_parent_ab=0.05,
-                min_child_ab=0.20, min_dp_ratio=0.10):
-        """Call de novo variation from trio data.
-
-
-
-        :param str fam_file:
-
-        :param extra_fields_expr:
-        :type extra_fields_expr: str, list of str, or None
-
-        :param int pl_threshold:
-
-        :param float min_p_de_novo:
-
-        :param float max_parent_ab:
-
-        :param float min_child_ab:
-
-        :param float min_dp_ratio:
-
-        :rtype: :py:class:`.KeyTable`
-        """
 
     @handle_py4j
     def downsample_variants(self, keep):
