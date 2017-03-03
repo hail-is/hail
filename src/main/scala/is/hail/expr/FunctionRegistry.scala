@@ -1482,14 +1482,14 @@ object FunctionRegistry {
 
     Compute the number of indels in each chromosome:
 
-    >>> indels_per_chr = vds.query_variants('variants.filter(v => v.altAllele().isIndel()).map(v => v.contig).counter()')
+    >>> [indels_per_chr] = vds.query_variants(['variants.filter(v => v.altAllele().isIndel()).map(v => v.contig).counter()'])
 
     **Notes**
 
     We recommend this function is used with the `Python counter object <https://docs.python.org/2/library/collections.html#collections.Counter>`_.
 
     >>> from collections import Counter
-    >>> counter = Counter(vds.query_variants('variants.flatMap(v => v.altAlleles).counter()')[0])
+    >>> [counter] = Counter(vds.query_variants(['variants.flatMap(v => v.altAlleles).counter()']))
     >>> print(counter.most_common(5))
     [(AltAllele(C, T), 129L),
      (AltAllele(G, A), 112L),
@@ -1513,8 +1513,8 @@ object FunctionRegistry {
 
     Compute summary statistics on the number of singleton calls per sample:
 
-    >>> singleton_stats = (vds.sample_qc()
-    ...     .query_samples('samples.map(s => sa.qc.nSingleton).stats()'))
+    >>> [singleton_stats] = (vds.sample_qc()
+    ...     .query_samples(['samples.map(s => sa.qc.nSingleton).stats()']))
 
     Compute GQ and DP statistics stratified by genotype call:
 
@@ -1565,7 +1565,7 @@ object FunctionRegistry {
     Compute global GQ-distribution:
 
     >>> gq_dist = (vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
-    ...    .query_variants('variants.map(v => va.gqHist.binFrequencies).sum()'))
+    ...    .query_variants(['variants.map(v => va.gqHist.binFrequencies).sum()']))
 
     **Notes**
 
@@ -1666,9 +1666,9 @@ object FunctionRegistry {
 
     Return the 10 samples with the largest number of singletons:
 
-    >>> samplesMostSingletons = (vds
+    >>> [samplesMostSingletons] = (vds
     ...   .sample_qc()
-    ...   .query_samples('samples.takeBy(s => sa.qc.nSingleton, 10)'))
+    ...   .query_samples(['samples.takeBy(s => sa.qc.nSingleton, 10)']))
 
     """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
   )(
@@ -1958,7 +1958,7 @@ object FunctionRegistry {
 
     ::
 
-        >>> mean_height = vds.query_samples('samples.map(s => sa.pheno.height).stats()')['mean']
+        >>> [mean_height] = vds.query_samples(['samples.map(s => sa.pheno.height).stats()'])['mean']
         >>> vds.annotate_samples_expr('sa.pheno.heightImputed = orElse(sa.pheno.height, %d)' % mean_height)
     """
   )(TTHr, TTHr, TTHr)
