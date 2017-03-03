@@ -214,7 +214,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_keytable(self, path, key_names, npartitions=None, config=TextTableConfig()):
+    def import_keytable(self, path, key_names=[], npartitions=None, config=TextTableConfig()):
         """Import delimited text file (text table) as KeyTable.
 
         :param path: files to import.

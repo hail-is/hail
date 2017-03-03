@@ -199,7 +199,10 @@ class ContextTests(unittest.TestCase):
 
         self.assertTrue(isinstance(sample2.genotype_schema, TGenotype))
 
-        self.assertEqual(sample2.join(sample2.rename_samples(test_resources + '/sample2_rename.tsv'))
+        m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
+                                                     config=TextTableConfig(noheader=True))
+              .collect()}
+        self.assertEqual(sample2.join(sample2.rename_samples(m2))
                          .count()['nSamples'], 200)
 
         linreg = (hc.import_vcf(test_resources + '/regressionLinear.vcf')

@@ -21,13 +21,9 @@ class RenameSamplesSuite extends SparkSuite {
       vds.sampleIds(1) -> "a"
     )
 
-    val samplesMapFile = tmpDir.createTempFile("samples", extension = ".map")
-
-    writeSampleMap(samplesMapFile, m)
-
     // FIXME keyword
     intercept[FatalException] {
-      vds.renameSamples(samplesMapFile)
+      vds.renameSamples(m.toMap)
     }
   }
 
@@ -55,11 +51,7 @@ class RenameSamplesSuite extends SparkSuite {
       m += newS -> s
     }
 
-    val samplesMapFile = tmpDir.createTempFile("samples", extension = ".map")
-
-    writeSampleMap(samplesMapFile, m)
-
-    val vds2 = vds.renameSamples(samplesMapFile)
+    val vds2 = vds.renameSamples(m.toMap)
 
     assert(vds2.sampleIds.toSet == newSamples)
   }
