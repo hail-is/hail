@@ -9,7 +9,7 @@ class AnnotateAllelesSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
       .annotateAllelesExpr("va.gqMean = gs.map(g => g.gq).stats().mean," +
-        "va.AC = gs.map(g => g.nNonRefAlleles).sum()", propagateGQ = true)
+        "va.AC = gs.map(g => g.nNonRefAlleles()).sum()", propagateGQ = true)
       .annotateVariantsExpr("va.callStatsAC = gs.callStats(g => v).AC[1:]")
 
     val testq = vds.queryVA("va.AC")._2

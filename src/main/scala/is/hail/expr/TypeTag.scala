@@ -12,7 +12,8 @@ sealed trait TypeTag {
   def unify(concrete: TypeTag): Boolean = {
     (this, concrete) match {
       case (MethodType(_@_*), MethodType(_@_*))
-           | (FunType(_@_*), FunType(_@_*)) =>
+           | (FunType(_@_*), FunType(_@_*))
+           | (FieldType(_@_*), FieldType(_@_*)) =>
         xs.length == concrete.xs.length &&
           (xs, concrete.xs).zipped.forall { case (x, cx) =>
             x.unify(cx)
@@ -35,4 +36,8 @@ case class MethodType(xs: Type*) extends TypeTag {
 
 case class FunType(xs: Type*) extends TypeTag {
   def subst(): TypeTag = FunType(xs.map(_.subst()): _*)
+}
+
+case class FieldType(xs: Type*) extends TypeTag {
+  def subst(): TypeTag = FieldType(xs.map(_.subst()): _*)
 }

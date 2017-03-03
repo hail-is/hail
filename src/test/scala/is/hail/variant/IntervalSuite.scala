@@ -165,8 +165,8 @@ class IntervalSuite extends SparkSuite {
           }
         }
 
-        vds.aggregateIntervals(iList, "nSNP = variants.filter(v => v.altAllele.isSNP).count(), " +
-          "nIndel = variants.filter(v => v.altAllele.isIndel).count(), " +
+        vds.aggregateIntervals(iList, "nSNP = variants.filter(v => v.altAllele().isSNP()).count(), " +
+          "nIndel = variants.filter(v => v.altAllele().isIndel()).count(), " +
           "N = variants.count()", tmp1)
 
         val variants = vds

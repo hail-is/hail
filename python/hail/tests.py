@@ -32,7 +32,7 @@ class ContextTests(unittest.TestCase):
 
         annot = hc.import_annotations_table(
             test_resources + '/variantAnnotations.tsv',
-            'Variant(Chromosome, Position.toInt, Ref, Alt)')
+            'Variant(Chromosome, Position.toInt(), Ref, Alt)')
         self.assertEqual(annot.count()['nVariants'], 346)
 
         # index
@@ -96,7 +96,7 @@ class ContextTests(unittest.TestCase):
                                        'global.genes')
          .globals)
 
-        (sample2.annotate_samples_expr('sa.nCalled = gs.filter(g => g.isCalled).count()')
+        (sample2.annotate_samples_expr('sa.nCalled = gs.filter(g => g.isCalled()).count()')
          .export_samples('/tmp/sa.tsv', 's = s, nCalled = sa.nCalled'))
 
         sample2.annotate_samples_list(test_resources + '/sample2.sample_list',
@@ -121,7 +121,7 @@ class ContextTests(unittest.TestCase):
         sample.annotate_alleles_expr('va.gs = gs.callStats(g => v)').count()
         sample.annotate_alleles_expr(['va.gs = gs.callStats(g => v)', 'va.foo = 5']).count()
 
-        (sample2.annotate_variants_expr('va.nCalled = gs.filter(g => g.isCalled).count()')
+        (sample2.annotate_variants_expr('va.nCalled = gs.filter(g => g.isCalled()).count()')
          .count())
 
         (sample2.annotate_variants_intervals(test_resources + '/annotinterall.interval_list',
@@ -130,12 +130,12 @@ class ContextTests(unittest.TestCase):
          .count())
 
         (sample2.annotate_variants_loci(test_resources + '/sample2_loci.tsv',
-                                        'Locus(chr, pos.toInt)',
+                                        'Locus(chr, pos.toInt())',
                                         'va.locus_annot')
          .count())
 
         (sample.annotate_variants_table(test_resources + '/variantAnnotations.tsv',
-                                        'Variant(Chromosome, Position.toInt, Ref, Alt)',
+                                        'Variant(Chromosome, Position.toInt(), Ref, Alt)',
                                         root='va.table')
          .count())
 
@@ -158,8 +158,8 @@ class ContextTests(unittest.TestCase):
 
         sample2_split.export_gen('/tmp/sample2.gen')
 
-        (sample2.filter_genotypes('g.isHet && g.gq > 20')
-         .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, g.nNonRefAlleles'))
+        (sample2.filter_genotypes('g.isHet() && g.gq > 20')
+         .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, g.nNonRefAlleles()'))
 
         sample2_split.export_plink('/tmp/sample2')
 
@@ -279,9 +279,9 @@ class ContextTests(unittest.TestCase):
           .make_keytable('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
          .same(hc.import_keytable('/tmp/sample_kt.tsv', ['v'])))
 
-        sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet).count()")
+        sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
 
-        sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet.toInt).sum().toLong")
+        sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet().toInt()).sum().toLong()")
 
         sample2.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
 
@@ -365,7 +365,7 @@ class ContextTests(unittest.TestCase):
 
         sample = hc.import_vcf(test_resources + '/sample.vcf')
         sample_variants = (sample.variants_keytable()
-                           .annotate('v = str(v), va.filters = va.filters.toArray')
+                           .annotate('v = str(v), va.filters = va.filters.toArray()')
                            .flatten())
 
         sample_variants2 = hc.dataframe_to_keytable(

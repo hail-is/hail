@@ -38,3 +38,23 @@ table.docutils col {
 div.nboutput div.output_area.stderr {
     display: none;
 }
+
+.hll {
+    background-color: #ffffff;
+    font-style: italic;
+    font-weight: bold;
+    color: #E74C3C;
+}
+
+.bolditalic {
+    font-weight: bold;
+    font-italic: italic;
+}
+
+.container.annotation {
+    background-color: #f3f6f6;
+    border: 1px solid #e1e4e5;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding: 10px;
+}

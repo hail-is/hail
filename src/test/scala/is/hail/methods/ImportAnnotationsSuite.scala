@@ -151,7 +151,7 @@ class ImportAnnotationsSuite extends SparkSuite {
         .toMap
     }
     val anno1 = vds.annotateVariantsTable("src/test/resources/variantAnnotations.tsv",
-      "Variant(Chromosome, Position.toInt, Ref, Alt)",
+      "Variant(Chromosome, Position.toInt(), Ref, Alt)",
       code = Some("va.stuff = select(table, Rand1, Rand2, Gene)"),
       config = TextTableConfiguration(types = Map("Rand1" -> TDouble, "Rand2" -> TDouble)))
 
@@ -170,7 +170,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       config = TextTableConfiguration(types = Map("Rand1" -> TDouble, "Rand2" -> TDouble)))
 
     val anno1glob = vds.annotateVariantsTable("src/test/resources/variantAnnotations.split.*.tsv",
-      "Variant(Chromosome, Position.toInt, Ref, Alt)",
+      "Variant(Chromosome, Position.toInt(), Ref, Alt)",
       code = Some("va.stuff = select(table, Rand1, Rand2, Gene)"),
       config = TextTableConfiguration(types = Map("Rand1" -> TDouble, "Rand2" -> TDouble)))
 
@@ -443,13 +443,13 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val byPosition = vds.annotateVariantsLoci(
       "src/test/resources/sample2_va_positions.tsv",
-      "Locus(Chromosome, Position.toInt)",
+      "Locus(Chromosome, Position.toInt())",
       code = Some("va.stuff = select(table, Rand1, Rand2)"),
       config = TextTableConfiguration(types = Map("Rand1" -> TDouble, "Rand2" -> TDouble)))
 
     val byVariant = vds.annotateVariantsTable(
       "src/test/resources/sample2_va_nomulti.tsv",
-      "Variant(Chromosome, Position.toInt, Ref, Alt)",
+      "Variant(Chromosome, Position.toInt(), Ref, Alt)",
       code = Some("va.stuff = select(table, Rand1, Rand2)"),
       config = TextTableConfiguration(types = Map("Rand1" -> TDouble, "Rand2" -> TDouble)))
 

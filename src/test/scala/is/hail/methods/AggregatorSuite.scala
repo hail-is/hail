@@ -15,9 +15,9 @@ class AggregatorSuite extends SparkSuite {
       .splitMulti()
       .variantQC()
       .annotateVariantsExpr(
-        """va.test.callrate = gs.fraction(g => g.isCalled), va.test.AC = gs.map(g => g.nNonRefAlleles).sum(),
-          |va.test.AF = gs.map(g => g.nNonRefAlleles).stats().sum.toDouble / gs.filter(g => g.isCalled).count() / 2.0,
-          |va.test.gqstats = gs.map(g => g.gq).stats(), va.test.gqhetstats = gs.filter(g => g.isHet).map(g => g.gq).stats(),
+        """va.test.callrate = gs.fraction(g => g.isCalled()), va.test.AC = gs.map(g => g.nNonRefAlleles()).sum(),
+          |va.test.AF = gs.map(g => g.nNonRefAlleles()).stats().sum.toDouble() / gs.filter(g => g.isCalled()).count() / 2.0,
+          |va.test.gqstats = gs.map(g => g.gq).stats(), va.test.gqhetstats = gs.filter(g => g.isHet()).map(g => g.gq).stats(),
           |va.lowGqGts = gs.filter(g => g.gq < 60).collect()""".stripMargin)
 
     val qCallRate = vds.queryVA("va.test.callrate")._2
@@ -69,8 +69,8 @@ class AggregatorSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
       .splitMulti()
       .sampleQC()
-      .annotateSamplesExpr("sa.test.callrate = gs.fraction(g => g.isCalled), sa.test.gqstats = " +
-        "gs.map(g => g.gq).stats(), sa.test.gqhetstats = gs.filter(g => g.isHet).map(g => g.gq).stats()")
+      .annotateSamplesExpr("sa.test.callrate = gs.fraction(g => g.isCalled()), sa.test.gqstats = " +
+        "gs.map(g => g.gq).stats(), sa.test.gqhetstats = gs.filter(g => g.isHet()).map(g => g.gq).stats()")
 
     val qCallRate = vds.querySA("sa.test.callrate")._2
     val qCallRateQC = vds.querySA("sa.qc.callRate")._2
@@ -112,7 +112,7 @@ class AggregatorSuite extends SparkSuite {
       val vds2 = vds.splitMulti()
         .variantQC()
         .annotateVariantsExpr("va.oneHotAC = gs.map(g => g.oneHotAlleles(v)).sum()")
-        .annotateVariantsExpr("va.same = (gs.filter(g => g.isCalled).count() == 0) || " +
+        .annotateVariantsExpr("va.same = (gs.filter(g => g.isCalled()).count() == 0) || " +
           "(va.oneHotAC[0] == va.qc.nCalled * 2  - va.qc.AC) && (va.oneHotAC[1] == va.qc.nHet + 2 * va.qc.nHomVar)")
       val (_, querier) = vds2.queryVA("va.same")
       vds2.variantsAndAnnotations
@@ -192,7 +192,7 @@ class AggregatorSuite extends SparkSuite {
         """va.callStats = gs.callStats(g => v),
           |va.AC = gs.map(g => g.oneHotAlleles(v)).sum(),
           |va.GC = gs.map(g => g.oneHotGenotype(v)).sum(),
-          |va.AN = gs.filter(g => g.isCalled).count() * 2""".stripMargin)
+          |va.AN = gs.filter(g => g.isCalled()).count() * 2""".stripMargin)
       .annotateVariantsExpr("va.AF = va.AC / va.AN")
     val (_, csAC) = vds.queryVA("va.callStats.AC")
     val (_, csAF) = vds.queryVA("va.callStats.AF")
@@ -244,7 +244,7 @@ class AggregatorSuite extends SparkSuite {
       assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
       assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 6)
       assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 4)
-      assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet).filter(x => x % 2 == 0).sum()")._1 == 4)
+      assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 4)
 
       vds.annotateVariantsExpr("""va = gs.filter(g => s.id == "a").map(g => 1).sum()""")
         .rdd

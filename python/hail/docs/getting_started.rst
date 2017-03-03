@@ -113,12 +113,12 @@ Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotati
     >>> print(vds.sample_schema)
     >>> print('\nvariant annotation schema:')
     >>> print(vds.variant_schema)
-    >>> (vds.filter_variants_expr('v.altAllele.isSNP && va.qc.gqMean >= 20')
+    >>> (vds.filter_variants_expr('v.altAllele().isSNP() && va.qc.gqMean >= 20')
     ...     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15')
-    ...     .filter_genotypes('let ab = g.ad[1] / g.ad.sum in '
-    ...                       '((g.isHomRef && ab <= 0.1) || '
-    ...                       ' (g.isHet && ab >= 0.25 && ab <= 0.75) || '
-    ...                       ' (g.isHomVar && ab >= 0.9))')
+    ...     .filter_genotypes('let ab = g.ad[1] / g.ad.sum() in '
+    ...                       '((g.isHomRef() && ab <= 0.1) || '
+    ...                       ' (g.isHet() && ab >= 0.25 && ab <= 0.75) || '
+    ...                       ' (g.isHomVar() && ab >= 0.9))')
     ...     .write('sample.filtered.vds'))
 
 Try running :py:meth:`~hail.VariantDataset.count` on *sample.filtered.vds* to see how the numbers have changed. For further background and examples, continue to the :ref:`sec-overview` and :ref:`API reference <sec-api>`.
