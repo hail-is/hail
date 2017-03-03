@@ -63,7 +63,7 @@ object VariantSampleMatrix {
   def genGeneric(hc: HailContext): Gen[VariantSampleMatrix[Annotation]] =
     for (tSig <- Type.genArb.resize(3);
       vsm <- VSMSubgen[Annotation](
-        sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
+        sampleIdGen = Gen.identifier,
         saSigGen = Type.genArb,
         vaSigGen = Type.genArb,
         globalSigGen = Type.genArb,
@@ -112,7 +112,7 @@ case class VSMSubgen[T](
         val g = (for (subsubsizes <- Gen.partitionSize(3);
           v <- vGen.resize(subsubsizes(0));
           va <- vaGen(vaSig).resize(subsubsizes(1));
-          ts <- Gen.buildableOfN[Iterable, T](sampleIds.length, tGen(v.nAlleles)).resize(subsubsizes(2)))
+          ts <- Gen.buildableOfN[Iterable, T](sampleIds.length, tGen(v)).resize(subsubsizes(2)))
           yield (v, (va, ts))).resize(l)
         nVariantOverride.map(nVariants => Gen.distinctBuildableOfN[Array, (Variant, (Annotation, Iterable[T]))](nVariants, g))
           .getOrElse(
