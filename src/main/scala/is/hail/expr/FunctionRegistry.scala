@@ -1796,8 +1796,6 @@ object FunctionRegistry {
 
   val aggST = Box[SymbolTable]()
 
-  // FIXME: I suspect I need to pop after the calls to k because it really ought
-  // to be a void method
   registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
     { (k: Any => Unit) => a { x =>
       val r = f(x).asInstanceOf[IndexedSeq[Any]]
@@ -1835,10 +1833,6 @@ object FunctionRegistry {
     >>> vds_result = vds.annotate_samples_expr('sa.lof_genes = gs.filter(g => va.consequence == "LOF" && g.nNonRefAlleles() > 0).flatMap(g => va.genes).collect()')
     """
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
-
-  // FIXME: needs to beimplemented in terms of iterators. this method lives on
-  // scala/collection/GenSetLike so we'll need to do the same bullshit with
-  // them, the code below definitely won't work because Set isn't SeqLike
 
   registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
     { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
