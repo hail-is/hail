@@ -73,8 +73,8 @@ class Interval(object):
         In a ``POS`` field, ``end`` (``End``, ``END``) stands for max int.
 
         In a ``POS`` field, the qualifiers ``m`` (``M``) and ``k`` (``K``) multiply
-        the given number by 10**6 and 10**3, respectively.  '1.6K' is short for
-        1600, and 29M is short for 29000000
+        the given number by ``1,000,000`` and ``1,000``, respectively.  ``1.6K`` is short for
+        1600, and ``29M`` is short for 29000000.
 
         ``CHR:POS1-POS2`` stands for ``CHR:POS1-CHR:POS2``
 
@@ -83,7 +83,6 @@ class Interval(object):
         ``CHR`` stands for ``CHR:START-CHR:END``
 
         Note that the start locus must precede the start locus.
-
 
         :rtype: :class:`.Interval`
         """
@@ -189,7 +188,8 @@ class IntervalTree(object):
 
         .. note::
 
-            ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``
+            ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``.
+            :py:meth:`.Interval.parse` is exclusive of the end position.
 
         .. note::
 
@@ -207,12 +207,7 @@ class IntervalTree(object):
         :rtype: :class:`.IntervalTree`
         """
 
-        print('hadoop conf is %s' % str(env.hc._jhc.hadoopConf()))
-        print('hadoop conf is %s' % str(env.hc._jhc.hadoopConf))
-        jrep = scala_object(env.hail.io.annotators, 'IntervalListAnnotator').read(path,
-                                                                                  env.hc._jhc.hadoopConf(),
-                                                                                  True)
-
+        jrep = scala_object(env.hail.io.annotators, 'IntervalListAnnotator').read(path, env.hc._jhc.hadoopConf(), True)
         return IntervalTree._init_from_java(jrep)
 
     @property
