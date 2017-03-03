@@ -17,4 +17,5 @@ representation
     hail.representation.Genotype
     hail.representation.Locus
     hail.representation.Interval
+    hail.representation.IntervalTree
     hail.representation.Struct
