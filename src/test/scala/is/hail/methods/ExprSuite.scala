@@ -772,4 +772,11 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("(if (true) 0 else 0.toLong()).toInt()") == (TInt, Some(0)))
     assert(eval[Int]("(if (true) 0 else 0.toFloat()).toInt()") == (TInt, Some(0)))
   }
+
+  @Test def testRegistryTypeCheck() {
+    val expr = """let v = Variant("1:650000:A:T") and ref = v.ref and isHet = v.isAutosomal and s = "1" in s.toInt"""
+    val (t, f) = Parser.parseExpr(expr, EvalContext())
+    assert(f().asInstanceOf[Int] == 1 && t == TInt)
+
+  }
 }

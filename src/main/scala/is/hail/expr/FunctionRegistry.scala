@@ -54,7 +54,7 @@ object FunctionRegistry {
 
     val matches = registry(name).flatMap { case (tt, f, _) =>
       tt.clear()
-      if (tt.getClass == typ.getClass && tt.xs.size == typ.xs.size) {
+      if (tt.xs.size == typ.xs.size) { // FIXME: add check for  to enforce field vs method
         val conversions = (tt.xs, typ.xs).zipped.map { case (l, r) =>
           if (l.isBound) {
             if (l.unify(r))
