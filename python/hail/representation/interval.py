@@ -73,9 +73,8 @@ class Interval(object):
         In a ``POS`` field, ``end`` (``End``, ``END``) stands for max int.
 
         In a ``POS`` field, the qualifiers ``m`` (``M``) and ``k`` (``K``) multiply
-        the given number by 10**6 and 10**3, respectively. These models permit
-        decimals, so long as the number of digits in the mantissa is smaller than
-        the exponent (6 for M, 3 for K).
+        the given number by 10**6 and 10**3, respectively.  '1.6K' is short for
+        1600, and 29M is short for 29000000
 
         ``CHR:POS1-POS2`` stands for ``CHR:POS1-CHR:POS2``
 
@@ -188,11 +187,6 @@ class IntervalTree(object):
         - ``contig  start  end`` (tab-separated)
         - ``contig  start  end  direction  target`` (tab-separated)
 
-        In either case, Hail only uses the ``contig``, ``start``, and ``end``
-        fields.  Each variant is evaluated against each line in the interval
-        file, and any match will mark the variant to be included if
-        ``keep=True`` and excluded if ``keep=False``.
-
         .. note::
 
             ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``
@@ -201,6 +195,12 @@ class IntervalTree(object):
 
             Hail uses the following ordering for contigs: 1-22 sorted numerically, then X, Y, MT,
             then alphabetically for any contig not matching the standard human chromosomes.
+
+        .. caution::
+
+            The interval parser for these files does not support the full range of formats supported
+            by the python parser :py:meth:`.Interval.parse`.  'k', 'm', 'start', and 'end' are all
+            invalid motifs in the ``contig:start-end`` format here.
 
         :param path: file name
 
