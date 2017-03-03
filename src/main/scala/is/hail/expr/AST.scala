@@ -522,7 +522,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("json", Array(a)) => for (
       v <- a.compile();
       t = a.`type`;
-      result <- CM.invokePrimitive1(JsonMethods.compact(t.toJSON(_)))(v)
+      result <- CM.invokePrimitive1((x: AnyRef) => JsonMethods.compact(t.toJSON(x)))(v)
     ) yield result
 
     case ("merge", Array(struct1, struct2)) => for (
