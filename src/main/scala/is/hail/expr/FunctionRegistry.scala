@@ -121,14 +121,16 @@ object FunctionRegistry {
     require(args.isEmpty)
 
     val m = lookup(name, FieldType(typ +: typs: _*))
-    (m.map {
-      case f: UnaryFun[_, _] =>
-        AST.evalComposeCodeM(lhs)(CM.invokePrimitive1(f.asInstanceOf[AnyRef => AnyRef]))
-      case f: UnaryFunCode[t, u] =>
-        AST.evalComposeCodeM[t](lhs)(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
-      case fn =>
-        throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
-    }).map(_.map(Code.checkcast(_)(m.retType.scalaClassTag)))
+    m.map { f =>
+      (f match {
+        case f: UnaryFun[_, _] =>
+          AST.evalComposeCodeM(lhs)(CM.invokePrimitive1(f.asInstanceOf[AnyRef => AnyRef]))
+        case f: UnaryFunCode[t, u] =>
+          AST.evalComposeCodeM[t](lhs)(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
+        case fn =>
+          throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
+      }).map(Code.checkcast(_)(f.retType.scalaClassTag))
+    }
   }
 
   def call(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[Code[AnyRef]] = {
