@@ -1,5 +1,7 @@
 package is.hail.utils
 
+import is.hail.variant.Locus
+
 import scala.collection.JavaConverters._
 
 trait Py4jUtils {
@@ -16,6 +18,12 @@ trait Py4jUtils {
       list.add(elem)
     list
   }
+
+  def parseIntervalList(strs: java.util.ArrayList[String]): IntervalTree[Locus] =
+    IntervalTree(Locus.parseIntervals(strs.asScala.toArray), prune = true)
+
+  def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]]): IntervalTree[Locus] =
+    IntervalTree(intervals.asScala.toArray, prune = true)
 
   // FIXME: don't use vector
   def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toIndexedSeq

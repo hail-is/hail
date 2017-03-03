@@ -1,18 +1,21 @@
 package is.hail.utils
 
 import is.hail.check._
+import is.hail.variant.Locus
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
 import scala.collection.mutable
 import scala.math.Ordering.Implicits._
+import scala.util.parsing.combinator.JavaTokenParsers
+
 
 // interval inclusive of start, exclusive of end: [start, end)
 case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Ordered[Interval[T]] {
 
   import ev._
 
-  require(start <= end)
+  require(start <= end, s"invalid interval: $this: start is not before end")
 
   def contains(position: T): Boolean = position >= start && position < end
 
@@ -53,8 +56,9 @@ case class IntervalTree[T: Ordering](root: Option[IntervalTreeNode[T]]) extends 
     b.result()
   }
 
-  def foreach[U](f: (Interval[T]) => U) =
+  def foreach[U](f: (Interval[T]) => U) {
     root.foreach(_.foreach(f))
+  }
 }
 
 object IntervalTree {

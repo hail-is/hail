@@ -447,7 +447,7 @@ object Parser extends JavaTokenParsers {
 
             case None =>
               // For safety.  Should never happen.
-              ParserUtils.error(s.pos, "invalid $what")
+              ParserUtils.error(s.pos, s"invalid $what")
           }
 
       }

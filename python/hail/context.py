@@ -51,6 +51,7 @@ class HailContext(object):
 
         Env._jvm = self._jvm
         Env._gateway = self._gateway
+        Env._hc = self
 
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
