@@ -513,6 +513,18 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   def compile() = ((fn, args): @unchecked) match {
+    case ("str", Array(a)) => for (
+      v <- a.compile();
+      t = a.`type`;
+      result <- CM.invokePrimitive1(t.str)(v)
+    ) yield result
+
+    case ("json", Array(a)) => for (
+      v <- a.compile();
+      t = a.`type`;
+      result <- CM.invokePrimitive1(JsonMethods.compact(t.toJSON(_)))(v)
+    ) yield result
+
     case ("merge", Array(struct1, struct2)) => for (
       f1 <- struct1.compile();
       f2 <- struct2.compile();
