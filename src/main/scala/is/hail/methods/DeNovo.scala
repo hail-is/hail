@@ -178,15 +178,26 @@ object DeNovo {
         "v" -> (0, TVariant),
         "va" -> (1, vds.vaSignature),
         "global" -> (2, vds.globalSignature),
-        "proband" -> (3, TStruct(("g", TGenotype), ("annot", vds.saSignature), ("id", TString))),
-        "mother" -> (4, TStruct(("g", TGenotype), ("annot", vds.saSignature), ("id", TString))),
-        "father" -> (5, TStruct(("g", TGenotype), ("annot", vds.saSignature), ("id", TString)))
+        "proband" -> (3, TString),
+        "father" -> (4, TString),
+        "mother" -> (5, TString),
+        "probandGt" -> (6, TGenotype),
+        "fatherGt" -> (7, TGenotype),
+        "motherGt" -> (8, TGenotype),
+        "probandAnnot" -> (9, vds.saSignature),
+        "fatherAnnot" -> (10, vds.saSignature),
+        "motherAnnot" -> (11, vds.saSignature)
       )
-
 
       val ec = EvalContext(symTab)
 
       val (names, types, fs) = Parser.parseNamedExprs(cond, ec)
+      val defaultFields = keytableDefaultFields.map(_._1).toSet
+      val badNames = names.toSet.intersect(defaultFields)
+      if (badNames.nonEmpty)
+        fatal(s"additional fields may not intersect with the default namespace.  Problem fields: [ ${
+          badNames.mkString(", ")
+        } ]")
       (ec, names.zip(types), fs)
     }
 
@@ -323,9 +334,15 @@ object DeNovo {
                 ec.set(0, v)
                 ec.set(1, va)
                 ec.set(2, localGlobal)
-                ec.set(3, Annotation(kid, localAnnotationsBc.value(kidIndex)))
-                ec.set(4, Annotation(dad, localAnnotationsBc.value(dadIndex)))
-                ec.set(5, Annotation(mom, localAnnotationsBc.value(momIndex)))
+                ec.set(3, kidId)
+                ec.set(4, dadId)
+                ec.set(5, momId)
+                ec.set(6, if (dad != null) dad.toGenotype else null)
+                ec.set(7, if (mom != null) mom.toGenotype else null)
+                ec.set(8, localAnnotationsBc.value(kidIndex))
+                ec.set(9, localAnnotationsBc.value(dadIndex))
+                ec.set(10, localAnnotationsBc.value(momIndex))
+                ec.set(11, p)
 
                 val results = fs()
                 val combined = defaults ++ results
