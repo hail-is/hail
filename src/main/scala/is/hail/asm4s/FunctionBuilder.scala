@@ -23,6 +23,11 @@ object FunctionBuilder {
     count += 1
     id
   }
+
+  def bytesToBytecodeString(bytes: Array[Byte], out: OutputStream) {
+    val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(out))
+    new ClassReader(bytes).accept(tcv, 0)
+  }
 }
 
 abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnTypeInfo: TypeInfo[R],
@@ -151,6 +156,9 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
   }
 }
 
+case class HailExceptionInCompiledCode(t: Throwable)
+    extends RuntimeException("An exception occured in Hail compiled code, check stderr for bytecode.", t)
+
 class Function0Builder[R >: Null](implicit rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](), rti) {
 
   cn.interfaces.asInstanceOf[java.util.List[String]].add("scala/Function0")
@@ -169,8 +177,14 @@ class Function0Builder[R >: Null](implicit rti: TypeInfo[R]) extends FunctionBui
             }
           }
         }
-
-        f().asInstanceOf[R]
+        try {
+          f().asInstanceOf[R]
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -195,8 +209,14 @@ class FunctionToIBuilder(implicit rti: TypeInfo[Int]) extends FunctionBuilder[In
             }
           }
         }
-
-        f()
+        try {
+          f()
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -223,8 +243,14 @@ class Function1Builder[A >: Null, R >: Null](implicit act: ClassTag[A], ati: Typ
             }
           }
         }
-
-        f(a).asInstanceOf[R]
+        try {
+          f(a).asInstanceOf[R]
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -252,8 +278,14 @@ class FunctionZToZBuilder(implicit zct: ClassTag[Boolean], zti: TypeInfo[Boolean
             }
           }
         }
-
-        f(a)
+        try {
+          f(a)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -281,8 +313,14 @@ class FunctionZToIBuilder(implicit act: ClassTag[Boolean], ati: TypeInfo[Boolean
             }
           }
         }
-
-        f(a)
+        try {
+          f(a)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -310,8 +348,14 @@ class FunctionIToIBuilder(implicit act: ClassTag[Int], ati: TypeInfo[Int],
             }
           }
         }
-
-        f(a)
+        try {
+          f(a)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -340,8 +384,14 @@ class FunctionAToIBuilder[A](implicit act: ClassTag[A], ati: TypeInfo[A],
             }
           }
         }
-
-        f(a)
+        try {
+          f(a)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -371,8 +421,14 @@ class Function2Builder[A1 >: Null, A2 >: Null, R >: Null]
             }
           }
         }
-
-        f(a1, a2).asInstanceOf[R]
+        try {
+          f(a1, a2).asInstanceOf[R]
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -402,8 +458,14 @@ class FunctionIAndIToIBuilder(implicit ict: ClassTag[Int], iti: TypeInfo[Int])
             }
           }
         }
-
-        f(a1, a2)
+        try {
+          f(a1, a2)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -433,8 +495,14 @@ class FunctionIAndIToZBuilder(implicit ict: ClassTag[Int], iti: TypeInfo[Int], r
             }
           }
         }
-
-        f(a1, a2)
+        try {
+          f(a1, a2)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
@@ -464,8 +532,14 @@ class FunctionDAndDToZBuilder(implicit ict: ClassTag[Double], iti: TypeInfo[Doub
             }
           }
         }
-
-        f(a1, a2)
+        try {
+          f(a1, a2)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, System.err)
+            throw new HailExceptionInCompiledCode(e)
+          }
+        }
       }
     }
   }
