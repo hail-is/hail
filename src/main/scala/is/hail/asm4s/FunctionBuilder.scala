@@ -101,31 +101,31 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
 
     // The following block of code can help when the output of Verification 2 is
     // inscrutable; however, it is prone to false rejections (i.e. good code is
-    // rejected) so we leave it commented out.
+    // rejected) so we leave it disabled.
 
-    // {
-    //   // compute without frames first in case frame tester fails miserably
-    //   val cwNoMaxesNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-    //   cn.accept(cwNoMaxesNoFrames)
-    //   val cr = new ClassReader(cwNoMaxesNoFrames.toByteArray)
-    //   val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
-    //   cr.accept(tcv, 0)
+    if (false) {
+      // compute without frames first in case frame tester fails miserably
+      val cwNoMaxesNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+      cn.accept(cwNoMaxesNoFrames)
+      val cr = new ClassReader(cwNoMaxesNoFrames.toByteArray)
+      val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
+      cr.accept(tcv, 0)
 
-    //   val sw = new StringWriter()
-    //   CheckClassAdapter.verify(cr, false, new PrintWriter(sw))
-    //   if (sw.toString().length() != 0) {
-    //     println("Verify Output for " + name + ":")
-    //     try {
-    //       val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
-    //       out.write(sw.toString())
-    //       out.close()
-    //     } catch {
-    //       case e: IOException => System.out.println("Exception " + e)
-    //     }
-    //     println(sw)
-    //     println("Bytecode failed verification 1")
-    //   }
-    // }
+      val sw = new StringWriter()
+      CheckClassAdapter.verify(cr, false, new PrintWriter(sw))
+      if (sw.toString().length() != 0) {
+        println("Verify Output for " + name + ":")
+        try {
+          val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
+          out.write(sw.toString())
+          out.close()
+        } catch {
+          case e: IOException => System.out.println("Exception " + e)
+        }
+        println(sw)
+        println("Bytecode failed verification 1")
+      }
+    }
     {
       val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
       cn.accept(cw)
