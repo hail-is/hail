@@ -1348,7 +1348,7 @@ def main(vcffile, Fam, args):
 
     # Move line by line through the VCF
     for line in vcffile:
-        line = line.split('\t')
+        line = line.strip('\n').split('\t')
 
         chrom_under_study = line[0]
         if chrom_under_study.startswith('chr'):

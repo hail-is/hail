@@ -11,25 +11,34 @@ import scala.collection.mutable
 object DeNovo {
 
   def keytableDefaultFields: Array[(String, Type)] = Array(
-    "v" -> TVariant,
-    "Proband_ID" -> TString,
-    "Father_ID" -> TString,
-    "Mother_ID" -> TString,
-    "Proband_is_female" -> TBoolean,
-    "Proband_is_case" -> TBoolean,
-    "Validation_likelihood" -> TDouble,
-    "Proband_gt" -> TGenotype,
-    "Mother_gt" -> TGenotype,
-    "Father_gt" -> TGenotype,
-    "P_de_novo" -> TDouble)
+    "variant" -> TVariant,
+    "probandID" -> TString,
+    "fatherID" -> TString,
+    "motherID" -> TString,
+    "isFemale" -> TBoolean,
+    "isCase" -> TBoolean,
+    "validationLikelihood" -> TDouble,
+    "probandGt" -> TGenotype,
+    "motherGt" -> TGenotype,
+    "fatherGt" -> TGenotype,
+    "pDeNovo" -> TDouble)
 
 
   private val PRIOR = 1.0 / 30000000
 
   private val MIN_PRIOR = 100.0 / 30000000
 
-  def callAutosomal(kid: CompleteGenotype, dad: CompleteGenotype, mom: CompleteGenotype, isSNP: Boolean,
-    prior: Double, minPDeNovo: Double, nAltAlleles: Int, minDpRatio: Double): Option[(String, Double)] = {
+  def callAutosomal(kid: CompleteGenotype, dad: CompleteGenotype, mom: CompleteGenotype, isSNP: Boolean, prior: Double,
+    minPDeNovo: Double, nAltAlleles: Int, minDpRatio: Double, maxParentAB: Double): Option[(String, Double)] = {
+
+    if (dad == null || mom == null ||
+      !(kid.gt == 1 && dad.gt == 0 && mom.gt == 0) ||
+      kid.dp.toDouble / (dad.dp + mom.dp) < minDpRatio ||
+      (dad.ad(0) == 0) && (dad.ad(1) == 0) ||
+      (mom.ad(0) == 0) && (mom.ad(1) == 0) ||
+      dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) >= maxParentAB ||
+      mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) >= maxParentAB)
+      return None
 
     val kidP = kid.pl.map(x => math.pow(10, -x / 10d))
     val dadP = dad.pl.map(x => math.pow(10, -x / 10d))
@@ -76,8 +85,67 @@ object DeNovo {
       )
         Some("HIGH_SNV", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
-        ((pTrueDeNovo > 0.5) && (kidAdRatio > minDpRatio) && (nAltAlleles == 1))
+        ((pTrueDeNovo > 0.5) && (nAltAlleles == 1))
       )
+        Some("MEDIUM_SNV", pTrueDeNovo)
+      else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
+        Some("LOW_SNV", pTrueDeNovo)
+      else None
+    }
+  }
+
+  def callHemizygous(kid: CompleteGenotype, parent: CompleteGenotype, isSNP: Boolean, prior: Double,
+    minPDeNovo: Double, nAltAlleles: Int, minDpRatio: Double, maxParentAB: Double): Option[(String, Double)] = {
+
+    if (parent == null ||
+      !(kid.gt == 2 && parent.gt == 0) ||
+      kid.dp.toDouble / parent.dp < minDpRatio ||
+      (parent.ad(0) == 0) && (parent.ad(1) == 0) ||
+      parent.ad(1).toDouble / (parent.ad(0) + parent.ad(1)) >= maxParentAB)
+      return None
+
+    val kidP = kid.pl.map(x => math.pow(10, -x / 10d))
+    val parentP = parent.pl.map(x => math.pow(10, -x / 10d))
+
+    val kidSum = kidP.sum
+    val parentSum = parentP.sum
+
+    (0 until 3).foreach { i =>
+      kidP(i) = kidP(i) / kidSum
+      parentP(i) = parentP(i) / parentSum
+    }
+
+    val pDeNovoData = parentP(0) * kidP(2) * PRIOR
+
+    val pDataOneHet = (parentP(1) + parentP(2)) * kidP(2)
+    val pOneParentHet = 1 - math.pow(1 - prior, 4)
+    val pMissedHetInParent = pDataOneHet * pOneParentHet
+
+    val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMissedHetInParent)
+
+    val kidAdRatio = kid.ad(1).toDouble / (kid.ad(0) + kid.ad(1))
+
+    val kidDp = kid.dp
+    val dpRatio = kidDp.toDouble / parent.dp
+
+    // Below is the core calling algorithm
+    if (pTrueDeNovo < minPDeNovo || kidAdRatio <= 0.95)
+      None
+    else if (!isSNP) {
+      if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
+        Some("HIGH_indel", pTrueDeNovo)
+      else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
+        Some("MEDIUM_indel", pTrueDeNovo)
+      else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
+        Some("LOW_indel", pTrueDeNovo)
+      else None
+    } else {
+      if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
+        ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
+        ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10)))
+        Some("HIGH_SNV", pTrueDeNovo)
+      else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
+        ((pTrueDeNovo > 0.5) && (kidAdRatio > minDpRatio) && (nAltAlleles == 1)))
         Some("MEDIUM_SNV", pTrueDeNovo)
       else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
         Some("LOW_SNV", pTrueDeNovo)
@@ -90,7 +158,7 @@ object DeNovo {
     referenceAFExpr: String,
     extraFieldsExpr: Option[String] = None,
     minGQ: Int = 20,
-    minimumPDeNovo: Double = 0.05,
+    minPDeNovo: Double = 0.05,
     maxParentAB: Double = 0.05,
     minChildAB: Double = 0.20,
     minDepthRatio: Double = 0.10): KeyTable = {
@@ -149,7 +217,7 @@ object DeNovo {
     val trioIndexBc = sc.broadcast(trios.map(t => (idMapping(t.kid), idMapping(t.dad), idMapping(t.mom))))
     val sampleTrioRolesBc = sc.broadcast(vds.sampleIds.map(sampleTrioRoles.getOrElse(_, Nil)).toArray)
     val triosBc = sc.broadcast(trios)
-    val trioSexBc = sc.broadcast(trios.map(_.sex.get))
+    val trioSexBc = sc.broadcast(trios.map(_.sex.get).toArray)
 
     val localGlobal = vds.globalAnnotation
     val localAnnotationsBc = vds.sampleAnnotationsBc
@@ -158,7 +226,6 @@ object DeNovo {
       val arr = MultiArray2.fill[CompleteGenotype](trios.length, 3)(null)
 
       iter.flatMap { case (v, (va, gs)) =>
-        var i = 0
 
         var totalAlleles = 0
         var nAltAlleles = 0
@@ -173,7 +240,9 @@ object DeNovo {
           ii += 1
         }
 
+        var i = 0
         gs.foreach { g =>
+
           g.toCompleteGenotype.foreach { cg =>
             val roles = sampleTrioRolesBc.value(i)
             roles.foreach { case (ri, ci) => arr.update(ri, ci, cg) }
@@ -184,7 +253,7 @@ object DeNovo {
           i += 1
         }
 
-        // correct for observed genotype
+        // correct for the observed genotype
         val computedFrequency = (nAltAlleles.toDouble - 1) / totalAlleles.toDouble
 
         val popFrequency = popFreqQuery(va).getOrElse(0d)
@@ -195,75 +264,76 @@ object DeNovo {
 
         val frequency = math.max(math.max(computedFrequency, popFrequency), MIN_PRIOR)
 
-        (0 until nTrios).flatMap { i =>
-          val kid = arr(i, 0)
-          val dad = arr(i, 1)
-          val mom = arr(i, 2)
-          //          if (kid != null && kid.gt == 1 &&
-          //          dad != null && dad.gt == 0 &&
-          //          mom != null && mom.gt == 0)
-          //            println(s"right genotypes: $kid / $dad / $mom")
+        (0 until nTrios).flatMap { t =>
+          val kid = arr(t, 0)
+          val dad = arr(t, 1)
+          val mom = arr(t, 2)
 
-          //          if (kid == "FIpEHPEo3" && v.start == 486)
-          //            println(dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) > maxParentAB,
-          //              mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) > maxParentAB)
-
-          if (kid == null || kid.gt != 1 ||
-            dad == null || dad.gt != 0 ||
-            mom == null || mom.gt != 0 ||
-            kid.pl(0) <= minGQ ||
-            (kid.ad(0) == 0) && (kid.ad(1) == 0) ||
-            (dad.ad(0) == 0) && (dad.ad(1) == 0) ||
-            (mom.ad(0) == 0) && (mom.ad(1) == 0) ||
-            kid.ad(0).toDouble / (kid.ad(0) + kid.ad(1)) <= minChildAB ||
-            dad.ad(1).toDouble / (dad.ad(0) + dad.ad(1)) >= maxParentAB ||
-            mom.ad(1).toDouble / (mom.ad(0) + mom.ad(1)) >= maxParentAB ||
-            kid.dp.toDouble / (mom.dp + dad.dp) < minDepthRatio)
-            None
-          else {
-
-            val annotation = callAutosomal(kid, dad, mom, v.altAllele.isSNP, frequency,
-              minimumPDeNovo, nAltAlleles, minDepthRatio)
-
-            annotation.map { case (str, p) =>
-
-              val defaults: Array[Annotation] = Array(
-                v,
-                triosBc.value(i).kid,
-                triosBc.value(i).dad,
-                triosBc.value(i).mom,
-                triosBc.value(i).sex.map(s => s == Sex.Female).orNull,
-                triosBc.value(i).pheno.map(p => p == Phenotype.Case).orNull,
-                str,
-                kid.toGenotype,
-                dad.toGenotype,
-                mom.toGenotype,
-                p)
-
-              val fullRow = additionalOutput match {
-                case Some((ec, _, fs)) =>
-                  val t = triosBc.value(i)
-                  val kidId = t.kid
-                  val dadId = t.dad
-                  val momId = t.mom
-
-                  val (kidIndex, dadIndex, momIndex) = trioIndexBc.value(i)
-
-                  ec.set(0, v)
-                  ec.set(1, va)
-                  ec.set(2, localGlobal)
-                  ec.set(3, Annotation(arr(i, 0), localAnnotationsBc.value(kidIndex)))
-                  ec.set(4, Annotation(arr(i, 1), localAnnotationsBc.value(dadIndex)))
-                  ec.set(5, Annotation(arr(i, 2), localAnnotationsBc.value(momIndex)))
-
-                  val results = fs()
-                  val combined = defaults ++ results
-                  assert(combined.length == nFields)
-                  combined
-                case None => defaults
-              }
-              Annotation.fromSeq(fullRow)
+          val isSNP = v.altAllele.isSNP
+          val annotation =
+            if (kid == null || kid.gt == 0 || kid.gq <= minGQ ||
+              (kid.ad(0) == 0 && kid.ad(1) == 0) ||
+              kid.ad(1).toDouble / (kid.ad(0) + kid.ad(1)) <= minChildAB)
+              None
+            else if (v.isAutosomal || v.inXPar)
+              callAutosomal(kid, dad, mom, isSNP, frequency,
+                minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+            else {
+              val sex = trioSexBc.value(t)
+              if (v.inXNonPar) {
+                if (sex == Sex.Female)
+                  callAutosomal(kid, dad, mom, isSNP, frequency,
+                    minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+                else
+                  callHemizygous(kid, mom, isSNP, frequency, minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+              } else if (v.inYNonPar) {
+                if (sex == Sex.Female)
+                  None
+                else
+                  callHemizygous(kid, dad, isSNP, frequency, minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+              } else if (v.isMitochondrial)
+                callHemizygous(kid, mom, isSNP, frequency, minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+              else None
             }
+
+          annotation.map { case (str, p) =>
+
+            val defaults: Array[Annotation] = Array(
+              v,
+              triosBc.value(t).kid,
+              triosBc.value(t).dad,
+              triosBc.value(t).mom,
+              triosBc.value(t).sex.map(s => s == Sex.Female).orNull,
+              triosBc.value(t).pheno.map(p => p == Phenotype.Case).orNull,
+              str,
+              kid.toGenotype,
+              if (dad != null) dad.toGenotype else null,
+              if (mom != null) mom.toGenotype else null,
+              p)
+
+            val fullRow = additionalOutput match {
+              case Some((ec, _, fs)) =>
+                val trio = triosBc.value(t)
+                val kidId = trio.kid
+                val dadId = trio.dad
+                val momId = trio.mom
+
+                val (kidIndex, dadIndex, momIndex) = trioIndexBc.value(t)
+
+                ec.set(0, v)
+                ec.set(1, va)
+                ec.set(2, localGlobal)
+                ec.set(3, Annotation(kid, localAnnotationsBc.value(kidIndex)))
+                ec.set(4, Annotation(dad, localAnnotationsBc.value(dadIndex)))
+                ec.set(5, Annotation(mom, localAnnotationsBc.value(momIndex)))
+
+                val results = fs()
+                val combined = defaults ++ results
+                assert(combined.length == nFields)
+                combined
+              case None => defaults
+            }
+            Annotation.fromSeq(fullRow)
           }
         }.iterator
       }
