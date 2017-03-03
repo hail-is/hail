@@ -1164,7 +1164,15 @@ class VariantDataset(object):
         - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
         - ``global``: global annotations
-        - ``proband`` (**): aggregable of :ref:`genotype` for variant ``v``
+        - ``proband`` (*String*): proband sample ID
+        - ``father`` (*String*): father sample ID
+        - ``mother`` (*String*): mother sample ID
+        - ``probandGt`` (*Genotype*): proband genotype
+        - ``fatherGt`` (*Genotype*): father genotype
+        - ``motherGt`` (*Genotype*): motherGt genotype
+        - ``probandAnnot``: proband sample annotations
+        - ``fatherAnnot``: father sample annotations
+        - ``motherAnnot``: mother sample annotations
 
 
         :param str fam_file: Path to .fam file.
