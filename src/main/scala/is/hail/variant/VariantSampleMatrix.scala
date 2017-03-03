@@ -1236,27 +1236,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     ts.map { case (t, f) => (f(), t) }.toArray
   }
 
-  /**
-    *
-    * @param path ID mapping file
-    */
-  def renameSamples(path: String): VariantSampleMatrix[T] = {
-    val m = hc.hadoopConf.readFile(path) { s =>
-      Source.fromInputStream(s)
-        .getLines()
-        .map {
-          _.split("\t") match {
-            case Array(old, news) => (old, news)
-            case _ =>
-              fatal("Invalid input. Use two tab-separated columns.")
-          }
-        }.toMap
-    }
+  def renameSamples(mapping: java.util.Map[String, String]): VariantSampleMatrix[T] =
+    renameSamples(mapping.asScala.toMap)
 
+  def renameSamples(mapping: Map[String, String]): VariantSampleMatrix[T] = {
     val newSamples = mutable.Set.empty[String]
     val newSampleIds = sampleIds
       .map { s =>
-        val news = m.getOrElse(s, s)
+        val news = mapping.getOrElse(s, s)
         if (newSamples.contains(news))
           fatal(s"duplicate sample ID `$news' after rename")
         newSamples += news

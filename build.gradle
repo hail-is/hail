@@ -193,7 +193,7 @@ task testHail(type: Exec, dependsOn: shadowJar) {
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-// test.dependsOn(testHail)
+test.dependsOn(testHail)
 
 tasks.withType(ShadowJar) {
     manifest {

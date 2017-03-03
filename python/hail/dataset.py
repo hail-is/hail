@@ -2956,37 +2956,20 @@ class VariantDataset(object):
         return r
 
     @handle_py4j
-    def rename_samples(self, input):
+    def rename_samples(self, mapping):
         """Rename samples.
 
         **Examples**
 
-        >>> vds_result = vds.rename_samples('data/sample.map')
+        >>> vds_result = vds.rename_samples({'ID1': 'id1', 'ID2': 'id2'})
 
-        **Details**
-
-        The input file is a two-column, tab-separated file with no header. The first column is the current sample
-        name, the second column is the new sample name.  Samples which do not
-        appear in the first column will not be renamed.  Lines in the input that
-        do not correspond to any sample in the current dataset will be ignored.
-
-        :py:meth:`~hail.VariantDataset.export_samples` can be used to generate a template for renaming
-        samples. For example, suppose you want to rename samples to remove
-        spaces.  First, run:
-
-        >>> vds.export_samples('output/sample.map', 's.id, s.id')
-
-        Then edit *sample.map* to remove spaces from the sample names in the
-        second column and run the example above. Renaming samples is fast so there is no need to save out the resulting dataset
-        before performing analyses.
-
-        :param str input: Input file.
+        :param dict mapping: Mapping from old to new sample IDs.
 
         :return: Dataset with remapped sample IDs.
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvds.renameSamples(input)
+        jvds = self._jvds.renameSamples(mapping)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3656,7 +3639,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
-    def make_keytable(self, variant_expr, genotype_expr, key_names):
+    def make_keytable(self, variant_expr, genotype_expr, key_names=[]):
         """Make a KeyTable with one row per variant.
 
         Per sample field names in the result are formed by concatenating the

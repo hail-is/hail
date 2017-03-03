@@ -423,4 +423,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
   }
 
   def explode(columnNames: java.util.ArrayList[String]): KeyTable = explode(columnNames.asScala.toArray)
+
+  def collect(): IndexedSeq[Annotation] = rdd.collect()
 }

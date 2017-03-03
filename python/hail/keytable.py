@@ -1,7 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import scala_package_object, handle_py4j
-from hail.type import Type, TStruct
+from hail.type import Type, TArray, TStruct
 from py4j.protocol import Py4JJavaError
 from pyspark.sql import DataFrame
 
@@ -617,6 +617,12 @@ class KeyTable(object):
             column_names = [column_names]
         return KeyTable(self.hc, self._jkt.explode(column_names))
 
+    @handle_py4j
+    def collect(self):
+        """Collect key table as a python object."""
+
+        return TArray(self.schema)._convert_to_py(self._jkt.collect())
+    
     @handle_py4j
     def _typecheck(self):
         """Check if all values with the schema."""
