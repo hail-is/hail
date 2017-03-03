@@ -371,6 +371,9 @@ class ContextTests(unittest.TestCase):
         sample_variants2 = hc.dataframe_to_keytable(
             sample_variants.to_dataframe(), ['v'])
         self.assertTrue(sample_variants.same(sample_variants2))
+        
+        # cseed: calculated by hand using sort -n -k 3,3 and inspection
+        self.assertTrue(kt.filter('qPhen < 10000').count_rows() == 23)
 
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
