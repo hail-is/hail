@@ -22,8 +22,7 @@ class DeNovoSuite extends SparkSuite {
           pos <- Gen.choose(100000, 100000000)
           alt <- Gen.oneOf("T", "AA") // represent indels and snps
           contig <- Gen.oneOf("1", "X", "Y") // no MT (python caller doesn't support that)
-        } yield Variant(contig, pos, "A", alt)).filter(v => !v.inYPar), tGen = (i: Int) => {
-          require(i == 2)
+        } yield Variant(contig, pos, "A", alt)).filter(v => !v.inYPar), tGen = (v: Variant) => {
           val alleleFrequency = Gen.choose(0.01, 0.30).sample()
           val readBias = Gen.choose(0.01, 0.10).sample()
           val gqMultiplier = Gen.choose(1d, 5d).sample()
