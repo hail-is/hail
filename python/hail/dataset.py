@@ -1934,7 +1934,7 @@ class VariantDataset(object):
         
         .. math::
 
-          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(G_{ij}-2p_j)(G_{kj}-2p_j)}{2 p_j (1-p_j)}
+          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
         
         The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_ as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`_ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
 
