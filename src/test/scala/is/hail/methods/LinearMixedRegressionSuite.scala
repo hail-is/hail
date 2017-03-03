@@ -344,13 +344,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
       useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = true, optDelta = None,
       sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
 
-    // val sb = new StringBuilder()
-    // sb.append("Global annotation schema:\n")
-    // sb.append("global: ")
-    // vds.metadata.globalSignature.pretty(sb, 0, printAttrs = true)
-    // println(sb.result())
-
-    val fitDelta = vds.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]
     val fitSigmaG2 = vds.queryGlobal("global.lmmreg.sigmaG2")._2.asInstanceOf[Double]
     val fitBeta = vds.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]]
 
@@ -361,12 +354,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val linRes = norm(y - C * linBeta)
     val linSigma2 = (linRes * linRes) / (n - c)
 
-    // println(s"truth / lmm: delta   = $delta / $fitDelta")
-    // println(s"truth / lmm / lin: sigmaG2 = $sigmaG2 / $fitSigmaG2 / $linSigma2")
-    // println(s"truth / lmm / lin: beta(0) = ${beta(0)} / ${fitBeta("intercept")} / ${linBeta(0)}")
-    // (1 until c).foreach( i => println(s"truth / lmm / lin: beta($i) = ${beta(i)} / ${fitBeta(s"sa.covs.cov$i")} / ${linBeta(i)}"))
-
-    assert(D_==(delta, fitDelta, 0.05), s"$delta == $fitDelta +- 0.05")
     assert(D_==(sigmaG2, fitSigmaG2, 0.05))
     assert(math.abs(beta(0) - fitBeta("intercept")) < 0.05)
     assert(math.abs(beta(1) - fitBeta("sa.covs.cov1")) < 0.05)
