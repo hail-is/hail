@@ -22,6 +22,9 @@ trait Py4jUtils {
   def parseIntervalList(strs: java.util.ArrayList[String]): IntervalTree[Locus] =
     IntervalTree(Locus.parseIntervals(strs.asScala.toArray), prune = true)
 
+  def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]]): IntervalTree[Locus] =
+    IntervalTree(intervals.asScala.toArray, prune = true)
+
   // FIXME: don't use vector
   def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toIndexedSeq
 

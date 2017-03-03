@@ -149,7 +149,7 @@ class IntervalTree(object):
 
     def __init__(self, intervals):
         jarr = jarray(env.hail.utils.Interval, [i._jrep for i in intervals])
-        jrep = scala_object(env.hail.utils, 'IntervalTree').apply(jarr, True)
+        jrep = env.jutils.makeIntervalList([i._jrep for i in intervals])
         self._jrep = jrep
 
     @classmethod
@@ -160,7 +160,7 @@ class IntervalTree(object):
 
     @staticmethod
     @handle_py4j
-    def parse_all(cls, interval_strings):
+    def parse_all(interval_strings):
         """Parse a list of strings into an interval list
 
         :param interval_strings: list of interval strings to be parsed
@@ -202,13 +202,15 @@ class IntervalTree(object):
             by the python parser :py:meth:`.Interval.parse`.  'k', 'm', 'start', and 'end' are all
             invalid motifs in the ``contig:start-end`` format here.
 
-        :param path: file name
+        :param str path: file name
 
         :rtype: :class:`.IntervalTree`
         """
 
+        print('hadoop conf is %s' % str(env.hc._jhc.hadoopConf()))
+        print('hadoop conf is %s' % str(env.hc._jhc.hadoopConf))
         jrep = scala_object(env.hail.io.annotators, 'IntervalListAnnotator').read(path,
-                                                                                  env.hc._jhc.hadoopConfiguration(),
+                                                                                  env.hc._jhc.hadoopConf(),
                                                                                   True)
 
         return IntervalTree._init_from_java(jrep)
