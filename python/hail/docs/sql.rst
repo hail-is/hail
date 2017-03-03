@@ -15,7 +15,8 @@ SQL at the current time.
 Impala
 ------
 
-Each VDS should be registered in the Hive metastore to allow Impala to query it (Impala uses Hive's metastore to store table metadata). This is done by creating an external table in Hive, the "external" part means that the data is managed by an entity outside Hive (and Impala). The table schema is read from the *_metadata* file in the VDS file
+Each VDS should be registered in the Hive metastore to allow Impala to query it (Impala uses Hive's metastore to store table metadata). This is done by creating an external table in Hive, the "external" part means that the data is managed by an entity outside Hive (and
+Impala). The table schema is read from one of the Parquet files in the VDS file
 hierarchy.
 
 To generate a Hive file:
@@ -28,14 +29,18 @@ To generate a Hive file:
 
     2. Convert the VCF file into a VDS using Hail::
 
-        >>> (hc.import_vcf("sample.vcf.bgz")
-        >>>   .write("sample.vds"))
+        >>> hc.import_vcf("sample.vcf.bgz").write("sample.vds", parquet_genotypes=True)
+
+       Note the use of ``parquet_genotypes=True``, which writes the genotype
+       information using Parquet structures, rather than an opaque binary
+       representation that cannot be queried using SQL.
 
     3. Register the VDS as a Hive table
 
     .. code-block:: text
 
-        $ impala-shell -q "CREATE EXTERNAL TABLE variants LIKE PARQUET 'hdfs:///user/$USER/sample.vds/rdd.parquet/_metadata' STORED AS PARQUET LOCATION 'hdfs:///user/$USER/sample.vds/rdd.parquet'"
+        $ PARQUET_DATA_FILE=$(hadoop fs -stat '%n' hdfs:///user/$USER/sample.vds/rdd.parquet/*.parquet | head -1)
+        $ impala-shell -q "CREATE EXTERNAL TABLE variants LIKE PARQUET 'hdfs:///user/$USER/sample.vds/rdd.parquet/$PARQUET_DATA_FILE' STORED AS PARQUET LOCATION 'hdfs:///user/$USER/sample.vds/rdd.parquet'"
 
 
 It is good practice to run Impala's ``COMPUTE STATS`` command on the newly-created table, so that subsequent queries run efficiently.
@@ -78,24 +83,27 @@ done by calling ``DESCRIBE`` on the table:
     ...
     |             |   >                              |                             |
     |             | >                                |                             |
-    | gs          | struct<                          | Inferred from Parquet file. |
-    |             |   decomplen:int,                 |                             |
-    |             |   bytes:string                   |                             |
-    |             | >                                |                             |
+    | gs          | array<struct<                    | Inferred from Parquet file. |
+    |             |   gt:int,                        |                             |
+    |             |   ad:array<int>,                 |                             |
+    |             |   dp:int,                        |                             |
+    |             |   gq:int,                        |                             |
+    |             |   px:array<int>,                 |                             |
+    |             |   fakeref:boolean,               |                             |
+    |             |   isdosage:boolean               |                             |
+    |             | >>                               |                             |
     +-------------+----------------------------------+-----------------------------+
 
-
-Notice that the schema is nested. The ``annotations`` type corresponds to the variant annotation schema that is displayed using :py:meth:`~hail.VariantDataset.print_schema`:
+Notice that the schema is nested. The ``annotations`` type corresponds to the variant
+annotation schema that is returned by :py:meth:`~hail.VariantDataset.variant_schema`:
 
 .. code-block:: python
 
-    >>> (hc.read("sample.vds")
-    >>>    .print_schema())
+    >>> print(hc.read("sample.vds").variant_schema)
 
 .. code-block:: text
 
-    Variant annotation schema:
-    va: Struct {
+    Struct {
         rsid: String,
         qual: Double,
         filters: Set[String],
@@ -107,9 +115,6 @@ Notice that the schema is nested. The ``annotations`` type corresponds to the va
             ...
         }
     }
-
-The genotypes (``gs``) are encoded in a compact binary representation, which means they
-cannot be queried using SQL.
 
 Here is an example query to find variants in a given interval. Note the way that the
 array of alternate alleles is joined with the main table, and the use of the
@@ -132,11 +137,52 @@ is explained in detail in the `Impala documentation <http://www.cloudera.com/doc
     | 20             | 13098135      | T           | C        | rs150175260      |
     +----------------+---------------+-------------+----------+------------------+
 
+Here is another example showing how you can query the genotype information. Notice that
+each genotype is represented by a whole row in the results. The ``genotype_pos`` column is
+the index of the genotype for the variant.
+
+.. code-block:: text
+
+    $ impala-shell -q "SELECT variant.contig, variant.start, variant.ref, gs.pos AS genotype_pos, gs.item.gt AS gt FROM variants, variants.gs WHERE variant.start = 13090728 AND gs.pos >= 20 AND gs.pos < 25;"
+
+.. code-block:: text
+
+    +----------------+---------------+-------------+--------------+----+
+    | variant.contig | variant.start | variant.ref | genotype_pos | gt |
+    +----------------+---------------+-------------+--------------+----+
+    | 20             | 13090728      | A           | 20           | 1  |
+    | 20             | 13090728      | A           | 21           | 0  |
+    | 20             | 13090728      | A           | 22           | 0  |
+    | 20             | 13090728      | A           | 23           | 0  |
+    | 20             | 13090728      | A           | 24           | 0  |
+    +----------------+---------------+-------------+--------------+----+
+
+We can also retrieve the values from the AD (Allelic Depths) array by doing a nested
+query that returns one row per genotype and per AD value. The ``ad_pos`` column is
+the index of the value in the AD array.
+
+.. code-block:: text
+
+    $ impala-shell -q "SELECT variant.contig, variant.start, variant.ref, gs.pos AS genotype_pos, gs.item.gt AS gt, ad.pos AS ad_pos, ad.item AS ad FROM variants, variants.gs, gs.ad WHERE variant.start = 13090728 LIMIT 6;"
+
+.. code-block:: text
+
+    +----------------+---------------+-------------+--------------+----+--------+----+
+    | variant.contig | variant.start | variant.ref | genotype_pos | gt | ad_pos | ad |
+    +----------------+---------------+-------------+--------------+----+--------+----+
+    | 20             | 13090728      | A           | 0            | 0  | 0      | 28 |
+    | 20             | 13090728      | A           | 0            | 0  | 1      | 0  |
+    | 20             | 13090728      | A           | 1            | 0  | 0      | 20 |
+    | 20             | 13090728      | A           | 1            | 0  | 1      | 0  |
+    | 20             | 13090728      | A           | 2            | 0  | 0      | 11 |
+    | 20             | 13090728      | A           | 2            | 0  | 1      | 0  |
+    +----------------+---------------+-------------+--------------+----+--------+----+
 
 If you no longer need to use SQL you can delete the table definition. Since the table
 was registered as an external table the underlying data is *not* affected, so you can
 still access the VDS from Hail.
 
 .. code-block:: text
+
     $ impala-shell -q "DROP TABLE variants"
     $ hadoop fs -ls sample.vds
