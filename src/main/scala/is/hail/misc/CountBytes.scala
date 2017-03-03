@@ -1,6 +1,5 @@
 package is.hail.misc
 
-
 import is.hail.io.compress.BGzipInputStream
 import org.apache.hadoop
 import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, Path}
@@ -9,7 +8,6 @@ import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat => NewFileInputFormat, FileSplit => NewFileSplit}
 import org.apache.hadoop.mapreduce.{InputSplit => NewInputSplit, RecordReader => NewRecordReader, TaskAttemptContext => NewTaskAttemptContext}
 import org.apache.spark.SparkContext
-import org.kohsuke.args4j.{Option => Args4jOption}
 
 class CountBytesRecordReader extends NewRecordReader[LongWritable, LongWritable] {
   var first = true
