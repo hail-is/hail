@@ -1351,7 +1351,7 @@ class VariantDataset(object):
     @handle_py4j
     def de_novo(self, fam_file, reference_AF_expr, extra_fields_expr=None, pl_threshold=20,
                 min_p_de_novo=0.05,max_parent_AB=0.05, min_child_AB=0.20, min_depth_ratio=0.10):
-        """Call de novo variation
+        """Call de novo variation from trio data.
 
         This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`_.
         It is reproduced in Hail with her permission and assistance.  See the link above for a full specification of the model.
