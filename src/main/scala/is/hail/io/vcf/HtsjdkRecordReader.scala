@@ -103,15 +103,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
     val noCall = Genotype()
     val gsb = new GenotypeStreamBuilder(v.nAlleles, isDosage = false)
 
-    var ind = 0
     vc.getGenotypes.iterator.asScala.foreach { g =>
-
-      if (ind == 16 && v.start == 27673691) {
-        println("HERE IN HTSJDK")
-        println(g)
-      }
-
-      ind += 1
 
       val alleles = g.getAlleles.asScala
       assert(alleles.length == 1 || alleles.length == 2,
@@ -211,11 +203,6 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
         if (!vcfSettings.storeGQ) {
           if (pl != null) {
             val gqFromPL = Genotype.gqFromPL(pl)
-
-            if (ind == 17) {
-              println(s"calculated gq from pl is $gqFromPL")
-              println(s"read gq as $gq")
-            }
 
             if (!filter && gq != gqFromPL) {
               reportAcc += VCFReport.GQPLMismatch
