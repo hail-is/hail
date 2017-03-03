@@ -23,6 +23,9 @@ import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 import scala.collection.mutable.ArrayBuffer
 
 object HailContext {
+
+  val tera = 1024L * 1024L * 1024L * 1024L
+
   def configureAndCreateSparkContext(appName: String, master: Option[String], local: String,
     parquetCompression: String, blockSize: Long): SparkContext = {
     require(blockSize >= 0)
@@ -47,8 +50,6 @@ object HailContext {
 
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    val tera = 1024L * 1024L * 1024L * 1024L
-
     conf.set("spark.sql.parquet.compression.codec", parquetCompression)
     conf.set("spark.sql.files.openCostInBytes", tera.toString)
     conf.set("spark.sql.files.maxPartitionBytes", tera.toString)
@@ -62,7 +63,6 @@ object HailContext {
      * For reasons we don't understand, the DataFrame code uses `SparkHadoopUtil.get.conf` instead of the Hadoop
      * configuration in the SparkContext.  Set both for consistency.
      */
-    SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
     conf.set("spark.hadoop.parquet.block.size", tera.toString)
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
@@ -90,23 +90,14 @@ object HailContext {
 
     val problems = new ArrayBuffer[String]
 
-    val codecKey = "spark.hadoop.io.compression.codecs"
-    val codecs = conf.get(codecKey).split(",").toSet
-    val requiredCodecs = List("org.apache.hadoop.io.compress.DefaultCodec",
-      "is.hail.io.compress.BGzipCodec",
-      "org.apache.hadoop.io.compress.GzipCodec")
-    requiredCodecs.foreach { codec =>
-      if (!codecs.contains(codec))
-        problems += s"Invalid config parameter '$codecKey': missing codec '$codec'"
-    }
-
     val enoughGigs = 1024L * 1024L * 1024L * 50
     val sqlFileKeys = List("spark.sql.files.openCostInBytes",
       "spark.sql.files.maxPartitionBytes")
 
     sqlFileKeys.foreach { k =>
-      if (conf.getLong(k, 0) < enoughGigs)
-        problems += s"Invalid config paramter '$k': too small, require >50G"
+      val param = conf.getLong(k, 0)
+      if (param < enoughGigs)
+        problems += s"Invalid config parameter '$k=': too small. Found $param, require at least 50G"
     }
 
     if (problems.nonEmpty)
@@ -171,6 +162,13 @@ object HailContext {
       checkSparkConfiguration(sc)
       sc
     }
+
+    SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
+    sparkContext.hadoopConfiguration.set("io.compression.codecs",
+      "org.apache.hadoop.io.compress.DefaultCodec," +
+        "is.hail.io.compress.BGzipCodec," +
+        "org.apache.hadoop.io.compress.GzipCodec"
+    )
 
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
     ProgressBarBuilder.build(sparkContext)
