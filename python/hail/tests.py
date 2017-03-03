@@ -84,9 +84,9 @@ class ContextTests(unittest.TestCase):
                                     'N = variants.count()',
                                     '/tmp/annotinter.tsv')
 
-        sample2.query_variants('variants.count()')
+        sample2.query_variants(['variants.count()'])
 
-        sample2.query_samples('samples.count()')
+        sample2.query_samples(['samples.count()'])
 
         (sample2.annotate_global_list(test_resources + '/global_list.txt', 'global.genes',
                                       as_set=True)
@@ -562,7 +562,7 @@ class ContextTests(unittest.TestCase):
     def test_query(self):
         vds = hc.import_vcf('src/test/resources/sample.vcf').split_multi().sample_qc()
 
-        self.assertEqual(vds.sample_ids, vds.query_samples('samples.collect()')[0])
+        self.assertEqual(vds.sample_ids, vds.query_samples(['samples.collect()'])[0])
 
     def test_annotate_global(self):
         vds = hc.import_vcf('src/test/resources/sample.vcf')
