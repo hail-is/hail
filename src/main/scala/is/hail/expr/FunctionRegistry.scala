@@ -614,37 +614,52 @@ object FunctionRegistry {
     else
       box(Genotype.gtPair(gt).k)
   }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
-  registerField("ad", { (x: Genotype) => x.unboxedAD: IndexedSeq[Int] }, "allelic depth for each allele.")
-  registerField("dp", { (x: Genotype) =>
-    val dp = x.unboxedDP
-    if (dp == -1)
-      null
-    else
-      box(dp)
+  registerFieldCode("ad", { (x: Code[Genotype]) =>
+    CM.ret(arrayToWrappedArray(x.invoke[Array[Int]]("unboxedAD")))
+  }, "allelic depth for each allele.")
+  registerFieldCode("dp", { (x: Code[Genotype]) =>
+    nonceToNullable[Int, java.lang.Integer]((x: Code[Int]) => x.ceq(-1), x.invoke[Int]("unboxedDP"), boxInt)
   }, "the total number of informative reads.")
-  registerMethod("od", { (x: Genotype) =>
-    if (x.hasOD)
-      box(x.od_)
-    else
-      null
+  registerMethodCode("od", { (x: Code[Genotype]) =>
+    CM.ret(x.invoke[Boolean]("hasOD").mux(boxInt(x.invoke[Int]("od_")),Code._null[java.lang.Integer]))
   }, "``od = dp - ad.sum``.")
-  registerField("gq", { (x: Genotype) =>
-    val gq = x.unboxedGQ
-    if (gq == -1)
-      null
-    else
-      box(gq)
+  registerFieldCode("gq", { (x: Code[Genotype]) =>
+    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("unboxedGQ"), boxInt)
   }, "the difference between the two smallest PL entries.")
-  registerField("pl", { (x: Genotype) => x.unboxedPL: IndexedSeq[Int] }, "phred-scaled normalized genotype likelihood values. The conversion between ``g.pl`` (Phred-scaled likelihoods) and ``g.dosage`` (linear-scaled probabilities) assumes a uniform prior.")
-  registerField("dosage", { (x: Genotype) => x.unboxedDosage: IndexedSeq[Double] }, "the linear-scaled probabilities.")
-  registerMethod("isHomRef", { (x: Genotype) => x.isHomRef }, "True if this call is ``0/0``.")
-  registerMethod("isHet", { (x: Genotype) => x.isHet }, "True if this call is heterozygous.")
-  registerMethod("isHomVar", { (x: Genotype) => x.isHomVar }, "True if this call is ``j/j`` with ``j>0``.")
-  registerMethod("isCalledNonRef", { (x: Genotype) => x.isCalledNonRef }, "True if either ``g.isHet`` or ``g.isHomVar`` is true.")
-  registerMethod("isHetNonRef", { (x: Genotype) => x.isHetNonRef }, "True if this call is ``j/k`` with ``j>0``.")
-  registerMethod("isHetRef", { (x: Genotype) => x.isHetRef }, "True if this call is ``0/k`` with ``k>0``.")
-  registerMethod("isCalled", { (x: Genotype) => x.isCalled }, "True if the genotype is not ``./.``.")
-  registerMethod("isNotCalled", { (x: Genotype) => x.isNotCalled }, "True if the genotype is ``./.``.")
+  registerFieldCode("pl", { (x: Code[Genotype]) =>
+    CM.ret(arrayToWrappedArray(x.invoke[Array[Int]]("unboxedPL")))
+  }, """
+     phred-scaled normalized genotype likelihood values. The conversion between
+     ``g.pl`` (Phred-scaled likelihoods) and ``g.dosage`` (linear-scaled
+     probabilities) assumes a uniform prior.
+     """)
+  registerFieldCode("dosage", { (x: Code[Genotype]) =>
+    CM.ret(arrayToWrappedArray(x.invoke[Array[Double]]("unboxedDosage")))
+  }, "the linear-scaled probabilities.")
+  registerMethodCode("isHomRef", { (x: Code[Genotype]) =>
+    CM.ret(boxBoolean(x.invoke[Boolean]("isHomRef")))
+  }, "True if this call is ``0/0``.")
+  registerMethodCode("isHet", { (x: Code[Genotype]) =>
+    CM.ret(boxBoolean(x.invoke[Boolean]("isHet")))
+  }, "True if this call is heterozygous.")
+  registerMethodCode("isHomVar", { (x: Code[Genotype]) =>
+    CM.ret(boxBoolean(x.invoke[Boolean]("isHomVar")))
+  }, "True if this call is ``j/j`` with ``j>0``.")
+  registerMethodCode("isCalledNonRef", { (x: Code[Genotype]) =>
+    CM.ret(boxBoolean(x.invoke[Boolean]("isCalledNonRef")))
+  }, "True if either ``g.isHet`` or ``g.isHomVar`` is true.")
+  registerMethodCode("isHetNonRef", { (x: Code[Genotype]) =>
+    CM.ret(boxBoolean(x.invoke[Boolean]("isHetNonRef")))
+  }, "True if this call is ``j/k`` with ``j>0``.")
+  registerMethodCode("isHetRef", { (x: Code[Genotype]) =>
+    CM.ret(boxBoolean(x.invoke[Boolean]("isHetRef")))
+  }, "True if this call is ``0/k`` with ``k>0``.")
+  registerMethodCode("isCalled", { (x: Code[Genotype]) =>
+    CM.ret(boxBoolean(x.invoke[Boolean]("isCalled")))
+  }, "True if the genotype is not ``./.``.")
+  registerMethodCode("isNotCalled", { (x: Code[Genotype]) =>
+    CM.ret(boxBoolean(x.invoke[Boolean]("isNotCalled")))
+  }, "True if the genotype is ``./.``.")
   registerMethod("nNonRefAlleles", { (x: Genotype) =>
     if (x.hasNNonRefAlleles)
       box(x.nNonRefAlleles_)
