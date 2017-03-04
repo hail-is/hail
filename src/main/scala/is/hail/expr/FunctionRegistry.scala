@@ -8,7 +8,7 @@ import is.hail.asm4s.Code
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
 
 import scala.collection.mutable
 import is.hail.variant.{AltAllele, GTPair, Genotype, Locus, Variant}
@@ -555,6 +555,42 @@ object FunctionRegistry {
   val BoxedTTHr = new HailRep[AnyRef] {
     def typ = TTBoxed
   }
+
+  registerField("gt", { (x: Call) =>
+    val gt = x.unboxedGT
+    if (gt == -1)
+      null
+    else
+      box(gt)
+  }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")
+  registerMethod("gtj", { (x: Call) =>
+    val gt = x.unboxedGT
+    if (gt == -1)
+      null
+    else
+      box(Genotype.gtPair(gt).j)
+  }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
+  registerMethod("gtk", { (x: Call) =>
+    val gt = x.unboxedGT
+    if (gt == -1)
+      null
+    else
+      box(Genotype.gtPair(gt).k)
+  }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
+  registerMethod("isHomRef", { (x: Call) => x.isHomRef }, "True if this call is ``0/0``.")
+  registerMethod("isHet", { (x: Call) => x.isHet }, "True if this call is heterozygous.")
+  registerMethod("isHomVar", { (x: Call) => x.isHomVar }, "True if this call is ``j/j`` with ``j>0``.")
+  registerMethod("isCalledNonRef", { (x: Call) => x.isCalledNonRef }, "True if either ``g.isHet`` or ``g.isHomVar`` is true.")
+  registerMethod("isHetNonRef", { (x: Call) => x.isHetNonRef }, "True if this call is ``j/k`` with ``j>0``.")
+  registerMethod("isHetRef", { (x: Call) => x.isHetRef }, "True if this call is ``0/k`` with ``k>0``.")
+  registerMethod("isCalled", { (x: Call) => x.isCalled }, "True if the genotype is not ``./.``.")
+  registerMethod("isNotCalled", { (x: Call) => x.isNotCalled }, "True if the genotype is ``./.``.")
+  registerMethod("nNonRefAlleles", { (x: Call) =>
+    if (x.hasNNonRefAlleles)
+      box(x.nNonRefAlleles_)
+    else
+      null
+  }, "the number of called alternate alleles.")(callHr, boxedintHr)
 
   registerField("gt", { (x: Genotype) =>
     val gt = x.unboxedGT

@@ -394,7 +394,7 @@ object FunctionDocumentation {
       .map { case (cat, catEntries) => (cat, catEntries.groupBy(_.objTypePretty)
         .toArray
         .sortBy(_._1).map { case (typ, typEntries) => (typ, typEntries.sortBy(_.name)) })
-      }
+      }.filter(_._1 != Option("Call"))
 
     // hack to add Struct to documentation
     val typesWStruct = (types ++ Array((Option("Struct"), Array.empty[(String, Array[DocumentationEntry])]))).sortBy(_._1)
