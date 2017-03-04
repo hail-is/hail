@@ -2855,8 +2855,9 @@ class VariantDataset(object):
 
         See :py:meth:`.query_samples` for more information.
 
-        :param exprs: one or more query expressions
-        :type exprs: str or list of str
+        :param exprs: query expressions
+        :type exprs: list of str
+
         :rtype: (list, list of :class:`.Type`)
         """
 
@@ -2896,7 +2897,7 @@ class VariantDataset(object):
         - ``s``: sample
         - ``sa``: sample annotations
 
-        :param exprs: one or more query expressions
+        :param exprs: query expressions
         :type exprs: list of str
 
         :rtype: list
@@ -2916,8 +2917,8 @@ class VariantDataset(object):
 
         See :py:meth:`.query_variants` for more information.
 
-        :param exprs: one or more query expressions
-        :type exprs: str or list of str
+        :param exprs: query expressions
+        :type exprs: list of str
 
         :rtype: (list, list of :class:`.Type`)
         """
@@ -2970,8 +2971,8 @@ class VariantDataset(object):
         >>> exprs = ['variants.count()', 'variants.filter(v => v.altAllele.isSNP()).count()']
         >>> [num_variants, num_snps] = vds.query_variants(exprs)
 
-        :param exprs: one or more query expressions
-        :type exprs: str or list of str
+        :param exprs: query expressions
+        :type exprs: list of str
 
         :rtype: list
         """
@@ -3021,8 +3022,8 @@ class VariantDataset(object):
         >>> exprs = ['gs.count()', 'gs.filter(g => v.altAllele.isSNP() && g.isHet).count()']
         >>> [geno_count, snp_hets] = vds.query_genotypes(exprs)
 
-        :param exprs: One or more query expressions.
-        :type exprs: str or list of str
+        :param exprs: query expressions
+        :type exprs: list of str
 
         :rtype: (list, list of :class:`.Type`)
         """
@@ -3048,8 +3049,8 @@ class VariantDataset(object):
 
         >>> [call_rate] = vds.query_genotypes(['gs.fraction(g => g.isCalled)'])
 
-        :param exprs: One or more query expressions.
-        :type exprs: str or list of str
+        :param exprs: query expressions
+        :type exprs: list of str
 
         :rtype: list
         """
