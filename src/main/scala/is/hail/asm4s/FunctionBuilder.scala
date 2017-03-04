@@ -156,9 +156,6 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
   }
 }
 
-case class HailExceptionInCompiledCode(t: Throwable)
-    extends RuntimeException("An exception occured in Hail compiled code, check stderr for bytecode.", t)
-
 class Function0Builder[R >: Null](implicit rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](), rti) {
 
   cn.interfaces.asInstanceOf[java.util.List[String]].add("scala/Function0")
@@ -182,7 +179,7 @@ class Function0Builder[R >: Null](implicit rti: TypeInfo[R]) extends FunctionBui
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -214,7 +211,7 @@ class FunctionToIBuilder(implicit rti: TypeInfo[Int]) extends FunctionBuilder[In
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -248,7 +245,7 @@ class Function1Builder[A >: Null, R >: Null](implicit act: ClassTag[A], ati: Typ
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -283,7 +280,7 @@ class FunctionZToZBuilder(implicit zct: ClassTag[Boolean], zti: TypeInfo[Boolean
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -318,7 +315,7 @@ class FunctionZToIBuilder(implicit act: ClassTag[Boolean], ati: TypeInfo[Boolean
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -353,7 +350,7 @@ class FunctionIToIBuilder(implicit act: ClassTag[Int], ati: TypeInfo[Int],
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -389,7 +386,7 @@ class FunctionAToIBuilder[A](implicit act: ClassTag[A], ati: TypeInfo[A],
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -426,7 +423,7 @@ class Function2Builder[A1 >: Null, A2 >: Null, R >: Null]
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -463,7 +460,7 @@ class FunctionIAndIToIBuilder(implicit ict: ClassTag[Int], iti: TypeInfo[Int])
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -500,7 +497,7 @@ class FunctionIAndIToZBuilder(implicit ict: ClassTag[Int], iti: TypeInfo[Int], r
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
@@ -537,7 +534,7 @@ class FunctionDAndDToZBuilder(implicit ict: ClassTag[Double], iti: TypeInfo[Doub
         } catch {
           case e @ (_ : Exception | _: LinkageError) => {
             FunctionBuilder.bytesToBytecodeString(bytes, System.err)
-            throw new HailExceptionInCompiledCode(e)
+            throw e
           }
         }
       }
