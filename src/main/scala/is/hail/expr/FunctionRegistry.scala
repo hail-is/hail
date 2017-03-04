@@ -1488,8 +1488,9 @@ object FunctionRegistry {
 
     We recommend this function is used with the `Python counter object <https://docs.python.org/2/library/collections.html#collections.Counter>`_.
 
+    >>> [counter] = vds.query_variants(['variants.flatMap(v => v.altAlleles).counter()'])
     >>> from collections import Counter
-    >>> counter = Counter(vds.query_variants(['variants.flatMap(v => v.altAlleles).counter()'])[0])
+    >>> counter = Counter(counter)
     >>> print(counter.most_common(5))
     [(AltAllele(C, T), 129L),
      (AltAllele(G, A), 112L),
@@ -1564,7 +1565,7 @@ object FunctionRegistry {
 
     Compute global GQ-distribution:
 
-    >>> gq_dist = (vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
+    >>> [gq_dist] = (vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
     ...    .query_variants(['variants.map(v => va.gqHist.binFrequencies).sum()']))
 
     **Notes**
