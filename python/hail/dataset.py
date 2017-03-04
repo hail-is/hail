@@ -2882,8 +2882,8 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [lof_variant_count], [t] = vds.query_variants_typed(
-        ...     'variants.filter(v => va.consequence == "LOF").count()')
+        >>> [lof_variant_count], [t] = vds.query_variants_typed([
+        ...     'variants.filter(v => va.consequence == "LOF").count()'])
 
         See :py:meth:`.query_variants` for more information.
 
@@ -2906,8 +2906,8 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [lof_variant_count] = vds.query_variants(
-        ...    'variants.filter(v => va.consequence == "LOF").count()')
+        >>> [lof_variant_count] = vds.query_variants([
+        ...    'variants.filter(v => va.consequence == "LOF").count()'])
 
         **Notes**
 
@@ -2955,8 +2955,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [gq_hist], [t] = vds.query_genotypes_typed(
-        ...     'gs.map(g => g.gq).hist(0, 100, 100)')
+        >>> [gq_hist], [t] = vds.query_genotypes_typed(['gs.map(g => g.gq).hist(0, 100, 100)'])
 
         See :py:meth:`.query_genotypes` for more information.
 

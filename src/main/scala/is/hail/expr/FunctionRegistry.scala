@@ -1489,7 +1489,7 @@ object FunctionRegistry {
     We recommend this function is used with the `Python counter object <https://docs.python.org/2/library/collections.html#collections.Counter>`_.
 
     >>> from collections import Counter
-    >>> [counter] = Counter(vds.query_variants(['variants.flatMap(v => v.altAlleles).counter()']))
+    >>> counter = Counter(vds.query_variants(['variants.flatMap(v => v.altAlleles).counter()'])[0])
     >>> print(counter.most_common(5))
     [(AltAllele(C, T), 129L),
      (AltAllele(G, A), 112L),
