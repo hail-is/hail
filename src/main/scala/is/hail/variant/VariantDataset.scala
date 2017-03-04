@@ -4,7 +4,7 @@ import java.io.FileNotFoundException
 
 import is.hail.HailContext
 import is.hail.annotations.{Annotation, _}
-import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TString, TStruct, Type, _}
+import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
 import is.hail.io._
 import is.hail.io.annotators.IntervalListAnnotator
 import is.hail.io.plink.ExportBedBimFam
@@ -16,6 +16,7 @@ import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
 import org.apache.kudu.spark.kudu.{KuduContext, _}
+import org.apache.spark.SparkEnv
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -1205,6 +1206,58 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       ret = ret.annotateGlobal(eig, pcSchema, eigenRoot.get)
     }
     ret
+  }
+
+
+  def queryGenotypes(expr: String): (Annotation, Type) = {
+    val qv = queryGenotypes(Array(expr))
+    assert(qv.length == 1)
+    qv.head
+  }
+
+  def queryGenotypes(exprs: Array[String]): Array[(Annotation, Type)] = {
+    val aggregationST = Map(
+      "global" -> (0, vds.globalSignature),
+      "g" -> (1, TGenotype),
+      "v" -> (2, TVariant),
+      "va" -> (3, vds.vaSignature),
+      "s" -> (4, TSample),
+      "sa" -> (5, vds.saSignature))
+    val ec = EvalContext(Map(
+      "global" -> (0, vds.globalSignature),
+      "gs" -> (1, TAggregable(TGenotype, aggregationST))))
+
+    val ts = exprs.map(e => Parser.parseExpr(e, ec))
+
+    val localGlobalAnnotation = vds.globalAnnotation
+    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Genotype](ec, { case (ec, g) =>
+      ec.set(1, g)
+    })
+
+    val sampleIdsBc = vds.sampleIdsBc
+    val sampleAnnotationsBc = vds.sampleAnnotationsBc
+    val globalBc = vds.sparkContext.broadcast(vds.globalAnnotation)
+
+    val result = vds.rdd.mapPartitions { it =>
+      val zv = zVal.map(_.copy())
+      ec.set(0, globalBc.value)
+      it.foreach { case (v, (va, gs)) =>
+        var i = 0
+        ec.set(2, v)
+        ec.set(3, va)
+        gs.foreach { g =>
+          ec.set(4, sampleIdsBc.value(i))
+          ec.set(5, sampleAnnotationsBc.value(i))
+          seqOp(zv, g)
+          i += 1
+        }
+      }
+      Iterator(zv)
+    }.fold(zVal.map(_.copy()))(combOp)
+    resOp(result)
+
+    ec.set(0, localGlobalAnnotation)
+    ts.map { case (t, f) => (f(), t) }
   }
 
   def sampleQC(): VariantDataset = SampleQC(vds)

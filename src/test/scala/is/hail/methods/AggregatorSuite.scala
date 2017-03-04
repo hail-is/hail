@@ -253,4 +253,23 @@ class AggregatorSuite extends SparkSuite {
       true
     }.check()
   }
+
+  @Test def testQueryGenotypes() {
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+      val countResult = vds.count(true).callRate
+      val queryResult = vds.queryGenotypes("100 * gs.fraction(g => g.isCalled)")._1
+      val p1 = countResult.isEmpty && queryResult == null ||
+        countResult.exists(x => D_==(x, queryResult.asInstanceOf[Double]))
+
+      val filterCountResult = Some(vds.expand().count()).flatMap { r =>
+        if (r == 0) None else Some(vds.expand().filter { case (v, _, g) =>
+          (v.start % 2 == 1) && g.isCalled
+        }.count().toDouble / r)
+      }
+      val queryResult2 = vds.queryGenotypes("gs.fraction(g => (v.start % 2 == 1) && g.isCalled)")._1
+      val p2 = filterCountResult.isEmpty && queryResult2 == null ||
+        filterCountResult.exists(x => D_==(x, queryResult2.asInstanceOf[Double]))
+      p1 && p2
+    }.check()
+  }
 }
