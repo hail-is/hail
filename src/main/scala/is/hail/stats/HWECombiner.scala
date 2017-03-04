@@ -17,7 +17,7 @@ class HWECombiner extends Serializable {
   var nHet = 0
   var nHomVar = 0
 
-  def merge(gt:Genotype): HWECombiner = {
+  def merge(gt: Genotype): HWECombiner = {
     if (gt.isHomRef)
       nHomRef += 1
     else if (gt.isHet)
@@ -37,6 +37,7 @@ class HWECombiner extends Serializable {
   }
 
   def n = nHomRef + nHet + nHomVar
+
   def nA = nHet + 2 * nHomRef.min(nHomVar)
 
   def lh = LeveneHaldane(n, nA)

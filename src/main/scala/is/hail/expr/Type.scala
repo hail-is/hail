@@ -5,7 +5,7 @@ import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
-import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.json4s._
@@ -596,6 +596,18 @@ case object TGenotype extends Type {
   override def desc: String = "A ``Genotype`` is a Hail data type representing a genotype in the Variant Dataset. It is referred to as ``g`` in the expression language."
 
   override def scalaClassTag: ClassTag[Genotype] = classTag[Genotype]
+}
+
+case object TCall extends Type {
+  override def toString = "Call"
+
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Call]
+
+  override def genNonmissingValue: Gen[Annotation] = Call.genArb
+
+  override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
+
+  override def scalaClassTag: ClassTag[Call] = classTag[Call]
 }
 
 case object TAltAllele extends Type {

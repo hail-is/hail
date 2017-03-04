@@ -2,7 +2,7 @@ package is.hail.expr
 
 import scala.collection.mutable
 import is.hail.utils.Interval
-import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
 
 trait HailRep[T] { self =>
   def typ: Type
@@ -61,6 +61,10 @@ trait HailRepFunctions {
   // not implicit to make stringHr the default
   object sampleHr extends HailRep[String] {
     def typ = TSample
+  }
+
+  implicit object callHr extends HailRep[Call] {
+    def typ = TCall
   }
 
   implicit object genotypeHr extends HailRep[Genotype] {
