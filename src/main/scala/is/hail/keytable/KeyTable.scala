@@ -1,6 +1,12 @@
 package is.hail.keytable
 
 import is.hail.HailContext
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.io.exportTypes
@@ -116,7 +122,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val (t, f) = Parser.parseExpr(code, ec)
 
     val f2: (Annotation) => Any = { a =>
-      ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+      ec.setAllFromRow(a.asInstanceOf[Row])
       f()
     }
 
@@ -141,7 +147,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val nFieldsLocal = nFields
 
     val annotF: Annotation => Annotation = { a =>
-      ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+      ec.setAllFromRow(a.asInstanceOf[Row])
 
       f().zip(inserters)
         .foldLeft(a) { case (a1, (v, inserter)) =>
@@ -160,7 +166,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](cond, ec)
 
     val p = (a: Annotation) => {
-      ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+      ec.setAllFromRow(a.asInstanceOf[Row])
       Filter.boxedKeepThis(f(), keep)
     }
 
@@ -269,7 +275,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     rdd.forall { a =>
-      ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+      ec.setAllFromRow(a.asInstanceOf[Row])
       val b = f()
       if (b == null)
         false
@@ -283,7 +289,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     rdd.exists { a =>
-      ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+      ec.setAllFromRow(a.asInstanceOf[Row])
       val b = f()
       if (b == null)
         false
@@ -341,14 +347,14 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
       case (ec, a) =>
-        ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+        ec.setAllFromRow(a.asInstanceOf[Row])
     })
 
     val newRDD = rdd.mapPartitions {
       it =>
         it.map {
           a =>
-            keyEC.setAll(a.asInstanceOf[Row].toSeq: _*)
+            keyEC.setAllFromRow(a.asInstanceOf[Row])
             val key = Annotation.fromSeq(keyF())
             (key, a)
         }

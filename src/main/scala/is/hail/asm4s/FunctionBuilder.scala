@@ -1,11 +1,17 @@
 package is.hail.asm4s
 
 import java.util
+import java.io._
 
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.{ClassWriter, Type}
+import java.util
 
+import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
+import org.objectweb.asm.{ClassReader, ClassWriter, Type}
+
+import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
@@ -28,21 +34,28 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
   cn.version = V1_8
   cn.access = ACC_PUBLIC
 
-  cn.name = packageName + "/C" + newUniqueID()
+  val name = packageName + "/C" + newUniqueID()
+  cn.name = name
   cn.superName = "java/lang/Object"
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
 
-  def signature: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
+  def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
-  val mn = new MethodNode(ACC_PUBLIC + ACC_STATIC, "f", signature, null, null)
+  val mn = new MethodNode(ACC_PUBLIC, "apply", descriptor, null, null)
+  val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
   // FIXME why is cast necessary?
   cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
-  val il = mn.instructions
+  cn.methods.asInstanceOf[util.List[MethodNode]].add(init)
+
+  init.instructions.add(new IntInsnNode(ALOAD, 0))
+  init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
+  init.instructions.add(new InsnNode(RETURN))
 
   val start = new LabelNode
   val end = new LabelNode
 
   val layout: Array[Int] =
-    parameterTypeInfo.scanLeft(0) { case (prev, ti) => prev + ti.slots }
+    0 +: (parameterTypeInfo.scanLeft(1) { case (prev, ti) => prev + ti.slots })
   val argIndex: Array[Int] = layout.init
   var locals: Int = layout.last
 
@@ -58,21 +71,6 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
   def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T]())
 
-  def invokeStatic[T, S](method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], sct: ClassTag[S]): Code[S] = {
-    val m = Invokeable.lookupMethod[T, S](method, parameterTypes)
-    assert(m.isStatic)
-    m.invoke(null, args)
-  }
-
-  def invokeStatic[T, S](method: String)(implicit tct: ClassTag[T], sct: ClassTag[S]): Code[S] =
-    invokeStatic[T, S](method, Array[Class[_]](), Array[Code[_]]())
-
-  def invokeStatic[T, A1, S](method: String, a1: Code[A1])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1]): Code[S] =
-    invokeStatic[T, S](method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
-
-  def invokeStatic[T, A1, A2, S](method: String, a1: Code[A1], a2: Code[A2])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2]): Code[S] =
-    invokeStatic[T, S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
-
   def getStatic[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): Code[S] = {
     val f = FieldRef[T, S](field)
     assert(f.isStatic)
@@ -85,110 +83,390 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
     f.put(null, rhs)
   }
 
-  def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T], atti: TypeInfo[Array[T]]): Code[Array[T]] = {
-    new Code[Array[T]] {
-      def emit(il: InsnList): Unit = {
-        size.emit(il)
-        il.add(tti.newArray())
-      }
-    }
-  }
-
-  def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
-    new Code[T] {
-      def emit(il: InsnList): Unit = {
-        il.add(new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass)))
-        il.add(new InsnNode(DUP))
-        Invokeable.lookupConstructor[T](Array()).invoke(null, Array()).emit(il)
-      }
-    }
-  }
-
-  def newInstance[T]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](), Array[Code[_]]())
-
-  def newInstance[T, A1](a1: Code[A1])(implicit a1ct: ClassTag[A1],
-    tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
-
-  def newInstance[T, A1, A2](a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-    tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
-
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
-    assert(i < parameterTypeInfo.length)
+    assert(i < layout.length)
     new LocalRef[T](argIndex(i))
   }
 
-  def resultClass(c: Code[R]): Class[_] = {
+  def classAsBytes(c: Code[R]): Array[Byte] = {
     mn.instructions.add(start)
-    c.emit(mn.instructions)
+    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+    c.emit(l)
+    val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
+    assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${dupes: Seq[Any]}")
+    l.foreach(mn.instructions.add _)
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
 
-    val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS +
-      ClassWriter.COMPUTE_FRAMES)
+    // The following block of code can help when the output of Verification 2 is
+    // inscrutable; however, it is prone to false rejections (i.e. good code is
+    // rejected) so we leave it disabled.
+
+    if (false) {
+      // compute without frames first in case frame tester fails miserably
+      val cwNoMaxesNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+      cn.accept(cwNoMaxesNoFrames)
+      val cr = new ClassReader(cwNoMaxesNoFrames.toByteArray)
+      val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
+      cr.accept(tcv, 0)
+
+      val sw = new StringWriter()
+      CheckClassAdapter.verify(cr, false, new PrintWriter(sw))
+      if (sw.toString().length() != 0) {
+        println("Verify Output for " + name + ":")
+        try {
+          val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
+          out.write(sw.toString())
+          out.close()
+        } catch {
+          case e: IOException => System.out.println("Exception " + e)
+        }
+        println(sw)
+        println("Bytecode failed verification 1")
+      }
+    }
+    {
+      val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
+      cn.accept(cw)
+
+      val sw = new StringWriter()
+      CheckClassAdapter.verify(new ClassReader(cw.toByteArray), false, new PrintWriter(sw))
+      if (sw.toString.length != 0) {
+        println("Verify Output for " + name + ":")
+        try {
+          val out = new BufferedWriter(new FileWriter("ByteCodeOutput.txt"))
+          out.write(sw.toString)
+          out.close
+        } catch {
+          case e: IOException => System.out.println("Exception " + e)
+        }
+        throw new IllegalStateException("Bytecode failed verification 2")
+      }
+    }
+
+    val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
     cn.accept(cw)
-    val b = cw.toByteArray
-    val clazz = loadClass(null, b)
-
-    // print bytecode for debugging
-    /*
-    val cr = new ClassReader(b)
-    val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(System.out))
-    cr.accept(tcv, 0)
-    */
-
-    clazz
+    cw.toByteArray
   }
+}
 
-  def whileLoop(condition: Code[Boolean], body: Code[_]): Code[Unit] = {
-    val l1 = new LabelNode
-    val l2 = new LabelNode
-    new Code[Unit] {
-      def emit(il: InsnList): Unit = {
-        il.add(l1)
-        condition.emit(il)
-        il.add(new LdcInsnNode(0))
-        il.add(new JumpInsnNode(IF_ICMPEQ, l2))
-        body.emit(il)
-        il.add(new JumpInsnNode(GOTO, l1))
-        il.add(l2)
+class Function0Builder[R >: Null](implicit rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](), rti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("scala/Function0")
+
+  def result(c: Code[R]): () => R = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function0[R] with java.io.Serializable {
+      @transient @volatile private var f: () => Any = null
+      def apply(): R = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[() => Any]
+            }
+          }
+        }
+
+        f().asInstanceOf[R]
       }
     }
   }
 }
 
-class Function0Builder[R](implicit rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](), rti) {
-  def result(c: Code[R]): () => R = {
-    val clazz = resultClass(c)
-    val m = clazz.getMethod("f")
-    () => m.invoke(null).asInstanceOf[R]
+trait ToI { def apply(): Int }
+class FunctionToIBuilder(implicit rti: TypeInfo[Int]) extends FunctionBuilder[Int](Array[TypeInfo[_]](), rti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("is/hail/asm4s/ToI")
+
+  def result(c: Code[Int]): () => Int = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function0[Int] with java.io.Serializable {
+      @transient @volatile private var f: ToI = null
+      def apply(): Int = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[ToI]
+            }
+          }
+        }
+
+        f()
+      }
+    }
   }
 }
 
-class Function1Builder[A, R](implicit act: ClassTag[A], ati: TypeInfo[A],
+class Function1Builder[A >: Null, R >: Null](implicit act: ClassTag[A], ati: TypeInfo[A],
   rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](ati), rti) {
-  def arg1 = getArg[A](0)
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("scala/Function1")
+
+  def arg1 = getArg[A](1)
 
   def result(c: Code[R]): (A) => R = {
-    val clazz = resultClass(c)
-    val m = clazz.getMethod("f", act.runtimeClass)
-    (a: A) => m.invoke(null, a.asInstanceOf[AnyRef]).asInstanceOf[R]
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function1[A, R] with java.io.Serializable {
+      @transient @volatile private var f: (Any) => Any = null
+      def apply(a: A): R = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[(Any) => Any]
+            }
+          }
+        }
+
+        f(a).asInstanceOf[R]
+      }
+    }
   }
 }
 
-class Function2Builder[A1, A2, R](implicit a1ct: ClassTag[A1], a1ti: TypeInfo[A1],
-  a2ct: ClassTag[A2], a2ti: TypeInfo[A2],
-  rti: TypeInfo[R]) extends FunctionBuilder[R](Array[TypeInfo[_]](a1ti, a2ti), rti) {
-  def arg1 = getArg[A1](0)
+trait ZToZ { def apply(b: Boolean): Boolean }
+class FunctionZToZBuilder(implicit zct: ClassTag[Boolean], zti: TypeInfo[Boolean])
+    extends FunctionBuilder[Boolean](Array[TypeInfo[_]](zti), zti) {
 
-  def arg2 = getArg[A2](1)
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("is/hail/asm4s/ZToZ")
+
+  def arg1 = getArg[Boolean](1)
+
+  def result(c: Code[Boolean]): (Boolean) => Boolean = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function1[Boolean, Boolean] with java.io.Serializable {
+      @transient @volatile private var f: ZToZ = null
+      def apply(a: Boolean): Boolean = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[ZToZ]
+            }
+          }
+        }
+
+        f(a)
+      }
+    }
+  }
+}
+
+trait ZToI { def apply(b: Boolean): Int }
+class FunctionZToIBuilder(implicit act: ClassTag[Boolean], ati: TypeInfo[Boolean],
+  rti: TypeInfo[Int]) extends FunctionBuilder[Int](Array[TypeInfo[_]](ati), rti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("is/hail/asm4s/ZToI")
+
+  def arg1 = getArg[Boolean](1)
+
+  def result(c: Code[Int]): (Boolean) => Int = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function1[Boolean, Int] with java.io.Serializable {
+      @transient @volatile private var f: ZToI = null
+      def apply(a: Boolean): Int = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[ZToI]
+            }
+          }
+        }
+
+        f(a)
+      }
+    }
+  }
+}
+
+trait IToI { def apply(b: Int): Int }
+class FunctionIToIBuilder(implicit act: ClassTag[Int], ati: TypeInfo[Int],
+  rti: TypeInfo[Int]) extends FunctionBuilder[Int](Array[TypeInfo[_]](ati), rti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("is/hail/asm4s/IToI")
+
+  def arg1 = getArg[Int](1)
+
+  def result(c: Code[Int]): (Int) => Int = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function1[Int, Int] with java.io.Serializable {
+      @transient @volatile private var f: IToI = null
+      def apply(a: Int): Int = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[IToI]
+            }
+          }
+        }
+
+        f(a)
+      }
+    }
+  }
+}
+
+
+trait AToI[A] { def apply(b: A): Int }
+class FunctionAToIBuilder[A](implicit act: ClassTag[A], ati: TypeInfo[A],
+  rti: TypeInfo[Int]) extends FunctionBuilder[Int](Array[TypeInfo[_]](implicitly[TypeInfo[AnyRef]]), rti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("is/hail/asm4s/AToI")
+
+  def arg1 = Code.checkcast[A](getArg[AnyRef](1))
+
+  def result(c: Code[Int]): (A) => Int = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function1[A, Int] with java.io.Serializable {
+      @transient @volatile private var f: AToI[A] = null
+      def apply(a: A): Int = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[AToI[A]]
+            }
+          }
+        }
+
+        f(a)
+      }
+    }
+  }
+}
+
+class Function2Builder[A1 >: Null, A2 >: Null, R >: Null]
+  (implicit a1ct: ClassTag[A1], a1ti: TypeInfo[A1], a2ct: ClassTag[A2], a2ti: TypeInfo[A2], rti: TypeInfo[R])
+    extends FunctionBuilder[R](Array[TypeInfo[_]](implicitly[TypeInfo[AnyRef]], implicitly[TypeInfo[AnyRef]]), rti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("scala/Function2")
+
+  def arg1 = Code.checkcast[A1](getArg[AnyRef](1))
+
+  def arg2 = Code.checkcast[A2](getArg[AnyRef](2))
 
   def result(c: Code[R]): (A1, A2) => R = {
-    val clazz = resultClass(c)
-    val m = clazz.getMethod("f", a1ct.runtimeClass, a2ct.runtimeClass)
-    (a1: A1, a2: A2) => m.invoke(null, a1.asInstanceOf[AnyRef], a2.asInstanceOf[AnyRef]).asInstanceOf[R]
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function2[A1, A2, R] with java.io.Serializable {
+      @transient @volatile private var f: (Any, Any) => Any = null
+      def apply(a1: A1, a2: A2): R = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[(Any, Any) => Any]
+            }
+          }
+        }
+
+        f(a1, a2).asInstanceOf[R]
+      }
+    }
+  }
+}
+
+trait IAndIToI { def apply(a1: Int, a2: Int): Int }
+class FunctionIAndIToIBuilder(implicit ict: ClassTag[Int], iti: TypeInfo[Int])
+    extends FunctionBuilder[Int](Array[TypeInfo[_]](iti, iti), iti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("is/hail/asm4s/IAndIToI")
+
+  def arg1 = getArg[Int](1)
+
+  def arg2 = getArg[Int](2)
+
+  def result(c: Code[Int]): (Int, Int) => Int = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function2[Int, Int, Int] with java.io.Serializable {
+      @transient @volatile private var f: IAndIToI = null
+      def apply(a1: Int, a2: Int): Int = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[IAndIToI]
+            }
+          }
+        }
+
+        f(a1, a2)
+      }
+    }
+  }
+}
+
+trait IAndIToZ { def apply(a1: Int, a2: Int): Boolean }
+class FunctionIAndIToZBuilder(implicit ict: ClassTag[Int], iti: TypeInfo[Int], rti: TypeInfo[Boolean])
+    extends FunctionBuilder[Boolean](Array[TypeInfo[_]](iti, iti), rti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("is/hail/asm4s/IAndIToZ")
+
+  def arg1 = getArg[Int](1)
+
+  def arg2 = getArg[Int](2)
+
+  def result(c: Code[Boolean]): (Int, Int) => Boolean = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function2[Int, Int, Boolean] with java.io.Serializable {
+      @transient @volatile private var f: IAndIToZ = null
+      def apply(a1: Int, a2: Int): Boolean = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[IAndIToZ]
+            }
+          }
+        }
+
+        f(a1, a2)
+      }
+    }
+  }
+}
+
+trait DAndDToZ { def apply(a1: Double, a2: Double): Boolean }
+class FunctionDAndDToZBuilder(implicit ict: ClassTag[Double], iti: TypeInfo[Double], rti: TypeInfo[Boolean])
+    extends FunctionBuilder[Boolean](Array[TypeInfo[_]](iti, iti), rti) {
+
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("is/hail/asm4s/DAndDToZ")
+
+  def arg1 = getArg[Double](1)
+
+  def arg2 = getArg[Double](2)
+
+  def result(c: Code[Boolean]): (Double, Double) => Boolean = {
+    val bytes = classAsBytes(c)
+    val localName = name.replaceAll("/",".")
+
+    new Function2[Double, Double, Boolean] with java.io.Serializable {
+      @transient @volatile private var f: DAndDToZ = null
+      def apply(a1: Double, a2: Double): Boolean = {
+        if (f == null) {
+          this.synchronized {
+            if (f == null) {
+              f = loadClass(localName, bytes).newInstance().asInstanceOf[DAndDToZ]
+            }
+          }
+        }
+
+        f(a1, a2)
+      }
+    }
   }
 }

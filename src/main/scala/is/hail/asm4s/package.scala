@@ -6,6 +6,7 @@ import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
 
+import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
@@ -120,31 +121,48 @@ package object asm4s {
   implicit def classInfo[C <: AnyRef](implicit cct: ClassTag[C]): TypeInfo[C] = {
     new TypeInfo[C] {
       val name = Type.getDescriptor(cct.runtimeClass)
+      val iname = Type.getInternalName(cct.runtimeClass)
       val loadOp = ALOAD
       val storeOp = ASTORE
       val aloadOp = AALOAD
       val astoreOp = AASTORE
       val returnOp = ARETURN
 
-      def newArray() = new TypeInsnNode(ANEWARRAY, Type.getInternalName(cct.runtimeClass))
+      def newArray() = new TypeInsnNode(ANEWARRAY, iname)
+    }
+  }
+
+  implicit def arrayInfo[T](implicit tct: ClassTag[Array[T]]): TypeInfo[Array[T]] = {
+    new TypeInfo[Array[T]] {
+      val name = Type.getDescriptor(tct.runtimeClass)
+      val iname = Type.getInternalName(tct.runtimeClass)
+      val loadOp = ALOAD
+      val storeOp = ASTORE
+      val aloadOp = AALOAD
+      val astoreOp = AASTORE
+      val returnOp = ARETURN
+
+      def newArray() = new TypeInsnNode(ANEWARRAY, iname)
+    }
+  }
+
+  object HailClassLoader extends ClassLoader {
+    def loadOrDefineClass(name: String, b: Array[Byte]): Class[_] = {
+      getClassLoadingLock(name).synchronized {
+        try {
+          val clazz = defineClass(name, b, 0, b.length)
+          clazz
+        } catch {
+          case e: java.lang.Throwable => {
+            loadClass(name)
+          }
+        }
+      }
     }
   }
 
   def loadClass(className: String, b: Array[Byte]): Class[_] = {
-    // override classDefine (as it is protected) and define the class.
-    var clazz: Class[_] = null
-    val loader: ClassLoader = classOf[FunctionBuilder[_]].getClassLoader
-    val cls: Class[_] = Class.forName("java.lang.ClassLoader")
-    val method: Method = cls.getDeclaredMethod("defineClass", classOf[String], classOf[Array[Byte]], classOf[Int], classOf[Int])
-
-    // protected method invocaton
-    method.setAccessible(true)
-
-    clazz = method.invoke(loader, null, b, new Integer(0), new Integer(b.length)).asInstanceOf[Class[_]]
-
-    method.setAccessible(false)
-
-    clazz
+    HailClassLoader.loadOrDefineClass(className, b)
   }
 
   def ??? = throw new UnsupportedOperationException
@@ -153,22 +171,35 @@ package object asm4s {
 
   implicit def toCodeInt(c: Code[Int]): CodeInt = new CodeInt(c)
 
+  implicit def toCodeLong(c: Code[Long]): CodeLong = new CodeLong(c)
+
+  implicit def toCodeFloat(c: Code[Float]): CodeFloat = new CodeFloat(c)
+
   implicit def toCodeDouble(c: Code[Double]): CodeDouble = new CodeDouble(c)
 
   implicit def toCodeArray[T](c: Code[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
 
-  implicit def toCodeObject[T <: AnyRef](c: Code[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] =
+  implicit def toCodeObject[T >: Null](c: Code[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] =
     new CodeObject(c)
 
   implicit def toCode[T](insn: => AbstractInsnNode): Code[T] = new Code[T] {
-    def emit(il: InsnList): Unit = {
-      il.add(insn)
+    def emit(il: Growable[AbstractInsnNode]): Unit = {
+      il += insn
     }
+  }
+
+  implicit def toCodeFromIndexedSeq[T](codes: => TraversableOnce[Code[T]]): Code[T] = new Code[T] {
+    def emit(il: Growable[AbstractInsnNode]): Unit =
+      codes.foreach(_.emit(il))
   }
 
   implicit def toCode[T](f: LocalRef[T]): Code[T] = f.load()
 
   implicit def toCodeInt(f: LocalRef[Int]): CodeInt = new CodeInt(f.load())
+
+  implicit def toCodeLong(f: LocalRef[Long]): CodeLong = new CodeLong(f.load())
+
+  implicit def toCodeFloat(f: LocalRef[Float]): CodeFloat = new CodeFloat(f.load())
 
   implicit def toCodeDouble(f: LocalRef[Double]): CodeDouble = new CodeDouble(f.load())
 
@@ -176,11 +207,15 @@ package object asm4s {
 
   implicit def toCodeBoolean(f: LocalRef[Boolean]): CodeBoolean = new CodeBoolean(f.load())
 
-  implicit def toCodeObject[T <: AnyRef](f: LocalRef[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] = new CodeObject[T](f.load())
+  implicit def toCodeObject[T >: Null](f: LocalRef[T])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CodeObject[T] = new CodeObject[T](f.load())
+
+  implicit def const(s: String): Code[String] = Code(new LdcInsnNode(s))
 
   implicit def const(b: Boolean): Code[Boolean] = Code(new LdcInsnNode(if (b) 1 else 0))
 
   implicit def const(i: Int): Code[Int] = Code(new LdcInsnNode(i))
+
+  implicit def const(l: Long): Code[Long] = Code(new LdcInsnNode(l))
 
   implicit def const(d: Double): Code[Double] = Code(new LdcInsnNode(d))
 }

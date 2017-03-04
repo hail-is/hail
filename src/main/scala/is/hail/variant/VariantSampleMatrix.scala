@@ -187,7 +187,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val signature = TStruct((keyNames ++ aggNames, keyTypes ++ aggTypes).zipped.toSeq: _*)
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
-      ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+      ec.setAllFromRow(a.asInstanceOf[Row])
     })
 
     val localGlobalAnnotation = globalAnnotation

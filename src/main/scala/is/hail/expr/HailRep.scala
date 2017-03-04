@@ -1,5 +1,6 @@
 package is.hail.expr
 
+import scala.collection.mutable
 import is.hail.utils.Interval
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
 

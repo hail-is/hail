@@ -13,6 +13,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
+import scala.reflect.classTag
 
 object Type {
   val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
@@ -146,6 +147,8 @@ sealed abstract class Type {
 
   /* compare values for equality, but compare Float and Double values using D_== */
   def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
+
+  def scalaClassTag: ClassTag[_ <: AnyRef]
 }
 
 case object TBinary extends Type {
@@ -154,6 +157,8 @@ case object TBinary extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Array[Byte]]
 
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf(arbitrary[Byte])
+
+  override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 }
 
 case object TBoolean extends Type {
@@ -164,6 +169,8 @@ case object TBoolean extends Type {
   def parse(s: String): Annotation = s.toBoolean
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Boolean]
+
+  override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 }
 
 case object TChar extends Type {
@@ -175,6 +182,8 @@ case object TChar extends Type {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
     .filter(_.nonEmpty)
     .map(s => s.substring(0, 1))
+
+  override def scalaClassTag: ClassTag[java.lang.String] = classTag[java.lang.String]
 }
 
 object TNumeric {
@@ -193,7 +202,7 @@ object TNumeric {
 }
 
 abstract class TNumeric extends Type {
-  def conv: NumericConversion[_]
+  def conv: NumericConversion[_,_]
 }
 
 abstract class TIntegral extends TNumeric
@@ -206,6 +215,8 @@ case object TInt extends TIntegral {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Int]
+
+  override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 }
 
 case object TLong extends TIntegral {
@@ -216,6 +227,8 @@ case object TLong extends TIntegral {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Long]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Long]
+
+  override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
 }
 
 case object TFloat extends TNumeric {
@@ -231,6 +244,8 @@ case object TFloat extends TNumeric {
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float], tolerance))
+
+  override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 }
 
 case object TDouble extends TNumeric {
@@ -246,6 +261,8 @@ case object TDouble extends TNumeric {
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double], tolerance))
+
+  override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
 }
 
 case object TString extends Type {
@@ -254,6 +271,8 @@ case object TString extends Type {
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
+
+  override def scalaClassTag: ClassTag[String] = classTag[String]
 }
 
 case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -279,6 +298,8 @@ case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
   def typeCheck(a: Any) = ???
 
   override def children = paramTypes :+ returnType
+
+  override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TFunction is not realizable")
 }
 
 case class Box[T](var b: Option[T] = None) {
@@ -323,6 +344,8 @@ case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends 
   }
 
   override def desc: String = TAggregable.desc
+
+  override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")
 }
 
 case class TVariable(name: String, var t: Type = null) extends Type {
@@ -350,6 +373,8 @@ case class TVariable(name: String, var t: Type = null) extends Type {
     assert(t != null)
     t
   }
+
+  override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TVariable is not realizable")
 }
 
 object TAggregable {
@@ -384,6 +409,8 @@ case class TAggregable(elementType: Type) extends TContainer {
   override def toString: String = s"Aggregable[${ elementType.toString }]"
 
   override def desc: String = TAggregable.desc
+
+  override def scalaClassTag: ClassTag[_ <: AnyRef] = elementType.scalaClassTag
 }
 
 abstract class TContainer extends Type {
@@ -426,6 +453,7 @@ case class TArray(elementType: Type) extends TIterable {
   override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
+
   override def desc: String =
     """
     An ``Array`` is a collection of items that all have the same data type (ex: Int, String) and are indexed. Arrays can be constructed by specifying ``[item1, item2, ...]`` and they are 0-indexed.
@@ -446,6 +474,8 @@ case class TArray(elementType: Type) extends TIterable {
         let a = [[1, 2, 3], [4, 5], [], [6, 7]] in a[1]
         result: [4, 5]
     """
+
+  override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -489,6 +519,8 @@ case class TSet(elementType: Type) extends TIterable {
         let s = [[1, 2, 3].toSet(), [4, 5, 5].toSet()].toSet()
         result: Set(Set(1, 2, 3), Set(4, 5))
     """
+
+  override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 }
 
 case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -538,6 +570,8 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     """
     A ``Dict`` is an unordered collection of key-value pairs. Each key can only appear once in the collection.
     """
+
+  override def scalaClassTag: ClassTag[Map[_,_]] = classTag[Map[_,_]]
 }
 
 case object TSample extends Type {
@@ -548,6 +582,8 @@ case object TSample extends Type {
   override def genNonmissingValue: Gen[Annotation] = Gen.identifier
 
   override def desc: String = "A ``Sample`` is a Hail data type representing a sample in the Variant Dataset. It is referred to as ``s`` in the expression language."
+
+  override def scalaClassTag: ClassTag[String] = classTag[String]
 }
 
 case object TGenotype extends Type {
@@ -558,6 +594,8 @@ case object TGenotype extends Type {
   override def genNonmissingValue: Gen[Annotation] = Genotype.genArb
 
   override def desc: String = "A ``Genotype`` is a Hail data type representing a genotype in the Variant Dataset. It is referred to as ``g`` in the expression language."
+
+  override def scalaClassTag: ClassTag[Genotype] = classTag[Genotype]
 }
 
 case object TAltAllele extends Type {
@@ -568,6 +606,8 @@ case object TAltAllele extends Type {
   override def genNonmissingValue: Gen[Annotation] = AltAllele.gen
 
   override def desc: String = "An ``AltAllele`` is a Hail data type representing an alternate allele in the Variant Dataset."
+
+  override def scalaClassTag: ClassTag[AltAllele] = classTag[AltAllele]
 }
 
 case object TVariant extends Type {
@@ -588,6 +628,8 @@ case object TVariant extends Type {
 
     Most callers assign variants in PAR to X.
     """
+
+  override def scalaClassTag: ClassTag[Variant] = classTag[Variant]
 }
 
 case object TLocus extends Type {
@@ -598,6 +640,8 @@ case object TLocus extends Type {
   override def genNonmissingValue: Gen[Annotation] = Locus.gen
 
   override def desc: String = "A ``Locus`` is a Hail data type representing a specific genomic location in the Variant Dataset."
+
+  override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 }
 
 case object TInterval extends Type {
@@ -608,6 +652,8 @@ case object TInterval extends Type {
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(Locus.gen)
 
   override def desc: String = "An ``Interval`` is a Hail data type representing a range of genomic locations in the Variant Dataset."
+
+  override def scalaClassTag: ClassTag[Interval[AnyRef]] = classTag[Interval[AnyRef]]
 }
 
 case class Field(name: String, typ: Type,
@@ -889,7 +935,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       if (a == null)
         null
       else {
-        ec.setAll(a.asInstanceOf[Row].toSeq: _*)
+        ec.setAllFromRow(a.asInstanceOf[Row])
         f()
       }
     }
@@ -996,4 +1042,6 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
     A field of the ``Struct`` can also be another ``Struct``. For example, ``va.info.AC`` selects the struct ``info`` from the struct ``va``, and then selects the array ``AC`` from the struct ``info``.
     """
+
+  override def scalaClassTag: ClassTag[Row] = classTag[Row]
 }

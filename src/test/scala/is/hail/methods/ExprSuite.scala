@@ -16,7 +16,61 @@ import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
 
+import scala.collection.mutable
+
+import org.scalatest._
+import Matchers._
+import matchers._
+
 class ExprSuite extends SparkSuite {
+
+  @Test def compileTest() {
+    def run[T](s: String): Option[T] =
+      Option(Parser.parseToAST(s, EvalContext()).run(EvalContext())().asInstanceOf[T])
+
+    assert(run[Int]("3").contains(3))
+    assert(run[Long](Int.MaxValue.toString).contains(Int.MaxValue))
+    assert(run[Double]("3.0").contains(3.0))
+    assert(run[Boolean]("true").contains(true))
+    assert(run[Boolean]("false").contains(false))
+    assert(run[String](""""foo"""").contains("foo"))
+
+    assert(run[String]("""if (true) "foo" else "bar"""").contains("foo"))
+    assert(run[String]("""if (false) "foo" else "bar"""").contains("bar"))
+    assert(run[Int]("""if (true) 1 else 0""").contains(1))
+    assert(run[Int]("""if (false) 1 else 0""").contains(0))
+
+    assert(run[IndexedSeq[String]]("""["a"]""").contains(Array("a") : IndexedSeq[String]))
+    // how do I create an empty array?
+    // assert(run[IndexedSeq[Int]]("[] : Array[Int]").contains(Array[Int]() : IndexedSeq[Int]))
+    assert(run[IndexedSeq[Int]]("[1]").contains(Array(1) : IndexedSeq[Int]))
+    assert(run[IndexedSeq[Int]]("[1,2]").contains(Array(1,2) : IndexedSeq[Int]))
+    assert(run[IndexedSeq[Int]]("[1,2,3]").contains(Array(1,2,3) : IndexedSeq[Int]))
+
+    assert(run[Annotation]("{}").contains(Annotation()))
+    assert(run[Annotation]("{a: 1}").contains(Annotation(1)))
+    assert(run[Annotation]("{a: 1, b: 2}").contains(Annotation(1,2)))
+    assert(run[Int]("{a: 1, b: 2}.a").contains(1))
+    assert(run[Int]("{a: 1, b: 2}.b").contains(2))
+    assert(run[String]("""{a: "a", b: "b"}.b""").contains("b"))
+    assert(run[Annotation]("""{a: {aa: "aa"}, b: "b"}.a""").contains(Annotation("aa")))
+    assert(run[String]("""{a: {aa: "aa"}, b: "b"}.a.aa""").contains("aa"))
+
+    assert(run[Annotation]("""merge({a: 1, b: 2}, {c: false, d: true}) """).contains(Annotation(1, 2, false, true)))
+    assert(run[Annotation]("""merge(NA: Struct{a: Int, b: Int}, {c: false, d: true}) """).contains(Annotation(null, null, false, true)))
+    assert(run[Annotation]("""merge({a: 1, b: 2}, NA: Struct{c: Boolean, d: Boolean}) """).contains(Annotation(1, 2, null, null)))
+    assert(run[Annotation]("""merge(NA: Struct{a: Int, b: Int}, NA: Struct{c: Boolean, d: Boolean}) """).isEmpty)
+
+    assert(run[Int]("let a = 0 and b = 3 in b").contains(3))
+    assert(run[Int]("let a = 0 and b = a in b").contains(0))
+    assert(run[Int]("let i = 7 in i").contains(7))
+    assert(run[Int]("let a = let b = 3 in b in a").contains(3))
+
+    assert(run[Int](""""abc".length""").contains(3))
+    assert(run[IndexedSeq[String]](""""a,b,c".split(",")""").contains(Array("a","b","c") : IndexedSeq[String]))
+    assert(run[Int]("(3.0).toInt()").contains(3))
+    assert(run[Double]("(3).toDouble()").contains(3.0))
+  }
 
   @Test def exprTest() {
     val symTab = Map("i" -> (0, TInt),
@@ -87,11 +141,15 @@ class ExprSuite extends SparkSuite {
 
     val rdd = sc.parallelize(Array(0), 1)
 
-    // used to force serialization of values
+    val bindings = symTab.toSeq
+      .sortBy { case (name, (i, _)) => i }
+      .map { case (name, (_, typ)) => (name, typ) }
+      .zip(a)
+      .map { case ((name, typ), value) => (name, typ, value.asInstanceOf[AnyRef]) }
     def eval[T](s: String): Option[T] = {
-      val f = Parser.parseExpr(s, ec)._2
-      val r = Option(f()).map(_.asInstanceOf[T])
-      rdd.map(_ => r).collect().head // force serialization
+      val compiledCode = Parser.parseToAST(s, ec).compile().run(bindings, ec)
+      val compileResult = Option(compiledCode().asInstanceOf[T])
+      rdd.map(_ => compileResult).collect().head // force serialization
     }
 
     def evalWithType[T](s: String): (Type, Option[T]) = {
@@ -101,6 +159,10 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Int]("is.toInt()").contains(-37))
 
+    assert(eval[Boolean]("!true").contains(false))
+    assert(eval[Boolean]("!isMissing(i)").contains(true))
+
+    assert(eval[Boolean]("gs.het.isHomRef()").contains(false))
     assert(eval[Boolean]("!gs.het.isHomRef()").contains(true))
 
     assert(eval[Boolean]("1 / 2 == 0.5").contains(true))
@@ -301,7 +363,7 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
-    assert(eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""").contains(IndexedSeq(1, 2, -1, 3, 3, 6, 8, null)))
+    eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""") should (be (Some(IndexedSeq(1, -1, 2, 3, 3, 6, 8, null))) or be (Some(IndexedSeq(1, 2, -1, 3, 3, 6, 8, null))))
 
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => x, true)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => x, false)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
