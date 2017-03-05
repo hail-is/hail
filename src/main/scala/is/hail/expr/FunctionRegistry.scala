@@ -593,12 +593,8 @@ object FunctionRegistry {
     """,
     "v" -> ":ref:`variant`")(callHr, variantHr, arrayHr(intHr))
 
-  registerField("gt", { (x: Genotype) =>
-    val gt = x.unboxedGT
-    if (gt == -1)
-      null
-    else
-      box(gt)
+  registerFieldCode("gt", { (x: Code[Genotype]) =>
+    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("unboxedGT"), boxInt(_))
   }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")
   registerMethod("gtj", { (x: Genotype) =>
     val gt = x.unboxedGT
@@ -618,7 +614,7 @@ object FunctionRegistry {
     CM.ret(arrayToWrappedArray(x.invoke[Array[Int]]("unboxedAD")))
   }, "allelic depth for each allele.")
   registerFieldCode("dp", { (x: Code[Genotype]) =>
-    nonceToNullable[Int, java.lang.Integer]((x: Code[Int]) => x.ceq(-1), x.invoke[Int]("unboxedDP"), boxInt)
+    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("unboxedDP"), boxInt)
   }, "the total number of informative reads.")
   registerMethodCode("od", { (x: Code[Genotype]) =>
     CM.ret(x.invoke[Boolean]("hasOD").mux(boxInt(x.invoke[Int]("od_")),Code._null[java.lang.Integer]))
@@ -660,34 +656,54 @@ object FunctionRegistry {
   registerMethodCode("isNotCalled", { (x: Code[Genotype]) =>
     CM.ret(boxBoolean(x.invoke[Boolean]("isNotCalled")))
   }, "True if the genotype is ``./.``.")
-  registerMethod("nNonRefAlleles", { (x: Genotype) =>
-    if (x.hasNNonRefAlleles)
-      box(x.nNonRefAlleles_)
-    else
-      null
-  }, "the number of called alternate alleles.")(genotypeHr, boxedintHr)
-  registerMethod("pAB", { (x: Genotype) =>
-    if (x.hasPAB)
-      box(x.pAB_())
-    else
-      null
+  registerMethodCode("nNonRefAlleles", { (x: Code[Genotype]) => for (
+    (stg, g) <- CM.memoize(x)
+  ) yield Code(stg,
+    g.invoke[Boolean]("hasNNonRefAlleles")
+      .mux(boxInt(g.invoke[Int]("nNonRefAlleles_")), Code._null))
+  }, "the number of called alternate alleles.")
+  registerMethodCode("pAB", { (x: Code[Genotype]) => for (
+    (stg, g) <- CM.memoize(x)
+  ) yield Code(stg,
+    g.invoke[Boolean]("hasPAB")
+      .mux(boxDouble(g.invoke[Double]("pAB_")), Code._null))
   }, "p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Missing if the call is not heterozygous.")
-  registerMethod("fractionReadsRef", { (x: Genotype) =>
-    if (x.unboxedAD != null) {
-      val s = intArraySum(x.unboxedAD)
-      if (s != 0)
-        box(x.unboxedAD(0).toDouble / s)
-      else
-        null
-    } else
-      null
+
+  private def intArraySumCode(a: Code[Array[Int]]): CM[Code[Int]] = for (
+    (starr, arr) <- CM.memoize(a);
+    i <- CM.newLocal[Int];
+    s <- CM.newLocal[Int]
+  ) yield Code(
+    starr,
+    i.store(0),
+    s.store(0),
+    Code.whileLoop(i < arr.length(), Code(s.store(s + arr(i)), i.store(i + 1))),
+    s
+  )
+
+  registerMethodCode("fractionReadsRef", { (x: Code[Genotype]) => for (
+    (stad, ad) <- CM.memoize(x.invoke[Array[Int]]("unboxedAD"));
+    (stsum, sum) <- CM.memoize(intArraySumCode(ad))
+  ) yield Code(stad, stsum, sum.ceq(0).mux(Code._null, boxDouble(ad(0).toD / sum.toD)))
   }, "the ratio of ref reads to the sum of all *informative* reads.")
-  registerField("fakeRef", { (x: Genotype) => x.fakeRef }, "True if this genotype was downcoded in :py:meth:`~hail.VariantDataset.split_multi`.  This can happen if a ``1/2`` call is split to ``0/1``, ``0/1``.")
-  registerField("isDosage", { (x: Genotype) => x.isDosage }, "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
-  registerField("contig", { (x: Variant) => x.contig }, "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")
-  registerField("start", { (x: Variant) => x.start }, "SNP position or start of an indel.")
-  registerField("ref", { (x: Variant) => x.ref }, "Reference allele sequence.")
-  registerField("altAlleles", { (x: Variant) => x.altAlleles }, "The :ref:`alternate alleles <altallele>`.")
+  registerFieldCode("fakeRef",
+    { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("fakeRef"))) },
+    "True if this genotype was downcoded in :py:meth:`~hail.VariantDataset.split_multi`.  This can happen if a ``1/2`` call is split to ``0/1``, ``0/1``.")
+  registerFieldCode("isDosage",
+    { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("isDosage"))) },
+    "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
+  registerFieldCode("contig",
+    { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) },
+    "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")
+  registerFieldCode("start",
+    { (x: Code[Variant]) => CM.ret(x.invoke[Int]("start")) },
+    "SNP position or start of an indel.")
+  registerFieldCode("ref",
+    { (x: Code[Variant]) => CM.ret(x.invoke[String]("ref")) },
+    "Reference allele sequence.")
+  registerFieldCode("altAlleles",
+    { (x: Code[Variant]) => CM.ret(x.invoke[IndexedSeq[AltAllele]]("altAlleles")) },
+    "The :ref:`alternate alleles <altallele>`.")
   registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles }, "Number of alternate alleles, equal to ``nAlleles - 1``.")
   registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, "Number of alleles.")
   registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, "True if `v` has one alternate allele.")
