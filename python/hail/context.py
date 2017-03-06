@@ -127,6 +127,31 @@ class HailContext(object):
     def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
         """Import .bgen files as VariantDataset
 
+        **Notes**
+        Hail supports importing data in the BGEN file format. For more information on the BGEN file format,
+        see `here <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.1.html>`_. Note that only v1.1 BGEN files
+        are supported at this time.
+
+        Before importing, ensure that:
+        - Files reside in Hadoop file system.
+        - The sample file has the same number of samples as the BGEN file.
+        - No duplicate sample IDs are present.
+
+        **Dosage representation**:
+        - Hail automatically filters out any geneotypes where the absolute value of the sum of the dosages is greater
+        than a certain tolerance (specified by the optional `tolerance` argument) from 1.0. The default value is 0.02.
+        - Hail normalizes all dosages to sum to 1.0. Therefore, an input dosage of (.98, 0.0, 0.0) will be stored as
+        (1.0, 0.0, 0.0) in Hail.
+        -Hail will give slightly different results than the original data (maximum difference observed is 3E-4).
+
+        **Annotations**
+
+        :py:meth:`~hail.HailContext.import_bgen` adds the following variant annotations:
+
+         - **va.varid** (*String*) -- 2nd column of .gen file if chromosome present, otherwise 1st column.
+
+         - **va.rsid** (*String*) -- 3rd column of .gen file if chromosome present, otherwise 2nd column.
+
         :param path: .bgen files to import.
         :type path: str or list of str
 
