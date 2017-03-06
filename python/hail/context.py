@@ -5,6 +5,7 @@ from pyspark.sql import SQLContext
 from hail.dataset import VariantDataset
 from hail.java import *
 from hail.keytable import KeyTable
+from hail.type import Type
 from hail.utils import TextTableConfig
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
@@ -609,6 +610,33 @@ class HailContext(object):
 
         jkeys = jarray(self._jvm.java.lang.String, keys)
         return KeyTable(self, self._hail.keytable.KeyTable.fromDF(self._jhc, df._jdf, jkeys))
+
+    @handle_py4j
+    def eval_expr_typed(self, expr):
+        """Evaluate an expression and return the result as well as its type.
+
+        :param str expr: Expression to evaluate.
+
+        :rtype: (annotation, :class:`.Type`)
+
+        """
+
+        x = self._jhc.eval(expr)
+        t = Type._from_java(x._2())
+        v = t._convert_to_py(x._1())
+        return (v, t)
+
+    @handle_py4j
+    def eval_expr(self, expr):
+        """Evaluate an expression.
+
+        :param str expr: Expression to evaluate.
+
+        :rtype: annotation
+        """
+
+        r, t = self.eval_expr_typed(expr)
+        return r
 
     def stop(self):
         """ Shut down the Hail Context """
