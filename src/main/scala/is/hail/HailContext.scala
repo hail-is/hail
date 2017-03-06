@@ -576,6 +576,12 @@ class HailContext private(val sc: SparkContext,
 
   def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
 
+  def eval(expr: String): (Annotation, Type) = {
+    val ec = EvalContext()
+    val (t, f) = Parser.parseExpr(expr, ec)
+    (f(), t)
+  }
+
   /**
     *
     *
