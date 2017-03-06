@@ -777,9 +777,10 @@ object FunctionRegistry {
     "alts" -> "Array of alternate allele sequences."
   )
 
-  val combineVariantsStruct = TStruct(Array(("leftAA", TDict(TInt, TInt), "Mapping from old to new alt allele index for the left variant."),
-    ("rightAA", TDict(TInt, TInt), "Mapping from old to new alt allele index for the right variant."),
-    ("variant", TVariant, "Resulting combined variant.")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  val combineVariantsStruct = TStruct(Array(("variant", TVariant, "Resulting combined variant."),
+    ("laIndices", TDict(TInt, TInt), "Mapping from new to old allele index for the left variant."),
+    ("raIndices", TDict(TInt, TInt), "Mapping from new to old allele index for the right variant.")
+    ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 
   registerAnn("combineVariants",
     combineVariantsStruct, { (left: Variant, right: Variant) =>
@@ -792,7 +793,7 @@ object FunctionRegistry {
       if (longer.ref.substring(0, shorter.ref.length) != shorter.ref)
         fatal(s"Variants ref bases mismatch in combineVariants. Left ref: ${ left.ref }, right ref: ${ right.ref }")
 
-      val short_alleles_index = mutable.Map[Int, Int]()
+      val short_alleles_index = mutable.Map[Int, Int](0 -> 0)
       val short_alleles = new mutable.ArrayBuffer[AltAllele](initialSize = shorter.nAltAlleles)
 
       Range(0, shorter.nAltAlleles).foreach({
@@ -801,26 +802,28 @@ object FunctionRegistry {
           val new_index = longer.altAlleles.indexWhere(_.alt == alt)
           if (new_index < 0) {
             short_alleles += AltAllele(longer.ref, alt)
-            short_alleles_index(i) = longer.nAltAlleles + short_alleles.length - 1
+            short_alleles_index(longer.nAltAlleles + short_alleles.length) = i + 1
           }
           else
-            short_alleles_index(i) = new_index
+            short_alleles_index(new_index + 1) = i + 1
       })
 
       val newVariant = longer.copy(altAlleles = longer.altAlleles ++ short_alleles)
       if (swapped)
-        Annotation(newVariant, short_alleles_index.toMap, Range(0, longer.nAltAlleles).zipWithIndex.toMap)
+        Annotation(newVariant, short_alleles_index.toMap, Range(0, longer.nAltAlleles + 1).zipWithIndex.toMap)
       else
-        Annotation(newVariant, Range(0, longer.nAltAlleles).zipWithIndex.toMap, short_alleles_index.toMap)
+        Annotation(newVariant, Range(0, longer.nAltAlleles + 1).zipWithIndex.toMap, short_alleles_index.toMap)
     },
     """
     Combines the alleles of two variants at the same locus, making sure that ref and alt alleles are represented uniformely.
+    In addition to the resulting variant containing all alleles, this function also returns the mapping from the old to the new allele indices.
+    Note that this mapping counts the reference allele always contains the reference allele mapping 0 -> 0.
 
           .. code-block:: text
               :emphasize-lines: 2
 
               let left = Variant("1:1000:AT:A,CT") and right = Variant("1:1000:A:C,AGG") in combineVariants(left,right)
-              result: Struct{'rightAA': {0: 1, 1: 2}, 'leftAA': {0: 0, 1: 1}, 'variant': Variant(contig=1, start=1000, ref=AT, alts=[AltAllele(ref=AT, alt=A), AltAllele(ref=AT, alt=CT), AltAllele(ref=AT, alt=AGGT)])}
+              result: Struct{'variant': Variant(contig=1, start=1000, ref=AT, alts=[AltAllele(ref=AT, alt=A), AltAllele(ref=AT, alt=CT), AltAllele(ref=AT, alt=AGGT)]), 'laIndices': {0: 0, 1: 1, 2: 2}, 'raIndices': {0:0, 2: 1, 3: 2}}
 
     """,
     "left" -> "Left variant to combine.",
