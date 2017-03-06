@@ -127,6 +127,43 @@ class HailContext(object):
     def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
         """Import .bgen files as VariantDataset
 
+        **Examples**
+
+        Importing a BGEN file as a VDS (assuming it has already been indexed).
+
+        >>> vds = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+
+        **Notes**
+
+        Hail supports importing data in the BGEN file format. For more information on the BGEN file format,
+        see `here <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.1.html>`_. Note that only v1.1 BGEN files
+        are supported at this time.
+
+        Before importing, ensure that:
+        - Files reside in Hadoop file system.
+        - The sample file has the same number of samples as the BGEN file.
+        - No duplicate sample IDs are present.
+
+        To load multiple files at the same time, use `Hadoop Glob Patterns <sec-hadoop-glob>`.
+
+        .. _dosagefilters:
+
+        **Dosage representation**:
+
+        Since dosages are understood as genotype probabilities, :py:meth:`~hail.HailContext.import_bgen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` paramater from 1.0.  The default tolerance is 0.02, so a genotypes with sum .79 or 1.21 is filtered out, whereas a genotype with sum .8 or 1.2 remains.
+
+        :py:meth:`~hail.HailContext.import_gen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+
+        Even when the dosages sum to 1.0, Hail may store slightly different values than the original GEN file (maximum observed difference is 3E-4).
+
+        **Annotations**
+
+        :py:meth:`~hail.HailContext.import_bgen` adds the following variant annotations:
+
+         - **va.varid** (*String*) -- 2nd column of .gen file if chromosome present, otherwise 1st column.
+
+         - **va.rsid** (*String*) -- 3rd column of .gen file if chromosome present, otherwise 2nd column.
+
         :param path: .bgen files to import.
         :type path: str or list of str
 
@@ -140,8 +177,8 @@ class HailContext(object):
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
-        :return A dataset imported from the bgen file.
         :rtype: :class:`.VariantDataset`
+        :return: A dataset imported from the bgen file.
         """
 
         jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
@@ -149,7 +186,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_gen(self, path, sample_file=None, tolerance=0.02, npartitions=None, chromosome=None):
+    def import_gen(self, path, sample_file=None, tolerance=0.2, npartitions=None, chromosome=None):
         """Import .gen files as VariantDataset.
 
         **Examples**
@@ -176,15 +213,7 @@ class HailContext(object):
 
         The first column in the .sample file is used as the sample ID ``s.id``.
 
-        .. _dosagefilters:
-
-        **Dosage representation**
-
-        Since dosages are understood as genotype probabilities, :py:meth:`~hail.HailContext.import_gen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` paramater from 1.0.  The default tolerance is 0.02, so a genotypes with sum .97 or 1.03 is filtered out, whereas a genotype with sum .98 or 1.02 remains.
-
-        :py:meth:`~hail.HailContext.import_gen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
-
-        Even when the dosages sum to 1.0, Hail may store slightly different values than the original GEN file (maximum observed difference is 3E-4).
+        Also, see section in :py:meth:`~hail.HailContext.import_bgen` linked :ref:`here <dosagefilters>` for information about Hail's dosage representation.
 
         **Annotations**
 
