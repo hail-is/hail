@@ -1056,7 +1056,7 @@ object FunctionRegistry {
     .. code-block:: text
         :emphasize-lines: 2
 
-"gt"        let s = "1kg-NA12878" in s.split("-")
+        let s = "1kg-NA12878" in s.split("-")
         result: ["1kg", "NA12878"]
     """,
     "delim" -> "Regular expression delimiter.")
