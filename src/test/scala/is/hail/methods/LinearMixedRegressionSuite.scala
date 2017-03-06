@@ -275,100 +275,29 @@ class LinearMixedRegressionSuite extends SparkSuite {
     }
   }
 
-  // Fix parameters, generate y, fit parameters, compare
-  // To try with different parameters, remove asserts and add back print statements at the end
-  @Test def genAndFitLMM() {
-    val seed = 0
-    scala.util.Random.setSeed(seed)
+  @Test def fastlmmTest() {
+    /*
+    Test data is from all.bed, all.bim, all.fam, cov.txt, pheno_10_causals.txt:
+    https://github.com/MicrosoftGenomics/FaST-LMM/tree/master/tests/datasets/synth
 
-    val n = 500
-    val c = 2
-    val m0 = 1000
-    val k = 3
-    val Fst = .5
+    Data is filtered to chromosome 1,3 and samples 0-124,375-499 (2000 variants and 250 samples)
 
-    val FstOfPop = Array.fill[Double](k)(Fst)
+    Results are computed with single_snp as in:
+    https://github.com/MicrosoftGenomics/FaST-LMM/blob/master/doc/ipynb/FaST-LMM.ipynb
+    */
 
-    val bnm = BaldingNicholsModel(hc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), None, UniformDist(.1, .9))
+    val vds = hc.importPlink(bed="src/test/resources/fastlmmTest.bed", bim="src/test/resources/fastlmmTest.bim", fam="src/test/resources/fastlmmTest.fam")
+      .annotateSamplesTable("src/test/resources/fastlmmCov.txt", "_1", code=Some("sa.cov=table._2"), config=TextTableConfiguration(noHeader=true, impute=true))
+      .annotateSamplesTable("src/test/resources/fastlmmPheno.txt", "_1", code=Some("sa.pheno=table._2"), config=TextTableConfiguration(noHeader=true, impute=true, separator=" "))
 
-    val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
+    val vdsChr1 = vds.filterVariantsExpr("""v.contig == "1"""").lmmreg(vds.filterVariantsExpr("""v.contig != "1""""), "sa.pheno", Array("sa.cov"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
 
-    val mG = G.cols
-    val mW = mG
+    val vdsChr3 = vds.filterVariantsExpr("""v.contig == "3"""").lmmreg(vds.filterVariantsExpr("""v.contig != "3""""), "sa.pheno", Array("sa.cov"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
 
-    // println(s"$mG of $m0 variants are not constant")
+    val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
+    val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
 
-    val W = convert(G(::, 0 until mW), Double)
-
-    // each row has mean 0, norm sqrt(n), variance 1
-    for (i <- 0 until mW) {
-      W(::, i) -= mean(W(::, i))
-      W(::, i) *= math.sqrt(n) / norm(W(::, i))
-    }
-
-    val rrm = (W * W.t) / mW.toDouble
-
-    val delta = scala.util.Random.nextDouble()
-    val sigmaG2 = scala.util.Random.nextDouble() + 0.5
-    val sigmaE2 = delta * sigmaG2
-
-    // Now testing global model
-    // First solve directly with Cholesky
-    val V = sigmaG2 * rrm + sigmaE2 * DenseMatrix.eye[Double](n)
-
-    val chol = cholesky(V)
-    val z = DenseVector.fill[Double](n)(scala.util.Random.nextGaussian())
-
-    val C =
-      if (c == 1)
-        DenseMatrix.ones[Double](n, 1)
-      else
-        DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), DenseMatrix.fill[Double](n, c - 1)(scala.util.Random.nextGaussian()))
-
-    val beta = DenseVector.fill[Double](c)(scala.util.Random.nextGaussian())
-
-    val y = C * beta + chol * z
-
-    val pheno = y.toArray
-    val covSA = (1 until c).map(i => s"sa.covs.cov$i").toArray
-    val covSchema = TStruct((1 until c).map(i => (s"cov$i", TDouble)): _*)
-    val covData = bnm.sampleIds.zipWithIndex.map { case (id, i) => (id, Annotation.fromSeq( C(i, 1 until c).t.toArray)) }.toMap
-
-    val assocVds = bnm
-      .annotateSamples(bnm.sampleIds.zip(pheno).toMap, TDouble, "sa.pheno")
-      .annotateSamples(covData, covSchema, "sa.covs")
-
-    val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= mW)
-
-    val vds = LinearMixedRegression(assocVds, kinshipVds, "sa.pheno", covSA = covSA,
-      useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = true, optDelta = None,
-      sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
-
-    // val sb = new StringBuilder()
-    // sb.append("Global annotation schema:\n")
-    // sb.append("global: ")
-    // vds.metadata.globalSignature.pretty(sb, 0, printAttrs = true)
-    // println(sb.result())
-
-    val fitDelta = vds.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]
-    val fitSigmaG2 = vds.queryGlobal("global.lmmreg.sigmaG2")._2.asInstanceOf[Double]
-    val fitBeta = vds.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]]
-
-    //Making sure type on this is not an array, but an IndexedSeq.
-    val evals = vds.queryGlobal("global.lmmreg.evals")._2.asInstanceOf[IndexedSeq[Double]]
-
-    val linBeta = (C.t * C) \ (C.t * y)
-    val linRes = norm(y - C * linBeta)
-    val linSigma2 = (linRes * linRes) / (n - c)
-
-    // println(s"truth / lmm: delta   = $delta / $fitDelta")
-    // println(s"truth / lmm / lin: sigmaG2 = $sigmaG2 / $fitSigmaG2 / $linSigma2")
-    // println(s"truth / lmm / lin: beta(0) = ${beta(0)} / ${fitBeta("intercept")} / ${linBeta(0)}")
-    // (1 until c).foreach( i => println(s"truth / lmm / lin: beta($i) = ${beta(i)} / ${fitBeta(s"sa.covs.cov$i")} / ${linBeta(i)}"))
-
-    assert(D_==(delta, fitDelta, 0.05), s"$delta == $fitDelta +- 0.05")
-    assert(D_==(sigmaG2, fitSigmaG2, 0.05))
-    assert(math.abs(beta(0) - fitBeta("intercept")) < 0.05)
-    assert(math.abs(beta(1) - fitBeta("sa.covs.cov1")) < 0.05)
+    assert(D_==(h2Chr1, 0.36733239840887433))
+    assert(D_==(h2Chr3, 0.14276116822096985))
   }
 }
