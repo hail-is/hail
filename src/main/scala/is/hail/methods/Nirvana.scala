@@ -244,8 +244,8 @@ object Nirvana {
       "-c", cache,
       "--sd", supplementaryAnnotationDirectory,
       "-r", reference,
-      "STDIN",
-      "STDOUT"
+      "-i", "-",
+      "-o", "-"
     )
 
     val contigQuery = nirvanaSignature.query("positions")//, "chromosome")
@@ -256,33 +256,41 @@ object Nirvana {
 
     val localBlockSize = blockSize
 
-    val annotations: RDD[(Variant, Annotation)] = vds.rdd.mapValues { case (va, gs) => va }
-      .mapPartitions({ it: Iterator[(Variant, Annotation)] =>
+    val annotations = vds.rdd.mapValues { case (va, gs) => va }
+      .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
-        if (path != null)
-          env.put("PATH", path)
 
         it.filter { case (v, va) =>
           rootQuery.forall(q => q(va) == null)
         }
           .map { case (v, _) => v }
           .grouped(localBlockSize)
-          .flatMap(_.iterator.pipe(pb,
-            printContext,
-            printElement,
-            _ => ())
-            .map { s =>
-              println(s)
-                val a: Annotation = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
-                val v: Variant = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
+          .flatMap { block =>
+            val (jt, proc) = block.iterator.pipe(pb,
+              printContext,
+              printElement,
+              _ => ())
+
+            val kt = jt.map { s =>
+                val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
+                val v = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
                   refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Array[String]])
                 (v, a)
-            }
-            .toArray
-            .sortBy(_._1))
+              }
+
+            val r = kt.toArray
+              .sortBy(_._1)
+
+            val rc = proc.waitFor()
+            if (rc != 0)
+              fatal(s"nirvana command failed with non-zero exit status $rc")
+
+            r
+          }
       }, preservesPartitioning = true)
       .persist(StorageLevel.MEMORY_AND_DISK)
+
 
     info(s"nirvana: annotated ${ annotations.count() } variants")
 
