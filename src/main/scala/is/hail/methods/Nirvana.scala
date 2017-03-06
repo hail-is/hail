@@ -193,12 +193,8 @@ object Nirvana {
     w(sb.result())
   }
 
-  def variantFromInput(input: String): Variant = {
-    val a = input.split("\t")
-    Variant(a(0),
-      a(1).toInt,
-      a(3),
-      a(4).split(","))
+  def variantFromInput(contig: String, start: Int, ref: String, altAlleles: Array[String]): Variant = {
+    Variant(contig, start, ref, altAlleles)
   }
 
   def annotate(vds: VariantDataset, config: String, blockSize: Int, root: String = "va.nirvana"): VariantDataset = {
@@ -213,7 +209,6 @@ object Nirvana {
           }
           r
         }
-
 
     val properties = try {
       val p = new Properties()
@@ -253,9 +248,11 @@ object Nirvana {
       "STDOUT"
     )
 
-    val contigQuery = nirvanaSignature.query("positions").asInstanceOf[TStruct].query("chromosome").asInstanceOf[String]
-    val startQuery = nirvanaSignature.query("positions").asInstanceOf[TStruct].query("variants").asInstanceOf[TStruct].query("begin").asInstanceOf[Int]
-    val ref = nirvanaSignature.query()
+    val contigQuery = nirvanaSignature.query("positions")//, "chromosome")
+    val startQuery = nirvanaSignature.query("positions")//, "variants", "begin")
+    val refQuery = nirvanaSignature.query("positions")//, "refAllele")
+    val altsQuery = nirvanaSignature.query("positions")//, "altAlleles")
+
 
     val localBlockSize = blockSize
 
@@ -276,8 +273,10 @@ object Nirvana {
             printElement,
             _ => ())
             .map { s =>
-                val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
-                val v = variantFromInput(inputQuery(a).asInstanceOf[String])
+              println(s)
+                val a: Annotation = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
+                val v: Variant = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
+                  refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Array[String]])
                 (v, a)
             }
             .toArray
