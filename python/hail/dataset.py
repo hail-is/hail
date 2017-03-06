@@ -1109,7 +1109,7 @@ class VariantDataset(object):
         j_global_concordance = r._1()
         sample_vds = VariantDataset(self.hc, r._2())
         variant_vds = VariantDataset(self.hc, r._3())
-        global_concordance = [[j_global_concordance.apply(i).apply(j) for i in xrange(5)] for j in xrange(5)]
+        global_concordance = [[j_global_concordance.apply(j).apply(i) for i in xrange(5)] for j in xrange(5)]
 
         return global_concordance, sample_vds, variant_vds
 
