@@ -126,7 +126,7 @@ package object stats {
     val sampleSize = a + b
     val numSuccessSample = a
 
-    if (!(popSize > 0 && sampleSize > 0 && sampleSize < popSize))
+    if (!(popSize > 0 && sampleSize > 0 && sampleSize < popSize && numSuccessPopulation > 0 && numSuccessPopulation < popSize))
       return Array(None, None, None, None)
 
     val low = math.max(0, (a + b) - (b + d))
