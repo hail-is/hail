@@ -276,10 +276,14 @@ class LinearMixedRegressionSuite extends SparkSuite {
   }
 
   @Test def fastlmmTest() {
-    /* Test data is 'tests/datasets/synth/all' filtered to chromosome 1,3 and samples 0-124,375-499
-    size: 2000 variants and 250 samples
-    data: https://github.com/MicrosoftGenomics/FaST-LMM
-    code: https://github.com/MicrosoftGenomics/FaST-LMM/blob/master/doc/ipynb/FaST-LMM.ipynb
+    /*
+    Test data is from all.bed, all.bim, all.fam, cov.txt, pheno_10_causals.txt:
+    https://github.com/MicrosoftGenomics/FaST-LMM/tree/master/tests/datasets/synth
+
+    Data is filtered to chromosome 1,3 and samples 0-124,375-499 (2000 variants and 250 samples)
+
+    Results are computed with single_snp as in:
+    https://github.com/MicrosoftGenomics/FaST-LMM/blob/master/doc/ipynb/FaST-LMM.ipynb
     */
 
     val vds = hc.importPlink(bed="src/test/resources/fastlmmTest.bed", bim="src/test/resources/fastlmmTest.bim", fam="src/test/resources/fastlmmTest.fam")
