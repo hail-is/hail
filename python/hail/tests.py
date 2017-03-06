@@ -67,8 +67,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(bn_count['nSamples'], 10)
         self.assertEqual(bn_count['nVariants'], 100)
 
-        self.assertEqual(hc.eval_expr_typed('[1, 2, 3].map(x => x * 2)') == ([2, 4, 6], TArray(TInt())))
-        self.assertEqual(hc.eval_expr('[1, 2, 3].map(x => x * 2)') == [2, 4, 6])
+        self.assertEqual(hc.eval_expr_typed('[1, 2, 3].map(x => x * 2)'), ([2, 4, 6], TArray(TInt())))
+        self.assertEqual(hc.eval_expr('[1, 2, 3].map(x => x * 2)'), [2, 4, 6])
 
     def test_dataset(self):
         test_resources = 'src/test/resources'
