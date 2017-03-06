@@ -3,6 +3,7 @@ package is.hail.methods
 import org.apache.spark.rdd.RDD
 import org.apache.spark.graphx._
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object MaximalIndependentSet {
@@ -35,31 +36,31 @@ object MaximalIndependentSet {
       Graph(toBeComputed.vertices.leftZipJoin(toBeComputed.degrees) { (v, _, degree) => (degree.getOrElse(0), v) }, toBeComputed.edges)
     }
 
-    val originalGraph: Graph[Message, ED] = updateVertexDegrees(g)
-    originalGraph.persist()
-
     val edgeDirection = if (undirected) EdgeDirection.Either else EdgeDirection.Out
 
-    var idSetToDelete = Set[VertexId]()
-    var hasEdges = true
+    var idSetToDelete = mutable.Set[VertexId]()
 
-    while (hasEdges) {
-      val filteredGraph = updateVertexDegrees(originalGraph.subgraph(_ => true, (id, value) => !idSetToDelete.contains(id)))
-      filteredGraph.persist()
-      
-      if(filteredGraph.numEdges == 0) {
-        hasEdges = false
-      }
+    g.persist()
+    var workingGraph = g
 
-      val pregelGraph = filteredGraph.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
+    do {
+      idSetToDelete ++= updateVertexDegrees(workingGraph)
+          .pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
+          .vertices
+          .filter{ case (id, (maxDegrees, maxID)) => maxID == id && maxDegrees != 0}
+          .map(_._1)
+          .collect()
+          .toSet
+      workingGraph.unpersist()
+      workingGraph = g.subgraph(_ => true, (id, value) => !idSetToDelete.contains(id))
+      workingGraph.persist()
+    } while (workingGraph.numEdges > 0)
 
-      idSetToDelete = idSetToDelete.union(pregelGraph.vertices
-        .filter(tuple => tuple match {case (id, value) => value match  {case (maxDegrees, maxID) => maxID == id && maxDegrees != 0}})
-        .map(_._1).collect().toSet)
+    val survivors = workingGraph.vertices.keys.collect().toSet
+    g.unpersist()
+    workingGraph.unpersist()
 
-      filteredGraph.unpersist()
-    }
-    originalGraph.subgraph(_ => true, (id, value) => !idSetToDelete.contains(id)).vertices.keys.collect().toSet
+    survivors
   }
 
 
@@ -68,7 +69,7 @@ object MaximalIndependentSet {
 
     val filteredRDD = inputRDD.filter(_._2 >= thresh)
 
-    val edges: RDD[Edge[Double]] = filteredRDD.map{case((v1, v2), weight) => Edge(v1, v2, weight)}
+    val edges: RDD[Edge[Double]] = filteredRDD.map{ case ((v1, v2), weight) => Edge(v1, v2, weight)}
 
     val vertices: RDD[(VertexId, Null)] = sc.parallelize(vertexIDs).map(id => (id, null))
 
