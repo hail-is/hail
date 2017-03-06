@@ -144,7 +144,7 @@ class HailContext(object):
         - The sample file has the same number of samples as the BGEN file.
         - No duplicate sample IDs are present.
 
-        To load multiple files at the same time, use `Hadoop Glob Patterns <sec-hadoop-glob>`.
+        To load multiple files at the same time, use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
         .. _dosagefilters:
 
