@@ -118,17 +118,6 @@ object LinearMixedRegression {
     info(s"lmmreg: global model fit: sigmaE2 = $globalSe2")
     info(s"lmmreg: global model fit: delta = $delta")
     info(s"lmmreg: global model fit: h2 = $h2")
-    info(s"lmmreg: Computing LMM statistics for each variant...")
-
-    val T = Ut(::, *) :* diagLMM.sqrtInvD
-    val Qt = qr.reduced.justQ(diagLMM.TC).t
-    val QtTy = Qt * diagLMM.Ty
-    val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
-
-    val sc = assocVds.sparkContext
-    val TBc = sc.broadcast(T)
-    val sampleMaskBc = sc.broadcast(sampleMask)
-    val scalerLMMBc = sc.broadcast(ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, diagLMM.logNullS2, useML))
 
     val vds1 = assocVds.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, S.data.reverse: IndexedSeq[Double]),
@@ -147,6 +136,18 @@ object LinearMixedRegression {
     }
 
     if (runAssoc) {
+      info(s"lmmreg: Computing LMM statistics for each variant...")
+
+      val T = Ut(::, *) :* diagLMM.sqrtInvD
+      val Qt = qr.reduced.justQ(diagLMM.TC).t
+      val QtTy = Qt * diagLMM.Ty
+      val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
+
+      val sc = assocVds.sparkContext
+      val TBc = sc.broadcast(T)
+      val sampleMaskBc = sc.broadcast(sampleMask)
+      val scalerLMMBc = sc.broadcast(ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, diagLMM.logNullS2, useML))
+
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       vds2.mapAnnotations { case (v, va, gs) =>
