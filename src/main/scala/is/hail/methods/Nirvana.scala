@@ -392,10 +392,10 @@ object Nirvana {
       "-o", "-"
     )
 
-    val contigQuery = nirvanaSignature.query("chromosome")//, "chromosome")
-    val startQuery = nirvanaSignature.query("variants")//, "variants", "begin")
-    val refQuery = nirvanaSignature.query("refAllele")//, "refAllele")
-    val altsQuery = nirvanaSignature.query("altAlleles")//, "altAlleles")
+    val contigQuery = nirvanaSignature.query("chromosome")
+    val startQuery = nirvanaSignature.query("position")
+    val refQuery = nirvanaSignature.query("refAllele")
+    val altsQuery = nirvanaSignature.query("altAlleles")
 
 
     val localBlockSize = blockSize
@@ -421,7 +421,7 @@ object Nirvana {
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
               println(s"a = $a")
                 val v = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
-                  refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Array[String]])
+                  refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Seq[String]].toArray)
                 (v, a)
               }
 
