@@ -28,16 +28,16 @@ object BaldingNicholsModel {
 
     val popDistArray = popDistArrayOpt.getOrElse(Array.fill[Double](nPops)(1d))
 
-    if (popDistArray.size != nPops)
-      fatal(s"Got ${ nPops } populations but ${ popDistArray.size } population ${ plural(popDistArray.size, "probability", "probabilities") }")
+    if (popDistArray.length != nPops)
+      fatal(s"Got ${ nPops } populations but ${ popDistArray.length } population ${ plural(popDistArray.length, "probability", "probabilities") }")
     popDistArray.foreach(p =>
       if (p < 0d)
         fatal(s"Population probabilities must be non-negative, got $p"))
 
     val FstOfPopArray = FstOfPopArrayOpt.getOrElse(Array.fill(nPops)(0.1))
 
-    if (FstOfPopArray.size != nPops)
-      fatal(s"Got ${ nPops } populations but ${ FstOfPopArray.size } ${ plural(FstOfPopArray.size, "value") }")
+    if (FstOfPopArray.length != nPops)
+      fatal(s"Got ${ nPops } populations but ${ FstOfPopArray.length } ${ plural(FstOfPopArray.length, "value") }")
 
     FstOfPopArray.foreach(f =>
       if (f <= 0d || f >= 1d)
@@ -77,13 +77,8 @@ object BaldingNicholsModel {
     val Fst1_k = (1d - Fst_k) :/ Fst_k
     val Fst1_kBc = sc.broadcast(Fst1_k)
 
-    val variantSeed = Rand.randInt.draw();
-    val variantSeedBc = sc.broadcast(variantSeed)
-    
-
-    val rdd = sc.parallelize(0 until M, nPartitions)
-      .map { m =>
-        val perVariantSeed = variantSeedBc.value + m
+    val rdd = sc.parallelize((0 until M).map(m => (m, Rand.randInt.draw())), nPartitions)
+      .map { case (m, perVariantSeed) =>
         val perVariantRandomGenerator = new JDKRandomGenerator
         perVariantRandomGenerator.setSeed(perVariantSeed)
         val perVariantRandomBasis = new RandBasis(perVariantRandomGenerator)
@@ -115,7 +110,7 @@ object BaldingNicholsModel {
     .toOrderedRDD
 
     val sampleIds = (0 until N).map(_.toString).toArray
-    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => (Annotation(pop)))
+    val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(pop))
 
     val ancestralAFAnnotation = af_dist match {
       case UniformDist(minVal, maxVal) => Annotation("UniformDist", minVal, maxVal)
