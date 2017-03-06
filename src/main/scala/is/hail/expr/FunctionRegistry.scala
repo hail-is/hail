@@ -722,7 +722,7 @@ object FunctionRegistry {
   register("range", { (x: Int, y: Int, step: Int) => x until y by step: IndexedSeq[Int] },
     """
     Generate an ``Array`` with values in the interval ``[start, stop)`` in increments of step.
-    
+
     .. code-block:: text
         :emphasize-lines: 2
 
@@ -739,7 +739,7 @@ object FunctionRegistry {
   },
     """
     Construct a :ref:`variant` object.
-    
+
     .. code-block:: text
         :emphasize-lines: 2
 
@@ -777,6 +777,55 @@ object FunctionRegistry {
     "alts" -> "Array of alternate allele sequences."
   )
 
+  val combineVariantsStruct = TStruct(Array(("leftAA", TDict(TInt, TInt), "Mapping from old to new alt allele index for the left variant."),
+    ("rightAA", TDict(TInt, TInt), "Mapping from old to new alt allele index for the right variant."),
+    ("variant", TVariant, "Resulting combined variant.")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+
+  registerAnn("combineVariants",
+    combineVariantsStruct, { (left: Variant, right: Variant) =>
+      if (left.contig != right.contig || left.start != right.start)
+        fatal(s"Only variants with the same contig and position can be combined. Left was $left, right was $right.")
+
+      val (longer, shorter, swapped) = if (left.ref.length > right.ref.length) (left, right, false) else (right, left, true)
+      val ref_diff = longer.ref.substring(shorter.ref.length)
+
+      if (longer.ref.substring(0, shorter.ref.length) != shorter.ref)
+        fatal(s"Variants ref bases mismatch in combineVariants. Left ref: ${ left.ref }, right ref: ${ right.ref }")
+
+      val short_alleles_index = mutable.Map[Int, Int]()
+      val short_alleles = new mutable.ArrayBuffer[AltAllele](initialSize = shorter.nAltAlleles)
+
+      Range(0, shorter.nAltAlleles).foreach({
+        i =>
+          val alt = shorter.altAlleles(i).alt + ref_diff
+          val new_index = longer.altAlleles.indexWhere(_.alt == alt)
+          if (new_index < 0) {
+            short_alleles += AltAllele(longer.ref, alt)
+            short_alleles_index(i) = longer.nAltAlleles + short_alleles.length - 1
+          }
+          else
+            short_alleles_index(i) = new_index
+      })
+
+      val newVariant = longer.copy(altAlleles = longer.altAlleles ++ short_alleles)
+      if (swapped)
+        Annotation(newVariant, short_alleles_index.toMap, Range(0, longer.nAltAlleles).zipWithIndex.toMap)
+      else
+        Annotation(newVariant, Range(0, longer.nAltAlleles).zipWithIndex.toMap, short_alleles_index.toMap)
+    },
+    """
+    Combines the alleles of two variants at the same locus, making sure that ref and alt alleles are represented uniformely.
+
+          .. code-block:: text
+              :emphasize-lines: 2
+
+              let left = Variant("1:1000:AT:A,CT") and right = Variant("1:1000:A:C,AGG") in combineVariants(left,right)
+              result: Struct{'rightAA': {0: 1, 1: 2}, 'leftAA': {0: 0, 1: 1}, 'variant': Variant(contig=1, start=1000, ref=AT, alts=[AltAllele(ref=AT, alt=A), AltAllele(ref=AT, alt=CT), AltAllele(ref=AT, alt=AGGT)])}
+
+    """,
+    "left" -> "Left variant to combine.",
+    "right" -> "Right variant to combine.")
+
   register("Locus", { (x: String) =>
     val Array(chr, pos) = x.split(":")
     Locus(chr, pos.toInt)
@@ -792,6 +841,7 @@ object FunctionRegistry {
     """,
     ("s", "String of the form ``CHR:POS``")
   )
+
   register("Locus", { (x: String, y: Int) => Locus(x, y) },
     """
     Construct a :ref:`locus` object.
@@ -857,9 +907,9 @@ object FunctionRegistry {
   },
     """
     Calculates the p-value, odds ratio, and 95% confidence interval with Fisher's exact test (FET) for 2x2 tables.
-    
+
     **Examples**
-    
+
     Annotate each variant with Fisher's exact test association results (assumes minor/major allele count variant annotations have been computed):
 
     >>> (vds.annotate_variants_expr(
@@ -868,9 +918,9 @@ object FunctionRegistry {
     ...   'majCase = gs.filter(g => sa.pheno.isCase).map(g => 2 - g.nNonRefAlleles()).sum() and '
     ...   'majControl = gs.filter(g => !sa.pheno.isCase).map(g => 2 - g.nNonRefAlleles()).sum() in '
     ...   'fet(macCase, macControl, majCase, majControl)'))
-    
+
     **Notes**
-    
+
     ``fet`` is identical to the version implemented in `R <https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html>`_ with default parameters (two-sided, alpha = 0.05, null hypothesis that the odds ratio equals 1).
     """,
     "a" -> "value for cell 1", "b" -> "value for cell 2", "c" -> "value for cell 3", "d" -> "value for cell 4")
