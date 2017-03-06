@@ -395,6 +395,15 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copy
 task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst']) {
     workingDir 'python/hail/docs'
     commandLine 'make', 'clean', 'html', 'doctest'
+    environment SPHINXOPTS: '-t checktutorial'
+    environment SPARK_HOME: sparkHome
+    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+}
+
+task makeHailDocsNoTest(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copyHtml']) {
+    workingDir 'python/hail/docs'
+    commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
@@ -405,6 +414,10 @@ task cleanHailDocs(type: Exec) {
 }
 
 task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs', 'cleanHailDocs']) {
+    commandLine 'mv', 'python/hail/docs/_build/html', 'build/www/hail'
+}
+
+task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs', 'cleanHailDocs']) {
     commandLine 'mv', 'python/hail/docs/_build/html', 'build/www/hail'
 }
 
@@ -422,3 +435,5 @@ task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDoc
 }
 
 task createDocs(dependsOn: createWebsite)
+
+task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocsNoTest'])
