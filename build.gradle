@@ -401,7 +401,7 @@ task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFun
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task makeHailDocsNoTest(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copyHtml']) {
+task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst']) {
     workingDir 'python/hail/docs'
     commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
