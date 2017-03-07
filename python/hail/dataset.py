@@ -2869,7 +2869,7 @@ class VariantDataset(object):
         else:
             result = self._jvds.querySamples(exprs)
             t = Type._from_java(result._2())
-            return t._convert_to_py(result._1(), t)
+            return t._convert_to_py(result._1()), t
 
     @handle_py4j
     def query_samples(self, exprs):
@@ -2938,7 +2938,7 @@ class VariantDataset(object):
         else:
             result = self._jvds.queryVariants(exprs)
             t = Type._from_java(result._2())
-            return t._convert_to_py(result._1(), t)
+            return t._convert_to_py(result._1()), t
 
     @handle_py4j
     def query_variants(self, exprs):
@@ -3050,9 +3050,9 @@ class VariantDataset(object):
             annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
             return annotations, ptypes
         else:
-            result = self._jvds.queryGenotypes(exprs)
+            result = self._jvdf.queryGenotypes(exprs)
             t = Type._from_java(result._2())
-            return t._convert_to_py(result._1(), t)
+            return t._convert_to_py(result._1()), t
 
     def query_genotypes(self, exprs):
         """Perform aggregation queries over genotypes, and returns python objects.
