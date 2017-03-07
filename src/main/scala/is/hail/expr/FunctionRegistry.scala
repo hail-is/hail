@@ -1174,7 +1174,7 @@ object FunctionRegistry {
   )(dictHr(TTHr, TUHr), setHr(TTHr))
 
   registerMethod("get", (m: Map[Any, Any], key: Any) =>
-    m.get(key).orNull, null
+    m.get(key).orNull, "Returns the value of the Dict for key ``k``, or returns ``NA`` if the key is not found."
   )(dictHr(TTHr, TUHr), TTHr, TUHr)
 
   registerMethod("mkString", (a: IndexedSeq[String], d: String) => a.mkString(d),
@@ -2244,7 +2244,7 @@ object FunctionRegistry {
   )(arrayHr(BoxedTTHr), boxedintHr, BoxedTTHr)
   registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i),
     """
-    Return the value for ``k`` or NA if the map or key is missing.
+    Return the value for ``k``, or throw an exception if the key is found.
     """, "k" -> "Key in the Dict to query."
   )(dictHr(TTHr, TUHr), TTHr, TUHr)
   registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString,
