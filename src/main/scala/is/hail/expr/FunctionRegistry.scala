@@ -1671,8 +1671,7 @@ object FunctionRegistry {
 
     Compute global GQ-distribution:
 
-    >>> [gq_dist] = (vds.annotate_variants_expr('va.gqHist = gs.map(g => g.gq).hist(0, 100, 20)')
-    ...    .query_variants(['variants.map(v => va.gqHist.binFrequencies).sum()']))
+    >>> gq_hist = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')
 
     **Notes**
 
