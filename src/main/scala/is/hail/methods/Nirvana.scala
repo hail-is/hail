@@ -7,9 +7,11 @@ import is.hail.annotations.Annotation
 import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TDouble, TInt, TString, TStruct}
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
-import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.storage.StorageLevel
+import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
+
 import scala.collection.JavaConverters._
 
 
@@ -181,7 +183,7 @@ object Nirvana {
     "position" -> TInt,
     "altAlleles" -> TArray(TString),
     "cytogeneticBand" -> TString,
-    "quality" -> TInt,
+    "quality" -> TDouble,
     "filters" -> TArray(TString),
     "jointSomaticNormalQuality" -> TInt,
     "copyNumber" -> TInt,
@@ -326,7 +328,8 @@ object Nirvana {
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(w: (String) => Unit, v: Variant) {
+  def printElement(w: (String) => Unit, vAndA: (Variant, Annotation)) {
+    val (v, a) = vAndA
     val sb = new StringBuilder()
     sb.append(v.contig)
     sb += '\t'
@@ -335,6 +338,9 @@ object Nirvana {
     sb.append(v.ref)
     sb += '\t'
     sb.append(v.altAlleles.iterator.map(_.alt).mkString(","))
+    sb += '\t'
+    //sb.append(a.asInstanceOf[GenericRow].get(1))
+    //sb.append("\t.\tGT")
     sb.append("\t.\t.\tGT")
     w(sb.result())
   }
@@ -373,26 +379,27 @@ object Nirvana {
     if (nirvanaLocation == null)
       fatal("property `hail.nirvana.location' required")
 
-    val path = properties.getProperty("hail.nirvana.path")
+    val path = Option(properties.getProperty("hail.nirvana.path"))
 
     val cache = properties.getProperty("hail.nirvana.cache")
 
-    val supplementaryAnnotationDirectory = properties.getProperty("hail.nirvana.supplementaryAnnotationDirectory")
+
+    val supplementaryAnnotationDirectoryOpt = Option(properties.getProperty("hail.nirvana.supplementaryAnnotationDirectory"))
+    val supplementaryAnnotationDirectory = if(supplementaryAnnotationDirectoryOpt.isEmpty) List[String]() else List("--sd", supplementaryAnnotationDirectoryOpt.get)
 
     val reference = properties.getProperty("hail.nirvana.reference")
 
     val rootQuery = rootType
       .map(_ => vds.vaSignature.query(parsedRoot))
 
-    val cmd = Array(
-      dotnet,
-      s"$nirvanaLocation",
-      "-c", cache,
-      "--sd", supplementaryAnnotationDirectory,
-      "-r", reference,
+    val cmd: List[String] = List[String](dotnet, s"$nirvanaLocation") ++
+      List("-c", cache) ++
+      supplementaryAnnotationDirectory ++
+      List("-r", reference,
       "-i", "-",
-      "-o", "-"
-    )
+      "-o", "-")
+
+    println(cmd.mkString(" "))
 
     val contigQuery = nirvanaSignature.query("chromosome")
     val startQuery = nirvanaSignature.query("position")
@@ -404,13 +411,13 @@ object Nirvana {
 
     val annotations = vds.rdd.mapValues { case (va, gs) => va }
       .mapPartitions({ it =>
-        val pb = new ProcessBuilder(cmd.toList.asJava)
+        val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
 
         it.filter { case (v, va) =>
           rootQuery.forall(q => q(va) == null)
         }
-          .map { case (v, _) => v }
+          //.map { case (v, _) => v }
           .grouped(localBlockSize)
           .flatMap { block =>
             val (jt, proc) = block.iterator.pipe(pb,
@@ -420,7 +427,6 @@ object Nirvana {
             //Drop header line for now, reconsider later.
             val kt = jt.drop(1).filter(!_.startsWith("]")).map { s =>
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
-              //println(s"a = $a")
                 val v = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
                   refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Seq[String]].toArray)
                 (v, a)
