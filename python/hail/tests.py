@@ -695,3 +695,10 @@ class ContextTests(unittest.TestCase):
         genotypetype = TGenotype()
         self.assertEqual(vds.annotate_global_py(path, genotype1, genotypetype).globals.annotation, genotype1)
         self.assertEqual(vds.annotate_global_py(path, genotype2, genotypetype).globals.annotation, genotype2)
+
+    def test_concordance(self):
+        bn1 = hc.balding_nichols_model(3, 1, 50, 1, seed=10)
+        bn2 = hc.balding_nichols_model(3, 1, 50, 1, seed=50)
+
+        glob, samples, variants = bn1.concordance(bn2)
+        self.assertEqual(samples.sample_annotations[samples.sample_ids[0]].concordance, glob)

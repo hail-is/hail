@@ -48,7 +48,10 @@ class Struct(object):
         return 'Struct' + repr(self._attrs)
 
     def __eq__(self, other):
-        return self._attrs == other._attrs
+        if isinstance(other, Struct):
+            return self._attrs == other._attrs
+        else:
+            return False
 
     def __hash__(self):
         return 37 + hash(tuple(sorted(self._attrs.items())))

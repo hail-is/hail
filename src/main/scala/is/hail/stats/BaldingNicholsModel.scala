@@ -44,7 +44,7 @@ object BaldingNicholsModel {
         fatal(s"F_st values must satisfy 0.0 < F_st < 1.0, got $f"))
 
     val nPartitions = nPartitionsOpt.getOrElse(Math.max((nSamples.toLong * nVariants / 1000000).toInt, 8))
-    if (nPartitions <= 1)
+    if (nPartitions < 1)
       fatal(s"Number of partitions must be positive, got $nPartitions")
 
     af_dist match {
