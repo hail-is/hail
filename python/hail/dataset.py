@@ -321,10 +321,12 @@ class VariantDataset(object):
         ...                                     ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
         ...                                     TArray(TString()))
 
-        This method is used to register new global annotations in a VDS
-        that can be used with all expr-based downstream operations.  The
-        Hail data type must be provided, and this method will throw an
-        error if the provided Python object doesn't match the Hail type.
+        **Notes**
+
+        This method registers new global annotations in a VDS. These annotations
+        can then be accessed through expressions in downstream operations. The
+        Hail data type must be provided and must match the given ``annotation``
+        parameter.
 
         :param str path: annotation path starting in 'global'
 
