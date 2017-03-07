@@ -297,9 +297,20 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]]("""[nullarr, [1], [2]].flatMap(x => x)""").isEmpty)
     assert(eval[IndexedSeq[_]]("""[[0], nullarr, [2]].flatMap(x => x)""").isEmpty)
     assert(eval[IndexedSeq[_]]("""[[0], [1], nullarr].flatMap(x => x)""").isEmpty)
+    assert(eval[IndexedSeq[_]]("""a.append(5)""").contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8, 5)))
+    assert(eval[IndexedSeq[_]]("""a.extend([5, -3, 0])""").contains(IndexedSeq(1, 2, null, 6, 3, 3, -1, 8, 5, -3, 0)))
 
     assert(eval[Set[_]]("""iset.flatMap(x => [x].toSet())""").contains(Set(0, 1, 2)))
     assert(eval[Set[_]]("""iset.flatMap(x => [x, x + 1].toSet())""").contains(Set(0, 1, 2, 3)))
+    assert(eval[Set[_]]("""iset.add(3)""").contains(Set(0, 1, 2, 3)))
+    assert(eval[Set[_]]("""iset.union([2,3,4].toSet)""").contains(Set(0, 1, 2, 3, 4)))
+    assert(eval[Set[_]]("""iset.intersection([2,3,4].toSet)""").contains(Set(2)))
+    assert(eval[Set[_]]("""iset.difference([2,3,4].toSet)""").contains(Set(0, 1)))
+    assert(eval[Boolean]("""iset.issubset([2,3,4].toSet)""").contains(false))
+    assert(eval[Boolean]("""iset.issubset([0,1].toSet)""").contains(false))
+    assert(eval[Boolean]("""iset.issubset([0,1,2,3,4].toSet)""").contains(true))
+
+
 
     assert(eval[Set[_]]("""nullset.flatMap(x => [x].toSet())""").isEmpty)
     assert(eval[Set[_]]("""emptyset.flatMap(x => [x].toSet())""").contains(Set[Int]()))

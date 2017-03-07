@@ -1139,6 +1139,15 @@ object FunctionRegistry {
   registerMethod("head", (a: Set[Any]) => a.head, "Select one element.")(setHr(TTHr), TTHr)
   registerMethod("tail", (a: Set[Any]) => a.tail, "Select all elements except the element returned by ``head``.")(setHr(TTHr), setHr(TTHr))
 
+  registerMethod("append", (x: IndexedSeq[Any], a: Any) => x :+ a, "Returns the result of adding the element `a` to the end of this Array.")(arrayHr(TTHr), TTHr, arrayHr(TTHr))
+  registerMethod("extend", (x: IndexedSeq[Any], a: IndexedSeq[Any]) => x ++ a, "Returns the concatenation of this Array followed by Array `a`.")(arrayHr(TTHr), arrayHr(TTHr), arrayHr(TTHr))
+
+  registerMethod("add", (x: Set[Any], a: Any) => x + a, "Returns the result of adding the element `a` to this Set.")(setHr(TTHr), TTHr, setHr(TTHr))
+  registerMethod("union", (x: Set[Any], a: Set[Any]) => x ++ a, "Returns the union of this Set and Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
+  registerMethod("intersection", (x: Set[Any], a: Set[Any]) => x & a, "Returns the intersection of this Set and Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
+  registerMethod("difference", (x: Set[Any], a: Set[Any]) => x &~ a, "Returns the elements of this Set that are not in Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
+  registerMethod("issubset", (x: Set[Any], a: Set[Any]) => x.subsetOf(a), "Returns true if this Set is a subset of Set `a`.")(setHr(TTHr), setHr(TTHr), boolHr)
+
   registerMethod("flatten", (a: IndexedSeq[IndexedSeq[Any]]) =>
     flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any], a),
     """
