@@ -15,7 +15,7 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
 
   import ev._
 
-  require(start <= end, s"invalid interval: $this: start is not before end")
+  require(start < end, s"invalid interval: $this: start is not before end")
 
   def contains(position: T): Boolean = position >= start && position < end
 
