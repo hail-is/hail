@@ -2846,7 +2846,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_samples_typed(self, exprs):
-        """Perform aggregation queries over samples and sample annotations, and returns python object(s) and types.
+        """Performs aggregation queries over samples and sample annotations, and returns python object(s) and type(s).
 
         **Examples**
 
@@ -2873,7 +2873,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_samples(self, exprs):
-        """Perform aggregation queries over samples and sample annotations, and returns python object(s).
+        """Performs aggregation queries over samples and sample annotations, and returns python object(s).
 
         **Examples**
 
@@ -2910,7 +2910,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_variants_typed(self, exprs):
-        """Perform aggregation queries over variants and variant annotations, and returns python objects and types.
+        """Performs aggregation queries over variants and variant annotations, and returns python object(s) and type(s).
 
         **Examples**
 
@@ -2942,7 +2942,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_variants(self, exprs):
-        """Perform aggregation queries over variants and variant annotations.
+        """Performs aggregation queries over variants and variant annotations, and returns python object(s) and type(s).
 
         **Examples**
 
@@ -2994,7 +2994,7 @@ class VariantDataset(object):
         return r
 
     def query_genotypes_typed(self, exprs):
-        """Perform aggregation queries over genotypes, and returns python objects and types.
+        """Performs aggregation queries over genotypes, and returns python object(s) and type(s).
 
         **Examples**
 
@@ -3055,7 +3055,7 @@ class VariantDataset(object):
             return t._convert_to_py(result._1()), t
 
     def query_genotypes(self, exprs):
-        """Perform aggregation queries over genotypes, and returns python objects.
+        """Performs aggregation queries over genotypes, and returns python object(s).
 
         **Examples**
 
