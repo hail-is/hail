@@ -5213,7 +5213,7 @@ class VariantDataset(object):
         jvds = self._jvds.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
-    def nirvana(self, config, block_size, root = 'va.nirvana'):
+    def nirvana(self, config, block_size = 1000, root = 'va.nirvana'):
         jvds = self._jvdf.nirvana(config, block_size, root)
         return VariantDataset(self.hc, jvds)
 
