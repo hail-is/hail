@@ -319,8 +319,10 @@ object FunctionRegistry {
         a1 <- args(1).compile();
         result <- f(a0.asInstanceOf[Code[t]], a1.asInstanceOf[Code[u]]))
         yield result.asInstanceOf[Code[AnyRef]]
+      case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
+        throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : ${argTypes.mkString(",")}) in non-aggregator position")
       case x =>
-        throw new RuntimeException(s"whoops, forgot to implement funreg for ${x.getClass} $x")
+        throw new RuntimeException(s"Internal hail error, unexpected Fun type: ${x.getClass} $x")
     }).map(Code.checkcast(_)(m.retType.scalaClassTag))
   }
 
