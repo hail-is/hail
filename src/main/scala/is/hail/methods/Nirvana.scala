@@ -259,65 +259,67 @@ object Nirvana {
       "exacOthAn" -> TInt,
       "exacSas" -> TDouble,
       "exacSasAc" -> TInt,
-      "exacSasAn" -> TInt
-    )),
-    "regulatoryRegions" -> TArray(TStruct(
-      "id" -> TString,
-      "consequence" -> TArray(TString)
-    )),
-    "clinVar" -> TArray(TStruct(
-      "id" -> TString,
-      "reviewStatus" -> TString,
-      "isAlleleSpecific" -> TBoolean,
-      "alleleOrigin" -> TString,
-      "refAllele" -> TString,
-      "altAllele" -> TString,
-      "phenotype" -> TString,
-      "geneReviewsId" -> TString,
-      "medGenId" -> TString,
-      "omimId" -> TString,
-      "orphanetId" -> TString,
-      "significance" -> TString,
-      "snoMetCtId" -> TString,
-      "lastEvaluatedDate" -> TString,
-      "pubMedIds" -> TArray(TString)
-    )),
-    "cosmic" -> TArray(TStruct(
-      "id" -> TString,
-      "isAlleleSpecific" -> TBoolean,
-      "refAllele" -> TString,
-      "altAllele" -> TString,
-      "gene" -> TString,
-      "studies" -> TArray(TStruct(
-        "id" -> TInt,
-        "histology" -> TString,
-        "primarySite" -> TString
-      ))
-    )),
-    "transcripts" -> TStruct(
-      "ensembl" -> TArray(TStruct(
-        "transcript" -> TString,
-        "aminoAcids" -> TString,
-        "bioType" -> TString,
-        "cDnaPos" -> TString,
-        "codons" -> TString,
-        "cdsPos" -> TString,
-        "exons" -> TString,
-        "introns" -> TString,
-        "geneId" -> TString,
-        "hgnc" -> TString,
+      "exacSasAn" -> TInt,
+      "regulatoryRegions" -> TArray(TStruct(
+        "id" -> TString,
         "consequence" -> TArray(TString),
-        "hgvsc" -> TString,
-        "hgvsp" -> TString,
-        "isCanonical" -> TBoolean,
-        "polyPhenScore" -> TDouble,
-        "polyPhenPrediction" -> TString,
-        "proteinId" -> TString,
-        "proteinPos" -> TString,
-        "siftScore" -> TDouble,
-        "siftPrediction" -> TString
+        "type" -> TString
+      )),
+      "transcripts" -> TStruct(
+        "ensembl" -> TArray(TStruct(
+          "transcript" -> TString,
+          "aminoAcids" -> TString,
+          "bioType" -> TString,
+          "cDnaPos" -> TString,
+          "codons" -> TString,
+          "cdsPos" -> TString,
+          "exons" -> TString,
+          "introns" -> TString,
+          "geneId" -> TString,
+          "hgnc" -> TString,
+          "consequence" -> TArray(TString),
+          "hgvsc" -> TString,
+          "hgvsp" -> TString,
+          "isCanonical" -> TBoolean,
+          "polyPhenScore" -> TDouble,
+          "polyPhenPrediction" -> TString,
+          "proteinId" -> TString,
+          "proteinPos" -> TString,
+          "siftScore" -> TDouble,
+          "siftPrediction" -> TString
+        ))
+      ),
+      "clinVar" -> TArray(TStruct(
+        "id" -> TString,
+        "reviewStatus" -> TString,
+        "isAlleleSpecific" -> TBoolean,
+        "alleleOrigin" -> TString,
+        "refAllele" -> TString,
+        "altAllele" -> TString,
+        "phenotype" -> TString,
+        "geneReviewsId" -> TString,
+        "medGenId" -> TString,
+        "omimId" -> TString,
+        "orphanetId" -> TString,
+        "significance" -> TString,
+        "snoMetCtId" -> TString,
+        "lastEvaluatedDate" -> TString,
+        "pubMedIds" -> TArray(TString)
+      )),
+      "cosmic" -> TArray(TStruct(
+        "id" -> TString,
+        "isAlleleSpecific" -> TBoolean,
+        "refAllele" -> TString,
+        "altAllele" -> TString,
+        "gene" -> TString,
+        "studies" -> TArray(TStruct(
+          "id" -> TInt,
+          "histology" -> TString,
+          "primarySite" -> TString
+        ))
       ))
     ))
+  )
 
   def printContext(w: (String) => Unit) {
     w("##fileformat=VCFv4.1")
@@ -416,10 +418,9 @@ object Nirvana {
               printElement,
               _ => ())
             //Drop header line for now, reconsider later.
-            val kt = jt.drop(1).map { s =>
-              println(s)
+            val kt = jt.drop(1).filter(!_.startsWith("]")).map { s =>
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
-              println(s"a = $a")
+              //println(s"a = $a")
                 val v = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
                   refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Seq[String]].toArray)
                 (v, a)
@@ -445,8 +446,8 @@ object Nirvana {
     val newRDD = vds.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
         left.sortedLeftJoinDistinct(right)
-          .map { case (v, ((va, gs), vaVep)) =>
-            (v, (vaVep.map(a => insertNirvana(va, Some(a))).getOrElse(va), gs))
+          .map { case (v, ((va, gs), vaNirvana)) =>
+            (v, (insertNirvana(va, vaNirvana.orNull), gs))
           }
       }.asOrderedRDD
 
