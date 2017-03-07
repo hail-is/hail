@@ -1115,12 +1115,12 @@ class VariantDataset(object):
 
     @handle_py4j
     def count(self, genotypes=False):
-        """Returns number of samples, variants and genotypes in this vds as a dictionary with keys ``'nSamples'``, ``'nVariants'``, and ``'nGenotypes'``.
+        """Returns number of samples, variants and genotypes in this vds as a dictionary with keys
+        ``'nSamples'``, ``'nVariants'``, and ``'nGenotypes'``.
 
         :param bool genotypes: If True, include number of called
             genotypes and genotype call rate as keys ``'nCalled'`` and ``'callRate'``, respectively.
 
-        :return: Returns a python dictionary of counts.
         :rtype: dict
         """
 
