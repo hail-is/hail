@@ -145,13 +145,13 @@ class HailContext(object):
         - The sample file has the same number of samples as the BGEN file.
         - No duplicate sample IDs are present.
 
-        To load multiple files at the same time, use `Hadoop Glob Patterns <sec-hadoop-glob>`.
+        To load multiple files at the same time, use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
         .. _dosagefilters:
 
         **Dosage representation**:
 
-        Since dosages are understood as genotype probabilities, :py:meth:`~hail.HailContext.import_bgen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` paramater from 1.0.  The default tolerance is 0.02, so a genotypes with sum .79 or 1.21 is filtered out, whereas a genotype with sum .8 or 1.2 remains.
+        Since dosages are understood as genotype probabilities, :py:meth:`~hail.HailContext.import_bgen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` parameter from 1.0.  The default tolerance is 0.2, so a genotype with sum .79 or 1.21 is filtered out, whereas a genotype with sum .8 or 1.2 remains.
 
         :py:meth:`~hail.HailContext.import_gen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
 
