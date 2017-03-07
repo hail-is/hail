@@ -57,7 +57,7 @@ class HailContext(object):
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
 
-        jsc = sc._jsc if sc  else None
+        jsc = sc._jsc.sc() if sc else None
 
         self._jhc = scala_object(self._hail, 'HailContext').apply(
             jsc, appName, joption(master), local, log, quiet, append,
