@@ -2222,14 +2222,14 @@ object FunctionRegistry {
     """
   )(TTHr, TTHr, TTHr)
 
-  register("orMissing", { (pred: Boolean, value: Any) =>
-    if(pred)
+  register("orMissing", { (predicate: Boolean, value: Any) =>
+    if(predicate)
       value
     else
       null
   },
     """
-    If ``pred`` evaluates to true, returns ``value``. Otherwise, returns NA.
+    If ``predicate`` evaluates to true, returns ``value``. Otherwise, returns NA.
     """
   )(boolHr,TTHr,TTHr)
 
