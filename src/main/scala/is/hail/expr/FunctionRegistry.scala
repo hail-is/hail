@@ -2244,7 +2244,7 @@ object FunctionRegistry {
   )(arrayHr(BoxedTTHr), boxedintHr, BoxedTTHr)
   registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i),
     """
-    Returns the value for ``k``, or throws an exception if the key is found.
+    Returns the value for ``k``, or throws an exception if the key is not found.
     """, "k" -> "Key in the Dict to query."
   )(dictHr(TTHr, TUHr), TTHr, TUHr)
   registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString,
