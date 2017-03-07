@@ -2850,24 +2850,26 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [low_callrate_samples], [t] = vds.query_samples_typed(
-        ...    ['samples.filter(s => sa.qc.callRate < 0.95).collect()'])
+        >>> low_callrate_samples, t = vds.query_samples_typed(
+        ...    'samples.filter(s => sa.qc.callRate < 0.95).collect()')
 
         See :py:meth:`.query_samples` for more information.
 
         :param exprs: query expressions
-        :type exprs: list of str
+        :type exprs: str or list of str
 
-        :rtype: (list, list of :class:`.Type`)
+        :rtype: (annotation or list of annotation,  :class:`.Type` or list of :class:`.Type`)
         """
 
-        if not isinstance(exprs, list):
-            raise TypeError("argument 'exprs' must be a list of str, but found %s" % str(type(exprs)))
-
-        result_list = self._jvds.querySamples(jarray(env.jvm.java.lang.String, exprs))
-        ptypes = [Type._from_java(x._2()) for x in result_list]
-        annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
-        return annotations, ptypes
+        if isinstance(exprs, list):
+            result_list = self._jvds.querySamples(jarray(env.jvm.java.lang.String, exprs))
+            ptypes = [Type._from_java(x._2()) for x in result_list]
+            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            return annotations, ptypes
+        else:
+            result = self._jvds.querySamples(exprs)
+            t = Type._from_java(result._2())
+            return t._convert_to_py(result._1(), t)
 
     @handle_py4j
     def query_samples(self, exprs):
@@ -2875,7 +2877,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [low_callrate_samples] = vds.query_samples(['samples.filter(s => sa.qc.callRate < 0.95).collect()'])
+        >>> low_callrate_samples = vds.query_samples('samples.filter(s => sa.qc.callRate < 0.95).collect()')
 
         **Details**
 
@@ -2898,9 +2900,9 @@ class VariantDataset(object):
         - ``sa``: sample annotations
 
         :param exprs: query expressions
-        :type exprs: list of str
+        :type exprs: str or list of str
 
-        :rtype: list
+        :rtype: annotation or list of annotation
         """
 
         r, t = self.query_samples_typed(exprs)
@@ -2912,23 +2914,31 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [lof_variant_count], [t] = vds.query_variants_typed([
-        ...     'variants.filter(v => va.consequence == "LOF").count()'])
+        >>> lof_variant_count, t = vds.query_variants_typed(
+        ...     'variants.filter(v => va.consequence == "LOF").count()')
+
+        >>> [lof_variant_count, missense_count], [t1, t2] = vds.query_variants_typed([
+        ...     'variants.filter(v => va.consequence == "LOF").count()',
+        ...     'variants.filter(v => va.consequence == "Missense").count()'])
+
 
         See :py:meth:`.query_variants` for more information.
 
         :param exprs: query expressions
-        :type exprs: list of str
+        :type exprs: str or list of str
 
-        :rtype: (list, list of :class:`.Type`)
+        :rtype: (annotation or list of annotation, :class:`.Type` or list of :class:`.Type`)
         """
-        if not isinstance(exprs, list):
-            raise TypeError("argument 'exprs' must be a list of str, but found %s" % str(type(exprs)))
+        if isinstance(exprs, list):
+            result_list = self._jvds.queryVariants(jarray(env.jvm.java.lang.String, exprs))
+            ptypes = [Type._from_java(x._2()) for x in result_list]
+            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            return annotations, ptypes
 
-        result_list = self._jvds.queryVariants(jarray(env.jvm.java.lang.String, exprs))
-        ptypes = [Type._from_java(x._2()) for x in result_list]
-        annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
-        return annotations, ptypes
+        else:
+            result = self._jvds.queryVariants(exprs)
+            t = Type._from_java(result._2())
+            return t._convert_to_py(result._1(), t)
 
     @handle_py4j
     def query_variants(self, exprs):
@@ -2936,8 +2946,11 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [lof_variant_count] = vds.query_variants([
-        ...    'variants.filter(v => va.consequence == "LOF").count()'])
+        >>> lof_variant_count = vds.query_variants('variants.filter(v => va.consequence == "LOF").count()')
+
+        >>> [lof_variant_count, missense_count] = vds.query_variants([
+        ...     'variants.filter(v => va.consequence == "LOF").count()',
+        ...     'variants.filter(v => va.consequence == "Missense").count()'])
 
         **Notes**
 
@@ -2963,8 +2976,8 @@ class VariantDataset(object):
         It is far faster to execute multiple queries in one method than
         to execute multiple query methods.  This:
 
-        >>> [result1] = vds.query_variants(['variants.count()'])
-        >>> [result2] = vds.query_variants(['variants.filter(v => v.altAllele.isSNP()).count()'])
+        >>> result1 = vds.query_variants('variants.count()')
+        >>> result2 = vds.query_variants('variants.filter(v => v.altAllele.isSNP()).count()')
 
         will be nearly twice as slow as this:
 
@@ -2972,9 +2985,9 @@ class VariantDataset(object):
         >>> [num_variants, num_snps] = vds.query_variants(exprs)
 
         :param exprs: query expressions
-        :type exprs: list of str
+        :type exprs: str or list of str
 
-        :rtype: list
+        :rtype: annotation or list of annotation
         """
 
         r, t = self.query_variants_typed(exprs)
@@ -2985,7 +2998,10 @@ class VariantDataset(object):
 
         **Examples**
 
-        >>> [gq_hist], [t] = vds.query_genotypes_typed(['gs.map(g => g.gq).hist(0, 100, 100)'])
+        >>> gq_hist, t = vds.query_genotypes_typed('gs.map(g => g.gq).hist(0, 100, 100)')
+
+        >>> [gq_hist, dp_hist], [t1, t2] = vds.query_genotypes_typed(['gs.map(g => g.gq).hist(0, 100, 100)',
+        ...                                                           'gs.map(g => g.dp).hist(0, 60, 60)'])
 
         See :py:meth:`.query_genotypes` for more information.
 
@@ -3014,8 +3030,8 @@ class VariantDataset(object):
         It is far faster to execute multiple queries in one method than
         to execute multiple query methods.  This:
 
-        >>> [result1] = vds.query_genotypes(['gs.count()'])
-        >>> [result2] = vds.query_genotypes(['gs.filter(g => v.altAllele.isSNP() && g.isHet).count()'])
+        >>> result1 = vds.query_genotypes('gs.count()')
+        >>> result2 = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.isHet).count()')
 
         will be nearly twice as slow as this:
 
@@ -3023,18 +3039,20 @@ class VariantDataset(object):
         >>> [geno_count, snp_hets] = vds.query_genotypes(exprs)
 
         :param exprs: query expressions
-        :type exprs: list of str
+        :type exprs: str or list of str
 
-        :rtype: (list, list of :class:`.Type`)
+        :rtype: (annotation or list of annotation, :class:`.Type` or list of :class:`.Type`)
         """
 
-        if not isinstance(exprs, list):
-            raise TypeError("argument 'exprs' must be a list of str, but found %s" % str(type(exprs)))
-
-        result_list = self._jvdf.queryGenotypes(jarray(env.jvm.java.lang.String, exprs))
-        ptypes = [Type._from_java(x._2()) for x in result_list]
-        annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
-        return annotations, ptypes
+        if isinstance(exprs, list):
+            result_list = self._jvdf.queryGenotypes(jarray(env.jvm.java.lang.String, exprs))
+            ptypes = [Type._from_java(x._2()) for x in result_list]
+            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            return annotations, ptypes
+        else:
+            result = self._jvds.queryGenotypes(exprs)
+            t = Type._from_java(result._2())
+            return t._convert_to_py(result._1(), t)
 
     def query_genotypes(self, exprs):
         """Perform aggregation queries over genotypes, and returns python objects.
@@ -3043,17 +3061,24 @@ class VariantDataset(object):
 
         Compute global GQ histogram
 
-        >>> [gq_hist] = vds.query_genotypes(['gs.map(g => g.gq).hist(0, 100, 100)'])
+        >>> gq_hist = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')
 
         Compute call rate
 
-        >>> [call_rate] = vds.query_genotypes(['gs.fraction(g => g.isCalled)'])
+        >>> call_rate = vds.query_genotypes('gs.fraction(g => g.isCalled)')
+
+        Compute GQ and DP histograms
+
+        >>> [gq_hist, dp_hist] = vds.query_genotypes(['gs.map(g => g.gq).hist(0, 100, 100)',
+        ...                                                     'gs.map(g => g.dp).hist(0, 60, 60)'])
+
 
         :param exprs: query expressions
-        :type exprs: list of str
+        :type exprs: str or list of str
 
-        :rtype: list
+        :rtype: annotation or list of annotation
         """
+
         r, t = self.query_genotypes_typed(exprs)
         return r
 
