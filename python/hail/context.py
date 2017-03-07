@@ -471,10 +471,10 @@ class HailContext(object):
 
         .. warning::
 
-            This method runs serially for each BGEN file (though it parallelizes among
-            individual files). It is a waste of resources to use a large cluster to index
-            BGEN files, so this method should generally be run separately.
-
+            While this method parallelizes over a list of BGEN files, each file is
+            indexed serially by one core. Indexing several BGEN files on a large
+            cluster is a waste of resources, so indexing should generally be done
+            as a one-time step separately from large analyses.
 
         :param path: .bgen files to index.
         :type path: str or list of str
