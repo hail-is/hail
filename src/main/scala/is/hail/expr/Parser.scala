@@ -56,6 +56,9 @@ object Parser extends JavaTokenParsers {
   private def eval(t: AST, ec: EvalContext): (Type, () => Any) = {
     t.typecheck(ec)
 
+    if (!t.`type`.isRealizable)
+      t.parseError(s"unrealizable type `${t.`type`}' as result of expression")
+
     val thunk = evalNoTypeCheck(t, ec)
     (t.`type`, thunk)
   }
