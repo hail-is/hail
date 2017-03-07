@@ -1,15 +1,19 @@
 package is.hail.stats
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{Field, TDouble, TStruct}
+import is.hail.expr.{TDouble, TStruct}
 import is.hail.utils._
 import is.hail.variant.Genotype
 
 object HWECombiner {
-  def signature = TStruct(Array(
+  def makeSchema: (TStruct, TStruct) = TStruct.applyWDocstring(
     ("rExpectedHetFrequency", TDouble, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
     ("pHWE", TDouble, "p-value")
-  ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  )
+
+  def signature = makeSchema._1
+
+  def annMetadata = makeSchema._2
 }
 
 class HWECombiner extends Serializable {
