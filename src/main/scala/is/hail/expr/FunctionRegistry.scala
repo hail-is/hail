@@ -1450,7 +1450,7 @@ object FunctionRegistry {
 
   registerAggregator[Any, IndexedSeq[Any]]("collect", () => new CollectAggregator(),
     """
-    Return an array with all of the elements in the aggregable. Missing values are removed.
+    Returns an array with all of the elements in the aggregable. Missing values are removed.
 
     **Examples**
 
@@ -1762,7 +1762,7 @@ object FunctionRegistry {
 
     **Examples**
 
-    Return the 10 samples with the largest number of singletons:
+    Returns the 10 samples with the largest number of singletons:
 
     >>> [samplesMostSingletons] = (vds
     ...   .sample_qc()
@@ -2015,8 +2015,8 @@ object FunctionRegistry {
     registerNumeric("*", ev.times)
     // registerNumeric("/", (x: T, y: T) => ev.toDouble(x) / ev.toDouble(y))
 
-    registerMethod("abs", ev.abs _, "Return the absolute value of a number.")
-    registerMethod("signum", ev.signum _, "Return the sign of a number (1, 0, or -1).")
+    registerMethod("abs", ev.abs _, "Returns the absolute value of a number.")
+    registerMethod("signum", ev.signum _, "Returns the sign of a number (1, 0, or -1).")
 
     register("-", ev.negate _, "Returns the negation of this value.")
     register("fromInt", ev.fromInt _, null)
@@ -2055,8 +2055,8 @@ object FunctionRegistry {
     // register(">", ord.gt _, null)
     register(">=", ord.gteq _, null)
 
-    registerMethod("min", ord.min _, "Return the minimum value.")
-    registerMethod("max", ord.max _, "Return the maximum value.")
+    registerMethod("min", ord.min _, "Returns the minimum value.")
+    registerMethod("max", ord.max _, "Returns the maximum value.")
 
     registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extendOrderingToNull(ord)), "Sort the collection in ascending order.")(arrayHr(hrboxedt), arrayHr(hrboxedt))
     registerMethod("sort", (a: IndexedSeq[Any], ascending: Boolean) =>
@@ -2209,7 +2209,7 @@ object FunctionRegistry {
       v
   },
     """
-    If ``a`` does not evaluate to missing, return the result. Otherwise, evaluate ``b`` and return the result.
+    If ``a`` is not missing, returns ``aa``. Otherwise, returns ``b``.
 
     **Examples**
 
@@ -2233,7 +2233,7 @@ object FunctionRegistry {
     Code(storei, storea, arrayRef((refi >= 0).mux(refi, refi + size)))
   },
     """
-    Return the i*th*-indexed element of the Array or NA if array or index is missing. Arrays are 0-indexed.
+    Returns the i*th* element (0-indexed) of the array, or throws an exception if ``i`` is an invalid index.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -2244,13 +2244,13 @@ object FunctionRegistry {
   )(arrayHr(BoxedTTHr), boxedintHr, BoxedTTHr)
   registerMethod("[]", (a: Map[Any, Any], i: Any) => a(i),
     """
-    Return the value for ``k``, or throw an exception if the key is found.
+    Returns the value for ``k``, or throws an exception if the key is found.
     """, "k" -> "Key in the Dict to query."
   )(dictHr(TTHr, TUHr), TTHr, TUHr)
   registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString,
     """
-    Return the *i*th-indexed character in the String or NA if the string or index is missing. Strings are 0-indexed.
-
+    Returns the i*th* element (0-indexed) of the string, or throws an exception if ``i`` is an invalid index.
+ |
     .. code-block:: text
         :emphasize-lines: 2
 
@@ -2261,7 +2261,7 @@ object FunctionRegistry {
 
   registerMethod("[:]", (a: IndexedSeq[Any]) => a,
     """
-    Return a copy of the entire Array.
+    Returns a copy of the array.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -2272,7 +2272,7 @@ object FunctionRegistry {
   )(arrayHr(TTHr), arrayHr(TTHr))
   registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(i, a.length),
     """
-    Return a slice of the array from the i*th*-indexed element to the end.
+    Returns a slice of the array from the i*th* element (0-indexed) to the end.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -2283,7 +2283,7 @@ object FunctionRegistry {
   )(arrayHr(TTHr), intHr, arrayHr(TTHr))
   registerMethod("[:*]", (a: IndexedSeq[Any], i: Int) => a.slice(0, i),
     """
-    Return a slice of the array from the 0*th*-indexed element **until** the j*th*-indexed element.
+    Returns a slice of the array from the first element until the j*th* element (0-indexed).
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -2294,7 +2294,7 @@ object FunctionRegistry {
   )(arrayHr(TTHr), intHr, arrayHr(TTHr))
   registerMethod("[*:*]", (a: IndexedSeq[Any], i: Int, j: Int) => a.slice(i, j),
     """
-    Return a slice of the array from the i*th*-indexed element **until** the j*th*-indexed element.
+    Returns a slice of the array from the i*th* element until the j*th* element (both 0-indexed).
 
     .. code-block:: text
         :emphasize-lines: 2
