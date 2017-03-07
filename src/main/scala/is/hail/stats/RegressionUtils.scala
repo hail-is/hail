@@ -35,7 +35,8 @@ object RegressionUtils {
       Option(yQ()).map(yToDouble)
     }
 
-    val (covT, covQ) = Parser.parseExprs(covSA.mkString(","), ec)
+    val (covT, covQ0) = covSA.map(Parser.parseExpr(_, ec)).unzip
+    val covQ = () => covQ0.map(_.apply())
     val covToDouble = (covT, covSA).zipped.map(toDouble)
     val covIS = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
       ec.setAll(s, sa)
