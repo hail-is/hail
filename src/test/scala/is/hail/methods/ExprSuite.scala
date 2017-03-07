@@ -235,6 +235,9 @@ class ExprSuite extends SparkSuite {
     assert(eval[Int]("orElse(i, 3)").contains(5))
     assert(eval[Int]("orElse(m, 3)").contains(3))
 
+    assert(eval[Int]("orMissing(t, 3)").contains(3))
+    assert(eval[Int]("orMissing(f, 3)").isEmpty)
+
     assert(eval[Boolean]("isMissing(i)").contains(false))
     assert(eval[Boolean]("isDefined(i)").contains(true))
     assert(eval[Boolean]("isDefined(i)").contains(true))
