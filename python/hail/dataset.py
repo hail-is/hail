@@ -5214,6 +5214,10 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     def nirvana(self, config, block_size = 1000, root = 'va.nirvana'):
+        """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_
+
+        ***Configuration***
+        """
         jvds = self._jvdf.nirvana(config, block_size, root)
         return VariantDataset(self.hc, jvds)
 
