@@ -7,7 +7,7 @@ import is.hail.variant.GenotypeType.GenotypeType
 object Call {
 
   def apply(call: Int) = {
-    require(call > -1, s"Invalid Call input `$call'. Must be >= -1.")
+    require(call >= -1, s"Invalid Call input `$call'. Must be >= -1.")
     call
   }
 

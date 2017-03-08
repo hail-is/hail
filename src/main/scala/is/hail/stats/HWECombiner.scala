@@ -37,7 +37,6 @@ class HWECombiner extends Serializable {
   }
 
   def n = nHomRef + nHet + nHomVar
-
   def nA = nHet + 2 * nHomRef.min(nHomVar)
 
   def lh = LeveneHaldane(n, nA)

@@ -63,7 +63,7 @@ trait HailRepFunctions {
     def typ = TSample
   }
 
-  implicit object callHr extends HailRep[Call] {
+  object callHr extends HailRep[Call] {
     def typ = TCall
   }
 
