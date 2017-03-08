@@ -41,7 +41,7 @@ object ExportVCF {
         case t =>
           sb.append(f.name)
           sb += '='
-          sb.append(t.str(value))
+          sb.append(t.strVCF(value))
           true
       }
   }
@@ -259,7 +259,7 @@ object ExportVCF {
           if (f.nonEmpty)
             f.foreachBetween(s => sb.append(s))(sb += ';')
           else
-            sb += '.'
+            sb.append("PASS")
         case None => sb += '.'
       }
 
