@@ -2251,7 +2251,7 @@ object FunctionRegistry {
   },
     """
     If ``predicate`` evaluates to true, returns ``value``. Otherwise, returns NA.
-    """
+    """, null
   )(boolHr,TTHr,TTHr)
 
   registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
