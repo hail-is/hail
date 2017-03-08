@@ -6,7 +6,10 @@ import is.hail.variant.GenotypeType.GenotypeType
 
 object Call {
 
-  def apply(call: Int) = call
+  def apply(call: Int) = {
+    require(call > -1, s"Invalid Call input `$call'. Must be >= -1.")
+    call
+  }
 
   def check(unboxedGT: Int, nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)

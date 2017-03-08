@@ -237,7 +237,7 @@ abstract class Genotype extends Serializable {
     b.result()
   }
 
-  def hasPAB: Boolean = unboxedAD != null && Call.isHet(unboxedGT)
+  def hasPAB: Boolean = unboxedAD != null && isHet
 
   def pAB_(theta: Double = 0.5): Double = {
     val gtPair = Genotype.gtPair(unboxedGT)

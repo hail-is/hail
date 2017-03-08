@@ -8,10 +8,9 @@ import is.hail.asm4s.Code
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-
-import scala.collection.mutable
 import is.hail.variant.{AltAllele, Call, GTPair, Genotype, Locus, Variant}
 import is.hail.variant.Call._
+import scala.collection.mutable
 import is.hail.methods._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.Opcodes._
@@ -564,18 +563,18 @@ object FunctionRegistry {
     else
       box(x)
   }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")
-  registerMethod("gtj", { (x: Call) =>
-    if (x == -1)
-      null
-    else
-      box(Genotype.gtPair(x).j)
-  }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
-  registerMethod("gtk", { (x: Call) =>
-    if (x == -1)
-      null
-    else
-      box(Genotype.gtPair(x).k)
-  }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
+//  registerMethod("gtj", { (x: Call) =>
+//    if (x == -1)
+//      null
+//    else
+//      box(Genotype.gtPair(x).j)
+//  }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
+//  registerMethod("gtk", { (x: Call) =>
+//    if (x == -1)
+//      null
+//    else
+//      box(Genotype.gtPair(x).k)
+//  }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
   registerMethod("isHomRef", { (x: Call) => isHomRef(x) }, "True if this call is ``0/0``.")
   registerMethod("isHet", { (x: Call) => isHet(x) }, "True if this call is heterozygous.")
   registerMethod("isHomVar", { (x: Call) => isHomVar(x) }, "True if this call is ``j/j`` with ``j>0``.")
