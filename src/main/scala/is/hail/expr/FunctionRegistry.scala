@@ -2230,6 +2230,17 @@ object FunctionRegistry {
     """
   )(TTHr, TTHr, TTHr)
 
+  register("orMissing", { (predicate: Boolean, value: Any) =>
+    if(predicate)
+      value
+    else
+      null
+  },
+    """
+    If ``predicate`` evaluates to true, returns ``value``. Otherwise, returns NA.
+    """
+  )(boolHr,TTHr,TTHr)
+
   registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
     (storei, refi) <- CM.memoize(Code.intValue(i));
     (storea, _refa) <- CM.memoize(a);
