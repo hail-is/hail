@@ -315,6 +315,19 @@ class VariantDataset(object):
     def annotate_global_py(self, path, annotation, annotation_type):
         """Annotate global from python objects.
 
+        **Example**
+
+        >>> vds_result = vds.annotate_global_py('global.populations',
+        ...                                     ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
+        ...                                     TArray(TString()))
+
+        **Notes**
+
+        This method registers new global annotations in a VDS. These annotations
+        can then be accessed through expressions in downstream operations. The
+        Hail data type must be provided and must match the given ``annotation``
+        parameter.
+
         :param str path: annotation path starting in 'global'
 
         :param annotation: annotation to add to global
