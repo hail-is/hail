@@ -588,7 +588,7 @@ object FunctionRegistry {
       box(Call.nNonRefAlleles_(x))
     else
       null
-  }, "the number of called alternate alleles.")(intHr, boxedintHr)
+  }, "the number of called alternate alleles.")(callHr, boxedintHr)
 
   registerField("gt", { (x: Genotype) =>
     val gt = x.unboxedGT
