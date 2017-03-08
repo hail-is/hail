@@ -518,7 +518,7 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
   }
 
   def combOp(agg2: this.type) {
-    agg2._state.foreach(seqOp)
+    agg2._state.foreach { case (x, p) => seqOp(x) }
   }
 
   def copy() = new TakeByAggregator(f, n)
