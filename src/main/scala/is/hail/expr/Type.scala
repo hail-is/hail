@@ -17,7 +17,7 @@ import scala.reflect.classTag
 
 object Type {
   val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
-    TVariant, TAltAllele, TGenotype, TLocus, TInterval)
+    TVariant, TAltAllele, TGenotype, TLocus, TInterval, TCall)
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)
@@ -601,13 +601,13 @@ case object TGenotype extends Type {
 case object TCall extends Type {
   override def toString = "Call"
 
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Call]
+  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
   override def genNonmissingValue: Gen[Annotation] = Call.genArb
 
   override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
 
-  override def scalaClassTag: ClassTag[Call] = classTag[Call]
+  override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 }
 
 case object TAltAllele extends Type {

@@ -2,16 +2,17 @@ package is.hail.variant
 
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
+import is.hail.variant.Call._
 
 class CallSuite extends TestNGSuite {
   @Test def testClass() {
-    val cNoCall = Call(-1)
-    assert(cNoCall.isNotCalled)
-    val cHomRef = Call(0)
-    assert(cHomRef.isHomRef && cHomRef.isCalled && cHomRef.nNonRefAlleles == Option(0))
-    val cHet = Call(1)
-    assert(cHet.isHet && cHet.isCalled && cHet.nNonRefAlleles == Option(1))
-    val cHomVar = Call(2)
-    assert(cHomVar.isHomVar && cHomVar.isCalled && cHomVar.nNonRefAlleles == Option(2))
+    val cNoCall = -1
+    assert(isNotCalled(cNoCall))
+    val cHomRef = 0
+    assert(isHomRef(cHomRef) && isCalled(cHomRef) && nNonRefAlleles(cHomRef) == Option(0))
+    val cHet = 1
+    assert(isHet(cHet) && isCalled(cHet) && nNonRefAlleles(cHet) == Option(1))
+    val cHomVar = 2
+    assert(isHomVar(cHomVar) && isCalled(cHomVar) && nNonRefAlleles(cHomVar) == Option(2))
   }
 }

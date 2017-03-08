@@ -53,7 +53,7 @@ class GTPair(val p: Int) extends AnyVal {
 
 }
 
-abstract class Genotype extends Serializable with Call {
+abstract class Genotype extends Serializable {
 
   def unboxedGT: Int
 
@@ -125,6 +125,8 @@ abstract class Genotype extends Serializable with Call {
       .append(isDosage)
       .toHashCode
 
+  def gt: Option[Int] = Call.gt(unboxedGT)
+
   def ad: Option[Array[Int]] = Option(unboxedAD)
 
   def dp: Option[Int] =
@@ -155,6 +157,40 @@ abstract class Genotype extends Serializable with Call {
 
   def dosage: Option[Array[Double]] = Option(unboxedDosage)
 
+  def isHomRef: Boolean = Call.isHomRef(unboxedGT)
+
+  def isHet: Boolean = Call.isHet(unboxedGT)
+
+  def isHomVar: Boolean = Call.isHomVar(unboxedGT)
+
+  def isCalledNonRef: Boolean = Call.isCalledNonRef(unboxedGT)
+
+  def isHetNonRef: Boolean = Call.isHetNonRef(unboxedGT)
+
+  def isHetRef: Boolean = Call.isHomRef(unboxedGT)
+
+  def isNotCalled: Boolean = Call.isNotCalled(unboxedGT)
+
+  def isCalled: Boolean = Call.isCalled(unboxedGT)
+
+  def gtType: GenotypeType =
+    if (isHomRef)
+      GenotypeType.HomRef
+    else if (isHet)
+      GenotypeType.Het
+    else if (isHomVar)
+      GenotypeType.HomVar
+    else {
+      assert(isNotCalled)
+      GenotypeType.NoCall
+    }
+
+  def hasNNonRefAlleles: Boolean = Call.hasNNonRefAlleles(unboxedGT)
+
+  def nNonRefAlleles_ : Int = Call.nNonRefAlleles_(unboxedGT)
+
+  def nNonRefAlleles: Option[Int] = Call.nNonRefAlleles(unboxedGT)
+
   def fractionReadsRef(): Option[Double] =
     if (unboxedAD != null) {
       val s = intArraySum(unboxedAD)
@@ -164,6 +200,14 @@ abstract class Genotype extends Serializable with Call {
         None
     } else
       None
+
+  def oneHotAlleles(nAlleles: Int): Option[IndexedSeq[Int]] = Call.oneHotAlleles(unboxedGT, nAlleles)
+
+  def oneHotAlleles(v: Variant): Option[IndexedSeq[Int]] = oneHotAlleles(v.nAlleles)
+
+  def oneHotGenotype(v: Variant): Option[IndexedSeq[Int]] = oneHotGenotype(v.nGenotypes)
+
+  def oneHotGenotype(nGenotypes: Int): Option[IndexedSeq[Int]] = Call.oneHotGenotype(unboxedGT, nGenotypes)
 
   override def toString: String = {
     val b = new StringBuilder
@@ -193,7 +237,7 @@ abstract class Genotype extends Serializable with Call {
     b.result()
   }
 
-  def hasPAB: Boolean = unboxedAD != null && isHet
+  def hasPAB: Boolean = unboxedAD != null && Call.isHet(unboxedGT)
 
   def pAB_(theta: Double = 0.5): Double = {
     val gtPair = Genotype.gtPair(unboxedGT)
