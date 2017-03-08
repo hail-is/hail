@@ -281,6 +281,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
             "value" -> exportAnnotation(v, valueType))
           }.toList)
         case TSample => a.asInstanceOf[Sample].toJSON
+        case TCall => JInt(a.asInstanceOf[Int])
         case TGenotype => a.asInstanceOf[Genotype].toJSON
         case TAltAllele => a.asInstanceOf[AltAllele].toJSON
         case TVariant => a.asInstanceOf[Variant].toJSON
@@ -376,6 +377,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         jv.extract[JSONExtractInterval].toInterval
       case (_, TGenotype) =>
         jv.extract[JSONExtractGenotype].toGenotype
+      case (JInt(x), TCall) => x.toInt
 
       case (JArray(a), TArray(elementType)) =>
         a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]

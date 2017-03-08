@@ -533,6 +533,7 @@ object Parser extends JavaTokenParsers {
       "Variant" ^^ { _ => TVariant } |
       "Locus" ^^ { _ => TLocus } |
       "Genotype" ^^ { _ => TGenotype } |
+      "Call" ^^ { _ => TCall } |
       "String" ^^ { _ => TString } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |

@@ -7,17 +7,15 @@ import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils.{FatalException, Interval, _}
-import is.hail.variant.{Genotype, Locus, Variant}
+import is.hail.variant.{Call, Genotype, Locus, Variant}
 import is.hail.{SparkSuite, TestUtils}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
-
 import org.scalatest._
 import Matchers._
 
 import scala.collection.mutable
-
 import org.scalatest._
 import Matchers._
 import matchers._
@@ -102,7 +100,12 @@ class ExprSuite extends SparkSuite {
       "nullarr" -> (18, TArray(TInt)),
       "nullset" -> (19, TSet(TInt)),
       "emptyarr" -> (20, TArray(TInt)),
-      "emptyset" -> (21, TSet(TInt)))
+      "emptyset" -> (21, TSet(TInt)),
+      "calls" -> (22, TStruct(("noCall", TCall),
+        ("homRef", TCall),
+        ("het", TCall),
+        ("homVar", TCall)
+      )))
 
     val ec = EvalContext(symTab)
 
@@ -136,6 +139,7 @@ class ExprSuite extends SparkSuite {
     a(19) = null
     a(20) = IndexedSeq[Int]()
     a(21) = Set[Int]()
+    a(22) = Annotation(Call(-1), Call(0), Call(1), Call(2))
 
     assert(a.length == symTab.size)
 
@@ -671,6 +675,11 @@ class ExprSuite extends SparkSuite {
     // FIXME: parser should accept minimum Long/Int literals
     // assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
     // assert(eval[Long](Long.MinValue.toString+"l").contains(Long.MinValue))
+
+    assert(eval[Boolean]("calls.noCall.isNotCalled()").contains(true))
+    assert(eval[Boolean]("let c = calls.homRef in c.isHomRef() && c.isCalled() && c.nNonRefAlleles() == 0").contains(true))
+    assert(eval[Boolean]("let c = calls.het in c.isHet() && c.isCalled() && c.nNonRefAlleles() == 1").contains(true))
+    assert(eval[Boolean]("let c = calls.homVar in c.isHomVar() && c.isCalled() && c.nNonRefAlleles() == 2").contains(true))
 
     {
       val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
