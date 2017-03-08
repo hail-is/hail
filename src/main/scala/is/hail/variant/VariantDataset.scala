@@ -285,6 +285,59 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       fatal(s"method `$methodName' requires a split dataset. Use `split_multi' or `filter_multi' first.")
   }
 
+  /**
+    * Aggregate by user-defined key and aggregation expressions.
+    *
+    * Equivalent of a group-by operation in SQL.
+    *
+    * @param keyExpr Named expression(s) for which fields are keys
+    * @param aggExpr Named aggregation expression(s)
+    */
+  def aggregateByKey(keyExpr: String, aggExpr: String): KeyTable = {
+    val aggregationST = Map(
+      "global" -> (0, vds.globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vds.vaSignature),
+      "s" -> (3, TSample),
+      "sa" -> (4, vds.saSignature),
+      "g" -> (5, TGenotype))
+
+    val ec = EvalContext(aggregationST.map { case (name, (i, t)) => name -> (i, TAggregable(t, aggregationST)) })
+
+    val keyEC = EvalContext(Map(
+      "global" -> (0, vds.globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vds.vaSignature),
+      "s" -> (3, TSample),
+      "sa" -> (4, vds.saSignature),
+      "g" -> (5, TGenotype)))
+
+    val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyExpr, keyEC)
+    val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggExpr, ec)
+
+    val signature = TStruct((keyNames ++ aggNames, keyTypes ++ aggTypes).zipped.toSeq: _*)
+
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
+      ec.setAllFromRow(a.asInstanceOf[Row])
+    })
+
+    val localGlobalAnnotation = vds.globalAnnotation
+
+    val ktRDD = vds.mapPartitionsWithAll { it =>
+      it.map { case (v, va, s, sa, g) =>
+        keyEC.setAll(localGlobalAnnotation, v, va, s, sa, g)
+        val key = Annotation.fromSeq(keyF())
+        (key, Annotation(localGlobalAnnotation, v, va, s, sa, g))
+      }
+    }.aggregateByKey(zVals)(seqOp, combOp)
+      .map { case (k, agg) =>
+        resultOp(agg)
+        Annotation.fromSeq(k.asInstanceOf[Row].toSeq ++ aggF())
+      }
+
+    KeyTable(vds.hc, ktRDD, signature, keyNames)
+  }
+
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
     val isDosage = vds.isDosage
 

@@ -145,6 +145,17 @@ class VariantDataset(object):
         """Aggregate by user-defined key and aggregation expressions.
         Equivalent of a group-by operation in SQL.
 
+        **Examples**
+
+        Compute the number of LOF heterozygote calls per gene per sample:
+
+        >>> kt_result = (vds
+        ...     .aggregate_by_key(['Sample = s', 'Gene = va.gene'],
+        ...                        'nHet = g.filter(g => g.isHet() && va.consequence == "LOF").count()')
+        ...     .export("test.tsv"))
+
+        This will produce a :class:`KeyTable` with 3 columns (`Sample`, `Gene`, `nHet`).
+
         :param key_code: Named expression(s) for which fields are keys.
         :type key_code: str or list of str
 
@@ -154,7 +165,12 @@ class VariantDataset(object):
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvds.aggregateByKey(key_code, agg_code))
+        if isinstance(key_code, list):
+            key_code = ",".join(key_code)
+        if isinstance(agg_code, list):
+            agg_code = ",".join(agg_code)
+
+        return KeyTable(self.hc, self._jvdf.aggregateByKey(key_code, agg_code))
 
     @handle_py4j
     def aggregate_intervals(self, input, expr, output):
