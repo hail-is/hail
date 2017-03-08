@@ -292,6 +292,7 @@ class ContextTests(unittest.TestCase):
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
 
         sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet().toInt()).sum().toLong()")
+        sample_split.aggregate_by_key(["Variant = v"], ["nHet = g.map(g => g.isHet().toInt()).sum().toLong()"])
 
         sample2.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
 
