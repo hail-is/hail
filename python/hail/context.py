@@ -463,7 +463,18 @@ class HailContext(object):
 
     @handle_py4j
     def index_bgen(self, path):
-        """Index .bgen files.  import_bgen cannot run without these indices.
+        """Index .bgen files.  :py:meth:`.HailContext.import_bgen cannot run without these indices.
+
+        **Example**
+
+        >>> vds = hc.index_bgen("data/example3.bgen")
+
+        .. warning::
+
+            While this method parallelizes over a list of BGEN files, each file is
+            indexed serially by one core. Indexing several BGEN files on a large
+            cluster is a waste of resources, so indexing should generally be done
+            as a one-time step separately from large analyses.
 
         :param path: .bgen files to index.
         :type path: str or list of str
