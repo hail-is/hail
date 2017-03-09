@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 package object variant {
   type VariantDataset = VariantSampleMatrix[Genotype]
   type GenericDataset = VariantSampleMatrix[Annotation]
-  type Call = Int
+  type Call = java.lang.Integer
 
   class RichIterableGenotype(val ig: Iterable[Genotype]) extends AnyVal {
     def toGenotypeStream(v: Variant, isDosage: Boolean): GenotypeStream =

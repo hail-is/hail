@@ -557,12 +557,7 @@ object FunctionRegistry {
     def typ = TTBoxed
   }
 
-  registerField("gt", { (x: Call) =>
-    if (x == -1)
-      null
-    else
-      box(x)
-  }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedintHr)
+  registerField("gt", { (x: Call) => x}, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, callHr)
   registerMethod("gtj", { (x: Call) =>
     if (x == -1)
       null

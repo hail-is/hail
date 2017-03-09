@@ -6,14 +6,19 @@ import is.hail.variant.GenotypeType.GenotypeType
 
 object Call {
 
-  def apply(call: Int) = {
-    require(call >= -1, s"Invalid Call input `$call'. Must be >= -1.")
+  def apply(call: java.lang.Integer): Call = {
+    require(call == null || call >= 0)
     call
   }
 
-  def check(unboxedGT: Int, nAlleles: Int) {
+  def apply(g: Genotype): Call = {
+    val call = g.unboxedGT
+    if (call == -1) null else box(call)
+  }
+
+  def check(call: Call, nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
-    assert(gt(unboxedGT).forall(i => i >= 0 && i < nGenotypes))
+    assert(gt(call).forall(i => i >= 0 && i < nGenotypes))
   }
 
   def genArb: Gen[Call] =
@@ -26,41 +31,37 @@ object Call {
       call
     }
 
-  def gt(call: java.lang.Integer): Option[Int] =
-    if (call == -1)
-      None
-    else
-      Some(call)
+  def gt(call: Call): Option[Int] = Option(call)
 
-  def isHomRef(call: java.lang.Integer): Boolean = call == 0
+  def isHomRef(call: Call): Boolean = call == 0
 
-  def isHet(call: java.lang.Integer): Boolean = call > 0 && {
+  def isHet(call: Call): Boolean = call > 0 && {
     val p = Genotype.gtPair(call)
     p.j != p.k
   }
 
-  def isHomVar(call: java.lang.Integer): Boolean = call > 0 && {
+  def isHomVar(call: Call): Boolean = isCalled(call) && call > 0 && {
     val p = Genotype.gtPair(call)
     p.j == p.k
   }
 
-  def isCalledNonRef(call: java.lang.Integer): Boolean = call > 0
+  def isCalledNonRef(call: Call): Boolean = isCalled(call) && call > 0
 
-  def isHetNonRef(call: java.lang.Integer): Boolean = call > 0 && {
+  def isHetNonRef(call: Call): Boolean = isCalled(call) && call > 0 && {
     val p = Genotype.gtPair(call)
     p.j > 0 && p.j != p.k
   }
 
-  def isHetRef(call: java.lang.Integer): Boolean = call > 0 && {
+  def isHetRef(call: Call): Boolean = isCalled(call) && call > 0 && {
     val p = Genotype.gtPair(call)
     p.j == 0 && p.k > 0
   }
 
-  def isNotCalled(call: java.lang.Integer): Boolean = call == -1
+  def isNotCalled(call: Call): Boolean = call == null
 
-  def isCalled(call: java.lang.Integer): Boolean = call >= 0
+  def isCalled(call: Call): Boolean = !isNotCalled(call)
 
-  def gtType(call: java.lang.Integer): GenotypeType =
+  def gtType(call: Call): GenotypeType =
     if (isHomRef(call))
       GenotypeType.HomRef
     else if (isHet(call))
@@ -72,17 +73,17 @@ object Call {
       GenotypeType.NoCall
     }
 
-  def hasNNonRefAlleles(call: java.lang.Integer): Boolean = call != -1
+  def hasNNonRefAlleles(call: Call): Boolean = isCalled(call)
 
-  def nNonRefAlleles_(call: java.lang.Integer): Int = Genotype.gtPair(call).nNonRefAlleles
+  def nNonRefAlleles_(call: Call): Int = Genotype.gtPair(call).nNonRefAlleles
 
-  def nNonRefAlleles(call: java.lang.Integer): Option[Int] =
+  def nNonRefAlleles(call: Call): Option[Int] =
     if (hasNNonRefAlleles(call))
       Some(nNonRefAlleles_(call))
     else
       None
 
-  def oneHotAlleles(call: java.lang.Integer, nAlleles: Int): Option[IndexedSeq[Int]] = {
+  def oneHotAlleles(call: Call, nAlleles: Int): Option[IndexedSeq[Int]] = {
     gt(call).map { call =>
       val gtPair = Genotype.gtPair(call)
       val j = gtPair.j
@@ -104,7 +105,7 @@ object Call {
     }
   }
 
-  def oneHotGenotype(call: java.lang.Integer, nGenotypes: Int): Option[IndexedSeq[Int]] = {
+  def oneHotGenotype(call: Call, nGenotypes: Int): Option[IndexedSeq[Int]] = {
     gt(call).map { call =>
       new IndexedSeq[Int] {
         def length: Int = nGenotypes
