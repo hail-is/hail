@@ -35,14 +35,14 @@ class ProgrammaticAnnotationsSuite extends SparkSuite {
       .splitMulti()
       .variantQC()
       .annotateVariantsExpr(
-        "va.a.b.c.d.e = va.qc.callRate * 100, va.a.c = if (va.pass) 1 else 0, va.`weird spaces name` = 5 / (va.qual - 5)")
+        "va.a.b.c.d.e = va.qc.callRate * 100, va.a.c = if (va.filters.isEmpty) 1 else 0, va.`weird spaces name` = 5 / (va.qual - 5)")
 
     val vaa = vds.variantsAndAnnotations.collect()
     val q = vds.queryVA("va.a.b.c.d.e")._2
     val q2 = vds.queryVA("va.a.c")._2
     val q3 = vds.queryVA("va.`weird spaces name`")._2
     val qCallRate = vds.queryVA("va.qc.callRate")._2
-    val qPass = vds.queryVA("va.pass")._2
+    val qPass = vds.queryVA("va.filters.isEmpty")._2
     val qQual = vds.queryVA("va.qual")._2
     vds.variantsAndAnnotations
       .collect()

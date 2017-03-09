@@ -16,7 +16,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds.filterVariantsExpr("v.start >= 14066228", keep = false).countVariants() == 173)
 
-    assert(vds.filterVariantsExpr("va.pass").countVariants() == 312)
+    assert(vds.filterVariantsExpr("va.filters.isEmpty").countVariants() == 312)
 
     assert(vds.filterVariantsExpr("va.info.AN == 200").countVariants() == 310)
 
