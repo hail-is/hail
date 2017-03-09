@@ -32,7 +32,6 @@ trait ErrorHandling {
   def digForFatal(e: Throwable): Option[String] = {
     val r = e match {
       case f: FatalException =>
-        println(s"found fatal $f")
         Some(s"${ e.getMessage }")
       case _ =>
         Option(e.getCause).flatMap(c => digForFatal(c))
