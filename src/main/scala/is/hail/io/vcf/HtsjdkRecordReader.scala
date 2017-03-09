@@ -28,7 +28,7 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
 
   def readVariantInfo(vc: VariantContext, infoSignature: Option[TStruct]): (Variant, Annotation) = {
     val filters: Set[String] = {
-      if(!vc.filtersWereApplied)
+      if (!vc.filtersWereApplied)
         null
       else if (vc.isNotFiltered)
         Set()
@@ -58,8 +58,8 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
             case e: Exception =>
               fatal(
                 s"""variant $v: INFO field ${ f.name }:
-                   |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
-                   |  caught $e""".stripMargin)
+                    |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
+                    |  caught $e""".stripMargin)
           }
         }: _*)
       assert(sig.typeCheck(a))
@@ -267,8 +267,8 @@ class GenericRecordReader extends HtsjdkRecordReader[Annotation] {
             case e: Exception =>
               fatal(
                 s"""variant $v: Genotype field ${ f.name }:
-                 |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
-                 |  caught $e""".stripMargin)
+                    |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
+                    |  caught $e""".stripMargin)
           }
         }: _*)
       assert(genotypeSignature.typeCheck(a))

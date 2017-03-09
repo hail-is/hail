@@ -16,7 +16,7 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def strVCF(sb: StringBuilder, elementType: Type, a: Annotation): Unit = {
+  def strVCF(sb: StringBuilder, elementType: Type, a: Annotation) {
     if (a == null)
       sb += '.'
     else {
@@ -50,7 +50,7 @@ object ExportVCF {
           } else {
             sb.append(f.name)
             sb += '='
-            arr.foreachBetween(a => strVCF(sb,it.elementType,a))(sb += ',')
+            arr.foreachBetween(a => strVCF(sb, it.elementType, a))(sb += ',')
             true
           }
         case TBoolean => value match {
@@ -63,7 +63,7 @@ object ExportVCF {
         case t =>
           sb.append(f.name)
           sb += '='
-          strVCF(sb,t,value)
+          strVCF(sb, t, value)
           true
       }
   }
