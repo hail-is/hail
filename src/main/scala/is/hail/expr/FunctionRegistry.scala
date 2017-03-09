@@ -9,7 +9,6 @@ import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Call, GTPair, Genotype, Locus, Variant}
-import is.hail.variant.Call._
 import scala.collection.mutable
 import is.hail.methods._
 import org.objectweb.asm.tree._
@@ -557,15 +556,16 @@ object FunctionRegistry {
     def typ = TTBoxed
   }
 
-  registerField("gt", { (x: Call) => x}, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, callHr)
+  import is.hail.variant.Call._
+  registerField("gt", { (x: Call) => x}, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedintHr)
   registerMethod("gtj", { (x: Call) =>
-    if (x == -1)
+    if (x == null)
       null
     else
       box(Genotype.gtPair(x).j)
   }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedintHr)
   registerMethod("gtk", { (x: Call) =>
-    if (x == -1)
+    if (x == null)
       null
     else
       box(Genotype.gtPair(x).k)
@@ -573,17 +573,18 @@ object FunctionRegistry {
   registerMethod("isHomRef", { (x: Call) => isHomRef(x) }, "True if this call is ``0/0``.")(callHr, boolHr)
   registerMethod("isHet", { (x: Call) => isHet(x) }, "True if this call is heterozygous.")(callHr, boolHr)
   registerMethod("isHomVar", { (x: Call) => isHomVar(x) }, "True if this call is ``j/j`` with ``j>0``.")(callHr, boolHr)
-  registerMethod("isCalledNonRef", { (x: Call) => isCalledNonRef(x) }, "True if either ``g.isHet`` or ``g.isHomVar`` is true.")(callHr, boolHr)
+  registerMethod("isCalledNonRef", { (x: Call) => isCalledNonRef(x) }, "True if either ``isHet`` or ``isHomVar`` is true.")(callHr, boolHr)
   registerMethod("isHetNonRef", { (x: Call) => isHetNonRef(x) }, "True if this call is ``j/k`` with ``j>0``.")(callHr, boolHr)
   registerMethod("isHetRef", { (x: Call) => isHetRef(x) }, "True if this call is ``0/k`` with ``k>0``.")(callHr, boolHr)
-  registerMethod("isCalled", { (x: Call) => isCalled(x) }, "True if the genotype is not ``./.``.")(callHr, boolHr)
-  registerMethod("isNotCalled", { (x: Call) => isNotCalled(x) }, "True if the genotype is ``./.``.")(callHr, boolHr)
+  registerMethod("isCalled", { (x: Call) => isCalled(x) }, "True if the call is not ``./.``.")(callHr, boolHr)
+  registerMethod("isNotCalled", { (x: Call) => isNotCalled(x) }, "True if the call is ``./.``.")(callHr, boolHr)
   registerMethod("nNonRefAlleles", { (x: Call) =>
-    if (Call.hasNNonRefAlleles(x))
-      box(Call.nNonRefAlleles_(x))
+    if (hasNNonRefAlleles(x))
+      box(nNonRefAlleles_(x))
     else
       null
   }, "the number of called alternate alleles.")(callHr, boxedintHr)
+  registerMethod("toGenotype", { (x: Call) => toGenotype(x) }, "Convert this call to a Genotype.")(callHr, genotypeHr)
 
   registerField("gt", { (x: Genotype) =>
     val gt = x.unboxedGT

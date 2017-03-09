@@ -7,16 +7,16 @@ import is.hail.variant.GenotypeType.GenotypeType
 object Call {
 
   def apply(call: java.lang.Integer): Call = {
-    require(call == null || call >= 0)
+    require(call == null || call >= 0, s"Call must be null or >= 0. Found ${call}.")
     call
   }
 
-  def apply(g: Genotype): Call = {
-    val call = g.unboxedGT
-    if (call == -1) null else box(call)
+  def toGenotype(call: Call): Genotype = {
+    val gtx: Int = if (call == null) -1 else call
+    Genotype(gtx)
   }
 
-  def check(call: Call, nAlleles: Int) {
+  def check(call: java.lang.Integer, nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
     assert(gt(call).forall(i => i >= 0 && i < nGenotypes))
   }
@@ -35,7 +35,7 @@ object Call {
 
   def isHomRef(call: Call): Boolean = call == 0
 
-  def isHet(call: Call): Boolean = call > 0 && {
+  def isHet(call: Call): Boolean = isCalled(call) && call > 0 && {
     val p = Genotype.gtPair(call)
     p.j != p.k
   }
@@ -59,7 +59,7 @@ object Call {
 
   def isNotCalled(call: Call): Boolean = call == null
 
-  def isCalled(call: Call): Boolean = !isNotCalled(call)
+  def isCalled(call: Call): Boolean = call != null
 
   def gtType(call: Call): GenotypeType =
     if (isHomRef(call))
@@ -69,11 +69,11 @@ object Call {
     else if (isHomVar(call))
       GenotypeType.HomVar
     else {
-      assert(isNotCalled(call))
+      assert(isCalled(call))
       GenotypeType.NoCall
     }
 
-  def hasNNonRefAlleles(call: Call): Boolean = isCalled(call)
+  def hasNNonRefAlleles(call: Call): Boolean = call != null
 
   def nNonRefAlleles_(call: Call): Int = Genotype.gtPair(call).nNonRefAlleles
 

@@ -139,7 +139,7 @@ class ExprSuite extends SparkSuite {
     a(19) = null
     a(20) = IndexedSeq[Int]()
     a(21) = Set[Int]()
-    a(22) = Annotation(Call(-1), Call(0), Call(1), Call(2))
+    a(22) = Annotation(null, Call(0), Call(1), Call(2))
 
     assert(a.length == symTab.size)
 

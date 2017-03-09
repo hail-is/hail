@@ -125,7 +125,17 @@ abstract class Genotype extends Serializable {
       .append(isDosage)
       .toHashCode
 
-  def gt: Option[Int] = Call.gt(unboxedGT)
+  def call: Call =
+    if (unboxedGT == -1)
+      null
+    else
+      Call(box(unboxedGT))
+
+  def gt: Option[Int] =
+    if (unboxedGT == -1)
+      None
+    else
+      Some(unboxedGT)
 
   def ad: Option[Array[Int]] = Option(unboxedAD)
 
@@ -157,21 +167,33 @@ abstract class Genotype extends Serializable {
 
   def dosage: Option[Array[Double]] = Option(unboxedDosage)
 
-  def isHomRef: Boolean = Call.isHomRef(unboxedGT)
+  def isHomRef: Boolean = unboxedGT == 0
 
-  def isHet: Boolean = Call.isHet(unboxedGT)
+  def isHet: Boolean = unboxedGT > 0 && {
+    val p = Genotype.gtPair(unboxedGT)
+    p.j != p.k
+  }
 
-  def isHomVar: Boolean = Call.isHomVar(unboxedGT)
+  def isHomVar: Boolean = unboxedGT > 0 && {
+    val p = Genotype.gtPair(unboxedGT)
+    p.j == p.k
+  }
 
-  def isCalledNonRef: Boolean = Call.isCalledNonRef(unboxedGT)
+  def isCalledNonRef: Boolean = unboxedGT > 0
 
-  def isHetNonRef: Boolean = Call.isHetNonRef(unboxedGT)
+  def isHetNonRef: Boolean = unboxedGT > 0 && {
+    val p = Genotype.gtPair(unboxedGT)
+    p.j > 0 && p.j != p.k
+  }
 
-  def isHetRef: Boolean = Call.isHomRef(unboxedGT)
+  def isHetRef: Boolean = unboxedGT > 0 && {
+    val p = Genotype.gtPair(unboxedGT)
+    p.j == 0 && p.k > 0
+  }
 
-  def isNotCalled: Boolean = Call.isNotCalled(unboxedGT)
+  def isNotCalled: Boolean = unboxedGT == -1
 
-  def isCalled: Boolean = Call.isCalled(unboxedGT)
+  def isCalled: Boolean = unboxedGT >= 0
 
   def gtType: GenotypeType =
     if (isHomRef)
@@ -185,11 +207,15 @@ abstract class Genotype extends Serializable {
       GenotypeType.NoCall
     }
 
-  def hasNNonRefAlleles: Boolean = Call.hasNNonRefAlleles(unboxedGT)
+  def hasNNonRefAlleles: Boolean = unboxedGT != -1
 
-  def nNonRefAlleles_ : Int = Call.nNonRefAlleles_(unboxedGT)
+  def nNonRefAlleles_ : Int = Genotype.gtPair(unboxedGT).nNonRefAlleles
 
-  def nNonRefAlleles: Option[Int] = Call.nNonRefAlleles(unboxedGT)
+  def nNonRefAlleles: Option[Int] =
+    if (hasNNonRefAlleles)
+      Some(nNonRefAlleles_)
+    else
+      None
 
   def fractionReadsRef(): Option[Double] =
     if (unboxedAD != null) {
@@ -201,13 +227,48 @@ abstract class Genotype extends Serializable {
     } else
       None
 
-  def oneHotAlleles(nAlleles: Int): Option[IndexedSeq[Int]] = Call.oneHotAlleles(unboxedGT, nAlleles)
+  def oneHotAlleles(nAlleles: Int): Option[IndexedSeq[Int]] = {
+    gt.map { call =>
+      val gtPair = Genotype.gtPair(call)
+      val j = gtPair.j
+      val k = gtPair.k
+      new IndexedSeq[Int] {
+        def length: Int = nAlleles
+
+        def apply(idx: Int): Int = {
+          if (idx < 0 || idx >= nAlleles)
+            throw new ArrayIndexOutOfBoundsException(idx)
+          var r = 0
+          if (idx == j)
+            r += 1
+          if (idx == k)
+            r += 1
+          r
+        }
+      }
+    }
+  }
 
   def oneHotAlleles(v: Variant): Option[IndexedSeq[Int]] = oneHotAlleles(v.nAlleles)
 
   def oneHotGenotype(v: Variant): Option[IndexedSeq[Int]] = oneHotGenotype(v.nGenotypes)
 
-  def oneHotGenotype(nGenotypes: Int): Option[IndexedSeq[Int]] = Call.oneHotGenotype(unboxedGT, nGenotypes)
+  def oneHotGenotype(nGenotypes: Int): Option[IndexedSeq[Int]] = {
+    gt.map { call =>
+      new IndexedSeq[Int] {
+        def length: Int = nGenotypes
+
+        def apply(idx: Int): Int = {
+          if (idx < 0 || idx >= nGenotypes)
+            throw new ArrayIndexOutOfBoundsException(idx)
+          if (idx == call)
+            1
+          else
+            0
+        }
+      }
+    }
+  }
 
   override def toString: String = {
     val b = new StringBuilder
@@ -308,6 +369,11 @@ class RowGenotype(r: Row) extends Genotype {
 
 object Genotype {
   def apply(gtx: Int): Genotype = new GenericGenotype(gtx, null, -1, -1, null, false, false)
+
+  def apply(call: Call): Genotype = {
+    val gtx: Int = if (call == null) -1 else call
+    Genotype(gtx)
+  }
 
   def apply(gt: Option[Int], fakeRef: Boolean): Genotype =
     new GenericGenotype(gt.getOrElse(-1), null, -1, -1, null, fakeRef, false)
