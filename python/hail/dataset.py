@@ -9,6 +9,8 @@ from decorator import decorator
 
 import warnings
 
+from python.hail.java import handle_py4j
+
 warnings.filterwarnings(module=__name__, action='once')
 
 @decorator
@@ -3479,6 +3481,11 @@ class VariantDataset(object):
 
         jvds = self._jvdf.coalesce(num_partitions, shuffle)
         return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    def rrm(self):
+        return BlockMatrix(self._jvds.rrm())
+
 
     @handle_py4j
     def same(self, other, tolerance=1e-6):

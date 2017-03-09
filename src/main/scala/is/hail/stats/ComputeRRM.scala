@@ -5,38 +5,39 @@ import is.hail.utils._
 import is.hail.utils.richUtils.RichIndexedRowMatrix._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix, RowMatrix}
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
-object ComputeLocalGrammian {
 
-  def withoutBlock(A: RowMatrix): DenseMatrix[Double] = {
+object ComputeGrammian {
+  /*def withoutBlock(A: RowMatrix): DenseMatrix[Double] = {
     val n = A.numCols().toInt
     val G = A.computeGramianMatrix().toArray
     new DenseMatrix[Double](n, n, G)
-  }
+  }*/
 
-  def withBlock(A: IndexedRowMatrix): DenseMatrix[Double] = {
+  def withBlock(A: IndexedRowMatrix): BlockMatrix = {
     val n = A.numCols().toInt
-    val B = A.toBlockMatrixDense().cache()
-    val G = B.transpose.multiply(B).toLocalMatrix().toArray
-    B.blocks.unpersist()
-    new DenseMatrix[Double](n, n, G)
+    val B = A.toBlockMatrix().cache()
+    //val G = B.transpose.multiply(B).toLocalMatrix().toArray
+    //B.blocks.unpersist()
+    B.transpose.multiply(B)
+    //new DenseMatrix[Double](n, n, G)
   }
 }
 
 // diagonal values are approximately 1 assuming independent variants by Central Limit Theorem
 object ComputeRRM {
-  def apply(vds: VariantDataset, useBlock: Boolean): (DenseMatrix[Double], Int) = {
-    if (useBlock) {
+  def apply(vds: VariantDataset, useBlock: Boolean): (BlockMatrix, Int) = {
+    //if (useBlock) {
       val A = ToNormalizedIndexedRowMatrix(vds)
       val mRec = 1d / A.rows.count()
-      (ComputeLocalGrammian.withBlock(A) :* mRec, A.numRows().toInt)
-    } else {
+      (ComputeGrammian.withBlock(A) :* mRec, A.numRows().toInt)
+    /*} else {
       val A = ToNormalizedRowMatrix(vds)
       val mRec = 1d / A.numRows()
       (ComputeLocalGrammian.withoutBlock(A) :* mRec, A.numRows().toInt)
-    }
+    }*/
   }
 }
 
