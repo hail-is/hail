@@ -16,11 +16,11 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def strVCF(sb: StringBuilder, element_type: Type, a: Annotation) : Unit = {
+  def strVCF(sb: StringBuilder, elementType: Type, a: Annotation) : Unit = {
     if(a == null)
       sb += '.'
     else {
-      element_type match {
+      elementType match {
         case TFloat =>
           val x = a.asInstanceOf[Float]
           if (x.isNaN)
@@ -33,7 +33,7 @@ object ExportVCF {
             sb += '.'
           else
             sb.append(x.formatted("%.5e"))
-        case _ => sb.append(element_type.str(a))
+        case _ => sb.append(elementType.str(a))
       }
     }
   }
