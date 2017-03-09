@@ -16,24 +16,26 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def strVCF(element_type: Type, a: Annotation) : String = {
-    element_type match{
-      case null => "."
-      case TFloat =>
-        val x = a.asInstanceOf[Float]
-        if(x.isNaN)
-          "."
-        else
-          x.formatted("%.5e")
-      case TDouble =>
-        val x = a.asInstanceOf[Double]
-        if(x.isNaN)
-          "."
-        else
-          x.formatted("%.5e")
-      case _ => element_type.str(a)
+  def strVCF(sb: StringBuilder, element_type: Type, a: Annotation) : Unit = {
+    if(a == null)
+      sb += '.'
+    else {
+      element_type match {
+        case TFloat =>
+          val x = a.asInstanceOf[Float]
+          if (x.isNaN)
+            sb += '.'
+          else
+            sb.append(x.formatted("%.5e"))
+        case TDouble =>
+          val x = a.asInstanceOf[Double]
+          if (x.isNaN)
+            sb += '.'
+          else
+            sb.append(x.formatted("%.5e"))
+        case _ => sb.append(element_type.str(a))
+      }
     }
-
   }
 
   def emitInfo(f: Field, sb: StringBuilder, value: Annotation): Boolean = {
@@ -48,7 +50,7 @@ object ExportVCF {
           } else {
             sb.append(f.name)
             sb += '='
-            arr.foreachBetween(a => sb.append(strVCF(it.elementType,a)))(sb += ',')
+            arr.foreachBetween(a => strVCF(sb,it.elementType,a))(sb += ',')
             true
           }
         case TBoolean => value match {
@@ -61,7 +63,7 @@ object ExportVCF {
         case t =>
           sb.append(f.name)
           sb += '='
-          sb.append(strVCF(t,value))
+          strVCF(sb,t,value)
           true
       }
   }
