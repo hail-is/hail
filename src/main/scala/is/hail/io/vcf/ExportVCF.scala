@@ -16,8 +16,8 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def strVCF(sb: StringBuilder, elementType: Type, a: Annotation) : Unit = {
-    if(a == null)
+  def strVCF(sb: StringBuilder, elementType: Type, a: Annotation): Unit = {
+    if (a == null)
       sb += '.'
     else {
       elementType match {
