@@ -1,7 +1,7 @@
 package is.hail.io.vcf
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{Field, TArray, TBoolean, TChar, TDouble, TInt, TIterable, TSet, TString, TStruct, Type}
+import is.hail.expr.{Field, TArray, TBoolean, TChar, TDouble, TFloat, TInt, TIterable, TSet, TString, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.spark.sql.Row
@@ -16,6 +16,26 @@ object ExportVCF {
     case _ => "1"
   }
 
+  def strVCF(element_type: Type, a: Annotation) : String = {
+    element_type match{
+      case null => "."
+      case TFloat =>
+        val x = a.asInstanceOf[Float]
+        if(x.isNaN)
+          "."
+        else
+          x.formatted("%.5e")
+      case TDouble =>
+        val x = a.asInstanceOf[Double]
+        if(x.isNaN)
+          "."
+        else
+          x.formatted("%.5e")
+      case _ => element_type.str(a)
+    }
+
+  }
+
   def emitInfo(f: Field, sb: StringBuilder, value: Annotation): Boolean = {
     if (value == null)
       false
@@ -28,7 +48,7 @@ object ExportVCF {
           } else {
             sb.append(f.name)
             sb += '='
-            arr.foreachBetween(a => sb.append(it.elementType.strVCF(a)))(sb += ',')
+            arr.foreachBetween(a => sb.append(strVCF(it.elementType,a)))(sb += ',')
             true
           }
         case TBoolean => value match {
@@ -41,7 +61,7 @@ object ExportVCF {
         case t =>
           sb.append(f.name)
           sb += '='
-          sb.append(t.strVCF(value))
+          sb.append(strVCF(t,value))
           true
       }
   }

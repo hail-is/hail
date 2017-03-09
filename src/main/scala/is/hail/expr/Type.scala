@@ -133,8 +133,6 @@ sealed abstract class Type {
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
 
-  def strVCF(a: Annotation): String = if (a == null) "." else str(a)
-
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
   def genNonmissingValue: Gen[Annotation] = Gen.const(Annotation.empty)
@@ -240,18 +238,6 @@ case object TFloat extends TNumeric {
 
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
 
-  override def strVCF(a: Annotation): String = {
-    if (a == null)
-      "."
-    else {
-      val f = a.asInstanceOf[Float]
-      if (f.isNaN)
-        "."
-      else
-        f.formatted("%.5e")
-    }
-  }
-
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
@@ -270,18 +256,6 @@ case object TDouble extends TNumeric {
   override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double]
-
-  override def strVCF(a: Annotation): String = {
-    if (a == null)
-      "."
-    else {
-      val f = a.asInstanceOf[Double]
-      if (f.isNaN)
-        "."
-      else
-        f.formatted("%.5e")
-    }
-  }
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double], tolerance))
