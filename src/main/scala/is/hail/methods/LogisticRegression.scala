@@ -1,9 +1,8 @@
 package is.hail.methods
 
-import breeze.linalg.{DenseMatrix, _}
+import breeze.linalg._
 import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.stats.RegressionUtils._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
@@ -50,12 +49,10 @@ object LogisticRegression {
         else
           "Newton iteration failed to converge"))
 
-    val X = new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n))
-
     val sc = vds.sparkContext
     val sampleMaskBc = sc.broadcast(sampleMask)
     val yBc = sc.broadcast(y)
-    val XBc = sc.broadcast(X)
+    val XBc = sc.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
     val nullFitBc = sc.broadcast(nullFit)
     val logRegTestBc = sc.broadcast(logRegTest)
 

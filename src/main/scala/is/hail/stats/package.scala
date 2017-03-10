@@ -322,11 +322,8 @@ package object stats {
     val gts = gs.hardCallIterator.toArray
     val (nPresent, gtSum, gtSumSq) = gts.filter(_ != -1).foldLeft((0, 0, 0))((acc, gt) => (acc._1 + 1, acc._2 + gt, acc._3 + gt * gt))
     val nMissing = nSamples - nPresent
-    val allHomRef = gtSum == 0
-    val allHet = gtSum == nPresent && gtSumSq == nPresent
-    val allHomVar = gtSum == 2 * nPresent
 
-    if (allHomRef || allHomVar || allHet)
+    if (gtSum == 0 || gtSum == 2 * nPresent || gtSum == 2 * nPresent)
       None
     else {
       val gtMean = gtSum.toDouble / nPresent
@@ -334,7 +331,9 @@ package object stats {
       val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
       val gtStdDevRec = 1d / math.sqrt(gtMeanSqAll - gtMeanAll * gtMeanAll)
 
-      Some(gts.map(gt => if (gt != -1) (gt - gtMean) * gtStdDevRec else 0d))
+      val gtVals = Array(0, (0 - gtMean) * gtStdDevRec, (1 - gtMean) * gtStdDevRec, (2 - gtMean) * gtStdDevRec)
+
+      Some(gts.map(gt => gtVals(gt + 1)))
     }
   }
 }
