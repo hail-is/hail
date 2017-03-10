@@ -299,7 +299,7 @@ class TSet(Type):
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return Env.jutils().arrayListToSet(
+            return jset(
                 [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
@@ -383,7 +383,7 @@ class Field(object):
     :vartype typ: :class:`.Type`
     """
 
-    def __init__(self, name, typ, attributes = {}):
+    def __init__(self, name, typ, attributes={}):
         self.name = name
         self.typ = typ
         self.attributes = attributes

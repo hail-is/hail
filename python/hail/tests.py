@@ -828,3 +828,18 @@ class ContextTests(unittest.TestCase):
 
         glob, samples, variants = bn1.concordance(bn2)
         self.assertEqual(samples.sample_annotations[samples.sample_ids[0]].concordance, glob)
+
+    def test_pedigree(self):
+
+        ped = Pedigree.read_fam('src/test/resources/sample.fam')
+        ped.write_fam('/tmp/sample_out.fam')
+        ped2 = Pedigree.read_fam('/tmp/sample_out.fam')
+        self.assertEqual(ped, ped2)
+        print(ped.trios[:5])
+        print(ped.complete_trios)
+
+
+        t1 = Trio('kid1', father='dad1', case_status=1, sex=2)
+        t2 = Trio('kid1', father='dad1', case_status=1, sex=2)
+
+        self.assertEqual(t1, t2)

@@ -69,8 +69,8 @@ object TDT {
 
     trios.zipWithIndex.foreach { case (t, tidx) =>
       sampleTrioRolesMap += (t.kid -> ((tidx, 0) :: sampleTrioRolesMap.getOrElse(t.kid, Nil)))
-      sampleTrioRolesMap += (t.dad -> ((tidx, 1) :: sampleTrioRolesMap.getOrElse(t.dad, Nil)))
-      sampleTrioRolesMap += (t.mom -> ((tidx, 2) :: sampleTrioRolesMap.getOrElse(t.mom, Nil)))
+      sampleTrioRolesMap += (t.knownDad -> ((tidx, 1) :: sampleTrioRolesMap.getOrElse(t.knownDad, Nil)))
+      sampleTrioRolesMap += (t.knownMom -> ((tidx, 2) :: sampleTrioRolesMap.getOrElse(t.knownMom, Nil)))
     }
 
     val sampleTrioRolesArray = vds.sampleIds.map(sampleTrioRolesMap.getOrElse(_, Nil))

@@ -888,8 +888,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def mendelErrors(pathBase: String, famFile: String) {
     requireSplit("mendel errors")
 
-    val ped = Pedigree.read(famFile, vds.hc.hadoopConf, vds.sampleIds)
-    val men = MendelErrors(vds, ped.completeTrios)
+    val ped = Pedigree.fromFam(famFile, vds.hc.hadoopConf).filterTo(vds.sampleIds.toSet).completeTrios
+    val men = MendelErrors(vds, ped)
 
     men.writeMendel(pathBase + ".mendel", vds.hc.tmpDir)
     men.writeMendelL(pathBase + ".lmendel", vds.hc.tmpDir)
@@ -963,8 +963,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def tdt(famFile: String, tdtRoot: String = "va.tdt"): VariantDataset = {
     requireSplit("TDT")
 
-    val ped = Pedigree.read(famFile, vds.hc.hadoopConf, vds.sampleIds)
-    TDT(vds, ped.completeTrios,
+    val trios = Pedigree.fromFam(famFile, vds.hc.hadoopConf).filterTo(vds.sampleIds.toSet).completeTrios
+    TDT(vds, trios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 

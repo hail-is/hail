@@ -22,9 +22,9 @@ case class MendelError(variant: Variant, trio: CompleteTrio, code: Int,
       "./."
 
   def implicatedSamplesWithCounts: Iterator[(String, (Int, Int))] = {
-    if (code == 2 || code == 1) Iterator(trio.kid, trio.dad, trio.mom)
-    else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.dad)
-    else if (code == 4 || code == 7 || code == 9 || code == 10) Iterator(trio.kid, trio.mom)
+    if (code == 2 || code == 1) Iterator(trio.kid, trio.knownDad, trio.knownMom)
+    else if (code == 6 || code == 3 || code == 11 || code == 12) Iterator(trio.kid, trio.knownDad)
+    else if (code == 4 || code == 7 || code == 9 || code == 10) Iterator(trio.kid, trio.knownMom)
     else Iterator(trio.kid)
   }
     .map((_, (1, if (variant.altAllele.isSNP) 1 else 0)))
@@ -70,8 +70,8 @@ object MendelErrors {
     val sampleTrioRoles = mutable.Map.empty[String, List[(Int, Int)]]
     trios.zipWithIndex.foreach { case (t, ti) =>
       sampleTrioRoles += (t.kid -> sampleTrioRoles.getOrElse(t.kid, List.empty[(Int, Int)]).::(ti, 0))
-      sampleTrioRoles += (t.dad -> sampleTrioRoles.getOrElse(t.dad, List.empty[(Int, Int)]).::(ti, 1))
-      sampleTrioRoles += (t.mom -> sampleTrioRoles.getOrElse(t.mom, List.empty[(Int, Int)]).::(ti, 2))
+      sampleTrioRoles += (t.knownDad -> sampleTrioRoles.getOrElse(t.knownDad, List.empty[(Int, Int)]).::(ti, 1))
+      sampleTrioRoles += (t.knownMom -> sampleTrioRoles.getOrElse(t.knownMom, List.empty[(Int, Int)]).::(ti, 2))
     }
 
     val sc = vds.sparkContext
@@ -129,13 +129,13 @@ case class MendelErrors(trios: IndexedSeq[CompleteTrio],
   def nErrorPerNuclearFamily: RDD[((String, String), (Int, Int))] = {
     val parentsRDD = sc.parallelize(nuclearFams.keys.toSeq)
     mendelErrors
-      .map(me => ((me.trio.dad, me.trio.mom), (1, if (me.variant.altAllele.isSNP) 1 else 0)))
+      .map(me => ((me.trio.knownDad, me.trio.knownMom), (1, if (me.variant.altAllele.isSNP) 1 else 0)))
       .union(parentsRDD.map((_, (0, 0))))
       .reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2))
   }
 
   def nErrorPerIndiv: RDD[(String, (Int, Int))] = {
-    val indivRDD = sc.parallelize(trios.flatMap(t => Iterator(t.kid, t.dad, t.mom)).distinct)
+    val indivRDD = sc.parallelize(trios.flatMap(t => Iterator(t.kid, t.knownDad, t.knownMom)).distinct)
     mendelErrors
       .flatMap(_.implicatedSamplesWithCounts)
       .union(indivRDD.map((_, (0, 0))))
