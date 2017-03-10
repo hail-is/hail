@@ -179,11 +179,10 @@ object Nirvana {
     sb += '\t'
     sb.append(v.altAlleles.iterator.map(_.alt).mkString(","))
     sb += '\t'
-    val qualValue= vaSignature.query("qual")(a)
-    sb.append(Option(qualValue).getOrElse(".").toString)
-    //sb.append(a.asInstanceOf[GenericRow].get(1))
-    sb.append("\t.\tGT")
-    //sb.append("\t.\t.\tGT")
+    //val qualValue= vaSignature.query("qual")(a)
+    //sb.append(Option(qualValue).getOrElse(".").toString)
+    //sb.append("\t.\tGT")
+    sb.append("\t.\t.\tGT")
     w(sb.result())
   }
 
@@ -267,7 +266,6 @@ object Nirvana {
               _ => ())
             //Drop header line for now, reconsider later.
             val kt = jt.drop(1).filter(!_.startsWith("]")).map { s =>
-                println(s)
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
                 val v = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
                   refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Seq[String]].toArray)
