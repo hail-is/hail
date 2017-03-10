@@ -7,10 +7,12 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 object VEP {
 
@@ -143,6 +145,7 @@ object VEP {
       "variant_allele" -> TString)),
     "variant_class" -> TString)
 
+  val consequence_indices = Set(8, 10, 11, 15)
 
   def printContext(w: (String) => Unit) {
     w("##fileformat=VCFv4.1")
@@ -157,7 +160,7 @@ object VEP {
     sb.append("\t.\t")
     sb.append(v.ref)
     sb += '\t'
-    sb.append(v.altAlleles.iterator.map(_.alt).mkString(","))
+    sb.append(v.altAlleles.iterator.map(_.alt).filter(_ != "*").mkString(","))
     sb.append("\t.\t.\tGT")
     w(sb.result())
   }
@@ -168,6 +171,46 @@ object VEP {
       a(1).toInt,
       a(3),
       a(4).split(","))
+  }
+
+  def getCSQHeaderDefinition(cmd: Array[String], perl5lib: String, path: String): String = {
+    val csq_header_regex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
+    val pb = new ProcessBuilder(cmd.toList.asJava)
+    val env = pb.environment()
+    if (perl5lib != null)
+      env.put("PERL5LIB", perl5lib)
+    if (path != null)
+      env.put("PATH", path)
+    val (jt, proc) = List(Variant("1", 13372, "G", "C")).iterator.pipe(pb,
+      printContext,
+      printElement,
+      _ => ())
+
+    val csq_header = jt.flatMap(s => csq_header_regex.findFirstMatchIn(s).map(m => m.group(1)))
+    val rc = proc.waitFor()
+    if (rc != 0)
+      fatal(s"vep command failed with non-zero exit status $rc")
+
+    if (csq_header.hasNext)
+      csq_header.next()
+    else {
+      warn("Could not get VEP CSQ header")
+      ""
+    }
+  }
+
+  def getNonStarAlleleMap(v: Variant): mutable.Map[Int, Int] = {
+    val alleleMap = mutable.Map[Int, Int]()
+    Range(0, v.nAltAlleles).foldLeft(0)({
+      case (nStar, aai) =>
+        if (v.altAlleles(aai).alt == "*")
+          nStar + 1
+        else {
+          alleleMap(aai - nStar + 1) = aai + 1
+          nStar
+        }
+    })
+    alleleMap
   }
 
   def annotate(vds: VariantDataset, config: String, root: String = "va.vep", csq: Boolean,
@@ -254,6 +297,9 @@ object VEP {
 
     val localBlockSize = blockSize
 
+    val csq_header = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path) else ""
+    val allele_num_index = if (csq) csq_header.split("\\|").indexOf("ALLELE_NUM") else -1
+
     val annotations = vds.rdd.mapValues { case (va, gs) => va }
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
@@ -274,19 +320,68 @@ object VEP {
               printElement,
               _ => ())
 
-            val kt = if (csq)
-              jt.filter(s => !s.isEmpty && s(0) != '#')
-                .map { s =>
-                  val x = csq_regex.findFirstIn(s).get
-                  (variantFromInput(s), x.substring(4))
+            val kt = jt
+              .filter(s => !s.isEmpty && s(0) != '#')
+              .zip(block.iterator)
+              .map { case (s, v) =>
+                if (csq) {
+                  val vvep = variantFromInput(s)
+                  if (vvep != v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")))
+                    fatal(s"VEP output variant ${ vvep } while input was ${ v }. (* alleles are ignored).")
+
+                  val x = csq_regex.findFirstIn(s)
+                  x match {
+                    case Some(value) =>
+                      val tr_aa = value.substring(4).split(",")
+                      if (vvep != v && allele_num_index > -1) {
+                        val alleleMap = getNonStarAlleleMap(v)
+                        (v, tr_aa.map({
+                          x =>
+                            val xsplit = x.split("\\|")
+                            val allele_num = xsplit(allele_num_index)
+                            if (allele_num.isEmpty)
+                              (v, x)
+                            else
+                              (v, xsplit
+                                .updated(allele_num_index, alleleMap.getOrElse(xsplit(allele_num_index).toInt, -1))
+                                .mkString("|"))
+                        }): IndexedSeq[Annotation])
+                      }
+                      else
+                        (v, tr_aa: IndexedSeq[Annotation])
+                    case None =>
+                      warn(s"No VEP annotation found for variant $v. VEP returned $x.")
+                      (v, IndexedSeq.empty[Annotation])
+                  }
                 }
-            else
-              jt.map { s =>
-                val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
-                val v = variantFromInput(inputQuery(a).asInstanceOf[String])
-                (v, a)
+                else {
+                  val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
+                  val vvep = variantFromInput(inputQuery(a).asInstanceOf[String])
+                  if (vvep != v) {
+                    if (vvep != v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")))
+                      fatal(s"VEP output variant ${ vvep } while input was ${ v }. (* alleles are ignored).")
+                    val alleleMap = getNonStarAlleleMap(v)
+                    (v, Row.fromSeq(a.asInstanceOf[Row].toSeq.zipWithIndex.map({
+                      case (a, i) =>
+                        if (consequence_indices.contains(i)) {
+                          val consequences = a.asInstanceOf[IndexedSeq[Row]]
+                          if (consequences != null) {
+                            consequences.map({
+                              x => Row.fromSeq(x.toSeq.updated(0, alleleMap.getOrElse(x.getInt(0), null)))
+                            })
+                          }
+                          else
+                            null
+                        }
+                        else
+                          a
+                    })))
+                  }
+                  else
+                    (v, a)
+                }
               }
-            
+
             val r = kt.toArray
               .sortBy(_._1)
 
@@ -301,7 +396,7 @@ object VEP {
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    val (newVASignature, insertVEP) = vds.vaSignature.insert(if (csq) TString else vepSignature, parsedRoot)
+    val (newVASignature, insertVEP) = vds.vaSignature.insert(if (csq) TArray(TString) else vepSignature, parsedRoot)
 
     val newRDD = vds.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
