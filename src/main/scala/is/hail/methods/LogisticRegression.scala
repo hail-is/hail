@@ -68,9 +68,9 @@ object LogisticRegression {
       it.map { case (v, (va, gs)) =>
         val logregAnnot =
           if (RegressionUtils.mutateLastColumn(X, gs.hardCallIterator, sampleMaskBc.value))
-            Some(logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats))
+            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
           else
-            None
+            null
 
         val newAnnotation = inserter(va, logregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
