@@ -27,10 +27,11 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
   import HtsjdkRecordReader._
 
   def readVariantInfo(vc: VariantContext, infoSignature: Option[TStruct]): (Variant, Annotation) = {
-    val pass = vc.filtersWereApplied() && vc.getFilters.isEmpty
     val filters: Set[String] = {
-      if (vc.filtersWereApplied && vc.isNotFiltered)
-        Set("PASS")
+      if (!vc.filtersWereApplied)
+        null
+      else if (vc.isNotFiltered)
+        Set()
       else
         vc.getFilters.asScala.toSet
     }
@@ -57,8 +58,8 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
             case e: Exception =>
               fatal(
                 s"""variant $v: INFO field ${ f.name }:
-                   |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
-                   |  caught $e""".stripMargin)
+                    |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
+                    |  caught $e""".stripMargin)
           }
         }: _*)
       assert(sig.typeCheck(a))
@@ -66,8 +67,8 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
     }
 
     val va = info match {
-      case Some(infoAnnotation) => Annotation(rsid, vc.getPhredScaledQual, filters, pass, infoAnnotation)
-      case None => Annotation(rsid, vc.getPhredScaledQual, filters, pass)
+      case Some(infoAnnotation) => Annotation(rsid, vc.getPhredScaledQual, filters, infoAnnotation)
+      case None => Annotation(rsid, vc.getPhredScaledQual, filters)
     }
 
     (v, va)
@@ -266,8 +267,8 @@ class GenericRecordReader extends HtsjdkRecordReader[Annotation] {
             case e: Exception =>
               fatal(
                 s"""variant $v: Genotype field ${ f.name }:
-                 |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
-                 |  caught $e""".stripMargin)
+                    |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
+                    |  caught $e""".stripMargin)
           }
         }: _*)
       assert(genotypeSignature.typeCheck(a))

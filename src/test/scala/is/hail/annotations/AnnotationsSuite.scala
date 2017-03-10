@@ -88,15 +88,8 @@ class AnnotationsSuite extends SparkSuite {
     assert(vas.fieldOption("filters").exists(f =>
       f.typ == TSet(TString)
         && f.attrs.nonEmpty))
-    assert(filtQuery(variantAnnotationMap(firstVariant)) == Set("PASS"))
+    assert(filtQuery(variantAnnotationMap(firstVariant)) == Set())
     assert(filtQuery(variantAnnotationMap(anotherVariant)) == Set("VQSRTrancheSNP99.95to100.00"))
-
-    // GATK PASS
-    val passQuery = vas.query("pass")
-    assert(vas.fieldOption("pass").exists(f => f.typ == TBoolean
-      && f.attrs == Map.empty))
-    assert(passQuery(variantAnnotationMap(firstVariant)) == true)
-    assert(passQuery(variantAnnotationMap(anotherVariant)) == false)
 
     val vds2 = hc.importVCF("src/test/resources/sample2.vcf")
     val vas2 = vds2.vaSignature
