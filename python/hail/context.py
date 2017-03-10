@@ -13,6 +13,11 @@ from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 class HailContext(object):
     """The main entrypoint for Hail functionality.
 
+    .. warning::
+        Only one HailContext can be running in a Python session. If you
+        need to reconfigure settings, you will need to restart the
+        python session or use the :py:meth:`.HailContext.stop` method.
+
     :param sc: spark context, will be auto-generated if None
     :type sc: :class:`.pyspark.SparkContext`
 
@@ -44,18 +49,20 @@ class HailContext(object):
                  log='hail.log', quiet=False, append=False, parquet_compression='snappy',
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
 
+        if Env._hc:
+            raise FatalError('Hail Context has already been created, restart session to change configuration.')
+
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
 
         self._gateway = SparkContext._gateway
         self._jvm = SparkContext._jvm
 
-        Env._jvm = self._jvm
-        Env._gateway = self._gateway
-        Env._hc = self
-
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
+
+        Env._jvm = self._jvm
+        Env._gateway = self._gateway
 
         jsc = sc._jsc.sc() if sc else None
 
@@ -67,6 +74,27 @@ class HailContext(object):
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
+
+        # do this at the end in case something errors, so we don't raise the above error without a real HC
+        Env._hc = self
+
+    @staticmethod
+    def get_running():
+        """Return the running Hail context in this Python session.
+
+        **Example**
+
+        .. doctest::
+            :options: +SKIP
+
+            >>> HailContext()  # oops! Forgot to bind to 'hc'
+            >>> hc = HailContext.get_running()  # recovery
+
+        Useful to recover a context that has been created but is unbound.
+
+        :rtype: :class:`.HailContext`
+        """
+        return env.hc
 
     @handle_py4j
     def grep(self, regex, path, max_count=100):
@@ -241,7 +269,8 @@ class HailContext(object):
         :return: A dataset imported from a .gen and .sample file.
         """
 
-        jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(npartitions), tolerance)
+        jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(npartitions),
+                                    tolerance)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -295,7 +324,7 @@ class HailContext(object):
             No duplicate individual IDs are allowed.
 
         Chromosome names (Column 1) are automatically converted in the following cases:
-        
+
           - 23 => "X"
           - 24 => "Y"
           - 25 => "X"
@@ -650,10 +679,20 @@ class HailContext(object):
         return r
 
     def stop(self):
-        """ Shut down the Hail Context """
+        """ Shut down the Hail context.
+
+        It is not possible to have multiple Hail contexts running in a
+        single Python session, so use this if you need to reconfigure the
+        context. Note that this also stops a running Spark context.
+        """
+
         self.sc.stop()
         self.sc = None
+        Env._jvm = None
+        Env._gateway = None
+        Env._hc = None
 
+    @handle_py4j
     def read_keytable(self, path):
         """Read a KT file as KeyTable
 
