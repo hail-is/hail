@@ -2971,7 +2971,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_variants(self, exprs):
-        """Performs aggregation queries over variants and variant annotations, and returns python object(s) and type(s).
+        """Performs aggregation queries over variants and variant annotations, and returns python object(s).
 
         **Examples**
 
