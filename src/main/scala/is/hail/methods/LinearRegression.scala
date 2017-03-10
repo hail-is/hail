@@ -54,26 +54,33 @@ object LinearRegression {
 
     vds.mapAnnotations { case (v, va, gs) =>
       val lrb = new LinRegBuilder(yBc.value)
-      gs.hardCallIterator.unsafeFilter(sampleMaskBc.value.toIterator).foreach{ gt: Int => lrb.merge(gt) }
+      val gts = gs.hardCallIterator
+      val mask = sampleMaskBc.value
+      var i = 0
+      while (i < mask.length) {
+        val gt = gts.nextInt()
+        if (mask(i))
+          lrb.merge(gt)
+        i += 1
+      }
 
-      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC)
-        .map { stats =>
-          val (x, xx, xy) = stats
+      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC).map { stats =>
+        val (x, xx, xy) = stats
 
-          val qtx = QtBc.value * x
-          val qty = QtyBc.value
-          val xxp: Double = xx - (qtx dot qtx)
-          val xyp: Double = xy - (qtx dot qty)
-          val yyp: Double = yypBc.value
+        val qtx = QtBc.value * x
+        val qty = QtyBc.value
+        val xxp: Double = xx - (qtx dot qtx)
+        val xyp: Double = xy - (qtx dot qty)
+        val yyp: Double = yypBc.value
 
-          val b = xyp / xxp
-          val se = math.sqrt((yyp / xxp - b * b) / d)
-          val t = b / se
-          val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+        val b = xyp / xxp
+        val se = math.sqrt((yyp / xxp - b * b) / d)
+        val t = b / se
+        val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
 
-          Annotation(b, se, t, p)
-        }
-        .orNull
+        Annotation(b, se, t, p)
+      }
+      .orNull
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))

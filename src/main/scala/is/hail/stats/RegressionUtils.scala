@@ -70,17 +70,34 @@ object RegressionUtils {
     (y, cov, completeSamples)
   }
 
-  def buildGtColumn(gts: Iterable[Int]): Option[DenseMatrix[Double]] = {
-    val (nCalled, gtSum, allHet) = gts.filter(_ != -1).foldLeft((0, 0, true))((acc, gt) => (acc._1 + 1, acc._2 + gt, acc._3 && (gt == 1) ))
+  def mutateLastColumn(X: DenseMatrix[Double], gts: IntIterator, mask: Array[Boolean]): Boolean = {
+    require(X.offset==0 && X.majorStride==X.rows && !X.isTranspose)
 
-    // allHomRef || allHet || allHomVar || allNoCall
-    if (gtSum == 0 || allHet || gtSum == 2 * nCalled || nCalled == 0 )
-      None
-    else {
-      val gtMean = gtSum.toDouble / nCalled
-      val gtArray = gts.map(g => if (g != -1) g.toDouble else gtMean).toArray
-      Some(new DenseMatrix(gtArray.length, 1, gtArray))
+    val n = X.rows
+    val k = X.cols - 1
+    var missingIndices = new mutable.ArrayBuilder.ofInt()
+    var i = 0
+    var j = k * n
+    var gtSum = 0
+    while (i < mask.length) {
+      val gt = gts.nextInt()
+      if (mask(i) && gt != -1) {
+        gtSum += gt
+        X.data(j) = gt.toDouble
+        j += 1
+      }
+      else if (mask(i)) {
+        missingIndices += j
+        j += 1
+      }
+      i += 1
     }
+    val missingIndicesArray = missingIndices.result()
+    val nPresent = n - missingIndicesArray.length
+    val gtMean = gtSum.toDouble / nPresent
+    missingIndicesArray.foreach(X.data(_) = gtMean)
+
+    !(gtSum == 0 || gtSum == 2 * nPresent || (gtSum == nPresent && X.data.drop(n * k).forall(_ == 1d)))
   }
 }
 

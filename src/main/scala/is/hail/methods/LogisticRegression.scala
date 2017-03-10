@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import breeze.linalg._
+import breeze.linalg.{DenseMatrix, _}
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.stats.RegressionUtils._
@@ -8,6 +8,8 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
+
+import scala.collection.mutable
 
 object LogisticRegression {
 
@@ -48,10 +50,12 @@ object LogisticRegression {
         else
           "Newton iteration failed to converge"))
 
+    val X = new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n))
+
     val sc = vds.sparkContext
     val sampleMaskBc = sc.broadcast(sampleMask)
     val yBc = sc.broadcast(y)
-    val covBc = sc.broadcast(cov)
+    val XBc = sc.broadcast(X)
     val nullFitBc = sc.broadcast(nullFit)
     val logRegTestBc = sc.broadcast(logRegTest)
 
@@ -59,19 +63,20 @@ object LogisticRegression {
     val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
     val emptyStats = logRegTest.emptyStats
 
-    vds.mapAnnotations{ case (v, va, gs) =>
-      val maskedGts = gs.hardCallIterator.unsafeFilter(sampleMaskBc.value.toIterator).toArray
+    vds.copy(rdd = vds.rdd.mapPartitions( { it =>
+      val X = XBc.value.copy
+      it.map { case (v, (va, gs)) =>
+        val logregAnnot =
+          if (RegressionUtils.mutateLastColumn(X, gs.hardCallIterator, sampleMaskBc.value))
+            Some(logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats))
+          else
+            None
 
-      val logregAnnot =
-        buildGtColumn(maskedGts).map { gts =>
-          val X = DenseMatrix.horzcat(covBc.value, gts)
-          logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
-        }
-
-      val newAnnotation = inserter(va, logregAnnot)
-      assert(newVAS.typeCheck(newAnnotation))
-      newAnnotation
-    }.copy(vaSignature = newVAS)
+        val newAnnotation = inserter(va, logregAnnot)
+        assert(newVAS.typeCheck(newAnnotation))
+        (v, (newAnnotation, gs))
+      }
+    }, preservesPartitioning = true).asOrderedRDD).copy(vaSignature = newVAS)
   }
 }
 
