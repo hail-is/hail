@@ -22,7 +22,7 @@ class ComputeRRMSuite extends SparkSuite {
     val vds = stats.vdsFromMatrix(hc)(G0)
 
     val n = vds.nSamples
-    val gtVects = vds.rdd.collect().flatMap { case (v, (va, gs)) => toNormalizedGtArray(gs, n) }.map(DenseVector(_))
+    val gtVects = vds.rdd.collect().flatMap { case (v, (va, gs)) => RegressionUtils.toNormalizedGtArray(gs, n) }.map(DenseVector(_))
 
     for (gts <- gtVects) {
       assert(math.abs(mean(gts)) < 1e-6)

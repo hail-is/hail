@@ -316,24 +316,4 @@ package object stats {
 
     new VariantDataset(hc, VariantMetadata(sampleIds, wasSplit = true), rdd)
   }
-
-  // mean 0, norm sqrt(n), variance 1 (constant variants are None)
-  def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
-    val gts = gs.hardCallIterator.toArray
-    val (nPresent, gtSum, gtSumSq) = gts.filter(_ != -1).foldLeft((0, 0, 0))((acc, gt) => (acc._1 + 1, acc._2 + gt, acc._3 + gt * gt))
-    val nMissing = nSamples - nPresent
-
-    if (gtSum == 0 || gtSum == 2 * nPresent || gtSum == 2 * nPresent)
-      None
-    else {
-      val gtMean = gtSum.toDouble / nPresent
-      val gtMeanAll = (gtSum + nMissing * gtMean) / nSamples
-      val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
-      val gtStdDevRec = 1d / math.sqrt(gtMeanSqAll - gtMeanAll * gtMeanAll)
-
-      val gtVals = Array(0, (0 - gtMean) * gtStdDevRec, (1 - gtMean) * gtStdDevRec, (2 - gtMean) * gtStdDevRec)
-
-      Some(gts.map(gt => gtVals(gt + 1)))
-    }
-  }
 }

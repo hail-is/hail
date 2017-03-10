@@ -716,8 +716,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val bedHeader = Array[Byte](108, 27, 1)
 
+    val nSamples = vds.nSamples
+
     val plinkRDD = vds.rdd
-      .mapValuesWithKey { case (v, (va, gs)) => ExportBedBimFam.makeBedRow(gs) }
+      .mapValuesWithKey { case (v, (va, gs)) => ExportBedBimFam.makeBedRow(gs, nSamples) }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
     plinkRDD.map { case (v, bed) => bed }
