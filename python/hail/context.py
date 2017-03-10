@@ -50,7 +50,8 @@ class HailContext(object):
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
 
         if Env._hc:
-            raise FatalError('Hail Context has already been created, restart session to change configuration.')
+            raise FatalError('Hail Context has already been created, restart session '
+                             'or stop Hail context to change configuration.')
 
         from pyspark import SparkContext
         SparkContext._ensure_initialized()
