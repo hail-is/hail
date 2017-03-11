@@ -3,8 +3,6 @@ package is.hail.utils
 import scala.collection.mutable
 
 abstract class IntIterator {
-  self =>
-
   def nextInt(): Int
 
   def hasNext: Boolean
