@@ -95,7 +95,13 @@ object RegressionUtils {
     val missingIndicesArray = missingIndices.result()
     val nPresent = n - missingIndicesArray.length
     val gtMean = gtSum.toDouble / nPresent
-    missingIndicesArray.foreach(X.data(_) = gtMean)
+
+    i = 0
+    while (i < missingIndicesArray.length) {
+      X.data(missingIndicesArray(i)) = gtMean
+      i += 1
+    }
+
 
     !(gtSum == 0 || gtSum == 2 * nPresent || (gtSum == nPresent && X.data.drop(n * k).forall(_ == 1d)))
   }
@@ -258,7 +264,11 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
       val valsXArray = valsX.result()
       val meanX = sumX.toDouble / nPresent
 
-      missingRowIndicesArray.foreach(valsXArray(_) = meanX)
+      var i = 0
+      while (i < missingRowIndicesArray.length) {
+        valsXArray(missingRowIndicesArray(i)) = meanX
+        i += 1
+      }
 
       // variant is atomic => combOp merge not called => rowsXArray is sorted (as expected by SparseVector constructor)
       // assert(rowsXArray.isIncreasing)
