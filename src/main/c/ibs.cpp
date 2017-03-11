@@ -1,4 +1,3 @@
-#include <popcntintrin.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,15 +10,15 @@ using namespace simdpp;
 
 uint64_t vector_popcnt(uint64vector x) {
   #if UINT64_VECTOR_SIZE < 4
-  uint64_t count = _mm_popcnt_u64(extract<0>(x));
+  uint64_t count = __builtin_popcountll(extract<0>(x));
   #if UINT64_VECTOR_SIZE >= 2
-  count += _mm_popcnt_u64(extract<1>(x));
+  count += __builtin_popcountll(extract<1>(x));
   #endif
   #elif UINT64_VECTOR_SIZE == 4
-  uint64_t count = _mm_popcnt_u64(_mm256_extract_epi64(x.operator __m256i(), 0));
-  count += _mm_popcnt_u64(_mm256_extract_epi64(x.operator __m256i(), 1));
-  count += _mm_popcnt_u64(_mm256_extract_epi64(x.operator __m256i(), 2));
-  count += _mm_popcnt_u64(_mm256_extract_epi64(x.operator __m256i(), 3));
+  uint64_t count = __builtin_popcountll(_mm256_extract_epi64(x.operator __m256i(), 0));
+  count += __builtin_popcountll(_mm256_extract_epi64(x.operator __m256i(), 1));
+  count += __builtin_popcountll(_mm256_extract_epi64(x.operator __m256i(), 2));
+  count += __builtin_popcountll(_mm256_extract_epi64(x.operator __m256i(), 3));
   #else
   #error "we do not support vectors longer than 4, please file an issue"
   #endif
