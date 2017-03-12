@@ -210,6 +210,87 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     KeyTable(hc, ktRDD, signature, keyNames)
   }
 
+
+  def aggregateBySamplePerVariantKey(keyName: String, variantKeySetVA: String, aggExpr: String): KeyTable = {
+
+    val (variantKeysType, variantKeysQuerier) = queryVA(variantKeySetVA)
+
+    if (variantKeysType != TSet(TString))
+      fatal(s"Variant keys must be of type Set[String], got $variantKeysType") // FIXME: extend to Set[T] and Array[T]
+
+    val ec = sampleEC
+
+    val (typ, f) = Parser.parseExpr(aggExpr, ec)
+
+    if (!Array(TInt, TLong, TFloat, TDouble).contains(typ))
+      fatal(s"aggregate_expr type must be numeric, found $typ")
+
+    val aggregations = ec.aggregations
+    val nAggregations = aggregations.size
+
+    val localNSamples = nSamples
+    val localGlobalAnnotations = globalAnnotation
+    val localSamplesBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
+    val baseArray = MultiArray2.fill[Aggregator](localNSamples, nAggregations)(null)
+    for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
+      baseArray.update(i, j, aggregations(j)._3.copy())
+    }
+
+    val ktRDD = rdd
+      .flatMap { case (v, (va, gs)) => variantKeysQuerier(va).asInstanceOf[Set[String]].map(key => (key, (v, va, gs))) }
+      .aggregateByKey(baseArray) (
+        { case (arr, (v, va, gs)) =>
+          ec.set(0, localGlobalAnnotations)
+          ec.set(4, v)
+          ec.set(5, va)
+
+          val gsIt = gs.iterator
+          var i = 0
+          // gsIt assume hasNext is always called before next
+          while (gsIt.hasNext) { // FIXME: always n?
+            ec.set(1, localSamplesBc.value(i))
+            ec.set(2, localSampleAnnotationsBc.value(i))
+            ec.set(3, gsIt.next)
+
+            var j = 0
+            while (j < nAggregations) {
+              aggregations(j)._2(arr(i, j).seqOp)
+              j += 1
+            }
+            i += 1
+          }
+          arr },
+        { case (arr1, arr2) =>
+          for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
+            val a1 = arr1(i, j)
+            a1.combOp(arr2(i, j).asInstanceOf[a1.type])
+          }
+          arr1 })
+      .map { case (key, agg) =>
+        val results = new Array[Any](localNSamples + 1)
+
+        results(0) = key
+
+        var i = 0
+        while (i < localNSamples) {
+          var j = 0
+          while (j < nAggregations) {
+            aggregations(j)._1.v = agg(i, j).result
+            j += 1
+          }
+          i += 1
+          results(i) = f()
+        }
+        Row.fromSeq(results)
+      }
+
+    val signature = TStruct((keyName -> TString) +: sampleIds.map(id => id -> typ): _*)
+
+    new KeyTable(hc, ktRDD, signature, keyNames = Array(keyName))
+  }
+
   def aggregateBySample[U](zeroValue: U)(
     seqOp: (U, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(String, U)] =

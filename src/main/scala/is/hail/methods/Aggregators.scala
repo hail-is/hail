@@ -65,7 +65,7 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localGlobalAnnotation = vsm.globalAnnotation
+    val localGlobalAnnotations = vsm.globalAnnotation
     val localSamplesBc = vsm.sampleIdsBc
     val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
 
@@ -79,7 +79,7 @@ object Aggregators {
     }
 
     val result = vsm.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
-      localA(0) = localGlobalAnnotation
+      localA(0) = localGlobalAnnotations
       localA(4) = v
       localA(5) = va
 

@@ -4,6 +4,7 @@ import breeze.linalg.{DenseMatrix, DenseVector, SparseVector}
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Genotype, VariantDataset}
+import org.apache.spark.sql.Row
 
 object RegressionUtils {
   def toDouble(t: Type, code: String): Any => Double = t match {
@@ -332,6 +333,57 @@ object RegressionUtils {
 
     sb.stats(nMaskedSamples)
   }
+
+  //keyedRow consists of row key followed by numeric data (passed with key to avoid copying, key is ignored here)
+  def denseStats(keyedRow: Row, y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
+    val n = keyedRow.length - 1
+    assert(y.length == n)
+
+    val valsX = Array.ofDim[Double](n)
+    var sumX = 0.0
+    var sumXX = 0.0
+    var sumXY = 0.0
+    var sumYMissing = 0.0
+    val missingRowIndices = new ArrayBuilder[Int]()
+
+    var i = 0
+    while (i < n) {
+      if (keyedRow.get(i + 1) == null) {
+        missingRowIndices += i
+        sumYMissing += y(i)
+      }
+      else {
+        val e = keyedRow.get(i + 1).asInstanceOf[java.lang.Number].doubleValue()
+        valsX(i) = e
+        sumX += e
+        sumXX += e * e
+        sumXY += e * y(i)
+      }
+      i += 1
+    }
+
+    val missingRowIndicesArray = missingRowIndices.result()
+    val nMissing = missingRowIndicesArray.length
+    val nPresent = n - nMissing
+
+    if (nPresent > 0) {
+      val meanX = sumX / nPresent
+
+      var j = 0
+      while (j < nMissing) {
+        valsX(missingRowIndicesArray(j)) = meanX
+        j += 1
+      }
+
+      val x = DenseVector[Double](valsX)
+      val xx = sumXX + meanX * meanX * nMissing
+      val xy = sumXY + meanX * sumYMissing
+
+      Some(x, xx, xy)
+    }
+    else
+      None
+  }
 }
 
 class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
@@ -415,8 +467,8 @@ class SparseGtBuilder extends Serializable {
   private var nHet = 0
   private var nHomVar = 0
 
-  def merge(g: Genotype): SparseGtBuilder = {
-    (g.unboxedGT: @unchecked) match {
+  def merge(gt: Int): SparseGtBuilder = {
+    (gt: @unchecked) match {
       case 0 =>
       case 1 =>
         nHet += 1
