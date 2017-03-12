@@ -6,7 +6,7 @@ import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.commons.math3.distribution.TDistribution
+import net.sourceforge.jdistlib.T
 
 object LinearRegression {
   def `type`: Type = TStruct(
@@ -47,7 +47,6 @@ object LinearRegression {
     val QtBc = sc.broadcast(Qt)
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
-    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(LinearRegression.`type`, pathVA)
@@ -76,7 +75,7 @@ object LinearRegression {
         val b = xyp / xxp
         val se = math.sqrt((yyp / xxp - b * b) / d)
         val t = b / se
-        val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+        val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 
         Annotation(b, se, t, p)
       }
