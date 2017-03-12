@@ -39,9 +39,6 @@ object LinearMixedRegression {
     forceBlock: Boolean,
     forceGrammian: Boolean): VariantDataset = {
 
-    if (!assocVds.wasSplit)
-      fatal("lmmreg requires bi-allelic VDS for association. Run split_multi or filter_multi first")
-
     if (!kinshipVds.wasSplit)
       fatal("lmmreg requires bi-allelic VDS for kinship. Run split_multi or filter_multi first")
 
