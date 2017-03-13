@@ -391,7 +391,7 @@ object Invokeable {
   }
 
   def lookupMethod[T, S](method: String, parameterTypes: Array[Class[_]])(implicit tct: ClassTag[T], sct: ClassTag[S]): Invokeable[T, S] = {
-    val m = tct.runtimeClass.getDeclaredMethod(method, parameterTypes: _*)
+    val m = tct.runtimeClass.getMethod(method, parameterTypes: _*)
     assert(m != null,
       s"no such method ${tct.runtimeClass.getName}.$method(${
         parameterTypes.map(_.getName).mkString(", ")
