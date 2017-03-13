@@ -232,7 +232,7 @@ abstract class Genotype extends Serializable {
       val gtPair = Genotype.gtPair(call)
       val j = gtPair.j
       val k = gtPair.k
-      new IndexedSeq[Int] {
+      new IndexedSeq[Int] with Serializable {
         def length: Int = nAlleles
 
         def apply(idx: Int): Int = {
@@ -255,7 +255,7 @@ abstract class Genotype extends Serializable {
 
   def oneHotGenotype(nGenotypes: Int): Option[IndexedSeq[Int]] = {
     gt.map { call =>
-      new IndexedSeq[Int] {
+      new IndexedSeq[Int] with Serializable {
         def length: Int = nGenotypes
 
         def apply(idx: Int): Int = {

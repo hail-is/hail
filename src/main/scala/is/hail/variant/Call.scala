@@ -1,10 +1,12 @@
 package is.hail.variant
 
+import java.io.Serializable
+
 import is.hail.check.Gen
 import is.hail.utils._
 import is.hail.variant.GenotypeType.GenotypeType
 
-object Call {
+object Call extends Serializable {
 
   def apply(call: java.lang.Integer): Call = {
     require(call == null || call >= 0, s"Call must be null or >= 0. Found ${call}.")
@@ -88,7 +90,7 @@ object Call {
       val gtPair = Genotype.gtPair(call)
       val j = gtPair.j
       val k = gtPair.k
-      new IndexedSeq[Int] {
+      new IndexedSeq[Int] with Serializable {
         def length: Int = nAlleles
 
         def apply(idx: Int): Int = {
@@ -107,7 +109,7 @@ object Call {
 
   def oneHotGenotype(call: Call, nGenotypes: Int): Option[IndexedSeq[Int]] = {
     gt(call).map { call =>
-      new IndexedSeq[Int] {
+      new IndexedSeq[Int] with Serializable {
         def length: Int = nGenotypes
 
         def apply(idx: Int): Int = {
@@ -121,4 +123,8 @@ object Call {
       }
     }
   }
+
+  def oneHotAlleles(call: Call, v: Variant): Option[IndexedSeq[Int]] = oneHotAlleles(call, v.nAlleles)
+
+  def oneHotGenotype(call: Call, v: Variant): Option[IndexedSeq[Int]] = oneHotGenotype(call, v.nGenotypes)
 }

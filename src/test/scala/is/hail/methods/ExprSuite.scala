@@ -675,15 +675,21 @@ class ExprSuite extends SparkSuite {
     // FIXME: parser should accept minimum Long/Int literals
     // assert(eval[Long](Long.MinValue.toString+"L").contains(Long.MinValue))
     // assert(eval[Long](Long.MinValue.toString+"l").contains(Long.MinValue))
-
+    
     assert(eval[Boolean]("let c = calls.noCall in c.isNotCalled() && !c.isHomVar() && !c.isHet() && !c.isHomRef()").contains(true))
     assert(eval[Boolean]("let c = calls.homRef in c.isHomRef() && c.isCalled() && c.nNonRefAlleles() == 0").contains(true))
     assert(eval[Boolean]("let c = calls.het in c.isHet() && c.isCalled() && c.nNonRefAlleles() == 1").contains(true))
     assert(eval[Boolean]("let c = calls.homVar in c.isHomVar() && c.isCalled() && c.nNonRefAlleles() == 2").contains(true))
+
     assert(eval[Genotype]("let c = calls.noCall in c.toGenotype()").contains(Genotype(-1)))
     assert(eval[Genotype]("let c = calls.homRef in c.toGenotype()").contains(Genotype(0)))
     assert(eval[Genotype]("let c = calls.het in c.toGenotype()").contains(Genotype(1)))
     assert(eval[Genotype]("let c = calls.homVar in c.toGenotype()").contains(Genotype(2)))
+
+    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") in c.oneHotAlleles(v)""").contains(IndexedSeq(2, 0)))
+    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotAlleles(v)""").contains(IndexedSeq(2, 0)))
+    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") in c.oneHotGenotype(v)""").contains(IndexedSeq(1, 0, 0)))
+    assert(eval[IndexedSeq[Int]]("""let c = calls.homRef and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotGenotype(v)""").contains(IndexedSeq(1, 0, 0)))
 
     {
       val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
