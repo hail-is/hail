@@ -127,6 +127,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       StructField("start", Locus.schema, nullable = false),
       StructField("end", Locus.schema, nullable = false)))
     case TGenotype => Genotype.schema
+    case TCall => IntegerType
     case TStruct(fields) =>
       if (fields.isEmpty)
         BooleanType //placeholder

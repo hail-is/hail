@@ -389,6 +389,11 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ), UnaryFunCode[T, U](hru.typ, (ct) => impl(ct)), MetaData(Option(docstring), argNames))
   }
 
+  def registerMethodSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, MethodType(hrt.typ), UnarySpecial[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def registerMethod[T, U, V](name: String, impl: (T, U) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
@@ -577,7 +582,7 @@ object FunctionRegistry {
   registerMethod("isHetNonRef", { (x: Call) => isHetNonRef(x) }, "True if this call is ``j/k`` with ``j>0``.")(callHr, boolHr)
   registerMethod("isHetRef", { (x: Call) => isHetRef(x) }, "True if this call is ``0/k`` with ``k>0``.")(callHr, boolHr)
   registerMethod("isCalled", { (x: Call) => isCalled(x) }, "True if the call is not ``./.``.")(callHr, boolHr)
-  registerMethod("isNotCalled", { (x: Call) => isNotCalled(x) }, "True if the call is ``./.``.")(callHr, boolHr)
+  registerMethodSpecial("isNotCalled", { (g: () => Any) => g() == null }, "True if the call is ``./.``.")(callHr, boolHr)
   registerMethod("nNonRefAlleles", { (x: Call) =>
     if (hasNNonRefAlleles(x))
       box(nNonRefAlleles_(x))
