@@ -32,6 +32,8 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
   }
 
   def toJSON(f: (T) => JValue): JValue = JObject("start" -> f(start), "end" -> f(end))
+
+  override def toString: String = start + "-" + end
 }
 
 object Interval {
