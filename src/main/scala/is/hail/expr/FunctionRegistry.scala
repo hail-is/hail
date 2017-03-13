@@ -436,6 +436,7 @@ object FunctionRegistry {
     bind(name, FunType(hrt.typ), UnaryFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  /* impl Code[_] inputs in registerCode, registerMethodCode will always be memoized becuase they need to be checked for null */
   def registerCode[T, U](name: String, impl: Code[T] => CM[Code[U]], docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FunType(hrt.typ), UnaryFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
@@ -1923,44 +1924,30 @@ object FunctionRegistry {
 
     registerCode(name, (x: Code[T], y: Code[T]) => CM.ret(f(x, y)), null)
 
-    registerCode(name, (xs: Code[IndexedSeq[T]], y: Code[T]) => for (
-      (storey, refy) <- CM.memoize(y);
-      liftedF <- CM.mapIS(xs, (xOpt: Code[T]) => xOpt.mapNull((x: Code[T]) => f(x, refy)))
-    ) yield Code(storey, liftedF),
+    registerCode(name, (xs: Code[IndexedSeq[T]], y: Code[T]) =>
+      CM.mapIS(xs, (xOpt: Code[T]) => xOpt.mapNull((x: Code[T]) => f(x, y))),
       null)(arrayHr(hrboxedt), hrt, arrayHr(hrboxeds))
 
-    registerCode(name, (x: Code[T], ys: Code[IndexedSeq[T]]) => for (
-      (storex, refx) <- CM.memoize(x);
-      liftedF <- CM.mapIS(ys, (yOpt: Code[T]) =>
-          yOpt.mapNull((y: Code[T]) => f(refx, y)))
-    ) yield Code(storex, liftedF),
+    registerCode(name, (x: Code[T], ys: Code[IndexedSeq[T]]) =>
+      CM.mapIS(ys, (yOpt: Code[T]) =>
+          yOpt.mapNull((y: Code[T]) => f(x, y))),
       null)(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
 
     registerCode(name, (xs: Code[IndexedSeq[T]], ys: Code[IndexedSeq[T]]) => for (
-      (stxs, _xs) <- CM.memoize(xs);
-      xs = Code.checkcast[scala.collection.SeqLike[T, IndexedSeq[T]]](_xs);
-
-      (stys, _ys) <- CM.memoize(ys);
-      ys = Code.checkcast[scala.collection.SeqLike[T, IndexedSeq[T]]](_ys);
-
-      (stn, n) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], Int]("size", Array()).invoke(xs, Array()));
-      n2 = Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], Int]("size", Array()).invoke(ys, Array());
-
+      (stn, n) <- CM.memoize(xs.invoke[Int]("size"));
+      n2 = ys.invoke[Int]("size");
       (stb, b) <- CM.memoize(Code.newArray[S](n));
-
       i <- CM.newLocal[Int];
-
-      (stx, x) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], T]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke(xs, Array(i)));
-      (sty, y) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], T]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke(ys, Array(i)));
-
+      (stx, x) <- CM.memoize(xs.invoke[Int, T]("apply", i));
+      (sty, y) <- CM.memoize(ys.invoke[Int, T]("apply", i));
       z = x.mapNull(y.mapNull(f(x, y)))
-    ) yield Code(stxs, stys, stn,
-      (n.ceq(n2)).mux(
+    ) yield Code(stn,
+      n.ceq(n2).mux(
         Code(
           i.store(0),
           stb,
           Code.whileLoop(i < n,
-            Code(stx, sty, b.update(i, z), i.store(i + 1))
+            Code(stx, stx,  sty, b.update(i, z), i.store(i + 1))
           ),
           CompilationHelp.arrayToWrappedArray(b)).asInstanceOf[Code[IndexedSeq[S]]],
         Code._throw(Code.newInstance[is.hail.utils.FatalException, String, Option[String]](
@@ -2243,10 +2230,9 @@ object FunctionRegistry {
 
   registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
     (storei, refi) <- CM.memoize(Code.intValue(i));
-    (storea, refa) <- CM.memoize(a);
-    size = refa.invoke[Int]("size")
+    size = a.invoke[Int]("size")
   ) yield {
-    Code(storei, storea, refa.invoke[Int, AnyRef]("apply", (refi >= 0).mux(refi, refi + size)))
+    Code(storei, a.invoke[Int, AnyRef]("apply", (refi >= 0).mux(refi, refi + size)))
   },
     """
     Returns the i*th* element (0-indexed) of the array, or throws an exception if ``i`` is an invalid index.
