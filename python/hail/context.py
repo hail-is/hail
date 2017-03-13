@@ -657,8 +657,7 @@ class HailContext(object):
     def read_keytable(self, path):
         """Read a KT file as KeyTable
 
-        :param path: KT file to read.
-        :type path: str
+        :param str path: KT file to read.
 
         :return: A key table read from disk.
         :rtype: :class:`.KeyTable`

@@ -95,7 +95,7 @@ object KeyTable {
         (if (requiresConversion)
           SparkAnnotationImpex.importAnnotation(r, signature)
         else
-          r): Any
+          r): Annotation
       }
 
     KeyTable(hc, rdd, signature, keyNames)
@@ -126,7 +126,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
   def nKeys: Int = keyNames.length
 
-  def typeCheck(): Unit = {
+  def typeCheck() {
     val localSignature = signature
     rdd.foreach { a =>
       if (!localSignature.typeCheck(a))
@@ -502,7 +502,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
   def collect(): IndexedSeq[Annotation] = rdd.collect()
 
-  def write(path: String, overwrite: Boolean = false): Unit = {
+  def write(path: String, overwrite: Boolean = false) {
     if (overwrite)
       hc.hadoopConf.delete(path, recursive = true)
     else if (hc.hadoopConf.exists(path))
