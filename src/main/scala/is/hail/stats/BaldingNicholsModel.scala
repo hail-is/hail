@@ -109,7 +109,7 @@ object BaldingNicholsModel {
       }
     .toOrderedRDD
 
-    val sampleIds = (0 until N).map(_.toString).toArray
+    val sampleIds = (0 until N).map("ID" + _.toString).toArray
     val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(pop))
 
     val ancestralAFAnnotation = af_dist match {
