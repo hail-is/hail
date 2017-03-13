@@ -628,3 +628,20 @@ class KeyTable(object):
         """Check if all values with the schema."""
 
         self._jkt.typeCheck()
+
+    def write(self, output, overwrite=False):
+        """Write as KT file.
+
+        ***Examples***
+
+        Write variant annotations of a dataset as KT file:
+
+        >>> vds.variants_keytable().write('output/sample.va.kt')
+
+        :param str output: Path of KT file to write.
+
+        :param bool overwrite: If True, overwrite any existing KT file. Cannot be used to read from and write to the same path.
+
+        """
+        
+        self._jkt.write(output, overwrite)
