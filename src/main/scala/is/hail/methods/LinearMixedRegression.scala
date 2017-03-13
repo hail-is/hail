@@ -80,12 +80,15 @@ object LinearMixedRegression {
     info(s"lmmreg: Computing RRM for $n samples...")
 
     val (rrm, m) = ComputeRRM(filtKinshipVds, useBlock)
-
+    
 
     info(s"lmmreg: RRM computed using $m variants")
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
-    val eigK: DenseeigSymD = eigSymD(rrm.toLocalMatrix())
+    val cols = rrmDist.numCols().toInt //Can I just use m?
+    val rrm = new DenseMatrix[Double](cols, cols, rrmDist.toLocalMatrix().toArray)
+
+    val eigK: DenseeigSymD = eigSymD(rrm)
     val Ut = eigK.eigenvectors.t
     val S = eigK.eigenvalues // increasing order
 
