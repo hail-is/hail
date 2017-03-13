@@ -543,7 +543,7 @@ object FunctionRegistry {
   val TU = TVariable("U")
   val TV = TVariable("V")
 
-  val TTBoxed = TVariable("TBoxed")
+  val TTBoxed = TVariable("T")
 
   val TTHr = new HailRep[Any] {
     def typ = TT
