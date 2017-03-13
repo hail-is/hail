@@ -653,3 +653,15 @@ class HailContext(object):
         """ Shut down the Hail Context """
         self.sc.stop()
         self.sc = None
+
+    def read_keytable(self, path):
+        """Read a KT file as KeyTable
+
+        :param str path: KT file to read.
+
+        :return: A key table read from disk.
+        :rtype: :class:`.KeyTable`
+        """
+
+        jkt = self._jhc.readKeyTable(path)
+        return KeyTable(self, jkt)

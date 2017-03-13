@@ -16,6 +16,9 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.json4s.JObject
+import org.json4s.JsonAST._
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -23,12 +26,79 @@ import scala.reflect.ClassTag
 
 
 object KeyTable {
+  final val fileVersion: Int = 1
+
   def fromDF(hc: HailContext, df: DataFrame, keyNames: Array[String]): KeyTable = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     KeyTable(hc, df.rdd.map { r =>
       SparkAnnotationImpex.importAnnotation(r, signature)
     },
       signature, keyNames)
+  }
+
+  def read(hc: HailContext, path: String): KeyTable = {
+    if (!hc.hadoopConf.exists(path))
+      fatal(s"$path does not exist")
+
+    val metadataFile = path + "/metadata.json.gz"
+    val pqtSuccess = path + "/rdd.parquet/_SUCCESS"
+
+    if (!hc.hadoopConf.exists(pqtSuccess))
+      fatal(
+        s"corrupt KeyTable: parquet success file does not exist: $pqtSuccess")
+
+    if (!hc.hadoopConf.exists(metadataFile))
+      fatal(
+        s"corrupt KeyTable: metadata file does not exist: $metadataFile")
+
+    val (signature, keyNames) = try {
+      val json = hc.hadoopConf.readFile(metadataFile)(in =>
+        JsonMethods.parse(in))
+
+      val fields = json.asInstanceOf[JObject].obj.toMap
+
+      (fields.get("version"): @unchecked) match {
+        case Some(JInt(v)) =>
+          if (v != KeyTable.fileVersion)
+            fatal(
+              s"""Invalid KeyTable: old version
+                 |  got version $v, expected version ${ KeyTable.fileVersion }""".stripMargin)
+      }
+
+      val signature = (fields.get("schema"): @unchecked) match {
+        case Some(JString(s)) =>
+          Parser.parseType(s).asInstanceOf[TStruct]
+      }
+
+      val keyNames = (fields.get("key_names"): @unchecked) match {
+        case Some(JArray(a)) =>
+          a.map { case JString(s) => s
+          }.toArray[String]
+      }
+
+      (signature, keyNames)
+    } catch {
+      case e: Throwable =>
+        fatal(
+          s"""
+             |corrupt KeyTable: invalid metadata file.
+             |  caught exception: ${ expandException(e) }
+          """.stripMargin)
+    }
+
+    val requiresConversion = SparkAnnotationImpex.requiresConversion(signature)
+    val parquetFile = path + "/rdd.parquet"
+
+    val rdd = hc.sqlContext.read.parquet(parquetFile)
+      .rdd
+      .map { r =>
+        (if (requiresConversion)
+          SparkAnnotationImpex.importAnnotation(r, signature)
+        else
+          r): Annotation
+      }
+
+    KeyTable(hc, rdd, signature, keyNames)
   }
 }
 
@@ -56,7 +126,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
   def nKeys: Int = keyNames.length
 
-  def typeCheck(): Unit = {
+  def typeCheck() {
     val localSignature = signature
     rdd.foreach { a =>
       if (!localSignature.typeCheck(a))
@@ -251,7 +321,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
       }
       if (a2 != null) {
         val r2 = a2.asInstanceOf[Row].toSeq
-        mergeIndices.zipWithIndex.foreach { case (i, j) => result(size1 + j) = r2(i)}
+        mergeIndices.zipWithIndex.foreach { case (i, j) => result(size1 + j) = r2(i) }
       }
       Annotation.fromSeq(result)
     }
@@ -431,4 +501,38 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
   def explode(columnNames: java.util.ArrayList[String]): KeyTable = explode(columnNames.asScala.toArray)
 
   def collect(): IndexedSeq[Annotation] = rdd.collect()
+
+  def write(path: String, overwrite: Boolean = false) {
+    if (overwrite)
+      hc.hadoopConf.delete(path, recursive = true)
+    else if (hc.hadoopConf.exists(path))
+      fatal(s"$path already exists")
+
+    hc.hadoopConf.mkDir(path)
+
+    val sb = new StringBuilder
+    sb.clear()
+    signature.pretty(sb, printAttrs = true, compact = true)
+    val schemaString = sb.result()
+
+    val json = JObject(
+      ("version", JInt(KeyTable.fileVersion)),
+      ("key_names", JArray(keyNames.map(k => JString(k)).toList)),
+      ("schema", JString(schemaString)))
+
+    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(Serialization.writePretty(json, _))
+
+    val localSignature = signature
+    val requiresConversion = SparkAnnotationImpex.requiresConversion(signature)
+
+    val rowRDD = rdd.map { a =>
+      (if (requiresConversion)
+        SparkAnnotationImpex.exportAnnotation(a, localSignature)
+      else
+        a).asInstanceOf[Row]
+    }
+
+    hc.sqlContext.createDataFrame(rowRDD, schema.asInstanceOf[StructType])
+      .write.parquet(path + "/rdd.parquet")
+  }
 }
