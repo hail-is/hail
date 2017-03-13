@@ -636,7 +636,7 @@ class KeyTable(object):
 
         Write variant annotations of a dataset as KT file:
 
-        >>> vds.variants_keytable().write('output/sample.va.kt')
+        >>> kt1.write('output/kt1.kt')
 
         :param str output: Path of KT file to write.
 
