@@ -1,6 +1,7 @@
 package is.hail.io.vcf
 
 import htsjdk.variant.variantcontext.VariantContext
+import htsjdk.variant.vcf.VCFConstants
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.utils._
@@ -82,7 +83,7 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
   def genericGenotypes: Boolean
 }
 
-class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordReader[Genotype] {
+case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordReader[Genotype] {
   def genericGenotypes = false
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
@@ -242,7 +243,25 @@ class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordReader[
   }
 }
 
-class GenericRecordReader extends HtsjdkRecordReader[Annotation] {
+
+object GenericRecordReader {
+  val haploidRegex = """^([0-9]+)$""".r
+  val diploidRegex = """^([0-9]+)([|\/]([0-9]+))$""".r
+
+  def getCall(gt: String, nAlleles: Int): Call = {
+    val call: Call = gt match {
+      case diploidRegex(a0, _, a1) => Call(Genotype.gtIndexWithSwap(a0.toInt, a1.toInt))
+      case VCFConstants.EMPTY_GENOTYPE => null
+      case haploidRegex(a0) => Call(Genotype.gtIndexWithSwap(a0.toInt, a0.toInt))
+      case VCFConstants.EMPTY_ALLELE => null
+      case _ => fatal(s"Invalid GT found `$gt'.")
+    }
+    Call.check(call, nAlleles)
+    call
+  }
+}
+
+case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordReader[Annotation] {
   def genericGenotypes = true
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
@@ -251,24 +270,54 @@ class GenericRecordReader extends HtsjdkRecordReader[Annotation] {
     genotypeSignature: Type): (Variant, (Annotation, Iterable[Annotation])) = {
 
     val (v, va) = readVariantInfo(vc, infoSignature)
+    val nAlleles = v.nAlleles
 
     val gs = vc.getGenotypes.iterator.asScala.map { g =>
+
+      val alleles = g.getAlleles.asScala
+      assert(alleles.length == 1 || alleles.length == 2,
+        s"expected 1 or 2 alleles in genotype, but found ${ alleles.length }")
+      val a0 = alleles(0)
+      val a1 = if (alleles.length == 2)
+        alleles(1)
+      else
+        a0
+
+      assert(a0.isCalled || a0.isNoCall)
+      assert(a1.isCalled || a1.isNoCall)
+      assert(a0.isCalled == a1.isCalled)
+
+      val gt = if (a0.isCalled) {
+        val i = vc.getAlleleIndex(a0)
+        val j = vc.getAlleleIndex(a1)
+        Genotype.gtIndexWithSwap(i, j)
+      } else null
+
       val a = Annotation(
         genotypeSignature.asInstanceOf[TStruct].fields.map { f =>
 
-          val a = f.name match {
-            case "GT" => g.getGenotypeString
-            case _ => g.getAnyAttribute(f.name)
+          val (a, typ) = f.name match {
+            case "GT" => (gt, TCall)
+            case _ =>
+              val x = g.getAnyAttribute(f.name)
+              if (callFields.contains(f.name)) {
+                if (x == null)
+                  (x, TCall)
+                else
+                  (GenericRecordReader.getCall(x.asInstanceOf[String], nAlleles), TCall)
+              }
+              else
+                (x, f.typ)
           }
 
           try {
-            HtsjdkRecordReader.cast(a, f.typ)
+            HtsjdkRecordReader.cast(a, typ)
           } catch {
             case e: Exception =>
               fatal(
                 s"""variant $v: Genotype field ${ f.name }:
-                    |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
-                    |  caught $e""".stripMargin)
+                 |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ typ }:
+                 |  caught $e""".stripMargin)
           }
         }: _*)
       assert(genotypeSignature.typeCheck(a))
@@ -329,6 +378,9 @@ object HtsjdkRecordReader {
         }.toArray[String]: IndexedSeq[String]
       case (l: java.util.List[_], TArray(TChar)) =>
         l.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
+
+      case (i: Int, TCall) => i
+      case (s: String, TCall) => s.toInt
     }
   }
 }

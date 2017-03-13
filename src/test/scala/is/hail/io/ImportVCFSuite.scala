@@ -2,9 +2,10 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF, VCFReport}
-import is.hail.variant.{Genotype, Variant}
+import is.hail.variant.{Call, Genotype, Variant}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
+import is.hail.utils._
 
 class ImportVCFSuite extends SparkSuite {
 
@@ -121,7 +122,7 @@ class ImportVCFSuite extends SparkSuite {
     val r = vds
       .expand()
       .collect()
-      .map { case (v,s,g) => ((v,s), g)}
+      .map { case (v, s, g) => ((v, s), g) }
       .toMap
 
     hc.report()
@@ -136,21 +137,21 @@ class ImportVCFSuite extends SparkSuite {
       Some(Array(10, 0)),
       Some(10),
       Some(44),
-      Some(Array(0,44,180))
+      Some(Array(0, 44, 180))
     ))
     assert(r(v1, s2) == Genotype(
       Some(2),
-      Some(Array(0,6)),
+      Some(Array(0, 6)),
       Some(7),
       Some(70),
       Some(Array(70, HtsjdkRecordReader.haploidNonsensePL, 0))
     ))
     assert(r(v2, s1) == Genotype(
       Some(5),
-      Some(Array(0,0,11)),
+      Some(Array(0, 0, 11)),
       Some(11),
       Some(33),
-      Some(Array(396,402,411,33,33,0))
+      Some(Array(396, 402, 411, 33, 33, 0))
     ))
     assert(r(v2, s2) == Genotype(
       Some(5),
@@ -166,6 +167,51 @@ class ImportVCFSuite extends SparkSuite {
     val path = tmpDir.createTempFile(extension = ".vds")
     val vcf = "src/test/resources/sample.vcf.bgz"
     val gds = hc.importVCFGeneric(vcf)
+    val vds = hc.importVCF(vcf)
+
+    val (_, qGT) = gds.queryGA("g.GT")
+    val callVDS = vds.expand().map { case (v, s, g) => ((v, s), g.call) }
+    val callGDS = gds.expand().map { case (v, s, g) => ((v, s), qGT(g).asInstanceOf[Call]) }
+
+    assert(callVDS.fullOuterJoin(callGDS).forall { case ((v, s), (c1, c2)) => c1 == c2 })
+
     gds.write(path)
+
+    val path2 = tmpDir.createTempFile(extension = ".vds")
+    val vcf2 = "src/test/resources/generic.vcf"
+    val gds2 = hc.importVCFGeneric(vcf2, callFields = Option(Array("GT", "GTA", "GTZ")))
+    gds2.write(path2)
+
+    val v1 = Variant("X", 16050036, "A", "C")
+    val v2 = Variant("X", 16061250, "T", Array("A", "C"))
+
+    val s1 = "C1046::HG02024"
+    val s2 = "C1046::HG02025"
+
+    val (_, querierGT) = gds2.queryGA("g.GT")
+    val (_, querierGTA) = gds2.queryGA("g.GTA")
+    val (_, querierGTZ) = gds2.queryGA("g.GTZ")
+
+    val r2 = gds2
+      .expand()
+      .collect()
+      .map { case (v, s, g) => ((v, s), (querierGT(g), querierGTA(g), querierGTZ(g))) }
+      .toMap
+
+    assert(r2(v1, s1) == (0, null, 1))
+    assert(r2(v1, s2) == (2, null, 0))
+    assert(r2(v2, s1) == (5, 4, 2))
+    assert(r2(v2, s2) == (5, null, 2))
+
+    import is.hail.io.vcf.GenericRecordReader._
+    assert(getCall("0/0", 2) == Call(0))
+    assert(getCall("1/0", 2) == Call(1))
+    assert(getCall("0", 2) == Call(0))
+    assert(getCall(".", 2) == null)
+    assert(getCall("./.", 2) == null)
+    intercept[FatalException] {
+      getCall("./0", 2) == Call(0)
+    }
+
   }
 }

@@ -225,7 +225,19 @@ object LoadVCF {
     val infoSignature = headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val genotypeSignature: Type = if (reader.genericGenotypes) headerSignature(formatHeader).getOrElse(TStruct.empty) else TGenotype
+    val genotypeSignature: Type =
+      if (reader.genericGenotypes) {
+        val sig = headerSignature(formatHeader).getOrElse(TStruct.empty)
+        val callFields: Set[String] = reader.asInstanceOf[GenericRecordReader].callFields
+
+        callFields.foldLeft(sig) { (s, n) => s.fieldOption(n) match {
+          case Some(fd) =>
+            assert(fd.typ == TString, s"Call fields can only have type `String'. Found format field `$n' has type `${ fd.typ }'.")
+            s.updateKey(n, fd.index, TCall).asInstanceOf[TStruct]
+          case None => s
+        }
+        }
+      } else TGenotype
 
     val variantAnnotationSignatures = TStruct(
       Array(
