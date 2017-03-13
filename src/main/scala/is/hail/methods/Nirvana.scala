@@ -7,9 +7,7 @@ import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TDouble, TInt, TString, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.apache.spark.storage.StorageLevel
-import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
@@ -27,9 +25,9 @@ object Nirvana {
     "filters" -> TArray(TString),
     "jointSomaticNormalQuality" -> TInt,
     "copyNumber" -> TInt,
-    "strandBias" -> TDouble,
+      //"strandBias" -> TDouble,
     "recalibratedQuality" -> TDouble,
-    "samples" -> TArray(TStruct(
+    /*"samples" -> TArray(TStruct(
       "variantFreq" -> TDouble,
       "totalDepth" -> TInt,
       "alleleDepths" -> TArray(TInt),
@@ -39,7 +37,7 @@ object Nirvana {
       "isEmpty" -> TBoolean,
       "copyNumber" -> TInt,
       "lossOfHeterozygosity" -> TBoolean
-    )),
+    )),*/
     "variants" -> TArray(TStruct(
       "ancestralAllele" -> TString,
       "altAllele" -> TString,
