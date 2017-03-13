@@ -1818,11 +1818,10 @@ object FunctionRegistry {
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
     { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
       is <- f(x);
-      (str, _r) <- CM.memoize(is);
-      r = Code.checkcast[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]]](_r);
-      (stn, n) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]], Int]("size", Array()).invoke(r, Array()));
+      (str, r) <- CM.memoize(Code.checkcast[IndexedSeq[AnyRef]](is));
+      (stn, n) <- CM.memoize(r.invoke[Int]("size"));
       i <- CM.newLocal[Int];
-      ri = Invokeable.lookupMethod[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]], AnyRef]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke(r, Array(i));
+      ri = r.invoke[Int, AnyRef]("apply", i);
       invokek <- k(ri)
     ) yield Code(
       str,
@@ -1848,9 +1847,8 @@ object FunctionRegistry {
     { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
     { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
-      _fx <- f(x);
-      fx = Code.checkcast[scala.collection.IterableLike[AnyRef, Set[AnyRef]]](_fx);
-      (stit, it) <- CM.memoize(Invokeable.lookupMethod[scala.collection.IterableLike[AnyRef, Set[AnyRef]], Iterator[AnyRef]]("iterator", Array()).invoke(fx, Array()));
+      fx <- f(x);
+      (stit, it) <- CM.memoize(Code.checkcast[Set[AnyRef]](fx).invoke[Iterator[AnyRef]]("iterator"));
       hasNext = it.invoke[Boolean]("hasNext");
       next = it.invoke[AnyRef]("next");
       invokek <- k(next)
@@ -1937,21 +1935,17 @@ object FunctionRegistry {
       null)(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
 
     registerCode(name, (xs: Code[IndexedSeq[T]], ys: Code[IndexedSeq[T]]) => for (
-      (stxs, _xs) <- CM.memoize(xs);
-      xs = Code.checkcast[scala.collection.SeqLike[T, IndexedSeq[T]]](_xs);
-
-      (stys, _ys) <- CM.memoize(ys);
-      ys = Code.checkcast[scala.collection.SeqLike[T, IndexedSeq[T]]](_ys);
-
-      (stn, n) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], Int]("size", Array()).invoke(xs, Array()));
-      n2 = Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], Int]("size", Array()).invoke(ys, Array());
+      (stxs, xs) <- CM.memoize(xs);
+      (stys, ys) <- CM.memoize(ys);
+      (stn, n) <- CM.memoize(xs.invoke[Int]("size"));
+      n2 = ys.invoke[Int]("size");
 
       (stb, b) <- CM.memoize(Code.newArray[S](n));
 
       i <- CM.newLocal[Int];
 
-      (stx, x) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], T]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke(xs, Array(i)));
-      (sty, y) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], T]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke(ys, Array(i)));
+      (stx, x) <- CM.memoize(xs.invoke[Int, T]("apply", i));
+      (sty, y) <- CM.memoize(ys.invoke[Int, T]("apply", i));
 
       z = x.mapNull(y.mapNull(f(x, y)))
     ) yield Code(stxs, stys, stn,
