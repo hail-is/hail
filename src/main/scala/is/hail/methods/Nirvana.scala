@@ -249,6 +249,8 @@ object Nirvana {
     val oldSignature = vds.vaSignature
     val localBlockSize = blockSize
 
+    info("Running Nirvana")
+
     val annotations = vds.rdd.mapValues { case (va, gs) => va }
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.asJava)
@@ -264,8 +266,8 @@ object Nirvana {
               printContext,
               printElement(oldSignature),
               _ => ())
-            //Drop header line for now, reconsider later.
-            val kt = jt.drop(1).filter(!_.startsWith("]")).map { s =>
+            //The drop is to ignore the header line, the filter is because every other output line is a comma.
+            val kt = jt.drop(1).filter(_.startsWith("{")).map { s =>
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
                 val v = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
                   refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Seq[String]].toArray)
