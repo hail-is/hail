@@ -563,33 +563,36 @@ object FunctionRegistry {
 
   import is.hail.variant.Call._
   registerField("gt", { (x: Call) => x}, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedintHr)
-  registerMethod("gtj", { (x: Call) =>
+  registerMethodSpecial("gtj", { (g: () => Any) =>
+    val x = g().asInstanceOf[Call]
     if (x == null)
       null
     else
       box(Genotype.gtPair(x).j)
   }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedintHr)
-  registerMethod("gtk", { (x: Call) =>
+  registerMethodSpecial("gtk", { (g: () => Any) =>
+    val x = g().asInstanceOf[Call]
     if (x == null)
       null
     else
       box(Genotype.gtPair(x).k)
   }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedintHr)
-  registerMethod("isHomRef", { (x: Call) => isHomRef(x) }, "True if this call is ``0/0``.")(callHr, boolHr)
-  registerMethod("isHet", { (x: Call) => isHet(x) }, "True if this call is heterozygous.")(callHr, boolHr)
-  registerMethod("isHomVar", { (x: Call) => isHomVar(x) }, "True if this call is ``j/j`` with ``j>0``.")(callHr, boolHr)
-  registerMethod("isCalledNonRef", { (x: Call) => isCalledNonRef(x) }, "True if either ``isHet`` or ``isHomVar`` is true.")(callHr, boolHr)
-  registerMethod("isHetNonRef", { (x: Call) => isHetNonRef(x) }, "True if this call is ``j/k`` with ``j>0``.")(callHr, boolHr)
-  registerMethod("isHetRef", { (x: Call) => isHetRef(x) }, "True if this call is ``0/k`` with ``k>0``.")(callHr, boolHr)
-  registerMethod("isCalled", { (x: Call) => isCalled(x) }, "True if the call is not ``./.``.")(callHr, boolHr)
-  registerMethodSpecial("isNotCalled", { (g: () => Any) => g() == null }, "True if the call is ``./.``.")(callHr, boolHr)
-  registerMethod("nNonRefAlleles", { (x: Call) =>
+  registerMethodSpecial("isHomRef", { (g: () => Any) => isHomRef(g().asInstanceOf[Call])}, "True if this call is ``0/0``.")(callHr, boolHr)
+  registerMethodSpecial("isHet", { (g: () => Any) => isHet(g().asInstanceOf[Call]) }, "True if this call is heterozygous.")(callHr, boolHr)
+  registerMethodSpecial("isHomVar", { (g: () => Any) => isHomVar(g().asInstanceOf[Call]) }, "True if this call is ``j/j`` with ``j>0``.")(callHr, boolHr)
+  registerMethodSpecial("isCalledNonRef", { (g: () => Any) => isCalledNonRef(g().asInstanceOf[Call]) }, "True if either ``isHet`` or ``isHomVar`` is true.")(callHr, boolHr)
+  registerMethodSpecial("isHetNonRef", { (g: () => Any) => isHetNonRef(g().asInstanceOf[Call]) }, "True if this call is ``j/k`` with ``j>0``.")(callHr, boolHr)
+  registerMethodSpecial("isHetRef", { (g: () => Any) => isHetRef(g().asInstanceOf[Call]) }, "True if this call is ``0/k`` with ``k>0``.")(callHr, boolHr)
+  registerMethodSpecial("isCalled", { (g: () => Any) => isCalled(g().asInstanceOf[Call]) }, "True if the call is not ``./.``.")(callHr, boolHr)
+  registerMethodSpecial("isNotCalled", { (g: () => Any) => isNotCalled(g().asInstanceOf[Call]) }, "True if the call is ``./.``.")(callHr, boolHr)
+  registerMethodSpecial("nNonRefAlleles", { (g: () => Any) =>
+    val x = g().asInstanceOf[Call]
     if (hasNNonRefAlleles(x))
       box(nNonRefAlleles_(x))
     else
       null
   }, "the number of called alternate alleles.")(callHr, boxedintHr)
-  registerMethod("toGenotype", { (x: Call) => toGenotype(x) }, "Convert this call to a Genotype.")(callHr, genotypeHr)
+  registerMethodSpecial("toGenotype", { (g: () => Any) => toGenotype(g().asInstanceOf[Call]) }, "Convert this call to a Genotype.")(callHr, genotypeHr)
 
   registerField("gt", { (x: Genotype) =>
     val gt = x.unboxedGT
