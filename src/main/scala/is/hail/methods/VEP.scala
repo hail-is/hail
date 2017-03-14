@@ -340,11 +340,11 @@ object VEP {
                             val xsplit = x.split("\\|")
                             val allele_num = xsplit(allele_num_index)
                             if (allele_num.isEmpty)
-                              (v, x)
+                              x
                             else
-                              (v, xsplit
+                              xsplit
                                 .updated(allele_num_index, alleleMap.getOrElse(xsplit(allele_num_index).toInt, -1))
-                                .mkString("|"))
+                                .mkString("|")
                         }): IndexedSeq[Annotation])
                       }
                       else
