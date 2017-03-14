@@ -43,7 +43,7 @@ object MaximalIndependentSet {
     g.persist()
     var workingGraph = g
 
-    do {
+    while (workingGraph.numEdges > 0) {
       idSetToDelete ++= updateVertexDegrees(workingGraph)
           .pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
           .vertices
@@ -54,7 +54,7 @@ object MaximalIndependentSet {
       workingGraph.unpersist()
       workingGraph = g.subgraph(_ => true, (id, value) => !idSetToDelete.contains(id))
       workingGraph.persist()
-    } while (workingGraph.numEdges > 0)
+    }
 
     val survivors = workingGraph.vertices.keys.collect().toSet
     g.unpersist()
