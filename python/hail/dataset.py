@@ -5325,6 +5325,16 @@ class VariantDataset(HistoryMixin):
         """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_
 
         ***Configuration***
+        :py:meth:`~hail.VariantDataset.nirvana` needs a configuration file to tell it how to run
+        Nirvana. The format is a `.properties file <https://en.wikipedia.org/wiki/.properties>`_.
+        Roughly, each line defines a property as a key-value pair of the form `key = value`. `nirvana` supports the following properties:
+
+        - **hail.nirvana.dotnet** -- Location of dotnet. Optional, default: dotnet.
+        - **hail.nirvana.path** -- Value of the PATH environment variable when invoking Nirvana.  Optional, by default PATH is not set.
+        - **hail.nirvana.location** -- Location of Nirvana.dll. Required.
+        - **hail.nirvana.cache** --Location of cache. required.
+        - **hail.nirvana.supplementaryAnnotationDirectory -- Location of Supplementary Database. Optional, no supplementary database by default.
+
         """
         jvds = self._jvdf.nirvana(config, block_size, root)
         return VariantDataset(self.hc, jvds)
