@@ -1818,7 +1818,7 @@ object FunctionRegistry {
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
     { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
       is <- f(x);
-      (str, r) <- CM.memoize(is);
+      (str, r) <- CM.memoize(Code.checkcast[IndexedSeq[AnyRef]](is));
       (stn, n) <- CM.memoize(r.invoke[Int]("size"));
       i <- CM.newLocal[Int];
       ri = r.invoke[Int, AnyRef]("apply", i);
