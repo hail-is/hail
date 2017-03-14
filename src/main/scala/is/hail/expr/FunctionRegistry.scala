@@ -1818,11 +1818,13 @@ object FunctionRegistry {
   }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
     { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
       is <- f(x);
-      (stn, n) <- CM.memoize(is.invoke[Int]("size"));
+      (str, r) <- CM.memoize(is);
+      (stn, n) <- CM.memoize(r.invoke[Int]("size"));
       i <- CM.newLocal[Int];
-      ri = is.invoke[Int, AnyRef]("apply", i);
+      ri = r.invoke[Int, AnyRef]("apply", i);
       invokek <- k(ri)
     ) yield Code(
+      str,
       stn,
       i.store(0),
       Code.whileLoop(i < n,
