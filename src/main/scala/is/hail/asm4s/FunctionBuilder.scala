@@ -1,4 +1,4 @@
-package is.hail.asm4s
+npackage is.hail.asm4s
 
 import java.util
 import java.io._
@@ -10,6 +10,7 @@ import java.util
 
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 import org.objectweb.asm.{ClassReader, ClassWriter, Type}
+import org.slf4j.Logger
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -28,9 +29,20 @@ object FunctionBuilder {
     val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(out))
     new ClassReader(bytes).accept(tcv, 0)
   }
+
+  val logger = Logger(classOf[FunctionBuilder])
+
+  def writeBytesToLog(bytes: Array[Byte]) = {
+    // XXX: This would be more efficient with a custom implementation of OutputStream
+    val sw = new StringWriter()
+    bytesToBytecodeString(bytes, new PrintWriter(sw))
+    logger.info(sw.toString())
+  }
+
 }
 
 abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnTypeInfo: TypeInfo[R],
+
   packageName: String = "is/hail/codegen/generated") {
 
   import FunctionBuilder._
