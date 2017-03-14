@@ -189,12 +189,11 @@ object CM {
     Code(st, opt.invoke[Boolean]("isEmpty").mux(Code._null[U], out))
 
   def mapIS[T, U](ca: Code[IndexedSeq[T]], f: Code[T] => CM[Code[U]])(implicit tct: ClassTag[T], tti: TypeInfo[T], atct: ClassTag[Array[T]], uct: ClassTag[U], uti: TypeInfo[U], auti: TypeInfo[Array[U]]): CM[Code[IndexedSeq[U]]] = for (
-    (sta, _a) <- CM.memoize(ca);
-    a = Code.checkcast[scala.collection.SeqLike[T, IndexedSeq[T]]](_a);
-    (stn, n) <- CM.memoize(Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], Int]("size", Array()).invoke(a, Array()));
+    (sta, a) <- CM.memoize(ca);
+    (stn, n) <- CM.memoize(a.invoke[Int]("size"));
     (stb, b) <- CM.memoize(Code.newArray[U](n));
     i <- CM.newLocal[Int];
-    oldElement = Invokeable.lookupMethod[scala.collection.SeqLike[T, IndexedSeq[T]], T]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke((a), Array(i));
+    oldElement = a.invoke[Int, T]("apply", i);
     newElement <- f(oldElement)
   ) yield Code(
     i.store(0),
