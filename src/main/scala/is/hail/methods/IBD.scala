@@ -10,6 +10,7 @@ import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
+import is.hail.utils._
 
 import scala.language.higherKinds
 
@@ -261,6 +262,7 @@ object IBD {
       .map { case ((i, j), ibd) => ((sampleIds(i), sampleIds(j)), ibd) }
   }
 
+
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString), ("j", TString)).merge(ExtendedIBDInfo.signature)
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((String, String), ExtendedIBDInfo)]): KeyTable = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation) }
@@ -281,9 +283,30 @@ object IBD {
 
       if (maf < 0.0 || maf > 1.0)
         fatal(s"The minor allele frequency expression for $v evaluated to $maf which is not in [0,1].")
-
       maf
     }
   }
 
+}
+
+object IBDPrune {
+  def apply(vds: VariantDataset,
+    threshold: Double,
+    computeMaf: Option[(Variant, Annotation) => Double] = None,
+    bounded: Boolean = true): VariantDataset = {
+
+    val sampleIDs: IndexedSeq[String] = vds.sampleIds
+
+    val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
+      .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
+
+    info("Performing IBD Prune")
+
+    val setToKeep: Set[String] = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size)
+      .map(id =>sampleIDs(id.toInt))
+
+    info("Pruning Complete")
+
+    vds.filterSamples((id, _) => setToKeep.contains(id))
+  }
 }

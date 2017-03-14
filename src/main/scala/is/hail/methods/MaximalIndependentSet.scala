@@ -1,18 +1,14 @@
 package is.hail.methods
 
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.graphx._
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object MaximalIndependentSet {
 
   def apply[VD: ClassTag, ED: ClassTag](g: Graph[VD, ED], undirected: Boolean = false): Set[Long] = {
-    // Initially set each vertex to its own degree.
-    // Start a pregel run, everyone passing a (degree, ID) pair.
-    //  -On message reception, if current degree is greater than received degree, update status to to reflect this, alert neighbors
-    //  -If current degree < received degree, status does not change, don't bother sending alert.
 
     type Message = (Int, VertexId)
     val pairOrd = implicitly[Ordering[Message]]
@@ -40,42 +36,45 @@ object MaximalIndependentSet {
       Graph(toBeComputed.vertices.leftZipJoin(toBeComputed.degrees) { (v, _, degree) => (degree.getOrElse(0), v) }, toBeComputed.edges)
     }
 
-    var graph = updateVertexDegrees(g)
     val edgeDirection = if (undirected) EdgeDirection.Either else EdgeDirection.Out
 
-    while(graph.numEdges > 0) {
-      graph = graph.pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
-      graph = graph.subgraph(_ => true, (id, value) => value match { case (maxDegrees, maxID) => maxID != id || maxDegrees == 0})
-      graph = updateVertexDegrees(graph)
+    var idSetToDelete = mutable.Set[VertexId]()
+
+    g.persist()
+    var workingGraph = g
+
+    while (workingGraph.numEdges > 0) {
+      idSetToDelete ++= updateVertexDegrees(workingGraph)
+          .pregel(initialMsg, Int.MaxValue, edgeDirection)(receiveMessage, sendMsg, mergeMsg)
+          .vertices
+          .filter{ case (id, (maxDegrees, maxID)) => maxID == id && maxDegrees != 0}
+          .map(_._1)
+          .collect()
+          .toSet
+      workingGraph.unpersist()
+      workingGraph = g.subgraph(_ => true, (id, value) => !idSetToDelete.contains(id))
+      workingGraph.persist()
     }
-    graph.vertices.keys.collect().toSet
+
+    val survivors = workingGraph.vertices.keys.collect().toSet
+    g.unpersist()
+    workingGraph.unpersist()
+
+    survivors
   }
 
 
-  def ofIBDMatrix(sc: SparkContext, inputRDD: RDD[((String, String), Double)], thresh: Double): Set[String] = {
-    //Filter RDD to remove edges above threshold
-    val filteredRDD = inputRDD.filter(_._2 <= thresh)
+  def ofIBDMatrix(inputRDD: RDD[((Int, Int), Double)], thresh: Double, vertexIDs: Seq[Int]): Set[Long] = {
+    val sc = inputRDD.sparkContext
 
-    //Throw away weights
-    val vertexPairs = inputRDD.keys
+    val filteredRDD = inputRDD.filter(_._2 >= thresh)
 
-    //Collect all vertices.
-    val allVertices = vertexPairs.flatMap[String]{case (v1, v2) => List(v1, v2)}.distinct()
+    val edges: RDD[Edge[Double]] = filteredRDD.map{ case ((v1, v2), weight) => Edge(v1, v2, weight)}
 
-    val numberedVertices: RDD[(String, VertexId)] = allVertices.zipWithIndex()
+    val vertices: RDD[(VertexId, Null)] = sc.parallelize(vertexIDs).map(id => (id, null))
 
-    val verticesToNumbers = numberedVertices.collectAsMap()
-    val numbersToVertices = numberedVertices.map{case (name, id) => (id, name)}.collectAsMap()
+    val graph: Graph[Null, Double] = Graph(vertices, edges)
 
-
-    val edges: RDD[Edge[Double]] = filteredRDD.map{case((v1, v2), weight) => Edge(verticesToNumbers(v1), verticesToNumbers(v2), weight)}
-
-    val vertices: VertexRDD[String] = VertexRDD[String](numberedVertices.map{ case (id, index) => (index, id)})
-
-    val stringGraph: Graph[String, Double] = Graph(vertices, edges)
-
-    val mis = apply(stringGraph, true)
-
-    mis.map(numbersToVertices(_))
+    apply(graph, undirected = true)
   }
 }

@@ -2072,6 +2072,34 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
+    def ibd_prune(self, threshold, maf = None, bounded = True):
+        """
+        Prune dataset based on PI_HAT values of IBD computation.
+
+        **Examples**
+
+        Prune down to dataset such that no two samples have a PI_HAT value greater than or equal to .4
+
+        >>> vds.ibd_prune(.4)
+
+        **Notes**
+
+        As this is still being actively developed, the dataset returned by this function may change in near future
+        as a result of algorithmic improvements. As it currently stands, this algorithm will work very well on
+        tons of small families, but be rather slow on fewer but larger families.
+
+
+        :param threshold: The desired maximum PI_HAT value between any pair of samples.
+        :param maf: Expression for the minor allele frequency.
+        :param bounded: Forces the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically meaningful values (in the range [0,1]).
+
+        :return: A :py:class:`.VariantDataset` containing no samples with a PI_HAT greater than threshold.
+        :rtype: :py:class:`.VariantDataset`
+        """
+        return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(maf), bounded))
+
+
+    @handle_py4j
     def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
