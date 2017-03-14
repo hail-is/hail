@@ -10,7 +10,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinearBurden.vcf")
       .filterMulti()
-      .annotateVariantsIntervals("/Users/jbloom/data/burden/genes.interval_list", "va.gene", all=true)
+      .annotateVariantsIntervals("src/test/resources/regressionLinearBurden.interval_list", "va.gene", all=true)
       .filterVariantsExpr("! va.gene.isEmpty()")
       .annotateVariantsExpr("va.weight = v.start / 50.0")
       .variantQC()
