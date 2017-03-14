@@ -3,6 +3,8 @@ package is.hail.asm4s
 import java.util
 import java.io._
 
+import org.apache.commons.io.output.TeeOutputStream
+
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.{ClassWriter, Type}
@@ -10,12 +12,20 @@ import java.util
 
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 import org.objectweb.asm.{ClassReader, ClassWriter, Type}
+import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.event.Level
 
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
+import is.hail.utils.LoggerOutputStream
+
 object FunctionBuilder {
+  val logger = LoggerFactory.getLogger(classOf[FunctionBuilder[AnyRef]])
+  val loggerErrorOS = new LoggerOutputStream(logger, Level.ERROR)
+  val stderrAndLoggerErrorOS = new TeeOutputStream(loggerErrorOS, System.err)
+
   var count = 0
 
   def newUniqueID(): Int = {
@@ -23,6 +33,12 @@ object FunctionBuilder {
     count += 1
     id
   }
+
+  def bytesToBytecodeString(bytes: Array[Byte], out: OutputStream) {
+    val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(out))
+    new ClassReader(bytes).accept(tcv, 0)
+  }
+
 }
 
 abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnTypeInfo: TypeInfo[R],
@@ -162,15 +178,22 @@ class Function0Builder[R >: Null](implicit rti: TypeInfo[R]) extends FunctionBui
     new Function0[R] with java.io.Serializable {
       @transient @volatile private var f: () => Any = null
       def apply(): R = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[() => Any]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[() => Any]
+              }
             }
           }
-        }
 
-        f().asInstanceOf[R]
+          f().asInstanceOf[R]
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -188,15 +211,22 @@ class FunctionToIBuilder(implicit rti: TypeInfo[Int]) extends FunctionBuilder[In
     new Function0[Int] with java.io.Serializable {
       @transient @volatile private var f: ToI = null
       def apply(): Int = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[ToI]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[ToI]
+              }
             }
           }
-        }
 
-        f()
+          f()
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -216,15 +246,22 @@ class Function1Builder[A >: Null, R >: Null](implicit act: ClassTag[A], ati: Typ
     new Function1[A, R] with java.io.Serializable {
       @transient @volatile private var f: (Any) => Any = null
       def apply(a: A): R = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[(Any) => Any]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[(Any) => Any]
+              }
             }
           }
-        }
 
-        f(a).asInstanceOf[R]
+          f(a).asInstanceOf[R]
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -245,15 +282,22 @@ class FunctionZToZBuilder(implicit zct: ClassTag[Boolean], zti: TypeInfo[Boolean
     new Function1[Boolean, Boolean] with java.io.Serializable {
       @transient @volatile private var f: ZToZ = null
       def apply(a: Boolean): Boolean = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[ZToZ]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[ZToZ]
+              }
             }
           }
-        }
 
-        f(a)
+          f(a)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -274,15 +318,22 @@ class FunctionZToIBuilder(implicit act: ClassTag[Boolean], ati: TypeInfo[Boolean
     new Function1[Boolean, Int] with java.io.Serializable {
       @transient @volatile private var f: ZToI = null
       def apply(a: Boolean): Int = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[ZToI]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[ZToI]
+              }
             }
           }
-        }
 
-        f(a)
+          f(a)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -303,15 +354,22 @@ class FunctionIToIBuilder(implicit act: ClassTag[Int], ati: TypeInfo[Int],
     new Function1[Int, Int] with java.io.Serializable {
       @transient @volatile private var f: IToI = null
       def apply(a: Int): Int = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[IToI]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[IToI]
+              }
             }
           }
-        }
 
-        f(a)
+          f(a)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -333,15 +391,22 @@ class FunctionAToIBuilder[A](implicit act: ClassTag[A], ati: TypeInfo[A],
     new Function1[A, Int] with java.io.Serializable {
       @transient @volatile private var f: AToI[A] = null
       def apply(a: A): Int = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[AToI[A]]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[AToI[A]]
+              }
             }
           }
-        }
 
-        f(a)
+          f(a)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -364,15 +429,22 @@ class Function2Builder[A1 >: Null, A2 >: Null, R >: Null]
     new Function2[A1, A2, R] with java.io.Serializable {
       @transient @volatile private var f: (Any, Any) => Any = null
       def apply(a1: A1, a2: A2): R = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[(Any, Any) => Any]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[(Any, Any) => Any]
+              }
             }
           }
-        }
 
-        f(a1, a2).asInstanceOf[R]
+          f(a1, a2).asInstanceOf[R]
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -395,15 +467,22 @@ class FunctionIAndIToIBuilder(implicit ict: ClassTag[Int], iti: TypeInfo[Int])
     new Function2[Int, Int, Int] with java.io.Serializable {
       @transient @volatile private var f: IAndIToI = null
       def apply(a1: Int, a2: Int): Int = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[IAndIToI]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[IAndIToI]
+              }
             }
           }
-        }
 
-        f(a1, a2)
+          f(a1, a2)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -426,15 +505,22 @@ class FunctionIAndIToZBuilder(implicit ict: ClassTag[Int], iti: TypeInfo[Int], r
     new Function2[Int, Int, Boolean] with java.io.Serializable {
       @transient @volatile private var f: IAndIToZ = null
       def apply(a1: Int, a2: Int): Boolean = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[IAndIToZ]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[IAndIToZ]
+              }
             }
           }
-        }
 
-        f(a1, a2)
+          f(a1, a2)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
@@ -457,15 +543,22 @@ class FunctionDAndDToZBuilder(implicit ict: ClassTag[Double], iti: TypeInfo[Doub
     new Function2[Double, Double, Boolean] with java.io.Serializable {
       @transient @volatile private var f: DAndDToZ = null
       def apply(a1: Double, a2: Double): Boolean = {
-        if (f == null) {
-          this.synchronized {
-            if (f == null) {
-              f = loadClass(localName, bytes).newInstance().asInstanceOf[DAndDToZ]
+        try {
+          if (f == null) {
+            this.synchronized {
+              if (f == null) {
+                f = loadClass(localName, bytes).newInstance().asInstanceOf[DAndDToZ]
+              }
             }
           }
-        }
 
-        f(a1, a2)
+          f(a1, a2)
+        } catch {
+          case e @ (_ : Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
       }
     }
   }
