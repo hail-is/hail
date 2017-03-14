@@ -775,10 +775,7 @@ object FunctionRegistry {
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
 
-  register("Variant", { (x: String) =>
-    val Array(chr, pos, ref, alts) = x.split(":")
-    Variant(chr, pos.toInt, ref, alts.split(","))
-  },
+  register("Variant", { (x: String) => Variant.parse(x) },
     """
     Construct a :ref:`variant` object.
     
