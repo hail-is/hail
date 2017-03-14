@@ -143,7 +143,7 @@ Then set the following environment variables::
 
     $ export SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2
     $ export HAIL_HOME=/path/to/hail
-    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip"
+    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip"
 
 Create an interactive Python shell by running the following (note ``pyspark2`` is the CDH
 version of Spark 2's ``pyspark``).
