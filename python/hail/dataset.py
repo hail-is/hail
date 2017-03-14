@@ -1906,8 +1906,6 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-
-
         if isinstance(intervals, Interval):
             intervals = IntervalTree([intervals])
         elif not isinstance(intervals, IntervalTree):
