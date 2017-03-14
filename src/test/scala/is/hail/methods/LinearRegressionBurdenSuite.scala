@@ -8,9 +8,8 @@ import org.testng.annotations.Test
 class LinearRegressionBurdenSuite extends SparkSuite {
   @Test def test() {
 
-    hc.baldingNicholsModel(3, 10, 50, popDist = Some(Array(0.2, 0.3, 0.5)), fst = Some(Array(.05, .09, .11))).exportVCF("src/test/resources/regressionLinearBurden.vcf")
-
-    val vds = hc.baldingNicholsModel(3, 10, 50, popDist = Some(Array(0.2, 0.3, 0.5)), fst = Some(Array(.05, .09, .11)))
+    val vds = hc.importVCF("src/test/resources/regressionLinearBurden.vcf")
+      .filterMulti()
       .annotateVariantsIntervals("/Users/jbloom/data/burden/genes.interval_list", "va.gene", all=true)
       .filterVariantsExpr("! va.gene.isEmpty()")
       .annotateVariantsExpr("va.weight = v.start / 50.0")

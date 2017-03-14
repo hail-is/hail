@@ -1,0 +1,57 @@
+##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	0	1	2	3	4	5	6	7	8	9
+1	1	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/1
+1	2	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	1/1	0/1	0/1	0/1	0/1	0/1	0/1	0/1	0/1
+1	3	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	1/1	1/1	1/1	1/1	0/1	1/1	0/1
+1	4	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/1	0/1	0/1	0/1	0/1	1/1	0/1	0/1	0/1
+1	5	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/1	0/1	0/1	0/0	0/0	1/1	0/0	0/0	0/1
+1	6	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/1	0/0	0/0	1/1	1/1	0/0	1/1	0/1	0/0
+1	7	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	1/1	1/1	0/1	1/1	1/1	1/1	0/1	0/1	0/0
+1	8	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/1	0/1	0/1	0/0	0/1	1/1	0/0	0/0	0/1
+1	9	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/0	0/1	1/1	1/1	0/1	0/1	0/1	0/1	0/1
+1	10	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	1/1	0/1	0/1	0/1	1/1	0/1	0/1	0/0	0/1
+1	11	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/0	0/1	0/0	0/1	0/0	0/1	0/1	0/1	0/0
+1	12	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	0/1	0/0	1/1	0/1	0/1	0/1	0/0	0/0	0/1
+1	13	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	1/1	1/1	1/1	1/1	0/1	1/1	1/1
+1	14	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/0	0/1	0/0	0/1	0/0	0/1	0/0	0/0	0/0
+1	15	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/1	0/1	0/1	0/1	0/1	0/1	0/0	0/0	0/1
+1	16	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	0/1	0/1	1/1	0/0	1/1	0/1	0/1	1/1	1/1
+1	17	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	0/1	1/1	1/1	0/0	1/1	1/1	1/1
+1	18	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	0/1	1/1	1/1	0/0	1/1	1/1	1/1	0/1
+1	19	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	0/0	0/1	0/1	0/1	1/1	0/1	0/0
+1	20	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/1	1/1	0/0	0/0	0/1	0/1	0/1	0/0	0/1
+1	21	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/1	0/1	0/1	1/1	0/0	0/1	1/1	0/1	1/1
+1	22	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	0/1	1/1	1/1	0/0	1/1	0/1	1/1
+1	23	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/0	1/1	0/1	0/0	0/1	1/1	1/1	0/0	0/1
+1	24	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/1	1/1	1/1	1/1	0/0	1/1	0/1	0/1	0/1
+1	25	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	0/1	1/1	1/1	0/1	0/1	1/1	0/0	1/1
+1	26	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/1	1/1	0/0	1/1	0/0	1/1	1/1	1/1	0/0
+1	27	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/1	0/1	0/1	0/0	0/1	0/0	0/0	1/1	0/0
+1	28	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/1	0/0	0/0	0/0	0/0	1/1	0/1	0/0	0/0
+1	29	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/0	1/1	0/0	1/1	0/1	1/1	0/0	1/1	1/1
+1	30	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	0/1	0/0	0/1	0/0	1/1	1/1	1/1
+1	31	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/1	0/1	0/0	0/0	0/1	0/0	0/0	0/0	0/0
+1	32	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0
+1	33	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	1/1	1/1	1/1	1/1	0/1	1/1	1/1
+1	34	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	0/0	1/1	0/1	0/1	0/0	0/1	0/1	1/1
+1	35	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	1/1	0/1	0/1	0/1	0/0	0/1	0/1	1/1	0/1
+1	36	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/0	1/1	0/0	0/1	0/0	0/0	0/1	0/0	0/0
+1	37	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/0	1/1	0/1	1/1	0/0	0/1	0/1	0/1	0/1
+1	38	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	1/1	0/0	1/1	0/0	1/1	1/1	0/1	0/1	1/1
+1	39	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	1/1	0/1	1/1	0/1	1/1	0/1	1/1	0/1	1/1
+1	40	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1
+1	41	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/1	0/0	1/1	1/1	0/0	0/0	0/1	0/0	0/1
+1	42	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	1/1	1/1	0/1	1/1	0/1	1/1	0/1	1/1	0/1
+1	43	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/1	0/1	0/0	0/1	0/1	0/1	0/0	0/0	0/1
+1	44	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	0/0	1/1	0/1	0/0	1/1	0/0	0/1	1/1	1/1
+1	45	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1	1/1
+1	46	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/0	0/0	0/0	0/1	0/0	0/1	0/1	0/1	0/0
+1	47	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/0	0/1	0/1	0/0	0/0	0/1	1/1	0/1	1/1	0/0
+1	48	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	0/1	1/1	1/1	0/0	1/1	0/0	1/1	0/1	0/1
+1	49	.	A	C	.	.	.	GT:AD:DP:GQ:PL	0/1	1/1	1/1	1/1	1/1	1/1	1/1	0/1	1/1	0/1
+1	50	.	A	C	.	.	.	GT:AD:DP:GQ:PL	1/1	0/0	1/1	1/1	0/1	1/1	1/1	1/1	0/1	1/1
