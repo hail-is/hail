@@ -9,33 +9,29 @@ import is.hail.variant.GenotypeType.GenotypeType
 object Call extends Serializable {
 
   def apply(call: java.lang.Integer): Call = {
-    require(call == null || call >= 0, s"Call must be null or >= 0. Found ${call}.")
+    require(call == null || call >= 0, s"Call must be null or >= 0. Found ${ call }.")
     call
   }
 
-  def toGenotype(call: Call): Genotype = {
-    val gtx: Int = if (call == null) -1 else call
-    Genotype(gtx)
-  }
+  def toGenotype(call: Call): Genotype = Genotype(call)
 
   def check(call: java.lang.Integer, nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
-    assert(gt(call).forall(i => i >= 0 && i < nGenotypes))
+    assert(call == null || (call >= 0 && call < nGenotypes))
   }
 
   def genArb: Gen[Call] =
     for (v <- Variant.gen;
       nAlleles = v.nAlleles;
       nGenotypes = triangle(nAlleles);
-      call <- Gen.choose(0, nGenotypes - 1)
+      callOption <- Gen.option(Gen.choose(0, nGenotypes - 1));
+      call = callOption.map(_.asInstanceOf[java.lang.Integer]).orNull
     ) yield {
       check(call, nAlleles)
       call
     }
 
-  def gt(call: Call): Option[Int] = Option(call)
-
-  def isHomRef(call: Call): Boolean = call == 0
+  def isHomRef(call: Call): Boolean = isCalled(call) && call == 0
 
   def isHet(call: Call): Boolean = isCalled(call) && call > 0 && {
     val p = Genotype.gtPair(call)
@@ -75,18 +71,26 @@ object Call extends Serializable {
       GenotypeType.NoCall
     }
 
-  def hasNNonRefAlleles(call: Call): Boolean = call != null
-
-  def nNonRefAlleles_(call: Call): Int = Genotype.gtPair(call).nNonRefAlleles
-
-  def nNonRefAlleles(call: Call): Option[Int] =
-    if (hasNNonRefAlleles(call))
-      Some(nNonRefAlleles_(call))
+  def gtj(call: Call): java.lang.Integer =
+    if (call == null)
+      null
     else
-      None
+      box(Genotype.gtPair(call).j)
 
-  def oneHotAlleles(call: Call, nAlleles: Int): Option[IndexedSeq[Int]] = {
-    gt(call).map { call =>
+  def gtk(call: Call): java.lang.Integer =
+    if (call == null)
+      null
+    else
+      box(Genotype.gtPair(call).k)
+
+  def nNonRefAlleles(call: Call): java.lang.Integer =
+    if (isCalled(call))
+      Genotype.gtPair(call).nNonRefAlleles
+    else
+      null
+
+  def oneHotAlleles(call: Call, nAlleles: Int): IndexedSeq[Int] = {
+    if (isCalled(call)) {
       val gtPair = Genotype.gtPair(call)
       val j = gtPair.j
       val k = gtPair.k
@@ -104,11 +108,11 @@ object Call extends Serializable {
           r
         }
       }
-    }
+    } else null
   }
 
-  def oneHotGenotype(call: Call, nGenotypes: Int): Option[IndexedSeq[Int]] = {
-    gt(call).map { call =>
+  def oneHotGenotype(call: Call, nGenotypes: Int): IndexedSeq[Int] = {
+    if (isCalled(call)) {
       new IndexedSeq[Int] with Serializable {
         def length: Int = nGenotypes
 
@@ -121,10 +125,10 @@ object Call extends Serializable {
             0
         }
       }
-    }
+    } else null
   }
 
-  def oneHotAlleles(call: Call, v: Variant): Option[IndexedSeq[Int]] = oneHotAlleles(call, v.nAlleles)
+  def oneHotAlleles(call: Call, v: Variant): IndexedSeq[Int] = oneHotAlleles(call, v.nAlleles)
 
-  def oneHotGenotype(call: Call, v: Variant): Option[IndexedSeq[Int]] = oneHotGenotype(call, v.nGenotypes)
+  def oneHotGenotype(call: Call, v: Variant): IndexedSeq[Int] = oneHotGenotype(call, v.nGenotypes)
 }
