@@ -261,7 +261,7 @@ object GenericRecordReader {
   }
 }
 
-case class GenericRecordReader(callFields: Option[Set[String]]) extends HtsjdkRecordReader[Annotation] {
+case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordReader[Annotation] {
   def genericGenotypes = true
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],

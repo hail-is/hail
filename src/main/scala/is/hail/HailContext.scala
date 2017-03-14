@@ -512,7 +512,7 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     sitesOnly: Boolean = false,
-    callFields: Option[Set[String]] = None): GenericDataset = {
+    callFields: Set[String] = Set.empty[String]): GenericDataset = {
     importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, sitesOnly, callFields)
   }
 
@@ -521,7 +521,7 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     sitesOnly: Boolean = false,
-    callFields: Option[Set[String]] = None): GenericDataset = {
+    callFields: Set[String] = Set.empty[String]): GenericDataset = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 

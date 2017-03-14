@@ -179,7 +179,7 @@ class ImportVCFSuite extends SparkSuite {
 
     val path2 = tmpDir.createTempFile(extension = ".vds")
     val vcf2 = "src/test/resources/generic.vcf"
-    val gds2 = hc.importVCFGeneric(vcf2, callFields = Option(Set("GT", "GTA", "GTZ")))
+    val gds2 = hc.importVCFGeneric(vcf2, callFields = Set("GT", "GTA", "GTZ"))
     gds2.write(path2)
 
     val v1 = Variant("X", 16050036, "A", "C")

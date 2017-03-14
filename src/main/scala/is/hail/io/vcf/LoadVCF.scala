@@ -157,9 +157,9 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int, genericGenotypes: Boolean = false , callFields: Option[Set[String]] = None): Field = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int, genericGenotypes: Boolean = false , callFields: Set[String] = Set.empty[String]): Field = {
     val id = line.getID
-    val isCall = genericGenotypes && (id == "GT" || callFields.exists(_.contains(id)))
+    val isCall = genericGenotypes && (id == "GT" || callFields.contains(id))
 
     val baseType = (line.getType, isCall) match {
       case (VCFHeaderLineType.Integer, false) => TInt
@@ -184,7 +184,7 @@ object LoadVCF {
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    genericGenotypes: Boolean = false, callFields: Option[Set[String]] = None): Option[TStruct] = {
+    genericGenotypes: Boolean = false, callFields: Set[String] = Set.empty[String]): Option[TStruct] = {
     if (lines.size > 0)
       Some(TStruct(lines
         .zipWithIndex
