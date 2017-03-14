@@ -793,26 +793,25 @@ object FunctionRegistry {
       if (longer.ref.substring(0, shorter.ref.length) != shorter.ref)
         fatal(s"Variants ref bases mismatch in combineVariants. Left ref: ${ left.ref }, right ref: ${ right.ref }")
 
+      val long_alleles_index = longer.altAlleles.map(_.alt).zipWithIndex.toMap
       val short_alleles_index = mutable.Map[Int, Int](0 -> 0)
       val short_alleles = new mutable.ArrayBuffer[AltAllele](initialSize = shorter.nAltAlleles)
 
-      Range(0, shorter.nAltAlleles).foreach({
+      (0 until shorter.nAltAlleles).foreach({
         i =>
           val alt = shorter.altAlleles(i).alt + ref_diff
-          val new_index = longer.altAlleles.indexWhere(_.alt == alt)
-          if (new_index < 0) {
-            short_alleles += AltAllele(longer.ref, alt)
-            short_alleles_index(longer.nAltAlleles + short_alleles.length) = i + 1
+          long_alleles_index.get(alt) match{
+            case Some(ai) => short_alleles_index(ai + 1) = i + 1
+            case None => short_alleles += AltAllele(longer.ref, alt)
+              short_alleles_index(longer.nAltAlleles + short_alleles.length) = i + 1
           }
-          else
-            short_alleles_index(new_index + 1) = i + 1
       })
 
       val newVariant = longer.copy(altAlleles = longer.altAlleles ++ short_alleles)
       if (swapped)
-        Annotation(newVariant, short_alleles_index.toMap, Range(0, longer.nAltAlleles + 1).zipWithIndex.toMap)
+        Annotation(newVariant, short_alleles_index.toMap, (0 to longer.nAltAlleles).zipWithIndex.toMap)
       else
-        Annotation(newVariant, Range(0, longer.nAltAlleles + 1).zipWithIndex.toMap, short_alleles_index.toMap)
+        Annotation(newVariant, (0 to longer.nAltAlleles).zipWithIndex.toMap, short_alleles_index.toMap)
     },
     """
     Combines the alleles of two variants at the same locus, making sure that ref and alt alleles are represented uniformely.
