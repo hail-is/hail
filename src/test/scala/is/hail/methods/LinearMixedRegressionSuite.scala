@@ -300,4 +300,20 @@ class LinearMixedRegressionSuite extends SparkSuite {
     assert(D_==(h2Chr1, 0.36733239840887433))
     assert(D_==(h2Chr3, 0.14276116822096985))
   }
+
+  @Test def pythonTest() {
+
+    var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .filterMulti()
+      .annotateSamplesTable("src/test/resources/regressionLinear.cov", "Sample", root = Some("sa.cov"), config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
+      .annotateSamplesTable("src/test/resources/regressionLinear.pheno", "Sample", code = Some("sa.pheno.Pheno = table.Pheno"), config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
+      .annotateSamplesExpr("""sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]""")
+      .annotateSamplesExpr("sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit")
+
+    val vdsKinship = vdsAssoc.filterVariantsExpr("v.start < 4")
+
+    vdsAssoc = vdsAssoc.lmmreg(vdsKinship, "sa.pheno.PhenoLMM", Array("sa.cov.Cov1", "sa.cov.Cov2"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
+
+    vdsAssoc.count()
+  }
 }

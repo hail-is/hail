@@ -79,7 +79,7 @@ object LinearMixedRegression {
 
     info(s"lmmreg: Computing RRM for $n samples...")
 
-    val (rrm, m) = ComputeRRM(kinshipVds, useBlock)
+    val (rrm, m) = ComputeRRM(filtKinshipVds, useBlock)
 
     info(s"lmmreg: RRM computed using $m variants")
     info(s"lmmreg: Computing eigenvectors of RRM...")
@@ -87,6 +87,9 @@ object LinearMixedRegression {
     val eigK = eigSymD(rrm)
     val Ut = eigK.eigenvectors.t
     val S = eigK.eigenvalues // increasing order
+
+    println(n, S.length)
+    println(S)
 
     assert(S.length == n)
 

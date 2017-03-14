@@ -215,7 +215,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(sample2.join(sample2.rename_samples(m2))
                          .count()['nSamples'], 200)
 
-        linreg = (hc.import_vcf(test_resources + '/regressionLinear.vcf')
+        regression = (hc.import_vcf(test_resources + '/regressionLinear.vcf')
                   .split_multi()
                   .annotate_samples_table(test_resources + '/regressionLinear.cov',
                                           'Sample',
@@ -230,24 +230,20 @@ class ContextTests(unittest.TestCase):
                                           code='sa.pheno.isCase = table.isCase',
                                           config=TextTableConfig(types='isCase: Boolean', missing='0')))
 
-        (linreg.linreg('sa.pheno.Pheno', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (regression.linreg('sa.pheno.Pheno', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
-        (linreg.logreg('wald', 'sa.pheno.isCase', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
+        (regression.logreg('wald', 'sa.pheno.isCase', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
 
-        vds_assoc = (hc.import_vcf(test_resources + '/sample.vcf')
-                     .split_multi()
-                     .variant_qc()
+        vds_assoc = (regression
                      .annotate_samples_expr(
-            'sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
-                     .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
-                     .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
-                     .annotate_samples_expr('sa.cov2 = rnorm(0,1)'))
+            'sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]')
+                     .annotate_samples_expr('sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit'))
 
-        vds_kinship = vds_assoc.filter_variants_expr('va.qc.AF > .05')
+        vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
 
-        vds_assoc = vds_assoc.lmmreg(vds_kinship, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
+        vds_assoc = vds_assoc.lmmreg(vds_kinship, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
         vds_assoc.export_variants('/tmp/lmmreg.tsv', 'Variant = v, va.lmmreg.*')
 
