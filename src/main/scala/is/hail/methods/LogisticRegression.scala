@@ -13,6 +13,7 @@ import scala.collection.mutable
 object LogisticRegression {
 
   def apply(vds: VariantDataset, test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
+    require(vds.wasSplit)
 
     def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
 
@@ -61,7 +62,7 @@ object LogisticRegression {
       val X = XBc.value.copy
       it.map { case (v, (va, gs)) =>
         val logregAnnot =
-          if (RegressionUtils.mutateLastColumnToMaskedGts(X, gs.hardCallIterator, sampleMaskBc.value))
+          if (RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallIterator, sampleMaskBc.value))
             logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
           else
             null

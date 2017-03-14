@@ -68,7 +68,8 @@ object RegressionUtils {
     (y, cov, completeSamples)
   }
 
-  def mutateLastColumnToMaskedGts(X: DenseMatrix[Double], gts: IntIterator, mask: Array[Boolean]): Boolean = {
+  // requires bi-allelic
+  def setLastColumnToMaskedGts(X: DenseMatrix[Double], gts: IntIterator, mask: Array[Boolean]): Boolean = {
     require(X.offset == 0 && X.majorStride == X.rows && !X.isTranspose)
 
     val n = X.rows
@@ -79,12 +80,12 @@ object RegressionUtils {
     var gtSum = 0
     while (i < mask.length) {
       val gt = gts.nextInt()
-      if (mask(i) && gt != -1) {
-        gtSum += gt
-        X.data(j) = gt.toDouble
-        j += 1
-      } else if (mask(i)) {
-        missingIndices += j
+      if (mask(i)) {
+        if (gt != -1) {
+          gtSum += gt
+          X.data(j) = gt.toDouble
+        } else
+          missingIndices += j
         j += 1
       }
       i += 1
@@ -105,6 +106,7 @@ object RegressionUtils {
     !lastColumnIsConstant
   }
 
+  // requires bi-allelic
   // mean 0, norm sqrt(n), variance 1 (constant variants return None)
   def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
     val gtVals = Array.ofDim[Double](nSamples)
@@ -152,6 +154,7 @@ object RegressionUtils {
     }
   }
 
+  // requires bi-allelic
   // mean 0, norm approx. sqrt(m), variance approx. 1 (constant variants return None)
   def toHWENormalizedGtArray(gs: Iterable[Genotype], nSamples: Int, nVariants: Int): Option[Array[Double]] = {
     val gtVals = Array.ofDim[Double](nSamples)
@@ -197,7 +200,7 @@ object RegressionUtils {
   }
 }
 
-
+// requires bi-allelic
 // constructs SparseVector of genotype calls with missing values mean-imputed
 // if all genotypes are missing then all elements are NaN
 class SparseGtBuilder extends Serializable {
@@ -259,15 +262,14 @@ class SparseGtBuilder extends Serializable {
 
 case class SparseGtVectorAndStats(x: SparseVector[Double], isConstant: Boolean, af: Double, nHomRef: Int, nHet: Int, nHomVar: Int, nMissing: Int)
 
-
+// requires bi-allelic
 // constructs SparseVector of genotype calls (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
 class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
   private val missingRowIndices = new IntArrayBuilder()
   private val rowsX = new IntArrayBuilder()
   private val valsX = new DoubleArrayBuilder()
   private var row = 0
-  private var sparseLength = 0
-  // length of rowsX and valsX (ArrayBuilder has no length), used to track missingRowIndices
+  private var sparseLength = 0 // length of rowsX and valsX, used to track missingRowIndices
   private var sumX = 0
   private var sumXX = 0
   private var sumXY = 0.0

@@ -11,19 +11,17 @@ object ExportBedBimFam {
 
     val nBytes = (n + 3) / 4
     val a = Array.ofDim[Byte](nBytes)
-    var j = 0
     var b = 0
     var k = 0
     while (k < n) {
-      b |= gtMap(gts.nextInt() + 1) << (j * 2)
-      if (j == 3) {
+      b |= gtMap(gts.nextInt() + 1) << ((k & 3) * 2)
+      if ((k & 3) == 3) {
         a(k >> 2) = b.toByte
         b = 0
       }
       k += 1
-      j = k & 3
     }
-    if (j > 0)
+    if ((k & 3) > 0)
       a(nBytes - 1) = b.toByte
 
     a

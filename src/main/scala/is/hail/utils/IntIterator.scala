@@ -1,14 +1,12 @@
 package is.hail.utils
 
-import scala.collection.mutable
-
 abstract class IntIterator {
   def nextInt(): Int
 
   def hasNext: Boolean
 
   def toArray: Array[Int] = {
-    val b = new mutable.ArrayBuilder.ofInt
+    val b = new IntArrayBuilder()
     while (hasNext)
       b += nextInt()
     b.result()
