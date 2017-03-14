@@ -14,17 +14,14 @@ object ExportBedBimFam {
     var j = 0
     var b = 0
     var k = 0
-    var k4 = 0
     while (k < n) {
       b |= gtMap(gts.nextInt() + 1) << (j * 2)
       if (j == 3) {
-        a(k4) = b.toByte
+        a(k >> 2) = b.toByte
         b = 0
-        j = 0
-        k4 += 1
-      } else
-        j += 1
+      }
       k += 1
+      j = k & 3
     }
     if (j > 0)
       a(nBytes - 1) = b.toByte

@@ -61,7 +61,7 @@ object LogisticRegression {
       val X = XBc.value.copy
       it.map { case (v, (va, gs)) =>
         val logregAnnot =
-          if (RegressionUtils.mutateLastColumn(X, gs.hardCallIterator, sampleMaskBc.value))
+          if (RegressionUtils.mutateLastColumnToMaskedGts(X, gs.hardCallIterator, sampleMaskBc.value))
             logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
           else
             null
