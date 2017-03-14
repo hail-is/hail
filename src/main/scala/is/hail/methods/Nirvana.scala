@@ -25,7 +25,7 @@ object Nirvana {
     "filters" -> TArray(TString),
     "jointSomaticNormalQuality" -> TInt,
     "copyNumber" -> TInt,
-      //"strandBias" -> TDouble,
+    "strandBias" -> TDouble,
     "recalibratedQuality" -> TDouble,
     /*"samples" -> TArray(TStruct(
       "variantFreq" -> TDouble,
