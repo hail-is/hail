@@ -88,9 +88,6 @@ object LinearMixedRegression {
     val Ut = eigK.eigenvectors.t
     val S = eigK.eigenvalues // increasing order
 
-    println(n, S.length)
-    println(S)
-
     assert(S.length == n)
 
     info("lmmreg: 20 largest evals: " + ((n - 1) to math.max(0, n - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
