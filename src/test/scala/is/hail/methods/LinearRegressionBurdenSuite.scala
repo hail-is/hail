@@ -14,7 +14,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       .variantQC()
       .annotateSamplesTable("src/test/resources/regressionLinearBurden.cov", "Sample", root = Some("sa"), config = TextTableConfiguration(types = Map("Pheno" -> TDouble, "Cov1" -> TDouble, "Cov2" -> TDouble)))
 
-    val kt = vds.linregBurden("gene", "va.gene", "sum()", "va.weight * g.gt", "sa.Pheno", covSA = Array("sa.Cov1", "sa.Cov2"), dropSamples = false)
+    val kt = vds.linregBurden("gene", "va.gene", "sum()", "va.weight * g.gt", "sa.Pheno", covSA = Array("sa.Cov1", "sa.Cov2"), dropSamples = true)
 
     kt.toDF(hc.sqlContext).show()
   }
