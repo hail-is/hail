@@ -394,8 +394,7 @@ task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copy
 
 task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst']) {
     workingDir 'python/hail/docs'
-    commandLine 'make', 'clean', 'html', 'doctest'
-    environment SPHINXOPTS: '-t checktutorial'
+    commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
