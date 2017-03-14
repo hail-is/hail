@@ -696,7 +696,7 @@ object FunctionRegistry {
     { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) },
     "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")
   registerFieldCode("start",
-    { (x: Code[Variant]) => CM.ret(x.invoke[Int]("start")) },
+    { (x: Code[Variant]) => CM.ret(boxInt(x.invoke[Int]("start"))) },
     "SNP position or start of an indel.")
   registerFieldCode("ref",
     { (x: Code[Variant]) => CM.ret(x.invoke[String]("ref")) },
