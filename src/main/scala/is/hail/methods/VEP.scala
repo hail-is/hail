@@ -145,7 +145,7 @@ object VEP {
       "variant_allele" -> TString)),
     "variant_class" -> TString)
 
-  val consequence_indices = Set(8, 10, 11, 15)
+  val consequenceIndices = Set(8, 10, 11, 15)
 
   def printContext(w: (String) => Unit) {
     w("##fileformat=VCFv4.1")
@@ -173,8 +173,8 @@ object VEP {
       a(4).split(","))
   }
 
-  def getCSQHeaderDefinition(cmd: Array[String], perl5lib: String, path: String): String = {
-    val csq_header_regex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
+  def getCSQHeaderDefinition(cmd: Array[String], perl5lib: String, path: String): Option[String] = {
+    val csqHeaderRegex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
     val pb = new ProcessBuilder(cmd.toList.asJava)
     val env = pb.environment()
     if (perl5lib != null)
@@ -186,22 +186,22 @@ object VEP {
       printElement,
       _ => ())
 
-    val csq_header = jt.flatMap(s => csq_header_regex.findFirstMatchIn(s).map(m => m.group(1)))
+    val csqHeader = jt.flatMap(s => csqHeaderRegex.findFirstMatchIn(s).map(m => m.group(1)))
     val rc = proc.waitFor()
     if (rc != 0)
       fatal(s"vep command failed with non-zero exit status $rc")
 
-    if (csq_header.hasNext)
-      csq_header.next()
+    if (csqHeader.hasNext)
+      Some(csqHeader.next())
     else {
       warn("Could not get VEP CSQ header")
-      ""
+      None
     }
   }
 
-  def getNonStarAlleleMap(v: Variant): mutable.Map[Int, Int] = {
+  def getNonStarToOriginalAlleleIdxMap(v: Variant): mutable.Map[Int, Int] = {
     val alleleMap = mutable.Map[Int, Int]()
-    Range(0, v.nAltAlleles).foldLeft(0)({
+    (0 until v.nAltAlleles).foldLeft(0){
       case (nStar, aai) =>
         if (v.altAlleles(aai).alt == "*")
           nStar + 1
@@ -209,7 +209,7 @@ object VEP {
           alleleMap(aai - nStar + 1) = aai + 1
           nStar
         }
-    })
+    }
     alleleMap
   }
 
@@ -221,7 +221,7 @@ object VEP {
     val rootType =
       vds.vaSignature.getOption(parsedRoot)
         .filter { t =>
-          val r = t == (if (csq) TString else vepSignature)
+          val r = t == (if (csq) TArray(TString) else vepSignature)
           if (!r) {
             if (force)
               warn(s"type for $parsedRoot does not match vep signature, overwriting.")
@@ -293,12 +293,12 @@ object VEP {
 
     val inputQuery = vepSignature.query("input")
 
-    val csq_regex = "CSQ=[^;^\\t]+".r
+    val csqRegex = "CSQ=[^;^\\t]+".r
 
     val localBlockSize = blockSize
 
-    val csq_header = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path) else ""
-    val allele_num_index = if (csq) csq_header.split("\\|").indexOf("ALLELE_NUM") else -1
+    val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
+    val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
     val annotations = vds.rdd.mapValues { case (va, gs) => va }
       .mapPartitions({ it =>
@@ -320,71 +320,63 @@ object VEP {
               printElement,
               _ => ())
 
-            val original_variant = block.map({
+            val nonStarToOriginalVariant = block.map{
               v => (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
-            }).toMap
+            }.toMap
 
             val kt = jt
               .filter(s => !s.isEmpty && s(0) != '#')
-              .map { case s =>
+              .map { s =>
                 if (csq) {
                   val vvep = variantFromInput(s)
-                  if (!original_variant.contains(vvep))
+                  if (!nonStarToOriginalVariant.contains(vvep))
                     fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
 
-                  val v = original_variant(vvep)
-                  val x = csq_regex.findFirstIn(s)
+                  val v = nonStarToOriginalVariant(vvep)
+                  val x = csqRegex.findFirstIn(s)
                   x match {
                     case Some(value) =>
                       val tr_aa = value.substring(4).split(",")
-                      if (vvep != v && allele_num_index > -1) {
-                        val alleleMap = getNonStarAlleleMap(v)
-                        (v, tr_aa.map({
+                      if (vvep != v && alleleNumIndex > -1) {
+                        val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
+                        (v, tr_aa.map{
                           x =>
                             val xsplit = x.split("\\|")
-                            val allele_num = xsplit(allele_num_index)
+                            val allele_num = xsplit(alleleNumIndex)
                             if (allele_num.isEmpty)
                               x
                             else
                               xsplit
-                                .updated(allele_num_index, alleleMap.getOrElse(xsplit(allele_num_index).toInt, -1))
+                                .updated(alleleNumIndex, alleleMap.getOrElse(xsplit(alleleNumIndex).toInt,"").toString)
                                 .mkString("|")
-                        }): IndexedSeq[Annotation])
-                      }
-                      else
+                        }: IndexedSeq[Annotation])
+                      } else
                         (v, tr_aa: IndexedSeq[Annotation])
                     case None =>
                       warn(s"No VEP annotation found for variant $v. VEP returned $s.")
                       (v, IndexedSeq.empty[Annotation])
                   }
-                }
-                else {
+                } else {
                   val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
                   val vvep = variantFromInput(inputQuery(a).asInstanceOf[String])
 
-                  if (!original_variant.contains(vvep))
+                  if (!nonStarToOriginalVariant.contains(vvep))
                     fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
 
-                  val v = original_variant(vvep)
+                  val v = nonStarToOriginalVariant(vvep)
                   if (vvep != v) {
-                    val alleleMap = getNonStarAlleleMap(v)
-                    (v, Row.fromSeq(a.asInstanceOf[Row].toSeq.zipWithIndex.map({
-                      case (a, i) =>
-                        if (consequence_indices.contains(i)) {
-                          val consequences = a.asInstanceOf[IndexedSeq[Row]]
-                          if (consequences != null) {
-                            consequences.map({
-                              x => Row.fromSeq(x.toSeq.updated(0, alleleMap.getOrElse(x.getInt(0), null)))
-                            })
-                          }
-                          else
-                            null
+                    val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
+                    (v, consequenceIndices.foldLeft(a.asInstanceOf[Row]){
+                      case (r, i) =>
+                        if (r(i) == null)
+                          r
+                        else {
+                          r.update(i, r(i).asInstanceOf[IndexedSeq[Row]].map{
+                            x => x.update(0, alleleMap.getOrElse(x.getInt(0), null))
+                          })
                         }
-                        else
-                          a
-                    })))
-                  }
-                  else
+                    })
+                  } else
                     (v, a)
                 }
               }
