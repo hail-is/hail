@@ -201,7 +201,7 @@ object VEP {
 
   def getNonStarToOriginalAlleleIdxMap(v: Variant): mutable.Map[Int, Int] = {
     val alleleMap = mutable.Map[Int, Int]()
-    (0 until v.nAltAlleles).foldLeft(0){
+    (0 until v.nAltAlleles).foldLeft(0) {
       case (nStar, aai) =>
         if (v.altAlleles(aai).alt == "*")
           nStar + 1
@@ -320,7 +320,7 @@ object VEP {
               printElement,
               _ => ())
 
-            val nonStarToOriginalVariant = block.map{
+            val nonStarToOriginalVariant = block.map {
               v => (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
             }.toMap
 
@@ -339,7 +339,7 @@ object VEP {
                       val tr_aa = value.substring(4).split(",")
                       if (vvep != v && alleleNumIndex > -1) {
                         val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
-                        (v, tr_aa.map{
+                        (v, tr_aa.map {
                           x =>
                             val xsplit = x.split("\\|")
                             val allele_num = xsplit(alleleNumIndex)
@@ -347,7 +347,7 @@ object VEP {
                               x
                             else
                               xsplit
-                                .updated(alleleNumIndex, alleleMap.getOrElse(xsplit(alleleNumIndex).toInt,"").toString)
+                                .updated(alleleNumIndex, alleleMap.getOrElse(xsplit(alleleNumIndex).toInt, "").toString)
                                 .mkString("|")
                         }: IndexedSeq[Annotation])
                       } else
@@ -366,12 +366,12 @@ object VEP {
                   val v = nonStarToOriginalVariant(vvep)
                   if (vvep != v) {
                     val alleleMap = getNonStarToOriginalAlleleIdxMap(v)
-                    (v, consequenceIndices.foldLeft(a.asInstanceOf[Row]){
+                    (v, consequenceIndices.foldLeft(a.asInstanceOf[Row]) {
                       case (r, i) =>
                         if (r(i) == null)
                           r
                         else {
-                          r.update(i, r(i).asInstanceOf[IndexedSeq[Row]].map{
+                          r.update(i, r(i).asInstanceOf[IndexedSeq[Row]].map {
                             x => x.update(0, alleleMap.getOrElse(x.getInt(0), null))
                           })
                         }
