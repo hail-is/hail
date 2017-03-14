@@ -107,9 +107,31 @@ object RegressionUtils {
 
   // mean 0, norm sqrt(n), variance 1 (constant variants return None)
   def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
-    val gts = gs.hardCallIterator.toArray
-    val (nPresent, gtSum, gtSumSq) = gts.filter(_ != -1).foldLeft((0, 0, 0))((acc, gt) => (acc._1 + 1, acc._2 + gt, acc._3 + gt * gt))
-    val nMissing = nSamples - nPresent
+    val gtVals = Array.ofDim[Double](nSamples)
+    var nMissing = 0
+    var gtSum = 0
+    var gtSumSq = 0
+    val gts = gs.hardCallIterator
+
+    var i = 0
+    while (i < nSamples) {
+      val gt = gts.nextInt()
+      gtVals(i) = gt
+      (gt: @unchecked) match {
+        case 0 =>
+        case 1 =>
+          gtSum += 1
+          gtSumSq += 1
+        case 2 =>
+          gtSum += 2
+          gtSumSq += 4
+        case -1 =>
+          nMissing += 1
+      }
+      i += 1
+    }
+
+    val nPresent = nSamples - nMissing
 
     if (gtSum == 0 || gtSum == 2 * nPresent || gtSum == 2 * nPresent)
       None
@@ -118,28 +140,59 @@ object RegressionUtils {
       val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
       val gtStdDevRec = 1d / math.sqrt(gtMeanSqAll - gtMean * gtMean)
 
-      val gtVals = Array(0, (-gtMean) * gtStdDevRec, (1 - gtMean) * gtStdDevRec, (2 - gtMean) * gtStdDevRec)
+      val gtDict = Array(0, (-gtMean) * gtStdDevRec, (1 - gtMean) * gtStdDevRec, (2 - gtMean) * gtStdDevRec)
 
-      Some(gts.map(gt => gtVals(gt + 1)))
+      var j = 0
+      while (j < nSamples) {
+        gtVals(j) = gtDict(gtVals(j).toInt + 1)
+        j += 1
+      }
+
+      Some(gtVals)
     }
   }
 
   // mean 0, norm approx. sqrt(m), variance approx. 1 (constant variants return None)
   def toHWENormalizedGtArray(gs: Iterable[Genotype], nSamples: Int, nVariants: Int): Option[Array[Double]] = {
-    val gts = gs.hardCallIterator.toArray
-    val (nPresent, gtSum) = gts.filter(_ != -1).foldLeft((0, 0))((acc, gt) => (acc._1 + 1, acc._2 + gt))
-    val nMissing = nSamples - nPresent
+    val gtVals = Array.ofDim[Double](nSamples)
+    var nMissing = 0
+    var gtSum = 0
+    val gts = gs.hardCallIterator
 
-    if (gtSum == 0 || gtSum == 2 * nPresent || gtSum == nPresent && gts.forall(gt => gt == 1 || gt == -1))
+    var i = 0
+    while (i < nSamples) {
+      val gt = gts.nextInt()
+      gtVals(i) = gt
+      (gt: @unchecked) match {
+        case 0 =>
+        case 1 =>
+          gtSum += 1
+        case 2 =>
+          gtSum += 2
+        case -1 =>
+          nMissing += 1
+      }
+      i += 1
+    }
+
+    val nPresent = nSamples - nMissing
+
+    if (gtSum == 0 || gtSum == 2 * nPresent || gtSum == nPresent && gtVals.forall(gt => gt == 1 || gt == -1))
       None
     else {
       val gtMean = gtSum.toDouble / nPresent
       val p = 0.5 * gtMean
       val hweStdDevRec = 1d / math.sqrt(2 * p * (1 - p) * nVariants)
 
-      val gtVals = Array(0, (-gtMean) * hweStdDevRec, (1 - gtMean) * hweStdDevRec, (2 - gtMean) * hweStdDevRec)
+      val gtDict = Array(0, (-gtMean) * hweStdDevRec, (1 - gtMean) * hweStdDevRec, (2 - gtMean) * hweStdDevRec)
 
-      Some(gts.map(gt => gtVals(gt + 1)))
+      var j = 0
+      while (j < nSamples) {
+        gtVals(j) = gtDict(gtVals(j).toInt + 1)
+        j += 1
+      }
+
+      Some(gtVals)
     }
   }
 }
