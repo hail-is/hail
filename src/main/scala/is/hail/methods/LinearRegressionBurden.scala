@@ -12,7 +12,7 @@ import org.apache.spark.sql.Row
 
 object LinearRegressionBurden {
 
-  def apply(vds: VariantDataset, keyName: String, variantKeysVA: String, aggregateWith: String, genotypeExpr: String, ySA: String, covSA: Array[String], dropSamples: Boolean): KeyTable = {
+  def apply(vds: VariantDataset, keyName: String, variantKeySetVA: String, aggregateWith: String, genotypeExpr: String, ySA: String, covSA: Array[String], dropSamples: Boolean): KeyTable = {
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
 
@@ -36,7 +36,7 @@ object LinearRegressionBurden {
         fatal(s"Sample names conflict with these reserved statistical names: ${conflicts.mkString(", ")}")
     }
 
-    val (variantKeysType, variantKeysQuerier) = vds.queryVA(variantKeysVA)
+    val (variantKeysType, variantKeysQuerier) = vds.queryVA(variantKeySetVA)
 
     if (variantKeysType != TSet(TString))
       fatal(s"Variant keys must be of type Set(String), got $variantKeysType")
@@ -45,9 +45,11 @@ object LinearRegressionBurden {
 
     val kt: KeyTable = vds.filterSamples { case (s, sa) => completeSamplesSet(s) }
       .filterVariants { case (v, va, gs) => variantKeysQuerier(va).asInstanceOf[Set[String]].nonEmpty }
-      .makeKT(s"$keyName = $variantKeysVA", s"`` = $genotypeExpr", Array[String]())
+      .makeKT(s"$keyName = $variantKeySetVA", s"`` = $genotypeExpr", Array[String]())
       .explode(keyName)
       .aggregate(s"$keyName = $keyName", aggExpr)
+
+    val emptyStats = Annotation.emptyIndexedSeq(4)
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
@@ -81,9 +83,9 @@ object LinearRegressionBurden {
             Row.fromSeq(Seq(key, b, se, t, p) ++ dataX): Annotation
         case None =>
           if (dropSamples)
-            Annotation(key, null, null, null, null) // FIXME: replace nulls
+            Annotation(key +: emptyStats)
           else
-            Row.fromSeq(Seq(key, null, null, null, null) ++ dataX): Annotation
+            Row.fromSeq((key +: emptyStats) ++ dataX): Annotation
       }
     }
 
