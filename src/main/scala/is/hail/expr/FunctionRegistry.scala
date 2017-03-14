@@ -8,10 +8,8 @@ import is.hail.asm4s.Code
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
-
+import is.hail.variant.{AltAllele, Call, GTPair, Genotype, Locus, Variant}
 import scala.collection.mutable
-import is.hail.variant.{AltAllele, GTPair, Genotype, Locus, Variant}
 import is.hail.methods._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.Opcodes._
@@ -391,6 +389,11 @@ object FunctionRegistry {
     bind(name, MethodType(hrt.typ), UnaryFunCode[T, U](hru.typ, (ct) => impl(ct)), MetaData(Option(docstring), argNames))
   }
 
+  def registerMethodSpecial[T, U](name: String, impl: (() => Any) => U, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, MethodType(hrt.typ), UnarySpecial[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def registerMethod[T, U, V](name: String, impl: (T, U) => V, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     bind(name, MethodType(hrt.typ, hru.typ), BinaryFun[T, U, V](hrv.typ, impl), MetaData(Option(docstring), argNames))
@@ -557,6 +560,43 @@ object FunctionRegistry {
   val BoxedTTHr = new HailRep[AnyRef] {
     def typ = TTBoxed
   }
+
+  import is.hail.variant.Call._
+  registerField("gt", { (c: Call) => c}, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedintHr)
+  registerMethodSpecial("gtj", { (c: () => Any) => gtj(c().asInstanceOf[Call]) }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedintHr)
+  registerMethodSpecial("gtk", { (c: () => Any) => gtk(c().asInstanceOf[Call]) }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedintHr)
+  registerMethodSpecial("isHomRef", { (c: () => Any) => isHomRef(c().asInstanceOf[Call])}, "True if this call is ``0/0``.")(callHr, boolHr)
+  registerMethodSpecial("isHet", { (c: () => Any) => isHet(c().asInstanceOf[Call]) }, "True if this call is heterozygous.")(callHr, boolHr)
+  registerMethodSpecial("isHomVar", { (c: () => Any) => isHomVar(c().asInstanceOf[Call]) }, "True if this call is ``j/j`` with ``j>0``.")(callHr, boolHr)
+  registerMethodSpecial("isCalledNonRef", { (c: () => Any) => isCalledNonRef(c().asInstanceOf[Call]) }, "True if either ``isHet`` or ``isHomVar`` is true.")(callHr, boolHr)
+  registerMethodSpecial("isHetNonRef", { (c: () => Any) => isHetNonRef(c().asInstanceOf[Call]) }, "True if this call is ``j/k`` with ``j>0``.")(callHr, boolHr)
+  registerMethodSpecial("isHetRef", { (c: () => Any) => isHetRef(c().asInstanceOf[Call]) }, "True if this call is ``0/k`` with ``k>0``.")(callHr, boolHr)
+  registerMethodSpecial("isCalled", { (c: () => Any) => isCalled(c().asInstanceOf[Call]) }, "True if the call is not ``./.``.")(callHr, boolHr)
+  registerMethodSpecial("isNotCalled", { (c: () => Any) => isNotCalled(c().asInstanceOf[Call]) }, "True if the call is ``./.``.")(callHr, boolHr)
+  registerMethodSpecial("nNonRefAlleles", { (c: () => Any) => nNonRefAlleles(c().asInstanceOf[Call]) }, "the number of called alternate alleles.")(callHr, boxedintHr)
+  registerMethodSpecial("toGenotype", { (c: () => Any) => toGenotype(c().asInstanceOf[Call]) }, "Convert this call to a Genotype.")(callHr, genotypeHr)
+  registerMethodSpecial("oneHotAlleles", { (c: () => Any, v: () => Any) =>
+    val call = c().asInstanceOf[Call]
+    val variant = v().asInstanceOf[Variant]
+    if (call != null && variant != null)
+      oneHotAlleles(call, variant)
+    else
+      null },
+    """
+    Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
+    """,
+    "v" -> ":ref:`variant`")(callHr, variantHr, arrayHr(intHr))
+  registerMethodSpecial("oneHotGenotype", { (c: () => Any, v: () => Any) =>
+    val call = c().asInstanceOf[Call]
+    val variant = v().asInstanceOf[Variant]
+    if (call != null && variant != null)
+      oneHotGenotype(call, variant)
+    else
+      null },
+    """
+    Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
+    """,
+    "v" -> ":ref:`variant`")(callHr, variantHr, arrayHr(intHr))
 
   registerField("gt", { (x: Genotype) =>
     val gt = x.unboxedGT

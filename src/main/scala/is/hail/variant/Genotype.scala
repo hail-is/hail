@@ -125,6 +125,11 @@ abstract class Genotype extends Serializable {
       .append(isDosage)
       .toHashCode
 
+  def call: Call =
+    if (unboxedGT == -1)
+      null
+    else
+      Call(box(unboxedGT))
 
   def gt: Option[Int] =
     if (unboxedGT == -1)
@@ -227,7 +232,7 @@ abstract class Genotype extends Serializable {
       val gtPair = Genotype.gtPair(call)
       val j = gtPair.j
       val k = gtPair.k
-      new IndexedSeq[Int] {
+      new IndexedSeq[Int] with Serializable {
         def length: Int = nAlleles
 
         def apply(idx: Int): Int = {
@@ -250,7 +255,7 @@ abstract class Genotype extends Serializable {
 
   def oneHotGenotype(nGenotypes: Int): Option[IndexedSeq[Int]] = {
     gt.map { call =>
-      new IndexedSeq[Int] {
+      new IndexedSeq[Int] with Serializable {
         def length: Int = nGenotypes
 
         def apply(idx: Int): Int = {
@@ -364,6 +369,11 @@ class RowGenotype(r: Row) extends Genotype {
 
 object Genotype {
   def apply(gtx: Int): Genotype = new GenericGenotype(gtx, null, -1, -1, null, false, false)
+
+  def apply(call: Call): Genotype = {
+    val gtx: Int = if (call == null) -1 else call
+    Genotype(gtx)
+  }
 
   def apply(gt: Option[Int], fakeRef: Boolean): Genotype =
     new GenericGenotype(gt.getOrElse(-1), null, -1, -1, null, fakeRef, false)
