@@ -133,7 +133,7 @@ object RegressionUtils {
 
     val nPresent = nSamples - nMissing
 
-    if (gtSum == 0 || gtSum == 2 * nPresent || gtSum == 2 * nPresent)
+    if (gtSum == 0 || gtSum == 2 * nPresent || gtSum == nPresent && gtSumSq == nPresent)
       None
     else {
       val gtMean = gtSum.toDouble / nPresent
@@ -308,10 +308,8 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
     val missingRowIndicesArray = missingRowIndices.result()
     val nMissing = missingRowIndicesArray.size
     val nPresent = n - nMissing
-    val allHet = sumX == nPresent && sumXX == nPresent
-    val allHomVar = sumX == 2 * nPresent
 
-    if (sumX < minAC || allHomVar || allHet)
+    if (sumX < minAC || sumX == 2 * nPresent || sumX == nPresent && sumXX == nPresent)
       None
     else {
       val rowsXArray = rowsX.result()
