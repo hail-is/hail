@@ -42,7 +42,6 @@ object FunctionBuilder {
 }
 
 abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnTypeInfo: TypeInfo[R],
-
   packageName: String = "is/hail/codegen/generated") {
 
   import FunctionBuilder._
