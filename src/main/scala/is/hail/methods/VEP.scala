@@ -320,15 +320,19 @@ object VEP {
               printElement,
               _ => ())
 
+            val original_variant = block.map({
+              v => (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
+            }).toMap
+
             val kt = jt
               .filter(s => !s.isEmpty && s(0) != '#')
-              .zip(block.iterator)
-              .map { case (s, v) =>
+              .map { case s =>
                 if (csq) {
                   val vvep = variantFromInput(s)
-                  if (vvep != v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")))
-                    fatal(s"VEP output variant ${ vvep } while input was ${ v }. (* alleles are ignored).")
+                  if (!original_variant.contains(vvep))
+                    fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
 
+                  val v = original_variant(vvep)
                   val x = csq_regex.findFirstIn(s)
                   x match {
                     case Some(value) =>
@@ -350,16 +354,19 @@ object VEP {
                       else
                         (v, tr_aa: IndexedSeq[Annotation])
                     case None =>
-                      warn(s"No VEP annotation found for variant $v. VEP returned $x.")
+                      warn(s"No VEP annotation found for variant $v. VEP returned $s.")
                       (v, IndexedSeq.empty[Annotation])
                   }
                 }
                 else {
                   val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
                   val vvep = variantFromInput(inputQuery(a).asInstanceOf[String])
+
+                  if (!original_variant.contains(vvep))
+                    fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
+
+                  val v = original_variant(vvep)
                   if (vvep != v) {
-                    if (vvep != v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")))
-                      fatal(s"VEP output variant ${ vvep } while input was ${ v }. (* alleles are ignored).")
                     val alleleMap = getNonStarAlleleMap(v)
                     (v, Row.fromSeq(a.asInstanceOf[Row].toSeq.zipWithIndex.map({
                       case (a, i) =>
