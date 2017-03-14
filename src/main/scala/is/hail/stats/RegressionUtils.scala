@@ -245,6 +245,57 @@ object RegressionUtils {
     }
   }
 
+  def denseStats(data: Seq[java.lang.Number], y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
+    val n = data.length
+    assert(y.length == n)
+
+    val valsX = Array.ofDim[Double](n)
+    var sumX = 0.0
+    var sumXX = 0.0
+    var sumXY = 0.0
+    var sumYMissing = 0.0
+    val missingRowIndices = new mutable.ArrayBuilder.ofInt()
+
+    var i = 0
+    while (i < data.length) {
+      if (data(i) == null) {
+        missingRowIndices += i
+        sumYMissing += y(i)
+      }
+      else {
+        val e = data(i).doubleValue()
+        valsX(i) = e
+        sumX += e
+        sumXX += e * e
+        sumXY += e * y(i)
+      }
+      i += 1
+    }
+
+    val missingRowIndicesArray = missingRowIndices.result()
+    val nMissing = missingRowIndicesArray.length
+    val nPresent = n - nMissing
+
+    if (nPresent > 0) {
+      val meanX = sumX / nPresent
+
+      var j = 0
+      while (j < nMissing) {
+        valsX(missingRowIndicesArray(j)) = meanX
+        j += 1
+      }
+
+      val x = DenseVector[Double](valsX)
+      val xx = sumXX + meanX * meanX * nMissing
+      val xy = sumXY + meanX * sumYMissing
+
+      Some(x, xx, xy)
+    }
+    else
+      None
+  }
+}
+
   // mean 0, norm sqrt(n), variance 1 (constant variants return None)
   def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {
     val nSamples = y.length

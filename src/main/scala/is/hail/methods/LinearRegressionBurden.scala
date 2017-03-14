@@ -8,79 +8,92 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import net.sourceforge.jdistlib.T
+import org.apache.spark.sql.Row
 
 object LinearRegressionBurden {
-  def apply(vds0: VariantDataset, groupVariantsBy: String, aggregateWith: String, genotypeExpr: String, ySA: String, covSA: Array[String], minAC: Int, minAF: Double): KeyTable = {
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds0, ySA, covSA)
+  def apply(vds: VariantDataset, keyName: String, variantKeysVA: String, aggregateWith: String, genotypeExpr: String, ySA: String, covSA: Array[String], dropSamples: Boolean): KeyTable = {
+
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
+
+    val n = y.size
+    val k = cov.cols
+    val d = n - k - 1
+
+    if (d < 1)
+      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+
+    info(s"Running linreg_burden, aggregated by key $keyName using $aggregateWith, on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val completeSamplesSet = completeSamples.toSet
 
-    val keyExpr = groupVariantsBy
-    val key = groupVariantsBy.takeWhile(_ != "=").trim
+    if (completeSamplesSet(keyName))
+      fatal(s"Sample name conflicts with the key name $keyName")
 
-    val aggExpr = completeSamples.map(s => s"$s = $s.$aggregateWith").mkString(", ")
+    if (!dropSamples) {
+      val conflicts = completeSamplesSet.intersect(LinearRegression.`type`.fields.map(x => x.name).toSet)
+      if (conflicts.nonEmpty)
+        fatal(s"Sample names conflict with these reserved statistical names: ${conflicts.mkString(", ")}")
+    }
 
-    val kt = vds0.filterSamples { case (s, sa) => completeSamplesSet(s) }
-      .makeKT(keyExpr, s"`` = $aggregateWith", Array(key))
-      .explode(key)
-      .aggregate(s"$key = $key", aggExpr)
+    val (variantKeysType, variantKeysQuerier) = vds.queryVA(variantKeysVA)
 
-    kt
-//    val n = y.size
-//    val k = cov.cols
-//    val d = n - k - 1
-//
-//    if (minAC < 1)
-//      fatal(s"Minumum alternate allele count must be a positive integer, got $minAC")
-//    if (minAF < 0d || minAF > 1d)
-//      fatal(s"Minumum alternate allele frequency must lie in [0.0, 1.0], got $minAF")
-//    val combinedMinAC = math.max(minAC, (math.ceil(2 * n * minAF) + 0.5).toInt)
-//
-//    if (d < 1)
-//      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
-//
-//    info(s"Running linreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
-//
-//    val Qt = qr.reduced.justQ(cov).t
-//    val Qty = Qt * y
-//
-//    val sc = vds.sparkContext
-//    val sampleMaskBc = sc.broadcast(sampleMask)
-//    val yBc = sc.broadcast(y)
-//    val QtBc = sc.broadcast(Qt)
-//    val QtyBc = sc.broadcast(Qty)
-//    val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
-//
-//    vds.mapAnnotations { case (v, va, gs) =>
-//      val lrb = new LinRegBuilder(yBc.value)
-//      val gts = gs.hardCallIterator
-//      val mask = sampleMaskBc.value
-//      var i = 0
-//      while (i < mask.length) {
-//        val gt = gts.nextInt()
-//        if (mask(i))
-//          lrb.merge(gt)
-//        i += 1
-//      }
-//
-//      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC).map { stats =>
-//        val (x, xx, xy) = stats
-//
-//        val qtx = QtBc.value * x
-//        val qty = QtyBc.value
-//        val xxp: Double = xx - (qtx dot qtx)
-//        val xyp: Double = xy - (qtx dot qty)
-//        val yyp: Double = yypBc.value
-//
-//        val b = xyp / xxp
-//        val se = math.sqrt((yyp / xxp - b * b) / d)
-//        val t = b / se
-//        val p = 2 * T.cumulative(-math.abs(t), d, true, false)
-//
-//        Annotation(b, se, t, p)
-//      }
-//      .orNull
-//    }
+    if (variantKeysType != TSet(TString))
+      fatal(s"Variant keys must be of type Set(String), got $variantKeysType")
+
+    val aggExpr = completeSamples.map(s => s"`$s` = `$s`.$aggregateWith").mkString(", ")
+
+    val kt: KeyTable = vds.filterSamples { case (s, sa) => completeSamplesSet(s) }
+      .filterVariants { case (v, va, gs) => variantKeysQuerier(va).asInstanceOf[Set[String]].nonEmpty }
+      .makeKT(s"$keyName = $variantKeysVA", s"`` = $genotypeExpr", Array[String]())
+      .explode(keyName)
+      .aggregate(s"$keyName = $keyName", aggExpr)
+
+    val Qt = qr.reduced.justQ(cov).t
+    val Qty = Qt * y
+
+    val sc = kt.hc.sc
+    val yBc = sc.broadcast(y)
+    val QtBc = sc.broadcast(Qt)
+    val QtyBc = sc.broadcast(Qty)
+    val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
+
+    val newRDD = kt.mapAnnotations { a =>
+      val (keySeq, dataX) = a.asInstanceOf[Row].toSeq.splitAt(1)
+      val key = keySeq.head.asInstanceOf[String]
+
+      RegressionUtils.denseStats(dataX.asInstanceOf[Seq[java.lang.Number]], y) match {
+        case Some((x, xx, xy)) =>
+          val qtx = QtBc.value * x
+          val qty = QtyBc.value
+          val xxp: Double = xx - (qtx dot qtx)
+          val xyp: Double = xy - (qtx dot qty)
+          val yyp: Double = yypBc.value
+
+          val b = xyp / xxp
+          val se = math.sqrt((yyp / xxp - b * b) / d)
+          val t = b / se
+          val p = 2 * T.cumulative(-math.abs(t), d, true, false)
+
+          if (dropSamples)
+            Annotation(key, b, se, t, p)
+          else
+            Row.fromSeq(Seq(key, b, se, t, p) ++ dataX): Annotation
+        case None =>
+          if (dropSamples)
+            Annotation(key, null, null, null, null) // FIXME: replace nulls
+          else
+            Row.fromSeq(Seq(key, null, null, null, null) ++ dataX): Annotation
+      }
+    }
+
+    def newSignature =
+      if (dropSamples)
+        TStruct((keyName -> TString) +: LinearRegression.`type`.fields.map(x => x.name -> x.typ): _*)
+      else
+        TStruct(((keyName -> TString) +: LinearRegression.`type`.fields.map(x => x.name -> x.typ))
+          ++ kt.fields.tail.map(x => x.name -> x.typ): _*)
+
+    new KeyTable(kt.hc, newRDD, signature = newSignature, keyNames = Array(keyName))
   }
 }
