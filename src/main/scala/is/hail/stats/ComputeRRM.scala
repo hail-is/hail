@@ -41,6 +41,7 @@ object ComputeRRM {
 // each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
 object ToNormalizedRowMatrix {
   def apply(vds: VariantDataset): RowMatrix = {
+    require(vds.wasSplit)
     val n = vds.nSamples
     val rows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.toNormalizedGtArray(gs, n) }.map(Vectors.dense)
     val m = rows.count()
@@ -51,6 +52,7 @@ object ToNormalizedRowMatrix {
 // each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
 object ToNormalizedIndexedRowMatrix {
   def apply(vds: VariantDataset): IndexedRowMatrix = {
+    require(vds.wasSplit)
     val n = vds.nSamples
     val variants = vds.variants.collect()
     val variantIdxBc = vds.sparkContext.broadcast(variants.index)
