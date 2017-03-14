@@ -2243,13 +2243,10 @@ object FunctionRegistry {
 
   registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
     (storei, refi) <- CM.memoize(Code.intValue(i));
-    (storea, _refa) <- CM.memoize(a);
-    refa = Code.checkcast[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]]](_refa);
-    size = Invokeable.lookupMethod[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]], Int]("size", Array()).invoke(refa, Array());
-    arrayRef = (i: Code[Int]) =>
-      Invokeable.lookupMethod[scala.collection.SeqLike[AnyRef, IndexedSeq[AnyRef]], AnyRef]("apply", Array(implicitly[ClassTag[Int]].runtimeClass)).invoke((a), Array(i))
+    (storea, refa) <- CM.memoize(a);
+    size = refa.invoke[Int]("size")
   ) yield {
-    Code(storei, storea, arrayRef((refi >= 0).mux(refi, refi + size)))
+    Code(storei, storea, refa.invoke[Int, AnyRef]("apply", (refi >= 0).mux(refi, refi + size)))
   },
     """
     Returns the i*th* element (0-indexed) of the array, or throws an exception if ``i`` is an invalid index.
