@@ -157,31 +157,38 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int): Field = {
-    val baseType = line.getType match {
-      case VCFHeaderLineType.Integer => TInt
-      case VCFHeaderLineType.Float => TDouble
-      case VCFHeaderLineType.String => TString
-      case VCFHeaderLineType.Character => TChar
-      case VCFHeaderLineType.Flag => TBoolean
+  def headerField(line: VCFCompoundHeaderLine, i: Int, genericGenotypes: Boolean = false , callFields: Option[Set[String]] = None): Field = {
+    val id = line.getID
+    val isCall = genericGenotypes && (id == "GT" || callFields.exists(_.contains(id)))
+
+    val baseType = (line.getType, isCall) match {
+      case (VCFHeaderLineType.Integer, false) => TInt
+      case (VCFHeaderLineType.Float, false) => TDouble
+      case (VCFHeaderLineType.String, true) => TCall
+      case (VCFHeaderLineType.String, false) => TString
+      case (VCFHeaderLineType.Character, false) => TChar
+      case (VCFHeaderLineType.Flag, false) => TBoolean
+      case (_, true) => fatal(s"Can only convert a header line with type `String' to a Call Type. Found `${ line.getType }'.")
     }
 
     val attrs = Map("Description" -> line.getDescription,
       "Number" -> headerNumberToString(line),
       "Type" -> headerTypeToString(line))
+
     if (line.isFixedCount &&
       (line.getCount == 1 ||
         (line.getType == VCFHeaderLineType.Flag && line.getCount == 0)))
-      Field(line.getID, baseType, i, attrs)
+      Field(id, baseType, i, attrs)
     else
-      Field(line.getID, TArray(baseType), i, attrs)
+      Field(id, TArray(baseType), i, attrs)
   }
 
-  def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T]): Option[TStruct] = {
+  def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
+    genericGenotypes: Boolean = false, callFields: Option[Set[String]] = None): Option[TStruct] = {
     if (lines.size > 0)
       Some(TStruct(lines
         .zipWithIndex
-        .map { case (line, i) => headerField(line, i) }
+        .map { case (line, i) => headerField(line, i, genericGenotypes, callFields) }
         .toArray))
     else None
   }
@@ -227,16 +234,8 @@ object LoadVCF {
     val formatHeader = header.getFormatHeaderLines
     val genotypeSignature: Type =
       if (reader.genericGenotypes) {
-        val sig = headerSignature(formatHeader).getOrElse(TStruct.empty)
-        val callFields: Set[String] = reader.asInstanceOf[GenericRecordReader].callFields
-
-        callFields.foldLeft(sig) { (s, n) => s.fieldOption(n) match {
-          case Some(fd) =>
-            assert(fd.typ == TString, s"Call fields can only have type `String'. Found format field `$n' has type `${ fd.typ }'.")
-            s.updateKey(n, fd.index, TCall).asInstanceOf[TStruct]
-          case None => s
-        }
-        }
+        val callFields = reader.asInstanceOf[GenericRecordReader].callFields
+        headerSignature(formatHeader, genericGenotypes = true, callFields).getOrElse(TStruct.empty)
       } else TGenotype
 
     val variantAnnotationSignatures = TStruct(

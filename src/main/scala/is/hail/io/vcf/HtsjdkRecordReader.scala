@@ -246,7 +246,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
 
 object GenericRecordReader {
   val haploidRegex = """^([0-9]+)$""".r
-  val diploidRegex = """^([0-9]+)([|\/]([0-9]+))$""".r
+  val diploidRegex = """^([0-9]+)([|/]([0-9]+))$""".r
 
   def getCall(gt: String, nAlleles: Int): Call = {
     val call: Call = gt match {
@@ -254,14 +254,14 @@ object GenericRecordReader {
       case VCFConstants.EMPTY_GENOTYPE => null
       case haploidRegex(a0) => Call(Genotype.gtIndexWithSwap(a0.toInt, a0.toInt))
       case VCFConstants.EMPTY_ALLELE => null
-      case _ => fatal(s"Invalid GT found `$gt'.")
+      case _ => fatal(s"Invalid input format for Call type. Found `$gt'.")
     }
     Call.check(call, nAlleles)
     call
   }
 }
 
-case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordReader[Annotation] {
+case class GenericRecordReader(callFields: Option[Set[String]]) extends HtsjdkRecordReader[Annotation] {
   def genericGenotypes = true
 
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
@@ -295,28 +295,33 @@ case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordRead
 
       val a = Annotation(
         genotypeSignature.asInstanceOf[TStruct].fields.map { f =>
-
-          val (a, typ) = f.name match {
-            case "GT" => (gt, TCall)
-            case _ =>
+          val a =
+            if (f.name == "GT")
+              gt
+            else {
               val x = g.getAnyAttribute(f.name)
-              if (callFields.contains(f.name)) {
-                if (x == null)
-                  (x, TCall)
-                else
-                  (GenericRecordReader.getCall(x.asInstanceOf[String], nAlleles), TCall)
+              if (x == null || f.typ != TCall)
+                x
+              else {
+                try {
+                  GenericRecordReader.getCall(x.asInstanceOf[String], nAlleles)
+                } catch {
+                  case e: Exception =>
+                    fatal(
+                      s"""variant $v: Genotype field ${ f.name }:
+                 |  unable to convert $x (of class ${ x.getClass.getCanonicalName }) to ${ f.typ }:
+                 |  caught $e""".stripMargin)
+                }
               }
-              else
-                (x, f.typ)
-          }
+            }
 
           try {
-            HtsjdkRecordReader.cast(a, typ)
+            HtsjdkRecordReader.cast(a, f.typ)
           } catch {
             case e: Exception =>
               fatal(
                 s"""variant $v: Genotype field ${ f.name }:
-                 |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ typ }:
+                 |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
                  |  caught $e""".stripMargin)
           }
         }: _*)
