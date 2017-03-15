@@ -68,15 +68,15 @@ object DocumentationEntry {
       case _ => fatal(s"Did not recognize TypeTag ${ tt.toString }")
     }
 
-    DocumentationEntry(namePretty, category, objType, f.retType, args, md.docstring.orNull, varArgs = varArgs)
+    DocumentationEntry(namePretty, category, objType, f.retType, args, md.docstring.orNull, md.annotationMetadata.orNull, varArgs = varArgs)
   }
 
   def apply(name: String, category: String, objType: Option[Type], retType: Type,
-    args: Array[Argument], docstring: String): DocumentationEntry = DocumentationEntry(name, category, objType, retType, args, docstring, varArgs = false)
+    args: Array[Argument], docstring: String, annMetadata: TStruct): DocumentationEntry = DocumentationEntry(name, category, objType, retType, args, docstring, annMetadata, varArgs = false)
 }
 
 case class DocumentationEntry(name: String, category: String, objType: Option[Type], retType: Type,
-  args: Array[Argument], docstring: String, varArgs: Boolean) {
+  args: Array[Argument], docstring: String, annotationMetaData: TStruct, varArgs: Boolean) {
 
   val (nLinesDocstring, docstringPretty) = formatDocstring
 
@@ -106,7 +106,7 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
 
   def isSlice = name.contains("[") && name.contains("]")
 
-  def hasAnnotation = retType.isInstanceOf[TStruct]
+  def hasAnnotation = Option(annotationMetaData).isDefined
 
   val retTypePretty = retType.toString.replaceAll("\\?", "")
   val objTypePretty = objType.getOrElse("").toString.replaceAll("\\?", "")
@@ -156,22 +156,22 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
       case None => fd.name
     }
 
-    val desc = fd.attr("desc") match {
+    val desc = fd.attr("Description") match {
       case Some(d) => s"-- $d"
       case None => ""
     }
 
     fd.typ match {
-      case f: TStruct =>
-        f.fields.flatMap(child => emitField(sb, child, Option(name))).toArray
+      case s: TStruct =>
+        s.fields.flatMap(child => emitField(sb, child, Option(name))).toArray
       case _ => Array(s" - **$name** (*${ fd.typ }*) $desc")
     }
   }
 
   def emitAnnotation: String = {
     val sb = new StringBuilder()
-    retType match {
-      case rt: TStruct =>
+    Option(annotationMetaData) match {
+      case Some(rt: TStruct) =>
         if (rt.fields.nonEmpty) {
           val fields = rt.fields.flatMap(fd => emitField(sb, fd, None)).map(s => "\t" + s)
           val output = (Array(".. container:: annotation\n") ++ fields).map(s => "\t" + s).mkString("\n")
@@ -271,7 +271,7 @@ object FunctionDocumentation {
 
           let s = {gene: "ACBD", function: "LOF", nHet: 12} in select(s, gene, function)
           result: {gene: "ACBD", function: "LOF"}
-      """, varArgs = true),
+      """, null, varArgs = true),
     DocumentationEntry("drop", "function", None, TStruct(),
       Array(Argument("s", "Struct", "Struct to drop fields from."),
         Argument("identifiers", "String", "Field names to drop from ``s``. Multiple arguments allowed.")),
@@ -283,7 +283,7 @@ object FunctionDocumentation {
 
           let s = {gene: "ACBD", function: "LOF", nHet: 12} in drop(s, gene, function)
           result: {nHet: 12}
-      """, varArgs = true),
+      """, null, varArgs = true),
     DocumentationEntry("merge", "function", None, TStruct(),
       Array(Argument("s1", "Struct"), Argument("s2", "Struct")),
       """
@@ -294,7 +294,7 @@ object FunctionDocumentation {
 
           let s1 = {gene: "ACBD", function: "LOF"} and s2 = {a: 20, b: "hello"} in merge(s1, s2)
           result: {gene: "ACBD", function: "LOF", a: 20, b: "hello"}
-      """),
+      """, null),
     DocumentationEntry("index", "function", None, TDict(TString, TStruct()),
       Array(Argument("structs", "Array[Struct]"),
         Argument("identifier", "String")),
@@ -310,7 +310,7 @@ object FunctionDocumentation {
               d = index(a, genename) in global.gene_dict["gene1"]
 
           result: {PLI: 0.998, hits_in_exac: 1}
-      """),
+      """, null),
     DocumentationEntry("str", "function", None, TString,
       Array(Argument("x", "T")),
       """
@@ -321,12 +321,12 @@ object FunctionDocumentation {
 
           let v = Variant("1", 278653, "A", "T") in str(v)
           result: "1:278653:A:T"
-      """),
+      """, null),
     DocumentationEntry("json", "function", None, TString,
       Array(Argument("x", "T")),
       """
       Returns the JSON representation of a data type.
-      """)
+      """, null)
   )
 
   private val entries = FunctionRegistry.getRegistry()

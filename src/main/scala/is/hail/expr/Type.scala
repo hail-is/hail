@@ -721,6 +721,12 @@ object TStruct {
 
     TStruct(sNames.zip(sTypes): _*)
   }
+
+  def applyWDocstring(args: (String, Type, String)*): (TStruct, TStruct) = {
+    val struct = TStruct(args.map { case (n, t, _) => (n, t) }: _*)
+    val metadata = TStruct(args.zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map("Description" -> d)) }.toIndexedSeq)
+    (struct, metadata)
+  }
 }
 
 case class TStruct(fields: IndexedSeq[Field]) extends Type {
