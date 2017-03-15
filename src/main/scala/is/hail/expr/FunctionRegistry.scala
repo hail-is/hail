@@ -1958,22 +1958,16 @@ object FunctionRegistry {
 
     registerCode(name, (x: Code[T], y: Code[T]) => CM.ret(f(x, y)), null)
 
-    registerCode(name, (xs: Code[IndexedSeq[T]], y: Code[T]) => for (
-      (storey, refy) <- CM.memoize(y);
-      liftedF <- CM.mapIS(xs, (xOpt: Code[T]) => xOpt.mapNull((x: Code[T]) => f(x, refy)))
-    ) yield Code(storey, liftedF),
+    registerCode(name, (xs: Code[IndexedSeq[T]], y: Code[T]) =>
+      CM.mapIS(xs, (xOpt: Code[T]) => xOpt.mapNull((x: Code[T]) => f(x, y))),
       null)(arrayHr(hrboxedt), hrt, arrayHr(hrboxeds))
 
-    registerCode(name, (x: Code[T], ys: Code[IndexedSeq[T]]) => for (
-      (storex, refx) <- CM.memoize(x);
-      liftedF <- CM.mapIS(ys, (yOpt: Code[T]) =>
-          yOpt.mapNull((y: Code[T]) => f(refx, y)))
-    ) yield Code(storex, liftedF),
+    registerCode(name, (x: Code[T], ys: Code[IndexedSeq[T]]) =>
+      CM.mapIS(ys, (yOpt: Code[T]) =>
+          yOpt.mapNull((y: Code[T]) => f(x, y))),
       null)(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
 
     registerCode(name, (xs: Code[IndexedSeq[T]], ys: Code[IndexedSeq[T]]) => for (
-      (stxs, xs) <- CM.memoize(xs);
-      (stys, ys) <- CM.memoize(ys);
       (stn, n) <- CM.memoize(xs.invoke[Int]("size"));
       n2 = ys.invoke[Int]("size");
 
@@ -1985,7 +1979,7 @@ object FunctionRegistry {
       (sty, y) <- CM.memoize(ys.invoke[Int, T]("apply", i));
 
       z = x.mapNull(y.mapNull(f(x, y)))
-    ) yield Code(stxs, stys, stn,
+    ) yield Code(stn,
       (n.ceq(n2)).mux(
         Code(
           i.store(0),
@@ -2274,10 +2268,9 @@ object FunctionRegistry {
 
   registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
     (storei, refi) <- CM.memoize(Code.intValue(i));
-    (storea, refa) <- CM.memoize(a);
-    size = refa.invoke[Int]("size")
+    size = a.invoke[Int]("size")
   ) yield {
-    Code(storei, storea, refa.invoke[Int, AnyRef]("apply", (refi >= 0).mux(refi, refi + size)))
+    Code(storei, a.invoke[Int, AnyRef]("apply", (refi >= 0).mux(refi, refi + size)))
   },
     """
     Returns the i*th* element (0-indexed) of the array, or throws an exception if ``i`` is an invalid index.
