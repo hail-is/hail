@@ -78,7 +78,7 @@ object LinearMixedRegression {
 
     info(s"lmmreg: Computing RRM for $n samples...")
 
-    val (rrm, m) = ComputeRRM(kinshipVds, useBlock)
+    val (rrm, m) = ComputeRRM(filtKinshipVds, useBlock)
 
     info(s"lmmreg: RRM computed using $m variants")
     info(s"lmmreg: Computing eigenvectors of RRM...")
