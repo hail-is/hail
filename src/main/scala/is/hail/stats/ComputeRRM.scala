@@ -15,8 +15,8 @@ object ComputeGrammian {
   /*def withoutBlock(A: RowMatrix): DenseMatrix[Double] = {
     val n = A.numCols().toInt
     val G = A.computeGramianMatrix().toArray
-    new DenseMatrix[Double](n, n, G)
-  }*/
+  new DenseMatrix[Double](n, n, G)
+}*/
 
   def withBlock(A: IndexedRowMatrix): BlockMatrix = {
     val n = A.numCols().toInt

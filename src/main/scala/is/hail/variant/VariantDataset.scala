@@ -931,6 +931,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def sampleQC(root: String = "sa.qc"): VariantDataset = SampleQC(vds, root)
 
+  def rrm(): RelatednessMatrix = {
+    new RelatednessMatrix(ComputeRRM(vds, true)._1, vds.sampleIds.toArray)
+  }
+
+
   /**
     *
     * @param propagateGQ Propagate GQ instead of computing from PL

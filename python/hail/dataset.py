@@ -5,11 +5,12 @@ from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype
 from hail.representation import Interval, IntervalTree
 from hail.utils import TextTableConfig
+from pyspark.mllib.linalg.distributed import BlockMatrix
+from hail.relatednessMatrix import RelatednessMatrix
+from py4j.protocol import Py4JJavaError
 from decorator import decorator
 
 import warnings
-
-from python.hail.java import handle_py4j
 
 warnings.filterwarnings(module=__name__, action='once')
 
@@ -3484,9 +3485,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def rrm(self):
-        #jrrm = self._jvds.rrm()
-        #return BlockMatrix(jrrm, jrrm.rowPerBlock(), jrrm.colsPerBlock())
-        return 3
+        return RelatednessMatrix(self._jvdf.rrm())
 
     @handle_py4j
     def same(self, other, tolerance=1e-6):
