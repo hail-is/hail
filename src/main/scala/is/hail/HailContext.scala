@@ -511,15 +511,17 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    sitesOnly: Boolean = false): GenericDataset = {
-    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, sitesOnly)
+    sitesOnly: Boolean = false,
+    callFields: Set[String] = Set.empty[String]): GenericDataset = {
+    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, sitesOnly, callFields)
   }
 
   def importVCFsGeneric(files: Seq[String], force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    sitesOnly: Boolean = false): GenericDataset = {
+    sitesOnly: Boolean = false,
+    callFields: Set[String] = Set.empty[String]): GenericDataset = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
@@ -531,7 +533,7 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val reader = new GenericRecordReader()
+    val reader = new GenericRecordReader(callFields)
     val gds = LoadVCF(this, reader, header, inputs, nPartitions, sitesOnly)
 
     hadoopConf.set("io.compression.codecs", codecs)
