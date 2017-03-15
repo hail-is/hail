@@ -55,7 +55,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         var pending: Boolean = false
         var pendingNext: T = _
 
-        def hasNext: Boolean = {
+        def setNext() {
           while (!pending && it.hasNext && it2.hasNext) {
             val n = it.next()
             val n2 = it2.next()
@@ -64,11 +64,16 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
               pendingNext = n
             }
           }
+        }
+
+        def hasNext: Boolean = {
+          setNext()
           pending
         }
 
         def next(): T = {
-          assert(pending)
+          if (!pending)
+            setNext()
           pending = false
           pendingNext
         }
