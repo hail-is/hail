@@ -3484,8 +3484,9 @@ class VariantDataset(object):
 
     @handle_py4j
     def rrm(self):
-        return BlockMatrix(self._jvds.rrm())
-
+        #jrrm = self._jvds.rrm()
+        #return BlockMatrix(jrrm, jrrm.rowPerBlock(), jrrm.colsPerBlock())
+        return 3
 
     @handle_py4j
     def same(self, other, tolerance=1e-6):

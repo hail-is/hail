@@ -3,8 +3,10 @@ package is.hail.stats
 import breeze.linalg._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichIndexedRowMatrix._
+
 import is.hail.variant.{Variant, VariantDataset}
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
+import is.hail.variant.VariantDataset
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix, RowMatrix}
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
@@ -32,7 +34,17 @@ object ComputeRRM {
     //if (useBlock) {
       val A = ToNormalizedIndexedRowMatrix(vds)
       val mRec = 1d / A.rows.count()
-      (ComputeGrammian.withBlock(A) :* mRec, A.numRows().toInt)
+      //(ComputeGrammian.withBlock(A) :* mRec, A.numRows().toInt)
+      val computedGrammian = ComputeGrammian.withBlock(A)
+
+      def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
+        Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
+      }
+
+      val scaledBlockRDD = computedGrammian.blocks.map(tuple => tuple match {case (coords, matrix) => (coords, scaleMatrix(matrix, mRec))})
+      (new BlockMatrix(scaledBlockRDD, computedGrammian.rowsPerBlock, computedGrammian.colsPerBlock), A.numRows().toInt)
+
+    //(scaledGrammian, A.numRows().toInt)
     /*} else {
       val A = ToNormalizedRowMatrix(vds)
       val mRec = 1d / A.numRows()
