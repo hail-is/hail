@@ -6,7 +6,7 @@ import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.commons.math3.distribution.TDistribution
+import net.sourceforge.jdistlib.T
 
 object LinearRegression {
   def `type`: Type = TStruct(
@@ -16,9 +16,7 @@ object LinearRegression {
     ("pval", TDouble))
 
   def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, minAC: Int, minAF: Double): VariantDataset = {
-
-    if (!vds.wasSplit)
-      fatal("linreg requires bi-allelic VDS. Run split_multi or filter_multi first")
+    require(vds.wasSplit)
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
@@ -47,33 +45,39 @@ object LinearRegression {
     val QtBc = sc.broadcast(Qt)
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
-    val tDistBc = sc.broadcast(new TDistribution(null, d.toDouble))
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(LinearRegression.`type`, pathVA)
 
     vds.mapAnnotations { case (v, va, gs) =>
       val lrb = new LinRegBuilder(yBc.value)
-      gs.iterator.zipWithIndex.foreach { case (g, i) => if (sampleMaskBc.value(i)) lrb.merge(g) }
+      val gts = gs.hardCallIterator
+      val mask = sampleMaskBc.value
+      var i = 0
+      while (i < mask.length) {
+        val gt = gts.nextInt()
+        if (mask(i))
+          lrb.merge(gt)
+        i += 1
+      }
 
-      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC)
-        .map { stats =>
-          val (x, xx, xy) = stats
+      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC).map { stats =>
+        val (x, xx, xy) = stats
 
-          val qtx = QtBc.value * x
-          val qty = QtyBc.value
-          val xxp: Double = xx - (qtx dot qtx)
-          val xyp: Double = xy - (qtx dot qty)
-          val yyp: Double = yypBc.value
+        val qtx = QtBc.value * x
+        val qty = QtyBc.value
+        val xxp: Double = xx - (qtx dot qtx)
+        val xyp: Double = xy - (qtx dot qty)
+        val yyp: Double = yypBc.value
 
-          val b = xyp / xxp
-          val se = math.sqrt((yyp / xxp - b * b) / d)
-          val t = b / se
-          val p = 2 * tDistBc.value.cumulativeProbability(-math.abs(t))
+        val b = xyp / xxp
+        val se = math.sqrt((yyp / xxp - b * b) / d)
+        val t = b / se
+        val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 
-          Annotation(b, se, t, p)
-        }
-        .orNull
+        Annotation(b, se, t, p)
+      }
+      .orNull
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))

@@ -39,8 +39,7 @@ object LinearMixedRegression {
     forceBlock: Boolean,
     forceGrammian: Boolean): VariantDataset = {
 
-    if (!assocVds.wasSplit)
-      fatal("lmmreg requires bi-allelic VDS for association. Run split_multi or filter_multi first")
+    require(assocVds.wasSplit)
 
     if (!kinshipVds.wasSplit)
       fatal("lmmreg requires bi-allelic VDS for kinship. Run split_multi or filter_multi first")
@@ -151,11 +150,18 @@ object LinearMixedRegression {
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       vds2.mapAnnotations { case (v, va, gs) =>
-        val SparseGtVectorAndStats(x0, isConstant, af, nHomRef, nHet, nHomVar, nMissing) =
-          gs.iterator.zipWithIndex
-            .filter { case (g, i) => sampleMaskBc.value(i)}
-            .foldLeft(new SparseGtBuilder()){ case (b, (g, i)) => b.merge(g) }
-            .toSparseGtVector(n)
+        val sb = new SparseGtBuilder()
+        val gts = gs.hardCallIterator
+        val mask = sampleMaskBc.value
+        var i = 0
+        while (i < mask.length) {
+          val gt = gts.nextInt()
+          if (mask(i))
+            sb.merge(gt)
+          i += 1
+        }
+
+        val SparseGtVectorAndStats(x0, isConstant, af, nHomRef, nHet, nHomVar, nMissing) = sb.toSparseGtVectorAndStats(n)
 
         val lmmregAnnot =
           if (!isConstant) {

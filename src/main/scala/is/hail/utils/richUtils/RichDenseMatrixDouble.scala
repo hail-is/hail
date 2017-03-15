@@ -1,8 +1,7 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
-
-import scala.collection.mutable
+import is.hail.utils.DoubleArrayBuilder
 
 object RichDenseMatrixDouble {
   def horzcat(oms: Option[DenseMatrix[Double]]*): Option[DenseMatrix[Double]] = {
@@ -18,7 +17,7 @@ object RichDenseMatrixDouble {
 // http://stackoverflow.com/questions/16306408/boilerplate-free-scala-arraybuilder-specialization
 class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   def filterRows(keepRow: Int => Boolean): Option[DenseMatrix[Double]] = {
-    val ab = new mutable.ArrayBuilder.ofDouble
+    val ab = new DoubleArrayBuilder()
 
     var nRows = 0
     for (row <- 0 until m.rows)
@@ -36,7 +35,7 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
   }
 
   def filterCols(keepCol: Int => Boolean): Option[DenseMatrix[Double]] = {
-    val ab = new mutable.ArrayBuilder.ofDouble
+    val ab = new DoubleArrayBuilder()
 
     var nCols = 0
     for (col <- 0 until m.cols)

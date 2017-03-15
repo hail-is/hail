@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.annotations.Annotation
 import is.hail.expr._
+import is.hail.stats.ToHWENormalizedIndexedRowMatrix
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.mllib.linalg.DenseMatrix
@@ -25,7 +26,7 @@ object SamplePCA {
   def apply(vds: VariantDataset, k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean,
     asArray: Boolean): (Map[String, Annotation], Option[RDD[(Variant, Annotation)]], Option[Annotation]) = {
 
-    val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
+    val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vds)
     val sc = vds.sparkContext
 
     val svd = mat.computeSVD(k, computeU = computeLoadings)

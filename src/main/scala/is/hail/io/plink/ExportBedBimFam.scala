@@ -1,35 +1,30 @@
 package is.hail.io.plink
 
-import is.hail.utils.ByteArrayBuilder
 import is.hail.variant._
-
-import scala.collection.mutable
 
 object ExportBedBimFam {
 
-  def makeBedRow(gs: Iterable[Genotype]): Array[Byte] = {
-    val ab = new ByteArrayBuilder()
-    var j = 0
-    var b = 0
-    for (g <- gs) {
-      val i = g.gt match {
-        case Some(0) => 3
-        case Some(1) => 2
-        case Some(2) => 0
-        case _ => 1
-      }
-      b |= i << (j * 2)
-      if (j == 3) {
-        ab += b.toByte
-        b = 0
-        j = 0
-      } else
-        j += 1
-    }
-    if (j > 0)
-      ab += b.toByte
+  val gtMap = Array(1, 3, 2, 0)
 
-    ab.result()
+  def makeBedRow(gs: Iterable[Genotype], n: Int): Array[Byte] = {
+    val gts = gs.hardCallIterator
+
+    val nBytes = (n + 3) / 4
+    val a = Array.ofDim[Byte](nBytes)
+    var b = 0
+    var k = 0
+    while (k < n) {
+      b |= gtMap(gts.nextInt() + 1) << ((k & 3) * 2)
+      if ((k & 3) == 3) {
+        a(k >> 2) = b.toByte
+        b = 0
+      }
+      k += 1
+    }
+    if ((k & 3) > 0)
+      a(nBytes - 1) = b.toByte
+
+    a
   }
 
   def makeBimRow(v: Variant): String = {

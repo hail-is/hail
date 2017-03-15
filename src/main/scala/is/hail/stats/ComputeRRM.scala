@@ -2,30 +2,9 @@ package is.hail.stats
 
 import breeze.linalg._
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
-
-// each row has mean 0, norm sqrt(n), variance 1 (constant variants are dropped)
-object ToNormalizedRowMatrix {
-  def apply(vds: VariantDataset): RowMatrix = {
-    val n = vds.nSamples
-    val rows = vds.rdd.flatMap { case (v, (va, gs)) => toNormalizedGtArray(gs, n) }.map(Vectors.dense)
-    val m = rows.count()
-    new RowMatrix(rows, m, n)
-  }
-}
-
-// each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
-object ToNormalizedIndexedRowMatrix {
-  def apply(vds: VariantDataset): IndexedRowMatrix = {
-    val n = vds.nSamples
-    val variants = vds.variants.collect()
-    val variantIdxBc = vds.sparkContext.broadcast(variants.index)
-    val indexedRows = vds.rdd.flatMap { case (v, (va, gs)) => toNormalizedGtArray(gs, n).map(a => IndexedRow(variantIdxBc.value(v), Vectors.dense(a))) }
-    new IndexedRowMatrix(indexedRows, variants.length, n)
-  }
-}
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
 object ComputeLocalGrammian {
@@ -56,5 +35,46 @@ object ComputeRRM {
       val mRec = 1d / A.numRows()
       (ComputeLocalGrammian.withoutBlock(A) :* mRec, A.numRows().toInt)
     }
+  }
+}
+
+// each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
+object ToNormalizedRowMatrix {
+  def apply(vds: VariantDataset): RowMatrix = {
+    require(vds.wasSplit)
+    val n = vds.nSamples
+    val rows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.toNormalizedGtArray(gs, n) }.map(Vectors.dense)
+    val m = rows.count()
+    new RowMatrix(rows, m, n)
+  }
+}
+
+// each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
+object ToNormalizedIndexedRowMatrix {
+  def apply(vds: VariantDataset): IndexedRowMatrix = {
+    require(vds.wasSplit)
+    val n = vds.nSamples
+    val variants = vds.variants.collect()
+    val variantIdxBc = vds.sparkContext.broadcast(variants.index)
+    val indexedRows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.toNormalizedGtArray(gs, n).map(a => IndexedRow(variantIdxBc.value(v), Vectors.dense(a))) }
+    new IndexedRowMatrix(indexedRows, variants.length, n)
+  }
+}
+
+// each row has mean 0, norm approx sqrt(n), variance approx 1, constant variants are included as zero vector
+object ToHWENormalizedIndexedRowMatrix {
+  def apply(vds: VariantDataset): (Array[Variant], IndexedRowMatrix) = {
+    require(vds.wasSplit)
+
+    val n = vds.nSamples
+    val variants = vds.variants.collect()
+    val variantIdxBc = vds.sparkContext.broadcast(variants.index)
+
+    val mat = vds.rdd.map { case (v, (va, gs)) =>
+      IndexedRow(variantIdxBc.value(v), Vectors.dense(
+        RegressionUtils.toHWENormalizedGtArray(gs, n, variants.length).getOrElse(Array.ofDim[Double](n))))
+    }
+
+    (variants, new IndexedRowMatrix(mat.cache(), variants.length, n))
   }
 }

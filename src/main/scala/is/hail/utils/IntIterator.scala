@@ -1,14 +1,22 @@
 package is.hail.utils
 
-abstract class IntIterator extends Iterator[Int] {
+abstract class IntIterator {
   def nextInt(): Int
-  override def next(): Int = nextInt()
+
+  def hasNext: Boolean
+
+  def toArray: Array[Int] = {
+    val b = new IntArrayBuilder()
+    while (hasNext)
+      b += nextInt()
+    b.result()
+  }
 
   def countNonNegative(): Int = {
-    var cnt = 0
+    var count = 0
     while (hasNext) {
-      if (nextInt() >= 0) cnt += 1
+      if (nextInt() >= 0) count += 1
     }
-    cnt
+    count
   }
 }

@@ -495,7 +495,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val (nVariants, nCalled) =
       if (countGenotypes) {
         val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs)) =>
-          (1L, gs.count(_.isCalled).toLong)
+          (1L, gs.hardCallIterator.countNonNegative().toLong)
         }.fold((0L, 0L)) { (comb, x) =>
           (comb._1 + x._1, comb._2 + x._2)
         }
@@ -716,8 +716,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val bedHeader = Array[Byte](108, 27, 1)
 
+    val nSamples = vds.nSamples
+
     val plinkRDD = vds.rdd
-      .mapValuesWithKey { case (v, (va, gs)) => ExportBedBimFam.makeBedRow(gs) }
+      .mapValuesWithKey { case (v, (va, gs)) => ExportBedBimFam.makeBedRow(gs, nSamples) }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
     plinkRDD.map { case (v, bed) => bed }

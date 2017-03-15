@@ -3,6 +3,7 @@ package is.hail.methods
 import java.io.DataOutputStream
 
 import breeze.linalg.SparseVector
+import is.hail.stats.ToHWENormalizedIndexedRowMatrix
 import is.hail.utils._
 import is.hail.variant.VariantDataset
 import org.apache.spark.mllib.linalg.distributed.IndexedRow
@@ -18,7 +19,7 @@ object GRM {
 
   def apply(vds: VariantDataset, path: String, format: String,
     idFile: Option[String] = None, nFile: Option[String] = None) {
-    val (variants, mat) = ToStandardizedIndexedRowMatrix(vds)
+    val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vds)
 
     val nSamples = vds.nSamples
     assert(nSamples == mat.numCols())
