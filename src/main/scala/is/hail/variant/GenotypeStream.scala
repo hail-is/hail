@@ -121,7 +121,7 @@ object GenotypeStream {
 class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false)
   extends mutable.Builder[Genotype, GenotypeStream] {
 
-  val b: ByteArrayBuilder = new ByteArrayBuilder()
+  val b: ArrayBuilder[Byte] = new ArrayBuilder[Byte]()
 
   override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
     val gb = new GenotypeBuilder(nAlleles, isDosage)

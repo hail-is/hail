@@ -9,7 +9,7 @@ import org.testng.annotations.Test
 import scala.collection.mutable
 
 object GenotypeSuite {
-  val ab = new ByteArrayBuilder()
+  val ab = new ArrayBuilder[Byte]()
 
   def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
     ab.clear()

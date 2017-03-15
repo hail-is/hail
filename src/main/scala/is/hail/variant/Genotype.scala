@@ -939,7 +939,7 @@ class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {
       setFakeRef()
   }
 
-  def write(b: ByteArrayBuilder) {
+  def write(b: ArrayBuilder[Byte]) {
     val hasGT = Genotype.flagHasGT(isBiallelic, flags)
     val hasAD = Genotype.flagHasAD(flags)
     val hasDP = Genotype.flagHasDP(flags)

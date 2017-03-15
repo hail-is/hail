@@ -1,7 +1,7 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
-import is.hail.utils.{ByteArrayBuilder, JSONWriter, MultiArray2, Truncatable}
+import is.hail.utils.{ArrayBuilder, JSONWriter, MultiArray2, Truncatable}
 import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
@@ -20,7 +20,7 @@ trait Implicits {
 
   implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
 
-  implicit def toRichByteArrayBuilder(t: ByteArrayBuilder): RichByteArrayBuilder =
+  implicit def toRichByteArrayBuilder(t: ArrayBuilder[Byte]): RichByteArrayBuilder =
     new RichByteArrayBuilder(t)
 
   implicit def toRichBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
