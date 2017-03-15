@@ -301,7 +301,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     assert(D_==(h2Chr3, 0.14276116822096985))
   }
 
-  @Test def pythonTest() {
+  @Test def filterTest() {
 
     var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .filterMulti()
