@@ -1610,7 +1610,7 @@ object FunctionRegistry {
 
     **Notes**
 
-    See this `document <../LeveneHaldane.pdf>`_ for more information on how HWE p-values are computed.
+    Hail computes the exact p-value with mid-p-value correction, i.e. the probability of a less-likely outcome plus one-half the probability of an equally-likely outcome. See this `document <../LeveneHaldane.pdf>`_ for details on the Levene-Haldane distribution and references.
     """
   )(aggregableHr(genotypeHr),
     new HailRep[Any] {
