@@ -1908,6 +1908,9 @@ class VariantDataset(object):
 
         if isinstance(intervals, Interval):
             intervals = IntervalTree([intervals])
+        elif not isinstance(intervals, IntervalTree):
+            raise TypeError("argument 'intervals' must be of type Interval or IntervalTree, but found '%s'" %
+                            type(intervals))
 
         jvds = self._jvds.filterIntervals(intervals._jrep, keep)
         return VariantDataset(self.hc, jvds)
