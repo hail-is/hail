@@ -127,25 +127,28 @@ object BgenLoader {
 
   def readSamples(hConf: org.apache.hadoop.conf.Configuration, file: String): Array[String] = {
     val bState = readState(hConf, file)
-    if (!bState.hasIds)
-      fatal(s"BGEN file `$file' contains no sample ID block, coimport a `.sample' file")
+    if (bState.hasIds) {
+      hConf.readFile(file) { is =>
+        val reader = new HadoopFSDataBinaryReader(is)
 
-    hConf.readFile(file) { is =>
-      val reader = new HadoopFSDataBinaryReader(is)
+        reader.seek(bState.headerLength + 4)
+        val sampleIdSize = reader.readInt()
+        val nSamples = reader.readInt()
 
-      reader.seek(bState.headerLength + 4)
-      val sampleIdSize = reader.readInt()
-      val nSamples = reader.readInt()
+        if (nSamples != bState.nSamples)
+          fatal("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
 
-      if (nSamples != bState.nSamples)
-        fatal("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
+        if (sampleIdSize + bState.headerLength > bState.dataStart - 4)
+          fatal("BGEN file is malformed -- offset is smaller than length of header")
 
-      if (sampleIdSize + bState.headerLength > bState.dataStart - 4)
-        fatal("BGEN file is malformed -- offset is smaller than length of header")
-
-      (0 until nSamples).map { i =>
-        reader.readLengthAndString(2)
-      }.toArray
+        (0 until nSamples).map { i =>
+          reader.readLengthAndString(2)
+        }.toArray
+      }
+    } else {
+      warn(s"BGEN file `$file' contains no sample ID block and no sample ID file given.\n" +
+        s"  Using _0, _1, ..., _N as sample IDs.")
+      (0 until bState.nSamples).map(i => s"_$i").toArray
     }
   }
 

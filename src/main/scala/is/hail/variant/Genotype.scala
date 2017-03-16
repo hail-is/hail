@@ -518,6 +518,25 @@ object Genotype {
     f(1, a(0), 0, 1)
   }
 
+  def unboxedGTFromLinear(a: Array[Int]): Int = {
+    def f(i: Int, m: Int, mi: Int, count: Int): Int = {
+      if (i == a.length) {
+        assert(count >= 1)
+        if (count == 1)
+          mi
+        else
+          -1
+      } else if (a(i) > m)
+        f(i + 1, a(i), i, 1)
+      else if (a(i) == m)
+        f(i + 1, m, mi, count + 1)
+      else
+        f(i + 1, m, mi, count)
+    }
+
+    f(1, a(0), 0, 1)
+  }
+
   def weightsToLinear[T: Numeric](a: Array[T]): Array[Int] = {
     import scala.math.Numeric.Implicits._
 
@@ -863,6 +882,20 @@ class GenericGenotype(private val _gt: Int,
   def unboxedGQ: Int = _gq
 
   def unboxedPX: Array[Int] = _px
+}
+
+class DosageGenotype(var unboxedGT: Int,
+  var unboxedPX: Array[Int]) extends Genotype {
+
+  def unboxedAD: Array[Int] = null
+
+  def unboxedDP: Int = -1
+
+  def unboxedGQ: Int = -1
+
+  def fakeRef: Boolean = false
+
+  def isDosage = true
 }
 
 class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {

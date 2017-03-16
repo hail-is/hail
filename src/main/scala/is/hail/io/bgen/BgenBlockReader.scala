@@ -2,21 +2,16 @@ package is.hail.io.bgen
 
 import java.util.zip.Inflater
 
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.io._
 import is.hail.io.gen.GenReport._
-import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder, Variant}
+import is.hail.variant.{DosageGenotype, Genotype, Variant}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 
-object BgenRecord {
-  val dosageDivisor: Double = 32768.0
-}
-
 class BgenRecord(compressed: Boolean,
-  gb: GenotypeBuilder,
-  gsb: GenotypeStreamBuilder,
   nSamples: Int,
   tolerance: Double) extends KeySerializedValueRecord[Variant, Iterable[Genotype]] {
   var ann: Annotation = _
@@ -30,49 +25,67 @@ class BgenRecord(compressed: Boolean,
   override def getValue: Iterable[Genotype] = {
     require(input != null, "called getValue before serialized value was set")
 
-    val bytes = {
+    val bytes =
       if (compressed) {
         val expansion = Array.ofDim[Byte](nSamples * 6)
         val inflater = new Inflater
         inflater.setInput(input)
-        while (!inflater.finished()) {
-          inflater.inflate(expansion)
+        var off = 0
+        while (off < expansion.length) {
+          off += inflater.inflate(expansion, off, expansion.length - off)
         }
         expansion
       } else
         input
-    }
 
     assert(bytes.length == nSamples * 6)
 
     resetWarnings()
 
-    gsb.clear()
-    val bar = new ByteArrayReader(bytes)
+    val lowerTol = (32768 * (1.0 - tolerance) + 0.5).toInt
+    val upperTol = (32768 * (1.0 + tolerance) + 0.5).toInt
+    assert(lowerTol > 0)
 
-    for (i <- 0 until nSamples) {
-      gb.clear()
+    val noCall: Genotype = new DosageGenotype(-1, null)
 
-      val d0 = bar.readShort()
-      val d1 = bar.readShort()
-      val d2 = bar.readShort()
-      val dosageSum = (d0 + d1 + d2) / BgenRecord.dosageDivisor
-      if (dosageSum == 0.0)
-        setWarning(dosageNoCall)
-      else if (1d - dosageSum > tolerance)
-        setWarning(dosageLessThanTolerance)
-      else if (dosageSum - 1d > tolerance)
-        setWarning(dosageGreaterThanTolerance)
-      else {
-        val px = Genotype.weightsToLinear(d0, d1, d2)
-        val gt = Genotype.gtFromLinear(px)
-        gt.foreach(gb.setGT)
-        gb.setPX(px)
+    new Iterable[Genotype] {
+      def iterator = new Iterator[Genotype] {
+        var i = 0
+
+        def hasNext: Boolean = i < bytes.length
+
+        def next(): Genotype = {
+          val d0 = (bytes(i) & 0xff) | ((bytes(i + 1) & 0xff) << 8)
+          val d1 = (bytes(i + 2) & 0xff) | ((bytes(i + 3) & 0xff) << 8)
+          val d2 = (bytes(i + 4) & 0xff) | ((bytes(i + 5) & 0xff) << 8)
+
+          i += 6
+
+          val dsum = d0 + d1 + d2
+          if (dsum >= lowerTol) {
+            if (dsum <= upperTol) {
+              val px =
+                if (dsum == 32768)
+                  Array(d0, d1, d2)
+                else
+                  Genotype.weightsToLinear(d0, d1, d2)
+              val gt = Genotype.unboxedGTFromLinear(px)
+              new DosageGenotype(gt, px)
+            } else {
+              setWarning(dosageGreaterThanTolerance)
+              noCall
+            }
+          } else {
+            if (dsum == 0)
+              setWarning(dosageNoCall)
+            else
+              setWarning(dosageLessThanTolerance)
+
+            noCall
+          }
+        }
       }
-
-      gsb.write(gb)
     }
-    gsb.result()
   }
 }
 
@@ -84,12 +97,9 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
   val tolerance = job.get("tolerance").toDouble
 
-  val gb = new GenotypeBuilder(2, isDosage = true)
-  val gsb = new GenotypeStreamBuilder(2, isDosage = true)
-
   seekToFirstBlockInSplit(split.getStart)
 
-  override def createValue(): BgenRecord = new BgenRecord(bState.compressed, gb, gsb, bState.nSamples, tolerance)
+  override def createValue(): BgenRecord = new BgenRecord(bState.compressed, bState.nSamples, tolerance)
 
   def seekToFirstBlockInSplit(start: Long) {
     pos = btree.queryIndex(start) match {
