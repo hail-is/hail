@@ -354,21 +354,8 @@ task copyWebsiteContent(type: Copy, dependsOn: setupDocsDirs) {
 }
 
 task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
-    args('docs', 'build/tmp/docs/')
-    executable 'src/test/resources/runPandoc.sh'
-}
-
-task setupTutorial(type: Exec) {
-    workingDir 'python/hail/docs'
-    args tutorialFileLoc
-    executable 'scripts/setupTutorial.sh'
-}
-
-task makeFunctionsRst(type: Exec, dependsOn: ['setupDocsDirs', 'shadowJar']) {
-    commandLine 'python', '-c', 'from hail import *; from hail.utils import *; hc = HailContext(); fd = FunctionDocumentation(); fd.types_rst("python/hail/docs/types.rst"); fd.functions_rst("python/hail/docs/functions.rst")'
-    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment SPARK_HOME: sparkHome
-    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+    commandLine 'pandoc', 'README.md', '-f', 'markdown', '-t', 'html', '--mathjax',
+            '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/docs/README.html'
 }
 
 task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
@@ -387,9 +374,22 @@ task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
     }
 }
 
-task runNodeDocs(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copyHtml']) {
-    args('referenceTemplate.html', 'commandsTemplate.html', 'template.html', 'docs/')
-    executable 'build/tmp/docs/compileDocsNode.js'
+task buildIndex(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copyHtml']) {
+    args('template.html', 'README.html')
+    executable 'build/tmp/docs/buildIndex.js'
+}
+
+task setupTutorial(type: Exec) {
+    workingDir 'python/hail/docs'
+    args tutorialFileLoc
+    executable 'scripts/setupTutorial.sh'
+}
+
+task makeFunctionsRst(type: Exec, dependsOn: ['setupDocsDirs', 'shadowJar']) {
+    commandLine 'python', '-c', 'from hail import *; from hail.utils import *; hc = HailContext(); fd = FunctionDocumentation(); fd.types_rst("python/hail/docs/types.rst"); fd.functions_rst("python/hail/docs/functions.rst")'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment SPARK_HOME: sparkHome
+    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
 task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst']) {
@@ -420,12 +420,7 @@ task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocs
     commandLine 'mv', 'python/hail/docs/_build/html', 'build/www/hail'
 }
 
-task copyCompiledDocs(type: Copy, dependsOn: ['runNodeDocs']) {
-    from 'build/tmp/docs/commands.html'
-    from 'build/tmp/docs/reference.html'
-    from 'build/tmp/docs/overview.html'
-    from 'build/tmp/docs/getting_started.html'
-    from 'build/tmp/docs/expr_lang.html'
+task copyCompiledDocs(type: Copy, dependsOn: ['buildIndex']) {
     from 'build/tmp/docs/index.html'
     into 'build/www'
 }
