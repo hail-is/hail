@@ -5,12 +5,12 @@ import is.hail.utils._
 import is.hail.utils.richUtils.RichIndexedRowMatrix._
 
 import is.hail.variant.{Variant, VariantDataset}
+import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
-
-object ComputeLocalGrammian {
+object ComputeLocalGramian {
   def withoutBlock(A: RowMatrix): DenseMatrix[Double] = {
     val n = A.numCols().toInt
     val G = A.computeGramianMatrix().toArray
@@ -33,12 +33,19 @@ object ComputeRRM {
     if (useBlock) {
       val A = ToNormalizedIndexedRowMatrix(vds)
       val mRec = 1d / A.rows.count()
-      (ComputeLocalGrammian.withBlock(A) :* mRec, A.numRows().toInt)
+      (ComputeLocalGramian.withBlock(A) :* mRec, A.numRows().toInt)
     } else {
       val A = ToNormalizedRowMatrix(vds)
       val mRec = 1d / A.numRows()
-      (ComputeLocalGrammian.withoutBlock(A) :* mRec, A.numRows().toInt)
+      (ComputeLocalGramian.withoutBlock(A) :* mRec, A.numRows().toInt)
     }
+  }
+}
+
+object LocalDenseMatrixToIndexedRowMatrix {
+
+  def apply(dm: DenseMatrix[Double], sc: SparkContext) {
+    sc.parallelize(dm(*, ::)).zipWit
   }
 }
 

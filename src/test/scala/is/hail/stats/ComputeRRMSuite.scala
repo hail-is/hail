@@ -37,8 +37,8 @@ class ComputeRRMSuite extends SparkSuite {
     val KwithoutBlock = ComputeRRM(vds, useBlock = false)._1
     val KwithBlock = ComputeRRM(vds, useBlock = true)._1
 
-    //TestUtils.assertMatrixEqualityDouble(Klocal, KwithoutBlock)
-    //TestUtils.assertMatrixEqualityDouble(KwithBlock, KwithoutBlock)
+    TestUtils.assertMatrixEqualityDouble(Klocal, KwithoutBlock)
+    TestUtils.assertMatrixEqualityDouble(KwithBlock, KwithoutBlock)
 
 
     // medium example with many constant gt vectors
@@ -63,7 +63,7 @@ class ComputeRRMSuite extends SparkSuite {
     val K1withoutBlock = ComputeRRM(vds1, useBlock = false)._1
     val K1withBlock = ComputeRRM(vds1, useBlock = true)._1
 
-    //TestUtils.assertMatrixEqualityDouble(K1local, K1withoutBlock)
-    //TestUtils.assertMatrixEqualityDouble(K1withBlock, K1withoutBlock)
+    TestUtils.assertMatrixEqualityDouble(K1local, K1withoutBlock)
+    TestUtils.assertMatrixEqualityDouble(K1withBlock, K1withoutBlock)
   }
 }
