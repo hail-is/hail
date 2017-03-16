@@ -85,6 +85,10 @@ trait HailRepFunctions {
     def typ = TArray(hrt.typ)
   }
 
+  implicit def wrappedArrayHr[T](implicit hrt: HailRep[T]) = new HailRep[mutable.WrappedArray[T]] {
+    def typ = TArray(hrt.typ)
+  }
+
   implicit def setHr[T](implicit hrt: HailRep[T]) = new HailRep[Set[T]] {
     def typ = TSet(hrt.typ)
   }

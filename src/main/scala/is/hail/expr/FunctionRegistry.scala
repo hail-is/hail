@@ -2,13 +2,14 @@ package is.hail.expr
 
 import breeze.linalg.DenseVector
 import is.hail.annotations.Annotation
+import is.hail.asm4s.Code._
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.CompilationHelp.arrayToWrappedArray
 import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
-import org.apache.commons.math3
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -372,6 +373,11 @@ object FunctionRegistry {
   def registerField[T, U](name: String, impl: T => U, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U]) = {
     bind(name, FieldType(hrt.typ), UnaryFun[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerFieldCode[T, U](name: String, impl: (Code[T]) => CM[Code[U]], docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U]) = {
+    bind(name, FieldType(hrt.typ), UnaryFunCode[T, U](hru.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerMethod[T, U](name: String, impl: T => U, docstring: String, argNames: (String, String)*)
