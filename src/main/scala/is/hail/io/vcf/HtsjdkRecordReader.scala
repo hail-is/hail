@@ -340,6 +340,7 @@ object HtsjdkRecordReader {
   def cast(value: Any, t: Type): Any = {
     ((value, t): @unchecked) match {
       case (null, _) => null
+      case (".", _) => null
       case (s: String, TArray(TInt)) =>
         s.split(",").map(_.toInt): IndexedSeq[Int]
       case (s: String, TArray(TDouble)) =>
