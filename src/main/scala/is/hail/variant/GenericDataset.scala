@@ -5,6 +5,7 @@ import java.io.FileNotFoundException
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TGenotype, TSample, TString, TStruct, TVariant, Type}
+import is.hail.io.vcf.ExportVCF
 import is.hail.methods.Filter
 import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
 import is.hail.utils._
@@ -108,6 +109,17 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
             inserter(ga, a)
           }
       }).copy(genotypeSignature = finalType)
+  }
+
+  /**
+    *
+    * @param path output path
+    * @param append append file to header
+    * @param exportPP export Hail PLs as a PP format field
+    * @param parallel export VCF in parallel using the path argument as a directory
+    */
+  def exportVCF(path: String, append: Option[String] = None, exportPP: Boolean = false, parallel: Boolean = false) {
+    ExportVCF(gds, path, append, exportPP, parallel)
   }
 
   /**

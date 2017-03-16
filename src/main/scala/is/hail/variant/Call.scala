@@ -13,6 +13,14 @@ object Call extends Serializable {
     call
   }
 
+  def toString(call: Call): String =
+    if (call == null)
+      "./."
+    else {
+      val p = Genotype.gtPair(call)
+      s"${ p.j }/${ p.k }"
+    }
+
   def toGenotype(call: Call): Genotype = Genotype(call)
 
   def check(call: Call, nAlleles: Int) {

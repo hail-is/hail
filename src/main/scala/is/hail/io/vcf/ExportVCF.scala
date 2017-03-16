@@ -1,9 +1,9 @@
 package is.hail.io.vcf
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{Field, TArray, TBoolean, TChar, TDouble, TFloat, TInt, TIterable, TSet, TString, TStruct, Type}
+import is.hail.expr.{Field, TArray, TBoolean, TCall, TChar, TDouble, TFloat, TGenotype, TInt, TIterable, TSet, TString, TStruct, Type}
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset}
+import is.hail.variant.{Call, GenericDataset, Genotype, Variant}
 import org.apache.spark.sql.Row
 
 import scala.io.Source
@@ -35,6 +35,20 @@ object ExportVCF {
             sb.append(x.formatted("%.5e"))
         case _ => sb.append(elementType.str(a))
       }
+    }
+  }
+
+  def emitFormatField(f: Field, sb: StringBuilder, a: Annotation) {
+    f.typ match {
+      case TCall => Call.toString(a.asInstanceOf[Call])
+      case it: TIterable =>
+        if (a == null)
+          sb += '.'
+        else {
+          val arr = a.asInstanceOf[Iterable[_]]
+          arr.foreachBetween(a => strVCF(sb, it.elementType, a))(sb += ',')
+        }
+      case t => strVCF(sb, t, a)
     }
   }
 
@@ -75,9 +89,18 @@ object ExportVCF {
     case TChar => "Character"
     case TString => "String"
     case TBoolean => "Flag"
+    case _ => fatal(s"Cannot export type `$t' to VCF INFO field.")
+  }
 
-    // FIXME
-    case _ => "String"
+  def formatType(t: Type): String = t match {
+    case TArray(elementType) => formatType(elementType)
+    case TSet(elementType) => formatType(elementType)
+    case TInt => "Integer"
+    case TDouble => "Float"
+    case TChar => "Character"
+    case TString => "String"
+    case TCall => "String"
+    case _ => fatal(s"Cannot export type `$t' to VCF FORMAT field.")
   }
 
   def appendIntArrayOption(sb: StringBuilder, toAppend: Option[Array[Int]]): Unit = {
@@ -100,6 +123,16 @@ object ExportVCF {
 
   def appendDoubleArray(sb: StringBuilder, toAppend: Array[Double]): Unit = {
     toAppend.foreachBetween(sb.append(_))(sb += ',')
+  }
+
+  def writeGenotype(sb: StringBuilder, sig: TStruct, fieldOrder: Array[Int], a: Annotation) {
+    val r = a.asInstanceOf[Row]
+    val fields = sig.fields
+    assert(r.length == fields.length, "annotation/type mismatch")
+
+    fieldOrder.foreachBetween { i =>
+      emitFormatField(fields(i), sb, r.get(i))
+    }(sb += ':')
   }
 
   def writeGenotype(sb: StringBuilder, g: Genotype) {
@@ -144,14 +177,58 @@ object ExportVCF {
     }
   }
 
-  def apply(vds: VariantDataset, path: String, append: Option[String] = None, exportPP: Boolean = false,
-    parallel: Boolean = false) {
-    val vas = vds.vaSignature
+  def validFormatType(typ: Type): Boolean = {
+    typ match {
+      case TString => true
+      case TChar => true
+      case TDouble => true
+      case TInt => true
+      case TCall => true
+      case _ => false
+    }
+  }
 
-    val infoSignature = vds.vaSignature
+  def checkFormatSignature(sig: TStruct) {
+    sig.fields.foreach { fd =>
+      val valid = fd.typ match {
+        case it: TIterable => validFormatType(it.elementType)
+        case t => validFormatType(t)
+      }
+      if (!valid)
+        fatal(s"Invalid type for format field `${ fd.name }'. Found ${ fd.typ }.")
+    }
+  }
+
+  def apply(gds: GenericDataset, path: String, append: Option[String] = None, exportPP: Boolean = false,
+    parallel: Boolean = false) {
+    val vas = gds.vaSignature
+
+    val genotypeSignature = gds.genotypeSignature
+
+    val (genotypeFormatField, genotypeFieldOrder) = genotypeSignature match {
+      case TGenotype =>
+        if (exportPP)
+          ("GT:AD:DP:GQ:PP", null)
+        else
+          ("GT:AD:DP:GQ:PL", null)
+      case sig: TStruct =>
+        val fields = sig.fields
+        val formatFieldOrder: Array[Int] = sig.fieldIdx.get("GT") match {
+          case Some(i) => (i +: fields.filter(fd => fd.name != "GT").map(_.index)).toArray
+          case None => sig.fields.indices.toArray
+        }
+        val formatFieldString = formatFieldOrder.map(i => fields(i).name).mkString(":")
+
+        checkFormatSignature(sig)
+
+        (formatFieldString, formatFieldOrder)
+      case _ => fatal(s"Can only export to VCF with genotype signature of TGenotype or TStruct. Found `${ genotypeSignature }'.")
+    }
+
+    val infoSignature = gds.vaSignature
       .getAsOption[TStruct]("info")
     val infoQuery: (Annotation) => Option[(Annotation, TStruct)] = infoSignature.map { struct =>
-      val (_, f) = vds.queryVA("va.info")
+      val (_, f) = gds.queryVA("va.info")
       (a: Annotation) => {
         if (a == null)
           None
@@ -160,30 +237,47 @@ object ExportVCF {
       }
     }.getOrElse((a: Annotation) => None)
 
-    val hasSamples = vds.nSamples > 0
+    val hasSamples = gds.nSamples > 0
 
     def header: String = {
       val sb = new StringBuilder()
 
       sb.append("##fileformat=VCFv4.2\n")
       // FIXME add Hail version
-      if (exportPP)
-        sb.append(
-          """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-            |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-            |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-            |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-            |##FORMAT=<ID=PP,Number=G,Type=Integer,Description="Normalized, Phred-scaled posterior probabilities for genotypes as defined in the VCF specification">""".stripMargin)
-      else
-        sb.append(
-          """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-            |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-            |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-            |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-            |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
+
+      genotypeSignature match {
+        case TGenotype =>
+          if (exportPP)
+            sb.append(
+              """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+              |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+              |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+              |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+              |##FORMAT=<ID=PP,Number=G,Type=Integer,Description="Normalized, Phred-scaled posterior probabilities for genotypes as defined in the VCF specification">""".stripMargin)
+          else
+            sb.append(
+              """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+              |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+              |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+              |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+              |##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">""".stripMargin)
+        case sig: TStruct =>
+          sig.fields.foreachBetween { f =>
+            sb.append("##FORMAT=<ID=")
+            sb.append(f.name)
+            sb.append(",Number=")
+            sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
+            sb.append(",Type=")
+            sb.append(formatType(f.typ))
+            sb.append(",Description=\"")
+            sb.append(f.attr("Description").getOrElse(""))
+            sb.append("\">")
+          }(sb += '\n')
+      }
+
       sb += '\n'
 
-      vds.vaSignature.fieldOption("filters")
+      gds.vaSignature.fieldOption("filters")
         .foreach { f =>
           f.attrs.foreach { case (key, desc) =>
             sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
@@ -203,7 +297,7 @@ object ExportVCF {
       })
 
       append.foreach { f =>
-        vds.sparkContext.hadoopConfiguration.readFile(f) { s =>
+        gds.sparkContext.hadoopConfiguration.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)
@@ -217,7 +311,7 @@ object ExportVCF {
       sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
       if (hasSamples)
         sb.append("\tFORMAT")
-      vds.sampleIds.foreach { id =>
+      gds.sampleIds.foreach { id =>
         sb += '\t'
         sb.append(id)
       }
@@ -231,7 +325,7 @@ object ExportVCF {
           s"""found `rsid' field, but it was an unexpected type `$t'.  Emitting missing RSID.
              |  Expected ${ TString }""".stripMargin)
           false
-      }.map(_ => vds.queryVA("va.rsid")._2)
+      }.map(_ => gds.queryVA("va.rsid")._2)
 
     val qualQuery: Option[Querier] = vas.getOption("qual")
       .filter {
@@ -240,7 +334,7 @@ object ExportVCF {
           s"""found `qual' field, but it was an unexpected type `$t'.  Emitting missing QUAL.
              |  Expected ${ TDouble }""".stripMargin)
           false
-      }.map(_ => vds.queryVA("va.qual")._2)
+      }.map(_ => gds.queryVA("va.qual")._2)
 
     val filterQuery: Option[Querier] = vas.getOption("filters")
       .filter {
@@ -250,9 +344,9 @@ object ExportVCF {
             s"""found `filters' field, but it was an unexpected type `$t'.  Emitting missing FILTERS.
                |  Expected ${ TSet(TString) }""".stripMargin)
           false
-      }.map(_ => vds.queryVA("va.filters")._2)
+      }.map(_ => gds.queryVA("va.filters")._2)
 
-    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Genotype]) {
+    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Annotation]) {
 
       sb.append(v.contig)
       sb += '\t'
@@ -304,25 +398,27 @@ object ExportVCF {
 
       if (hasSamples) {
         sb += '\t'
-        if (exportPP)
-          sb.append("GT:AD:DP:GQ:PP")
-        else
-          sb.append("GT:AD:DP:GQ:PL")
-        gs.foreach { g =>
-          sb += '\t'
+        sb.append(genotypeFormatField)
+        gs.foreach {
+          g =>
+            sb += '\t'
 
-          writeGenotype(sb, g)
+            genotypeSignature match {
+              case TGenotype => writeGenotype(sb, g.asInstanceOf[Genotype])
+              case sig: TStruct => writeGenotype(sb, sig, genotypeFieldOrder, g)
+            }
         }
       }
     }
 
-    vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
+    gds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Annotation]))] =>
       val sb = new StringBuilder
       it.map { case (v, (va, gs)) =>
         sb.clear()
         appendRow(sb, v, va, gs)
         sb.result()
       }
-    }.writeTable(path, vds.hc.tmpDir, Some(header), parallelWrite = parallel)
+    }.writeTable(path, gds.hc.tmpDir, Some(header), parallelWrite = parallel)
   }
+
 }

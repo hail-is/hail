@@ -56,4 +56,50 @@ class GenericDatasetSuite extends SparkSuite {
 
     assert(gdsAnnotated.filterGenotypes("g.a != 5").rdd.forall { case (v, (va, gs)) => gs.forall(_ == null) })
   }
+
+  @Test def testExportVCF() {
+    val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz", nPartitions = Some(4))
+
+    // not TGenotype or TStruct signature
+    intercept[FatalException] {
+      val path = tmpDir.createTempFile(extension = ".vcf")
+      gds
+        .annotateGenotypesExpr("g = 5")
+        .exportVCF(path)
+    }
+
+    // struct field
+    intercept[FatalException] {
+      val path = tmpDir.createTempFile(extension = ".vcf")
+      gds
+        .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = {gene: 5}")
+        .exportVCF(path)
+    }
+
+    // nested arrays
+    intercept[FatalException] {
+      val path = tmpDir.createTempFile(extension = ".vcf")
+      gds
+        .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = [[1, 5], [2], [3, 4]]")
+        .exportVCF(path)
+    }
+
+    // nested set
+    intercept[FatalException] {
+      val path = tmpDir.createTempFile(extension = ".vcf")
+      gds
+        .annotateGenotypesExpr("g.dpset = g.PL.map(pl => [pl]).toSet()")
+        .exportVCF(path)
+    }
+
+    val path = tmpDir.createTempFile(extension = ".vcf")
+    val path2 = tmpDir.createTempFile(extension = ".vds")
+
+    gds
+      .annotateGenotypesExpr("g = Genotype(g.GT)")
+      .toVDS
+      .exportVCF(path)
+
+    hc.importVCF(path).write(path2)
+  }
 }

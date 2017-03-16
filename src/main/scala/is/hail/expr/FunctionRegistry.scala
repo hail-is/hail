@@ -775,6 +775,11 @@ object FunctionRegistry {
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
 
+  registerSpecial("Genotype", { (c: () => Any) => Genotype(c().asInstanceOf[Call]) },
+    """
+    Construct a :ref:`genotype` object from a :ref:`call`.
+    """)(callHr, genotypeHr)
+
   register("Variant", { (x: String) => Variant.parse(x) },
     """
     Construct a :ref:`variant` object.

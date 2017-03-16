@@ -784,7 +784,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     * @param parallel export VCF in parallel using the path argument as a directory
     */
   def exportVCF(path: String, append: Option[String] = None, exportPP: Boolean = false, parallel: Boolean = false) {
-    ExportVCF(vds, path, append, exportPP, parallel)
+    ExportVCF(vds.toGDS, path, append, exportPP, parallel)
   }
 
   def exportVariants(path: String, expr: String, typeFile: Boolean = false) {
