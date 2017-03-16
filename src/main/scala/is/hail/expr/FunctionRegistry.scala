@@ -556,6 +556,10 @@ object FunctionRegistry {
     def typ = TTBoxed
   }
 
+  private def nonceToNullable[T : TypeInfo, U >: Null](check: Code[T] => Code[Boolean], v: Code[T], ifPresent: Code[T] => Code[U]): CM[Code[U]] = for (
+    (stx, x) <- CM.memoize(v)
+  ) yield Code(stx, check(x).mux(Code._null[U], ifPresent(x)))
+
   import is.hail.variant.Call._
   registerField("gt", { (c: Call) => c}, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedintHr)
   registerMethodSpecial("gtj", { (c: () => Any) => gtj(c().asInstanceOf[Call]) }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedintHr)
