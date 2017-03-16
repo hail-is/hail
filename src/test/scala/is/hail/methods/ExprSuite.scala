@@ -19,6 +19,7 @@ import scala.collection.mutable
 import org.scalatest._
 import Matchers._
 import matchers._
+import org.apache.spark.sql.Row
 
 class ExprSuite extends SparkSuite {
 
@@ -563,6 +564,22 @@ class ExprSuite extends SparkSuite {
     assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
     assert(eval[Variant]("""Variant("1", 1, "A", ["T", "G"])""").contains(Variant("1", 1, "A", Array("T", "G"))))
     assert(eval[Boolean]("""let v = Variant("1", 1, "A", "T") in Variant(str(v)) == v""").contains(true))
+
+    {
+      val x = eval[Annotation]("""let left = Variant("1:1000:AT:A,CT") and right = Variant("1:1000:A:C,AGG") in combineVariants(left,right)""")
+      assert(x.isDefined)
+      assert(x.get.asInstanceOf[Row].getAs[Variant](0) == Variant("1",1000,"AT",Array("A","CT","AGGT")))
+      val left = x.get.asInstanceOf[Row].getAs[Map[Int,Int]](1)
+      left.keySet should contain theSameElementsAs Seq(0, 1, 2)
+      assert(left.get(0).contains(0))
+      assert(left.get(1).contains(1))
+      assert(left.get(2).contains(2))
+      val right = x.get.asInstanceOf[Row].getAs[Map[Int,Int]](2)
+      right.keySet should contain theSameElementsAs Seq(0, 2, 3)
+      assert(left.get(0).contains(0))
+      assert(right.get(2).contains(1))
+      assert(right.get(3).contains(2))
+    }
 
     assert(eval[Locus]("""Locus("1", 1)""").contains(Locus("1", 1)))
     assert(eval[Locus]("""Locus("1:1")""").contains(Locus("1", 1)))
