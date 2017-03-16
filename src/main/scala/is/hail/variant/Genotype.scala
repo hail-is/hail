@@ -880,7 +880,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
   private var _hasAD = false
   var unboxedDP: Int = -1
   var unboxedGQ: Int = -1
-  private val _px: Array[Int] = Array.ofDim[Int](nAlleles)
+  private val _px: Array[Int] = Array.ofDim[Int](triangle(nAlleles))
   private var _hasPX = false
   var fakeRef: Boolean = false
   var isDosage: Boolean = false
