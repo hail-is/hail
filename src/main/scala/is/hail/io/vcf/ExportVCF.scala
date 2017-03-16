@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.{Field, TArray, TBoolean, TCall, TChar, TDouble, TFloat, TGenotype, TInt, TIterable, TSet, TString, TStruct, Type}
 import is.hail.utils._
-import is.hail.variant.{GenericDataset, Genotype, Variant}
+import is.hail.variant.{Call, GenericDataset, Genotype, Variant}
 import org.apache.spark.sql.Row
 
 import scala.io.Source
@@ -38,21 +38,18 @@ object ExportVCF {
     }
   }
 
-  def emitGenotype(f: Field, sb: StringBuilder, value: Annotation) {
-    if (value == null)
-      sb += '.'
-    else
-      f.typ match {
-        case it: TIterable =>
-          val arr = value.asInstanceOf[Iterable[_]]
-          if (arr.isEmpty) {
-            sb += '.'
-          } else {
-            arr.foreachBetween(a => strVCF(sb, it.elementType, a))(sb += ',')
-          }
-        case t =>
-          strVCF(sb, t, value)
-      }
+  def emitFormatField(f: Field, sb: StringBuilder, a: Annotation) {
+    f.typ match {
+      case TCall => Call.toString(a.asInstanceOf[Call])
+      case it: TIterable =>
+        if (a == null)
+          sb += '.'
+        else {
+          val arr = a.asInstanceOf[Iterable[_]]
+          arr.foreachBetween(a => strVCF(sb, it.elementType, a))(sb += ',')
+        }
+      case t => strVCF(sb, t, a)
+    }
   }
 
   def emitInfo(f: Field, sb: StringBuilder, value: Annotation): Boolean = {
@@ -102,7 +99,6 @@ object ExportVCF {
     case TDouble => "Float"
     case TChar => "Character"
     case TString => "String"
-    case TBoolean => "String"
     case TCall => "String"
     case _ => fatal(s"Cannot export type `$t' to VCF FORMAT field.")
   }
@@ -135,7 +131,7 @@ object ExportVCF {
     assert(r.length == fields.length, "annotation/type mismatch")
 
     fieldOrder.foreachBetween { i =>
-      emitGenotype(fields(i), sb, r.get(i))
+      emitFormatField(fields(i), sb, r.get(i))
     }(sb += ':')
   }
 
@@ -184,11 +180,10 @@ object ExportVCF {
   def validFormatType(typ: Type): Boolean = {
     typ match {
       case TString => true
-      case TFloat => true
+      case TChar => true
       case TDouble => true
-      case TCall => true
       case TInt => true
-      case TBoolean => true
+      case TCall => true
       case _ => false
     }
   }
@@ -216,10 +211,10 @@ object ExportVCF {
           ("GT:AD:DP:GQ:PP", null)
         else
           ("GT:AD:DP:GQ:PL", null)
-      case sig: TStruct => // FIXME -- check types of format fields
+      case sig: TStruct =>
         val fields = sig.fields
         val formatFieldOrder: Array[Int] = sig.fieldIdx.get("GT") match {
-          case Some(i) => (i +: fields.flatMap(fd => if (fd.name != "GT") Some(fd.index) else None)).toArray
+          case Some(i) => (i +: fields.filter(fd => fd.name != "GT").map(_.index)).toArray
           case None => sig.fields.indices.toArray
         }
         val formatFieldString = formatFieldOrder.map(i => fields(i).name).mkString(":")
@@ -278,7 +273,6 @@ object ExportVCF {
             sb.append(f.attr("Description").getOrElse(""))
             sb.append("\">")
           }(sb += '\n')
-        case _ => fatal(s"Can only export to VCF with genotype signature of TGenotype or TStruct. Found `${ genotypeSignature }'.")
       }
 
       sb += '\n'
@@ -412,7 +406,6 @@ object ExportVCF {
             genotypeSignature match {
               case TGenotype => writeGenotype(sb, g.asInstanceOf[Genotype])
               case sig: TStruct => writeGenotype(sb, sig, genotypeFieldOrder, g)
-              case _ => fatal(s"Can only export to VCF with genotype signature of TGenotype or TStruct. Found `${ genotypeSignature }'.")
             }
         }
       }

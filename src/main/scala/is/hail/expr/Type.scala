@@ -606,8 +606,6 @@ case object TCall extends Type {
   override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
-
-  override def str(a: Annotation): String = if (a == null) "." else Call.toString(a.asInstanceOf[Call])
 }
 
 case object TAltAllele extends Type {
