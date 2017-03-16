@@ -6,7 +6,7 @@ abstract class IntIterator {
   def hasNext: Boolean
 
   def toArray: Array[Int] = {
-    val b = new IntArrayBuilder()
+    val b = new ArrayBuilder[Int]()
     while (hasNext)
       b += nextInt()
     b.result()

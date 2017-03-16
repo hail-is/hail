@@ -73,7 +73,7 @@ object RegressionUtils {
 
     val n = X.rows
     val k = X.cols - 1
-    var missingIndices = new IntArrayBuilder()
+    var missingIndices = new ArrayBuilder[Int]()
     var i = 0
     var j = k * n
     var gtSum = 0
@@ -200,9 +200,9 @@ object RegressionUtils {
 // constructs SparseVector of genotype calls with missing values mean-imputed
 // if all genotypes are missing then all elements are NaN
 class SparseGtBuilder extends Serializable {
-  private val missingRowIndices = new IntArrayBuilder()
-  private val rowsX = new IntArrayBuilder()
-  private val valsX = new DoubleArrayBuilder()
+  private val missingRowIndices = new ArrayBuilder[Int]()
+  private val rowsX = new ArrayBuilder[Int]()
+  private val valsX = new ArrayBuilder[Double]()
   private var row = 0
   private var sparseLength = 0
   // current length of rowsX and valsX, used to track missingRowIndices
@@ -260,9 +260,9 @@ case class SparseGtVectorAndStats(x: SparseVector[Double], isConstant: Boolean, 
 
 // constructs SparseVector of genotype calls (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
 class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
-  private val missingRowIndices = new IntArrayBuilder()
-  private val rowsX = new IntArrayBuilder()
-  private val valsX = new DoubleArrayBuilder()
+  private val missingRowIndices = new ArrayBuilder[Int]()
+  private val rowsX = new ArrayBuilder[Int]()
+  private val valsX = new ArrayBuilder[Double]()
   private var row = 0
   private var sparseLength = 0 // length of rowsX and valsX, used to track missingRowIndices
   private var sumX = 0
