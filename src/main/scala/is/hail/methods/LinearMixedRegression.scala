@@ -5,7 +5,6 @@ import breeze.numerics.sqrt
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats._
-import is.hail.stats.eigSymD.DenseeigSymD
 import is.hail.utils._
 import is.hail.variant.VariantDataset
 import org.apache.commons.math3.analysis.UnivariateFunction
@@ -82,13 +81,11 @@ object LinearMixedRegression {
     val (rrm, m) = ComputeRRM(filtKinshipVds, useBlock)
 
 
+
     info(s"lmmreg: RRM computed using $m variants")
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
-    val cols = rrmDist.numCols().toInt //Can I just use m?
-    val rrm = new DenseMatrix[Double](cols, cols, rrmDist.toLocalMatrix().toArray)
-
-    val eigK: DenseeigSymD = eigSymD(rrm)
+    val eigK = eigSymD(rrm)
     val Ut = eigK.eigenvectors.t
     val S = eigK.eigenvalues // increasing order
 

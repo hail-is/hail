@@ -5,51 +5,40 @@ import is.hail.utils._
 import is.hail.utils.richUtils.RichIndexedRowMatrix._
 
 import is.hail.variant.{Variant, VariantDataset}
-import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
-import is.hail.variant.VariantDataset
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix, RowMatrix}
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
 
-object ComputeGrammian {
-  /*def withoutBlock(A: RowMatrix): DenseMatrix[Double] = {
+object ComputeLocalGrammian {
+  def withoutBlock(A: RowMatrix): DenseMatrix[Double] = {
     val n = A.numCols().toInt
     val G = A.computeGramianMatrix().toArray
-  new DenseMatrix[Double](n, n, G)
-}*/
+    new DenseMatrix[Double](n, n, G)
+  }
 
-  def withBlock(A: IndexedRowMatrix): BlockMatrix = {
+  def withBlock(A: IndexedRowMatrix): DenseMatrix[Double] = {
     val n = A.numCols().toInt
     val B = A.toBlockMatrix().cache()
-    //val G = B.transpose.multiply(B).toLocalMatrix().toArray
-    //B.blocks.unpersist()
-    B.transpose.multiply(B)
-    //new DenseMatrix[Double](n, n, G)
+    val G = B.transpose.multiply(B).toLocalMatrix().toArray
+    B.blocks.unpersist()
+    new DenseMatrix[Double](n, n, G)
   }
 }
 
 // diagonal values are approximately 1 assuming independent variants by Central Limit Theorem
 object ComputeRRM {
-  def apply(vds: VariantDataset, useBlock: Boolean): (BlockMatrix, Int) = {
-    //if (useBlock) {
+
+  def apply(vds: VariantDataset, useBlock: Boolean): (DenseMatrix[Double], Int) = {
+    if (useBlock) {
       val A = ToNormalizedIndexedRowMatrix(vds)
       val mRec = 1d / A.rows.count()
-      //(ComputeGrammian.withBlock(A) :* mRec, A.numRows().toInt)
-      val computedGrammian = ComputeGrammian.withBlock(A)
-
-      def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
-        Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
-      }
-
-      val scaledBlockRDD = computedGrammian.blocks.map(tuple => tuple match {case (coords, matrix) => (coords, scaleMatrix(matrix, mRec))})
-      (new BlockMatrix(scaledBlockRDD, computedGrammian.rowsPerBlock, computedGrammian.colsPerBlock), A.numRows().toInt)
-
-    //(scaledGrammian, A.numRows().toInt)
-    /*} else {
+      (ComputeLocalGrammian.withBlock(A) :* mRec, A.numRows().toInt)
+    } else {
       val A = ToNormalizedRowMatrix(vds)
       val mRec = 1d / A.numRows()
       (ComputeLocalGrammian.withoutBlock(A) :* mRec, A.numRows().toInt)
-    }*/
+    }
   }
 }
 
@@ -92,4 +81,5 @@ object ToHWENormalizedIndexedRowMatrix {
 
     (variants, new IndexedRowMatrix(mat.cache(), variants.length, n))
   }
+
 }
