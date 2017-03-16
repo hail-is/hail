@@ -254,7 +254,7 @@ object RegressionUtils {
     var sumXX = 0.0
     var sumXY = 0.0
     var sumYMissing = 0.0
-    val missingRowIndices = new mutable.ArrayBuilder.ofInt()
+    val missingRowIndices = new ArrayBuilder[Int]()
 
     var i = 0
     while (i < data.length) {
@@ -451,9 +451,8 @@ class SparseGtBuilder extends Serializable {
   private var nHet = 0
   private var nHomVar = 0
 
-
-  def merge(g: Genotype): SparseGtBuilder = {
-    (g.unboxedGT: @unchecked) match {
+  def merge(gt: Int): SparseGtBuilder = {
+    (gt: @unchecked) match {
       case 0 =>
       case 1 =>
         nHet += 1
