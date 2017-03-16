@@ -3,8 +3,8 @@ package is.hail.utils
 import scala.reflect.ClassTag
 
 class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) {
-  private var b: Array[T] = new Array[T](initialCapacity)
-  private var size_ : Int = 0
+  private[this] var b: Array[T] = new Array[T](initialCapacity)
+  private[this] var size_ : Int = 0
 
   def this()(implicit tct: ClassTag[T]) = this(16)
 
