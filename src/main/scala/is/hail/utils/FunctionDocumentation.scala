@@ -256,7 +256,7 @@ object FunctionDocumentation {
 
   import RstUtils._
 
-  val namesToSkip = Set("fromInt", "!", "-")
+  val namesToSkip = Set("fromInt", "!", "-", "Genotype")
 
   // hack for functions not in registry
   val addtlEntries = Array(
