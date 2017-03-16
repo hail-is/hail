@@ -451,6 +451,7 @@ class SparseGtBuilder extends Serializable {
   private var nHet = 0
   private var nHomVar = 0
 
+
   def merge(g: Genotype): SparseGtBuilder = {
     (g.unboxedGT: @unchecked) match {
       case 0 =>
