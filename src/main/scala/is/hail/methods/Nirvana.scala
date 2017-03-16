@@ -27,17 +27,6 @@ object Nirvana {
     "copyNumber" -> TInt,
     "strandBias" -> TDouble,
     "recalibratedQuality" -> TDouble,
-    /*"samples" -> TArray(TStruct(
-      "variantFreq" -> TDouble,
-      "totalDepth" -> TInt,
-      "alleleDepths" -> TArray(TInt),
-      "genotype" -> TString,
-      "genotypeQuality" -> TInt,
-      "failedFilter" -> TBoolean,
-      "isEmpty" -> TBoolean,
-      "copyNumber" -> TInt,
-      "lossOfHeterozygosity" -> TBoolean
-    )),*/
     "variants" -> TArray(TStruct(
       "ancestralAllele" -> TString,
       "altAllele" -> TString,
@@ -102,7 +91,7 @@ object Nirvana {
       "exacSasAn" -> TInt,
       "regulatoryRegions" -> TArray(TStruct(
         "id" -> TString,
-        "consequence" -> TArray(TString),
+        "consequence" -> TArray(TString), //TSET
         "type" -> TString
       )),
       "transcripts" -> TStruct(
@@ -117,7 +106,7 @@ object Nirvana {
           "introns" -> TString,
           "geneId" -> TString,
           "hgnc" -> TString,
-          "consequence" -> TArray(TString),
+          "consequence" -> TArray(TString), //TSET
           "hgvsc" -> TString,
           "hgvsp" -> TString,
           "isCanonical" -> TBoolean,
