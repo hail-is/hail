@@ -515,6 +515,22 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }, preservesPartitioning = true).asOrderedRDD)
   }
 
+  def deNovo(famFile: String,
+    referenceAFExpr: String,
+    extraFieldsExpr: Option[String] = None,
+    plThreshold: Int = 20,
+    minimumPDeNovo: Double = 0.05,
+    maxParentAB: Double = 0.05,
+    minChildAB: Double = 0.20,
+    minDepthRatio: Double = 0.10): KeyTable = {
+    requireSplit("de novo")
+
+    DeNovo.call(vds, famFile, referenceAFExpr, extraFieldsExpr,
+      plThreshold, minimumPDeNovo,
+      maxParentAB, minChildAB,
+      minDepthRatio)
+  }
+
   def eraseSplit(): VariantDataset = {
     if (vds.wasSplit) {
       val (newSignatures1, f1) = vds.deleteVA("wasSplit")
@@ -1381,7 +1397,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
     val genotypeSignature = vds.genotypeSignature
-    require(genotypeSignature == TGenotype, s"Expecting a genotype signature of TGenotype, but found `${genotypeSignature.toPrettyString()}'")
+    require(genotypeSignature == TGenotype, s"Expecting a genotype signature of TGenotype, but found `${ genotypeSignature.toPrettyString() }'")
 
     vds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
       Serialization.write(vds.rdd.orderedPartitioner.toJSON, out)
