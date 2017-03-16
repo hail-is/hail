@@ -676,7 +676,7 @@ object FunctionRegistry {
     (stg, g) <- CM.memoize(x)
   ) yield Code(stg,
     g.invoke[Boolean]("hasPAB")
-      .mux(boxDouble(g.invoke[Double]("pAB_")), Code._null))
+      .mux(boxDouble(g.invoke[Double, Double]("pAB_", 0.5)), Code._null))
   }, "p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Missing if the call is not heterozygous.")
 
   private def intArraySumCode(a: Code[Array[Int]]): CM[Code[Int]] = for (
