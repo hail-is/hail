@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantDataset}
+import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -214,28 +214,9 @@ object VEP {
   }
 
   def annotate(vds: VariantDataset, config: String, root: String = "va.vep", csq: Boolean,
-    force: Boolean, blockSize: Int): VariantDataset = {
+    blockSize: Int): VariantDataset = {
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-
-    val rootType =
-      vds.vaSignature.getOption(parsedRoot)
-        .filter { t =>
-          val r = t == (if (csq) TArray(TString) else vepSignature)
-          if (!r) {
-            if (force)
-              warn(s"type for $parsedRoot does not match vep signature, overwriting.")
-            else
-              warn(s"type for $parsedRoot does not match vep signature.")
-          }
-          r
-        }
-
-    if (rootType.isEmpty && !force)
-      fatal("for performance, you should annotate variants with pre-computed VEP annotations.  Cowardly refusing to VEP annotate from scratch.  Use --force to override.")
-
-    val rootQuery = rootType
-      .map(_ => vds.vaSignature.query(parsedRoot))
 
     val properties = try {
       val p = new Properties()
@@ -300,7 +281,7 @@ object VEP {
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
-    val annotations = vds.rdd.mapValues { case (va, gs) => va }
+    val annotations = vds.rdd
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -309,19 +290,16 @@ object VEP {
         if (path != null)
           env.put("PATH", path)
 
-        it.filter { case (v, va) =>
-          rootQuery.forall(q => q(va) == null)
-        }
-          .map { case (v, _) => v }
+        it
           .grouped(localBlockSize)
           .flatMap { block =>
-            val (jt, proc) = block.iterator.pipe(pb,
+            val (jt, proc) = block.iterator.map { case (v, (va, gs)) => v }.pipe(pb,
               printContext,
               printElement,
               _ => ())
 
-            val nonStarToOriginalVariant = block.map {
-              v => (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
+            val nonStarToOriginalVariant = block.map { case (v, (va, gs)) =>
+              (v.copy(altAlleles = v.altAlleles.filter(_.alt != "*")), v)
             }.toMap
 
             val kt = jt
@@ -399,10 +377,20 @@ object VEP {
 
     val newRDD = vds.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
-        left.sortedLeftJoinDistinct(right)
-          .map { case (v, ((va, gs), vaVep)) =>
-            (v, (insertVEP(va, vaVep.orNull), gs))
+        new Iterator[(Variant, (Annotation, Iterable[Genotype]))] {
+          def hasNext: Boolean = {
+            val r = left.hasNext
+            assert(r == right.hasNext)
+            r
           }
+
+          def next(): (Variant, (Annotation, Iterable[Genotype])) = {
+            val (lv, (va, gs)) = left.next()
+            val (rv, vaVep) = right.next()
+            assert(lv == rv)
+            (lv, (insertVEP(va, vaVep), gs))
+          }
+        }
       }.asOrderedRDD
 
     vds.copy(rdd = newRDD,

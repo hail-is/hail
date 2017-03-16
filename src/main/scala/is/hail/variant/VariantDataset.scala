@@ -1359,12 +1359,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     * @param config VEP configuration file
     * @param root Variant annotation path to store VEP output
     * @param csq Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
-    * @param force Force VEP annotation from scratch
     * @param blockSize Variants per VEP invocation
     */
-  def vep(config: String, root: String = "va.vep", csq: Boolean = false, force: Boolean = false,
+  def vep(config: String, root: String = "va.vep", csq: Boolean = false,
     blockSize: Int = 1000): VariantDataset = {
-    VEP.annotate(vds, config, root, csq, force, blockSize)
+    VEP.annotate(vds, config, root, csq, blockSize)
   }
 
   def write(dirname: String, overwrite: Boolean = false, parquetGenotypes: Boolean = false) {

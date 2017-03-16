@@ -3562,7 +3562,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def vep(self, config, block_size=1000, root='va.vep', force=False, csq=False):
+    def vep(self, config, block_size=1000, root='va.vep', csq=False):
         """Annotate variants with VEP.
 
         :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`_ with
@@ -3780,7 +3780,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.vep(config, root, csq, force, block_size)
+        jvds = self._jvdf.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
