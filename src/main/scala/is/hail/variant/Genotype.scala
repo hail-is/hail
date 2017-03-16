@@ -852,36 +852,129 @@ object Genotype {
   implicit def arbGenotype = Arbitrary(genArb)
 }
 
-class GenericGenotype(private val _gt: Int,
-  private val _ad: Array[Int],
-  private val _dp: Int,
-  private val _gq: Int,
-  private val _px: Array[Int],
+class GenericGenotype(val unboxedGT: Int,
+  val unboxedAD: Array[Int],
+  val unboxedDP: Int,
+  val unboxedGQ: Int,
+  val unboxedPX: Array[Int],
   val fakeRef: Boolean,
   val isDosage: Boolean) extends Genotype {
 
-  require(_gt >= -1, s"invalid _gt value: ${ _gt }")
-  require(_dp >= -1, s"invalid _dp value: ${ _dp }")
+  require(unboxedGT >= -1, s"invalid _gt value: $unboxedGT")
+  require(unboxedDP >= -1, s"invalid _dp value: $unboxedDP")
 
   if (isDosage) {
-    require(_gq == -1)
-    if (_px == null)
-      require(_gt == -1)
+    require(unboxedGQ == -1)
+    if (unboxedPX == null)
+      require(unboxedGT == -1)
     else {
-      require(_px.sum == 32768)
-      require(_gt == Genotype.gtFromLinear(_px).getOrElse(-1))
+      require(unboxedPX.sum == 32768)
+      require(unboxedGT == Genotype.gtFromLinear(unboxedPX).getOrElse(-1))
     }
   }
+}
 
-  def unboxedGT: Int = _gt
+class MutableGenotype(nAlleles: Int) extends Genotype {
+  var unboxedGT: Int = -1
+  private val _ad: Array[Int] = Array.ofDim[Int](nAlleles)
+  private var _hasAD = false
+  var unboxedDP: Int = -1
+  var unboxedGQ: Int = -1
+  private val _px: Array[Int] = Array.ofDim[Int](nAlleles)
+  private var _hasPX = false
+  var fakeRef: Boolean = false
+  var isDosage: Boolean = false
 
-  def unboxedAD: Array[Int] = _ad
+  def unboxedAD: Array[Int] = if (_hasAD) _ad else null
 
-  def unboxedDP: Int = _dp
+  def unboxedPX: Array[Int] = if (_hasPX) _px else null
 
-  def unboxedGQ: Int = _gq
+  def read(nAlleles: Int, isDosage: Boolean, a: ByteIterator) {
+    val isBiallelic = nAlleles == 2
 
-  def unboxedPX: Array[Int] = _px
+    val flags = a.readULEB128()
+
+    _hasAD = Genotype.flagHasAD(flags)
+    _hasPX = Genotype.flagHasPX(flags)
+
+    unboxedGT =
+      if (Genotype.flagHasGT(isBiallelic, flags)) {
+        if (Genotype.flagStoresGT(isBiallelic, flags))
+          Genotype.flagGT(isBiallelic, flags)
+        else
+          a.readULEB128()
+      } else
+        -1
+
+    if (_hasAD) {
+      if (Genotype.flagSimpleAD(flags)) {
+        assert(unboxedGT >= 0)
+        val p = Genotype.gtPair(unboxedGT)
+        _ad(p.j) = a.readULEB128()
+        if (p.j != p.k)
+          _ad(p.k) = a.readULEB128()
+      } else {
+        for (i <- _ad.indices)
+          _ad(i) = a.readULEB128()
+      }
+    }
+
+    unboxedDP =
+      if (Genotype.flagHasDP(flags)) {
+        if (_hasAD) {
+          var i = 0
+          var adsum = 0
+          while (i < _ad.length) {
+            adsum += _ad(i)
+            i += 1
+          }
+          if (Genotype.flagSimpleDP(flags))
+            adsum
+          else
+            adsum + a.readULEB128()
+        } else
+          a.readULEB128()
+      } else
+        -1
+
+    if (_hasPX) {
+      if (unboxedGT >= 0) {
+        var i = 0
+        while (i < unboxedGT) {
+          _px(i) = a.readULEB128()
+          i += 1
+        }
+        i += 1
+        while (i < _px.length) {
+          _px(i) = a.readULEB128()
+          i += 1
+        }
+        if (isDosage)
+          _px(unboxedGT) = 32768 - _px.sum // original values summed to 32768 or 1.0 in probability
+        else
+          _px(unboxedGT) = 0
+      } else {
+        var i = 0
+        while (i < _px.length) {
+          _px(i) = a.readULEB128()
+          i += 1
+        }
+      }
+    }
+
+    unboxedGQ =
+      if (Genotype.flagHasGQ(flags)) {
+        if (Genotype.flagSimpleGQ(flags))
+          Genotype.gqFromPL(_px)
+        else
+          a.readULEB128()
+      } else
+        -1
+
+    fakeRef = Genotype.flagFakeRef(flags)
+
+    this.isDosage = isDosage
+  }
 }
 
 class DosageGenotype(var unboxedGT: Int,
@@ -1073,3 +1166,5 @@ class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {
     }
   }
 }
+
+
