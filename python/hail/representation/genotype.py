@@ -25,7 +25,7 @@ class Genotype(object):
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
         """Initialize a Genotype object."""
 
-        jvm = env.jvm
+        jvm = Env.jvm()
         jgt = joption(gt)
         if ad:
             jad = jsome(jarray(jvm.int, ad))
@@ -38,7 +38,7 @@ class Genotype(object):
         else:
             jpl = jnone()
 
-        jrep = scala_object(env.hail.variant, 'Genotype').apply(
+        jrep = scala_object(Env.hail().variant, 'Genotype').apply(
             jgt, jad, jdp, jgq, jpl, False, False)
         self._gt = gt
         self._ad = ad

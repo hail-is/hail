@@ -1,4 +1,4 @@
-from hail.java import scala_object, env, handle_py4j
+from hail.java import scala_object, Env, handle_py4j
 
 
 class Variant(object):
@@ -22,7 +22,7 @@ class Variant(object):
     def __init__(self, contig, start, ref, alts):
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(env.hail.variant, 'Variant').apply(contig, start, ref, alts)
+        jrep = scala_object(Env.hail().variant, 'Variant').apply(contig, start, ref, alts)
         self._init_from_java(jrep)
         self._contig = contig
         self._start = start
@@ -67,7 +67,7 @@ class Variant(object):
 
         :rtype: :class:`.Variant`
         """
-        jrep = scala_object(env.hail.variant, 'Variant').parse(string)
+        jrep = scala_object(Env.hail().variant, 'Variant').parse(string)
         return Variant._from_java(jrep)
 
     @property
@@ -262,7 +262,7 @@ class AltAllele(object):
 
     @handle_py4j
     def __init__(self, ref, alt):
-        jaa = scala_object(env.hail.variant, 'AltAllele').apply(ref, alt)
+        jaa = scala_object(Env.hail().variant, 'AltAllele').apply(ref, alt)
         self._init_from_java(jaa)
         self._ref = ref
         self._alt = alt
@@ -415,7 +415,7 @@ class Locus(object):
     def __init__(self, contig, position):
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(env.hail.variant, 'Locus').apply(contig, position)
+        jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position)
         self._init_from_java(jrep)
         self._contig = contig
         self._position = position
@@ -451,7 +451,7 @@ class Locus(object):
         :rtype: :class:`.Locus`
         """
 
-        return Locus._from_java(scala_object(env.hail.variant, 'Locus').parse(string))
+        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string))
 
     @property
     def contig(self):

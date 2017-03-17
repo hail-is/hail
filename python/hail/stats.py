@@ -1,4 +1,4 @@
-from hail.java import env
+from hail.java import Env
 
 class BetaDist:
     """
@@ -10,7 +10,7 @@ class BetaDist:
 
 
     def _jrep(self):
-        return env.hail.stats.BetaDist.apply(float(self.a), float(self.b))
+        return Env.hail().stats.BetaDist.apply(float(self.a), float(self.b))
 
 
 class UniformDist:
@@ -24,7 +24,7 @@ class UniformDist:
         self.maxVal = maxVal
 
     def _jrep(self):
-        return env.hail.stats.UniformDist.apply(float(self.minVal), float(self.maxVal))
+        return Env.hail().stats.UniformDist.apply(float(self.minVal), float(self.maxVal))
 
 class TruncatedBetaDist:
     """
@@ -45,4 +45,4 @@ class TruncatedBetaDist:
         self.b = b
 
     def _jrep(self):
-        return env.hail.stats.TruncatedBetaDist.apply(float(self.a), float(self.b), float(self.minVal), float(self.maxVal))
+        return Env.hail().stats.TruncatedBetaDist.apply(float(self.a), float(self.b), float(self.minVal), float(self.maxVal))

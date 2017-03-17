@@ -22,7 +22,7 @@ class Interval(object):
         if not (isinstance(start, Locus) and isinstance(end, Locus)):
             raise TypeError('expect arguments of type (Locus, Locus) but found (%s, %s)' %
                             (str(type(start)), str(type(end))))
-        jrep = scala_object(env.hail.variant, 'Locus').makeInterval(start._jrep, end._jrep)
+        jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep)
         self._init_from_java(jrep)
 
     def __str__(self):
@@ -87,7 +87,7 @@ class Interval(object):
         :rtype: :class:`.Interval`
         """
 
-        jrep = scala_object(env.hail.variant, 'Locus').parseInterval(string)
+        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string)
         return Interval._from_java(jrep)
 
     @property
@@ -147,8 +147,8 @@ class IntervalTree(object):
     """
 
     def __init__(self, intervals):
-        jarr = jarray(env.hail.utils.Interval, [i._jrep for i in intervals])
-        jrep = env.jutils.makeIntervalList([i._jrep for i in intervals])
+        jarr = jarray(Env.hail().utils.Interval, [i._jrep for i in intervals])
+        jrep = Env.jutils().makeIntervalList([i._jrep for i in intervals])
         self._jrep = jrep
 
     @classmethod
@@ -168,7 +168,7 @@ class IntervalTree(object):
         :rtype: :class:`.IntervalTree`
         """
 
-        jrep = env.jutils.parseIntervalList(interval_strings)
+        jrep = Env.jutils().parseIntervalList(interval_strings)
 
         return IntervalTree._init_from_java(jrep)
 
@@ -207,7 +207,8 @@ class IntervalTree(object):
         :rtype: :class:`.IntervalTree`
         """
 
-        jrep = scala_object(env.hail.io.annotators, 'IntervalListAnnotator').read(path, env.hc._jhc.hadoopConf(), True)
+        jrep = scala_object(Env.hail().io.annotators, 'IntervalListAnnotator').read(path, Env.hc()._jhc.hadoopConf(),
+                                                                                    True)
         return IntervalTree._init_from_java(jrep)
 
     @property
@@ -218,4 +219,4 @@ class IntervalTree(object):
         """
 
         return (Interval._from_java(j_interval) for j_interval in
-                env.jutils.iterableToArrayList(self._jrep.toIterable()))
+                Env.jutils().iterableToArrayList(self._jrep.toIterable()))
