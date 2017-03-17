@@ -389,10 +389,15 @@ object Parser extends JavaTokenParsers {
     }
 
   def unary_expr: Parser[AST] =
-    rep(withPos("-" | "!")) ~ dot_expr ^^ { case lst ~ rhs =>
+    rep(withPos("-" | "!" | "**")) ~ exponent_expr ^^ { case lst ~ rhs =>
       lst.foldRight(rhs) { case (op, acc) =>
         Apply(op.pos, op.x, Array(acc))
       }
+    }
+
+  def exponent_expr: Parser[AST] =
+    dot_expr ~ rep(withPos("**") ~ dot_expr) ^^ { case lhs ~ lst =>
+      lst.foldLeft(lhs) { case (acc, op ~ rhs) => Apply(op.pos, op.x, Array(acc, rhs)) }
     }
 
   def dot_expr: Parser[AST] =
