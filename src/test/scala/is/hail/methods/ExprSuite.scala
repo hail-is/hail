@@ -39,16 +39,16 @@ class ExprSuite extends SparkSuite {
     assert(run[Int]("""if (true) 1 else 0""").contains(1))
     assert(run[Int]("""if (false) 1 else 0""").contains(0))
 
-    assert(run[IndexedSeq[String]]("""["a"]""").contains(Array("a") : IndexedSeq[String]))
+    assert(run[IndexedSeq[String]]("""["a"]""").contains(Array("a"): IndexedSeq[String]))
     // how do I create an empty array?
     // assert(run[IndexedSeq[Int]]("[] : Array[Int]").contains(Array[Int]() : IndexedSeq[Int]))
-    assert(run[IndexedSeq[Int]]("[1]").contains(Array(1) : IndexedSeq[Int]))
-    assert(run[IndexedSeq[Int]]("[1,2]").contains(Array(1,2) : IndexedSeq[Int]))
-    assert(run[IndexedSeq[Int]]("[1,2,3]").contains(Array(1,2,3) : IndexedSeq[Int]))
+    assert(run[IndexedSeq[Int]]("[1]").contains(Array(1): IndexedSeq[Int]))
+    assert(run[IndexedSeq[Int]]("[1,2]").contains(Array(1, 2): IndexedSeq[Int]))
+    assert(run[IndexedSeq[Int]]("[1,2,3]").contains(Array(1, 2, 3): IndexedSeq[Int]))
 
     assert(run[Annotation]("{}").contains(Annotation()))
     assert(run[Annotation]("{a: 1}").contains(Annotation(1)))
-    assert(run[Annotation]("{a: 1, b: 2}").contains(Annotation(1,2)))
+    assert(run[Annotation]("{a: 1, b: 2}").contains(Annotation(1, 2)))
     assert(run[Int]("{a: 1, b: 2}.a").contains(1))
     assert(run[Int]("{a: 1, b: 2}.b").contains(2))
     assert(run[String]("""{a: "a", b: "b"}.b""").contains("b"))
@@ -66,7 +66,7 @@ class ExprSuite extends SparkSuite {
     assert(run[Int]("let a = let b = 3 in b in a").contains(3))
 
     assert(run[Int](""""abc".length""").contains(3))
-    assert(run[IndexedSeq[String]](""""a,b,c".split(",")""").contains(Array("a","b","c") : IndexedSeq[String]))
+    assert(run[IndexedSeq[String]](""""a,b,c".split(",")""").contains(Array("a", "b", "c"): IndexedSeq[String]))
     assert(run[Int]("(3.0).toInt()").contains(3))
     assert(run[Double]("(3).toDouble()").contains(3.0))
   }
@@ -151,6 +151,7 @@ class ExprSuite extends SparkSuite {
       .map { case (name, (_, typ)) => (name, typ) }
       .zip(a)
       .map { case ((name, typ), value) => (name, typ, value.asInstanceOf[AnyRef]) }
+
     def eval[T](s: String): Option[T] = {
       val compiledCode = Parser.parseToAST(s, ec).compile().run(bindings, ec)
       val compileResult = Option(compiledCode().asInstanceOf[T])
@@ -319,7 +320,6 @@ class ExprSuite extends SparkSuite {
     assert(eval[Boolean]("""iset.issubset([0,1,2,3,4].toSet)""").contains(true))
 
 
-
     assert(eval[Set[_]]("""nullset.flatMap(x => [x].toSet())""").isEmpty)
     assert(eval[Set[_]]("""emptyset.flatMap(x => [x].toSet())""").contains(Set[Int]()))
     assert(eval[Set[_]]("""emptyset.flatMap(x => nullset)""").contains(Set[Int]()))
@@ -382,7 +382,7 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => x)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => -x)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
-    eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""") should (be (Some(IndexedSeq(1, -1, 2, 3, 3, 6, 8, null))) or be (Some(IndexedSeq(1, 2, -1, 3, 3, 6, 8, null))))
+    eval[IndexedSeq[_]]("""a.sortBy(x => (x - 2) * (x + 1))""") should (be(Some(IndexedSeq(1, -1, 2, 3, 3, 6, 8, null))) or be(Some(IndexedSeq(1, 2, -1, 3, 3, 6, 8, null))))
 
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => x, true)""").contains(IndexedSeq(-1, 1, 2, 3, 3, 6, 8, null)))
     assert(eval[IndexedSeq[_]]("""a.sortBy(x => x, false)""").contains(IndexedSeq(8, 6, 3, 3, 2, 1, -1, null)))
@@ -483,7 +483,7 @@ class ExprSuite extends SparkSuite {
 
     val (dictt, dictr2) = evalWithType(""" index(structArray, f2)""")
     assert(dictr2.contains(Map("A" -> Annotation(1, 2),
-      "B" -> Annotation(5,  6),
+      "B" -> Annotation(5, 6),
       "C" -> Annotation(10, 10))))
     assert(dictt == TDict(TString, TStruct("f1" -> TInt, "f3" -> TInt)))
 
@@ -568,13 +568,13 @@ class ExprSuite extends SparkSuite {
     {
       val x = eval[Annotation]("""let left = Variant("1:1000:AT:A,CT") and right = Variant("1:1000:A:C,AGG") in combineVariants(left,right)""")
       assert(x.isDefined)
-      assert(x.get.asInstanceOf[Row].getAs[Variant](0) == Variant("1",1000,"AT",Array("A","CT","AGGT")))
-      val left = x.get.asInstanceOf[Row].getAs[Map[Int,Int]](1)
+      assert(x.get.asInstanceOf[Row].getAs[Variant](0) == Variant("1", 1000, "AT", Array("A", "CT", "AGGT")))
+      val left = x.get.asInstanceOf[Row].getAs[Map[Int, Int]](1)
       left.keySet should contain theSameElementsAs Seq(0, 1, 2)
       assert(left.get(0).contains(0))
       assert(left.get(1).contains(1))
       assert(left.get(2).contains(2))
-      val right = x.get.asInstanceOf[Row].getAs[Map[Int,Int]](2)
+      val right = x.get.asInstanceOf[Row].getAs[Map[Int, Int]](2)
       right.keySet should contain theSameElementsAs Seq(0, 2, 3)
       assert(left.get(0).contains(0))
       assert(right.get(2).contains(1))
@@ -744,75 +744,92 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[Int]]("""let c = calls.homVar and v = Variant("1", 1, "A", "T") and g = c.toGenotype() in g.oneHotGenotype(v)""").contains(IndexedSeq(0, 0, 1)))
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String, IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("even", "odd")
-      x.get("even") should contain theSameElementsAs Seq(2,4)
-      x.get("odd") should contain theSameElementsAs Seq(1,3,5)
+      x.get("even") should contain theSameElementsAs Seq(2, 4)
+      x.get("odd") should contain theSameElementsAs Seq(1, 3, 5)
     }
 
     {
-      val x = eval[Map[Int,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => k % 2)")
+      val x = eval[Map[Int, IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => k % 2)")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq(0, 1)
-      x.get(0) should contain theSameElementsAs Seq(2,4)
-      x.get(1) should contain theSameElementsAs Seq(1,3,5)
+      x.get(0) should contain theSameElementsAs Seq(2, 4)
+      x.get(1) should contain theSameElementsAs Seq(1, 3, 5)
     }
 
     {
-      val x = eval[Map[Boolean,IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => k % 2 == 0)")
+      val x = eval[Map[Boolean, IndexedSeq[Int]]]("[1,2,3,4,5].groupBy(k => k % 2 == 0)")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq(true, false)
-      x.get(true) should contain theSameElementsAs Seq(2,4)
-      x.get(false) should contain theSameElementsAs Seq(1,3,5)
+      x.get(true) should contain theSameElementsAs Seq(2, 4)
+      x.get(false) should contain theSameElementsAs Seq(1, 3, 5)
     }
 
-    (eval[Map[String,IndexedSeq[Int]]]("[1].tail().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+    (eval[Map[String, IndexedSeq[Int]]]("[1].tail().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
       shouldBe empty)
 
-    (eval[Map[Int,IndexedSeq[Int]]]("[1].tail().groupBy(k => k % 2)").get
+    (eval[Map[Int, IndexedSeq[Int]]]("[1].tail().groupBy(k => k % 2)").get
       shouldBe empty)
 
-    (eval[Map[Boolean,IndexedSeq[Int]]]("[1].tail().groupBy(k => k % 2 == 0)").get
+    (eval[Map[Boolean, IndexedSeq[Int]]]("[1].tail().groupBy(k => k % 2 == 0)").get
       shouldBe empty)
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[1].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String, IndexedSeq[Int]]]("[1].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("odd")
       x.get("odd") should contain theSameElementsAs Seq(1)
     }
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[2].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String, IndexedSeq[Int]]]("[2].groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("even")
       x.get("even") should contain theSameElementsAs Seq(2)
     }
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[1,2,3,4,5].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String, IndexedSeq[Int]]]("[1,2,3,4,5].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("even", "odd")
-      x.get("even") should contain theSameElementsAs Seq(2,4)
-      x.get("odd") should contain theSameElementsAs Seq(1,3,5)
+      x.get("even") should contain theSameElementsAs Seq(2, 4)
+      x.get("odd") should contain theSameElementsAs Seq(1, 3, 5)
     }
 
-    (eval[Map[String,IndexedSeq[Int]]]("[1].tail().toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
+    (eval[Map[String, IndexedSeq[Int]]]("[1].tail().toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")").get
       shouldBe empty)
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[1].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String, IndexedSeq[Int]]]("[1].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("odd")
       x.get("odd") should contain theSameElementsAs Seq(1)
     }
 
     {
-      val x = eval[Map[String,IndexedSeq[Int]]]("[2].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
+      val x = eval[Map[String, IndexedSeq[Int]]]("[2].toSet().groupBy(k => if (k % 2 == 0) \"even\" else \"odd\")")
       assert(x.isDefined)
       x.get.keySet should contain theSameElementsAs Seq("even")
       x.get("even") should contain theSameElementsAs Seq(2)
+    }
+
+    {
+      val (t, r) = evalWithType("2 ** 2")
+      assert(t == TDouble)
+      assert(r.contains(4))
+
+      val (t2, r2) = evalWithType("2 ** 3.0")
+      assert(t2 == TDouble)
+      assert(r2.contains(8.0))
+
+      assert(eval("3.123 ** 5.123") == eval("pow(3.123, 5.123)"))
+      assert(eval("5 * 2 ** 2").contains(20))
+      assert(eval("-2**2").contains(-4))
+      assert(eval("2**3**2").contains(64))
+      assert(eval("(-2)**2").contains(4))
+      assert(eval("-2 ** -2").contains(-0.25))
     }
 
   }

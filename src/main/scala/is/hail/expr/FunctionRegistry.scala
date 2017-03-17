@@ -2,23 +2,18 @@ package is.hail.expr
 
 import breeze.linalg.DenseVector
 import is.hail.annotations.Annotation
+import is.hail.asm4s.{Code, _}
 import is.hail.methods._
-import is.hail.asm4s._
-import is.hail.asm4s.Code
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Call, GTPair, Genotype, Locus, Variant}
-import scala.collection.mutable
-import is.hail.methods._
-import org.objectweb.asm.tree._
+import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
+import org.apache.commons.math3
 import org.objectweb.asm.Opcodes._
-
-import scala.collection.mutable
-import is.hail.utils.EitherIsAMonad._
-import org.json4s.jackson.JsonMethods
+import org.objectweb.asm.tree._
 
 import scala.collection.generic.Growable
+import scala.collection.mutable
 import scala.language.higherKinds
 import scala.reflect.ClassTag
 
@@ -2116,6 +2111,8 @@ object FunctionRegistry {
     registerMethod("toFloat", ev.toFloat _, "Convert value to a Float.")
     registerMethod("toDouble", ev.toDouble _, "Convert value to a Double.")
   }
+
+  registerNumeric("**", (x: Double, y: Double) => math.pow(x, y))
 
   registerNumericCode("/", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => Code.boxDouble(Code.intValue(x).toD / Code.intValue(y).toD))
   registerNumericCode("/", (x: Code[java.lang.Long], y: Code[java.lang.Long]) => Code.boxDouble(Code.longValue(x).toD / Code.longValue(y).toD))
