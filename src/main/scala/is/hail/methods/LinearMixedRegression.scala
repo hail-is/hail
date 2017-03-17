@@ -78,8 +78,10 @@ object LinearMixedRegression {
 
     info(s"lmmreg: Computing RRM for $n samples...")
 
-    val (rrm, m) = ComputeRRM(filtKinshipVds, useBlock)
+    val (rrmDist, m) = ComputeRRM(filtKinshipVds, useBlock)
 
+    val cols = rrmDist.numCols().toInt //Can I just use m?
+    val rrm = new DenseMatrix[Double](cols, cols, rrmDist.toLocalMatrix().toArray)
 
 
     info(s"lmmreg: RRM computed using $m variants")

@@ -1,52 +1,65 @@
 package is.hail.stats
 
-import breeze.linalg._
+
+import breeze.linalg.DenseMatrix
 import is.hail.utils._
 import is.hail.utils.richUtils.RichIndexedRowMatrix._
 
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
+import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vector, Vectors}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix, RowMatrix}
 
 import scala.collection.parallel.immutable.ParSeq
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
-object ComputeLocalGramian {
-  def withoutBlock(A: RowMatrix): DenseMatrix[Double] = {
+object ComputeGramian {
+  def withoutBlock(A: RowMatrix): BlockMatrix = {
     val n = A.numCols().toInt
     val G = A.computeGramianMatrix().toArray
-    new DenseMatrix[Double](n, n, G)
+    LocalDenseMatrixToIndexedRowMatrix(new DenseMatrix[Double](n, n, G), A.rows.sparkContext).toBlockMatrix()
   }
 
-  def withBlock(A: IndexedRowMatrix): DenseMatrix[Double] = {
+  def withBlock(A: IndexedRowMatrix): BlockMatrix = {
     val n = A.numCols().toInt
     val B = A.toBlockMatrix().cache()
-    val G = B.transpose.multiply(B).toLocalMatrix().toArray
+    val G = B.transpose.multiply(B)
     B.blocks.unpersist()
-    new DenseMatrix[Double](n, n, G)
+    G
   }
 }
 
 // diagonal values are approximately 1 assuming independent variants by Central Limit Theorem
 object ComputeRRM {
 
-  def apply(vds: VariantDataset, useBlock: Boolean): (DenseMatrix[Double], Int) = {
+  def apply(vds: VariantDataset, useBlock: Boolean): (BlockMatrix, Int) = {
+    def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
+      Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
+    }
+
+    var rowCount: Long = -1
+    var computedGrammian: BlockMatrix = null
     if (useBlock) {
       val A = ToNormalizedIndexedRowMatrix(vds)
-      val mRec = 1d / A.rows.count()
-      (ComputeLocalGramian.withBlock(A) :* mRec, A.numRows().toInt)
+      rowCount = A.rows.count()
+      computedGrammian = ComputeGramian.withBlock(A)
     } else {
       val A = ToNormalizedRowMatrix(vds)
-      val mRec = 1d / A.numRows()
-      (ComputeLocalGramian.withoutBlock(A) :* mRec, A.numRows().toInt)
+      rowCount = A.numRows()
+      computedGrammian = ComputeGramian.withoutBlock(A)
     }
+
+    val mRec = 1d / rowCount
+
+    val scaledBlockRDD = computedGrammian.blocks.map(tuple => tuple match {case (coords, matrix) => (coords, scaleMatrix(matrix, mRec))})
+    (new BlockMatrix(scaledBlockRDD, computedGrammian.rowsPerBlock, computedGrammian.colsPerBlock), rowCount.toInt)
   }
 }
 
 object LocalDenseMatrixToIndexedRowMatrix {
   def apply(dm: DenseMatrix[Double], sc: SparkContext): IndexedRowMatrix = {
-    val range = (0 to dm.cols).par
+    //TODO Is there a better Breeze to Spark conversion?
+    val range = (0 until dm.cols).par
     val numberedDVs: ParSeq[IndexedRow] = range.map(colNum => IndexedRow(colNum.toLong, (dm(::, colNum))))
     new IndexedRowMatrix(sc.parallelize(numberedDVs.seq))
   }

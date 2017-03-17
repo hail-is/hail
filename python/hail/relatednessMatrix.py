@@ -1,3 +1,5 @@
+from pyspark.mllib.linalg.distributed import BlockMatrix
+
 class RelatednessMatrix:
     """
     Represents a matrix whose values indicate how related two samples in the accompanying sample list are.
@@ -6,7 +8,7 @@ class RelatednessMatrix:
         self._jrm = jrm
 
     def sample_list(self):
-        return self._jrm.samples()
+        return list(self._jrm.samples())
 
     def matrix(self):
-        return BlockMatrix(jrm, jrm.rowsPerBlock(), jrm.colsPerBlock())
+        return BlockMatrix(self._jrm.matrix(), self._jrm.matrix().rowsPerBlock, self._jrm.matrix().colsPerBlock)
