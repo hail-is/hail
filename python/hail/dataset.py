@@ -1354,7 +1354,8 @@ class VariantDataset(object):
         """Call de novo variation from trio data.
 
         This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`_.
-        It is reproduced in Hail with her permission and assistance.  See the link above for a full specification of the model.
+        It is reproduced in Hail with her permission and assistance.
+        See the link above for a full specification of the model.
 
         This method does not support multiallelic variants.
 
@@ -1372,7 +1373,7 @@ class VariantDataset(object):
 
             - **isCase** (*Boolean*) -- Case status of proband.
 
-            - **validationLikelihood** (*String*) -- Validation likelihood of event.  One of: 'HIGH', 'MEDIUM', 'LOW'
+            - **confidence** (*String*) -- Validation likelihood of event.  One of: 'HIGH', 'MEDIUM', 'LOW'
 
             - **probandGt** (*Genotype*) -- Genotype of the proband
 

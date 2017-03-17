@@ -159,7 +159,7 @@ class KeyTable(object):
         return self._jkt.same(other._jkt)
 
     @handle_py4j
-    def export(self, output, types_file=None):
+    def export(self, output, types_file=False):
         """Export to a TSV file.
 
         **Examples**
@@ -171,10 +171,10 @@ class KeyTable(object):
 
         :param str output: Output file path.
 
-        :param str types_file: Output path of types file.
+        :param bool types_file: Write a file containing column types to (output).types.
         """
 
-        self._jkt.export(self.hc._jsc, output, types_file)
+        self._jkt.export(output, types_file)
 
     @handle_py4j
     def filter(self, condition, keep=True):
