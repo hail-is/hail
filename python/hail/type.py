@@ -1,5 +1,5 @@
 import abc
-from hail.java import scala_object, env
+from hail.java import scala_object, Env
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct
 
 
@@ -87,14 +87,14 @@ class TInt(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TInt, self).__init__(scala_object(env.hail.expr, 'TInt'))
+        super(TInt, self).__init__(scala_object(Env.hail().expr, 'TInt'))
 
     def _convert_to_py(self, annotation):
         return annotation
 
     def _convert_to_j(self, annotation):
         if annotation:
-            return env.jutils.makeInt(annotation)
+            return Env.jutils().makeInt(annotation)
         else:
             return annotation
 
@@ -110,14 +110,14 @@ class TLong(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TLong, self).__init__(scala_object(env.hail.expr, 'TLong'))
+        super(TLong, self).__init__(scala_object(Env.hail().expr, 'TLong'))
 
     def _convert_to_py(self, annotation):
         return annotation
 
     def _convert_to_j(self, annotation):
         if annotation:
-            return env.jutils.makeLong(annotation)
+            return Env.jutils().makeLong(annotation)
         else:
             return annotation
 
@@ -133,14 +133,14 @@ class TFloat(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TFloat, self).__init__(scala_object(env.hail.expr, 'TFloat'))
+        super(TFloat, self).__init__(scala_object(Env.hail().expr, 'TFloat'))
 
     def _convert_to_py(self, annotation):
         return annotation
 
     def _convert_to_j(self, annotation):
         # if annotation:
-        #     return env.jutils.makeFloat(annotation)
+        #     return Env.jutils().makeFloat(annotation)
         # else:
         #     return annotation
 
@@ -159,14 +159,14 @@ class TDouble(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TDouble, self).__init__(scala_object(env.hail.expr, 'TDouble'))
+        super(TDouble, self).__init__(scala_object(Env.hail().expr, 'TDouble'))
 
     def _convert_to_py(self, annotation):
         return annotation
 
     def _convert_to_j(self, annotation):
         if annotation:
-            return env.jutils.makeDouble(annotation)
+            return Env.jutils().makeDouble(annotation)
         else:
             return annotation
 
@@ -182,7 +182,7 @@ class TString(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TString, self).__init__(scala_object(env.hail.expr, 'TString'))
+        super(TString, self).__init__(scala_object(Env.hail().expr, 'TString'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -202,7 +202,7 @@ class TBoolean(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TBoolean, self).__init__(scala_object(env.hail.expr, 'TBoolean'))
+        super(TBoolean, self).__init__(scala_object(Env.hail().expr, 'TBoolean'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -230,7 +230,7 @@ class TArray(Type):
         """
         :param :class:`.Type` element_type: Hail type of array element
         """
-        jtype = scala_object(env.hail.expr, 'TArray').apply(element_type._jtype)
+        jtype = scala_object(Env.hail().expr, 'TArray').apply(element_type._jtype)
         self.element_type = element_type
         super(TArray, self).__init__(jtype)
 
@@ -243,14 +243,14 @@ class TArray(Type):
 
     def _convert_to_py(self, annotation):
         if annotation:
-            lst = env.jutils.iterableToArrayList(annotation)
+            lst = Env.jutils().iterableToArrayList(annotation)
             return [self.element_type._convert_to_py(x) for x in lst]
         else:
             return annotation
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return env.jutils.arrayListToISeq(
+            return Env.jutils().arrayListToISeq(
                 [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
@@ -279,7 +279,7 @@ class TSet(Type):
         """
         :param :class:`.Type` element_type: Hail type of set element
         """
-        jtype = scala_object(env.hail.expr, 'TSet').apply(element_type._jtype)
+        jtype = scala_object(Env.hail().expr, 'TSet').apply(element_type._jtype)
         self.element_type = element_type
         super(TSet, self).__init__(jtype)
 
@@ -292,14 +292,14 @@ class TSet(Type):
 
     def _convert_to_py(self, annotation):
         if annotation:
-            lst = env.jutils.iterableToArrayList(annotation)
+            lst = Env.jutils().iterableToArrayList(annotation)
             return set([self.element_type._convert_to_py(x) for x in lst])
         else:
             return annotation
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return env.jutils.arrayListToSet(
+            return Env.jutils().arrayListToSet(
                 [self.element_type._convert_to_j(elt) for elt in annotation]
             )
         else:
@@ -329,7 +329,7 @@ class TDict(Type):
     """
 
     def __init__(self, key_type, value_type):
-        jtype = scala_object(env.hail.expr, 'TDict').apply(key_type._jtype, value_type._jtype)
+        jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype)
         self.key_type = key_type
         self.value_type = value_type
         super(TDict, self).__init__(jtype)
@@ -344,7 +344,7 @@ class TDict(Type):
 
     def _convert_to_py(self, annotation):
         if annotation:
-            lst = env.jutils.iterableToArrayList(annotation)
+            lst = Env.jutils().iterableToArrayList(annotation)
             d = dict()
             for x in lst:
                 d[self.key_type._convert_to_py(x._1())] = self.value_type._convert_to_py(x._2())
@@ -354,7 +354,7 @@ class TDict(Type):
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return env.jutils.javaMapToMap(
+            return Env.jutils().javaMapToMap(
                 {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.iteritems()}
             )
         else:
@@ -406,7 +406,7 @@ class TStruct(Type):
 
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
-        jtype = scala_object(env.hail.expr, 'TStruct').apply(names, map(lambda t: t._jtype, types))
+        jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, map(lambda t: t._jtype, types))
         self.fields = [Field(names[i], types[i]) for i in xrange(len(names))]
 
         super(TStruct, self).__init__(jtype)
@@ -420,7 +420,7 @@ class TStruct(Type):
 
     def _init_from_java(self, jtype):
 
-        jfields = env.jutils.iterableToArrayList(jtype.fields())
+        jfields = Env.jutils().iterableToArrayList(jtype.fields())
         self.fields = [Field(f.name(), Type._from_java(f.typ())) for f in jfields]
 
     def _convert_to_py(self, annotation):
@@ -434,8 +434,8 @@ class TStruct(Type):
 
     def _convert_to_j(self, annotation):
         if annotation is not None:
-            return scala_object(env.hail.annotations, 'Annotation').fromSeq(
-                env.jutils.arrayListToISeq(
+            return scala_object(Env.hail().annotations, 'Annotation').fromSeq(
+                Env.jutils().arrayListToISeq(
                     [f.typ._convert_to_j(annotation[f.name]) for f in self.fields]
                 )
             )
@@ -461,7 +461,7 @@ class TVariant(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TVariant, self).__init__(scala_object(env.hail.expr, 'TVariant'))
+        super(TVariant, self).__init__(scala_object(Env.hail().expr, 'TVariant'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -488,7 +488,7 @@ class TAltAllele(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TAltAllele, self).__init__(scala_object(env.hail.expr, 'TAltAllele'))
+        super(TAltAllele, self).__init__(scala_object(Env.hail().expr, 'TAltAllele'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -515,7 +515,7 @@ class TGenotype(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TGenotype, self).__init__(scala_object(env.hail.expr, 'TGenotype'))
+        super(TGenotype, self).__init__(scala_object(Env.hail().expr, 'TGenotype'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -542,7 +542,7 @@ class TLocus(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TLocus, self).__init__(scala_object(env.hail.expr, 'TLocus'))
+        super(TLocus, self).__init__(scala_object(Env.hail().expr, 'TLocus'))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -569,7 +569,7 @@ class TInterval(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TInterval, self).__init__(scala_object(env.hail.expr, 'TInterval'))
+        super(TInterval, self).__init__(scala_object(Env.hail().expr, 'TInterval'))
 
     def _convert_to_py(self, annotation):
         if annotation:

@@ -1,4 +1,4 @@
-from hail.java import env, handle_py4j
+from hail.java import Env, handle_py4j
 
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
@@ -37,7 +37,7 @@ class TextTableConfig(object):
     @handle_py4j
     def _to_java(self):
         """Convert to Java TextTableConfiguration object."""
-        return env.hail.utils.TextTableConfiguration.apply(self.types, self.comment,
+        return Env.hail().utils.TextTableConfiguration.apply(self.types, self.comment,
                                                            self.delimiter, self.missing,
                                                            self.noheader, self.impute)
 
@@ -45,10 +45,10 @@ class FunctionDocumentation(object):
 
     @handle_py4j
     def types_rst(self, file_name):
-        env.hail.utils.FunctionDocumentation.makeTypesDocs(file_name)
+        Env.hail().utils.FunctionDocumentation.makeTypesDocs(file_name)
 
     @handle_py4j
     def functions_rst(self, file_name):
-        env.hail.utils.FunctionDocumentation.makeFunctionsDocs(file_name)
+        Env.hail().utils.FunctionDocumentation.makeFunctionsDocs(file_name)
 
 

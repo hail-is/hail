@@ -95,7 +95,7 @@ class HailContext(object):
 
         :rtype: :class:`.HailContext`
         """
-        return env.hc
+        return Env.hc
 
     @handle_py4j
     def grep(self, regex, path, max_count=100):

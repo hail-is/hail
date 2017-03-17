@@ -13,42 +13,39 @@ class Env:
     _jutils = None
     _hc = None
 
-    @property
-    def jvm(self):
+    @staticmethod
+    def jvm():
         if not Env._jvm:
             raise EnvironmentError('no Hail context initialized, create one first')
         return Env._jvm
 
-    @property
-    def hail(self):
+    @staticmethod
+    def hail():
         if not Env._hail_package:
-            Env._hail_package = getattr(self.jvm, 'is').hail
+            Env._hail_package = getattr(Env.jvm(), 'is').hail
         return Env._hail_package
 
-    @property
-    def gateway(self):
+    @staticmethod
+    def gateway():
         if not Env._gateway:
             raise EnvironmentError('no Hail context initialized, create one first')
         return Env._gateway
 
-    @property
-    def jutils(self):
+    @staticmethod
+    def jutils():
         if not Env._jutils:
-            Env._jutils = scala_package_object(self.hail.utils)
+            Env._jutils = scala_package_object(Env.hail().utils)
         return Env._jutils
 
-    @property
-    def hc(self):
+    @staticmethod
+    def hc():
         if not Env._hc:
             raise EnvironmentError('no Hail context initialized, create one first')
         return Env._hc
 
 
-env = Env()
-
-
 def jarray(jtype, lst):
-    jarr = env.gateway.new_array(jtype, len(lst))
+    jarr = Env.gateway().new_array(jtype, len(lst))
     for i, s in enumerate(lst):
         jarr[i] = s
     return jarr
@@ -63,11 +60,11 @@ def scala_package_object(jpackage):
 
 
 def jnone():
-    return scala_object(env.jvm.scala, 'None')
+    return scala_object(Env.jvm().scala, 'None')
 
 
 def jsome(x):
-    return env.jvm.scala.Some(x)
+    return Env.jvm().scala.Some(x)
 
 
 def joption(x):
@@ -79,7 +76,7 @@ def from_option(x):
 
 
 def jindexed_seq(x):
-    return env.jutils.arrayListToISeq(x)
+    return Env.jutils().arrayListToISeq(x)
 
 
 def jindexed_seq_args(x):
@@ -89,7 +86,7 @@ def jindexed_seq_args(x):
 
 def jiterable_to_list(it):
     if it:
-        return list(env.jutils.iterableToArrayList(it))
+        return list(Env.jutils().iterableToArrayList(it))
     else:
         return None
 
@@ -103,10 +100,10 @@ def handle_py4j(func, *args, **kwargs):
     try:
         r = func(*args, **kwargs)
     except Py4JJavaError as e:
-        msg = env.jutils.getMinimalMessage(e.java_exception)
+        msg = Env.jutils().getMinimalMessage(e.java_exception)
         raise FatalError(msg)
     except Py4JError as e:
-        env.jutils.log().error('hail: caught python exception: ' + str(e))
+        Env.jutils().log().error('hail: caught python exception: ' + str(e))
         if e.args[0].startswith('An error occurred while calling'):
             raise TypeError('Method %s() received at least one parameter with an invalid type. '
                             'See doc for function signature.' % func.__name__)

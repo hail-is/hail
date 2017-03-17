@@ -42,7 +42,7 @@ class VariantDataset(object):
     @property
     def _jvdf(self):
         if self._jvdf_cache is None:
-            self._jvdf_cache = env.hail.variant.VariantDatasetFunctions(self._jvds)
+            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
         return self._jvdf_cache
 
     @property
@@ -68,7 +68,7 @@ class VariantDataset(object):
         """
 
         if self._sample_annotations is None:
-            zipped_annotations = env.jutils.iterableToArrayList(
+            zipped_annotations = Env.jutils().iterableToArrayList(
                 self._jvds.sampleIdsAndAnnotations()
             )
             r = {}
@@ -543,7 +543,7 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        ffc = env.hail.io.plink.FamFileConfig(quantpheno, delimiter, missing)
+        ffc = Env.hail().io.plink.FamFileConfig(quantpheno, delimiter, missing)
         jvds = self._jvds.annotateSamplesFam(input, root, ffc)
         return VariantDataset(self.hc, jvds)
 
@@ -2240,7 +2240,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linreg(y, jarray(env.jvm.java.lang.String, covariates), root, min_ac, min_af)
+        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, min_ac, min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2459,7 +2459,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.lmmreg(kinship_vds._jvds, y, jarray(env.jvm.java.lang.String, covariates),
+        jvds = self._jvdf.lmmreg(kinship_vds._jvds, y, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc,
                                  joption(delta), sparsity_threshold, force_block, force_grammian)
         return VariantDataset(self.hc, jvds)
@@ -2579,7 +2579,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.logreg(test, y, jarray(env.jvm.java.lang.String, covariates), root)
+        jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2891,7 +2891,7 @@ class VariantDataset(object):
         """
 
         if isinstance(exprs, list):
-            result_list = self._jvds.querySamples(jarray(env.jvm.java.lang.String, exprs))
+            result_list = self._jvds.querySamples(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
             annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
             return annotations, ptypes
@@ -2959,7 +2959,7 @@ class VariantDataset(object):
         :rtype: (annotation or list of annotation, :class:`.Type` or list of :class:`.Type`)
         """
         if isinstance(exprs, list):
-            result_list = self._jvds.queryVariants(jarray(env.jvm.java.lang.String, exprs))
+            result_list = self._jvds.queryVariants(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
             annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
             return annotations, ptypes
@@ -3074,7 +3074,7 @@ class VariantDataset(object):
         """
 
         if isinstance(exprs, list):
-            result_list = self._jvdf.queryGenotypes(jarray(env.jvm.java.lang.String, exprs))
+            result_list = self._jvdf.queryGenotypes(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
             annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
             return annotations, ptypes
@@ -3858,5 +3858,5 @@ class VariantDataset(object):
             genotype_expr = ','.join(genotype_expr)
 
         jkt = self._jvdf.makeKT(variant_expr, genotype_expr,
-                                jarray(env.jvm.java.lang.String, key_names))
+                                jarray(Env.jvm().java.lang.String, key_names))
         return KeyTable(self.hc, jkt)
