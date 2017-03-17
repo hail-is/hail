@@ -64,7 +64,7 @@ class GenericDatasetSuite extends SparkSuite {
     assert(gds.same(hc.importVCFGeneric(gds_exportvcf_path)))
 
     // not TGenotype or TStruct signature
-    intercept[FatalException] {
+    intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")
       gds
         .annotateGenotypesExpr("g = 5")
@@ -72,7 +72,7 @@ class GenericDatasetSuite extends SparkSuite {
     }
 
     // struct field
-    intercept[FatalException] {
+    intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")
       gds
         .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = {gene: 5}")
@@ -80,7 +80,7 @@ class GenericDatasetSuite extends SparkSuite {
     }
 
     // nested arrays
-    intercept[FatalException] {
+      intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")
       gds
         .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = [[1, 5], [2], [3, 4]]")
@@ -88,7 +88,7 @@ class GenericDatasetSuite extends SparkSuite {
     }
 
     // nested set
-    intercept[FatalException] {
+    intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")
       gds
         .annotateGenotypesExpr("g.dpset = g.PL.map(pl => [pl]).toSet()")
