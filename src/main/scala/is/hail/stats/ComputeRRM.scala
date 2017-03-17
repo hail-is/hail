@@ -6,8 +6,10 @@ import is.hail.utils.richUtils.RichIndexedRowMatrix._
 
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
+
+import scala.collection.parallel.immutable.ParSeq
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
 object ComputeLocalGramian {
@@ -43,9 +45,10 @@ object ComputeRRM {
 }
 
 object LocalDenseMatrixToIndexedRowMatrix {
-
-  def apply(dm: DenseMatrix[Double], sc: SparkContext) {
-    sc.parallelize(dm(*, ::)).zipWit
+  def apply(dm: DenseMatrix[Double], sc: SparkContext): IndexedRowMatrix = {
+    val range = (0 to dm.cols).par
+    val numberedDVs: ParSeq[IndexedRow] = range.map(colNum => IndexedRow(colNum.toLong, (dm(::, colNum))))
+    new IndexedRowMatrix(sc.parallelize(numberedDVs.seq))
   }
 }
 
