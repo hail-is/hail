@@ -297,11 +297,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       sb.append("Start")
       sb += '\t'
       sb.append("End")
-      definedNames.foreach { header =>
-        header.foreach { col =>
-          sb += '\t'
-          sb.append(col)
-        }
+      definedNames.foreach { col =>
+        sb += '\t'
+        sb.append(col)
       }
       sb += '\n'
 
