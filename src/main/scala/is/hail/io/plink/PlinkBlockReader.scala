@@ -1,13 +1,14 @@
 package is.hail.io.plink
 
 import is.hail.io.{IndexedBinaryBlockReader, KeySerializedValueRecord}
+import is.hail.utils.SharedIterable
 import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 
-class PlinkRecord(nSamples: Int, gb: GenotypeBuilder, gsb: GenotypeStreamBuilder) extends KeySerializedValueRecord[Int, Iterable[Genotype]] {
-  override def getValue: Iterable[Genotype] = {
+class PlinkRecord(nSamples: Int, gb: GenotypeBuilder, gsb: GenotypeStreamBuilder) extends KeySerializedValueRecord[Int, SharedIterable[Genotype]] {
+  override def getValue: SharedIterable[Genotype] = {
     require(input != null, "called getValue before serialized value was set")
 
     gsb.clear()

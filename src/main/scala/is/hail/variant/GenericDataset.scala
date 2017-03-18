@@ -37,20 +37,20 @@ object GenericDataset {
     val parquetFile = dirname + "/rdd.parquet"
 
     val orderedRDD = if (skipVariants)
-      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Annotation])](sc)
+      OrderedRDD.empty[Locus, Variant, (Annotation, SharedIterable[Annotation])](sc)
     else {
       val rdd = if (skipGenotypes)
         sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
           .map(row => (row.getVariant(0),
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              Iterable.empty[Annotation])))
+              SharedIterable.empty[Annotation])))
       else {
         val rdd = sqlContext.readParquetSorted(parquetFile)
         rdd.map { row =>
           val v = row.getVariant(0)
           (v,
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              row.getSeq[Any](2).lazyMap { g => if (gRequiresConversion) SparkAnnotationImpex.importAnnotation(g, genotypeSignature) else g }
+              row.getSeq[Any](2).lazyMapShared { g => if (gRequiresConversion) SparkAnnotationImpex.importAnnotation(g, genotypeSignature) else g }
               )
             )
         }
@@ -207,7 +207,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
             SparkAnnotationImpex.exportAnnotation(g, genotypeSignature)
           else
             g
-        }.toArray[Any]: IndexedSeq[Any]))
+        }.toIterable.toArray[Any]: IndexedSeq[Any])) // FIXME
     }
 
     gds.hc.sqlContext.createDataFrame(rowRDD, makeSchema)

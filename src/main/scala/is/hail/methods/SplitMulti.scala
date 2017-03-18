@@ -16,12 +16,12 @@ object SplitMulti {
 
   def split(v: Variant,
     va: Annotation,
-    it: Iterable[Genotype],
+    it: SharedIterable[Genotype],
     propagateGQ: Boolean,
     isDosage: Boolean,
     keepStar: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation,
-    f: (Variant) => Boolean): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
+    f: (Variant) => Boolean): Iterator[(Variant, (Annotation, SharedIterable[Genotype]))] = {
 
     if (v.isBiallelic) {
       val minrep = v.minrep

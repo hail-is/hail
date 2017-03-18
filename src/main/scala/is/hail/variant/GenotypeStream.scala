@@ -10,7 +10,7 @@ import org.apache.spark.sql.types._
 
 import scala.collection.mutable
 
-class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
+class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends SharedIterator[Genotype] {
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = Genotype.read(nAlleles, isDosage, b)
@@ -22,7 +22,7 @@ class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIt
   override def nextInt(): Int = Genotype.hardCallRead(nAlleles, isDosage, b)
 }
 
-class MutableGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
+class MutableGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends SharedIterator[Genotype] {
   private val mutableGenotype = new MutableGenotype(nAlleles)
 
   override def hasNext: Boolean = b.hasNext
@@ -58,9 +58,9 @@ object LZ4Utils {
 }
 
 case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Option[Int], a: Array[Byte])
-  extends Iterable[Genotype] {
+  extends SharedIterable[Genotype] {
 
-  override def iterator: GenotypeStreamIterator = {
+  def iterator: GenotypeStreamIterator = {
     decompLenOption match {
       case Some(decompLen) =>
         new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
@@ -87,7 +87,7 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
     }
   }
 
-  override def newBuilder: mutable.Builder[Genotype, GenotypeStream] = {
+  def newBuilder: mutable.Builder[Genotype, GenotypeStream] = {
     new GenotypeStreamBuilder(nAlleles, isDosage)
   }
 
@@ -155,7 +155,7 @@ class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false)
     gb.write(b)
   }
 
-  def ++=(i: Iterator[Genotype]): GenotypeStreamBuilder.this.type = {
+  def ++=(i: SharedIterator[Genotype]): GenotypeStreamBuilder.this.type = {
     i.foreach(this += _)
     this
   }

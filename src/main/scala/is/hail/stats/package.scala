@@ -307,7 +307,7 @@ package object stats {
           (Annotation.empty,
             (0 until genotypes.rows).map { i =>
               Genotype(genotypes(i, j))
-            }: Iterable[Genotype]
+            }: SharedIterable[Genotype]
             )
           )
       },

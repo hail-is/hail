@@ -1,12 +1,13 @@
 package is.hail.io.plink
 
+import is.hail.utils.SharedIterable
 import is.hail.variant._
 
 object ExportBedBimFam {
 
   val gtMap = Array(1, 3, 2, 0)
 
-  def makeBedRow(gs: Iterable[Genotype], n: Int): Array[Byte] = {
+  def makeBedRow(gs: SharedIterable[Genotype], n: Int): Array[Byte] = {
     val gts = gs.hardCallIterator
 
     val nBytes = (n + 3) / 4

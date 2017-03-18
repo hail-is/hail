@@ -10,7 +10,7 @@ import org.apache.spark.{Accumulable, SparkContext}
 
 import scala.collection.mutable
 
-case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))])
+case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, (Annotation, SharedIterable[Genotype]))])
 
 object GenReport {
   final val dosageNoCall = 0
@@ -86,7 +86,7 @@ object GenLoader {
   def readGenLine(line: String, nSamples: Int,
                   tolerance: Double,
                   reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-                  chromosome: Option[String] = None): (Variant, (Annotation, Iterable[Genotype])) = {
+                  chromosome: Option[String] = None): (Variant, (Annotation, SharedIterable[Genotype])) = {
 
     val arr = line.split("\\s+")
     val chrCol = if (chromosome.isDefined) 1 else 0

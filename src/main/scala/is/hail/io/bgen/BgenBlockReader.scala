@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.io._
 import is.hail.io.gen.GenReport._
+import is.hail.utils.{SharedIterable, SharedIterator}
 import is.hail.variant.{DosageGenotype, Genotype, Variant}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
@@ -13,7 +14,7 @@ import org.apache.hadoop.mapred.FileSplit
 
 class BgenRecord(compressed: Boolean,
   nSamples: Int,
-  tolerance: Double) extends KeySerializedValueRecord[Variant, Iterable[Genotype]] {
+  tolerance: Double) extends KeySerializedValueRecord[Variant, SharedIterable[Genotype]] {
   var ann: Annotation = _
 
   def setAnnotation(ann: Annotation) {
@@ -22,7 +23,7 @@ class BgenRecord(compressed: Boolean,
 
   def getAnnotation: Annotation = ann
 
-  override def getValue: Iterable[Genotype] = {
+  override def getValue: SharedIterable[Genotype] = {
     require(input != null, "called getValue before serialized value was set")
 
     val bytes =
@@ -48,8 +49,8 @@ class BgenRecord(compressed: Boolean,
 
     val noCall: Genotype = new DosageGenotype(-1, null)
 
-    new Iterable[Genotype] {
-      def iterator = new Iterator[Genotype] {
+    new SharedIterable[Genotype] {
+      def iterator = new SharedIterator[Genotype] {
         var i = 0
 
         def hasNext: Boolean = i < bytes.length

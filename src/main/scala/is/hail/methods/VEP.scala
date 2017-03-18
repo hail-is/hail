@@ -377,14 +377,14 @@ object VEP {
 
     val newRDD = vds.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
-        new Iterator[(Variant, (Annotation, Iterable[Genotype]))] {
+        new Iterator[(Variant, (Annotation, SharedIterable[Genotype]))] {
           def hasNext: Boolean = {
             val r = left.hasNext
             assert(r == right.hasNext)
             r
           }
 
-          def next(): (Variant, (Annotation, Iterable[Genotype])) = {
+          def next(): (Variant, (Annotation, SharedIterable[Genotype])) = {
             val (lv, (va, gs)) = left.next()
             val (rv, vaVep) = right.next()
             assert(lv == rv)

@@ -7,8 +7,22 @@ import is.hail.utils._
 import scala.collection.{TraversableOnce, mutable}
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
+  def toSharedIterable: SharedIterable[T] = new SharedIterable[T] {
+    def iterator: SharedIterator[T] = i.iterator.toSharedIterator
+  }
+
   def lazyMap[S](f: (T) => S): Iterable[S] = new Iterable[S] with Serializable {
     def iterator: Iterator[S] = new Iterator[S] {
+      val it: Iterator[T] = i.iterator
+
+      def hasNext: Boolean = it.hasNext
+
+      def next(): S = f(it.next())
+    }
+  }
+
+  def lazyMapShared[S](f: (T) => S): SharedIterable[S] = new SharedIterable[S] with Serializable {
+    def iterator: SharedIterator[S] = new SharedIterator[S] {
       val it: Iterator[T] = i.iterator
 
       def hasNext: Boolean = it.hasNext
@@ -39,6 +53,19 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
         val it: Iterator[T] = i.iterator
         val it2: Iterator[T2] = i2.iterator
         val it3: Iterator[T3] = i3.iterator
+
+        def hasNext: Boolean = it.hasNext && it2.hasNext && it3.hasNext
+
+        def next(): S = f(it.next(), it2.next(), it3.next())
+      }
+    }
+
+  def lazyMapWithShared2[T2, T3, S](i2: Iterable[T2], i3: SharedIterable[T3], f: (T, T2, T3) => S): SharedIterable[S] =
+    new SharedIterable[S] with Serializable {
+      def iterator: SharedIterator[S] = new SharedIterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: Iterator[T2] = i2.iterator
+        val it3: SharedIterator[T3] = i3.iterator
 
         def hasNext: Boolean = it.hasNext && it2.hasNext && it3.hasNext
 
@@ -114,6 +141,28 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
           else {
             if (it.hasNext && it2.hasNext) {
               current = f(it.next(), it2.next()).toIterator
+              hasNext
+            } else
+              false
+          }
+
+        def next(): S = current.next()
+      }
+    }
+
+  def lazyFlatMapWithShared[S, T2](i2: SharedIterable[T2], f: (T, T2) => SharedIterable[S]): SharedIterable[S] =
+    new SharedIterable[S] with Serializable {
+      def iterator: SharedIterator[S] = new SharedIterator[S] {
+        val it: Iterator[T] = i.iterator
+        val it2: SharedIterator[T2] = i2.iterator
+        var current: SharedIterator[S] = SharedIterator.empty[S]
+
+        def hasNext: Boolean =
+          if (current.hasNext)
+            true
+          else {
+            if (it.hasNext && it2.hasNext) {
+              current = f(it.next(), it2.next()).iterator
               hasNext
             } else
               false

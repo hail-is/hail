@@ -1,7 +1,7 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
-import is.hail.utils.{ArrayBuilder, JSONWriter, MultiArray2, Truncatable}
+import is.hail.utils.{ArrayBuilder, JSONWriter, MultiArray2, SharedIterable, SharedIterator, Truncatable}
 import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
@@ -97,4 +97,8 @@ trait Implicits {
   implicit def toJSONWritable[T](x: T)(implicit jw: JSONWriter[T]): JSONWritable[T] = new JSONWritable(x, jw)
 
   implicit def toRichJValue(jv: JValue): RichJValue = new RichJValue(jv)
+
+  implicit def toSharedIterable[T](i: Iterable[T]): SharedIterable[T] = i.toSharedIterable
+
+  implicit def toSharedIterator[T](it: Iterator[T]): SharedIterator[T] = it.toSharedIterator
 }

@@ -84,9 +84,10 @@ object IBD {
     indicator(gt.j == 0) + indicator(gt.k == 0)
   }
 
-  def ibsForGenotypes(gs: Iterable[Genotype], maybeMaf: Option[Double]): IBSExpectations = {
+  // FIXME: using toIterable
+  def ibsForGenotypes(gs: SharedIterable[Genotype], maybeMaf: Option[Double]): IBSExpectations = {
     def calculateCountsFromMAF(maf: Double) = {
-      val Na = gs.count(_.gt.isDefined) * 2.0
+      val Na = gs.toIterable.count(_.gt.isDefined) * 2.0
       val p = 1 - maf
       val q = maf
       val x = Na * p
@@ -158,8 +159,9 @@ object IBD {
 
     val nSamples = vds.nSamples
 
+    // FIXME: using toIterable
     val chunkedGenotypeMatrix = vds.rdd
-      .map { case (v, (va, gs)) => gs.map(_.gt.map(IBSFFI.gtToCRep).getOrElse(IBSFFI.missingGTCRep)).toArray[Byte] }
+      .map { case (v, (va, gs)) => gs.toIterable.map(_.gt.map(IBSFFI.gtToCRep).getOrElse(IBSFFI.missingGTCRep)).toArray[Byte] }
       .zipWithIndex()
       .flatMap { case (gts, variantId) =>
         val vid = (variantId % chunkSize).toInt

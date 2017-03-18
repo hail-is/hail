@@ -52,13 +52,13 @@ object VariantDataset {
     val parquetFile = dirname + "/rdd.parquet"
 
     val orderedRDD = if (skipVariants)
-      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
+      OrderedRDD.empty[Locus, Variant, (Annotation, SharedIterable[Genotype])](sc)
     else {
       val rdd = if (skipGenotypes)
         sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
           .map(row => (row.getVariant(0),
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              Iterable.empty[Genotype])))
+              SharedIterable.empty[Genotype])))
       else {
         val rdd = sqlContext.readParquetSorted(parquetFile)
         if (parquetGenotypes)
@@ -66,7 +66,7 @@ object VariantDataset {
             val v = row.getVariant(0)
             (v,
               (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getSeq[Row](2).lazyMap { rg =>
+                row.getSeq[Row](2).lazyMapShared { rg =>
                   new RowGenotype(rg): Genotype
                 }))
           } else
@@ -74,7 +74,7 @@ object VariantDataset {
             val v = row.getVariant(0)
             (v,
               (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
+                row.getGenotypeStream(v, 2, isDosage): SharedIterable[Genotype]))
           }
       }
 
@@ -246,7 +246,8 @@ object VariantDataset {
       df.schema.fieldIndex(field.name)
     }
 
-    val rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))] = df.rdd.map { row =>
+    // FIXME: flatmap of shared iterables
+    val rdd: RDD[(Variant, (Annotation, SharedIterable[Genotype]))] = df.rdd.map { row =>
       val importedRow = KuduAnnotationImpex.importAnnotation(
         KuduAnnotationImpex.reorder(row, indices), rowType).asInstanceOf[Row]
       val v = importedRow.getVariant(0)
@@ -258,8 +259,8 @@ object VariantDataset {
       val variant = kv._1
       val annotations = kv._2.head._1
       // just use first annotation
-      val genotypes = kv._2.flatMap(_._2) // combine genotype streams
-      (variant, (annotations, genotypes))
+      val genotypes = kv._2.flatMap(_._2.toIterable) // combine genotype streams
+      (variant, (annotations, genotypes.toSharedIterable))
     })
     new VariantSampleMatrix[Genotype](hc, metadata, rdd.toOrderedRDD)
   }
@@ -469,7 +470,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def withGenotypeStream(): VariantDataset = {
     val isDosage = vds.isDosage
-    vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
+    vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, SharedIterable[Genotype])] { case (v, (va, gs)) =>
       (va, gs.toGenotypeStream(v, isDosage))
     }.asOrderedRDD)
   }
@@ -543,7 +544,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val emptyDosage = Array(0d, 0d, 0d)
 
-    def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
+    def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: SharedIterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
       sb.append(v.contig)
       sb += ' '
       sb.append(Option(varidQuery(va)).getOrElse(v.toString))
@@ -556,7 +557,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       sb += ' '
       sb.append(v.alt)
 
-      for (gt <- gs) {
+      gs.iterator.foreach { gt =>
         val dosages = gt.dosage.getOrElse(emptyDosage)
         sb += ' '
         sb.append(formatDosage(dosages(0)))
@@ -590,7 +591,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
       val isDosage = vds.isDosage
 
-      vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
+      vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, SharedIterable[Genotype]))] =>
         val sb = new StringBuilder
         it.map { case (v, (va, gs)) =>
           sb.clear()
@@ -987,7 +988,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val aggregatorOption = Aggregators.buildVariantAggregations(vds, ec)
 
     val localKeep = keep
-    val p = (v: Variant, va: Annotation, gs: Iterable[Genotype]) => {
+    val p = (v: Variant, va: Annotation, gs: SharedIterable[Genotype]) => {
       aggregatorOption.foreach(f => f(v, va, gs))
 
       ec.setAll(localGlobalAnnotation, v, va)
@@ -1391,7 +1392,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       Row.fromSeq(Array(v.toRow,
         if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
         if (parquetGenotypes)
-          gs.lazyMap(_.toRow).toArray[Row]: IndexedSeq[Row]
+          gs.lazyMap(_.toRow).toIterable.toArray[Row]: IndexedSeq[Row] // FIXME: split
         else
           gs.toGenotypeStream(v, isDosage).toRow))
     }

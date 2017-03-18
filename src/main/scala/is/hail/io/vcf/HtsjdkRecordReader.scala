@@ -78,7 +78,7 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type): (Variant, (Annotation, Iterable[T]))
+    genotypeSignature: Type): (Variant, (Annotation, SharedIterable[T]))
 
   def genericGenotypes: Boolean
 }
@@ -89,14 +89,14 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type): (Variant, (Annotation, Iterable[Genotype])) = {
+    genotypeSignature: Type): (Variant, (Annotation, SharedIterable[Genotype])) = {
 
     val (v, va) = readVariantInfo(vc, infoSignature)
 
     val nAlleles = v.nAlleles
 
     if (vcfSettings.skipGenotypes)
-      return (v, (va, Iterable.empty))
+      return (v, (va, SharedIterable.empty[Genotype]))
 
     val gb = new GenotypeBuilder(v.nAlleles, false) // FIXME: make dependent on fields in genotypes; for now, assumes PLs
 
@@ -267,7 +267,7 @@ case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordRead
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type): (Variant, (Annotation, Iterable[Annotation])) = {
+    genotypeSignature: Type): (Variant, (Annotation, SharedIterable[Annotation])) = {
 
     val (v, va) = readVariantInfo(vc, infoSignature)
     val nAlleles = v.nAlleles

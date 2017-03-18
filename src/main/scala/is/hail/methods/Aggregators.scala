@@ -30,7 +30,7 @@ object Aggregators {
       "gs" -> (3, TAggregable(TGenotype, aggregationST))))
   }
 
-  def buildVariantAggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
+  def buildVariantAggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, SharedIterable[Genotype]) => Unit] = {
 
     val aggregations = ec.aggregations
     if (aggregations.isEmpty)
@@ -41,7 +41,7 @@ object Aggregators {
     val localAnnotationsBc = vds.sampleAnnotationsBc
     val localGlobalAnnotations = vds.globalAnnotation
 
-    Some({ (v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+    Some({ (v: Variant, va: Annotation, gs: SharedIterable[Genotype]) =>
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
       localA(0) = localGlobalAnnotations
       localA(1) = v

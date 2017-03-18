@@ -106,7 +106,7 @@ object RegressionUtils {
   }
 
   // mean 0, norm sqrt(n), variance 1 (constant variants return None)
-  def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
+  def toNormalizedGtArray(gs: SharedIterable[Genotype], nSamples: Int): Option[Array[Double]] = {
     val gtVals = Array.ofDim[Double](nSamples)
     var nMissing = 0
     var gtSum = 0
@@ -153,7 +153,7 @@ object RegressionUtils {
   }
 
   // mean 0, norm approx. sqrt(m), variance approx. 1 (constant variants return None)
-  def toHWENormalizedGtArray(gs: Iterable[Genotype], nSamples: Int, nVariants: Int): Option[Array[Double]] = {
+  def toHWENormalizedGtArray(gs: SharedIterable[Genotype], nSamples: Int, nVariants: Int): Option[Array[Double]] = {
     val gtVals = Array.ofDim[Double](nSamples)
     var nMissing = 0
     var gtSum = 0

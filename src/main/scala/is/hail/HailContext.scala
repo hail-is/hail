@@ -13,7 +13,7 @@ import is.hail.methods.DuplicateReport
 import is.hail.misc.SeqrServer
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, Genotype, VSMSubgen, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, Genotype, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix} // FIXME: put back VSMSubgen
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -246,7 +246,7 @@ class HailContext private(val sc: SparkContext,
     val keyedRDD = rdd.map {
       _.map { a =>
         ec.setAllFromRow(a.asInstanceOf[Row])
-        (variantFn(), (fn(null, a), Iterable.empty[Genotype]))
+        (variantFn(), (fn(null, a), SharedIterable.empty[Genotype]))
       }.value
     }
       .filter { case (v, _) => v != null }
@@ -579,7 +579,8 @@ class HailContext private(val sc: SparkContext,
   def dataframeToKeytable(df: DataFrame, keys: Array[String] = Array.empty[String]): KeyTable =
     KeyTable.fromDF(this, df, keys)
 
-  def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
+//  FIXME: put back
+//  def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
 
   def eval(expr: String): (Annotation, Type) = {
     val ec = EvalContext()

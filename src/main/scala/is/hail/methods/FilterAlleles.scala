@@ -75,7 +75,7 @@ object FilterAlleles {
       f().zip(inserters).foldLeft(va) { case (va, (v, inserter)) => inserter(va, v) }
     }
 
-    def updateGenotypes(gs: Iterable[Genotype], oldToNew: Array[Int], newCount: Int): Iterable[Genotype] = {
+    def updateGenotypes(gs: SharedIterable[Genotype], oldToNew: Array[Int], newCount: Int): SharedIterable[Genotype] = {
       def downcodeGtPair(gt: GTPair): GTPair =
         GTPair.fromNonNormalized(oldToNew(gt.j), oldToNew(gt.k))
 
@@ -129,7 +129,8 @@ object FilterAlleles {
         )
       }
 
-      gs.map({
+      // FIXME: changed from map to lazyMap
+      gs.lazyMap({
         g =>
           val newG = if (subset) subsetGenotype(g) else downcodeGenotype(g)
           if (filterAlteredGenotypes && newG.gt != g.gt)
@@ -139,8 +140,8 @@ object FilterAlleles {
       })
     }
 
-    def updateOrFilterRow(v: Variant, va: Annotation, gs: Iterable[Genotype],
-      f: (Variant) => Boolean): Option[(Variant, (Annotation, Iterable[Genotype]))] =
+    def updateOrFilterRow(v: Variant, va: Annotation, gs: SharedIterable[Genotype],
+      f: (Variant) => Boolean): Option[(Variant, (Annotation, SharedIterable[Genotype]))] =
       filterAllelesInVariant(v, va)
         .filter { case (v, _, _) => f(v) }
         .map { case (newV, newToOld, oldToNew) =>

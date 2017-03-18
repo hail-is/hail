@@ -242,8 +242,7 @@ object SampleQC {
                   )
                 acc
             })
-            for ((g, i) <- gs.iterator.zipWithIndex)
-              acc(i).merge(v, ACs, g)
+            gs.iterator.zipWithIndex.foreach { case (g, i) => acc(i).merge(v, ACs, g) }
             acc
           }, { case (comb1, comb2) =>
             for (i <- comb1.indices)

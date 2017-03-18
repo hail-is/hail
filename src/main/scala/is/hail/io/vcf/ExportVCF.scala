@@ -346,7 +346,7 @@ object ExportVCF {
           false
       }.map(_ => gds.queryVA("va.filters")._2)
 
-    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Annotation]) {
+    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: SharedIterable[Annotation]) {
 
       sb.append(v.contig)
       sb += '\t'
@@ -411,7 +411,7 @@ object ExportVCF {
       }
     }
 
-    gds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Annotation]))] =>
+    gds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, SharedIterable[Annotation]))]=>
       val sb = new StringBuilder
       it.map { case (v, (va, gs)) =>
         sb.clear()

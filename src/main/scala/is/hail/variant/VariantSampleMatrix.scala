@@ -30,7 +30,7 @@ object VariantSampleMatrix {
   final val fileVersion: Int = 4
 
   def apply[T](hc: HailContext, metadata: VariantMetadata,
-    rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
+    rdd: OrderedRDD[Locus, Variant, (Annotation, SharedIterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     new VariantSampleMatrix(hc, metadata, rdd)
   }
 
@@ -56,6 +56,8 @@ object VariantSampleMatrix {
     }
   }
 
+  // FIXME
+/*
   def gen[T](hc: HailContext,
     gen: VSMSubgen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     gen.gen(hc)
@@ -75,8 +77,10 @@ object VariantSampleMatrix {
         tGen = (v: Variant) => tSig.genValue.resize(20),
         isGenericGenotype = true).gen(hc)
     ) yield vsm
+*/
 }
 
+/*
 case class VSMSubgen[T](
   sampleIdGen: Gen[IndexedSeq[String]],
   saSigGen: Gen[Type],
@@ -106,11 +110,11 @@ case class VSMSubgen[T](
       sampleIds <- sampleIdGen.resize(w);
       nSamples = sampleIds.length;
       saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
-      rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
+      rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, SharedIterable[T]))](
         for (subsubsizes <- Gen.partitionSize(3);
           v <- vGen.resize(subsubsizes(0));
           va <- vaGen(vaSig).resize(subsubsizes(1));
-          ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
+          ts <- Gen.buildableOfN[SharedIterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
           yield (v, (va, ts))).resize(l))
       yield {
         VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isDosage = isDosage, isGenericGenotype = isGenericGenotype),
@@ -142,9 +146,10 @@ object VSMSubgen {
   val dosage = random.copy(
     tGen = Genotype.genDosage, isDosage = true)
 }
+*/
 
 class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
-  val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {
+  val rdd: OrderedRDD[Locus, Variant, (Annotation, SharedIterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {
 
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
@@ -177,7 +182,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     rdd
-      .mapPartitions { (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
+      .mapPartitions { (it: Iterator[(Variant, (Annotation, SharedIterable[T]))]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
 
         def copyZeroValue() = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
@@ -186,7 +191,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
         localSampleIdsBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, (va, gs))) =>
-            for ((g, i) <- gs.iterator.zipWithIndex) {
+            gs.iterator.zipWithIndex.foreach { case (g, i) =>
               acc(i) = seqOp(acc(i), v, va,
                 localSampleIdsBc.value(i), localSampleAnnotationsBc.value(i), g)
             }
@@ -213,7 +218,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     rdd
-      .mapPartitions({ (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
+      .mapPartitions({ (it: Iterator[(Variant, (Annotation, SharedIterable[T]))]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
         it.map { case (v, (va, gs)) =>
           val zeroValue = serializer.deserialize[U](ByteBuffer.wrap(zeroArray))
@@ -830,7 +835,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def dropSamples(): VariantSampleMatrix[T] =
     copy(sampleIds = IndexedSeq.empty[String],
       sampleAnnotations = IndexedSeq.empty[Annotation],
-      rdd = rdd.mapValues { case (va, gs) => (va, Iterable.empty[T]) }
+      rdd = rdd.mapValues { case (va, gs) => (va, SharedIterable.empty[T]) }
         .asOrderedRDD)
 
   def dropVariants(): VariantSampleMatrix[T] = copy(rdd = OrderedRDD.empty(sparkContext))
@@ -841,13 +846,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def expandWithAll(): RDD[(Variant, Annotation, String, Annotation, T)] =
     mapWithAll[(Variant, Annotation, String, Annotation, T)]((v, va, s, sa, g) => (v, va, s, sa, g))
 
+  // FIXME: split
   def mapWithAll[U](f: (Variant, Annotation, String, Annotation, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
 
     rdd
       .flatMap { case (v, (va, gs)) =>
-        localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](localSampleAnnotationsBc.value, gs, {
+        localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](localSampleAnnotationsBc.value, gs.toIterable, {
           case (s, sa, g) => f(v, va, s, sa, g)
         })
       }
@@ -867,7 +873,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     }
   }
 
-  def filterVariants(p: (Variant, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[T] =
+  def filterVariants(p: (Variant, Annotation, SharedIterable[T]) => Boolean): VariantSampleMatrix[T] =
     copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) }.asOrderedRDD)
 
   // FIXME see if we can remove broadcasts elsewhere in the code
@@ -926,20 +932,21 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def flatMap[U](f: T => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] =
     flatMapWithKeys((v, s, g) => f(g))
 
+  // FIXME: split
   def flatMapWithKeys[U](f: (Variant, String, T) => TraversableOnce[U])(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = sampleIdsBc
 
     rdd
-      .flatMap { case (v, (va, gs)) => localSampleIdsBc.value.lazyFlatMapWith(gs,
-        (s: String, g: T) => f(v, s, g))
+      .flatMap { case (v, (va, gs)) => localSampleIdsBc.value.lazyFlatMapWith(gs.toIterable,
+        (s: String, g: T) => f(v, s, g)).toIterable
       }
   }
 
   /**
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
-  def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
-  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+  def flatMapVariants(f: (Variant, Annotation, SharedIterable[T]) => TraversableOnce[(Variant, (Annotation, SharedIterable[T]))]): VariantSampleMatrix[T] =
+  copy(rdd = rdd.flatMapMonotonic[(Annotation, SharedIterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
 
@@ -953,7 +960,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val localSampleIdsBc = sampleIdsBc
 
     rdd
-      .mapPartitions { (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
+      .mapPartitions { (it: Iterator[(Variant, (Annotation, SharedIterable[T]))]) =>
         val serializer = SparkEnv.get.serializer.newInstance()
 
         def copyZeroValue() = serializer.deserialize[T](ByteBuffer.wrap(zeroArray))(localtct)
@@ -961,8 +968,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         val arrayZeroValue = Array.fill[T](localSampleIdsBc.value.length)(copyZeroValue())
         localSampleIdsBc.value.iterator
           .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, (va, gs))) =>
-            for ((g, i) <- gs.iterator.zipWithIndex)
-              acc(i) = combOp(acc(i), g)
+            gs.iterator.zipWithIndex.foreach { case (g, i) => acc(i) = combOp(acc(i), g) }
             acc
           }.iterator)
       }.foldByKey(zeroValue)(combOp)
@@ -990,17 +996,18 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def map[U](f: T => U)(implicit uct: ClassTag[U]): RDD[U] =
     mapWithKeys((v, s, g) => f(g))
 
+  // FIXME: split
   def mapWithKeys[U](f: (Variant, String, T) => U)(implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = sampleIdsBc
 
     rdd
       .flatMap { case (v, (va, gs)) =>
-        localSampleIdsBc.value.lazyMapWith[T, U](gs,
+        localSampleIdsBc.value.lazyMapWith[T, U](gs.toIterable,
           (s, g) => f(v, s, g))
       }
   }
 
-  def mapAnnotations(f: (Variant, Annotation, Iterable[T]) => Annotation): VariantSampleMatrix[T] =
+  def mapAnnotations(f: (Variant, Annotation, SharedIterable[T]) => Annotation): VariantSampleMatrix[T] =
     copy[T](rdd = rdd.mapValuesWithKey { case (v, (va, gs)) => (f(v, va, gs), gs) }.asOrderedRDD)
 
   def mapAnnotationsWithAggregate[U](zeroValue: U, newVAS: Type)(
@@ -1031,6 +1038,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       }.asOrderedRDD)
   }
 
+  // FIXME: split
   def mapPartitionsWithAll[U](f: Iterator[(Variant, Annotation, String, Annotation, T)] => Iterator[U])
     (implicit uct: ClassTag[U]): RDD[U] = {
     val localSampleIdsBc = sampleIdsBc
@@ -1039,7 +1047,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     rdd.mapPartitions { it =>
       f(it.flatMap { case (v, (va, gs)) =>
         localSampleIdsBc.value.lazyMapWith2[Annotation, T, (Variant, Annotation, String, Annotation, T)](
-          localSampleAnnotationsBc.value, gs, { case (s, sa, g) => (v, va, s, sa, g) })
+          localSampleAnnotationsBc.value, gs.toIterable, { case (s, sa, g) => (v, va, s, sa, g) })
       })
     }
   }
@@ -1058,7 +1066,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
     copy(rdd = rdd.mapValuesWithKey { case (v, (va, gs)) =>
-      (va, localSampleIdsBc.value.lazyMapWith2[Annotation, T, U](localSampleAnnotationsBc.value, gs, {
+      (va, localSampleIdsBc.value.lazyMapWithShared2[Annotation, T, U](localSampleAnnotationsBc.value, gs, {
         case (s, sa, g) => f(v, va, s, sa, g)
       }))
     }.asOrderedRDD)
@@ -1269,7 +1277,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
                  """.stripMargin)
               printed = true
             }
-            val genotypesSame = (it1, it2).zipped.forall { case (g1, g2) =>
+            val genotypesSame = it1.zip(it2).forall { case (g1, g2) =>  // FIXME: was faster before using zipped
               val gSame = gSignatureBc.value.valuesSimilar(g1, g2, tolerance)
               if (!gSame)
                 println(s"genotypes $g1, $g2 were not the same")
@@ -1299,7 +1307,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
     copy(rdd = rdd.sample(withReplacement = false, fraction, 1).asOrderedRDD)
 
-  def copy[U](rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[U])] = rdd,
+  // FIXME: how did this work with U before? Why is it necessary?
+  def copy[T](rdd: OrderedRDD[Locus, Variant, (Annotation, SharedIterable[T])] = rdd,
     sampleIds: IndexedSeq[String] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     globalAnnotation: Annotation = globalAnnotation,
@@ -1310,8 +1319,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     wasSplit: Boolean = wasSplit,
     isDosage: Boolean = isDosage,
     isGenericGenotype: Boolean = isGenericGenotype)
-    (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
-    new VariantSampleMatrix[U](hc,
+    (implicit tct: ClassTag[T]): VariantSampleMatrix[T] =
+    new VariantSampleMatrix[T](hc,
       VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
         saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype), rdd)
 

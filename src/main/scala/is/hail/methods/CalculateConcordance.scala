@@ -171,7 +171,7 @@ object CalculateConcordance {
         }
         val va = Annotation(comb.toAnnotation, value1.map(_._1).orNull, value2.map(_._1).orNull)
         assert(vaSchema.typeCheck(va))
-        (v, (va, Iterable.empty[Genotype]))
+        (v, (va, SharedIterable.empty[Genotype]))
       }
     }, preservesPartitioning = true).asOrderedRDD
 
@@ -196,7 +196,7 @@ object CalculateConcordance {
       vaSignature = TStruct.empty,
       globalSignature = globalSchema,
       wasSplit = true),
-      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](left.sparkContext))
+      OrderedRDD.empty[Locus, Variant, (Annotation, SharedIterable[Genotype])](left.sparkContext))
 
     val variants = VariantSampleMatrix(left.hc, VariantMetadata(IndexedSeq.empty[String],
       sampleAnnotations = IndexedSeq.empty[Annotation],

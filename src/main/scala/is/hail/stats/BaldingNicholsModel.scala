@@ -103,7 +103,7 @@ object BaldingNicholsModel {
                 else
                   1
               Genotype(gt)
-            }: Iterable[Genotype]
+            }: SharedIterable[Genotype]
           )
         )
       }
