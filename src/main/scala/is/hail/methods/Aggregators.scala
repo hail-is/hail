@@ -565,3 +565,28 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
     _state = mutable.PriorityQueue[(Any, Any)](elems: _*)(ord)
   }
 }
+
+class GroupByAggregator[T](key: Any => Any, transformation: (Any, (Any => Any)) => Any, downstream: TypedAggregator[T]) extends TypedAggregator[Map[Any, T]] {
+  var _state = mutable.Map[Any, TypedAggregator[T]]()
+
+  def result = _state.toMap.mapValues(_.result)
+
+  def seqOp(x: Any) = {
+    val k = key(x)
+
+    val next = _state.getOrElseUpdate(k, downstream.copy())
+
+    transformation(x, next.seqOp)
+  }
+
+  def combOp(agg2: this.type) {
+    agg2._state.foreach { case (k, v) =>
+      _state.get(k) match {
+        case Some(myV) => myV.combOp(v.asInstanceOf[myV.type])
+        case None => _state += ((k, v))
+      }
+    }
+  }
+
+  def copy() = new GroupByAggregator(key, transformation, downstream)
+}
