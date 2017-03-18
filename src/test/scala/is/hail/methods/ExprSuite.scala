@@ -23,6 +23,13 @@ import org.apache.spark.sql.Row
 
 class ExprSuite extends SparkSuite {
 
+  @Test def groupByTest() {
+    hc.read("/Users/dking/projects/hail-data/profile.vds")
+      .annotateSamplesExpr("sa.foo = if (pcoin(0.5)) \"Red\" else \"Blue\"")
+      .annotateVariantsExpr("va.byFoo = gs.groupBy(x => sa.foo, foos => foos.map(x => x.gt).sum())")
+      .exportVariants("/tmp/test.out", "v, va.byFoo")
+  }
+
   @Test def compileTest() {
     def run[T](s: String): Option[T] =
       Option(Parser.parseToAST(s, EvalContext()).run(EvalContext())().asInstanceOf[T])
