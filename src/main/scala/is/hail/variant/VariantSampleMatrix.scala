@@ -295,9 +295,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       sb.append("Start")
       sb += '\t'
       sb.append("End")
-      names.foreach { col =>
-        sb += '\t'
-        sb.append(col)
+      names.foreach { header =>
+        header.foreach { col =>
+          sb += '\t'
+          sb.append(col)
+        }
       }
       sb += '\n'
 
@@ -939,7 +941,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
-  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
 
