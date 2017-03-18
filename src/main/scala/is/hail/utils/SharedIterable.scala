@@ -11,7 +11,8 @@ object SharedIterable {
     override def iterator: SharedIterator[Nothing] = SharedIterator.empty
   }
 
-//  implicit def canBuildFrom[T]: CanBuildFrom[Coll, T, SharedIterable[T]] = ReusableCBF.asInstanceOf[GenericCanBuildFrom[T]]
+// FIXME: I couldn't get this to work, so I've removed VSMSubgen for now
+// implicit def canBuildFrom[T]: CanBuildFrom[Coll, T, SharedIterable[T]] = ReusableCBF.asInstanceOf[GenericCanBuildFrom[T]]
 
   def newBuilder[T]: mutable.Builder[T, SharedIterable[T]] = SharedIterable.newBuilder[T]
 }
@@ -21,7 +22,7 @@ abstract class SharedIterable[+T] {
 
   def iterator: SharedIterator[T]
 
-  // FIXME: Super unsafe once we switch to MutableGenotype
+  // FIXME: temporary to allow building, unsafe once we switch to MutableGenotypeStreamIterator
   def toIterable: Iterable[T] = new Iterable[T] {
     override def iterator = new Iterator[T] {
       private val it = self.iterator
