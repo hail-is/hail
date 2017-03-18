@@ -271,8 +271,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (names, _, f) = Parser.parseExportExprs(expr, ec)
 
-    if (names.isEmpty)
-      fatal("this module requires one or more named expr arguments")
+    val definedNames = names match {
+      case Some(arr) => arr
+      case None => fatal("this module requires one or more named export expressions")
+    }
 
     val (zVals, seqOp, combOp, resultOp) =
       Aggregators.makeFunctions[(Interval[Locus], Variant, Annotation)](ec, { case (ec, (i, v, va)) =>
@@ -295,7 +297,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       sb.append("Start")
       sb += '\t'
       sb.append("End")
-      names.foreach { header =>
+      definedNames.foreach { header =>
         header.foreach { col =>
           sb += '\t'
           sb.append(col)
