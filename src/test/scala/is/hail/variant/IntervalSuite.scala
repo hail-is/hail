@@ -175,25 +175,27 @@ class IntervalSuite extends SparkSuite {
 
         hadoopConf.readFile(tmp1) { in =>
 
-          Source.fromInputStream(in)
+          val lines = Source.fromInputStream(in)
             .getLines()
             .toArray
-            .tail
-            .forall { line =>
-              val Array(contig, startStr, endStr, nSnpStr, nIndelStr, nStr) = line.split("\t")
-              val start = startStr.toInt
-              val end = endStr.toInt
-              val nSnp = nSnpStr.toInt
-              val nIndel = nIndelStr.toInt
-              val n = nStr.toInt
 
-              val interval = Interval(Locus(contig, start), Locus(contig, end))
-              val inInterval = variants.filter(v => interval.contains(v.locus))
+          assert(lines.head == "Contig\tStart\tEnd\tnSNP\tnIndel\tN")
 
-              (nSnp == inInterval.count(_.altAllele.isSNP)) &&
-                (nIndel == inInterval.count(_.altAllele.isIndel)) &&
-                (n == inInterval.length)
-            }
+          lines.tail.forall { line =>
+            val Array(contig, startStr, endStr, nSnpStr, nIndelStr, nStr) = line.split("\t")
+            val start = startStr.toInt
+            val end = endStr.toInt
+            val nSnp = nSnpStr.toInt
+            val nIndel = nIndelStr.toInt
+            val n = nStr.toInt
+
+            val interval = Interval(Locus(contig, start), Locus(contig, end))
+            val inInterval = variants.filter(v => interval.contains(v.locus))
+
+            (nSnp == inInterval.count(_.altAllele.isSNP)) &&
+              (nIndel == inInterval.count(_.altAllele.isIndel)) &&
+              (n == inInterval.length)
+          }
         }
       }
 
