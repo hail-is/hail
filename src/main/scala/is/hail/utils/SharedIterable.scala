@@ -2,7 +2,6 @@ package is.hail.utils
 
 import scala.annotation.tailrec
 import scala.collection.{Iterable, mutable}
-import scala.collection.generic.{CanBuildFrom, GenTraversableFactory}
 import scala.reflect.ClassTag
 
 object SharedIterable {
@@ -11,8 +10,8 @@ object SharedIterable {
     override def iterator: SharedIterator[Nothing] = SharedIterator.empty
   }
 
-// FIXME: I couldn't get this to work, so I've removed VSMSubgen for now
-// implicit def canBuildFrom[T]: CanBuildFrom[Coll, T, SharedIterable[T]] = ReusableCBF.asInstanceOf[GenericCanBuildFrom[T]]
+  // FIXME: I couldn't get this to work, so I've removed VSMSubgen for now
+  // implicit def canBuildFrom[T]: CanBuildFrom[Coll, T, SharedIterable[T]] = ReusableCBF.asInstanceOf[GenericCanBuildFrom[T]]
 
   def newBuilder[T]: mutable.Builder[T, SharedIterable[T]] = SharedIterable.newBuilder[T]
 }
@@ -90,14 +89,6 @@ abstract class SharedIterable[+T] {
   }
 
   def forall(p: T => Boolean): Boolean = self.iterator.forall(p)
-
-//  def isEmpty: Boolean = self.iterator.isEmpty
-//  def hasDefiniteSize: Boolean = self.iterator.hasDefiniteSize
-//
-//  def exists(p: T => Boolean): Boolean = self.iterator.exists(p)
-//  def find(p: T => Boolean): Option[T] = self.iterator.find(p)
-//  def copyToArray[U >: T](xs: Array[U], start: Int, len: Int): Unit = self.iterator.copyToArray(xs, start, len)
-
 }
 
 
@@ -153,35 +144,6 @@ abstract class SharedIterator[+T] {
     while (res && hasNext) res = p(next())
     res
   }
-
-//  def isEmpty: Boolean = !hasNext
-//
-//  def hasDefiniteSize: Boolean = isEmpty
-//
-//
-//  def exists(p: T => Boolean): Boolean = {
-//    var res = false
-//    while (!res && hasNext) res = p(next())
-//    res
-//  }
-//
-//  def find(p: T => Boolean): Option[T] = {
-//    while (hasNext) {
-//      val a = next()
-//      if (p(a)) return Some(a)
-//    }
-//    None
-//  }
-//
-//  def copyToArray[U >: T](xs: Array[U], start: Int, len: Int): Unit = {
-//    require(start >= 0 && (start < xs.length || xs.length == 0), s"start $start out of range ${xs.length}")
-//    var i = start
-//    val end = start + math.min(len, xs.length - start)
-//    while (i < end && hasNext) {
-//      xs(i) = next()
-//      i += 1
-//    }
-//  }
 }
 
 final class ConcatSharedIterator[+T](private[this] var current: SharedIterator[T], initial: Vector[() => SharedIterator[T]]) extends SharedIterator[T] {
