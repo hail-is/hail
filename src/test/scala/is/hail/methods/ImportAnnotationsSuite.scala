@@ -252,9 +252,10 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     // tsv
     val importTSVFile = tmpDir.createTempFile("variantAnnotationsTSV", ".vds")
-    vds = hc.importAnnotationsTable("src/test/resources/variantAnnotations.tsv",
-      "Variant(Chromosome, Position, Ref, Alt)",
+    vds = VariantDataset.fromKeyTable(hc.importKeyTable(List("src/test/resources/variantAnnotations.tsv"),
       config = TextTableConfiguration(impute = true, types = Map("Chromosome" -> TString)))
+      .annotate("v = Variant(Chromosome, Position, Ref, Alt)")
+      .keyBy("v"))
       .splitMulti()
       .annotateVariantsExpr(
         """va = {Chromosome: va.Chromosome,
@@ -282,10 +283,12 @@ class ImportAnnotationsSuite extends SparkSuite {
     val vFields =
       """Variant(_0.contig, _0.start, _0.ref, _0.alt.split("/"))"""
 
-    vds = hc.importAnnotationsTable("src/test/resources/importAnnot.json", vFields,
+    vds = VariantDataset.fromKeyTable(hc.importKeyTable(List("src/test/resources/importAnnot.json"),
       config = TextTableConfiguration(types = Map("_0" -> TStruct("Rand1" -> TDouble, "Rand2" -> TDouble,
         "Gene" -> TString, "contig" -> TString, "start" -> TInt, "ref" -> TString, "alt" -> TString)),
         noHeader = true))
+      .annotate("""v = Variant(_0.contig, _0.start, _0.ref, _0.alt.split("/"))""")
+      .keyBy("v"))
       .annotateVariantsExpr("va = va._0")
       .filterMulti()
     vds.write(importJSONFile)

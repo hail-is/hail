@@ -30,11 +30,6 @@ class ContextTests(unittest.TestCase):
 
         hc.grep('Mom1', test_resources + '/mendel.fam')
 
-        annot = hc.import_annotations_table(
-            test_resources + '/variantAnnotations.tsv',
-            'Variant(Chromosome, Position.toInt(), Ref, Alt)')
-        self.assertEqual(annot.count()['nVariants'], 346)
-
         # index
         hc.index_bgen(test_resources + '/example.v11.bgen')
 
@@ -266,12 +261,12 @@ class ContextTests(unittest.TestCase):
         sample2.export_variants('/tmp/variants.tsv', 'v = v, va = va')
         self.assertTrue((sample2.variants_keytable()
                          .annotate('va = json(va)'))
-                        .same(hc.import_keytable('/tmp/variants.tsv', ['v'], config=TextTableConfig(impute=True))))
+                        .same(hc.import_keytable('/tmp/variants.tsv', config=TextTableConfig(impute=True)).key_by('v')))
 
         sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
         self.assertTrue((sample2.samples_keytable()
                          .annotate('s = s.id, sa = json(sa)'))
-                        .same(hc.import_keytable('/tmp/samples.tsv', ['s'], config=TextTableConfig(impute=True))))
+                        .same(hc.import_keytable('/tmp/samples.tsv', config=TextTableConfig(impute=True)).key_by('s')))
 
         cols = ['v = v, info = va.info']
         for s in sample2.sample_ids:
@@ -283,7 +278,7 @@ class ContextTests(unittest.TestCase):
 
         ((sample2
           .make_keytable('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
-         .same(hc.import_keytable('/tmp/sample_kt.tsv', ['v'])))
+         .same(hc.import_keytable('/tmp/sample_kt.tsv').key_by('v')))
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
 
@@ -323,10 +318,10 @@ class ContextTests(unittest.TestCase):
 
         # Import
         # columns: Sample Status qPhen
-        kt = hc.import_keytable(test_resources + '/sampleAnnotations.tsv', 'Sample',
-                                config=TextTableConfig(impute=True))
-        kt2 = hc.import_keytable(test_resources + '/sampleAnnotations2.tsv', 'Sample',
-                                 config=TextTableConfig(impute=True))
+        kt = hc.import_keytable(test_resources + '/sampleAnnotations.tsv',
+                                config=TextTableConfig(impute=True)).key_by('Sample')
+        kt2 = hc.import_keytable(test_resources + '/sampleAnnotations2.tsv',
+                                 config=TextTableConfig(impute=True)).key_by('Sample')
 
         # Variables
         self.assertEqual(kt.num_columns, 3)

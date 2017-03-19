@@ -227,6 +227,31 @@ object VariantDataset {
       saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype), parquetGenotypes)
   }
 
+  def fromKeyTable(kt: KeyTable): VariantDataset = {
+    kt.keyFields.map(_.typ) match {
+      case Array(TVariant) =>
+      case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
+        s"but found [ ${arr.mkString(", ")} ]")
+    }
+
+    val rdd = kt.keyedRDD()
+      .map { case (k, v) => (k.asInstanceOf[Row].getAs[Variant](0), v) }
+      .filter(_._1 != null)
+      .mapValues(a => (a, Iterable.empty[Genotype]))
+      .toOrderedRDD
+
+    val metadata = VariantMetadata(
+      sampleIds = Array.empty[String],
+      sa = Array.empty[Annotation],
+      globalAnnotation = Annotation.empty,
+      sas = TStruct.empty,
+      vas = kt.signature,
+      globalSignature = TStruct.empty
+    )
+
+    VariantSampleMatrix[Genotype](kt.hc, metadata, rdd)
+  }
+
   def readKudu(hc: HailContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
