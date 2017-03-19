@@ -315,7 +315,7 @@ class HailContext(object):
         ...                       bim="data/test.bim",
         ...                       fam="data/test.fam")
 
-        **Implementation Details**
+        **Notes**
 
         Only binary SNP-major mode files can be read into Hail. To convert your file from individual-major mode to SNP-major mode, use PLINK to read in your fileset and use the ``--make-bed`` option.
 

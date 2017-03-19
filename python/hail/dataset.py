@@ -79,7 +79,11 @@ class VariantDataset(object):
 
     @handle_py4j
     def num_partitions(self):
-        """Number of RDD partitions.
+        """Number of partitions.
+
+        **Notes**
+
+        The data in a variant dataset is divided into chunks called partitions, which may be stored together or across a network, so that each partition may be read and processed in parallel by available cores. Partitions are a core concept of distributed computation in Spark, see `here <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`_ for details.
 
         :rtype: int
         """
@@ -769,7 +773,7 @@ class VariantDataset(object):
             ...
 
 
-        **Details**
+        **Notes**
 
         `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (``chrom``, ``chromStart``, and ``chromEnd``).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a Boolean annotation, true if and only if the variant lies in the union of the intervals. Hail ignores header lines in BED files.
 
@@ -2028,7 +2032,7 @@ class VariantDataset(object):
 
         >>> vds.ibd(maf='va.panel_maf', min=0.2, max=0.9)
 
-        **Details**
+        **Notes**
 
         The implementation is based on the IBD algorithm described in the `PLINK
         paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`_.
@@ -2748,7 +2752,7 @@ class VariantDataset(object):
 
         >>> vds_result = vds.pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
 
-        **Details**
+        **Notes**
 
         Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`_. This method expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
 
@@ -2943,7 +2947,7 @@ class VariantDataset(object):
 
         >>> low_callrate_samples = vds.query_samples('samples.filter(s => sa.qc.callRate < 0.95).collect()')
 
-        **Details**
+        **Notes**
 
         This method evaluates Hail expressions over samples and sample
         annotations.  The ``exprs`` argument requires either a list of
@@ -3300,7 +3304,7 @@ class VariantDataset(object):
 
         >>> vds.split_multi().write('output/split.vds')
 
-        **Implementation Details**
+        **Notes**
 
         We will explain by example. Consider a hypothetical 3-allelic
         variant:
@@ -3433,7 +3437,7 @@ class VariantDataset(object):
         >>> (vds.tdt("data/trios.fam")
         ...     .export_variants("output/tdt_results.tsv", "Variant = v, va.tdt.*"))
 
-        **Implementation Details**
+        **Notes**
 
         The transmission disequilibrium test tracks the number of times the alternate allele is transmitted (t) or not transmitted (u) from a heterozgyous parent to an affected child under the null that the rate of such transmissions is 0.5.  For variants where transmission is guaranteed (i.e., the Y chromosome, mitochondria, and paternal chromosome X variants outside of the PAR), the test cannot be used.
 
