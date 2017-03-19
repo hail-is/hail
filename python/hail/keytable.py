@@ -621,7 +621,7 @@ class KeyTable(object):
 
     @handle_py4j
     def collect(self):
-        """Collect key table as a python object."""
+        """Collect key table as a Python object."""
 
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
     

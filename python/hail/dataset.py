@@ -335,7 +335,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def annotate_global_py(self, path, annotation, annotation_type):
-        """Annotate global from python objects.
+        """Annotate global from Python objects.
 
         **Example**
 
@@ -1111,7 +1111,7 @@ class VariantDataset(object):
 
         The first index in array is the left dataset, the second is the right. For example, ``concordance[3][2]`` is the count of
         genotypes which were heterozygous on the left and homozygous reference on the right. This command produces two new datasets
-        and returns them as a python tuple. The first dataset contains the concordance statistics per variant. This dataset
+        and returns them as a Python tuple. The first dataset contains the concordance statistics per variant. This dataset
         **contains no genotypes** (sites-only). It contains a new variant annotation, ``va.concordance``. This is the concordance
         table for each variant in the outer join of the two datasets -- if the variant is present in only one dataset, all
         of the counts will lie in the axis ``va.concordance[0][:]`` (if it is missing on the left) or ``va.concordance.map(x => x[0])``
@@ -1950,7 +1950,7 @@ class VariantDataset(object):
 
     @property
     def globals(self):
-        """Return global annotations as a python object.
+        """Return global annotations as a Python object.
 
         :return: Dataset global annotations.
         :rtype: :py:class:`~hail.representation.Struct`
@@ -2910,7 +2910,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_samples_typed(self, exprs):
-        """Performs aggregation queries over samples and sample annotations, and returns python object(s) and type(s).
+        """Performs aggregation queries over samples and sample annotations, and returns Python object(s) and type(s).
 
         **Examples**
 
@@ -2937,7 +2937,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_samples(self, exprs):
-        """Performs aggregation queries over samples and sample annotations, and returns python object(s).
+        """Performs aggregation queries over samples and sample annotations, and returns Python object(s).
 
         **Examples**
 
@@ -2974,7 +2974,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_variants_typed(self, exprs):
-        """Performs aggregation queries over variants and variant annotations, and returns python object(s) and type(s).
+        """Performs aggregation queries over variants and variant annotations, and returns Python object(s) and type(s).
 
         **Examples**
 
@@ -3005,7 +3005,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def query_variants(self, exprs):
-        """Performs aggregation queries over variants and variant annotations, and returns python object(s).
+        """Performs aggregation queries over variants and variant annotations, and returns Python object(s).
 
         **Examples**
 
@@ -3057,7 +3057,7 @@ class VariantDataset(object):
         return r
 
     def query_genotypes_typed(self, exprs):
-        """Performs aggregation queries over genotypes, and returns python object(s) and type(s).
+        """Performs aggregation queries over genotypes, and returns Python object(s) and type(s).
 
         **Examples**
 
@@ -3118,7 +3118,7 @@ class VariantDataset(object):
             return t._convert_to_py(result._1()), t
 
     def query_genotypes(self, exprs):
-        """Performs aggregation queries over genotypes, and returns python object(s).
+        """Performs aggregation queries over genotypes, and returns Python object(s).
 
         **Examples**
 

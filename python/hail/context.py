@@ -11,12 +11,11 @@ from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
 
 class HailContext(object):
-    """The main entrypoint for Hail functionality.
+    """The main entry point for Hail functionality.
 
     .. warning::
-        Only one Hail context can be running in a Python session. If you
-        need to reconfigure settings, you will need to restart the
-        python session or use the :py:meth:`.HailContext.stop` method.
+        Only one Hail context may be running in a Python session at any time. If you
+        need to reconfigure settings, restart the Python session or use the :py:meth:`.HailContext.stop` method.
 
     :param sc: spark context, will be auto-generated if None
     :type sc: :class:`.pyspark.SparkContext`
