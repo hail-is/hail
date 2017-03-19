@@ -14,7 +14,7 @@ class HailContext(object):
     """The main entrypoint for Hail functionality.
 
     .. warning::
-        Only one HailContext can be running in a Python session. If you
+        Only one Hail context can be running in a Python session. If you
         need to reconfigure settings, you will need to restart the
         python session or use the :py:meth:`.HailContext.stop` method.
 
@@ -91,10 +91,12 @@ class HailContext(object):
             >>> HailContext()  # oops! Forgot to bind to 'hc'
             >>> hc = HailContext.get_running()  # recovery
 
-        Useful to recover a context that has been created but is unbound.
+        Useful to recover a Hail context that has been created but is unbound.
 
+        :return: Current Hail context.
         :rtype: :class:`.HailContext`
         """
+
         return Env.hc
 
     @handle_py4j
@@ -128,7 +130,7 @@ class HailContext(object):
     @handle_py4j
     def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=TextTableConfig()):
         """Import variants and variant annotations from a delimited text file
-        (text table) as a sites-only VariantDataset.
+        (text table) as a sites-only variant dataset.
 
         :param path: The files to import.
         :type path: str or list of str
@@ -145,6 +147,7 @@ class HailContext(object):
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig`
 
+        :return: Sites-only variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -155,7 +158,7 @@ class HailContext(object):
 
     @handle_py4j
     def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
-        """Import .bgen files as VariantDataset
+        """Import .bgen file(s) as variant dataset.
 
         **Examples**
 
@@ -201,14 +204,14 @@ class HailContext(object):
             genotype differ from 1.0 by more than the tolerance, set
             the genotype to missing.
 
-        :param sample_file: The sample file.
+        :param sample_file: Sample file.
         :type sample_file: str or None
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
+        :return: Variant dataset imported from .bgen file.
         :rtype: :class:`.VariantDataset`
-        :return: A dataset imported from the bgen file.
         """
 
         jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
@@ -217,7 +220,7 @@ class HailContext(object):
 
     @handle_py4j
     def import_gen(self, path, sample_file=None, tolerance=0.2, npartitions=None, chromosome=None):
-        """Import .gen files as VariantDataset.
+        """Import .gen file(s) as variant dataset.
 
         **Examples**
 
@@ -266,8 +269,8 @@ class HailContext(object):
         :param chromosome: Chromosome if not listed in the .gen file.
         :type chromosome: str or None
 
+        :return: Variant dataset imported from .gen and .sample files.
         :rtype: :class:`.VariantDataset`
-        :return: A dataset imported from a .gen and .sample file.
         """
 
         jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(npartitions),
@@ -276,7 +279,7 @@ class HailContext(object):
 
     @handle_py4j
     def import_keytable(self, path, key_names=[], npartitions=None, config=TextTableConfig()):
-        """Import delimited text file (text table) as KeyTable.
+        """Import delimited text file (text table) as key table.
 
         :param path: files to import.
         :type path: str or list of str
@@ -290,6 +293,7 @@ class HailContext(object):
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig`
 
+        :return: Key table constructed from text table.
         :rtype: :class:`.KeyTable`
         """
 
@@ -302,7 +306,7 @@ class HailContext(object):
 
     @handle_py4j
     def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
-        """Import PLINK binary file (BED, BIM, FAM) as VariantDataset
+        """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
 
@@ -362,8 +366,7 @@ class HailContext(object):
 
         :param bool quantpheno: If True, FAM phenotype is interpreted as quantitative.
 
-        :return: A dataset imported from a PLINK binary file.
-
+        :return: Variant dataset imported from PLINK binary file.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -373,7 +376,7 @@ class HailContext(object):
 
     @handle_py4j
     def read(self, path, sites_only=False, samples_only=False):
-        """Read .vds files as VariantDataset
+        """Read .vds files as variant dataset.
 
         When loading multiple .vds files, they must have the same
         sample IDs, split status and variant metadata.
@@ -381,14 +384,14 @@ class HailContext(object):
         :param path: .vds files to read.
         :type path: str or list of str
 
-        :param bool sites_only: If True, create sites-only
+        :param bool sites_only: If True, create sites-only variant
           dataset.  Don't load sample ids, sample annotations
           or gneotypes.
 
-        :param bool samples_only: If True, create samples-only
+        :param bool samples_only: If True, create samples-only variant
           dataset (no variants or genotypes).
 
-        :return: A dataset read from disk
+        :return: Variant dataset read from disk.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -407,7 +410,7 @@ class HailContext(object):
     @handle_py4j
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
                    sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
-        """Import VCF file(s) as :py:class:`.VariantDataset`
+        """Import VCF file(s) as variant dataset.
 
         **Examples**
 
@@ -418,7 +421,7 @@ class HailContext(object):
         Hail is designed to be maximally compatible with files in the `VCF v4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
 
         :py:meth:`~hail.HailContext.import_vcf` takes a list of VCF files to load. All files must have the same header and the same set of samples in the same order
-        (e.g., a dataset split by chromosome). Files can be specified as :ref:`Hadoop glob patterns <sec-hadoop-glob>`.
+        (e.g., a variant dataset split by chromosome). Files can be specified as :ref:`Hadoop glob patterns <sec-hadoop-glob>`.
 
         Ensure that the VCF file is correctly prepared for import: VCFs should either be uncompressed (*.vcf*) or block compressed
         (*.vcf.bgz*).  If you have a large compressed VCF that ends in *.vcf.gz*, it is likely that the file is actually block-compressed,
@@ -470,7 +473,7 @@ class HailContext(object):
         :type npartitions: int or None
 
         :param bool sites_only: If True, create sites-only
-            VariantDataset.  Don't load sample ids, sample annotations
+            variant dataset.  Don't load sample ids, sample annotations
             or genotypes.
 
         :param bool store_gq: If True, store GQ FORMAT field instead of computing from PL.
@@ -481,7 +484,7 @@ class HailContext(object):
             wrong number of elements to missing, rather than setting
             the entire genotype to missing.
 
-        :return: A dataset imported from the VCF file
+        :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -517,7 +520,7 @@ class HailContext(object):
     def balding_nichols_model(self, populations, samples, variants, npartitions=None,
                               pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                               seed=0):
-        """Generate a VariantDataset using the Balding-Nichols model.
+        """Simulate a variant dataset using the Balding-Nichols model.
 
         **Examples**
 
@@ -600,8 +603,8 @@ class HailContext(object):
 
         :param int seed: Random seed.
 
+        :return: Variant dataset simulated using the Balding-Nichols model.
         :rtype: :class:`.VariantDataset`
-        :return: VariantDataset generated by the Balding-Nichols model.
         """
 
         if pop_dist is None:
@@ -624,7 +627,7 @@ class HailContext(object):
 
     @handle_py4j
     def dataframe_to_keytable(self, df, keys=[]):
-        """Convert Spark SQL DataFrame to KeyTable.
+        """Convert Spark SQL DataFrame to key table.
 
         Spark SQL data types are converted to Hail types in the obvious way as follows:
 
@@ -645,7 +648,7 @@ class HailContext(object):
         :param keys: List of key column names.
         :type keys: list of string
 
-        :return: The DataFrame as a KeyTable.
+        :return: Key table constructed from the Spark SQL DataFrame.
         :rtype: :class:`.KeyTable`
         """
 
@@ -683,7 +686,7 @@ class HailContext(object):
         """ Shut down the Hail context.
 
         It is not possible to have multiple Hail contexts running in a
-        single Python session, so use this if you need to reconfigure the
+        single Python session, so use this if you need to reconfigure the Hail
         context. Note that this also stops a running Spark context.
         """
 
@@ -695,11 +698,11 @@ class HailContext(object):
 
     @handle_py4j
     def read_keytable(self, path):
-        """Read a KT file as KeyTable
+        """Read a KT file as key table.
 
         :param str path: KT file to read.
 
-        :return: A key table read from disk.
+        :return: Key table read from disk.
         :rtype: :class:`.KeyTable`
         """
 

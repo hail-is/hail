@@ -99,7 +99,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def count_variants(self):
-        """Count the number of variants in the dataset.
+        """Count number of variants in variant dataset.
 
         :rtype: long
         """
@@ -108,11 +108,11 @@ class VariantDataset(object):
 
     @handle_py4j
     def was_split(self):
-        """Multiallelic variants have been split into multiple biallelic variants.
+        """True if multiallelic variants have been split into multiple biallelic variants.
 
-        Result is True if :py:meth:`~hail.VariantDataset.split_multi` has been called on this dataset
-        or the dataset was imported with :py:meth:`~hail.HailContext.import_plink`, :py:meth:`~hail.HailContext.import_gen`,
-        or :py:meth:`~hail.HailContext.import_bgen`.
+        Result is True if :py:meth:`~hail.VariantDataset.split_multi` or :py:meth:`~hail.VariantDataset.filter_multi` has been called on this variant dataset,
+        or if the variant dataset was imported with :py:meth:`~hail.HailContext.import_plink`, :py:meth:`~hail.HailContext.import_gen`,
+        or :py:meth:`~hail.HailContext.import_bgen`, or if the variant dataset was simulated with :py:meth:`~hail.HailContext.balding_nichols_model`.
 
         :rtype: bool
         """
@@ -121,9 +121,9 @@ class VariantDataset(object):
 
     @handle_py4j
     def is_dosage(self):
-        """Genotype probabilities are dosages.
+        """True if genotype probabilities are dosages.
 
-        The result of ``is_dosage()`` will be True if the dataset was imported with :py:meth:`~hail.HailContext.import_gen` or
+        The result of ``is_dosage()`` will be True if the variant dataset was imported with :py:meth:`~hail.HailContext.import_gen` or
         :py:meth:`~hail.HailContext.import_bgen`.
 
         :rtype: bool
@@ -133,7 +133,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def file_version(self):
-        """File version of VariantDataset.
+        """File version of variant dataset.
 
         :rtype: int
         """
@@ -291,7 +291,7 @@ class VariantDataset(object):
         :type expr: str or list of str
         :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
         if isinstance(expr, list):
@@ -313,8 +313,8 @@ class VariantDataset(object):
         Create, then overwrite, then drop a global annotation:
 
         >>> vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS"]')
-        ... vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS", "NFE"]')
-        ... vds = vds.annotate_global_expr('global.pops = drop(global, pops)')
+        >>> vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS", "NFE"]')
+        >>> vds = vds.annotate_global_expr('global.pops = drop(global, pops)')
 
         The expression namespace contains only one variable:
 
@@ -323,7 +323,7 @@ class VariantDataset(object):
         :param expr: Annotation expression
         :type expr: str or list of str
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -357,7 +357,7 @@ class VariantDataset(object):
         :param annotation_type: Hail type of annotation
         :type annotation_type: :py:class:`.Type`
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -401,7 +401,7 @@ class VariantDataset(object):
         :param bool as_set: If True, load text file as Set[String],
             otherwise, load as Array[String].
 
-        :return: Annotated dataset with a new global annotation given by the list.
+        :return: Annotated variant dataset with new global annotation given by the list.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -447,7 +447,7 @@ class VariantDataset(object):
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig`
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -491,7 +491,7 @@ class VariantDataset(object):
         :param expr: Annotation expression.
         :type expr: str or list of str
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -545,7 +545,7 @@ class VariantDataset(object):
             For case-control, 0, -9, and non-numeric are also treated
             as missing.
 
-        :return: Annotated dataset with sample annotations from fam file.
+        :return: Annotated variant dataset with sample annotations from fam file.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -576,7 +576,7 @@ class VariantDataset(object):
 
         :param str root: Sample annotation path to store Boolean.
 
-        :return: Annotated dataset with a new boolean sample annotation
+        :return: Annotated variant dataset with a new boolean sample annotation
         :rtype: :class:`.VariantDataset`
         """
 
@@ -712,7 +712,7 @@ class VariantDataset(object):
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig`
 
-        :return: Annotated dataset with new samples annotations imported from a text file
+        :return: Annotated variant dataset with new samples annotations imported from a text file
         :rtype: :class:`.VariantDataset`
         """
 
@@ -730,7 +730,7 @@ class VariantDataset(object):
 
         :param str code: Annotation expression.
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
 
         """
@@ -783,7 +783,7 @@ class VariantDataset(object):
 
         :param bool all: Store values from all overlapping intervals as a set.
 
-        :return: Annotated dataset with new variant annotations imported from a .bed file.
+        :return: Annotated variant dataset with new variant annotations imported from a .bed file.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -823,7 +823,7 @@ class VariantDataset(object):
         :param expr: Annotation expression or list of annotation expressions.
         :type expr: str or list of str
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -953,7 +953,7 @@ class VariantDataset(object):
         :param bool all: If true, store values from all overlapping
             intervals as a set.
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -976,7 +976,7 @@ class VariantDataset(object):
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig`
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -999,7 +999,7 @@ class VariantDataset(object):
         :param config: Configuration options for importing text files
         :type config: :class:`.TextTableConfig`
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1060,18 +1060,18 @@ class VariantDataset(object):
         - The variant ``22:140012:A:T`` will not be annotated by
           ``22:140012:A:T,TTT``
 
-        It is possible that an unsplit dataset contains no multiallelic
+        It is possible that an unsplit variant dataset contains no multiallelic
         variants, so ignore any warnings Hail prints if you know that to be the
         case.  Otherwise, run :py:meth:`.split_multi` before
         :py:meth:`.annotate_variants_vds`.
 
-        :param VariantDataset other: VariantDataset to annotate with.
+        :param VariantDataset other: Variant dataset to annotate with.
 
         :param str root: Sample annotation path to add variant annotations.
 
         :param str code: Annotation expression.
 
-        :return: Annotated dataset.
+        :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         '''
 
@@ -1081,7 +1081,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def cache(self):
-        """Mark this dataset to be cached in memory.
+        """Mark this variant dataset to be cached in memory.
 
         :py:meth:`~hail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.
         """
@@ -1091,15 +1091,15 @@ class VariantDataset(object):
 
     @handle_py4j
     def concordance(self, right):
-        """Calculate call concordance with another dataset.
+        """Calculate call concordance with another variant dataset.
 
         **Example**
 
         >>> concordance_pair = vds.concordance(hc.read('data/example2.vds'))
 
-        **Details**
+        **Notes**
 
-        The `concordance` command computes the genotype call concordance between two bialellic datasets. The concordance
+        The `concordance` command computes the genotype call concordance between two bialellic variant datasets. The concordance
         results are stored in a global annotation of type Array[Array[Long]], which is a 5x5 table of counts with the
         following mapping:
 
@@ -1126,17 +1126,15 @@ class VariantDataset(object):
         also contains the global concordance statistics in ``global.concordance``, as well as the left and right global annotations in
         ``global.left`` and ``global.right``.
 
-
-
         **Notes**
 
         Performs inner join on variants, outer join on samples.
 
-        :param right: right hand dataset for concordance
+        :param right: right hand variant dataset for concordance
         :type right: :class:`.VariantDataset`
 
-        :return: Returns the global concordance stats, a dataset with sample concordance
-            statistics, and a dataset with variant concordance statistics.
+        :return: The global concordance stats, a variant dataset with sample concordance
+            statistics, and a variant dataset with variant concordance statistics.
         :rtype: (list of list of int, :py:class:`.VariantDataset`, :py:class:`.VariantDataset`)
         """
 
@@ -1165,7 +1163,7 @@ class VariantDataset(object):
     def deduplicate(self):
         """Remove duplicate variants.
 
-        :return: Deduplicated dataset.
+        :return: Deduplicated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1177,7 +1175,7 @@ class VariantDataset(object):
 
         :param int keep: (Expected) number of variants to keep.
 
-        :return: Downsampled dataset.
+        :return: Downsampled variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1185,7 +1183,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def export_gen(self, output):
-        """Export dataset as GEN and SAMPLE file.
+        """Export variant dataset as GEN and SAMPLE file.
 
         **Examples**
 
@@ -1261,7 +1259,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def export_plink(self, output, fam_expr='id = s.id'):
-        """Export dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`_ BED, BIM and FAM.
+        """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`_ BED, BIM and FAM.
 
         **Examples**
 
@@ -1468,7 +1466,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def export_vcf(self, output, append_to_header=None, export_pp=False, parallel=False):
-        """Export a VariantDataset as a .vcf or .vcf.bgz file.
+        """Export variant dataset as a .vcf or .vcf.bgz file.
 
         **Examples**
 
@@ -1517,7 +1515,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def write(self, output, overwrite=False, parquet_genotypes=False):
-        """Write as VDS file.
+        """Write variant dataset as VDS file.
 
         **Examples**
 
@@ -1670,7 +1668,7 @@ class VariantDataset(object):
             cause Hail to throw an error if a variant that moves further
             is encountered.
 
-        :return: Filtered dataset.
+        :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1709,7 +1707,7 @@ class VariantDataset(object):
         :param condition: Expression for filter condition.
         :type condition: str
 
-        :return: Filtered dataset.
+        :return: Filtered variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -1722,7 +1720,7 @@ class VariantDataset(object):
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
-        a dataset that can be used with methods that do not
+        a variant dataset that can be used with methods that do not
         support multiallelic variants.
 
         :return: Dataset with no multiallelic sites, which can
@@ -1734,12 +1732,12 @@ class VariantDataset(object):
 
     @handle_py4j
     def drop_samples(self):
-        """Removes all samples from dataset.
+        """Removes all samples from variant dataset.
 
         The variants, variant annotations, and global annnotations will remain,
-        producing a sites-only dataset.
+        producing a sites-only variant dataset.
 
-        :return: Sites-only dataset.
+        :return: Sites-only variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1759,7 +1757,7 @@ class VariantDataset(object):
 
         >>> vds_result = vds.filter_samples_expr('"^NA" ~ s.id' , keep=False)
 
-        Filter samples from sample QC metrics and write output to a new dataset:
+        Filter samples from sample QC metrics and write output to a new variant dataset:
 
         >>> (vds.sample_qc()
         ...     .filter_samples_expr('sa.qc.callRate >= 0.99 && sa.qc.dpMean >= 10')
@@ -1784,7 +1782,7 @@ class VariantDataset(object):
         :param condition: Expression for filter condition.
         :type condition: str
 
-        :return: Filtered dataset.
+        :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1804,7 +1802,7 @@ class VariantDataset(object):
 
         :param str input: Path to sample list file.
 
-        :return: Filtered dataset.
+        :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1822,7 +1820,7 @@ class VariantDataset(object):
 
         >>> vds_result = vds.drop_variants()
 
-        :return: Samples-only dataset.
+        :return: Samples-only variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1864,7 +1862,7 @@ class VariantDataset(object):
         :param condition: Expression for filter condition.
         :type condition: str
 
-        :return: Filtered dataset.
+        :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1899,7 +1897,7 @@ class VariantDataset(object):
         This method performs predicate pushdown when ``keep`` is ``True``, meaning that data shards
         that don't overlap any supplied interval will not be loaded at all.  This property
         enables ``filter_variants_intervals`` to be used for reasonably low-latency queries of one
-        or more variants, even on large datasets:
+        or more variants, even on large variant datasets:
 
         >>>  # We are interested in the variant 15:100203:A:T
         >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start == 100203')  # slow
@@ -1908,7 +1906,7 @@ class VariantDataset(object):
         :param intervals: interval or interval tree object
         :type intervals: s:class:`.Interval` or :class:`.IntervalTree`
 
-        :return: Filtered dataset.
+        :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -1943,7 +1941,7 @@ class VariantDataset(object):
 
         :param str input: Path to variant list file.
 
-        :return: Filtered dataset.
+        :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -2001,13 +1999,13 @@ class VariantDataset(object):
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
-        A hard-called dataset is about 2 orders of magnitude
-        smaller than a standard sequencing dataset, so this
-        method is good for creating a much smaller, faster
+        A hard-called variant dataset is about two orders of magnitude
+        smaller than a standard sequencing dataset. Use this
+        method to create a smaller, faster
         representation for downstream processing that only
-        uses the GT field.
+        requires the GT field.
 
-        :return: Dataset with no genotype metadata.
+        :return: Variant dataset with no genotype metadata.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -2020,7 +2018,7 @@ class VariantDataset(object):
         **Examples**
 
         To calculate a full IBD matrix, using minor allele frequencies computed
-        from the dataset itself:
+        from the variant dataset itself:
 
         >>> vds.ibd()
 
@@ -2036,7 +2034,7 @@ class VariantDataset(object):
         paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`_.
 
         :py:meth:`~hail.VariantDataset.ibd` requires the dataset to be
-        bi-allelic (otherwise run :py:meth:`~hail.VariantDataset.split_multi`)
+        bi-allelic (otherwise run :py:meth:`~hail.VariantDataset.split_multi` or otherwise run :py:meth:`~hail.VariantDataset.filter_multi`)
         and does not perform LD pruning. Linkage disequilibrium may bias the
         result so consider filtering variants first.
 
@@ -2083,20 +2081,18 @@ class VariantDataset(object):
     @handle_py4j
     def ibd_prune(self, threshold, maf = None, bounded = True):
         """
-        Prune dataset based on PI_HAT values of IBD computation.
+        Prune samples from variant dataset based on PI_HAT values of IBD computation.
 
         **Examples**
 
-        Prune down to dataset such that no two samples have a PI_HAT value greater than or equal to .4
+        Prune samples so that no two have a PI_HAT value greater than or equal to 0.4:
 
-        >>> vds.ibd_prune(.4)
+        >>> vds.ibd_prune(0.4)
 
         **Notes**
 
-        As this is still being actively developed, the dataset returned by this function may change in near future
-        as a result of algorithmic improvements. As it currently stands, this algorithm will work very well on
-        tons of small families, but be rather slow on fewer but larger families.
-
+        The variant dataset returned may change in near future as a result of algorithmic improvements. The current algorithm is very efficient on datasets with many small
+        families, less so on datasets with large families.
 
         :param threshold: The desired maximum PI_HAT value between any pair of samples.
         :param maf: Expression for the minor allele frequency.
@@ -2168,16 +2164,20 @@ class VariantDataset(object):
 
     @handle_py4j
     def join(self, right):
-        """Join datasets.
+        """Join two variant datasets.
+
+        **Notes**
 
         This method performs an inner join on variants,
         concatenates samples, and takes variant and
         global annotations from the left dataset (self).
 
-        :param right: right-hand dataset
+        The datasets must have distinct samples, the same sample schema, and the same split status (both split or both multi-allelic).
+
+        :param right: right-hand variant dataset
         :type right: :py:class:`.VariantDataset`
 
-        :return: Joined dataset
+        :return: Joined variant dataset
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -2185,12 +2185,11 @@ class VariantDataset(object):
 
     @handle_py4j
     def linreg(self, y, covariates=[], root='va.linreg', min_ac=1, min_af=0.0):
-        r"""Test each variant for association using the linear regression
-        model.
+        r"""Test each variant for association using linear regression.
 
         **Examples**
 
-        To run linear regression with response and two covariates:
+        Run linear regression per variant using a phenotype and two covariates stored in sample annotations:
 
         >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
@@ -2273,7 +2272,7 @@ class VariantDataset(object):
 
         :param float min_af: Minimum alternate allele frequency.
 
-        :return: Dataset with linear regression variant annotations.
+        :return: Variant dataset with linear regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -2288,7 +2287,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        The VDS saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
+        Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
 
         >>> assoc_vds = hc.read("data/example_lmmreg.vds")
         >>> kinship_vds = assoc_vds.filter_variants_expr('va.useInKinship')
@@ -2467,7 +2466,7 @@ class VariantDataset(object):
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`_. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`_.
 
-        :param kinship_vds: Variant dataset for kinship
+        :param kinship_vds: Variant dataset used to compute kinship
         :type kinship_vds: :class:`.VariantDataset`
 
         :param str y: Response sample annotation.
@@ -2503,12 +2502,11 @@ class VariantDataset(object):
 
     @handle_py4j
     def logreg(self, test, y, covariates=[], root='va.logreg'):
-        """Test each variant for association using the logistic regression
-        model.
+        """Test each variant for association using logistic regression.
 
         **Examples**
 
-        To run logistic regression using the Wald test with response and two covariates imported from a TSV file:
+        Run the logistic regression Wald test per variant using a phenotype and two covariates stored in sample annotations:
 
         >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
@@ -2612,7 +2610,7 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :return: Dataset with logistic regression variant annotations.
+        :return: Variant dataset with logistic regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -2829,11 +2827,11 @@ class VariantDataset(object):
 
     @handle_py4j
     def persist(self, storage_level="MEMORY_AND_DISK"):
-        """Persist the current dataset to memory and/or disk.
+        """Persist this variant dataset to memory and/or disk.
 
         **Examples**
 
-        Persist the dataset to both memory and disk:
+        Persist the variant dataset to both memory and disk:
 
         >>> vds_result = vds.persist()
 
@@ -2986,7 +2984,6 @@ class VariantDataset(object):
         >>> [lof_variant_count, missense_count], [t1, t2] = vds.query_variants_typed([
         ...     'variants.filter(v => va.consequence == "LOF").count()',
         ...     'variants.filter(v => va.consequence == "Missense").count()'])
-
 
         See :py:meth:`.query_variants` for more information.
 
@@ -3167,20 +3164,27 @@ class VariantDataset(object):
 
     @handle_py4j
     def repartition(self, num_partitions, shuffle=True):
-        """Increase or decrease the dataset sharding.  Can improve performance
-        after large filters.
+        """Increase or decrease the number of variant dataset partitions.
 
         **Examples**
 
-        Force the number of partitions to be 5:
+        Repartition the variant dataset to have 500 partitions:
 
-        >>> vds_result = vds.repartition(5)
+        >>> vds_result = vds.repartition(500)
 
-        :param int num_partitions: Desired number of partitions.
+        **Notes**
 
-        :param bool shuffle: If True, use shuffle to repartition.
+        Check the current number of partitions with :py:meth:`.num_partitions`.
 
-        :return: Dataset with the number of partitions equal to at most ``num_partitions``
+        The data in a variant dataset is divided into chunks called partitions, which may be stored together or across a network, so that each partition may be read and processed in parallel by available cores. When a variant dataset with :math:`M` variants is first imported, each of the :math:`k` partition will contain about :math:`M/k` of the variants. Since each partition has some computational overhead, decreasing the number of partitions can improve performance after significant filtering. Since it's recommended to have at least 2 - 4 partitions per core, increasing the number of partitions can allow one to take advantage of more cores.
+
+        Partitions are a core concept of distributed computation in Spark, see `here <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`_ for details. With ``shuffle=True``, Hail does a full shuffle of the data and creates equal sized partitions. With ``shuffle=False``, Hail combines existing partitions to avoid a full shuffle. These algorithms correspond to the ``repartition`` and ``coalesce`` commands in Spark, respectively. In particular, when ``shuffle=False``, ``num_partitions`` cannot exceed current number of partitions.
+
+        :param int num_partitions: Desired number of partitions, must be less than the current number if ``shuffle=False``
+
+        :param bool shuffle: If True, use full shuffle to repartition.
+
+        :return: Variant dataset with the number of partitions equal to at most ``num_partitions``
         :rtype: :class:`.VariantDataset`
         """
 
@@ -3189,12 +3193,26 @@ class VariantDataset(object):
 
     @handle_py4j
     def same(self, other, tolerance=1e-6):
-        """Compare two datasets.
+        """True if the two variant datasets have the same variants, samples, genotypes, and annotation schemata and values.
 
-        :param other: dataset to compare against
+        **Examples**
+
+        This will return True:
+
+        >>> vds.same(vds)
+
+        **Notes**
+
+        The ``tolerance`` parameter sets the tolerance for equality when comparing floating-point fields. More precisely, :math:`x` and :math:`y` are equal if
+
+        .. math::
+
+            \abs{x - y} \leq tolerance * \max{\abs{x}, \abs{y}}
+
+        :param other: variant dataset to compare against
         :type other: :class:`.VariantDataset`
 
-        :param float tolerance: floating-point difference tolerance
+        :param float tolerance: floating-point tolerance for equality
 
         :rtype: bool
         """
@@ -3255,7 +3273,7 @@ class VariantDataset(object):
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
 
-        :return: Annotated dataset with new sample qc annotations.
+        :return: Annotated variant dataset with new sample qc annotations.
         :rtype: :class:`.VariantDataset`
         """
 
@@ -3263,7 +3281,11 @@ class VariantDataset(object):
 
     @handle_py4j
     def storage_level(self):
-        """Returns the persistence level of the dataset.
+        """Returns the storage (persistence) level of the variant dataset.
+
+        **Notes**
+
+        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ for details on persistence levels.
 
         :rtype: str
         """
@@ -3392,7 +3414,7 @@ class VariantDataset(object):
           cause Hail to throw an error if a variant that moves further
           is encountered.
 
-        :return: A biallelic dataset.
+        :return: A biallelic variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -3491,7 +3513,7 @@ class VariantDataset(object):
 
         :param root: Variant annotation root to store TDT result.
 
-        :return: A dataset with TDT association results added to variant annotations.
+        :return: Variant dataset with TDT association results added to variant annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -3560,7 +3582,7 @@ class VariantDataset(object):
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
 
-        :return: Annotated dataset with new variant QC annotations.
+        :return: Annotated variant dataset with new variant QC annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -3573,7 +3595,7 @@ class VariantDataset(object):
 
         :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`_ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`_
-        on the current dataset and adds the result as a variant annotation.
+        on the current variant dataset and adds the result as a variant annotation.
 
         If the variant annotation path defined by ``root`` already exists and its schema matches the VEP schema, then
         Hail only runs VEP for variants for which the annotation is missing.
@@ -3804,7 +3826,7 @@ class VariantDataset(object):
 
         with a single key ``v``.
 
-        :return: A key table with variants and variant annotations.
+        :return: Key table with variants and variant annotations.
         :rtype: :class:`.KeyTable`
         """
 
@@ -3825,7 +3847,7 @@ class VariantDataset(object):
 
         with a single key ``s``.
 
-        :return: A key table with samples and sample annotations.
+        :return: Key table with samples and sample annotations.
         :rtype: :class:`.KeyTable`
         """
 
