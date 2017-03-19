@@ -9,9 +9,7 @@ from pyspark.sql import DataFrame
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
 
-    Key tables can be imported from a text file with :py:meth:`~hail.HailContext.import_keytable` or generated from an existing
-    variant dataset with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`,
-    :py:meth:`~hail.VariantDataset.samples_keytable`, and :py:meth:`~hail.VariantDataset.variants_keytable`.
+    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_keytable` or :py:meth:`~hail.HailContext.dataframe_to_keytable`, or generated from an existing variant dataset with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`, :py:meth:`~hail.VariantDataset.samples_keytable`, or :py:meth:`~hail.VariantDataset.variants_keytable`.
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
