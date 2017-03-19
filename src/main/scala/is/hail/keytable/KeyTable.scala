@@ -255,7 +255,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val badKeys = newKeys.filter(!colSet.contains(_))
 
     if (badKeys.nonEmpty) {
-      fatal(s"${plural(badKeys.size, "Key")} not found in fields: [ ${badKeys.mkString(", ")} ]")
+      fatal(s"${plural(badKeys.size, "Key")} not found in key table columns: [ ${badKeys.mkString(", ")} ]")
     }
 
     copy(keyNames = newKeys.toArray)
