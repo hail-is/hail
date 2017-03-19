@@ -302,17 +302,18 @@ class VariantDataset(object):
 
     @handle_py4j
     def annotate_global_expr(self, expr):
-        """Create and destroy global annotations with expression language.
+        """Annotate global with expression.
 
         **Example**
 
-        Set an array of populations:
+        Annotate global with an array of populations:
 
         >>> vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS", "NFE"]')
 
-        Set and then drop this annotation:
+        Create, then overwrite, then drop a global annotation:
 
-        >>> vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS", "NFE"]')
+        >>> vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS"]')
+        ... vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS", "NFE"]')
         ... vds = vds.annotate_global_expr('global.pops = drop(global, pops)')
 
         The expression namespace contains only one variable:
