@@ -9,9 +9,7 @@ from pyspark.sql import DataFrame
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
 
-    Key tables can be imported from a text file with :py:meth:`~hail.HailContext.import_keytable` or generated from an existing
-    VariantDataset with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`,
-    :py:meth:`~hail.VariantDataset.samples_keytable`, and :py:meth:`~hail.VariantDataset.variants_keytable`.
+    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_keytable` or :py:meth:`~hail.HailContext.dataframe_to_keytable`, or generated from an existing variant dataset with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`, :py:meth:`~hail.VariantDataset.samples_keytable`, or :py:meth:`~hail.VariantDataset.variants_keytable`.
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
@@ -75,9 +73,11 @@ class KeyTable(object):
 
     @property
     def schema(self):
-        """KeyTable schema.
+        """Key table schema.
 
-        **Example:** print the key table columns / signatures
+        **Example:**
+
+        Print the key table columns / signatures:
 
         >>> print(kt1.schema)
         Struct {
@@ -162,7 +162,7 @@ class KeyTable(object):
 
         **Examples**
 
-        Rename column names of KeyTable and export to file:
+        Rename column names of key table and export to file:
 
         >>> (kt1.rename({'HT' : 'Height'})
         ...     .export("output/kt1_renamed.tsv"))
@@ -202,7 +202,7 @@ class KeyTable(object):
 
         :param bool keep: Keep rows where ``condition`` evaluates to True.
 
-        :return: A key table whose rows have been filtered by evaluating ``condition``.
+        :return: Key table whose rows have been filtered by evaluating ``condition``.
         :rtype: :class:`.KeyTable`
         """
 
@@ -229,7 +229,7 @@ class KeyTable(object):
         :param expr: Annotation expression or multiple annotation expressions.
         :type expr: str or list of str
 
-        :return: A key table with new columns specified by ``expr``.
+        :return: Key table with new columns specified by ``expr``.
         :rtype: :class:`.KeyTable`
         """
 
@@ -263,12 +263,12 @@ class KeyTable(object):
         For example, if ``kt1`` has the key schema ``Struct{("a", Int), ("b", String)}``, ``kt1`` can be merged with a key table that has a key schema equal to
         ``Struct{("b", Int), ("c", String)}`` but cannot be merged to a key table with key schema ``Struct{("b", "String"), ("a", Int)}``. ``kt_joined`` will have the same key names and schema as ``kt1``.
 
-        :param  right: KeyTable to join
+        :param  right: Key table to join
         :type right: :class:`.KeyTable`
 
         :param str how: Method for joining two tables together. One of "inner", "outer", "left", "right".
 
-        :return: A key table that is the result of joining this key table with another.
+        :return: Key table that results from joining this key table with another.
         :rtype: :class:`.KeyTable`
         """
 
@@ -325,7 +325,7 @@ class KeyTable(object):
 
         **Examples**
 
-        Test whether all rows in the KeyTable have the value of ``C1`` equal to 5:
+        Test whether all rows in the key table have the value of ``C1`` equal to 5:
 
         >>> if kt1.forall("C1 == 5"):
         ...     print("All rows have C1 equal 5.")
@@ -339,11 +339,11 @@ class KeyTable(object):
 
     @handle_py4j
     def exists(self, code):
-        """Test whether a condition is true for any row.
+        """Test whether a condition is true for at least one row.
 
         **Examples**
 
-        Test whether any row in the KeyTable has the value of ``C1`` equal to 5:
+        Test whether any row in the key table has the value of ``C1`` equal to 5:
 
         >>> if kt1.exists("C1 == 5"):
         ...     print("At least one row has C1 equal 5.")
@@ -357,7 +357,7 @@ class KeyTable(object):
 
     @handle_py4j
     def rename(self, column_names):
-        """Rename columns of KeyTable.
+        """Rename columns of key table.
 
         ``column_names`` can be either a list of new names or a dict
         mapping old names to new names.  If ``column_names`` is a list,
@@ -376,7 +376,7 @@ class KeyTable(object):
         :param column_names: list of new column names or a dict mapping old names to new names.
         :type list of str or dict of str: str
 
-        :return: A key table with renamed columns.
+        :return: Key table with renamed columns.
         :rtype: :class:`.KeyTable`
         """
 
@@ -422,7 +422,7 @@ class KeyTable(object):
         :param key_names: List of columns to be used as keys.
         :type key_names: list of str
 
-        :return: A key table whose key columns are given by ``key_names``.
+        :return: Key table whose key columns are given by ``key_names``.
         :rtype: :class:`.KeyTable`
         """
 
@@ -435,11 +435,11 @@ class KeyTable(object):
 
         **Examples**
 
-        Flatten Structs in KeyTable:
+        Flatten Structs in key table:
 
         >>> kt_result = kt3.flatten()
 
-        Consider a KeyTable ``kt`` with signature
+        Consider a key table ``kt`` with signature
 
         .. code-block:: text
 
@@ -472,7 +472,7 @@ class KeyTable(object):
         Note, structures inside non-struct types will not be
         flattened.
 
-        :return: A key table with no columns of type Struct.
+        :return: Key table with no columns of type Struct.
         :rtype: :class:`.KeyTable`
         """
 
@@ -502,7 +502,7 @@ class KeyTable(object):
         :param column_names: List of columns to be selected.
         :type: list of str
 
-        :return: A key table with selected columns.
+        :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
 
@@ -511,7 +511,7 @@ class KeyTable(object):
 
     @handle_py4j
     def to_dataframe(self, expand=True, flatten=True):
-        """Converts this KeyTable to a Spark DataFrame.
+        """Converts this key table to a Spark DataFrame.
 
         :param bool expand: If true, expand_types before converting to
           DataFrame.
@@ -532,7 +532,7 @@ class KeyTable(object):
 
     @handle_py4j
     def to_pandas(self, expand=True, flatten=True):
-        """Converts this KeyTable into a Pandas DataFrame.
+        """Converts this key table into a Pandas DataFrame.
 
         :param bool expand: If true, expand_types before converting to
           Pandas DataFrame.
@@ -541,7 +541,7 @@ class KeyTable(object):
           DataFrame.  If both are true, flatten is run after expand so
           that expanded types are flattened.
 
-        :returns: A Pandas DataFrame constructed from the KeyTable
+        :returns: Pandas DataFrame constructed from the key table.
         :rtype: :py:class:`pandas.DataFrame`
         """
 
@@ -555,7 +555,7 @@ class KeyTable(object):
 
     @handle_py4j
     def explode(self, column_names):
-        """Explode columns of this KeyTable.
+        """Explode columns of this key table.
 
         The explode operation unpacks the elements in a column of type ``Array`` or ``Set`` into its own row.
         If an empty ``Array`` or ``Set`` is exploded, the entire row is removed from the :py:class:`.KeyTable`.
@@ -609,7 +609,7 @@ class KeyTable(object):
         :param column_names: Column name(s) to be exploded.
         :type column_names: str or list of str
             
-        :return: A key table with columns exploded.
+        :return: Key table with columns exploded.
         :rtype: :class:`.KeyTable`
         """
 
@@ -619,10 +619,10 @@ class KeyTable(object):
 
     @handle_py4j
     def collect(self):
-        """Collect key table as a python object."""
+        """Collect key table as a Python object."""
 
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
-    
+
     @handle_py4j
     def _typecheck(self):
         """Check if all values with the schema."""
@@ -643,5 +643,5 @@ class KeyTable(object):
         :param bool overwrite: If True, overwrite any existing KT file. Cannot be used to read from and write to the same path.
 
         """
-        
+
         self._jkt.write(output, overwrite)
