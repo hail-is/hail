@@ -622,7 +622,7 @@ class KeyTable(object):
         """Collect key table as a Python object."""
 
         return TArray(self.schema)._convert_to_py(self._jkt.collect())
-    
+
     @handle_py4j
     def _typecheck(self):
         """Check if all values with the schema."""
@@ -643,5 +643,5 @@ class KeyTable(object):
         :param bool overwrite: If True, overwrite any existing KT file. Cannot be used to read from and write to the same path.
 
         """
-        
+
         self._jkt.write(output, overwrite)
