@@ -133,7 +133,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def file_version(self):
-        """File version of dataset.
+        """File version of VariantDataset.
 
         :rtype: int
         """
@@ -142,8 +142,8 @@ class VariantDataset(object):
 
     @handle_py4j
     def aggregate_by_key(self, key_code, agg_code):
-        """Aggregate by user-defined key and aggregation expressions.
-        Equivalent of a group-by operation in SQL.
+        """Aggregate by user-defined key and aggregation expressions to produce a KeyTable.
+        Equivalent to a group-by operation in SQL.
 
         **Examples**
 
@@ -309,6 +309,11 @@ class VariantDataset(object):
         Set an array of populations:
 
         >>> vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS", "NFE"]')
+
+        Set and then drop this annotation:
+
+        >>> vds = vds.annotate_global_expr('global.pops = ["FIN", "AFR", "EAS", "NFE"]')
+        ... vds = vds.annotate_global_expr('global.pops = drop(global, pops)')
 
         The expression namespace contains only one variable:
 
