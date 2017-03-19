@@ -15,9 +15,9 @@ warnings.filterwarnings(module=__name__, action='once')
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
-    Variant Datasets can be generated from a number of :py:class:`.HailContext` methods.
+    Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods, as well as simulated using :py:meth:`~hail.HailContext.balding_nichols_model`.
 
-    Once a Variant Dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`, use :py:meth:`~hail.HailContext.read` to load the Variant Dataset into the environment.
+    Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`, use :py:meth:`~hail.HailContext.read` to load the variant dataset into the environment.
 
     >>> vds = hc.read("data/example.vds")
 
@@ -1006,7 +1006,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Import a second Variant Dataset with annotations to merge into ``vds``:
+        Import a second variant dataset with annotations to merge into ``vds``:
 
         >>> vds1 = vds.annotate_variants_expr('va = drop(va, anno1)')
         >>> vds2 = (hc.read("data/example2.vds")
@@ -1965,7 +1965,7 @@ class VariantDataset(object):
         
         **Notes**
         
-        The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation between each pair of samples. It is defined by :math:`G = MM^T` where :math:`M` is a standardized version of the genotype matrix, computed as follows. Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes in the VariantDataset, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+        The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation between each pair of samples. It is defined by :math:`G = MM^T` where :math:`M` is a standardized version of the genotype matrix, computed as follows. Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes in the variant dataset, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
 
         .. math::
 
@@ -2486,7 +2486,7 @@ class VariantDataset(object):
 
         :param bool force_grammian: Force using Spark's RowMatrix.computeGrammian to compute kinship (advanced).
 
-        :return: A Variant Dataset with linear mixed regression annotations
+        :return: Variant dataset with linear mixed regression annotations
         :rtype: :py:class:`.VariantDataset`
         """
 
