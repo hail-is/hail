@@ -154,6 +154,59 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def isGenericGenotype: Boolean = metadata.isGenericGenotype
 
+  /**
+    * Aggregate by user-defined key and aggregation expressions.
+    *
+    * Equivalent of a group-by operation in SQL.
+    *
+    * @param keyExpr Named expression(s) for which fields are keys
+    * @param aggExpr Named aggregation expression(s)
+    */
+  def aggregateByKey(keyExpr: String, aggExpr: String): KeyTable = {
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature),
+      "s" -> (3, TSample),
+      "sa" -> (4, saSignature),
+      "g" -> (5, genotypeSignature))
+
+    val ec = EvalContext(aggregationST.map { case (name, (i, t)) => name -> (i, TAggregable(t, aggregationST)) })
+
+    val keyEC = EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature),
+      "s" -> (3, TSample),
+      "sa" -> (4, saSignature),
+      "g" -> (5, genotypeSignature)))
+
+    val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyExpr, keyEC)
+    val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggExpr, ec)
+
+    val signature = TStruct((keyNames ++ aggNames, keyTypes ++ aggTypes).zipped.toSeq: _*)
+
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
+      ec.setAllFromRow(a.asInstanceOf[Row])
+    })
+
+    val localGlobalAnnotation = globalAnnotation
+
+    val ktRDD = mapPartitionsWithAll { it =>
+      it.map { case (v, va, s, sa, g) =>
+        keyEC.setAll(localGlobalAnnotation, v, va, s, sa, g)
+        val key = Annotation.fromSeq(keyF())
+        (key, Annotation(localGlobalAnnotation, v, va, s, sa, g))
+      }
+    }.aggregateByKey(zVals)(seqOp, combOp)
+      .map { case (k, agg) =>
+        resultOp(agg)
+        Annotation.fromSeq(k.asInstanceOf[Row].toSeq ++ aggF())
+      }
+
+    KeyTable(hc, ktRDD, signature, keyNames)
+  }
+
   def aggregateBySample[U](zeroValue: U)(
     seqOp: (U, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(String, U)] =
@@ -948,6 +1001,34 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   /**
+    * Filter samples using the Hail expression language.
+    *
+    * @param filterExpr Filter expression involving `s' (sample) and `sa' (sample annotations)
+    * @param keep keep where filterExpr evaluates to true
+    */
+  def filterSamplesExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
+    val localGlobalAnnotation = globalAnnotation
+
+    val sas = saSignature
+
+    val ec = sampleEC
+
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
+
+    val localKeep = keep
+//    val sampleIds = vsampleIds
+    val p = (s: String, sa: Annotation) => {
+      sampleAggregationOption.foreach(f => f.apply(s))
+      ec.setAll(localGlobalAnnotation, s, sa)
+      Filter.boxedKeepThis(f(), localKeep)
+    }
+
+    filterSamples(p)
+  }
+
+  /**
     * Filter samples using a text file containing sample IDs
     * @param path path to sample list file
     * @param keep keep listed samples
@@ -962,6 +1043,31 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val p = (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
 
     filterSamples(p)
+  }
+
+  /**
+    * Filter variants using the Hail expression language.
+    * @param filterExpr filter expression
+    * @param keep keep variants where filterExpr evaluates to true
+    * @return
+    */
+  def filterVariantsExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
+    val localGlobalAnnotation = globalAnnotation
+    val ec = variantEC
+
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
+
+    val aggregatorOption = Aggregators.buildVariantAggregations(this, ec)
+
+    val localKeep = keep
+    val p = (v: Variant, va: Annotation, gs: Iterable[T]) => {
+      aggregatorOption.foreach(f => f(v, va, gs))
+
+      ec.setAll(localGlobalAnnotation, v, va)
+      Filter.boxedKeepThis(f(), localKeep)
+    }
+
+    filterVariants(p)
   }
 
   def filterVariantsList(input: String, keep: Boolean): VariantSampleMatrix[T] = {
