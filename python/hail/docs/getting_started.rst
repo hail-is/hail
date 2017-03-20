@@ -63,7 +63,7 @@ Add the following environmental variables by filling in the paths to **SPARK_HOM
 
     $ export SPARK_HOME=/path/to/spark
     $ export HAIL_HOME=/path/to/hail
-    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip" 
+    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:`ls $SPARK_HOME/python/lib/py4j*-src.zip`"
     $ export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
 
 Running ``ipython`` on the command line will open an interactive Python shell.
