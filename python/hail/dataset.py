@@ -767,7 +767,8 @@ class VariantDataset(object):
 
         Add annotations from a sample-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/samples2.tsv', key_names=['`PT-ID`'], config=TextTableConfig(impute=True))
+        >>> kt = hc.import_keytable('data/samples2.tsv', key_names=['PT-ID'],
+        ...                         config=TextTableConfig(impute=True, delimiter=","))
         ... annotate_vds = vds.annotate_samples_keytable(kt, code='sa.batch = table.Batch')
 
         **Notes**
