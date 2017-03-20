@@ -502,7 +502,7 @@ class VariantDataset(object):
         if isinstance(expr, list):
             expr = ','.join(expr)
 
-        jvds = self._jvdf.annotateSamplesExpr(expr)
+        jvds = self._jvds.annotateSamplesExpr(expr)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -834,7 +834,7 @@ class VariantDataset(object):
         if isinstance(expr, list):
             expr = ','.join(expr)
 
-        jvds = self._jvdf.annotateVariantsExpr(expr)
+        jvds = self._jvds.annotateVariantsExpr(expr)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
