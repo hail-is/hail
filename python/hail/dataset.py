@@ -174,7 +174,7 @@ class VariantDataset(object):
         if isinstance(agg_code, list):
             agg_code = ",".join(agg_code)
 
-        return KeyTable(self.hc, self._jvdf.aggregateByKey(key_code, agg_code))
+        return KeyTable(self.hc, self._jvds.aggregateByKey(key_code, agg_code))
 
     @handle_py4j
     def aggregate_intervals(self, input, expr, output):
@@ -1790,7 +1790,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterSamplesExpr(condition, keep)
+        jvds = self._jvds.filterSamplesExpr(condition, keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -1870,7 +1870,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterVariantsExpr(condition, keep)
+        jvds = self._jvds.filterVariantsExpr(condition, keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
