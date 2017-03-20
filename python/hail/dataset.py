@@ -2185,7 +2185,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.join(right._jvds))
+        return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
     def linreg(self, y, covariates=[], root='va.linreg', min_ac=1, min_af=0.0):
@@ -3812,7 +3812,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.vep(config, root, csq, block_size)
+        jvds = self._jvds.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3920,6 +3920,6 @@ class VariantDataset(object):
         if isinstance(genotype_expr, list):
             genotype_expr = ','.join(genotype_expr)
 
-        jkt = self._jvdf.makeKT(variant_expr, genotype_expr,
+        jkt = self._jvds.makeKT(variant_expr, genotype_expr,
                                 jarray(Env.jvm().java.lang.String, key_names))
         return KeyTable(self.hc, jkt)

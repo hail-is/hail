@@ -8,7 +8,7 @@ import is.hail.expr.{EvalContext, TAggregable, _}
 import is.hail.io.annotators.{BedAnnotator, IntervalListAnnotator}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.keytable.KeyTable
-import is.hail.methods.{Aggregators, Filter}
+import is.hail.methods.{Aggregators, Filter, VEP}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -1048,6 +1048,118 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def isDosage: Boolean = metadata.isDosage
 
+  /**
+    *
+    * @param right right-hand dataset with which to join
+    */
+  def join(right: VariantSampleMatrix[T]): VariantSampleMatrix[T] = {
+    if (wasSplit != right.wasSplit) {
+      warn(
+        s"""cannot join split and unsplit datasets
+           |  left was split: ${ wasSplit }
+           |  light was split: ${ right.wasSplit }""".stripMargin)
+    }
+
+    if (genotypeSignature != right.genotypeSignature) {
+      fatal(
+        s"""cannot join datasets with different genotype schemata
+           |  left sample schema: @1
+           |  right sample schema: @2""".stripMargin,
+        genotypeSignature.toPrettyString(compact = true, printAttrs = true),
+        right.genotypeSignature.toPrettyString(compact = true, printAttrs = true))
+    }
+
+    if (saSignature != right.saSignature) {
+      fatal(
+        s"""cannot join datasets with different sample schemata
+           |  left sample schema: @1
+           |  right sample schema: @2""".stripMargin,
+        saSignature.toPrettyString(compact = true, printAttrs = true),
+        right.saSignature.toPrettyString(compact = true, printAttrs = true))
+    }
+
+    val newSampleIds = sampleIds ++ right.sampleIds
+    val duplicates = newSampleIds.duplicates()
+    if (duplicates.nonEmpty)
+      fatal("duplicate sample IDs: @1", duplicates)
+
+    val joined = rdd.orderedInnerJoinDistinct(right.rdd)
+      .mapValues { case ((lva, lgs), (rva, rgs)) =>
+        (lva, lgs ++ rgs)
+      }.asOrderedRDD
+
+    copy(
+      sampleIds = newSampleIds,
+      sampleAnnotations = sampleAnnotations ++ right.sampleAnnotations,
+      rdd = joined)
+  }
+
+  def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String]): KeyTable = {
+    val vSymTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature))
+    val vEC = EvalContext(vSymTab)
+    val vA = vEC.a
+
+    val (vNames, vTypes, vf) = Parser.parseNamedExprs(variantCondition, vEC)
+
+    val gSymTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, saSignature),
+      "g" -> (4, genotypeSignature))
+    val gEC = EvalContext(gSymTab)
+    val gA = gEC.a
+
+    val (gNames, gTypes, gf) = Parser.parseNamedExprs(genotypeCondition, gEC)
+
+    val sig = TStruct(((vNames, vTypes).zipped ++
+      sampleIds.flatMap { s =>
+        (gNames, gTypes).zipped.map { case (n, t) =>
+          (if (n.isEmpty)
+            s
+          else
+            s + "." + n, t)
+        }
+      }).toSeq: _*)
+
+    val localNSamples = nSamples
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
+
+    KeyTable(hc,
+      rdd.mapPartitions { it =>
+        val n = vNames.length + gNames.length * localNSamples
+
+        it.map { case (v, (va, gs)) =>
+          val a = new Array[Any](n)
+
+          var j = 0
+          vEC.setAll(v, va)
+          vf().foreach { x =>
+            a(j) = x
+            j += 1
+          }
+
+          gs.iterator.zipWithIndex.foreach { case (g, i) =>
+            val s = localSampleIdsBc.value(i)
+            val sa = localSampleAnnotationsBc.value(i)
+            gEC.setAll(v, va, s, sa, g)
+            gf().foreach { x =>
+              a(j) = x
+              j += 1
+            }
+          }
+
+          assert(j == n)
+          Row.fromSeq(a): Annotation
+        }
+      },
+      sig,
+      keyNames)
+  }
+
   def map[U](f: T => U)(implicit uct: ClassTag[U]): RDD[U] =
     mapWithKeys((v, s, g) => f(g))
 
@@ -1471,6 +1583,18 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         "v" -> TVariant,
         "va" -> vaSignature),
       Array("v"))
+  }
+
+  /**
+    *
+    * @param config VEP configuration file
+    * @param root Variant annotation path to store VEP output
+    * @param csq Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
+    * @param blockSize Variants per VEP invocation
+    */
+  def vep(config: String, root: String = "va.vep", csq: Boolean = false,
+    blockSize: Int = 1000): VariantSampleMatrix[T] = {
+    VEP.annotate(this, config, root, csq, blockSize)
   }
 
   def writeMetadata(dirname: String, parquetGenotypes: Boolean) {
