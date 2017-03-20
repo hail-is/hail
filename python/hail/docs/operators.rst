@@ -204,7 +204,7 @@ Logical
     .. code-block:: text
         :emphasize-lines: 2
 
-        (5 >= 3) && (2 < 10)
+        (5 <= 3) || (2 < 10)
         result: true
 
  - ``!`` -- Negates a boolean variable. Returns false if the variable is true and true if the variable is false.
