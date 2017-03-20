@@ -63,7 +63,7 @@ Add the following environmental variables by filling in the paths to **SPARK_HOM
 
     $ export SPARK_HOME=/path/to/spark
     $ export HAIL_HOME=/path/to/hail
-    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip" 
+    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:`echo $SPARK_HOME/python/lib/py4j*-src.zip`"
     $ export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
 
 Running ``ipython`` on the command line will open an interactive Python shell.
@@ -72,8 +72,8 @@ Here are a few simple things to try in order. To import the ``hail`` module and 
 
 .. doctest::
 
-    >>> import hail
-    >>> hc = hail.HailContext()
+    >>> from hail import *
+    >>> hc = HailContext()
 
 To :func:`import <hail.HailContext.import_vcf>` the included *sample.vcf* into Hail's **.vds** format, run:
 
