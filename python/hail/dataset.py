@@ -11,7 +11,6 @@ import warnings
 
 warnings.filterwarnings(module=__name__, action='once')
 
-
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 

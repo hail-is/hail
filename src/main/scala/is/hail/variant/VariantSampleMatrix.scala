@@ -56,8 +56,6 @@ object VariantSampleMatrix {
     }
   }
 
-  // FIXME
-/*
   def gen[T](hc: HailContext,
     gen: VSMSubgen[T])(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     gen.gen(hc)
@@ -77,10 +75,8 @@ object VariantSampleMatrix {
         tGen = (v: Variant) => tSig.genValue.resize(20),
         isGenericGenotype = true).gen(hc)
     ) yield vsm
-*/
 }
 
-/*
 case class VSMSubgen[T](
   sampleIdGen: Gen[IndexedSeq[String]],
   saSigGen: Gen[Type],
@@ -146,7 +142,6 @@ object VSMSubgen {
   val dosage = random.copy(
     tGen = Genotype.genDosage, isDosage = true)
 }
-*/
 
 class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   val rdd: OrderedRDD[Locus, Variant, (Annotation, SharedIterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {

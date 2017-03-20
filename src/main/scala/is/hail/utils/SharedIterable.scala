@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import scala.annotation.tailrec
+import scala.collection.generic.CanBuildFrom
 import scala.collection.{Iterable, mutable}
 import scala.reflect.ClassTag
 
@@ -10,10 +11,12 @@ object SharedIterable {
     override def iterator: SharedIterator[Nothing] = SharedIterator.empty
   }
 
-  // FIXME: I couldn't get this to work, so I've removed VSMSubgen for now
-  // implicit def canBuildFrom[T]: CanBuildFrom[Coll, T, SharedIterable[T]] = ReusableCBF.asInstanceOf[GenericCanBuildFrom[T]]
+  implicit def canBuildFrom[T](implicit tct: ClassTag[T]): CanBuildFrom[Nothing, T, SharedIterable[T]] =
+    new CanBuildFrom[Nothing, T, SharedIterable[T]]() {
+      def apply(x: Nothing): mutable.Builder[T, SharedIterable[T]] = new SharedIterableBuilder[T]()
 
-  def newBuilder[T]: mutable.Builder[T, SharedIterable[T]] = SharedIterable.newBuilder[T]
+      def apply(): mutable.Builder[T, SharedIterable[T]] = new SharedIterableBuilder[T]()
+    }
 }
 
 abstract class SharedIterable[+T] {
@@ -183,7 +186,7 @@ final class ConcatSharedIterator[+T](private[this] var current: SharedIterator[T
     new ConcatSharedIterator(current, queue :+ (() => that))
 }
 
-class SharedIterableBuilder[T](implicit tct: ClassTag[T]) extends mutable.Builder[T, SharedIterable[_]] {
+class SharedIterableBuilder[T](implicit tct: ClassTag[T]) extends mutable.Builder[T, SharedIterable[T]] {
 
   val b: ArrayBuilder[T] = new ArrayBuilder[T]()
 
