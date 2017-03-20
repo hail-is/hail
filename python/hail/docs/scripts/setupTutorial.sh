@@ -22,3 +22,5 @@ else
         fi
     done
 fi
+
+rm -rf .ipynb_checkpoints
