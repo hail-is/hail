@@ -395,65 +395,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }.copy(vaSignature = finalType)
   }
 
-  def annotateSamplesExpr(expr: String): VariantDataset = {
-    val ec = Aggregators.sampleEC(vds)
-
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.SAMPLE_HEAD))
-
-    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finalType = (paths, types).zipped.foldLeft(vds.saSignature) { case (sas, (ids, signature)) =>
-      val (s, i) = sas.insert(signature, ids)
-      inserterBuilder += i
-      s
-    }
-    val inserters = inserterBuilder.result()
-
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, ec)
-
-    ec.set(0, vds.globalAnnotation)
-    val newAnnotations = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      sampleAggregationOption.foreach(f => f.apply(s))
-      ec.set(1, s)
-      ec.set(2, sa)
-      f().zip(inserters)
-        .foldLeft(sa) { case (sa, (v, inserter)) =>
-          inserter(sa, v)
-        }
-    }
-
-    vds.copy(
-      sampleAnnotations = newAnnotations,
-      saSignature = finalType
-    )
-  }
-
-  def annotateVariantsExpr(expr: String): VariantDataset = {
-    val localGlobalAnnotation = vds.globalAnnotation
-
-    val ec = Aggregators.variantEC(vds)
-    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
-
-    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
-    val finalType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
-      val (s, i) = vas.insert(signature, ids)
-      inserterBuilder += i
-      s
-    }
-    val inserters = inserterBuilder.result()
-
-    val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
-
-    vds.mapAnnotations { case (v, va, gs) =>
-      ec.setAll(localGlobalAnnotation, v, va)
-
-      aggregateOption.foreach(f => f(v, va, gs))
-      f().zip(inserters)
-        .foldLeft(va) { case (va, (v, inserter)) =>
-          inserter(va, v)
-        }
-    }.copy(vaSignature = finalType)
-  }
-
   def cache(): VariantDataset = persist("MEMORY_ONLY")
 
   def persist(storageLevel: String = "MEMORY_AND_DISK"): VariantDataset = {
@@ -748,7 +689,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def exportSamples(path: String, expr: String, typeFile: Boolean = false) {
     val localGlobalAnnotation = vds.globalAnnotation
 
-    val ec = Aggregators.sampleEC(vds)
+    val ec = vds.sampleEC
 
     val (names, types, f) = Parser.parseExportExprs(expr, ec)
     val hadoopConf = vds.hc.hadoopConf
@@ -792,7 +733,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val hConf = vds.hc.hadoopConf
 
     val localGlobalAnnotations = vds.globalAnnotation
-    val ec = Aggregators.variantEC(vds)
+    val ec = vds.variantEC
 
     val (names, types, f) = Parser.parseExportExprs(expr, ec)
 
@@ -955,7 +896,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val sas = vds.saSignature
 
-    val ec = Aggregators.sampleEC(vds)
+    val ec = vds.sampleEC
 
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 
@@ -980,7 +921,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     */
   def filterVariantsExpr(filterExpr: String, keep: Boolean = true): VariantDataset = {
     val localGlobalAnnotation = vds.globalAnnotation
-    val ec = Aggregators.variantEC(vds)
+    val ec = vds.variantEC
 
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
 

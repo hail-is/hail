@@ -15,33 +15,18 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def variantEC(vds: VariantDataset): EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, vds.globalSignature),
-      "v" -> (1, TVariant),
-      "va" -> (2, vds.vaSignature),
-      "g" -> (3, TGenotype),
-      "s" -> (4, TSample),
-      "sa" -> (5, vds.saSignature))
-    EvalContext(Map(
-      "global" -> (0, vds.globalSignature),
-      "v" -> (1, TVariant),
-      "va" -> (2, vds.vaSignature),
-      "gs" -> (3, TAggregable(TGenotype, aggregationST))))
-  }
-
-  def buildVariantAggregations(vds: VariantDataset, ec: EvalContext): Option[(Variant, Annotation, Iterable[Genotype]) => Unit] = {
+  def buildVariantAggregations[T](vsm: VariantSampleMatrix[T], ec: EvalContext): Option[(Variant, Annotation, Iterable[T]) => Unit] = {
 
     val aggregations = ec.aggregations
     if (aggregations.isEmpty)
       return None
 
     val localA = ec.a
-    val localSamplesBc = vds.sampleIdsBc
-    val localAnnotationsBc = vds.sampleAnnotationsBc
-    val localGlobalAnnotations = vds.globalAnnotation
+    val localSamplesBc = vsm.sampleIdsBc
+    val localAnnotationsBc = vsm.sampleAnnotationsBc
+    val localGlobalAnnotations = vsm.globalAnnotation
 
-    Some({ (v: Variant, va: Annotation, gs: Iterable[Genotype]) =>
+    Some({ (v: Variant, va: Annotation, gs: Iterable[T]) =>
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
       localA(0) = localGlobalAnnotations
       localA(1) = v
@@ -72,22 +57,7 @@ object Aggregators {
     })
   }
 
-  def sampleEC(vds: VariantDataset): EvalContext = {
-    val aggregationST = Map(
-      "global" -> (0, vds.globalSignature),
-      "s" -> (1, TSample),
-      "va" -> (2, vds.saSignature),
-      "g" -> (3, TGenotype),
-      "v" -> (4, TVariant),
-      "va" -> (5, vds.vaSignature))
-    EvalContext(Map(
-      "global" -> (0, vds.globalSignature),
-      "s" -> (1, TSample),
-      "sa" -> (2, vds.saSignature),
-      "gs" -> (3, TAggregable(TGenotype, aggregationST))))
-  }
-
-  def buildSampleAggregations(vds: VariantDataset, ec: EvalContext): Option[(String) => Unit] = {
+  def buildSampleAggregations[T](vsm: VariantSampleMatrix[T], ec: EvalContext): Option[(String) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -95,20 +65,20 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localGlobalAnnotation = vds.globalAnnotation
-    val localSamplesBc = vds.sampleIdsBc
-    val localSampleAnnotationsBc = vds.sampleAnnotationsBc
+    val localGlobalAnnotation = vsm.globalAnnotation
+    val localSamplesBc = vsm.sampleIdsBc
+    val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
 
     val nAggregations = aggregations.length
-    val nSamples = vds.nSamples
-    val depth = treeAggDepth(vds.hc, vds.nPartitions)
+    val nSamples = vsm.nSamples
+    val depth = treeAggDepth(vsm.hc, vsm.nPartitions)
 
     val baseArray = MultiArray2.fill[Aggregator](nSamples, nAggregations)(null)
     for (i <- 0 until nSamples; j <- 0 until nAggregations) {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
-    val result = vds.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
+    val result = vsm.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
       localA(0) = localGlobalAnnotation
       localA(4) = v
       localA(5) = va
@@ -137,7 +107,7 @@ object Aggregators {
       arr1
     }, depth = depth)
 
-    val sampleIndex = vds.sampleIds.zipWithIndex.toMap
+    val sampleIndex = vsm.sampleIds.zipWithIndex.toMap
     Some((s: String) => {
       val i = sampleIndex(s)
       for (j <- 0 until nAggregations) {

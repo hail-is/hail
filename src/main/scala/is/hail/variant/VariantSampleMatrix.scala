@@ -463,6 +463,38 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateSamples(annotation, t, i)
   }
 
+  def annotateSamplesExpr(expr: String): VariantSampleMatrix[T] = {
+    val ec = sampleEC
+
+    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.SAMPLE_HEAD))
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val finalType = (paths, types).zipped.foldLeft(saSignature) { case (sas, (ids, signature)) =>
+      val (s, i) = sas.insert(signature, ids)
+      inserterBuilder += i
+      s
+    }
+    val inserters = inserterBuilder.result()
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
+
+    ec.set(0, globalAnnotation)
+    val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) =>
+      sampleAggregationOption.foreach(f => f.apply(s))
+      ec.set(1, s)
+      ec.set(2, sa)
+      f().zip(inserters)
+        .foldLeft(sa) { case (sa, (v, inserter)) =>
+          inserter(sa, v)
+        }
+    }
+
+    copy(
+      sampleAnnotations = newAnnotations,
+      saSignature = finalType
+    )
+  }
+
   /**
     * Import PLINK .fam file into sample annotations.
     *
@@ -602,6 +634,33 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       case (is, Some((t, m))) =>
         annotateIntervals(is, t, m, all = all, annotationPath)
     }
+  }
+
+  def annotateVariantsExpr(expr: String): VariantSampleMatrix[T] = {
+    val localGlobalAnnotation = globalAnnotation
+
+    val ec = variantEC
+    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.VARIANT_HEAD))
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val finalType = (paths, types).zipped.foldLeft(vaSignature) { case (vas, (ids, signature)) =>
+      val (s, i) = vas.insert(signature, ids)
+      inserterBuilder += i
+      s
+    }
+    val inserters = inserterBuilder.result()
+
+    val aggregateOption = Aggregators.buildVariantAggregations(this, ec)
+
+    mapAnnotations { case (v, va, gs) =>
+      ec.setAll(localGlobalAnnotation, v, va)
+
+      aggregateOption.foreach(f => f(v, va, gs))
+      f().zip(inserters)
+        .foldLeft(va) { case (va, (v, inserter)) =>
+          inserter(va, v)
+        }
+    }.copy(vaSignature = finalType)
   }
 
   def annotateVariantsIntervals(path: String, root: String, all: Boolean = false): VariantSampleMatrix[T] = {
@@ -1282,6 +1341,21 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         }
   }
 
+  def sampleEC: EvalContext = {
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "s" -> (1, TSample),
+      "va" -> (2, saSignature),
+      "g" -> (3, genotypeSignature),
+      "v" -> (4, TVariant),
+      "va" -> (5, vaSignature))
+    EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "s" -> (1, TSample),
+      "sa" -> (2, saSignature),
+      "gs" -> (3, TAggregable(genotypeSignature, aggregationST))))
+  }
+
   def sampleIds: IndexedSeq[String] = metadata.sampleIds
 
   def saSignature: Type = metadata.saSignature
@@ -1370,6 +1444,21 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def sampleIdsAndAnnotations: IndexedSeq[(String, Annotation)] = sampleIds.zip(sampleAnnotations)
 
   def variantsAndAnnotations: OrderedRDD[Locus, Variant, Annotation] = rdd.mapValuesWithKey { case (v, (va, gs)) => va }.asOrderedRDD
+
+  def variantEC: EvalContext = {
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature),
+      "g" -> (3, genotypeSignature),
+      "s" -> (4, TSample),
+      "sa" -> (5, saSignature))
+    EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vaSignature),
+      "gs" -> (3, TAggregable(genotypeSignature, aggregationST))))
+  }
 
   def variantsKT(): KeyTable = {
     val localVASignature = vaSignature
