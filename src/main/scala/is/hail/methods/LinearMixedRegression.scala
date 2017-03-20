@@ -81,7 +81,8 @@ object LinearMixedRegression {
     val (rrmDist, m) = ComputeRRM(filtKinshipVds, useBlock)
 
     val cols = rrmDist.numCols().toInt //Can I just use m?
-    val rrm = new DenseMatrix[Double](cols, cols, rrmDist.toLocalMatrix().toArray)
+    //It sucks that we have to call toBlockMatrix then toLocalMatrix here. TODO consider implementing toLocalMatrix on IndexedRowMatrices myself.
+    val rrm = new DenseMatrix[Double](cols, cols, rrmDist.toBlockMatrix().toLocalMatrix().toArray)
 
 
     info(s"lmmreg: RRM computed using $m variants")

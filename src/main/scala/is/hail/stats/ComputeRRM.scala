@@ -14,31 +14,31 @@ import scala.collection.parallel.immutable.ParSeq
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
 object ComputeGramian {
-  def withoutBlock(A: RowMatrix): BlockMatrix = {
+  def withoutBlock(A: RowMatrix): IndexedRowMatrix = {
     val n = A.numCols().toInt
     val G = A.computeGramianMatrix().toArray
-    LocalDenseMatrixToIndexedRowMatrix(new DenseMatrix[Double](n, n, G), A.rows.sparkContext).toBlockMatrix()
+    LocalDenseMatrixToIndexedRowMatrix(new DenseMatrix[Double](n, n, G), A.rows.sparkContext)
   }
 
-  def withBlock(A: IndexedRowMatrix): BlockMatrix = {
+  def withBlock(A: IndexedRowMatrix): IndexedRowMatrix = {
     val n = A.numCols().toInt
     val B = A.toBlockMatrix().cache()
     val G = B.transpose.multiply(B)
     B.blocks.unpersist()
-    G
+    G.toIndexedRowMatrix()
   }
 }
 
 // diagonal values are approximately 1 assuming independent variants by Central Limit Theorem
 object ComputeRRM {
 
-  def apply(vds: VariantDataset, useBlock: Boolean): (BlockMatrix, Int) = {
+  def apply(vds: VariantDataset, useBlock: Boolean): (IndexedRowMatrix, Long) = {
     def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
       Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
     }
 
     var rowCount: Long = -1
-    var computedGrammian: BlockMatrix = null
+    var computedGrammian: IndexedRowMatrix = null
     if (useBlock) {
       val A = ToNormalizedIndexedRowMatrix(vds)
       rowCount = A.rows.count()
@@ -51,16 +51,17 @@ object ComputeRRM {
 
     val mRec = 1d / rowCount
 
-    val scaledBlockRDD = computedGrammian.blocks.map(tuple => tuple match {case (coords, matrix) => (coords, scaleMatrix(matrix, mRec))})
-    (new BlockMatrix(scaledBlockRDD, computedGrammian.rowsPerBlock, computedGrammian.colsPerBlock), rowCount.toInt)
+    (new IndexedRowMatrix(computedGrammian.rows.map(ir => new IndexedRow(ir.index, ir.vector.map(_ * mRec)))), rowCount)
+    //val scaledBlockRDD = computedGrammian.blocks.map(tuple => tuple match {case (coords, matrix) => (coords, scaleMatrix(matrix, mRec))})
+    //(new BlockMatrix(scaledBlockRDD, computedGrammian.rowsPerBlock, computedGrammian.colsPerBlock), rowCount.toInt)
   }
 }
 
 object LocalDenseMatrixToIndexedRowMatrix {
   def apply(dm: DenseMatrix[Double], sc: SparkContext): IndexedRowMatrix = {
     //TODO Is there a better Breeze to Spark conversion?
-    val range = (0 until dm.cols).par
-    val numberedDVs: ParSeq[IndexedRow] = range.map(colNum => IndexedRow(colNum.toLong, (dm(::, colNum))))
+    val range = (0 until dm.rows).par
+    val numberedDVs: ParSeq[IndexedRow] = range.map(rowNum => IndexedRow(rowNum.toLong, (dm(rowNum, ::).t)))
     new IndexedRowMatrix(sc.parallelize(numberedDVs.seq))
   }
 }
