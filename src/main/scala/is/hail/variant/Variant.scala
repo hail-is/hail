@@ -11,6 +11,7 @@ import org.apache.spark.sql.types._
 import org.json4s._
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.math.Numeric.Implicits._
 import scala.reflect.ClassTag
 
@@ -364,6 +365,51 @@ case class Variant(contig: String,
     }
 
     0
+  }
+
+  def unifyAltAlleles(other: Variant): Tuple2[Variant, Variant] = {
+
+    if (this.locus.compare(other.locus) != 0)
+      fatal("Allele representation can only be unified for variants at the same locus.")
+
+    val (longer, shorter, swapped) = if (ref.length > other.ref.length) (this, other, false) else (other, this, true)
+    val ref_diff = longer.ref.substring(shorter.ref.length)
+
+    if (longer.ref.substring(0, shorter.ref.length) != shorter.ref)
+      fatal(s"Variants ref bases mismatch when attempting to unify alleles for variants: ${ this } and ${ other }")
+
+    val unified_shorter = shorter.copy(
+      altAlleles = shorter.altAlleles.map { aa => aa.copy(ref = longer.ref, alt = aa.alt + ref_diff) }
+    )
+
+    if (swapped)
+      (unified_shorter, longer)
+    else
+      (longer, unified_shorter)
+  }
+
+  def alleleMapWithVariant(other: Variant) : IndexedSeq[Option[Int]] = {
+
+    val (thisUnified, otherUnified) = unifyAltAlleles(other)
+    val oldAlleleIndexMap = otherUnified.altAlleles.map(_.alt).zipWithIndex.toMap
+
+    thisUnified.altAlleles.map( aa => oldAlleleIndexMap.get(aa.alt))
+
+  }
+
+  def altAlleleIndex(aa: AltAllele): Int = {
+    val (longer, shorter, aaRefLonger) = if (ref.length > aa.ref.length) (ref, aa.ref, false) else (aa.ref, ref, true)
+    val ref_diff = longer.substring(shorter.length)
+
+    if (longer.substring(0, shorter.length) != shorter) {
+      warn(s"Attempting to find index of an alternate allele with a different ref. Variant: ${ this }, altAllele $aa")
+      -1
+    } else {
+      if (aaRefLonger)
+        altAlleles.indexWhere(x => x.alt + ref_diff == aa.alt)
+      else
+        altAlleles.indexWhere(x => x.alt == aa.alt + ref_diff)
+    }
   }
 
   def minRep: Variant = {
