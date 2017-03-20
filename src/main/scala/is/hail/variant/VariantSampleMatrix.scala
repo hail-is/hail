@@ -5,10 +5,11 @@ import java.nio.ByteBuffer
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.{EvalContext, TAggregable, _}
+import is.hail.io._
 import is.hail.io.annotators.{BedAnnotator, IntervalListAnnotator}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.keytable.KeyTable
-import is.hail.methods.{Aggregators, Filter, VEP}
+import is.hail.methods.{Aggregators, DuplicateReport, Filter, VEP}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -925,6 +926,15 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def variants: RDD[Variant] = rdd.keys
 
+  def deduplicate(): VariantSampleMatrix[T] = {
+    DuplicateReport.initialize()
+
+    val acc = DuplicateReport.accumulator
+    copy(rdd = rdd.mapPartitions({ it =>
+      new SortedDistinctPairIterator(it, (v: Variant) => acc += v)
+    }, preservesPartitioning = true).asOrderedRDD)
+  }
+
   def deleteGlobal(args: String*): (Type, Deleter) = deleteGlobal(args.toList)
 
   def deleteGlobal(path: List[String]): (Type, Deleter) = globalSignature.delete(path)
@@ -965,6 +975,72 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           case (s, sa, g) => f(v, va, s, sa, g)
         })
       }
+  }
+
+  def exportSamples(path: String, expr: String, typeFile: Boolean = false) {
+    val localGlobalAnnotation = globalAnnotation
+
+    val ec = sampleEC
+
+    val (names, types, f) = Parser.parseExportExprs(expr, ec)
+    val hadoopConf = hc.hadoopConf
+    if (typeFile) {
+      hadoopConf.delete(path + ".types", recursive = false)
+      val typeInfo = names
+        .getOrElse(types.indices.map(i => s"_$i").toArray)
+        .zip(types)
+      exportTypes(path + ".types", hadoopConf, typeInfo)
+    }
+
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
+
+    hadoopConf.delete(path, recursive = true)
+
+    val sb = new StringBuilder()
+    val lines = for ((s, sa) <- sampleIdsAndAnnotations) yield {
+      sampleAggregationOption.foreach(f => f.apply(s))
+      sb.clear()
+      ec.setAll(localGlobalAnnotation, s, sa)
+      f().foreachBetween(x => sb.append(x))(sb += '\t')
+      sb.result()
+    }
+
+    hadoopConf.writeTable(path, lines, names.map(_.mkString("\t")))
+  }
+
+  def exportVariants(path: String, expr: String, typeFile: Boolean = false) {
+    val vas = vaSignature
+    val hConf = hc.hadoopConf
+
+    val localGlobalAnnotations = globalAnnotation
+    val ec = variantEC
+
+    val (names, types, f) = Parser.parseExportExprs(expr, ec)
+
+    val hadoopConf = hc.hadoopConf
+    if (typeFile) {
+      hadoopConf.delete(path + ".types", recursive = false)
+      val typeInfo = names
+        .getOrElse(types.indices.map(i => s"_$i").toArray)
+        .zip(types)
+      exportTypes(path + ".types", hadoopConf, typeInfo)
+    }
+
+    val variantAggregations = Aggregators.buildVariantAggregations(this, ec)
+
+    hadoopConf.delete(path, recursive = true)
+
+    rdd
+      .mapPartitions { it =>
+        val sb = new StringBuilder()
+        it.map { case (v, (va, gs)) =>
+          variantAggregations.foreach { f => f(v, va, gs) }
+          ec.setAll(localGlobalAnnotations, v, va)
+          sb.clear()
+          f().foreachBetween(x => sb.append(x))(sb += '\t')
+          sb.result()
+        }
+      }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")))
   }
 
   def filterIntervals(path: String, keep: Boolean): VariantSampleMatrix[T] = {
@@ -1350,6 +1426,57 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         (v.minrep, (va, gs))
     }
     copy(rdd = minrepped.smartShuffleAndSort(rdd.orderedPartitioner, maxShift))
+  }
+
+  def queryGenotypes(expr: String): (Annotation, Type) = {
+    val qv = queryGenotypes(Array(expr))
+    assert(qv.length == 1)
+    qv.head
+  }
+
+  def queryGenotypes(exprs: Array[String]): Array[(Annotation, Type)] = {
+    val aggregationST = Map(
+      "global" -> (0, globalSignature),
+      "g" -> (1, genotypeSignature),
+      "v" -> (2, TVariant),
+      "va" -> (3, vaSignature),
+      "s" -> (4, TSample),
+      "sa" -> (5, saSignature))
+    val ec = EvalContext(Map(
+      "global" -> (0, globalSignature),
+      "gs" -> (1, TAggregable(genotypeSignature, aggregationST))))
+
+    val ts = exprs.map(e => Parser.parseExpr(e, ec))
+
+    val localGlobalAnnotation = globalAnnotation
+    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[T](ec, { case (ec, g) =>
+      ec.set(1, g)
+    })
+
+    val sampleIdsBc = sampleIdsBc
+    val sampleAnnotationsBc = sampleAnnotationsBc
+    val globalBc = sparkContext.broadcast(globalAnnotation)
+
+    val result = rdd.mapPartitions { it =>
+      val zv = zVal.map(_.copy())
+      ec.set(0, globalBc.value)
+      it.foreach { case (v, (va, gs)) =>
+        var i = 0
+        ec.set(2, v)
+        ec.set(3, va)
+        gs.foreach { g =>
+          ec.set(4, sampleIdsBc.value(i))
+          ec.set(5, sampleAnnotationsBc.value(i))
+          seqOp(zv, g)
+          i += 1
+        }
+      }
+      Iterator(zv)
+    }.fold(zVal.map(_.copy()))(combOp)
+    resOp(result)
+
+    ec.set(0, localGlobalAnnotation)
+    ts.map { case (t, f) => (f(), t) }
   }
 
   def queryGlobal(path: String): (Type, Annotation) = {

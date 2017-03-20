@@ -1183,7 +1183,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.deduplicate())
+        return VariantDataset(self.hc, self._jvds.deduplicate())
 
     @handle_py4j
     def downsample_variants(self, keep):
@@ -1366,7 +1366,7 @@ class VariantDataset(object):
         :param bool types: Write types of exported columns to a file at (output + ".types").
         """
 
-        self._jvdf.exportSamples(output, expr, types)
+        self._jvds.exportSamples(output, expr, types)
 
     @handle_py4j
     def export_variants(self, output, expr, types=False):
@@ -1449,7 +1449,7 @@ class VariantDataset(object):
         :param bool types: Write types of exported columns to a file at (output + ".types")
         """
 
-        self._jvdf.exportVariants(output, expr, types)
+        self._jvds.exportVariants(output, expr, types)
 
     @handle_py4j
     def export_variants_cass(self, variant_expr, genotype_expr,
@@ -3123,12 +3123,12 @@ class VariantDataset(object):
         """
 
         if isinstance(exprs, list):
-            result_list = self._jvdf.queryGenotypes(jarray(Env.jvm().java.lang.String, exprs))
+            result_list = self._jvds.queryGenotypes(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
             annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
             return annotations, ptypes
         else:
-            result = self._jvdf.queryGenotypes(exprs)
+            result = self._jvds.queryGenotypes(exprs)
             t = Type._from_java(result._2())
             return t._convert_to_py(result._1()), t
 
