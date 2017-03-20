@@ -1453,9 +1453,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       ec.set(1, g)
     })
 
-    val sampleIdsBc = sampleIdsBc
-    val sampleAnnotationsBc = sampleAnnotationsBc
     val globalBc = sparkContext.broadcast(globalAnnotation)
+    val localSampleIdsBc = sampleIdsBc
+    val localSampleAnnotationsBc = sampleAnnotationsBc
 
     val result = rdd.mapPartitions { it =>
       val zv = zVal.map(_.copy())
@@ -1465,8 +1465,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         ec.set(2, v)
         ec.set(3, va)
         gs.foreach { g =>
-          ec.set(4, sampleIdsBc.value(i))
-          ec.set(5, sampleAnnotationsBc.value(i))
+          ec.set(4, localSampleIdsBc.value(i))
+          ec.set(5, localSampleAnnotationsBc.value(i))
           seqOp(zv, g)
           i += 1
         }
