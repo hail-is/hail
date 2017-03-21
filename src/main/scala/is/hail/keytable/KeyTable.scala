@@ -254,9 +254,9 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val colSet = fieldNames.toSet
     val badKeys = newKeys.filter(!colSet.contains(_))
 
-    if (badKeys.nonEmpty) {
-      fatal(s"${plural(badKeys.size, "Key")} not found in key table columns: [ ${badKeys.mkString(", ")} ]")
-    }
+    fatal(
+      s"""Invalid keys: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
+         |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
 
     copy(keyNames = newKeys.toArray)
   }
