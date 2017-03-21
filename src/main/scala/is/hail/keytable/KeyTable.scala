@@ -367,11 +367,13 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
       if (r1 != null) {
         (0 until r1.length).foreach { i => result(i) = r1.get(i) }
       }
+
       if (r2 != null) {
-        var j = 0
+        mergeIndices.zipWithIndex.foreach { case (i, j) => result(size1 + j) = r2(i) }
+      }
+      if (r2 != null) {
         mergeIndices.indices.foreach { i =>
-          result(size1 + j) = r2(i)
-          j += 1
+          result(size1 + i) = r2(mergeIndices(i))
         }
       }
       Row.fromSeq(result)
@@ -409,8 +411,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
-    rdd.exists { a =>
-      ec.setAllFromRow(a.asInstanceOf[Row])
+    rdd.exists { r =>
+      ec.setAllFromRow(r)
       val b = f()
       if (b == null)
         false
