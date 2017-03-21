@@ -977,6 +977,44 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       }
   }
 
+  def exportGenotypes(path: String, expr: String, typeFile: Boolean, filterF: T => Boolean) {
+    val symTab = Map(
+      "v" -> (0, TVariant),
+      "va" -> (1, vaSignature),
+      "s" -> (2, TSample),
+      "sa" -> (3, saSignature),
+      "g" -> (4, genotypeSignature),
+      "global" -> (5, globalSignature))
+
+    val ec = EvalContext(symTab)
+    ec.set(5, globalAnnotation)
+    val (names, ts, f) = Parser.parseExportExprs(expr, ec)
+
+    val hadoopConf = hc.hadoopConf
+    if (typeFile) {
+      hadoopConf.delete(path + ".types", recursive = false)
+      val typeInfo = names
+        .getOrElse(ts.indices.map(i => s"_$i").toArray)
+        .zip(ts)
+      exportTypes(path + ".types", hadoopConf, typeInfo)
+    }
+
+    hadoopConf.delete(path, recursive = true)
+
+    mapPartitionsWithAll { it =>
+      val sb = new StringBuilder()
+      it
+        .filter { case (v, va, s, sa, g) => filterF(g) }
+        .map { case (v, va, s, sa, g) =>
+          ec.setAll(v, va, s, sa, g)
+          sb.clear()
+
+          f().foreachBetween(x => sb.append(x))(sb += '\t')
+          sb.result()
+        }
+    }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")))
+  }
+
   def exportSamples(path: String, expr: String, typeFile: Boolean = false) {
     val localGlobalAnnotation = globalAnnotation
 

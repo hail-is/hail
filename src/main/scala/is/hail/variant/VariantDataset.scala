@@ -510,50 +510,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def exportGenotypes(path: String, expr: String, typeFile: Boolean,
     printRef: Boolean = false, printMissing: Boolean = false) {
-    val symTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "g" -> (4, TGenotype),
-      "global" -> (5, vds.globalSignature))
-
-    val ec = EvalContext(symTab)
-    ec.set(5, vds.globalAnnotation)
-    val (names, ts, f) = Parser.parseExportExprs(expr, ec)
-
-    val hadoopConf = vds.hc.hadoopConf
-    if (typeFile) {
-      hadoopConf.delete(path + ".types", recursive = false)
-      val typeInfo = names
-        .getOrElse(ts.indices.map(i => s"_$i").toArray)
-        .zip(ts)
-      exportTypes(path + ".types", hadoopConf, typeInfo)
-    }
-
-    hadoopConf.delete(path, recursive = true)
-
-    val sampleIdsBc = vds.sparkContext.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = vds.sparkContext.broadcast(vds.sampleAnnotations)
-
     val localPrintRef = printRef
     val localPrintMissing = printMissing
 
     val filterF: Genotype => Boolean =
       g => (!g.isHomRef || localPrintRef) && (!g.isNotCalled || localPrintMissing)
 
-    val lines = vds.mapPartitionsWithAll { it =>
-      val sb = new StringBuilder()
-      it
-        .filter { case (v, va, s, sa, g) => filterF(g) }
-        .map { case (v, va, s, sa, g) =>
-          ec.setAll(v, va, s, sa, g)
-          sb.clear()
-
-          f().foreachBetween(x => sb.append(x))(sb += '\t')
-          sb.result()
-        }
-    }.writeTable(path, vds.hc.tmpDir, names.map(_.mkString("\t")))
+    vds.exportGenotypes(path, expr, typeFile, filterF)
   }
 
   def exportPlink(path: String, famExpr: String = "id = s.id") {
