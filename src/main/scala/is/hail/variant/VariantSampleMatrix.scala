@@ -168,7 +168,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       "global" -> (0, globalSignature),
       "v" -> (1, TVariant),
       "va" -> (2, vaSignature),
-      "s" -> (3, TSample),
+      "s" -> (3, TString),
       "sa" -> (4, saSignature),
       "g" -> (5, genotypeSignature))
 
@@ -178,7 +178,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       "global" -> (0, globalSignature),
       "v" -> (1, TVariant),
       "va" -> (2, vaSignature),
-      "s" -> (3, TSample),
+      "s" -> (3, TString),
       "sa" -> (4, saSignature),
       "g" -> (5, genotypeSignature)))
 
@@ -690,7 +690,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateSamplesKeyTable(kt, vdsKey.asScala, code)
 
   def annotateSamplesKeyTable(kt: KeyTable, vdsKey: Seq[String], code: String): VariantSampleMatrix[T] = {
-    val vdsKeyEc = EvalContext(Map("s" -> (0, TSample), "sa" -> (1, saSignature)))
+    val vdsKeyEc = EvalContext(Map("s" -> (0, TString), "sa" -> (1, saSignature)))
 
     val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, vdsKeyEc)).unzip
 
@@ -1036,7 +1036,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val symTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, vaSignature),
-      "s" -> (2, TSample),
+      "s" -> (2, TString),
       "sa" -> (3, saSignature),
       "g" -> (4, genotypeSignature),
       "global" -> (5, globalSignature))
@@ -1381,7 +1381,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val gSymTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, vaSignature),
-      "s" -> (2, TSample),
+      "s" -> (2, TString),
       "sa" -> (3, saSignature),
       "g" -> (4, genotypeSignature))
     val gEC = EvalContext(gSymTab)
@@ -1533,7 +1533,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       "g" -> (1, genotypeSignature),
       "v" -> (2, TVariant),
       "va" -> (3, vaSignature),
-      "s" -> (4, TSample),
+      "s" -> (4, TString),
       "sa" -> (5, saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
@@ -1612,11 +1612,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def querySamples(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
       "global" -> (0, globalSignature),
-      "s" -> (1, TSample),
+      "s" -> (1, TString),
       "sa" -> (2, saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
-      "samples" -> (1, TAggregable(TSample, aggregationST))))
+      "samples" -> (1, TAggregable(TString, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
@@ -1784,14 +1784,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def sampleEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalSignature),
-      "s" -> (1, TSample),
+      "s" -> (1, TString),
       "va" -> (2, saSignature),
       "g" -> (3, genotypeSignature),
       "v" -> (4, TVariant),
       "va" -> (5, vaSignature))
     EvalContext(Map(
       "global" -> (0, globalSignature),
-      "s" -> (1, TSample),
+      "s" -> (1, TString),
       "sa" -> (2, saSignature),
       "gs" -> (3, TAggregable(genotypeSignature, aggregationST))))
   }
@@ -1835,7 +1835,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         Annotation(s, sa)
       },
       TStruct(
-        "s" -> TSample,
+        "s" -> TString,
         "sa" -> saSignature),
       Array("s"))
   }
@@ -1891,7 +1891,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       "v" -> (1, TVariant),
       "va" -> (2, vaSignature),
       "g" -> (3, genotypeSignature),
-      "s" -> (4, TSample),
+      "s" -> (4, TString),
       "sa" -> (5, saSignature))
     EvalContext(Map(
       "global" -> (0, globalSignature),

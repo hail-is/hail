@@ -2,7 +2,7 @@ package is.hail.io
 
 import java.util
 
-import is.hail.expr.{EvalContext, Parser, TBoolean, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TSample, TString, TVariant, Type}
+import is.hail.expr.{EvalContext, Parser, TBoolean, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TString, TVariant, Type}
 import is.hail.utils.StringEscapeUtils.escapeStringSimple
 import is.hail.utils._
 import is.hail.variant.VariantDataset
@@ -129,7 +129,7 @@ object SolrConnector {
     val gSymTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, vas),
-      "s" -> (2, TSample),
+      "s" -> (2, TString),
       "sa" -> (3, sas),
       "g" -> (4, TGenotype))
     val gEC = EvalContext(gSymTab)

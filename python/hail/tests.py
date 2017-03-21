@@ -270,7 +270,7 @@ class ContextTests(unittest.TestCase):
 
         sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
         self.assertTrue((sample2.samples_keytable()
-                         .annotate('s = s.id, sa = json(sa)'))
+                         .annotate('s = s, sa = json(sa)'))
                         .same(hc.import_keytable('/tmp/samples.tsv', config=TextTableConfig(impute=True)).key_by('s')))
 
         cols = ['v = v, info = va.info']
@@ -278,7 +278,7 @@ class ContextTests(unittest.TestCase):
             cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s=s))
 
         (sample2
-         .annotate_variants_expr('va.G = index(gs.map(g => { s: s.id, gt: g.gt, gq: g.gq }).collect(), s)')
+         .annotate_variants_expr('va.G = index(gs.map(g => { s: s, gt: g.gt, gq: g.gq }).collect(), s)')
          .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
 
         ((sample2

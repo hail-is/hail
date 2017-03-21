@@ -38,7 +38,6 @@ object Annotation {
   def expandType(t: Type): Type = t match {
     case TChar => TString
     case TVariant => Variant.t
-    case TSample => TString
     case TGenotype => Genotype.t
     case TLocus => Locus.t
     case TArray(elementType) =>

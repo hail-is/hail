@@ -572,18 +572,6 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
   override def scalaClassTag: ClassTag[Map[_,_]] = classTag[Map[_,_]]
 }
 
-case object TSample extends Type {
-  override def toString = "Sample"
-
-  def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[String]
-
-  override def genNonmissingValue: Gen[Annotation] = Gen.identifier
-
-  override def desc: String = "A ``Sample`` is a Hail data type representing a sample in the Variant Dataset. It is referred to as ``s`` in the expression language."
-
-  override def scalaClassTag: ClassTag[String] = classTag[String]
-}
-
 case object TGenotype extends Type {
   override def toString = "Genotype"
 

@@ -101,7 +101,7 @@ To define how to export VDS elements to a TSV file, use an expression that defin
 
         Variant = v, PASS = va.pass, MeanGQ = va.gqStats.mean
 
- - Export the sample name ``s``, a sample annotation for the number of het calls ``sa.nHet``, and a sample annotation for case status ``sa.pheno.isCase``. There will be one line per sample. ``s`` and ``s.id`` are interchangeable. The header line will be "Sample", "nHet", and "Phenotype".
+ - Export the sample name ``s``, a sample annotation for the number of het calls ``sa.nHet``, and a sample annotation for case status ``sa.pheno.isCase``. There will be one line per sample. The header line will be "Sample", "nHet", and "Phenotype".
 
     ::
 
@@ -141,11 +141,11 @@ Filter commands take a **boolean expression**. Here are some examples of boolean
 
         v.contig != “X” && v.contig != “Y”
 
- - Sample id ``s.id`` does not match the substring "NA12"
+ - Sample id ``s`` does not match the substring "NA12"
 
     ::
 
-        !("NA12" ~ s.id)
+        !("NA12" ~ s)
 
  - Sample annotation for whether a sample is female ``sa.isFemale``, which is a boolean variable
 
@@ -175,7 +175,7 @@ Filter commands take a **boolean expression**. Here are some examples of boolean
 
     ::
 
-        "CONTROL" ~ s.id || !sa.pheno.isCase
+        "CONTROL" ~ s || !sa.pheno.isCase
 
 .. _overview-expr-add:
 
@@ -203,7 +203,7 @@ Computed From Existing Annotations
 
     ::
 
-        sa.idTooLong = s.id.length > 10
+        sa.idTooLong = s.length > 10
 
  - Add a new variant annotation that is a String representing the chromosome and start position
 

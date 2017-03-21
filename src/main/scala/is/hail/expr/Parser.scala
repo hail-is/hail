@@ -533,7 +533,7 @@ object Parser extends JavaTokenParsers {
       "Float" ^^ { _ => TFloat } |
       "Double" ^^ { _ => TDouble } |
       "String" ^^ { _ => TString } |
-      "Sample" ^^ { _ => TSample } |
+      "Sample" ^^ { _ => TString } | // FIXME back-compatibility
       "AltAllele" ^^ { _ => TAltAllele } |
       "Variant" ^^ { _ => TVariant } |
       "Locus" ^^ { _ => TLocus } |

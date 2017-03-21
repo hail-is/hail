@@ -214,7 +214,7 @@ class HailContext(object):
 
         - No duplicate sample IDs are allowed
 
-        The first column in the .sample file is used as the sample ID ``s.id``.
+        The first column in the .sample file is used as the sample ID ``s``.
 
         Also, see section in :py:meth:`~hail.HailContext.import_bgen` linked :ref:`here <dosagefilters>` for information about Hail's dosage representation.
 
@@ -292,7 +292,7 @@ class HailContext(object):
 
         The centiMorgan position is not currently used in Hail (Column 3 in BIM file).
 
-        The ID (``s.id``) used by Hail is the individual ID (column 2 in FAM file).
+        The ID (``s``) used by Hail is the individual ID (column 2 in FAM file).
 
         .. warning::
 
