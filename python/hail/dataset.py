@@ -52,7 +52,7 @@ class VariantDataset(object):
         All columns in the key table become variant annotations in the result.
         For example, a key table with key column ``v`` (*Variant*) and column
         ``gene`` (*String*) will produce a sites-only variant dataset with a
-        ``va.gene`` variant annotation
+        ``va.gene`` variant annotation.
 
         :param key_table: variant-keyed key table
         :type key_table: :py:class:`.KeyTable`
