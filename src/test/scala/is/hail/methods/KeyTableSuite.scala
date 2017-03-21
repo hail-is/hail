@@ -320,7 +320,7 @@ class KeyTableSuite extends SparkSuite {
   }
 
   @Test def testQuery() {
-    val kt = hc.importKeyTable(List("src/test/resources/sampleAnnotations.tsv"), Nil,
+    val kt = hc.importKeyTable(List("src/test/resources/sampleAnnotations.tsv"),
       config = TextTableConfiguration(impute=true))
 
     case class LineData(sample: String, status: String, qPhen: Option[Int])
