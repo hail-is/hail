@@ -419,15 +419,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     CountResult(vds.nSamples, nVariants, nCalled)
   }
 
-  def deduplicate(): VariantDataset = {
-    DuplicateReport.initialize()
-
-    val acc = DuplicateReport.accumulator
-    vds.copy(rdd = vds.rdd.mapPartitions({ it =>
-      new SortedDistinctPairIterator(it, (v: Variant) => acc += v)
-    }, preservesPartitioning = true).asOrderedRDD)
-  }
-
   def eraseSplit(): VariantDataset = {
     if (vds.wasSplit) {
       val (newSignatures1, f1) = vds.deleteVA("wasSplit")
@@ -658,37 +649,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       }))
   }
 
-  def exportSamples(path: String, expr: String, typeFile: Boolean = false) {
-    val localGlobalAnnotation = vds.globalAnnotation
-
-    val ec = vds.sampleEC
-
-    val (names, types, f) = Parser.parseExportExprs(expr, ec)
-    val hadoopConf = vds.hc.hadoopConf
-    if (typeFile) {
-      hadoopConf.delete(path + ".types", recursive = false)
-      val typeInfo = names
-        .getOrElse(types.indices.map(i => s"_$i").toArray)
-        .zip(types)
-      exportTypes(path + ".types", hadoopConf, typeInfo)
-    }
-
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(vds, ec)
-
-    hadoopConf.delete(path, recursive = true)
-
-    val sb = new StringBuilder()
-    val lines = for ((s, sa) <- vds.sampleIdsAndAnnotations) yield {
-      sampleAggregationOption.foreach(f => f.apply(s))
-      sb.clear()
-      ec.setAll(localGlobalAnnotation, s, sa)
-      f().foreachBetween(x => sb.append(x))(sb += '\t')
-      sb.result()
-    }
-
-    hadoopConf.writeTable(path, lines, names.map(_.mkString("\t")))
-  }
-
   /**
     *
     * @param path output path
@@ -698,41 +658,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     */
   def exportVCF(path: String, append: Option[String] = None, exportPP: Boolean = false, parallel: Boolean = false) {
     ExportVCF(vds.toGDS, path, append, exportPP, parallel)
-  }
-
-  def exportVariants(path: String, expr: String, typeFile: Boolean = false) {
-    val vas = vds.vaSignature
-    val hConf = vds.hc.hadoopConf
-
-    val localGlobalAnnotations = vds.globalAnnotation
-    val ec = vds.variantEC
-
-    val (names, types, f) = Parser.parseExportExprs(expr, ec)
-
-    val hadoopConf = vds.hc.hadoopConf
-    if (typeFile) {
-      hadoopConf.delete(path + ".types", recursive = false)
-      val typeInfo = names
-        .getOrElse(types.indices.map(i => s"_$i").toArray)
-        .zip(types)
-      exportTypes(path + ".types", hadoopConf, typeInfo)
-    }
-
-    val variantAggregations = Aggregators.buildVariantAggregations(vds, ec)
-
-    hadoopConf.delete(path, recursive = true)
-
-    vds.rdd
-      .mapPartitions { it =>
-        val sb = new StringBuilder()
-        it.map { case (v, (va, gs)) =>
-          variantAggregations.foreach { f => f(v, va, gs) }
-          ec.setAll(localGlobalAnnotations, v, va)
-          sb.clear()
-          f().foreachBetween(x => sb.append(x))(sb += '\t')
-          sb.result()
-        }
-      }.writeTable(path, vds.hc.tmpDir, names.map(_.mkString("\t")))
   }
 
   /**
@@ -1028,58 +953,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       ret = ret.annotateGlobal(eig, pcSchema, eigenRoot.get)
     }
     ret
-  }
-
-
-  def queryGenotypes(expr: String): (Annotation, Type) = {
-    val qv = queryGenotypes(Array(expr))
-    assert(qv.length == 1)
-    qv.head
-  }
-
-  def queryGenotypes(exprs: Array[String]): Array[(Annotation, Type)] = {
-    val aggregationST = Map(
-      "global" -> (0, vds.globalSignature),
-      "g" -> (1, TGenotype),
-      "v" -> (2, TVariant),
-      "va" -> (3, vds.vaSignature),
-      "s" -> (4, TSample),
-      "sa" -> (5, vds.saSignature))
-    val ec = EvalContext(Map(
-      "global" -> (0, vds.globalSignature),
-      "gs" -> (1, TAggregable(TGenotype, aggregationST))))
-
-    val ts = exprs.map(e => Parser.parseExpr(e, ec))
-
-    val localGlobalAnnotation = vds.globalAnnotation
-    val (zVal, seqOp, combOp, resOp) = Aggregators.makeFunctions[Genotype](ec, { case (ec, g) =>
-      ec.set(1, g)
-    })
-
-    val sampleIdsBc = vds.sampleIdsBc
-    val sampleAnnotationsBc = vds.sampleAnnotationsBc
-    val globalBc = vds.sparkContext.broadcast(vds.globalAnnotation)
-
-    val result = vds.rdd.mapPartitions { it =>
-      val zv = zVal.map(_.copy())
-      ec.set(0, globalBc.value)
-      it.foreach { case (v, (va, gs)) =>
-        var i = 0
-        ec.set(2, v)
-        ec.set(3, va)
-        gs.foreach { g =>
-          ec.set(4, sampleIdsBc.value(i))
-          ec.set(5, sampleAnnotationsBc.value(i))
-          seqOp(zv, g)
-          i += 1
-        }
-      }
-      Iterator(zv)
-    }.fold(zVal.map(_.copy()))(combOp)
-    resOp(result)
-
-    ec.set(0, localGlobalAnnotation)
-    ts.map { case (t, f) => (f(), t) }
   }
 
   def sampleQC(): VariantDataset = SampleQC(vds)

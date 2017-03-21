@@ -446,4 +446,9 @@ class VSMSuite extends SparkSuite {
     val vds = hc.read("src/test/resources/sample.vds")
     vds.countVariants()
   }
+
+  @Test def testQueryGenotypes() {
+    val vds = hc.read("src/test/resources/sample.vds")
+    vds.queryGenotypes("gs.map(g => g.gq).hist(0, 100, 100)")
+  }
 }
