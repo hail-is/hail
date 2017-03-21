@@ -127,35 +127,6 @@ class HailContext(object):
         self._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
     @handle_py4j
-    def import_annotations_table(self, path, variant_expr, code=None, npartitions=None, config=TextTableConfig()):
-        """Import variants and variant annotations from a delimited text file
-        (text table) as a sites-only variant dataset.
-
-        :param path: The files to import.
-        :type path: str or list of str
-
-        :param str variant_expr: Expression to construct a variant
-            from a row of the text table.  Must have type Variant.
-
-        :param code: Expression to build the variant annotations.
-        :type code: str or None
-
-        :param npartitions: Number of partitions.
-        :type npartitions: int or None
-
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
-
-        :return: Sites-only variant dataset.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jhc.importAnnotationsTables(jindexed_seq_args(path), variant_expr,
-                                                 joption(code), joption(npartitions),
-                                                 config._to_java())
-        return VariantDataset(self, jvds)
-
-    @handle_py4j
     def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
         """Import .bgen file(s) as variant dataset.
 
@@ -277,14 +248,14 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_keytable(self, path, key_names=[], npartitions=None, config=TextTableConfig()):
+    def import_keytable(self, path, npartitions=None, config=TextTableConfig()):
         """Import delimited text file (text table) as key table.
+
+        The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
+        to specify keys.
 
         :param path: files to import.
         :type path: str or list of str
-
-        :param key_names: The name(s) of fields to be considered keys
-        :type key_names: str or list of str
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None
@@ -299,7 +270,7 @@ class HailContext(object):
         if not config:
             config = TextTableConfig()
 
-        jkt = self._jhc.importKeyTable(jindexed_seq_args(path), jindexed_seq_args(key_names),
+        jkt = self._jhc.importKeyTable(jindexed_seq_args(path),
                                        joption(npartitions), config._to_java())
         return KeyTable(self, jkt)
 

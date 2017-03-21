@@ -15,9 +15,12 @@ warnings.filterwarnings(module=__name__, action='once')
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
-    Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods, as well as simulated using :py:meth:`~hail.HailContext.balding_nichols_model`.
+    Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods,
+    constructed from variant-keyed :py:class:`KeyTable`s using :py:meth:`.VariantDataset.from_keytable`,
+    and simulated using :py:meth:`~hail.HailContext.balding_nichols_model`.
 
-    Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`, use :py:meth:`~hail.HailContext.read` to load the variant dataset into the environment.
+    Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`,
+     use :py:meth:`~hail.HailContext.read` to load the variant dataset into the environment.
 
     >>> vds = hc.read("data/example.vds")
 
@@ -38,6 +41,14 @@ class VariantDataset(object):
         self._sample_ids = None
         self._num_samples = None
         self._jvdf_cache = None
+
+    @staticmethod
+    @handle_py4j
+    def from_keytable(key_table):
+        if not isinstance(key_table, KeyTable):
+            raise TypeError("parameter `key_table' must be a KeyTable, but found %s" % type(key_table))
+        jvds = scala_object(Env.hail().variant, 'VariantDataset').fromKeyTable(key_table._jkt)
+        return VariantDataset(key_table.hc, jvds)
 
     @property
     def _jvdf(self):
@@ -851,12 +862,13 @@ class VariantDataset(object):
 
         Add annotations from a variant-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/variant-lof.tsv', 'v', config=TextTableConfig(impute=True))
+        >>> kt = hc.import_keytable('data/variant-lof.tsv', config=TextTableConfig(impute=True)).key_by('v')
         >>> vds_result = vds.annotate_variants_keytable(kt, 'va.lof = table.lof')
 
         Add annotations from a gene-and-type-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/locus-metadata.tsv', ['gene', 'type'], config=TextTableConfig(impute=True))
+        >>> kt = hc.import_keytable('data/locus-metadata.tsv',
+        ...                         config=TextTableConfig(impute=True)).key_by(['gene', 'type'])
         >>>
         >>> vds_result = (vds.annotate_variants_keytable(kt,
         ...       'va.foo = table.foo',
@@ -2083,7 +2095,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
-    def ibd_prune(self, threshold, maf = None, bounded = True):
+    def ibd_prune(self, threshold, maf=None, bounded=True):
         """
         Prune samples from variant dataset based on PI_HAT values of IBD computation.
 
@@ -2106,7 +2118,6 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
         return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(maf), bounded))
-
 
     @handle_py4j
     def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):

@@ -140,6 +140,9 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
   }
 
   def keyedRDD(): RDD[(Annotation, Annotation)] = {
+    if (nKeys == 0)
+      fatal("cannot produce a keyed RDD from a key table with no key columns")
+
     val keyIndices = keyFields.map(_.index)
     rdd.map { a =>
       val r = a.asInstanceOf[Row].toSeq
@@ -241,6 +244,21 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     }
 
     filter(p)
+  }
+
+  def keyBy(newKey: String): KeyTable = keyBy(List(newKey))
+
+  def keyBy(newKeys: java.util.ArrayList[String]): KeyTable = keyBy(newKeys.asScala)
+
+  def keyBy(newKeys: Iterable[String]): KeyTable = {
+    val colSet = fieldNames.toSet
+    val badKeys = newKeys.filter(!colSet.contains(_))
+
+    if (badKeys.nonEmpty) {
+      fatal(s"${plural(badKeys.size, "Key")} not found in key table columns: [ ${badKeys.mkString(", ")} ]")
+    }
+
+    copy(keyNames = newKeys.toArray)
   }
 
   def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {

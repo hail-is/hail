@@ -1,19 +1,21 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-from hail.java import scala_package_object, handle_py4j
+from hail.java import *
 from hail.type import Type, TArray, TStruct
-from py4j.protocol import Py4JJavaError
 from pyspark.sql import DataFrame
 
 
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
 
-    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_keytable` or :py:meth:`~hail.HailContext.dataframe_to_keytable`, or generated from an existing variant dataset with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`, :py:meth:`~hail.VariantDataset.samples_keytable`, or :py:meth:`~hail.VariantDataset.variants_keytable`.
+    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_keytable`
+    or :py:meth:`~hail.HailContext.dataframe_to_keytable`, or generated from an existing variant dataset
+    with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`,
+    :py:meth:`~hail.VariantDataset.samples_keytable`, or :py:meth:`~hail.VariantDataset.variants_keytable`.
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
-    >>> kt1 = hc.import_keytable("data/kt_example1.tsv", ["ID"], config=TextTableConfig(impute=True))
+    >>> kt1 = hc.import_keytable('data/kt_example1.tsv', config=TextTableConfig(impute=True))
 
     +--+---+---+-+-+----+----+----+
     |ID|HT |SEX|X|Z| C1 | C2 | C3 |
@@ -27,7 +29,7 @@ class KeyTable(object):
     |4 |60 |F  |8|2|11	|90  |-10 |
     +--+---+---+-+-+----+----+----+
 
-    >>> kt2 = hc.import_keytable("data/kt_example2.tsv", ["ID"], config=TextTableConfig(impute=True))
+    >>> kt2 = hc.import_keytable('data/kt_example2.tsv', config=TextTableConfig(impute=True))
 
     +---+---+------+
     |ID	|A  |B     |
@@ -245,7 +247,7 @@ class KeyTable(object):
 
         Join ``kt1`` to ``kt2`` to produce ``kt_joined``:
 
-        >>> kt_result = kt1.join(kt2)
+        >>> kt_result = kt1.key_by('ID').join(kt2.key_by('ID'))
 
         **Notes:**
 
@@ -415,18 +417,30 @@ class KeyTable(object):
 
         >>> kt_result = kt1.key_by(['C2', 'C3'])
 
+        >>> kt_result = kt1.key_by('C2')
+
         Set to no keys:
 
         >>> kt_result = kt1.key_by([])
 
         :param key_names: List of columns to be used as keys.
-        :type key_names: list of str
+        :type key_names: str or list of str
 
         :return: Key table whose key columns are given by ``key_names``.
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jkt.select(self.column_names, key_names))
+        if isinstance(key_names, list):
+            for k in key_names:
+                if not isinstance(k, str) and not isinstance(k, unicode):
+                    raise TypeError("expected str or unicode elements of 'key_names' list, but found %s" % type(k))
+        elif not isinstance(key_names, str) and not isinstance(key_names, unicode):
+            raise TypeError("expected str or list of str for parameter 'key_names', but found %s" % type(key_names))
+
+        if not isinstance(key_names, list):
+            key_names = [key_names]
+
+        return KeyTable(self.hc, self._jkt.keyBy(key_names))
 
     @handle_py4j
     def flatten(self):
@@ -565,7 +579,7 @@ class KeyTable(object):
         Assume ``kt3`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
         c3.
 
-        >>> kt3 = hc.import_keytable("data/kt_example3.tsv", [],
+        >>> kt3 = hc.import_keytable('data/kt_example3.tsv',
         ...   config=TextTableConfig(impute=True, types='c1:String,c2:Array[Int],c3:Array[Array[Int]]'))
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.

@@ -206,56 +206,6 @@ class HailContext private(val sc: SparkContext,
       }
   }
 
-  def importAnnotationsTable(path: String,
-    variantExpr: String,
-    code: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
-    importAnnotationsTables(List(path), variantExpr, code, nPartitions, config)
-  }
-
-  def importAnnotationsTables(paths: Seq[String],
-    variantExpr: String,
-    code: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantDataset = {
-    val files = hadoopConf.globAll(paths)
-    if (files.isEmpty)
-      fatal("Arguments referred to no files")
-
-    val (struct, rdd) = nPartitions match {
-      case Some(n) =>
-        if (n < 1)
-          fatal("requested number of partitions in -n/--npartitions must be positive")
-        else
-          TextTableReader.read(sc)(files, config, n)
-      case None =>
-        TextTableReader.read(sc)(files, config)
-    }
-
-    val (finalType, fn): (Type, (Annotation, Annotation) => Annotation) = code.map { code =>
-      val ec = EvalContext(Map(
-        "va" -> (0, TStruct.empty),
-        "table" -> (1, struct)))
-      Annotation.buildInserter(code, TStruct.empty, ec, Annotation.VARIANT_HEAD)
-    }.getOrElse((struct, (_: Annotation, anno: Annotation) => anno))
-
-    val ec = EvalContext(struct.fields.map(f => (f.name, f.typ)): _*)
-    val variantFn = Parser.parseTypedExpr[Variant](variantExpr, ec)
-
-    val keyedRDD = rdd.map {
-      _.map { a =>
-        ec.setAllFromRow(a.asInstanceOf[Row])
-        (variantFn(), (fn(null, a), Iterable.empty[Genotype]))
-      }.value
-    }
-      .filter { case (v, _) => v != null }
-      .toOrderedRDD
-
-    VariantSampleMatrix(this, VariantMetadata(Array.empty[String], IndexedSeq.empty[Annotation], Annotation.empty,
-      TStruct.empty, finalType, TStruct.empty), keyedRDD)
-  }
-
   def importBgen(file: String,
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
@@ -338,7 +288,6 @@ class HailContext private(val sc: SparkContext,
   }
 
   def importKeyTable(inputs: Seq[String],
-    keyNames: Seq[String],
     nPartitions: Option[Int] = None,
     config: TextTableConfiguration = TextTableConfiguration()): KeyTable = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
@@ -347,16 +296,10 @@ class HailContext private(val sc: SparkContext,
     if (files.isEmpty)
       fatal("Arguments referred to no files")
 
-    val keys = keyNames.flatMap(Parser.parseIdentifierList)
-
     val (struct, rdd) =
       TextTableReader.read(sc)(files, config, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val invalidKeys = keys.filter(!struct.hasField(_))
-    if (invalidKeys.nonEmpty)
-      fatal(s"invalid keys: ${ invalidKeys.mkString(", ") }")
-
-    KeyTable(this, rdd.map(_.value), struct, keys.toArray)
+    KeyTable(this, rdd.map(_.value), struct, Array.empty[String])
   }
 
   def importPlink(bed: String, bim: String, fam: String,
