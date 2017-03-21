@@ -16,7 +16,7 @@ class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
     Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods,
-    constructed from variant-keyed :py:class:`KeyTable`s using :py:meth:`.VariantDataset.from_keytable`,
+    constructed from a variant-keyed :py:class:`KeyTable` using :py:meth:`.VariantDataset.from_keytable`,
     and simulated using :py:meth:`~hail.HailContext.balding_nichols_model`.
 
     Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`,
@@ -45,6 +45,21 @@ class VariantDataset(object):
     @staticmethod
     @handle_py4j
     def from_keytable(key_table):
+        """Construct a sites-only variant dataset from a key table.
+
+        The key table must be keyed by one column of type :py:class:`.TVariant`.
+
+        All columns in the key table become variant annotations in the result.
+        For example, a key table with key column ``v`` (*Variant*) and column
+        ``gene`` (*String*) will produce a sites-only variant dataset with a
+        ``va.gene`` variant annotation.
+
+        :param key_table: variant-keyed key table
+        :type key_table: :py:class:`.KeyTable`
+
+        :return: Sites-only variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+        """
         if not isinstance(key_table, KeyTable):
             raise TypeError("parameter `key_table' must be a KeyTable, but found %s" % type(key_table))
         jvds = scala_object(Env.hail().variant, 'VariantDataset').fromKeyTable(key_table._jkt)
