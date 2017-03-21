@@ -6,13 +6,14 @@ import java.util.Properties
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset}
+import is.hail.variant.{Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 object VEP {
 
@@ -213,8 +214,8 @@ object VEP {
     alleleMap
   }
 
-  def annotate(vds: VariantDataset, config: String, root: String = "va.vep", csq: Boolean,
-    blockSize: Int): VariantDataset = {
+  def annotate[T](vsm: VariantSampleMatrix[T], config: String, root: String = "va.vep", csq: Boolean,
+    blockSize: Int)(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
@@ -281,7 +282,7 @@ object VEP {
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
-    val annotations = vds.rdd
+    val annotations = vsm.rdd
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
@@ -373,18 +374,18 @@ object VEP {
 
     info(s"vep: annotated ${ annotations.count() } variants")
 
-    val (newVASignature, insertVEP) = vds.vaSignature.insert(if (csq) TArray(TString) else vepSignature, parsedRoot)
+    val (newVASignature, insertVEP) = vsm.vaSignature.insert(if (csq) TArray(TString) else vepSignature, parsedRoot)
 
-    val newRDD = vds.rdd
+    val newRDD = vsm.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
-        new Iterator[(Variant, (Annotation, Iterable[Genotype]))] {
+        new Iterator[(Variant, (Annotation, Iterable[T]))] {
           def hasNext: Boolean = {
             val r = left.hasNext
             assert(r == right.hasNext)
             r
           }
 
-          def next(): (Variant, (Annotation, Iterable[Genotype])) = {
+          def next(): (Variant, (Annotation, Iterable[T])) = {
             val (lv, (va, gs)) = left.next()
             val (rv, vaVep) = right.next()
             assert(lv == rv)
@@ -393,7 +394,7 @@ object VEP {
         }
       }.asOrderedRDD
 
-    vds.copy(rdd = newRDD,
+    vsm.copy(rdd = newRDD,
       vaSignature = newVASignature)
   }
 }

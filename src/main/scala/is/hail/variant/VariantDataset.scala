@@ -924,43 +924,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.annotateSamples(result, signature, "sa.imputesex")
   }
 
-  /**
-    *
-    * @param right right-hand dataset with which to join
-    */
-  def join(right: VariantDataset): VariantDataset = {
-    if (vds.wasSplit != right.wasSplit) {
-      warn(
-        s"""cannot join split and unsplit datasets
-           |  left was split: ${ vds.wasSplit }
-           |  light was split: ${ right.wasSplit }""".stripMargin)
-    }
-
-    if (vds.saSignature != right.saSignature) {
-      fatal(
-        s"""cannot join datasets with different sample schemata
-           |  left sample schema: @1
-           |  right sample schema: @2""".stripMargin,
-        vds.saSignature.toPrettyString(compact = true, printAttrs = true),
-        right.saSignature.toPrettyString(compact = true, printAttrs = true))
-    }
-
-    val newSampleIds = vds.sampleIds ++ right.sampleIds
-    val duplicates = newSampleIds.duplicates()
-    if (duplicates.nonEmpty)
-      fatal("duplicate sample IDs: @1", duplicates)
-
-    val joined = vds.rdd.orderedInnerJoinDistinct(right.rdd)
-      .mapValues { case ((lva, lgs), (rva, rgs)) =>
-        (lva, lgs ++ rgs)
-      }.asOrderedRDD
-
-    vds.copy(
-      sampleIds = newSampleIds,
-      sampleAnnotations = vds.sampleAnnotations ++ right.sampleAnnotations,
-      rdd = joined)
-  }
-
   def linreg(ySA: String, covSA: Array[String], root: String, minAC: Int, minAF: Double): VariantDataset = {
     requireSplit("linear regression")
     LinearRegression(vds, ySA, covSA, root, minAC, minAF)
@@ -984,72 +947,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def logreg(test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
     requireSplit("logistic regression")
     LogisticRegression(vds, test, ySA, covSA, root)
-  }
-
-  def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String]): KeyTable = {
-    val vSymTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature))
-    val vEC = EvalContext(vSymTab)
-    val vA = vEC.a
-
-    val (vNames, vTypes, vf) = Parser.parseNamedExprs(variantCondition, vEC)
-
-    val gSymTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vds.vaSignature),
-      "s" -> (2, TSample),
-      "sa" -> (3, vds.saSignature),
-      "g" -> (4, TGenotype))
-    val gEC = EvalContext(gSymTab)
-    val gA = gEC.a
-
-    val (gNames, gTypes, gf) = Parser.parseNamedExprs(genotypeCondition, gEC)
-
-    val sig = TStruct(((vNames, vTypes).zipped ++
-      vds.sampleIds.flatMap { s =>
-        (gNames, gTypes).zipped.map { case (n, t) =>
-          (if (n.isEmpty)
-            s
-          else
-            s + "." + n, t)
-        }
-      }).toSeq: _*)
-
-    val localNSamples = vds.nSamples
-    val localSampleIdsBc = vds.sampleIdsBc
-    val localSampleAnnotationsBc = vds.sampleAnnotationsBc
-
-    KeyTable(vds.hc,
-      vds.rdd.mapPartitions { it =>
-        val n = vNames.length + gNames.length * localNSamples
-
-        it.map { case (v, (va, gs)) =>
-          val a = new Array[Any](n)
-
-          var j = 0
-          vEC.setAll(v, va)
-          vf().foreach { x =>
-            a(j) = x
-            j += 1
-          }
-
-          gs.iterator.zipWithIndex.foreach { case (g, i) =>
-            val s = localSampleIdsBc.value(i)
-            val sa = localSampleAnnotationsBc.value(i)
-            gEC.setAll(v, va, s, sa, g)
-            gf().foreach { x =>
-              a(j) = x
-              j += 1
-            }
-          }
-
-          assert(j == n)
-          Row.fromSeq(a): Annotation
-        }
-      },
-      sig,
-      keyNames)
   }
 
   def makeSchemaForKudu(): StructType =
@@ -1189,18 +1086,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def variantQC(): VariantDataset = {
     requireSplit("variant QC")
     VariantQC(vds)
-  }
-
-  /**
-    *
-    * @param config VEP configuration file
-    * @param root Variant annotation path to store VEP output
-    * @param csq Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
-    * @param blockSize Variants per VEP invocation
-    */
-  def vep(config: String, root: String = "va.vep", csq: Boolean = false,
-    blockSize: Int = 1000): VariantDataset = {
-    VEP.annotate(vds, config, root, csq, blockSize)
   }
 
   def write(dirname: String, overwrite: Boolean = false, parquetGenotypes: Boolean = false) {
