@@ -7,6 +7,7 @@ import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 object TextTableConfiguration {
   def apply(types: String, commentChar: String, separator: String, missing: String, noHeader: Boolean, impute: Boolean): TextTableConfiguration =
@@ -82,7 +83,7 @@ object TextTableReader {
 
   def read(sc: SparkContext)(files: Array[String],
     config: TextTableConfiguration = TextTableConfiguration(),
-    nPartitions: Int = sc.defaultMinPartitions): (TStruct, RDD[WithContext[Annotation]]) = {
+    nPartitions: Int = sc.defaultMinPartitions): (TStruct, RDD[WithContext[Row]]) = {
     require(files.nonEmpty)
 
     val noHeader = config.noHeader
@@ -195,7 +196,7 @@ object TextTableReader {
             }
             i += 1
           }
-          Annotation.fromSeq(a)
+          Row.fromSeq(a)
         }
       }
 

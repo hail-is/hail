@@ -9,6 +9,7 @@ import is.hail.methods.IBD.generateComputeMaf
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 import scala.language.higherKinds
 
@@ -263,7 +264,7 @@ object IBD {
 
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString), ("j", TString)).merge(ExtendedIBDInfo.signature)
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((String, String), ExtendedIBDInfo)]): KeyTable = {
-    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation) }
+    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }
     KeyTable(sc, ktRdd, ibdSignature, Array("i", "j"))
   }
 

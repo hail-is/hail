@@ -37,9 +37,9 @@ object Annotation {
 
   def expandType(t: Type): Type = t match {
     case TChar => TString
-    case TVariant => Variant.t
-    case TGenotype => Genotype.t
-    case TLocus => Locus.t
+    case TVariant => Variant.expandedType
+    case TGenotype => Genotype.expandedType
+    case TLocus => Locus.expandedSchema
     case TArray(elementType) =>
       TArray(expandType(elementType))
     case TStruct(fields) =>
@@ -50,11 +50,11 @@ object Annotation {
       TArray(TStruct(
         "key" -> expandType(keyType),
         "value" -> expandType(valueType)))
-    case TAltAllele => AltAllele.t
+    case TAltAllele => AltAllele.expandedType
     case TInterval =>
       TStruct(
-        "start" -> Locus.t,
-        "end" -> Locus.t)
+        "start" -> Locus.expandedSchema,
+        "end" -> Locus.expandedSchema)
     case _ => t
   }
 

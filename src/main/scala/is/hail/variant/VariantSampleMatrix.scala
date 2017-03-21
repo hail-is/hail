@@ -199,12 +199,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       it.map { case (v, va, s, sa, g) =>
         keyEC.setAll(localGlobalAnnotation, v, va, s, sa, g)
         val key = Annotation.fromSeq(keyF())
-        (key, Annotation(localGlobalAnnotation, v, va, s, sa, g))
+        (key, Row(localGlobalAnnotation, v, va, s, sa, g))
       }
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map { case (k, agg) =>
         resultOp(agg)
-        Annotation.fromSeq(k.asInstanceOf[Row].toSeq ++ aggF())
+        Row.fromSeq(k.asInstanceOf[Row].toSeq ++ aggF())
       }
 
     KeyTable(hc, ktRDD, signature, keyNames)
@@ -709,9 +709,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val ktRdd = kt.keyedRDD()
 
+    val keyFuncArray = vdsKeyFs.toArray
+
     val thisRdd = sparkContext.parallelize(sampleIdsAndAnnotations).map { case (s, sa) =>
       vdsKeyEc.setAll(s, sa)
-      (Annotation.fromSeq(vdsKeyFs.map(_ ())), s)
+      (Row.fromSeq(keyFuncArray.map(_ ())), s)
     }
 
     val annotationMap = ktRdd.join(thisRdd).map { case (_, (tableAnnotation, s)) => (s, tableAnnotation) }
@@ -803,7 +805,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val keyedRDD = kt.keyedRDD().map { case (k: Row, a) => (k(0).asInstanceOf[Variant], a) }
       .filter(_._1 != null)
 
-    val ordRdd = OrderedRDD(keyedRDD, None, None)
+    val ordRdd = OrderedRDD(keyedRDD.mapValues(x => x: Annotation), None, None)
 
     annotateVariants(ordRdd, finalType, inserter)
   }
@@ -827,7 +829,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val (finalType, inserter) =
       buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val ktRdd = kt.keyedRDD()
+    val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v)}
 
     val thisRdd = rdd.map { case (v, (va, gs)) =>
       vdsKeyEc.setAll(v, va)
@@ -881,7 +883,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     import is.hail.variant.LocusImplicits.orderedKey
     val lociRDD = locusRDD.map {
       _.map { a =>
-        (locusQuery(a), a)
+        (locusQuery(a), a: Annotation)
       }.value
     }
       .filter { case (l, a) => l != null }
@@ -941,7 +943,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val keyedRDD = variantRDD.map {
       _.map { a =>
-        (variantQuery(a), a)
+        (variantQuery(a), a: Annotation)
       }.value
     }
       .filter { case (v, a) => v != null }
@@ -1430,7 +1432,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           }
 
           assert(j == n)
-          Row.fromSeq(a): Annotation
+          Row.fromSeq(a)
         }
       },
       sig,
@@ -1834,7 +1836,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def samplesKT(): KeyTable = {
     KeyTable(hc, sparkContext.parallelize(sampleIdsAndAnnotations)
       .map { case (s, sa) =>
-        Annotation(s, sa)
+        Row(s, sa)
       },
       TStruct(
         "s" -> TString,
@@ -1927,7 +1929,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def variantsKT(): KeyTable = {
     val localVASignature = vaSignature
     KeyTable(hc, rdd.map { case (v, (va, gs)) =>
-      Annotation(v, va)
+      Row(v, va)
     },
       TStruct(
         "v" -> TVariant,

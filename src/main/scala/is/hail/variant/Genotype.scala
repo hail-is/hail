@@ -396,7 +396,7 @@ object Genotype {
     new GenericGenotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull, fakeRef, isDosage)
   }
 
-  def schema: DataType = StructType(Array(
+  def sparkSchema: DataType = StructType(Array(
     StructField("gt", IntegerType),
     StructField("ad", ArrayType(IntegerType, containsNull = false)),
     StructField("dp", IntegerType),
@@ -405,7 +405,7 @@ object Genotype {
     StructField("fakeRef", BooleanType, nullable = false),
     StructField("isDosage", BooleanType, nullable = false)))
 
-  def t: Type = TStruct(
+  def expandedType: TStruct = TStruct(
     "gt" -> TInt,
     "ad" -> TArray(TInt),
     "dp" -> TInt,

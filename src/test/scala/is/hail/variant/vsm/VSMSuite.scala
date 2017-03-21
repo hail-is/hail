@@ -12,6 +12,7 @@ import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.collection.mutable
@@ -390,7 +391,7 @@ class VSMSuite extends SparkSuite {
     forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.key = pcoin(0.5)")
 
-      val kt = KeyTable(hc, sc.parallelize(Array(Annotation(true, 1), Annotation(false, 2))),
+      val kt = KeyTable(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
         TStruct(("key", TBoolean), ("value", TInt)), Array("key"))
 
       val resultVds = vds2.annotateVariantsKeyTable(kt, Seq("va.key"), "va.foo = table.value")
@@ -419,8 +420,8 @@ class VSMSuite extends SparkSuite {
           if (b) 1 else 2
         else if (b) 3 else 4
 
-      def makeAnnotation(a: Boolean, b: Boolean): Annotation =
-        Annotation(a, b, f(a, b))
+      def makeAnnotation(a: Boolean, b: Boolean): Row =
+        Row(a, b, f(a, b))
 
       val mapping = sc.parallelize(Array(
         makeAnnotation(true, true),

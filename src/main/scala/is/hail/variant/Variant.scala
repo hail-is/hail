@@ -40,11 +40,11 @@ object CopyState extends Enumeration {
 }
 
 object AltAllele {
-  val schema: StructType = StructType(Array(
+  def sparkSchema: StructType = StructType(Array(
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
 
-  val t: TStruct = TStruct("ref" -> TString,
+  val expandedType: TStruct = TStruct("ref" -> TString,
     "alt" -> TString)
 
   def fromRow(r: Row): AltAllele =
@@ -162,19 +162,19 @@ object Variant {
 
   implicit def arbVariant: Arbitrary[Variant] = Arbitrary(gen)
 
-  val schema: StructType =
+  def sparkSchema: StructType =
     StructType(Array(
       StructField("contig", StringType, nullable = false),
       StructField("start", IntegerType, nullable = false),
       StructField("ref", StringType, nullable = false),
-      StructField("altAlleles", ArrayType(AltAllele.schema, containsNull = false),
+      StructField("altAlleles", ArrayType(AltAllele.sparkSchema, containsNull = false),
         nullable = false)))
 
-  val t: TStruct =
+  def expandedType: TStruct =
     TStruct("contig" -> TString,
       "start" -> TInt,
       "ref" -> TString,
-      "altAlleles" -> TArray(AltAllele.t))
+      "altAlleles" -> TArray(AltAllele.expandedType))
 
   def fromRow(r: Row) =
     Variant(r.getAs[String](0),

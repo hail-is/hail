@@ -258,7 +258,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
 
   def makeSchema: StructType = {
     StructType(Array(
-      StructField("variant", Variant.schema, nullable = false),
+      StructField("variant", Variant.sparkSchema, nullable = false),
       StructField("annotations", gds.vaSignature.schema),
       StructField("gs", ArrayType(gds.genotypeSignature.schema))
     ))
