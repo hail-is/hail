@@ -632,6 +632,97 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.explode(column_names))
 
     @handle_py4j
+    def query_typed(self, exprs):
+        """Performs aggregation queries over columns of the table, and returns Python object(s) and types.
+
+        **Examples**
+
+        >>> mean_value, t = kt1.query_typed('C1.stats().mean')
+
+        >>> [hist, counter], [t1, t2] = kt1.query_typed(['HT.hist(50, 80, 10)', 'SEX.counter()'])
+
+        See :py:meth:`.Keytable.query` for more information.
+
+        :param exprs:
+        :type exprs: str or list of str
+
+        :rtype: (annotation or list of annotation,  :class:`.Type` or list of :class:`.Type`)
+        """
+
+
+        if isinstance(exprs, list):
+            result_list = self._jkt.query(jarray(Env.jvm().java.lang.String, exprs))
+            ptypes = [Type._from_java(x._2()) for x in result_list]
+            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            return annotations, ptypes
+
+        else:
+            result = self._jkt.query(exprs)
+            t = Type._from_java(result._2())
+            return t._convert_to_py(result._1()), t
+
+
+    @handle_py4j
+    def query(self, exprs):
+        """Performs aggregation queries over columns of the table, and returns Python object(s).
+
+        **Examples**
+
+        >>> mean_value = kt1.query('C1.stats().mean')
+
+        >>> [hist, counter] = kt1.query(['HT.hist(50, 80, 10)', 'SEX.counter()'])
+
+        **Notes**
+
+        This method evaluates Hail expressions over the rows of the key table.
+        The ``exprs`` argument requires either a single string or a list of
+        strings. If a single string was passed, then a single result is
+        returned. If a list is passed, a list is returned.
+
+
+        The namespace of the expressions includes one aggregable for each column
+        of the key table. We use the example ``kt1`` here, which contains columns
+        ``ID``, ``HT``, ``Sex``, ``X``, ``Z``, ``C1``, ``C2``, and ``C3``. Queries
+        in this key table will contain the following namespace:
+
+        - ``ID``: (*Aggregable[Int]*)
+        - ``HT``: (*Aggregable[Int]*)
+        - ``SEX``: (*Aggregable[String]*)
+        - ``X``: (*Aggregable[Int]*)
+        - ``Z``: (*Aggregable[Int]*)
+        - ``C1``: (*Aggregable[Int]*)
+        - ``C2``: (*Aggregable[Int]*)
+        - ``C3``: (*Aggregable[Int]*)
+
+        Map and filter expressions on these aggregables have the same additional
+        scope, which is all the columns in the key table. In our example, this
+        includes:
+
+        - ``ID``: (*Int*)
+        - ``HT``: (*Int*)
+        - ``SEX``: (*String*)
+        - ``X``: (*Int*)
+        - ``Z``: (*Int*)
+        - ``C1``: (*Int*)
+        - ``C2``: (*Int*)
+        - ``C3``: (*Int*)
+
+        This scope means that operations like the below are permitted:
+
+        >>> fraction_tall_male = kt1.query('HT.filter(x => SEX == "M").fraction(x => x > 70)')
+
+        >>> ids = kt1.query('ID.filter(x => C2 < C3).collect()')
+
+        :param exprs:
+        :type exprs: str or list of str
+
+        :rtype: annotation or list of annotation
+        """
+
+        r, t = self.query_typed(exprs)
+        return r
+
+    @handle_py4j
     def collect(self):
         """Collect key table as a Python object."""
 

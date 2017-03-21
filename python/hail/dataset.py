@@ -2961,10 +2961,10 @@ class VariantDataset(object):
         **Notes**
 
         This method evaluates Hail expressions over samples and sample
-        annotations.  The ``exprs`` argument requires either a list of
-        strings or a single string (which will be interpreted as a list
-        with one element).  The method returns a list of results (which
-        contains one element if the input parameter was a single str).
+        annotations.  The ``exprs`` argument requires either a single string
+        or a list of strings. If a single string was passed, then a single
+        result is returned. If a list is passed, a list is returned.
+
 
         The namespace of the expressions includes:
 
@@ -3033,10 +3033,10 @@ class VariantDataset(object):
         **Notes**
 
         This method evaluates Hail expressions over variants and variant
-        annotations.  The ``exprs`` argument requires either a list of
-        strings or a single string (which will be interpreted as a list
-        with one element).  The method returns a list of results (which
-        contains one element if the input parameter was a single str).
+        annotations.  The ``exprs`` argument requires either a single string
+        or a list of strings. If a single string was passed, then a single
+        result is returned. If a list is passed, a list is returned.
+
 
         The namespace of the expressions includes:
 
@@ -3052,15 +3052,15 @@ class VariantDataset(object):
 
         **Performance Note**
         It is far faster to execute multiple queries in one method than
-        to execute multiple query methods.  This:
-
-        >>> result1 = vds.query_variants('variants.count()')
-        >>> result2 = vds.query_variants('variants.filter(v => v.altAllele.isSNP()).count()')
-
-        will be nearly twice as slow as this:
+        to execute multiple query methods.  The combined query:
 
         >>> exprs = ['variants.count()', 'variants.filter(v => v.altAllele.isSNP()).count()']
         >>> [num_variants, num_snps] = vds.query_variants(exprs)
+
+        will be nearly twice as fast as the split query:
+
+        >>> result1 = vds.query_variants('variants.count()')
+        >>> result2 = vds.query_variants('variants.filter(v => v.altAllele.isSNP()).count()')
 
         :param exprs: query expressions
         :type exprs: str or list of str

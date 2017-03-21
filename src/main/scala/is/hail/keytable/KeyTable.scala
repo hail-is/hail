@@ -190,6 +190,32 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
   def mapAnnotations[T](f: (Annotation) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(a => f(a))
 
+  def query(expr: String): (Annotation, Type) = query(Array(expr)).head
+
+  def query(exprs: java.util.ArrayList[String]): Array[(Annotation, Type)] = query(exprs.asScala.toArray)
+
+  def query(exprs: Array[String]): Array[(Annotation, Type)] = {
+    val aggregationST = fields.zipWithIndex.map {
+      case (fd, i) => (fd.name, (i, fd.typ))
+    }.toMap
+
+    val ec = EvalContext(fields.zipWithIndex.map {
+      case (fd, i) => (fd.name, (i, TAggregable(fd.typ, aggregationST)))
+    }.toMap)
+
+    val ts = exprs.map(e => Parser.parseExpr(e, ec))
+
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
+      case (ec, a) =>
+        ec.setAllFromRow(a.asInstanceOf[Row])
+    })
+
+    val r = rdd.aggregate(zVals.map(_.copy()))(seqOp, combOp)
+    resultOp(r)
+
+    ts.map { case (t, f) => (f(), t) }
+  }
+
   def queryRow(code: String): (Type, Querier) = {
     val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val (t, f) = Parser.parseExpr(code, ec)
