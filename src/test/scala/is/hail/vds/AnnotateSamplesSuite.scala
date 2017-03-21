@@ -20,8 +20,7 @@ class AnnotateSamplesSuite extends SparkSuite {
 
   @Test def testKeyTable() {
     val kt = hc.importKeyTable(List("src/test/resources/sampleAnnotations.tsv"),
-      keys = List("Sample"),
-      config = TextTableConfiguration(impute = true))
+      config = TextTableConfiguration(impute = true)).keyBy("Sample")
 
 
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
