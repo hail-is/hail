@@ -247,7 +247,7 @@ class KeyTable(object):
 
         Join ``kt1`` to ``kt2`` to produce ``kt_joined``:
 
-        >>> kt_result = kt1.join(kt2)
+        >>> kt_result = kt1.key_by('ID').join(kt2.key_by('ID'))
 
         **Notes:**
 

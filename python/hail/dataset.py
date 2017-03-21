@@ -862,12 +862,13 @@ class VariantDataset(object):
 
         Add annotations from a variant-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/variant-lof.tsv', 'v', config=TextTableConfig(impute=True))
+        >>> kt = hc.import_keytable('data/variant-lof.tsv', config=TextTableConfig(impute=True)).key_by('v')
         >>> vds_result = vds.annotate_variants_keytable(kt, 'va.lof = table.lof')
 
         Add annotations from a gene-and-type-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/locus-metadata.tsv', ['gene', 'type'], config=TextTableConfig(impute=True))
+        >>> kt = hc.import_keytable('data/locus-metadata.tsv',
+        ...                         config=TextTableConfig(impute=True)).key_by(['gene', 'type'])
         >>>
         >>> vds_result = (vds.annotate_variants_keytable(kt,
         ...       'va.foo = table.foo',
