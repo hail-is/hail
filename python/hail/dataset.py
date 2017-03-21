@@ -49,10 +49,10 @@ class VariantDataset(object):
 
         The key table must be keyed by one column of type :py:class:`.TVariant`.
 
-        Any columns in the key table become variant annotations in the result.
-        This means that a key table with columns ``v`` (*Variant*, key column)
-        and ``gene`` (*String*) produces a sites-only dataset a ``va.gene``
-        annotation.
+        All columns in the key table become variant annotations in the result.
+        For example, a key table with key column ``v`` (*Variant*) and column
+        ``gene`` (*String*) will produce a sites-only variant dataset with a
+        ``va.gene`` variant annotation
 
         :param key_table: variant-keyed key table
         :type key_table: :py:class:`.KeyTable`
