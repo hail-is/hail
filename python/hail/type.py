@@ -627,4 +627,5 @@ __singletons__ = {'is.hail.expr.TInt$': TInt,
                   'is.hail.expr.TAltAllele$': TAltAllele,
                   'is.hail.expr.TLocus$': TLocus,
                   'is.hail.expr.TGenotype$': TGenotype,
+                  'is.hail.expr.TCall$': TCall,
                   'is.hail.expr.TInterval$': TInterval}
