@@ -58,7 +58,10 @@ class GenericDatasetSuite extends SparkSuite {
   }
 
   @Test def testExportVCF() {
+    val gds_exportvcf_path = tmpDir.createTempFile(extension = ".vcf")
     val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz", nPartitions = Some(4))
+    gds.exportVCF(gds_exportvcf_path)
+    assert(gds.same(hc.importVCFGeneric(gds_exportvcf_path)))
 
     // not TGenotype or TStruct signature
     intercept[FatalException] {

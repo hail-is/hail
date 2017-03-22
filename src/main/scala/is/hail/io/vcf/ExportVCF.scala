@@ -40,7 +40,7 @@ object ExportVCF {
 
   def emitFormatField(f: Field, sb: StringBuilder, a: Annotation) {
     f.typ match {
-      case TCall => Call.toString(a.asInstanceOf[Call])
+      case TCall => sb.append(Call.toString(a.asInstanceOf[Call]))
       case it: TIterable =>
         if (a == null)
           sb += '.'
