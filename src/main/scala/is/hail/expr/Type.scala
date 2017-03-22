@@ -1009,7 +1009,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def typeCheck(a: Any): Boolean =
     if (fields.isEmpty)
-      a == null
+      a == null || a.isInstanceOf[Row] && a.asInstanceOf[Row].length == 0
     else a == null ||
       a.isInstanceOf[Row] && {
         val r = a.asInstanceOf[Row]

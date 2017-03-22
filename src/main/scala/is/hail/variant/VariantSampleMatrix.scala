@@ -664,6 +664,60 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateSamples(s => m.getOrElse(s, null), finalType, inserter)
   }
 
+  def annotateSamplesKeyTable(kt: KeyTable, code: String): VariantSampleMatrix[T] = {
+    if (kt.keyFields.length != 1 || kt.keyFields(0).typ != TString)
+      fatal(s"Annotating samples requires a key table with 1 key of type String. " +
+        s"Found ${ kt.nKeys } ${ plural(kt.nKeys, "key") }${
+          if (kt.nKeys == 0) "" else s": [ ${
+            kt.keyFields.map(f => s"${ prettyIdentifier(f.name) }: ${ f.typ }").mkString(", ")
+          } ]"
+        }")
+
+    val ec = EvalContext(Map("sa" -> (0, saSignature), "table" -> (1, kt.signature)))
+
+    val (finalType, inserter) =
+      buildInserter(code, saSignature, ec, Annotation.SAMPLE_HEAD)
+
+    val ktMap = kt.keyedRDD()
+      .map { case (k, v) => (k.asInstanceOf[Row].getAs[String](0), v) }
+      .filter(_._1 != null)
+      .collectAsMap()
+
+    annotateSamples(ktMap, finalType, inserter)
+  }
+
+  def annotateSamplesKeyTable(kt: KeyTable, vdsKey: java.util.ArrayList[String], code: String): VariantSampleMatrix[T] =
+    annotateSamplesKeyTable(kt, vdsKey.asScala, code)
+
+  def annotateSamplesKeyTable(kt: KeyTable, vdsKey: Seq[String], code: String): VariantSampleMatrix[T] = {
+    val vdsKeyEc = EvalContext(Map("s" -> (0, TSample), "sa" -> (1, saSignature)))
+
+    val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, vdsKeyEc)).unzip
+
+    val keyTypes = kt.keyFields.map(_.typ)
+    if (!(keyTypes sameElements vdsKeyType))
+      fatal(s"Key signature of KeyTable, `${ keyTypes.mkString(", ") }', must match type of computed key, `${ vdsKeyType.mkString(", ") }'.")
+
+    val ktSig = kt.signature
+
+    val inserterEc = EvalContext(Map("sa" -> (0, saSignature), "table" -> (1, ktSig)))
+
+    val (finalType, inserter) =
+      buildInserter(code, vaSignature, inserterEc, Annotation.SAMPLE_HEAD)
+
+    val ktRdd = kt.keyedRDD()
+
+    val thisRdd = sparkContext.parallelize(sampleIdsAndAnnotations).map { case (s, sa) =>
+      vdsKeyEc.setAll(s, sa)
+      (Annotation.fromSeq(vdsKeyFs.map(_ ())), s)
+    }
+
+    val annotationMap = ktRdd.join(thisRdd).map { case (_, (tableAnnotation, s)) => (s, tableAnnotation) }
+      .collectAsMap()
+
+    annotateSamples(annotationMap, finalType, inserter)
+  }
+
   def annotateSamples(annotation: (String) => Annotation, newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
     val newAnnotations = sampleIds.zipWithIndex.map { case (id, i) =>
       val sa = sampleAnnotations(i)
@@ -745,6 +799,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
     val keyedRDD = kt.keyedRDD().map { case (k: Row, a) => (k(0).asInstanceOf[Variant], a) }
+      .filter(_._1 != null)
 
     val ordRdd = OrderedRDD(keyedRDD, None, None)
 
@@ -783,7 +838,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val ordRdd = OrderedRDD(variantKeyedRdd, None, None)
 
     val newRdd = rdd.orderedLeftJoinDistinct(ordRdd)
-      .mapValues { case ((va, gs), optVa) => (optVa.getOrElse(va), gs) }
+      .mapValues { case ((va, gs), optVa) => (optVa.getOrElse(inserter(va, null)), gs) }
       .asOrderedRDD
 
     copy(rdd = newRdd, vaSignature = finalType)

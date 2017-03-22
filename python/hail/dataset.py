@@ -769,6 +769,62 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    def annotate_samples_keytable(self, keytable, expr, vds_key=None):
+        """Annotate samples with a :py:class:`.KeyTable`.
+
+        If `vds_key` is None, the key table must have exactly one key of
+        type *String*.
+
+        If `vds_key` is not None, it must be a list of Hail expressions whose types
+        match, in order, the `keytable`'s key types.
+
+        **Examples**
+
+        Add annotations from a sample-keyed TSV:
+
+        >>> kt = hc.import_keytable('data/samples2.tsv',
+        ...                         config=TextTableConfig(impute=True, delimiter=",")).key_by('PT-ID')
+        ... annotate_vds = vds.annotate_samples_keytable(kt, expr='sa.batch = table.Batch')
+
+        **Notes**
+
+        ``expr`` has the following symbols in scope:
+
+          - ``sa``: sample annotations
+          - ``table``: :py:class:`.KeyTable` value
+
+        each expression in the list ``vds_key`` has the following symbols in
+        scope:
+
+          - ``s`` (*Sample*): :ref:`sample`
+          - ``sa``: sample annotations
+
+        :param keytable: Key table with which to annotate samples.
+        :type keytable: :class:`.KeyTable`
+
+        :param str expr: Annotation expression.
+
+        :param vds_key: Join key(s) in the dataset. Sample ID is used if this parameter is None.
+        :type vds_key: list of str, str, or None
+
+        :rtype: :class:`VariantDataset`
+        """
+
+        if isinstance(expr, list):
+            expr = ','.join(expr)
+
+        if vds_key is None:
+            jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, expr)
+        else:
+            if not isinstance(vds_key, list):
+                vds_key = [vds_key]
+            jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, vds_key, expr)
+
+        return VariantDataset(self.hc, jvds)
+
+
+
+    @handle_py4j
     def annotate_variants_bed(self, input, root, all=False):
         """Annotate variants based on the intervals in a .bed file.
 
