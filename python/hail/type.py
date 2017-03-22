@@ -1,6 +1,6 @@
 import abc
 from hail.java import scala_object, Env
-from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct
+from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call
 
 
 class TypeCheckError(Exception):
@@ -535,6 +535,33 @@ class TGenotype(Type):
                                  type(annotation))
 
 
+class TCall(Type):
+    """
+    Hail type corresponding to :class:`hail.representation.Call`
+    """
+    __metaclass__ = SingletonType
+
+    def __init__(self):
+        super(TCall, self).__init__(scala_object(Env.hail().expr, 'TCall'))
+
+    def _convert_to_py(self, annotation):
+        if annotation:
+            return Call._from_java(annotation)
+        else:
+            return annotation
+
+    def _convert_to_j(self, annotation):
+        if annotation is not None:
+            return annotation._jrep
+        else:
+            return annotation
+
+    def _typecheck(self, annotation):
+        if annotation and not isinstance(annotation, Call):
+            raise TypeCheckError('TCall expected type hail.representation.Call, but found %s' %
+                                 type(annotation))
+
+
 class TLocus(Type):
     """
     Hail type corresponding to :class:`hail.representation.Locus`
@@ -600,4 +627,5 @@ __singletons__ = {'is.hail.expr.TInt$': TInt,
                   'is.hail.expr.TAltAllele$': TAltAllele,
                   'is.hail.expr.TLocus$': TLocus,
                   'is.hail.expr.TGenotype$': TGenotype,
+                  'is.hail.expr.TCall$': TCall,
                   'is.hail.expr.TInterval$': TInterval}
