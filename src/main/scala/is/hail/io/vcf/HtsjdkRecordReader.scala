@@ -327,7 +327,7 @@ case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordRead
         }: _*)
       assert(genotypeSignature.typeCheck(a))
       a
-    }.toIterable
+    }.toArray
 
     (v, (va, gs))
   }

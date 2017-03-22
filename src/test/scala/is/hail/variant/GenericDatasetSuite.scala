@@ -102,4 +102,31 @@ class GenericDatasetSuite extends SparkSuite {
 
     hc.importVCF(path).write(path2)
   }
+
+  @Test def testCount() {
+    val vcf = "src/test/resources/sample.vcf.bgz"
+    val vds = hc.importVCF(vcf)
+    val gds = hc.importVCFGeneric(vcf).annotateGenotypesExpr("g = g.GT")
+    assert(vds.count(countGenotypes = true) == gds.count(countGenotypes = true))
+  }
+
+  @Test def testPersistCoalesce() {
+    val vcf = "src/test/resources/sample.vcf.bgz"
+
+    val gds_cache = hc.importVCFGeneric(vcf).cache()
+    val gds_persist = hc.importVCFGeneric(vcf).persist("MEMORY_AND_DISK")
+    val gds_coalesce = hc.importVCFGeneric(vcf).coalesce(5)
+
+    assert(gds_cache.storageLevel == "MEMORY_ONLY" &&
+      gds_persist.storageLevel == "MEMORY_AND_DISK" &&
+      gds_coalesce.nPartitions == 5)
+  }
+
+  @Test def testExportGenotypes() {
+    val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz").annotateGenotypesExpr("g = g.GT")
+    val path = tmpDir.createTempFile("testExportGenotypes", ".tsv")
+    gds.exportGenotypes(path, "s, v, g", false)
+    val countResult = gds.count(countGenotypes = true).nCalled.getOrElse(0)
+    assert(sc.textFile(path).count() == countResult)
+  }
 }

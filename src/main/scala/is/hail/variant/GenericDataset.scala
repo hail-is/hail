@@ -11,6 +11,7 @@ import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
 import is.hail.utils._
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.types.{ArrayType, StructField, StructType}
+import org.apache.spark.storage.StorageLevel
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -111,6 +112,33 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
       }).copy(genotypeSignature = finalType)
   }
 
+  def cache(): GenericDataset = persist("MEMORY_ONLY")
+
+  def coalesce(k: Int, shuffle: Boolean = true): GenericDataset =
+    gds.copy(rdd = gds.rdd.coalesce(k, shuffle = shuffle)(null).toOrderedRDD)
+
+  def count(countGenotypes: Boolean = false): CountResult = {
+    val (nVariants, nCalled) =
+      if (countGenotypes) {
+        val (nVar, nCalled) = gds.rdd.map { case (v, (va, gs)) =>
+          (1L, gs.count(g => g != null).toLong)
+        }.fold((0L, 0L)) { (comb, x) =>
+          (comb._1 + x._1, comb._2 + x._2)
+        }
+        (nVar, Some(nCalled))
+      } else
+        (gds.countVariants, None)
+
+    CountResult(gds.nSamples, nVariants, nCalled)
+  }
+
+  def exportGenotypes(path: String, expr: String, typeFile: Boolean, printMissing: Boolean = false) {
+    val localPrintMissing = printMissing
+    val filterF: Annotation => Boolean = g => g != null || localPrintMissing
+
+    gds.exportGenotypes(path, expr, typeFile, filterF)
+  }
+
   /**
     *
     * @param path output path
@@ -153,6 +181,17 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
         else
           null
       })
+  }
+
+  def persist(storageLevel: String = "MEMORY_AND_DISK"): GenericDataset = {
+    val level = try {
+      StorageLevel.fromString(storageLevel)
+    } catch {
+      case e: IllegalArgumentException =>
+        fatal(s"unknown StorageLevel `$storageLevel'")
+    }
+
+    gds.copy(rdd = gds.rdd.persist(level))
   }
 
   def queryGA(code: String): (Type, Querier) = {
