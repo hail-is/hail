@@ -2,15 +2,25 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.type import Type
+from hail.type import Type, TGenotype
 from hail.representation import Interval, IntervalTree
 from hail.utils import TextTableConfig
 from py4j.protocol import Py4JJavaError
+from decorator import decorator
 
 import warnings
 
 warnings.filterwarnings(module=__name__, action='once')
 
+@decorator
+def requireTGenotype(func, vds, *args, **kwargs):
+    if vds._is_generic_genotype:
+        if isinstance(vds.genotype_schema, TGenotype):
+            coerced_vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
+            func(coerced_vds, *args, **kwargs)
+        else:
+            raise TypeError("Genotype signature must be of type TGenotype, but found '%s'" % type(vds.genotype_schema))
+    return func(vds, *args, **kwargs)
 
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
@@ -20,7 +30,7 @@ class VariantDataset(object):
     and simulated using :py:meth:`~hail.HailContext.balding_nichols_model`.
 
     Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`,
-     use :py:meth:`~hail.HailContext.read` to load the variant dataset into the environment.
+    use :py:meth:`~hail.HailContext.read` to load the variant dataset into the environment.
 
     >>> vds = hc.read("data/example.vds")
 
@@ -68,8 +78,15 @@ class VariantDataset(object):
     @property
     def _jvdf(self):
         if self._jvdf_cache is None:
-            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
+            if self._is_generic_genotype:
+                self._jvdf_cache = Env.hail().variant.GenericDatasetFunctions(self._jvds)
+            else:
+                self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
         return self._jvdf_cache
+
+    @property
+    def _is_generic_genotype(self):
+        return self._jvds.isGenericGenotype()
 
     @property
     def sample_ids(self):
@@ -300,6 +317,7 @@ class VariantDataset(object):
         self._jvds.aggregateIntervals(input, expr, output)
 
     @handle_py4j
+    @requireTGenotype
     def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
 
@@ -324,6 +342,7 @@ class VariantDataset(object):
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
+
         if isinstance(expr, list):
             expr = ",".join(expr)
 
@@ -1177,6 +1196,7 @@ class VariantDataset(object):
         return self
 
     @handle_py4j
+    @requireTGenotype
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
@@ -1269,6 +1289,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.downsampleVariants(keep))
 
     @handle_py4j
+    @requireTGenotype
     def export_gen(self, output):
         """Export variant dataset as GEN and SAMPLE file.
 
@@ -1345,6 +1366,7 @@ class VariantDataset(object):
         self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing)
 
     @handle_py4j
+    @requireTGenotype
     def export_plink(self, output, fam_expr='id = s.id'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`_ BED, BIM and FAM.
 
@@ -1523,6 +1545,7 @@ class VariantDataset(object):
         self._jvds.exportVariants(output, expr, types)
 
     @handle_py4j
+    @requireTGenotype
     def export_variants_cass(self, variant_expr, genotype_expr,
                              address,
                              keyspace,
@@ -1537,6 +1560,7 @@ class VariantDataset(object):
                                            drop, export_ref, export_missing, block_size)
 
     @handle_py4j
+    @requireTGenotype
     def export_variants_solr(self, variant_expr, genotype_expr,
                              solr_url=None,
                              solr_cloud_collection=None,
@@ -1618,9 +1642,13 @@ class VariantDataset(object):
 
         """
 
-        self._jvdf.write(output, overwrite, parquet_genotypes)
+        if self._is_generic_genotype:
+            self._jvdf.write(output, overwrite)
+        else:
+            self._jvdf.write(output, overwrite, parquet_genotypes)
 
     @handle_py4j
+    @requireTGenotype
     def filter_alleles(self, condition, annotation='va = va', subset=True, keep=True,
                        filter_altered_genotypes=False, max_shift=100):
         """Filter a user-defined set of alternate alleles for each variant.
@@ -1802,6 +1830,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
@@ -2047,9 +2076,10 @@ class VariantDataset(object):
         return self._globals
 
     @handle_py4j
+    @requireTGenotype
     def grm(self, output, format, id_file=None, n_file=None):
         """Compute the Genetic Relatedness Matrix (GRM).
-        
+
         **Examples**
         
         >>> vds.grm('data/grm.rel', 'rel')
@@ -2083,6 +2113,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
@@ -2099,6 +2130,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.hardCalls())
 
     @handle_py4j
+    @requireTGenotype
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
@@ -2166,6 +2198,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
+    @requireTGenotype
     def ibd_prune(self, threshold, maf=None, bounded=True):
         """
         Prune samples from variant dataset based on PI_HAT values of IBD computation.
@@ -2191,6 +2224,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(maf), bounded))
 
     @handle_py4j
+    @requireTGenotype
     def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
@@ -2270,6 +2304,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
+    @requireTGenotype
     def linreg(self, y, covariates=[], root='va.linreg', min_ac=1, min_af=0.0):
         r"""Test each variant for association using linear regression.
 
@@ -2366,6 +2401,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
     def lmmreg(self, kinship_vds, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
                run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, force_block=False,
                force_grammian=False):
@@ -2587,6 +2623,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
     def logreg(self, test, y, covariates=[], root='va.logreg'):
         """Test each variant for association using logistic regression.
 
@@ -2704,6 +2741,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
     def mendel_errors(self, output, fam):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
@@ -2821,6 +2859,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
@@ -3306,6 +3345,7 @@ class VariantDataset(object):
         return self._jvds.same(other._jvds, tolerance)
 
     @handle_py4j
+    @requireTGenotype
     def sample_qc(self):
         """Compute per-sample QC metrics.
 
@@ -3379,6 +3419,7 @@ class VariantDataset(object):
         return self._jvds.storageLevel()
 
     @handle_py4j
+    @requireTGenotype
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
@@ -3508,6 +3549,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
     def tdt(self, fam, root='va.tdt'):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
@@ -3613,6 +3655,7 @@ class VariantDataset(object):
         self._jvds.typecheck()
 
     @handle_py4j
+    @requireTGenotype
     def variant_qc(self):
         """Compute common variant statistics (quality control metrics).
 
