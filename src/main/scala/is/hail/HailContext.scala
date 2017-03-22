@@ -327,12 +327,14 @@ class HailContext private(val sc: SparkContext,
     val sampleIds = datasets.head.sampleIds
     val vaSchema = datasets.head.vaSignature
     val wasSplit = datasets.head.wasSplit
+    val genotypeSchema = datasets.head.genotypeSignature
     val reference = inputs(0)
 
     datasets.indices.tail.foreach { i =>
       val vds = datasets(i)
       val ids = vds.sampleIds
       val vas = vds.vaSignature
+      val gsig = vds.genotypeSignature
       val path = inputs(i)
       if (ids != sampleIds) {
         fatal(
@@ -352,11 +354,25 @@ class HailContext private(val sc: SparkContext,
           vaSchema.toPrettyString(compact = true, printAttrs = true),
           vas.toPrettyString(compact = true, printAttrs = true)
         )
+      } else if (gsig != genotypeSchema) {
+        fatal(
+          s"""cannot read datasets with different genotype schemata
+             |  Schema in reference file $reference: @1
+             |  Schema in file $path: @2""".stripMargin,
+          genotypeSchema.toPrettyString(compact = true, printAttrs = true),
+          gsig.toPrettyString(compact = true, printAttrs = true)
+        )
       }
     }
 
     if (datasets.length > 1)
       info(s"Using sample and global annotations from ${ inputs(0) }")
+  }
+
+  def readMetadata(file: String): VariantMetadata = readAllMetadata(List(file))
+
+  def readAllMetadata(files: Seq[String]): VariantMetadata = {
+    VariantDataset.readMetadata(hadoopConf, files.head)._1
   }
 
   def read(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {

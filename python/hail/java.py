@@ -78,10 +78,16 @@ def from_option(x):
 def jindexed_seq(x):
     return Env.jutils().arrayListToISeq(x)
 
+def jset(x):
+    return Env.jutils().arrayListToSet(x)
 
 def jindexed_seq_args(x):
     args = [x] if isinstance(x, str) else x
     return jindexed_seq(args)
+
+def jset_args(x):
+    args = [x] if isinstance(x, str) else x
+    return jset(args)
 
 
 def jiterable_to_list(it):
