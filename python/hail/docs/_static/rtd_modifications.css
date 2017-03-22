@@ -59,6 +59,6 @@ div.nboutput div.output_area.stderr {
     padding: 10px;
 }
 
-.highlighted {
+.rst-content .highlighted {
     padding: 0;
 }
