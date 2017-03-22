@@ -767,9 +767,9 @@ class VariantDataset(object):
 
         Add annotations from a sample-keyed TSV:
 
-        >>> kt = hc.import_keytable('data/samples2.tsv', key_names=['PT-ID'],
-        ...                         config=TextTableConfig(impute=True, delimiter=","))
-        ... annotate_vds = vds.annotate_samples_keytable(kt, code='sa.batch = table.Batch')
+        >>> kt = hc.import_keytable('data/samples2.tsv',
+        ...                         config=TextTableConfig(impute=True, delimiter=",")).key_by('PT-ID')
+        ... annotate_vds = vds.annotate_samples_keytable(kt, expr='sa.batch = table.Batch')
 
         **Notes**
 
@@ -781,7 +781,7 @@ class VariantDataset(object):
         each expression in the list ``vds_key`` has the following symbols in
         scope:
 
-          - ``s`` (*Variant*): :ref:`sample`
+          - ``s`` (*Sample*): :ref:`sample`
           - ``sa``: sample annotations
 
         :param keytable: Key table with which to annotate samples.
@@ -789,8 +789,8 @@ class VariantDataset(object):
 
         :param str expr: Annotation expression.
 
-        :param vds_key: Join key in the dataset. Sample ID is used if this parameter is None.
-        :type vds_key: list of str or None
+        :param vds_key: Join key(s) in the dataset. Sample ID is used if this parameter is None.
+        :type vds_key: list of str, str, or None
 
         :rtype: :class:`VariantDataset`
         """
@@ -801,6 +801,8 @@ class VariantDataset(object):
         if vds_key is None:
             jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, expr)
         else:
+            if not isinstance(vds_key, list):
+                vds_key = [vds_key]
             jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, vds_key, expr)
 
         return VariantDataset(self.hc, jvds)
