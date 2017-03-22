@@ -2,6 +2,7 @@ package is.hail.methods
 
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import scala.collection.Searching._
 
 /**
   * Represents a KinshipMatrix, which is a matrix where the number at index (i, j) represents how related the samples at index
@@ -18,12 +19,14 @@ class KinshipMatrix(val matrix: IndexedRowMatrix, val sampleIds: Array[String]) 
     val (samplePairsToTake, samplePairsToDrop) = sampleIds.zipWithIndex.partition(pair => pair match {case (sampleName, index) => pred(sampleName)})
 
     val filteredSamples = samplePairsToTake.map(_._1)
-    val sampleNumsToDropSet = samplePairsToDrop.map(_._2).toSet
+    val sampleNumsToDropArray = samplePairsToDrop.map(_._2)
+    val sampleNumsToDropSet = sampleNumsToDropArray.toSet
     val sampleNumsToTakeArray = samplePairsToTake.map(_._2)
 
     val filteredRows = matrix.rows.filter(ir => !sampleNumsToDropSet(ir.index.toInt))
     val filteredRowsAndCols = filteredRows.map(ir => {
-      val index = ir.index - sampleNumsToDropSet.count(_ < ir.index)
+      val numBelowToDelete = sampleNumsToDropArray.search(ir.index.toInt) match {case InsertionPoint(i) => i}
+      val index = ir.index - numBelowToDelete
       val arrayVec = ir.vector.toArray
       val filteredArray = sampleNumsToTakeArray.map(i => arrayVec(i))
       new IndexedRow(index, Vectors.dense(filteredArray))
