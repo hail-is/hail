@@ -2554,16 +2554,15 @@ class VariantDataset(object):
         Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
 
         >>> assoc_vds = hc.read("data/example_lmmreg.vds")
-        >>> kinship_vds = assoc_vds.filter_variants_expr('va.useInKinship')
-        >>> lmm_vds = assoc_vds.lmmreg(kinship_vds, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
+        >>> kinship_matrix = assoc_vds.filter_variants_expr('va.useInKinship').rrm()
+        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
 
-        will execute the following five steps in order:
+        will execute the following four steps in order:
 
-        1) filter to samples for which ``sa.pheno``, ``sa.cov``, and ``sa.cov2`` are all defined
-        2) compute the kinship matrix :math:`K` (the RRM defined below) using those variants in ``kinship_vds``
-        3) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
-        4) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`_), storing results in global annotations under ``global.lmmreg``
-        5) test each variant for association, storing results under ``va.lmmreg`` in variant annotations
+        1) filter to samples in given kinship matrix to those for which ``sa.pheno``, ``sa.cov``, and ``sa.cov2`` are all defined
+        2) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
+        3) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`_), storing results in global annotations under ``global.lmmreg``
+        4) test each variant for association, storing results under ``va.lmmreg`` in variant annotations
 
         This plan can be modified as follows:
 
@@ -2730,8 +2729,8 @@ class VariantDataset(object):
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`_. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`_.
 
-        :param kinship_vds: Variant dataset used to compute kinship
-        :type kinship_vds: :class:`.VariantDataset`
+        :param kinshipMatrix: Kinship matrix to be used
+        :type kinshipMatrix: :class:`KinshipMatrix`
 
         :param str y: Response sample annotation.
 
@@ -2750,10 +2749,6 @@ class VariantDataset(object):
         :type delta: float or None
 
         :param float sparsity_threshold: AF threshold above which to use dense genotype vectors in rotation (advanced).
-
-        :param bool force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
-
-        :param bool force_grammian: Force using Spark's RowMatrix.computeGrammian to compute kinship (advanced).
 
         :return: Variant dataset with linear mixed regression annotations
         :rtype: :py:class:`.VariantDataset`
@@ -3483,6 +3478,20 @@ class VariantDataset(object):
 
     @handle_py4j
     def rrm(self, force_block = False, force_gramian = False):
+        """Computes the Realized Relationship Matrix based on this dataset.
+
+        **Examples**
+
+        Compute the RRM for `vds`.
+
+        >>> vds.rrm()
+
+        :param force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
+        :param force_gramian: Force using Spark's RowMatrix.computeGramian to compute kinship (advanced).
+
+        :return: Realized Relationship Matrix of all samples contained in this vds.
+        :rtype: :py:class:`KinshipMatrix`
+        """
         return KinshipMatrix(self._jvdf.rrm(force_block, force_gramian))
 
     @handle_py4j
