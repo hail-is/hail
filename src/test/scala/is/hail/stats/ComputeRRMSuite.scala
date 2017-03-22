@@ -4,6 +4,7 @@ import breeze.linalg._
 import breeze.stats.mean
 import is.hail.utils._
 import is.hail.{SparkSuite, TestUtils, stats}
+import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.testng.annotations.Test
 
 class ComputeRRMSuite extends SparkSuite {
@@ -34,11 +35,20 @@ class ComputeRRMSuite extends SparkSuite {
       W(::, i) *= math.sqrt(n) / norm(W(::, i))
     }
     val Klocal = (W * W.t) / W.cols.toDouble
-    val KwithoutBlock = ComputeRRM(vds, useBlock = false)._1
-    val KwithBlock = ComputeRRM(vds, useBlock = true)._1
+    val KwithoutBlock = ComputeRRM(vds, forceBlock = false)._1
+    val KwithBlock = ComputeRRM(vds, forceBlock = true)._1
 
-    //TestUtils.assertMatrixEqualityDouble(Klocal, KwithoutBlock)
-    //TestUtils.assertMatrixEqualityDouble(KwithBlock, KwithoutBlock)
+
+    //RRM originally returned Breeze matrices, now it returns IndexedRowMatrices, but until the interface is locked in
+    //I am just using reflection to convert to breeze matrices for testing purposes so I don't rewrite assertMatrixEqualityDouble.
+    def convertToBreeze(sparkMatrix: IndexedRowMatrix): Matrix[Double] = {
+      val sparkLocalMatrix = sparkMatrix.toBlockMatrix().toLocalMatrix()
+      val breezeConverter = sparkLocalMatrix.getClass.getMethod("asBreeze")
+      breezeConverter.invoke(sparkLocalMatrix).asInstanceOf[Matrix[Double]]
+    }
+
+    TestUtils.assertMatrixEqualityDouble(Klocal, convertToBreeze(KwithoutBlock))
+    TestUtils.assertMatrixEqualityDouble(convertToBreeze(KwithBlock), convertToBreeze(KwithoutBlock))
 
 
     // medium example with many constant gt vectors
@@ -60,10 +70,10 @@ class ComputeRRMSuite extends SparkSuite {
     }
 
     val K1local = (W1 * W1.t) / W1.cols.toDouble
-    val K1withoutBlock = ComputeRRM(vds1, useBlock = false)._1
-    val K1withBlock = ComputeRRM(vds1, useBlock = true)._1
+    val K1withoutBlock = ComputeRRM(vds1, forceBlock = false)._1
+    val K1withBlock = ComputeRRM(vds1, forceBlock = true)._1
 
-    //TestUtils.assertMatrixEqualityDouble(K1local, K1withoutBlock)
-    //TestUtils.assertMatrixEqualityDouble(K1withBlock, K1withoutBlock)
+    TestUtils.assertMatrixEqualityDouble(K1local, convertToBreeze(K1withoutBlock))
+    TestUtils.assertMatrixEqualityDouble(convertToBreeze(K1withBlock), convertToBreeze(K1withoutBlock))
   }
 }

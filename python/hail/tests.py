@@ -335,7 +335,8 @@ class ContextTests(unittest.TestCase):
 
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
 
-        vds_assoc = vds_assoc.lmmreg(vds_kinship, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
+        km = vds_kinship.rrm(False, False)
+        vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
         vds_assoc.export_variants('/tmp/lmmreg.tsv', 'Variant = v, va.lmmreg.*')
 

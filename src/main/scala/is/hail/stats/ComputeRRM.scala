@@ -32,28 +32,34 @@ object ComputeGramian {
 // diagonal values are approximately 1 assuming independent variants by Central Limit Theorem
 object ComputeRRM {
 
-  def apply(vds: VariantDataset, useBlock: Boolean): (IndexedRowMatrix, Long) = {
+  def apply(vds: VariantDataset, forceBlock: Boolean = false, forceGramian: Boolean = false): (IndexedRowMatrix, Long) = {
     def scaleMatrix(matrix: Matrix, scalar: Double): Matrix = {
       Matrices.dense(matrix.numRows, matrix.numCols, matrix.toArray.map(_ * scalar))
     }
 
+    val useBlock = (forceBlock, forceGramian) match {
+      case (false, false) => vds.nSamples > 3000 // for small matrices, computeGramian fits in memory and runs faster than BlockMatrix product
+      case (true, true) => fatal("Cannot force both Block and Gramian")
+      case (b, _) => b
+    }
+
     var rowCount: Long = -1
-    var computedGrammian: IndexedRowMatrix = null
+    var computedGramian: IndexedRowMatrix = null
     if (useBlock) {
       val A = ToNormalizedIndexedRowMatrix(vds)
       rowCount = A.rows.count()
-      computedGrammian = ComputeGramian.withBlock(A)
+      computedGramian = ComputeGramian.withBlock(A)
     } else {
       val A = ToNormalizedRowMatrix(vds)
       rowCount = A.numRows()
-      computedGrammian = ComputeGramian.withoutBlock(A)
+      computedGramian = ComputeGramian.withoutBlock(A)
     }
 
     val mRec = 1d / rowCount
 
-    (new IndexedRowMatrix(computedGrammian.rows.map(ir => new IndexedRow(ir.index, ir.vector.map(_ * mRec)))), rowCount)
-    //val scaledBlockRDD = computedGrammian.blocks.map(tuple => tuple match {case (coords, matrix) => (coords, scaleMatrix(matrix, mRec))})
-    //(new BlockMatrix(scaledBlockRDD, computedGrammian.rowsPerBlock, computedGrammian.colsPerBlock), rowCount.toInt)
+    (new IndexedRowMatrix(computedGramian.rows.map(ir => new IndexedRow(ir.index, ir.vector.map(_ * mRec)))), rowCount)
+    //val scaledBlockRDD = computedGramian.blocks.map(tuple => tuple match {case (coords, matrix) => (coords, scaleMatrix(matrix, mRec))})
+    //(new BlockMatrix(scaledBlockRDD, computedGramian.rowsPerBlock, computedGramian.colsPerBlock), rowCount.toInt)
   }
 }
 

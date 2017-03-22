@@ -53,7 +53,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     catchError {
-      multi.lmmreg(multi, "foo", Array(), true, "foo", "foo", false, None, 1, true, false)
+      multi.lmmreg(multi.rrm(true, false), "foo", Array(), true, "foo", "foo", false, None, 1)
     }
 
     catchError {

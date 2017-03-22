@@ -27,6 +27,155 @@ object LinearMixedRegression {
 
   def apply(
     assocVds: VariantDataset,
+    kinshipMatrix: KinshipMatrix,
+    ySA: String,
+    covSA: Array[String],
+    useML: Boolean,
+    rootGA: String,
+    rootVA: String,
+    runAssoc: Boolean,
+    optDelta: Option[Double],
+    sparsityThreshold: Double): VariantDataset = {
+
+    require(assocVds.wasSplit)
+
+    val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
+    Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
+
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, ySA, covSA)
+    val completeSamplesSet = completeSamples.toSet
+    val sampleMask = assocVds.sampleIds.map(completeSamplesSet).toArray
+
+
+    optDelta.foreach(delta =>
+      if (delta <= 0d)
+        fatal(s"delta must be positive, got ${ delta }"))
+
+    val covNames = "intercept" +: covSA
+
+    val filtKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet.contains)
+
+    if (filtKinshipMatrix.sampleIds.toVector != completeSamples)
+      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
+
+
+    val n = y.size
+    val k = cov.cols
+    val d = n - k - 1
+
+    if (d < 1)
+      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
+
+    info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
+
+    val cols = filtKinshipMatrix.matrix.numCols().toInt
+
+    val rrm = new DenseMatrix[Double](cols, cols, filtKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
+
+    //info(s"lmmreg: RRM computed using $m variants")
+    info(s"lmmreg: Computing eigenvectors of RRM...")
+
+    val eigK = eigSymD(rrm)
+    val Ut = eigK.eigenvectors.t
+    val S = eigK.eigenvalues // increasing order
+
+    assert(S.length == n)
+
+    info("lmmreg: 20 largest evals: " + ((n - 1) to math.max(0, n - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
+    info("lmmreg: 20 smallest evals: " + (0 until math.min(n, 20)).map(S(_).formatted("%.5f")).mkString(", "))
+
+    optDelta match {
+      case Some(_) => info(s"lmmreg: Delta specified by user")
+      case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
+    }
+
+    val UtC = Ut * cov
+    val Uty = Ut * y
+
+    val diagLMM = DiagLMM(UtC, Uty, S, optDelta, useML)
+
+    val delta = diagLMM.delta
+    val globalBetaMap = covNames.zip(diagLMM.globalB.toArray).toMap
+    val globalSg2 = diagLMM.globalS2
+    val globalSe2 = delta * globalSg2
+    val h2 = globalSg2 / (globalSg2 + globalSe2)
+
+    val header = "rank\teval"
+    val evalString = (0 until n).map(i => s"$i\t${ S(n - i - 1) }").mkString("\n")
+    log.info(s"\nlmmreg: table of eigenvalues\n$header\n$evalString\n")
+
+    info(s"lmmreg: global model fit: beta = $globalBetaMap")
+    info(s"lmmreg: global model fit: sigmaG2 = $globalSg2")
+    info(s"lmmreg: global model fit: sigmaE2 = $globalSe2")
+    info(s"lmmreg: global model fit: delta = $delta")
+    info(s"lmmreg: global model fit: h2 = $h2")
+
+    val vds1 = assocVds.annotateGlobal(
+      Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, S.data.reverse: IndexedSeq[Double]),
+      TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
+        ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble))), rootGA)
+
+    val vds2 = (diagLMM.maxLogLkhd, diagLMM.deltaGridLogLkhd) match {
+      case (Some(maxLogLkhd), Some(deltaGridLogLkhd)) =>
+        val (logDeltaGrid, logLkhdVals) = deltaGridLogLkhd.unzip
+        vds1.annotateGlobal(
+          Annotation(maxLogLkhd, logDeltaGrid, logLkhdVals),
+          TStruct(("maxLogLkhd", TDouble), ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
+      case _ =>
+        assert(optDelta.isDefined)
+        vds1
+    }
+
+    if (runAssoc) {
+      info(s"lmmreg: Computing LMM statistics for each variant...")
+
+      val T = Ut(::, *) :* diagLMM.sqrtInvD
+      val Qt = qr.reduced.justQ(diagLMM.TC).t
+      val QtTy = Qt * diagLMM.Ty
+      val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
+
+      val sc = assocVds.sparkContext
+      val TBc = sc.broadcast(T)
+      val sampleMaskBc = sc.broadcast(sampleMask)
+      val scalerLMMBc = sc.broadcast(ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, diagLMM.logNullS2, useML))
+
+      val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
+
+      vds2.mapAnnotations { case (v, va, gs) =>
+        val sb = new SparseGtBuilder()
+        val gts = gs.hardCallIterator
+        val mask = sampleMaskBc.value
+        var i = 0
+        while (i < mask.length) {
+          val gt = gts.nextInt()
+          if (mask(i))
+            sb.merge(gt)
+          i += 1
+        }
+
+        val SparseGtVectorAndStats(x0, isConstant, af, nHomRef, nHet, nHomVar, nMissing) = sb.toSparseGtVectorAndStats(n)
+
+        val lmmregAnnot =
+          if (!isConstant) {
+            val x: Vector[Double] = if (af <= sparsityThreshold) x0 else x0.toDenseVector
+            val (b, s2, chi2, p) = scalerLMMBc.value.likelihoodRatioTest(TBc.value * x)
+
+            Annotation(b, s2, chi2, p, af, nHomRef, nHet, nHomVar, nMissing)
+          } else
+            null
+
+        val newAnnotation = inserter(va, lmmregAnnot)
+        assert(newVAS.typeCheck(newAnnotation))
+        newAnnotation
+      }.copy(vaSignature = newVAS)
+    }
+    else
+      vds2
+  }
+
+
+  /*def apply(
+    assocVds: VariantDataset,
     kinshipVds: VariantDataset,
     ySA: String,
     covSA: Array[String],
@@ -62,7 +211,7 @@ object LinearMixedRegression {
       case (true, true) => fatal("Cannot force both Block and Grammian")
       case (b, _) => b
     }
-    
+
     val filtKinshipVds = kinshipVds.filterSamples((s, sa) => completeSamplesSet(s))
     if (filtKinshipVds.sampleIds != completeSamples)
       fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
@@ -72,13 +221,16 @@ object LinearMixedRegression {
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
-    info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
+    info(s"lmmreg: running lmmreg on $n samples with $k sample ${ plural(k, "covariate") } including intercept...")
 
     info(s"lmmreg: Computing RRM for $n samples...")
 
     val (rrmDist, m) = ComputeRRM(filtKinshipVds, useBlock)
+
+    LinearMixedRegression.apply(assocVds, new KinshipMatrix(rrmDist, filtKinshipVds.sampleIds.toArray), ySA, covSA, useML, rootGA, rootVA, runAssoc, optDelta, sparsityThreshold)
+  }
 
     val cols = rrmDist.numCols().toInt //Can I just use m?
     //It sucks that we have to call toBlockMatrix then toLocalMatrix here. TODO consider implementing toLocalMatrix on IndexedRowMatrices myself.
@@ -184,7 +336,7 @@ object LinearMixedRegression {
     }
     else
       vds2
-  }
+  }*/
 }
 
 object DiagLMM {

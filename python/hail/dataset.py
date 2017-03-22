@@ -5,8 +5,7 @@ from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype
 from hail.representation import Interval, IntervalTree
 from hail.utils import TextTableConfig
-from pyspark.mllib.linalg.distributed import BlockMatrix
-from hail.relatednessMatrix import RelatednessMatrix
+from hail.kinshipMatrix import KinshipMatrix
 from py4j.protocol import Py4JJavaError
 from decorator import decorator
 
@@ -2544,9 +2543,8 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def lmmreg(self, kinship_vds, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, force_block=False,
-               force_grammian=False):
+    def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
@@ -2761,9 +2759,9 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.lmmreg(kinship_vds._jvds, y, jarray(Env.jvm().java.lang.String, covariates),
+        jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc,
-                                 joption(delta), sparsity_threshold, force_block, force_grammian)
+                                 joption(delta), sparsity_threshold)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3484,8 +3482,8 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def rrm(self):
-        return RelatednessMatrix(self._jvdf.rrm())
+    def rrm(self, force_block = False, force_gramian = False):
+        return KinshipMatrix(self._jvdf.rrm(force_block, force_gramian))
 
     @handle_py4j
     def same(self, other, tolerance=1e-6):
