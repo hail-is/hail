@@ -319,12 +319,17 @@ class Call(object):
     :type call: int or None
     """
 
+    _call_jobject = None
+
     @handle_py4j
     def __init__(self, call):
         """Initialize a Call object."""
 
-        self._jrep = scala_object(Env.hail().variant, 'Call').apply(call)
-        self._jcall = scala_object(Env.hail().variant, 'Call')
+        if not Call._call_jobject:
+            Call._call_jobject = scala_object(Env.hail().variant, 'Call')
+
+        jrep = Call._call_jobject.apply(call)
+        self._init_from_java(jrep)
 
     def __str__(self):
         return self._jrep.toString()
@@ -339,6 +344,7 @@ class Call(object):
         return self._jrep.hashCode()
 
     def _init_from_java(self, jrep):
+        self._jcall = Call._call_jobject
         self._jrep = jrep
 
     @classmethod
