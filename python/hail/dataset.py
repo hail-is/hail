@@ -2709,21 +2709,10 @@ class VariantDataset(object):
 
         and follows a chi-squared distribution with one degree of freedom. Here the ratio :math:`\\hat{\sigma}^2_g / \\hat{\sigma}_{g,v}^2` captures the degree to which adding the variant :math:`v` to the global model reduces the residual phenotypic variance.
 
-        **Kinship: Realized Relationship Matrix (RRM)**
+        **Kinship Matrix**
 
-        As in FastLMM, :py:meth:`.lmmreg` uses the Realized Relationship Matrix (RRM) for kinship, defined as follows. Consider the :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal variants for which ``va.useInKinship`` is true; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
-
-        .. math::
-
-          M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{\\frac{m}{n} \sum_{k=1}^n (C_{ij}-2p_j)^2}},
-
-        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes each variant column to have empirical variance :math:`1/m`, which gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the :math:`n \\times n` sample correlation or realized relationship matrix (RRM) :math:`K` as simply
-
-        .. math::
-
-          K = MM^T
-
-        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in :py:meth:`~hail.VariantDataset.pca` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
+        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` will work with this method,
+        so long as the instance of :py:class:`KinshipMatrix` has a list of sampleIds that is a subset of the sampleIds present in the :py:class:`.VariantDataset` that lmmreg is called on.
 
         **Further background**
 
@@ -3485,6 +3474,25 @@ class VariantDataset(object):
         Compute the RRM for `vds`.
 
         >>> vds.rrm()
+
+        **Notes**
+
+        The Realized Relationship Matrix is defined as follows. Consider the :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by :math:`n` samples and
+        columns indexed by the :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which
+        can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column
+        :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+
+        .. math::
+
+          M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{\\frac{m}{n} \sum_{k=1}^n (C_{ij}-2p_j)^2}},
+
+        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes each variant column to have empirical variance :math:`1/m`, which gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the :math:`n \\times n` sample correlation or realized relationship matrix (RRM) :math:`K` as simply
+
+        .. math::
+
+          K = MM^T
+
+        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in :py:meth:`~hail.VariantDataset.grm` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
 
         :param force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
         :param force_gramian: Force using Spark's RowMatrix.computeGramian to compute kinship (advanced).

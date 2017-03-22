@@ -15,17 +15,19 @@ class KinshipMatrix(val matrix: IndexedRowMatrix, val sampleIds: Array[String]) 
     * @param pred The predicate that decides whether a sample is kept.
     */
   def filterSamples(pred: (String => Boolean)): KinshipMatrix = {
-    val filteredSamplePairs= sampleIds.zipWithIndex.filter(pair => pair match { case (sampleName, index) => pred(sampleName)})
-    val filteredSamples = filteredSamplePairs.map(_._1)
-    val sampleNums = filteredSamplePairs.map(_._2)
+    val (samplePairsToTake, samplePairsToDrop) = sampleIds.zipWithIndex.partition(pair => pair match {case (sampleName, index) => pred(sampleName)})
 
-    //Need to figure out a better way to subtract indices for deleted rows.
-    val samplesToThrowAway = sampleIds.zipWithIndex.map(_._2).toSet -- sampleNums.toSet
-    val filteredRows = matrix.rows.filter(ir => sampleNums.contains(ir.index)).map(ir => new IndexedRow(ir.index - samplesToThrowAway.count(_ < ir.index), ir.vector))
+    val filteredSamples = samplePairsToTake.map(_._1)
+    val sampleNumsToDropSet = samplePairsToDrop.map(_._2).toSet
+    val sampleNumsToTakeArray = samplePairsToTake.map(_._2)
 
-    //Filter with while loops.
-    val filteredRowsAndCols = filteredRows.map(ir =>
-      new IndexedRow(ir.index, Vectors.dense(ir.vector.toArray.zipWithIndex.filter(tuple => tuple match { case (value, index) => sampleNums.contains(index)}).map(_._1))))
+    val filteredRows = matrix.rows.filter(ir => !sampleNumsToDropSet(ir.index.toInt))
+    val filteredRowsAndCols = filteredRows.map(ir => {
+      val index = ir.index - sampleNumsToDropSet.count(_ < ir.index)
+      val arrayVec = ir.vector.toArray
+      val filteredArray = sampleNumsToTakeArray.map(i => arrayVec(i))
+      new IndexedRow(index, Vectors.dense(filteredArray))
+    })
 
     new KinshipMatrix(new IndexedRowMatrix(filteredRowsAndCols), filteredSamples)
   }
