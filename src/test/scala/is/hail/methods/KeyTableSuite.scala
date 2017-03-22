@@ -6,6 +6,7 @@ import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
 
 class KeyTableSuite extends SparkSuite {
@@ -316,5 +317,33 @@ class KeyTableSuite extends SparkSuite {
     val df = kt.toDF(sqlContext)
     df.printSchema()
     df.show()
+  }
+
+  @Test def testQuery() {
+    val kt = hc.importKeyTable(List("src/test/resources/sampleAnnotations.tsv"),
+      config = TextTableConfiguration(impute=true))
+
+    case class LineData(sample: String, status: String, qPhen: Option[Int])
+
+    val localData = hadoopConf.readLines("src/test/resources/sampleAnnotations.tsv") { lines =>
+      lines.drop(1).map { l =>
+        val Array(sample, caseStatus, qPhen) = l.value.split("\t")
+        LineData(sample ,caseStatus, if (qPhen != "NA") Some(qPhen.toInt) else None)
+      }.toArray
+    }
+
+    val statComb = localData.flatMap {ld => ld.qPhen}
+        .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
+
+    val Array(ktMean, ktStDev) = kt.query(Array("qPhen.stats().mean", "qPhen.stats().stdev")).map(_._1)
+
+    assert(D_==(ktMean.asInstanceOf[Double], statComb.mean))
+    assert(D_==(ktStDev.asInstanceOf[Double], statComb.stdev))
+
+    val counter = localData.map(_.status).groupBy(identity).mapValues(_.length)
+
+    val ktCounter = kt.query("Status.counter()")._1.asInstanceOf[Map[String, Long]]
+
+    assert(ktCounter == counter)
   }
 }
