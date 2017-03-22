@@ -9,7 +9,7 @@ from hail import HailContext, TextTableConfig
 from hail.representation import *
 from hail.expr import *
 from hail.java import *
-
+import time
 hc = None
 
 
@@ -67,11 +67,210 @@ class ContextTests(unittest.TestCase):
 
         gds = hc.import_vcf(test_resources + '/sample.vcf.bgz', generic=True)
         gds.write('/tmp/sample_generic.vds', overwrite=True)
-        gds = hc.read('/tmp/sample_generic.vds')
-        gds.count(genotypes=True)
+        gds_read = hc.read('/tmp/sample_generic.vds')
+        self.assertTrue(gds.same(gds_read))
+
+        gds.export_vcf('/tmp/sample_generic.vcf')
+        gds_imported = hc.import_vcf('/tmp/sample_generic.vcf', generic=True)
+        self.assertTrue(gds.same(gds_imported))
 
     def test_dataset(self):
         test_resources = 'src/test/resources'
+        
+        vds = hc.import_vcf(test_resources + '/sample.vcf')
+        vds2 = hc.import_vcf(test_resources + '/sample2.vcf')
+        gds = hc.import_vcf(test_resources + '/sample.vcf', generic=True)
+        gds2 = hc.import_vcf(test_resources + '/sample2.vcf', generic=True)
+
+        for (dataset, dataset2) in [(vds, vds2), (gds, gds2)]:
+
+            if dataset._is_generic_genotype:
+                gt = 'g.GT'
+            else:
+                gt = 'g'
+
+            dataset.cache()
+            dataset2.persist()
+
+            dataset.write('/tmp/sample.vds', overwrite=True)
+
+            dataset.count(genotypes=True)
+
+            dataset.aggregate_intervals(test_resources + '/annotinterall.interval_list',
+                                        'N = variants.count()',
+                                        '/tmp/annotinter.tsv')
+
+            dataset.query_variants(['variants.count()'])
+            dataset.query_samples(['samples.count()'])
+
+            dataset.annotate_global_list(test_resources + '/global_list.txt', 'global.genes', as_set=True).globals
+
+            dataset.annotate_global_table(test_resources + '/global_table.tsv', 'global.genes').globals
+
+            (dataset.annotate_samples_expr('sa.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
+             .export_samples('/tmp/sa.tsv', 's = s, nCalled = sa.nCalled'))
+
+            dataset.annotate_samples_list(test_resources + '/sample2.sample_list',
+                                          'sa.listed')
+
+            dataset.annotate_global_expr('global.foo = 5')
+            dataset.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
+
+            dataset_annot = dataset.annotate_samples_table(
+                test_resources + '/sampleAnnotations.tsv',
+                'Sample',
+                code='sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
+
+            dataset.annotate_samples_vds(dataset_annot,
+                                         code='sa.isCase = vds.isCase')
+    
+            (dataset.annotate_variants_bed(test_resources + '/example1.bed',
+                                          root='va.bed')
+             .filter_variants_expr('va.bed')
+             .count())
+
+            (dataset.annotate_variants_expr('va.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
+             .count())
+
+            (dataset.annotate_variants_intervals(test_resources + '/annotinterall.interval_list',
+                                                 'va.included',
+                                                 all=True)
+             .count())
+
+            (dataset.annotate_variants_loci(test_resources + '/sample2_loci.tsv',
+                                            'Locus(chr, pos.toInt())',
+                                            'va.locus_annot')
+             .count())
+
+            (dataset.annotate_variants_table(test_resources + '/variantAnnotations.tsv',
+                                            'Variant(Chromosome, Position.toInt(), Ref, Alt)',
+                                            root='va.table')
+             .count())
+
+            (dataset.annotate_variants_vds(dataset, code='va.good = va.info.AF == vds.info.AF')
+             .count())
+
+            downsampled = dataset.downsample_variants(20)
+            downsampled.export_variants('/tmp/sample2_loci.tsv', 'chr = v.contig, pos = v.start')
+            downsampled.export_variants('/tmp/sample2_variants.tsv', 'v')
+
+            (dataset.filter_samples_list(test_resources + '/sample2.sample_list')
+             .count()['nSamples'] == 56)
+
+            dataset.export_vcf('/tmp/sample2.vcf.bgz')
+
+            self.assertEqual(dataset.drop_samples().count()['nSamples'], 0)
+            self.assertEqual(dataset.drop_variants().count()['nVariants'], 0)
+
+            dataset_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
+                                        test_resources + '/sample2.vcf'])
+                         .deduplicate())
+            self.assertEqual(dataset_dedup.count()['nVariants'], 735)
+
+            (dataset.filter_samples_expr('pcoin(0.5)')
+             .export_samples('/tmp/sample2.sample_list', 's'))
+
+            (dataset.filter_variants_expr('pcoin(0.5)')
+             .export_variants('/tmp/sample2.variant_list', 'v'))
+
+            (dataset.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
+             .count())
+
+            dataset.filter_variants_intervals(Interval.parse('1:100-end')).count()
+            dataset.filter_variants_intervals(IntervalTree.parse_all(['1:100-end', '3-22'])).count()
+            dataset.filter_variants_intervals(IntervalTree([Interval.parse('1:100-end')])).count()
+
+            (dataset.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
+             .count())
+
+            self.assertEqual(dataset2.filter_variants_list(
+                test_resources + '/sample2_variants.tsv')
+                             .count()['nVariants'], 21)
+
+            m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
+                                                         config=TextTableConfig(noheader=True))
+                .collect()}
+            self.assertEqual(dataset2.join(dataset2.rename_samples(m2))
+                             .count()['nSamples'], 200)
+
+            dataset._typecheck()
+
+            dataset.export_variants('/tmp/variants.tsv', 'v = v, va = va')
+            self.assertTrue((dataset.variants_keytable()
+                             .annotate('va = json(va)'))
+                            .same(hc.import_keytable('/tmp/variants.tsv', config=TextTableConfig(impute=True)).key_by('v')))
+
+            dataset.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
+            self.assertTrue((dataset.samples_keytable()
+                             .annotate('s = s, sa = json(sa)'))
+                            .same(hc.import_keytable('/tmp/samples.tsv', config=TextTableConfig(impute=True)).key_by('s')))
+
+            if dataset._is_generic_genotype:
+                gt_string = 'gt = g.GT, gq = g.GQ'
+                gt_string2 = 'gt: g.GT, gq: g.GQ'
+            else:
+                gt_string = 'gt = g.gt, gq = g.gq'
+                gt_string2 = 'gt: g.gt, gq: g.gq'
+
+            cols = ['v = v, info = va.info']
+            for s in dataset.sample_ids:
+                cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s=s))
+
+            (dataset
+             .annotate_variants_expr('va.G = index(gs.map(g => { s: s, %s }).collect(), s)' % gt_string2)
+             .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
+
+            ((dataset
+              .make_keytable('v = v, info = va.info', gt_string, ['v']))
+             .same(hc.import_keytable('/tmp/sample_kt.tsv').key_by('v')))
+
+            dataset.annotate_variants_expr("va.nHet = gs.filter(g => {0}.isHet()).count()".format(gt))
+
+            dataset.aggregate_by_key("Variant = v", "nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt))
+            dataset.aggregate_by_key(["Variant = v"], ["nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt)])
+
+            dataset.make_keytable('v = v, info = va.info', 'gt = {0}'.format(gt), ['v'])
+
+            dataset.num_partitions()
+            dataset.file_version()
+            dataset.sample_ids[:5]
+            dataset.variant_schema
+            dataset.sample_schema
+
+            self.assertFalse(dataset.is_dosage())
+
+            self.assertEqual(dataset2.num_samples, 100)
+            self.assertEqual(dataset2.count_variants(), 735)
+
+            dataset.annotate_variants_keytable(dataset.variants_keytable(), "va.foo = table.va")
+
+            kt = (dataset.variants_keytable()
+                  .annotate("v2 = v")
+                  .key_by(["v", "v2"]))
+
+            dataset.annotate_variants_keytable(kt, "va.foo = table.va", ["v", "v"])
+
+            self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
+
+            ## This is very slow!!!
+            variants_py = (dataset
+                           .annotate_variants_expr('va.hets = gs.filter(g => {0}.isHet()).collect()'.format(gt))
+                           .variants_keytable()
+                           .collect())
+
+            if dataset._is_generic_genotype:
+                expr = 'g.GT.isHet() && g.GQ > 20'
+            else:
+                expr = 'g.isHet() && g.gq > 20'
+
+            (dataset.filter_genotypes(expr)
+             .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, {0}.nNonRefAlleles()'.format(gt)))
+
+            self.assertTrue(
+                (dataset.repartition(16, shuffle=False)
+                 .same(dataset)))
+
+            print(dataset.storage_level())
 
         sample = hc.import_vcf(test_resources + '/sample.vcf')
         sample.cache()
@@ -83,67 +282,8 @@ class ContextTests(unittest.TestCase):
 
         sample2_split = sample2.split_multi()
 
-        sample2.aggregate_intervals(test_resources + '/annotinterall.interval_list',
-                                    'N = variants.count()',
-                                    '/tmp/annotinter.tsv')
-
-        sample2.query_variants(['variants.count()'])
-
-        sample2.query_samples(['samples.count()'])
-
-        (sample2.annotate_global_list(test_resources + '/global_list.txt', 'global.genes',
-                                      as_set=True)
-         .globals)
-
-        (sample2.annotate_global_table(test_resources + '/global_table.tsv',
-                                       'global.genes')
-         .globals)
-
-        (sample2.annotate_samples_expr('sa.nCalled = gs.filter(g => g.isCalled()).count()')
-         .export_samples('/tmp/sa.tsv', 's = s, nCalled = sa.nCalled'))
-
-        sample2.annotate_samples_list(test_resources + '/sample2.sample_list',
-                                      'sa.listed')
-
-        sample2.annotate_global_expr('global.foo = 5')
-        sample2.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
-
-        sample2_annot = sample2.annotate_samples_table(
-            test_resources + '/sampleAnnotations.tsv',
-            'Sample',
-            code='sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
-
-        sample2.annotate_samples_vds(sample2_annot,
-                                     code='sa.isCase = vds.isCase')
-
-        (sample.annotate_variants_bed(test_resources + '/example1.bed',
-                                      root='va.bed')
-         .filter_variants_expr('va.bed')
-         .count())
-
         sample.annotate_alleles_expr('va.gs = gs.callStats(g => v)').count()
         sample.annotate_alleles_expr(['va.gs = gs.callStats(g => v)', 'va.foo = 5']).count()
-
-        (sample2.annotate_variants_expr('va.nCalled = gs.filter(g => g.isCalled()).count()')
-         .count())
-
-        (sample2.annotate_variants_intervals(test_resources + '/annotinterall.interval_list',
-                                             'va.included',
-                                             all=True)
-         .count())
-
-        (sample2.annotate_variants_loci(test_resources + '/sample2_loci.tsv',
-                                        'Locus(chr, pos.toInt())',
-                                        'va.locus_annot')
-         .count())
-
-        (sample.annotate_variants_table(test_resources + '/variantAnnotations.tsv',
-                                        'Variant(Chromosome, Position.toInt(), Ref, Alt)',
-                                        root='va.table')
-         .count())
-
-        (sample2.annotate_variants_vds(sample2, code='va.good = va.info.AF == vds.info.AF')
-         .count())
 
         glob, concordance1, concordance2 = (sample2_split.concordance(sample2_split))
         print(glob[1][4])
@@ -152,52 +292,10 @@ class ContextTests(unittest.TestCase):
         concordance1.write('/tmp/foo.vds', overwrite=True)
         concordance2.write('/tmp/foo.vds', overwrite=True)
 
-        downsampled = sample2.downsample_variants(20)
-        downsampled.export_variants('/tmp/sample2_loci.tsv', 'chr = v.contig, pos = v.start')
-        downsampled.export_variants('/tmp/sample2_variants.tsv', 'v')
-
-        (sample2.filter_samples_list(test_resources + '/sample2.sample_list')
-         .count()['nSamples'] == 56)
-
         sample2_split.export_gen('/tmp/sample2.gen')
-
-        (sample2.filter_genotypes('g.isHet() && g.gq > 20')
-         .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, g.nNonRefAlleles()'))
-
         sample2_split.export_plink('/tmp/sample2')
 
-        sample2.export_vcf('/tmp/sample2.vcf.bgz')
-
         sample2.filter_multi().count()
-
-        self.assertEqual(sample2.drop_samples().count()['nSamples'], 0)
-
-        self.assertEqual(sample2.drop_variants().count()['nVariants'], 0)
-
-        sample2_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
-                                        test_resources + '/sample2.vcf'])
-                         .deduplicate())
-        self.assertEqual(sample2_dedup.count()['nVariants'], 735)
-
-        (sample2.filter_samples_expr('pcoin(0.5)')
-         .export_samples('/tmp/sample2.sample_list', 's'))
-
-        (sample2.filter_variants_expr('pcoin(0.5)')
-         .export_variants('/tmp/sample2.variant_list', 'v'))
-
-        (sample2.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
-         .count())
-
-        sample2.filter_variants_intervals(Interval.parse('1:100-end')).count()
-        sample2.filter_variants_intervals(IntervalTree.parse_all(['1:100-end', '3-22'])).count()
-        sample2.filter_variants_intervals(IntervalTree([Interval.parse('1:100-end')])).count()
-
-        (sample2.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
-         .count())
-
-        self.assertEqual(sample2.filter_variants_list(
-            test_resources + '/sample2_variants.tsv')
-                         .count()['nVariants'], 21)
 
         sample2.split_multi().grm('/tmp/sample2.grm', 'gcta-grm-bin')
 
@@ -208,12 +306,6 @@ class ContextTests(unittest.TestCase):
         sample2.split_multi().impute_sex().variant_schema
 
         self.assertTrue(isinstance(sample2.genotype_schema, TGenotype))
-
-        m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
-                                                     config=TextTableConfig(noheader=True))
-              .collect()}
-        self.assertEqual(sample2.join(sample2.rename_samples(m2))
-                         .count()['nSamples'], 200)
 
         regression = (hc.import_vcf(test_resources + '/regressionLinear.vcf')
                   .split_multi()
@@ -251,73 +343,15 @@ class ContextTests(unittest.TestCase):
 
         sample_split.pca('sa.scores')
 
-        self.assertTrue(
-            (sample2.repartition(16, shuffle=False)
-             .same(sample2)))
-
-        print(sample2.storage_level())
-
         sample_split.tdt(test_resources + '/sample.fam')
-
-        sample2._typecheck()
 
         sample2_split.variant_qc().variant_schema
 
-        sample2.export_variants('/tmp/variants.tsv', 'v = v, va = va')
-        self.assertTrue((sample2.variants_keytable()
-                         .annotate('va = json(va)'))
-                        .same(hc.import_keytable('/tmp/variants.tsv', config=TextTableConfig(impute=True)).key_by('v')))
-
-        sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
-        self.assertTrue((sample2.samples_keytable()
-                         .annotate('s = s, sa = json(sa)'))
-                        .same(hc.import_keytable('/tmp/samples.tsv', config=TextTableConfig(impute=True)).key_by('s')))
-
-        cols = ['v = v, info = va.info']
-        for s in sample2.sample_ids:
-            cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s=s))
-
-        (sample2
-         .annotate_variants_expr('va.G = index(gs.map(g => { s: s, gt: g.gt, gq: g.gq }).collect(), s)')
-         .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
-
-        ((sample2
-          .make_keytable('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
-         .same(hc.import_keytable('/tmp/sample_kt.tsv').key_by('v')))
-
-        sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
-
-        sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet().toInt()).sum().toLong()")
-        sample_split.aggregate_by_key(["Variant = v"], ["nHet = g.map(g => g.isHet().toInt()).sum().toLong()"])
-
-        sample2.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
-
-        sample.num_partitions()
-        sample.file_version()
-        sample.sample_ids[:5]
-
         self.assertTrue(sample_split.was_split())
-
-        self.assertFalse(sample.is_dosage())
-
-        self.assertEqual(sample.num_samples, 100)
-        self.assertEqual(sample.count_variants(), 346)
 
         sample2.filter_alleles('pcoin(0.5)')
 
-        sample2.annotate_variants_keytable(sample2.variants_keytable(), "va.foo = table.va")
-
-        kt = (sample2.variants_keytable()
-              .annotate("v2 = v")
-              .key_by(["v", "v2"]))
-        sample2.annotate_variants_keytable(kt, "va.foo = table.va", ["v", "v"])
-
-        self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
-        
-        variants_py = (sample
-                       .annotate_variants_expr('va.hets = gs.filter(g => g.isHet).collect()')
-                       .variants_keytable()
-                       .collect())
+        gds.annotate_genotypes_expr('g = Genotype(g.GT)').split_multi()
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
