@@ -35,4 +35,3 @@ class KinshipMatrix(val matrix: IndexedRowMatrix, val sampleIds: Array[String]) 
     new KinshipMatrix(new IndexedRowMatrix(filteredRowsAndCols), filteredSamples)
   }
 }
-//BE sure to test that deleting a row decrements other rows by one when testing filterSamples
