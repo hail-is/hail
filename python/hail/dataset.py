@@ -4,9 +4,7 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype, TVariant
 from hail.representation import Interval, IntervalTree
-from hail.utils import TextTableConfig
 from hail.kinshipMatrix import KinshipMatrix
-from py4j.protocol import Py4JJavaError
 from decorator import decorator
 
 import warnings
@@ -540,9 +538,8 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_global_table(self, input, root, config=TextTableConfig()):
-        """Load delimited text file (text table) into global annotations as
-        Array[Struct].
+    def annotate_global_table(self, table, root):
+        """Collect and store a table in global annotations.
 
         **Examples**
 
@@ -554,8 +551,8 @@ class VariantDataset(object):
           Gene1   0.12312 2
           ...
 
-        >>> vds_result = vds.annotate_global_table('data/genes_pli_exac.txt', 'global.genes',
-        ...                           config=TextTableConfig(types='PLI: Double, EXAC_LOF_COUNT: Int'))
+        >>> tb = hc.import_keytable('data/genes_pli_exac.txt', types={'PLI': TDouble(), 'EXAC_LOF_COUNTS': TInt()})
+        >>> vds_result = vds.annotate_global_table(tb, 'global.genes')
 
         creates a new global annotation ``global.genes`` with type:
 
@@ -568,21 +565,22 @@ class VariantDataset(object):
           }]
 
         where each line is stored as an element of the array.
+        
+        .. warning::
+        
+            Global annotations are not distributed. Storing large tables as
+            globals can cause Hail to slow down or crash.
 
-        **Notes**
+        :param table: Key table to be stored as a global annotation.
+        :type table: :py:class:`.KeyTable`
 
-        :param str input: Input text file.
-
-        :param str root: Global annotation path to store text table.
-
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
+        :param str root: Global annotation path.
 
         :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvds.annotateGlobalTable(input, root, config._to_java())
+        jvds = self._jvds.annotateGlobalTable(table._jkt, root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -598,7 +596,8 @@ class VariantDataset(object):
 
         Compute the list of genes with a singleton LOF per sample:
 
-        >>> vds_result = (vds.annotate_variants_table('data/consequence.tsv', 'Variant', code='va.consequence = table.Consequence', config=TextTableConfig(impute=True))
+        >>> variant_annotations_table = hc.import_keytable('data/consequence.tsv', impute=True).key_by('Variant')
+        >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, expr='va.consequence = table.Consequence')
         ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles()).sum() == 1')
         ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
 
@@ -715,15 +714,15 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_samples_table(self, input, sample_expr, root=None, code=None, config=TextTableConfig()):
-        """Annotate samples with delimited text file (text table).
+    def annotate_samples_table(self, table, root=None, expr=None, vds_key=None):
+        """Annotate samples with a key table.
 
         **Examples**
 
         To annotates samples using `samples1.tsv` with type imputation::
 
-        >>> conf = TextTableConfig(impute=True)
-        >>> vds_result = vds.annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.pheno', config=conf)
+        >>> table = hc.import_keytable('data/samples1.tsv', impute=True).key_by('Sample')
+        >>> vds_result = vds.annotate_samples_table(table, root='sa.pheno')
 
         Given this file
 
@@ -740,7 +739,8 @@ class VariantDataset(object):
 
         To annotate without type imputation, resulting in all String types:
 
-        >>> vds_result = vds.annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes')
+        >>> annotations = hc.import_keytable('data/samples1.tsv').key_by('Sample')
+        >>> vds_result = vds.annotate_samples_table(annotations, root='sa.phenotypes')
 
         **Detailed examples**
 
@@ -761,18 +761,19 @@ class VariantDataset(object):
 
         In this case, we should:
 
-        - Escape the ``PT-ID`` column with backticks in the ``sample_expr`` argument because it contains a dash
-
         - Pass the non-default delimiter ``,``
 
         - Pass the non-default missing value ``.``
 
-        - Add the only useful column using ``code`` rather than the ``root`` parameter.
+        - In ``annotate_samples_table``, add the only useful column using ``expr`` 
+          rather than the ``root`` parameter.
 
-        >>> conf = TextTableConfig(delimiter=',', missing='.')
-        >>> vds_result = vds.annotate_samples_table('data/samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf)
+        >>> annotations = hc.import_keytable('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
+        >>> vds_result = vds.annotate_samples_table(annotations, code='sa.batch = table.Batch')
 
-        Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information
+        Let's import annotations from a file with no header and sample IDs that need to be transformed. 
+        Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
+        sample ID is hidden in a field with other information.
 
         .. code-block:: text
 
@@ -785,109 +786,27 @@ class VariantDataset(object):
 
         To import it:
 
-        >>> conf = TextTableConfig(noheader=True)
-        >>> vds_result = vds.annotate_samples_table('data/samples3.tsv',
-        ...                             '_0.split("_")[1]',
-        ...                             code='sa.sex = table._1, sa.batch = table._0.split("_")[0]',
-        ...                             config=conf)
+        >>> annotations = (hc.import_keytable('data/samples3.tsv', no_header=True)
+        ...                   .annotate('sample = _1.split("_")[1]')
+        ...                   .key_by('sample'))
+        >>> vds_result = vds.annotate_samples_table(annotations,
+        ...                             expr='sa.sex = table._1, sa.batch = table._0.split("_")[0]')
 
-        **Using the** ``sample_expr`` **argument**
-
-        This argument tells Hail how to get a sample ID out of your table. Each column in the table is exposed to the Hail expr language. Possibilities include ``Sample`` (if your sample id is in a column called 'Sample'), ``_2`` (if your sample ID is the 3rd column of a table with no header), or something more complicated like ``'if ("PGC" ~ ID1) ID1 else ID2'``.  All that matters is that this expr results in a string.  If the expr evaluates to missing, it will not be mapped to any VDS samples.
-
-        **Using the** ``root`` **and** ``code`` **arguments**
-
-        This module requires exactly one of these two arguments to tell Hail how to insert the table into the sample annotation schema.
-
-        The ``root`` argument is the simpler of these two, and simply packages up all table annotations as a ``Struct`` and drops it at the given ``root`` location.  If your table has columns ``Sample``, ``Sex``, and ``Batch``, then ``root='sa.metadata'`` creates the struct ``{Sample, Sex, Batch}`` at ``sa.metadata``, which gives you access to the paths ``sa.metadata.Sample``, ``sa.metadata.Sex``, and ``sa.metadata.Batch``.
-
-        The ``code`` argument expects an annotation expression and has access to ``sa`` (the sample annotations in the VDS) and ``table`` (a struct with all the columns in the table).  ``root='sa.anno'`` is equivalent to ``code='sa.anno = table'``.
-
-        **Common uses for the** ``code`` **argument**
-
-        Don't generate a full struct in a table with only one annotation column
-
-        .. code-block:: text
-
-            code='sa.annot = table._1'
-
-        Put annotations on the top level under `sa`
-
-        .. code-block:: text
-
-            code='sa = merge(sa, table)'
-
-        Load only specific annotations from the table
-
-        .. code-block:: text
-
-            code='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
-
-        The above is equivalent to
-
-        .. code-block:: text
-
-            code='sa.annotations.toKeep1 = table.toKeep1,
-                sa.annotations.toKeep2 = table.toKeep2,
-                sa.annotations.toKeep3 = table.toKeep3'
-
-
-        :param str input: Path to delimited text file.
-
-        :param str sample_expr: Expression for sample id (key).
-
-        :param str root: Sample annotation path to store text table.
-
-        :param str code: Annotation expression.
-
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
-
-        :return: Annotated variant dataset with new samples annotations imported from a text file
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateSamplesTable(input, sample_expr, joption(root), joption(code), config._to_java())
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_samples_vds(self, right, root=None, code=None):
-        """Annotate samples with sample annotations from .vds file.
-
-        :param right: Dataset to annotate with.
-        :type right: :py:class:`.VariantDataset`
-
-        :param str root: Sample annotation path to add sample annotations.
-
-        :param str code: Annotation expression.
-
-        :return: Annotated variant dataset.
-        :rtype: :class:`.VariantDataset`
-
-        """
-
-        jvds = self._jvds.annotateSamplesVDS(right._jvds, joption(root), joption(code))
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_samples_keytable(self, keytable, expr, vds_key=None):
-        """Annotate samples with a :py:class:`.KeyTable`.
-
-        If `vds_key` is None, the key table must have exactly one key of
-        type *String*.
+        If `vds_key` is None, the table's key must be exactly one column and
+        that column must have type *Variant*.
 
         If `vds_key` is not None, it must be a list of Hail expressions whose types
-        match, in order, the `keytable`'s key types.
-
-        **Examples**
-
-        Add annotations from a sample-keyed TSV:
-
-        >>> kt = hc.import_keytable('data/samples2.tsv',
-        ...                         config=TextTableConfig(impute=True, delimiter=",")).key_by('PT-ID')
-        ... annotate_vds = vds.annotate_samples_keytable(kt, expr='sa.batch = table.Batch')
-
-        **Notes**
+        match, in order, the table's key types.
+        
+        .. note::
+        
+            One of ``root`` or ``expr`` is required, but not both. 
+            
+        The ``expr`` parameter expects an annotation expression involving ``sa`` (the existing 
+        sample annotations in the dataset) and ``table`` (a struct containing the columns in 
+        the table), like ``sa.col1 = table.col1, sa.col2 = table.col2`` or ``sa = merge(sa, table)``.
+        The ``root`` parameter expects an annotation path beginning in ``sa``, like ``sa.annotations``.
+         Passing ``root='sa.annotations'`` is exactly the same as passing ``expr='sa.annotations = table'``.
 
         ``expr`` has the following symbols in scope:
 
@@ -897,31 +816,54 @@ class VariantDataset(object):
         each expression in the list ``vds_key`` has the following symbols in
         scope:
 
-          - ``s`` (*Sample*): :ref:`sample`
+          - ``s`` (*String*): sample ID
           - ``sa``: sample annotations
 
-        :param keytable: Key table with which to annotate samples.
-        :type keytable: :class:`.KeyTable`
+        **Common uses for the** ``expr`` **argument**
 
-        :param str expr: Annotation expression.
+        Don't generate a full struct in a table with only one annotation column
 
-        :param vds_key: Join key(s) in the dataset. Sample ID is used if this parameter is None.
-        :type vds_key: list of str, str, or None
+        .. code-block:: text
 
-        :rtype: :class:`VariantDataset`
+            expr='sa.annot = table._1'
+
+        Put annotations on the top level under ``sa``
+
+        .. code-block:: text
+
+            expr='sa = merge(sa, table)'
+
+        Annotate only specific annotations from the table
+
+        .. code-block:: text
+
+            expr='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
+
+        The above is equivalent to
+
+        .. code-block:: text
+
+            expr='''sa.annotations.toKeep1 = table.toKeep1,
+                sa.annotations.toKeep2 = table.toKeep2,
+                sa.annotations.toKeep3 = table.toKeep3'''
+                
+        Finally, for more information about importing key tables from text, 
+        see the documentation for :py:meth:`.HailContext.import_keytable`.
+
+        :param table: Key table keyed by sample.
+        :type table: :py:class:`.KeyTable`
+
+        :param root: Sample annotation path to store text table.
+        :type root: str or None
+
+        :param expr: Annotation expression.
+        :type expr: str or None
+
+        :return: Annotated variant dataset.
+        :rtype: :class:`.VariantDataset`
         """
 
-        if isinstance(expr, list):
-            expr = ','.join(expr)
-
-        if vds_key is None:
-            jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, expr)
-        else:
-            if not isinstance(vds_key, list):
-                vds_key = [vds_key]
-            jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, vds_key, expr)
-
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, self._jvds.annotateSamplesTable(table._jkt, vds_key, root, expr))
 
     @handle_py4j
     def annotate_variants_bed(self, input, root, all=False):
@@ -1019,66 +961,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_variants_keytable(self, keytable, expr, vds_key=None):
-        """Annotate variants with an expression that may depend on a :py:class:`.KeyTable`.
-
-        If `vds_key` is None, the keytable's key must be exactly one column and
-        that column must have type *Variant*.
-
-        If `vds_key` is not None, it must be a list of Hail expressions whose types
-        match, in order, the `keytable`'s key type.
-
-        **Examples**
-
-        Add annotations from a variant-keyed TSV:
-
-        >>> kt = hc.import_keytable('data/variant-lof.tsv', config=TextTableConfig(impute=True)).key_by('v')
-        >>> vds_result = vds.annotate_variants_keytable(kt, 'va.lof = table.lof')
-
-        Add annotations from a gene-and-type-keyed TSV:
-
-        >>> kt = hc.import_keytable('data/locus-metadata.tsv',
-        ...                         config=TextTableConfig(impute=True)).key_by(['gene', 'type'])
-        >>>
-        >>> vds_result = (vds.annotate_variants_keytable(kt,
-        ...       'va.foo = table.foo',
-        ...       ['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
-
-        **Notes**
-
-        ``expr`` has the following symbols in scope:
-
-          - ``va``: variant annotations
-          - ``table``: :py:class:`.KeyTable` value
-
-        each expression in the list ``vds_key`` has the following symbols in
-        scope:
-
-          - ``v`` (*Variant*): :ref:`variant`
-          - ``va``: variant annotations
-
-        :param expr: Annotation expression or list of annotation expressions
-        :type expr: str or list of str
-
-        :param vds_key: A list of annotation expressions to be used as the VDS's join key
-        :type vds_key: None or list of str
-
-        :return: A :py:class:`.VariantDataset` with new variant annotations specified by ``expr``
-
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        if isinstance(expr, list):
-            expr = ','.join(expr)
-
-        if vds_key is None:
-            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, expr)
-        else:
-            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, vds_key, expr)
-
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
     def annotate_variants_intervals(self, input, root, all=False):
         """Annotate variants from an interval list file.
 
@@ -1147,49 +1029,117 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_variants_loci(self, path, locus_expr, root=None, code=None, config=TextTableConfig()):
+    def annotate_loci_table(self, table, root=None, expr=None):
         """Annotate variants from an delimited text file (text table) indexed
         by loci.
 
-        :param str path: Path to delimited text file.
-
-        :param str locus_expr: Expression for locus (key).
+        :param table: Locus-keyed key table.
+        :type table: :class:`.KeyTable`
 
         :param str root: Variant annotation path to store annotation.
 
-        :param str code: Annotation expression.
-
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
+        :param str expr: Annotation expression.
 
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.annotateVariantsLoci(path, locus_expr, joption(root), joption(code), config._to_java())
+        jvds = self._jvds.annotateLociTable(table._jkt, joption(root), joption(expr))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_variants_table(self, path, variant_expr, root=None, code=None, config=TextTableConfig()):
-        """Annotate variant with delimited text file (text table).
+    def annotate_variants_table(self, table, root=None, expr=None, vds_key=None):
+        """Annotate variants with an annotation table.
 
-        :param path: Path to delimited text files.
-        :type path: str or list of str
+        **Examples**
 
-        :param str variant_expr: Expression for Variant (key).
+        Add annotations from a variant-keyed tab separated file:
 
-        :param str root: Variant annotation path to store text table.
+        >>> kt = hc.import_keytable('data/variant-lof.tsv', impute=True).key_by('v')
+        >>> vds_result = vds.annotate_variants_table(kt, expr='va.lof = table.lof')
 
-        :param str code: Annotation expression.
+        Add annotations from a gene-and-type-keyed TSV:
+    
+        >>> kt = hc.import_keytable('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
+        >>> vds_result = (vds.annotate_variants_table(kt,
+        ...       expr='va.foo = table.foo',
+        ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
 
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
+        **Notes**
+
+        If `vds_key` is None, the table's key must be exactly one column and
+        that column must have type *Variant*.
+
+        If `vds_key` is not None, it must be a list of Hail expressions whose types
+        match, in order, the table's key types.
+        
+        
+        .. note::
+        
+            One of ``root`` or ``expr`` is required, but not both. 
+            
+        The ``expr`` parameter expects an annotation expression involving ``va`` (the existing 
+        variant annotations in the dataset) and ``table`` (a struct containing the columns in 
+        the table), like ``va.col1 = table.col1, va.col2 = table.col2`` or ``va = merge(va, table)``.
+        The ``root`` parameter expects an annotation path beginning in ``va``, like ``va.annotations``.
+         Passing ``root='va.annotations'`` is exactly the same as passing ``expr='va.annotations = table'``.
+
+        ``expr`` has the following symbols in scope:
+
+          - ``va``: variant annotations
+          - ``table``: :py:class:`.KeyTable` value
+
+        each expression in the list ``vds_key`` has the following symbols in
+        scope:
+
+          - ``v`` (*Variant*): :ref:`variant`
+          - ``va``: variant annotations
+
+        **Common uses for the** ``expr`` **argument**
+
+        Don't generate a full struct in a table with only one annotation column
+
+        .. code-block: text
+
+            expr='va.annot = table._1'
+
+        Put annotations on the top level under ``va``
+
+        .. code-block: text
+
+            expr='va = merge(va, table)'
+
+        Annotate only specific annotations from the table
+
+        .. code-block: text
+
+            expr='va.annotations = select(table, toKeep1, toKeep2, toKeep3)'
+
+        The above is equivalent to
+
+        .. code-block: text
+
+            expr='''va.annotations.toKeep1 = table.toKeep1,
+                va.annotations.toKeep2 = table.toKeep2,
+                va.annotations.toKeep3 = table.toKeep3'''
+                
+        Finally, for more information about importing key tables from text, 
+        see the documentation for :py:meth:`.HailContext.import_keytable`.
+
+        :param table: Key table with variant key.
+        :type path: :py:class:`.KeyTable`
+
+        :param root: Variant annotation path to store text table.
+        :type root: str or None
+
+        :param expr: Annotation expression.
+        :type expr: str or None
 
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.annotateVariantsTable(path, variant_expr, joption(root), joption(code), config._to_java())
+        jvds = self._jvds.annotateVariantsTable(table._jkt, vds_key, root, expr)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

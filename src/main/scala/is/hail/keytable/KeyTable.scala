@@ -296,7 +296,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     filter(p)
   }
 
-  def keyBy(newKey: String): KeyTable = keyBy(List(newKey))
+  def keyBy(newKeys: String*): KeyTable = keyBy(newKeys)
 
   def keyBy(newKeys: java.util.ArrayList[String]): KeyTable = keyBy(newKeys.asScala)
 

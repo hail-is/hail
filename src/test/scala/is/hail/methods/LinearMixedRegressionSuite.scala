@@ -92,7 +92,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       val beta = (xCc.t * xCc) \ (xCc.t * yc)
       val res = norm(yc - xCc * beta)
       val sg2 = (res * res) / (n - c)
-      val chi2 = n * (model.logNullS2- math.log(sg2))
+      val chi2 = n * (model.logNullS2 - math.log(sg2))
       val pval = chiSquaredTail(1d, chi2)
       val nHomRef = xIntArray.count(_ == 0)
       val nHet = xIntArray.count(_ == 1)
@@ -235,7 +235,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val pheno = y.toArray
     val covSA = (1 until c).map(i => s"sa.covs.cov$i").toArray
     val covSchema = TStruct((1 until c).map(i => (s"cov$i", TDouble)): _*)
-    val covData = bnm.sampleIds.zipWithIndex.map { case (id, i) => (id, Annotation.fromSeq( C(i, 1 until c).t.toArray)) }.toMap
+    val covData = bnm.sampleIds.zipWithIndex.map { case (id, i) => (id, Annotation.fromSeq(C(i, 1 until c).t.toArray)) }.toMap
 
     val assocVds = bnm
       .annotateSamples(bnm.sampleIds.zip(pheno).toMap, TDouble, "sa.pheno")
@@ -276,9 +276,16 @@ class LinearMixedRegressionSuite extends SparkSuite {
     https://github.com/MicrosoftGenomics/FaST-LMM/blob/master/doc/ipynb/FaST-LMM.ipynb
     */
 
-    val vds = hc.importPlink(bed="src/test/resources/fastlmmTest.bed", bim="src/test/resources/fastlmmTest.bim", fam="src/test/resources/fastlmmTest.fam")
-      .annotateSamplesTable("src/test/resources/fastlmmCov.txt", "_1", code=Some("sa.cov=table._2"), config=TextTableConfiguration(noHeader=true, impute=true))
-      .annotateSamplesTable("src/test/resources/fastlmmPheno.txt", "_1", code=Some("sa.pheno=table._2"), config=TextTableConfiguration(noHeader=true, impute=true, separator=" "))
+    val covariates = hc.importKeyTable("src/test/resources/fastlmmCov.txt",
+      noHeader = true, impute = true).keyBy("_1")
+    val phenotypes = hc.importKeyTable("src/test/resources/fastlmmPheno.txt",
+      noHeader = true, impute = true, separator = " ").keyBy("_1")
+
+    val vds = hc.importPlink(bed = "src/test/resources/fastlmmTest.bed",
+      bim = "src/test/resources/fastlmmTest.bim",
+      fam = "src/test/resources/fastlmmTest.fam")
+      .annotateSamplesTable(covariates, expr = "sa.cov=table._2")
+      .annotateSamplesTable(phenotypes, expr = "sa.pheno=table._2")
 
     val vdsChr1 = vds.filterVariantsExpr("""v.contig == "1"""").lmmreg(vds.filterVariantsExpr("""v.contig != "1"""").rrm(), "sa.pheno", Array("sa.cov"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0)
 
@@ -294,10 +301,15 @@ class LinearMixedRegressionSuite extends SparkSuite {
   // this test parallels the lmmreg Python test, and is a regression test related to filtering samples first
   @Test def filterTest() {
 
+    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+
     var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .filterMulti()
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov", "Sample", root = Some("sa.cov"), config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno", "Sample", code = Some("sa.pheno.Pheno = table.Pheno"), config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, expr = "sa.pheno.Pheno = table.Pheno")
       .annotateSamplesExpr("""sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]""")
       .annotateSamplesExpr("sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit")
 

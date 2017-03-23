@@ -459,29 +459,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def globalSignature: Type = metadata.globalSignature
 
-  /**
-    * Load delimited text file (text table) into global annotations as
-    * Array[Struct].
-    *
-    * @param path   Input text file
-    * @param root   Global annotation path to store text table
-    * @param config Configuration options for importing text files
-    */
-  def annotateGlobalTable(path: String, root: String,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
+  def annotateGlobalTable(kt: KeyTable, root: String): VariantSampleMatrix[T] = {
     val annotationPath = Parser.parseAnnotationRoot(root, Annotation.GLOBAL_HEAD)
 
-    val (struct, rdd) = TextTableReader.read(sparkContext)(Array(path), config)
-    val arrayType = TArray(struct)
-
-    val (finalType, inserter) = insertGlobal(arrayType, annotationPath)
-
-    val table = rdd
-      .map(_.value)
-      .collect(): IndexedSeq[Annotation]
+    val (finalType, inserter) = insertGlobal(TArray(kt.signature), annotationPath)
 
     copy(
-      globalAnnotation = inserter(globalAnnotation, table),
+      globalAnnotation = inserter(globalAnnotation, kt.collect()),
       globalSignature = finalType)
   }
 
@@ -598,53 +582,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateSamples(s => annotations.getOrElse(s, null), t, i)
   }
 
-  def annotateSamplesTable(path: String, sampleExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
-
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
-    }
-
-    val (struct, rdd) = TextTableReader.read(sparkContext)(Array(path), config)
-
-    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "sa" -> (0, saSignature),
-          "table" -> (1, struct)))
-        Annotation.buildInserter(annotationExpr, saSignature, ec, Annotation.SAMPLE_HEAD)
-      } else
-        insertSA(struct, Parser.parseAnnotationRoot(annotationExpr, Annotation.SAMPLE_HEAD))
-
-    val sampleQuery = struct.parseInStructScope[String](sampleExpr)
-
-    val map = rdd
-      .map {
-        _.map { a =>
-          (sampleQuery(a), a)
-        }.value
-      }
-      .filter { case (s, a) => s != null }
-      .collect()
-      .toMap
-
-    val vdsKeys = sampleIds.toSet
-    val tableKeys = map.keySet
-    val onlyVds = vdsKeys -- tableKeys
-    val onlyTable = tableKeys -- vdsKeys
-    if (onlyVds.nonEmpty) {
-      warn(s"There were ${ onlyVds.size } samples present in the VDS but not in the table.")
-    }
-    if (onlyTable.nonEmpty) {
-      warn(s"There were ${ onlyTable.size } samples present in the table but not in the VDS.")
-    }
-
-    annotateSamples(s => map.getOrElse(s, null), finalType, inserter)
-  }
-
   def annotateSamplesVDS(other: VariantSampleMatrix[_],
     root: Option[String] = None,
     code: Option[String] = None): VariantSampleMatrix[T] = {
@@ -668,58 +605,70 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateSamples(s => m.getOrElse(s, null), finalType, inserter)
   }
 
-  def annotateSamplesKeyTable(kt: KeyTable, code: String): VariantSampleMatrix[T] = {
-    if (kt.keyFields.length != 1 || kt.keyFields(0).typ != TString)
-      fatal(s"Annotating samples requires a key table with 1 key of type String. " +
-        s"Found ${ kt.nKeys } ${ plural(kt.nKeys, "key") }${
-          if (kt.nKeys == 0) "" else s": [ ${
-            kt.keyFields.map(f => s"${ prettyIdentifier(f.name) }: ${ f.typ }").mkString(", ")
-          } ]"
-        }")
+  def annotateSamplesTable(kt: KeyTable, vdsKey: java.util.ArrayList[String],
+    root: String, expr: String): VariantSampleMatrix[T] =
+    annotateSamplesTable(kt, Option(vdsKey).map(_.asScala).orNull, root, expr)
 
-    val ec = EvalContext(Map("sa" -> (0, saSignature), "table" -> (1, kt.valueSignature)))
+  def annotateSamplesTable(kt: KeyTable, vdsKey: Seq[String] = null,
+    root: String = null, expr: String = null): VariantSampleMatrix[T] = {
 
-    val (finalType, inserter) =
-      buildInserter(code, saSignature, ec, Annotation.SAMPLE_HEAD)
-
-    val ktMap = kt.keyedRDD()
-      .map { case (k, v) => (k.asInstanceOf[Row].getAs[String](0), v) }
-      .filter(_._1 != null)
-      .collectAsMap()
-
-    annotateSamples(s => ktMap.getOrElse(s, null), finalType, inserter)
-  }
-
-  def annotateSamplesKeyTable(kt: KeyTable, vdsKey: java.util.ArrayList[String], code: String): VariantSampleMatrix[T] =
-    annotateSamplesKeyTable(kt, vdsKey.asScala, code)
-
-  def annotateSamplesKeyTable(kt: KeyTable, vdsKey: Seq[String], code: String): VariantSampleMatrix[T] = {
-    val vdsKeyEc = EvalContext(Map("s" -> (0, TString), "sa" -> (1, saSignature)))
-
-    val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, vdsKeyEc)).unzip
-
-    val keyTypes = kt.keyFields.map(_.typ)
-    if (!(keyTypes sameElements vdsKeyType))
-      fatal(s"Key signature of KeyTable, `${ keyTypes.mkString(", ") }', must match type of computed key, `${ vdsKeyType.mkString(", ") }'.")
-
-    val inserterEc = EvalContext(Map("sa" -> (0, saSignature), "table" -> (1, kt.valueSignature)))
-
-    val (finalType, inserter) =
-      buildInserter(code, vaSignature, inserterEc, Annotation.SAMPLE_HEAD)
-
-    val ktRdd = kt.keyedRDD()
-
-    val keyFuncArray = vdsKeyFs.toArray
-
-    val thisRdd = sparkContext.parallelize(sampleIdsAndAnnotations).map { case (s, sa) =>
-      vdsKeyEc.setAll(s, sa)
-      (Row.fromSeq(keyFuncArray.map(_ ())), s)
+    val (isExpr, annotationExpr) = (Option(root), Option(expr)) match {
+      case (Some(r), None) => (false, r)
+      case (None, Some(c)) => (true, c)
+      case _ => fatal("method `annotateSamplesTable' requires one of `root' or 'expr', but not both")
     }
 
-    val annotationMap = ktRdd.join(thisRdd).map { case (_, (tableAnnotation, s)) => (s, tableAnnotation) }
-      .collectAsMap()
+    val ktSig = kt.valueSignature
 
-    annotateSamples(s => annotationMap.getOrElse(s, null), finalType, inserter)
+    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
+      if (isExpr) {
+        val ec = EvalContext(Map(
+          "sa" -> (0, saSignature),
+          "table" -> (1, ktSig)))
+        Annotation.buildInserter(annotationExpr, saSignature, ec, Annotation.SAMPLE_HEAD)
+      } else insertSA(ktSig, Parser.parseAnnotationRoot(annotationExpr, Annotation.SAMPLE_HEAD))
+
+    val keyTypes = kt.keyFields.map(_.typ)
+
+    Option(vdsKey) match {
+      case Some(keys) =>
+        val vdsKeyEC = EvalContext(Map("s" -> (0, TString), "sa" -> (1, saSignature)))
+
+        val (vdsKeyType, vdsKeyFs) = keys.map(Parser.parseExpr(_, vdsKeyEC)).unzip
+
+        if (!(keyTypes sameElements vdsKeyType))
+          fatal(
+            s"""method `annotateSamplesTable' encountered a mismatch between table keys and computed keys.
+               |  Computed keys:  [ ${ vdsKeyType.mkString(", ") } ]
+               |  Key table keys: [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
+
+        val ktRdd = kt.keyedRDD()
+
+        val keyFuncArray = vdsKeyFs.toArray
+
+        val thisRdd = sparkContext.parallelize(sampleIdsAndAnnotations).map { case (s, sa) =>
+          vdsKeyEC.setAll(s, sa)
+          (Row.fromSeq(keyFuncArray.map(_ ())), s)
+        }
+
+        val annotationMap = ktRdd.join(thisRdd).map { case (_, (tableAnnotation, s)) => (s, tableAnnotation) }
+          .collectAsMap()
+
+        annotateSamples(annotationMap, finalType, inserter)
+
+      case None =>
+        if (keyTypes.length != 1 || keyTypes(0) != TString)
+          fatal(
+            s"""method `annotateSamplesTable' expects a key table with keys [ String ]
+               |  Found keys [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
+
+        val ktMap = kt.keyedRDD()
+          .map { case (k, v) => (k.asInstanceOf[Row].getAs[String](0), v) }
+          .filter(_._1 != null)
+          .collectAsMap()
+
+        annotateSamples(ktMap.getOrElse(_, null), finalType, inserter)
+    }
   }
 
   def annotateSamples(annotation: (String) => Annotation, newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
@@ -789,102 +738,103 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     }
   }
 
-  def annotateVariantsKeyTable(kt: KeyTable, code: String): VariantSampleMatrix[T] = {
-    val ktKeyTypes = kt.keyFields.map(_.typ)
+  def annotateVariantsTable(kt: KeyTable, vdsKey: java.util.ArrayList[String],
+    root: String, expr: String): VariantSampleMatrix[T] =
+    annotateVariantsTable(kt, Option(vdsKey).map(_.asScala).orNull, root, expr)
 
-    if (ktKeyTypes.length != 1 || ktKeyTypes(0) != TVariant)
-      fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${ ktKeyTypes.mkString(", ") }'")
+  def annotateVariantsTable(kt: KeyTable, vdsKey: Seq[String] = null,
+    root: String = null, expr: String = null): VariantSampleMatrix[T] = {
 
-    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, kt.valueSignature)))
-
-    val (finalType, inserter) =
-      buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
-
-    val keyedRDD = kt.keyedRDD().map { case (k: Row, a) => (k(0).asInstanceOf[Variant], a) }
-      .filter(_._1 != null)
-
-    val ordRdd = OrderedRDD(keyedRDD.mapValues(x => x: Annotation), None, None)
-
-    annotateVariants(ordRdd, finalType, inserter)
-  }
-
-  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: java.util.ArrayList[String], code: String): VariantSampleMatrix[T] =
-    annotateVariantsKeyTable(kt, vdsKey.asScala, code)
-
-  def annotateVariantsKeyTable(kt: KeyTable, vdsKey: Seq[String], code: String): VariantSampleMatrix[T] = {
-    val vdsKeyEc = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
-
-    val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, vdsKeyEc)).unzip
-
-    val keyTypes = kt.keyFields.map(_.typ)
-    if (!(keyTypes sameElements vdsKeyType))
-      fatal(s"Key signature of KeyTable, `${ keyTypes.mkString(", ") }', must match type of computed key, `${ vdsKeyType.mkString(", ") }'.")
-
-    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, kt.valueSignature)))
-
-    val (finalType, inserter) = buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
-
-    val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v) }
-
-    val thisRdd = rdd.map { case (v, (va, gs)) =>
-      vdsKeyEc.setAll(v, va)
-      (Annotation.fromSeq(vdsKeyFs.map(_ ())), (v, va))
-    }
-
-    val variantKeyedRdd = ktRdd.join(thisRdd)
-      .map { case (_, (table, (v, va))) => (v, inserter(va, table)) }
-
-    val ordRdd = OrderedRDD(variantKeyedRdd, None, None)
-
-    val newRdd = rdd.orderedLeftJoinDistinct(ordRdd)
-      .mapValues { case ((va, gs), optVa) => (optVa.getOrElse(inserter(va, null)), gs) }
-      .asOrderedRDD
-
-    copy(rdd = newRdd, vaSignature = finalType)
-  }
-
-  def annotateVariantsLoci(path: String, locusExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
-    annotateVariantsLociAll(List(path), locusExpr, root, code, config)
-  }
-
-  def annotateVariantsLociAll(paths: Seq[String], locusExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
-    val files = hc.hadoopConf.globAll(paths)
-    if (files.isEmpty)
-      fatal("Arguments referred to no files")
-
-    val (struct, locusRDD) = TextTableReader.read(sparkContext)(files, config, nPartitions)
-
-    val (isCode, annotationExpr) = (root, code) match {
+    val (isExpr, annotationExpr) = (Option(root), Option(expr)) match {
       case (Some(r), None) => (false, r)
       case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
+      case _ => fatal("method `annotateVariantsTable' requires one of `root' or 'expr', but not both")
     }
+
+    val ktSig = kt.valueSignature
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
-      if (isCode) {
+      if (isExpr) {
         val ec = EvalContext(Map(
           "va" -> (0, vaSignature),
-          "table" -> (1, struct)))
+          "table" -> (1, ktSig)))
         Annotation.buildInserter(annotationExpr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else insertVA(struct, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
+      } else insertVA(ktSig, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
 
-    val locusQuery = struct.parseInStructScope[Locus](locusExpr)
+    val keyTypes = kt.keyFields.map(_.typ)
 
+    Option(vdsKey) match {
+      case Some(keys) =>
+        val keyEC = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
 
-    import is.hail.variant.LocusImplicits.orderedKey
-    val lociRDD = locusRDD.map {
-      _.map { a =>
-        (locusQuery(a), a: Annotation)
-      }.value
+        val (vdsKeyType, vdsKeyFs) = keys.map(Parser.parseExpr(_, keyEC)).unzip
+
+        if (!(keyTypes sameElements vdsKeyType))
+          fatal(
+            s"""method `annotateVariantsTable' encountered a mismatch between table keys and computed keys.
+               |  Computed keys:  [ ${ vdsKeyType.mkString(", ") } ]
+               |  Key table keys: [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
+
+        val thisRdd = rdd.map { case (v, (va, gs)) =>
+          keyEC.setAll(v, va)
+          (Row.fromSeq(vdsKeyFs.map(_ ())), (v, va))
+        }
+
+        val keyedRDD = kt.keyedRDD().join(thisRdd)
+          .map { case (_, (table, (v, va))) => (v, inserter(va, table)) }
+          .orderedRepartitionBy(rdd.orderedPartitioner)
+
+        val newRdd = rdd.orderedLeftJoinDistinct(keyedRDD)
+          .mapValues { case ((va, gs), optVa) => (optVa.getOrElse(inserter(va, null)), gs) }
+          .asOrderedRDD
+
+        copy(rdd = newRdd, vaSignature = finalType)
+
+      case None =>
+        if (keyTypes.length != 1 || keyTypes(0) != TVariant)
+          fatal(
+            s"""method `annotateVariantsTable' expects a key table with keys [ Variant ]
+               |  Found keys [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
+
+        val keyedRDD = kt.keyedRDD()
+          .map { case (k: Row, v) => (k(0).asInstanceOf[Variant], v: Annotation) }
+          .filter(_._1 != null)
+          .toOrderedRDD(rdd.orderedPartitioner)
+
+        annotateVariants(keyedRDD, finalType, inserter)
     }
-      .filter { case (l, a) => l != null }
-      .toOrderedRDD(rdd.orderedPartitioner.mapMonotonic)
+  }
 
-    annotateLoci(lociRDD, finalType, inserter)
+  def annotateLociTable(kt: KeyTable, root: Option[String] = None, expr: Option[String] = None): VariantSampleMatrix[T] = {
+    val keyTypes = kt.keyFields.map(_.typ)
+    if (keyTypes.length != 1 || keyTypes(0) != TLocus)
+      fatal(
+        s"""method `annotateLociTable' expects a key table with keys [ Locus ]
+           |  Found keys [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
+
+    val (isExpr, annotationExpr) = (root, expr) match {
+      case (Some(r), None) => (false, r)
+      case (None, Some(c)) => (true, c)
+      case _ => fatal("`annotateLociTable' requires one of `root' or 'expr', but not both")
+    }
+
+    val ktSig = kt.valueSignature
+
+    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
+      if (isExpr) {
+        val ec = EvalContext(Map(
+          "va" -> (0, vaSignature),
+          "table" -> (1, ktSig)))
+        Annotation.buildInserter(annotationExpr, vaSignature, ec, Annotation.VARIANT_HEAD)
+      } else insertVA(ktSig, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
+
+    import LocusImplicits.orderedKey
+    val locusRDD = kt.keyedRDD()
+      .map { case (k, v) => (k.asInstanceOf[Row].get(0).asInstanceOf[Locus], v: Annotation) }
+      .filter(_._1 != null)
+      .toOrderedRDD(rdd.orderedPartitioner.mapMonotonic[Locus])
+
+    annotateLoci(locusRDD, finalType, inserter)
   }
 
   def annotateLoci(lociRDD: OrderedRDD[Locus, Locus, Annotation], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
@@ -894,58 +844,15 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val newRDD = rdd
       .mapMonotonic(OrderedKeyFunction(_.locus), { case (v, vags) => (v, vags) })
       .orderedLeftJoinDistinct(lociRDD)
-      .map { case (l, ((v, (va, gs)), annotation)) => (v, (inserter(va, annotation.orNull), gs)) }
+      .mapPartitions({ it =>
+        it.map { case (l, ((v, (va, gs)), annotation)) => (v, (inserter(va, annotation.orNull), gs)) }
+      }, preservesPartitioning = true)
+      .asOrderedRDD
 
-    // we safely use the non-shuffling apply method of OrderedRDD because orderedLeftJoinDistinct preserves the
-    // (Variant) ordering of the left RDD
-    val orderedRDD = OrderedRDD(newRDD, rdd.orderedPartitioner)
-    copy(rdd = orderedRDD, vaSignature = newSignature)
+    copy(rdd = newRDD, vaSignature = newSignature)
   }
 
   def nPartitions: Int = rdd.partitions.length
-
-  def annotateVariantsTable(path: String, variantExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
-    annotateVariantsTables(List(path), variantExpr, root, code, config)
-  }
-
-  def annotateVariantsTables(paths: Seq[String], variantExpr: String,
-    root: Option[String] = None, code: Option[String] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): VariantSampleMatrix[T] = {
-    val files = hc.hadoopConf.globAll(paths)
-    if (files.isEmpty)
-      fatal("Arguments referred to no files")
-
-    val (struct, variantRDD) = TextTableReader.read(sparkContext)(files, config, nPartitions)
-
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
-    }
-
-    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "va" -> (0, vaSignature),
-          "table" -> (1, struct)))
-        Annotation.buildInserter(annotationExpr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else
-        insertVA(struct, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
-
-    val variantQuery = struct.parseInStructScope[Variant](variantExpr)
-
-    val keyedRDD = variantRDD.map {
-      _.map { a =>
-        (variantQuery(a), a: Annotation)
-      }.value
-    }
-      .filter { case (v, a) => v != null }
-      .toOrderedRDD(rdd.orderedPartitioner)
-
-    annotateVariants(keyedRDD, finalType, inserter)
-  }
 
   def annotateVariants(otherRDD: OrderedRDD[Locus, Variant, Annotation], newSignature: Type,
     inserter: Inserter): VariantSampleMatrix[T] = {
