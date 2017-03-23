@@ -932,6 +932,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def sampleQC(root: String = "sa.qc"): VariantDataset = SampleQC(vds, root)
 
   def rrm(forceBlock : Boolean = false, forceGramian : Boolean = false): KinshipMatrix = {
+    requireSplit("rrm")
     new KinshipMatrix(ComputeRRM(vds, forceBlock, forceGramian)._1, vds.sampleIds.toArray)
   }
 
