@@ -20,7 +20,6 @@ introduction to using this API to analyze genetic data.
     hail.HailContext
     hail.VariantDataset
     hail.KeyTable
-    hail.TextTableConfig
     hail.KinshipMatrix
 
 
