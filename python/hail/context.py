@@ -437,7 +437,7 @@ class HailContext(object):
 
         .. warning::
 
-            - The variant dataset generated with ``generic=True`` will have significantly slower (~2X) performance.
+            - The variant dataset generated with ``generic=True`` will have significantly slower performance.
 
             - Not all :py:class:`.VariantDataset` methods will work with a generic genotype schema.
 
@@ -513,7 +513,7 @@ class HailContext(object):
 
     @handle_py4j
     def index_bgen(self, path):
-        """Index .bgen files.  :py:meth:`.HailContext.import_bgen cannot run without these indices.
+        """Index .bgen files. :py:meth:`.HailContext.import_bgen` cannot run without these indices.
 
         **Example**
 

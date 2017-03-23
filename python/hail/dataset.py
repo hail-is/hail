@@ -329,6 +329,8 @@ class VariantDataset(object):
     def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
 
         To create a variant annotation ``va.nNonRefSamples: Array[Int]`` where the ith entry of
@@ -400,7 +402,7 @@ class VariantDataset(object):
               subsequent function calls on the annotated variant dataset may not work such as
               :py:meth:`~hail.VariantDataset.pca` and :py:meth:`~hail.VariantDataset.linreg`.
 
-            - Hail performance may be significantly slower (~2X) if the annotated variant dataset does not have a
+            - Hail performance may be significantly slower if the annotated variant dataset does not have a
               genotype schema equal to :py:class:`~hail.expr.TGenotype`.
 
             - Genotypes are immutable. For example, if ``g`` is initially of type ``Genotype``, the expression
@@ -1276,6 +1278,8 @@ class VariantDataset(object):
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
+        .. include:: requireTGenotype.rst
+
         **Example**
 
         >>> concordance_pair = vds.concordance(hc.read('data/example2.vds'))
@@ -1371,6 +1375,8 @@ class VariantDataset(object):
     def export_gen(self, output):
         """Export variant dataset as GEN and SAMPLE file.
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
 
         Import dosage data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
@@ -1455,6 +1461,8 @@ class VariantDataset(object):
     @requireTGenotype
     def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`_ BED, BIM and FAM.
+
+        .. include:: requireTGenotype.rst
 
         **Examples**
 
@@ -1640,7 +1648,10 @@ class VariantDataset(object):
                              export_ref=False,
                              drop=False,
                              block_size=100):
-        """Export variant information to Cassandra."""
+        """Export variant information to Cassandra.
+
+        .. include:: requireTGenotype.rst
+        """
 
         self._jvdf.exportVariantsCassandra(address, genotype_expr, keyspace, table, variant_expr,
                                            drop, export_ref, export_missing, block_size)
@@ -1656,7 +1667,10 @@ class VariantDataset(object):
                              export_missing=False,
                              export_ref=False,
                              block_size=100):
-        """Export variant information to Solr."""
+        """Export variant information to Solr.
+
+        .. include:: requireTGenotype.rst
+        """
 
         self._jvdf.exportVariantsSolr(variant_expr, genotype_expr, solr_cloud_collection, solr_url, zookeeper_host,
                                       export_missing, export_ref, drop, num_shards, block_size)
@@ -1750,6 +1764,8 @@ class VariantDataset(object):
         variant itself is filtered.  The condition expression is
         evaluated for each alternate allele, but not for
         the reference allele (i.e. ``aIndex`` will never be zero).
+
+        .. include:: requireTGenotype.rst
 
         **Examples**
 
@@ -1927,6 +1943,8 @@ class VariantDataset(object):
     @requireTGenotype
     def filter_multi(self):
         """Filter out multi-allelic sites.
+
+        .. include:: requireTGenotype.rst
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -2174,6 +2192,8 @@ class VariantDataset(object):
     def grm(self, output, format, id_file=None, n_file=None):
         """Compute the Genetic Relatedness Matrix (GRM).
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
         
         >>> vds.grm('data/grm.rel', 'rel')
@@ -2211,6 +2231,8 @@ class VariantDataset(object):
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
+        .. include:: requireTGenotype.rst
+
         A hard-called variant dataset is about two orders of magnitude
         smaller than a standard sequencing dataset. Use this
         method to create a smaller, faster
@@ -2227,6 +2249,8 @@ class VariantDataset(object):
     @requireTGenotype
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
+
+        .. include:: requireTGenotype.rst
 
         **Examples**
 
@@ -2297,6 +2321,8 @@ class VariantDataset(object):
         """
         Prune samples from the :py:class:`.VariantDataset` based on :py:meth:`~hail.VariantDataset.ibd` PI_HAT measures of relatedness.
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
 
         Prune samples so that no two have a PI_HAT value greater than or equal to 0.5:
@@ -2343,6 +2369,8 @@ class VariantDataset(object):
     def impute_sex(self, maf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, pop_freq=None):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
+
+        .. include:: requireTGenotype.rst
 
         **Examples**
 
@@ -2422,6 +2450,8 @@ class VariantDataset(object):
     @requireTGenotype
     def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association using linear regression.
+
+        .. include:: requireTGenotype.rst
 
         **Examples**
 
@@ -2515,6 +2545,8 @@ class VariantDataset(object):
                run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, force_block=False,
                force_grammian=False):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
+
+        .. include:: requireTGenotype.rst
 
         **Examples**
 
@@ -2736,6 +2768,8 @@ class VariantDataset(object):
     def logreg(self, test, y, covariates=[], root='va.logreg'):
         """Test each variant for association using logistic regression.
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
 
         Run the logistic regression Wald test per variant using a phenotype and two covariates stored in sample annotations:
@@ -2855,6 +2889,8 @@ class VariantDataset(object):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
 
         Find all violations of Mendelian inheritance in each (dad,
@@ -2971,6 +3007,8 @@ class VariantDataset(object):
     @requireTGenotype
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
+
+        .. include:: requireTGenotype.rst
 
         **Examples**
 
@@ -3475,6 +3513,8 @@ class VariantDataset(object):
     def sample_qc(self, root='sa.qc'):
         """Compute per-sample QC metrics.
 
+        .. include:: requireTGenotype.rst
+
         **Annotations**
 
         :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the 
@@ -3654,6 +3694,8 @@ class VariantDataset(object):
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
 
         >>> vds.split_multi().write('output/split.vds')
@@ -3785,6 +3827,8 @@ class VariantDataset(object):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
 
         Compute TDT association results:
@@ -3889,6 +3933,8 @@ class VariantDataset(object):
     @requireTGenotype
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
+
+        .. include:: requireTGenotype.rst
 
         **Examples**
 
