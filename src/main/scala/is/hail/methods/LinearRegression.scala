@@ -15,7 +15,7 @@ object LinearRegression {
     ("tstat", TDouble),
     ("pval", TDouble))
 
-  def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, minAC: Int, minAF: Double): VariantDataset = {
+  def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
     require(vds.wasSplit)
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
@@ -50,18 +50,26 @@ object LinearRegression {
     val (newVAS, inserter) = vds.insertVA(LinearRegression.`type`, pathVA)
 
     vds.mapAnnotations { case (v, va, gs) =>
-      val lrb = new LinRegBuilder(yBc.value)
-      val gts = gs.hardCallIterator
-      val mask = sampleMaskBc.value
-      var i = 0
-      while (i < mask.length) {
-        val gt = gts.next()
-        if (mask(i))
-          lrb.merge(gt)
-        i += 1
-      }
 
-      val linregAnnot = lrb.stats(yBc.value, n, combinedMinAC).map { stats =>
+      val optStats: Option[(Vector[Double], Double, Double)] =
+        if (useDosages)
+          RegressionUtils.toDosageStats(gs, n, yBc.value, sampleMaskBc.value)
+        else {
+          val lrb = new LinRegBuilder(yBc.value)
+          val gts = gs.hardCallIterator
+          val mask = sampleMaskBc.value
+          var i = 0
+          while (i < mask.length) {
+            val gt = gts.nextInt()
+            if (mask(i))
+              lrb.merge(gt)
+            i += 1
+          }
+
+          lrb.stats(yBc.value, n, combinedMinAC)
+          }
+
+      val linregAnnot = optStats.map { stats =>
         val (x, xx, xy) = stats
 
         val qtx = QtBc.value * x

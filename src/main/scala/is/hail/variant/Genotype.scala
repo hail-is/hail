@@ -11,7 +11,6 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.json4s._
 
-import scala.collection.mutable
 import scala.language.implicitConversions
 
 object GenotypeType extends Enumeration {
@@ -53,6 +52,7 @@ class GTPair(val p: Int) extends AnyVal {
 
 }
 
+
 abstract class Genotype extends Serializable {
 
   def unboxedGT: Int
@@ -81,9 +81,17 @@ abstract class Genotype extends Serializable {
     if (unboxedPX == null)
       null
     else if (isDosage)
-      unboxedPX.map(_ / 32768.0)
+      unboxedPX.map(_ * Genotype.dosageNorm)
     else
       Genotype.phredToDosage(unboxedPX)
+
+  def unboxedBiallelicDosageGT: Double =
+    if (unboxedPX == null)
+      -1d
+    else if (isDosage)
+      (unboxedPX(1) + 2 * unboxedPX(2)) * Genotype.dosageNorm
+    else
+      Genotype.phredToBiallelicDosageGT(unboxedPX)
 
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
@@ -578,6 +586,8 @@ object Genotype {
 
   lazy val phredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
 
+  lazy val dosageNorm: Double = 1 / 32768.0
+
   def linearToPhred(a: Array[Int]): Array[Int] = {
     val x = a.map(phredConversionTable)
     x.map { d => (d - x.min + 0.5).toInt }
@@ -587,6 +597,14 @@ object Genotype {
     val transformedProbs = a.map { i => math.pow(10, i / -10.0) }
     val s = transformedProbs.sum
     transformedProbs.map(_ / s)
+  }
+
+  def phredToBiallelicDosageGT(a: Array[Int]): Double = {
+    val a0 = math.pow(10, a(0) / -10.0)
+    val a1 = math.pow(10, a(1) / -10.0)
+    val a2 = math.pow(10, a(2) / -10.0)
+
+    (a1 + 2 * a2) / (a0 + a1 + a2)
   }
 
   val smallGTPair = Array(GTPair(0, 0), GTPair(0, 1), GTPair(1, 1),

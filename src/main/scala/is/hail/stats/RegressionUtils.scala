@@ -195,6 +195,59 @@ object RegressionUtils {
       Some(gtVals)
     }
   }
+
+  // mean 0, norm sqrt(n), variance 1 (constant variants return None)
+  def toDosageStats(gs: Iterable[Genotype], nSamples: Int, y: DenseVector[Double], mask: Array[Boolean]): Option[(DenseVector[Double], Double, Double)] = {
+    val valsX = Array.ofDim[Double](nSamples)
+    var sumX = 0d
+    var sumXX = 0d
+    var sumXY = 0d
+    var sumYMissing = 0d
+    var nMissing = 0
+    val missingRowIndices = new ArrayBuilder[Int]()
+
+    val gts = gs.dosageIterator
+    var i = 0
+    var row = 0
+    while (gts.hasNext) {
+      val gt = gts.nextDouble()
+      if (mask(i)) {
+        if (gt != -1d) {
+          valsX(i) = gt
+          sumX += gt
+          sumXX += gt * gt
+          sumXY = gt * y(row)
+        } else {
+          nMissing += 1
+          missingRowIndices += row
+          sumYMissing += y(row)
+        }
+        row += 1
+      }
+      i += 1
+    }
+
+    val nPresent = nSamples - nMissing
+
+    if (sumX == 0 || sumX == 2 * nPresent || sumX == nPresent && sumXX == nPresent)
+      None
+    else {
+      val meanX = sumX.toDouble / nPresent
+      val missingRowIndicesArray = missingRowIndices.result()
+
+      var i = 0
+      while (i < missingRowIndicesArray.length) {
+        valsX(missingRowIndicesArray(i)) = meanX
+        i += 1
+      }
+
+      val x = DenseVector(valsX)
+      val xx = sumXX + meanX * meanX * nMissing
+      val xy = sumXY + meanX * sumYMissing
+
+      Some(x, sumXX, sumXY)
+    }
+  }
 }
 
 // constructs SparseVector of genotype calls with missing values mean-imputed

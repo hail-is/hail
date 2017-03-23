@@ -29,6 +29,16 @@ package object variant {
           override def next(): Int = it.next().unboxedGT
         }
     }
+
+    def dosageIterator: DoubleIterator = ig match {
+      case gs: GenotypeStream => gs.gsDosageIterator
+      case _ =>
+        new DoubleIterator {
+          val it: Iterator[Genotype] = ig.iterator
+          override def hasNext: Boolean = it.hasNext
+          override def nextDouble(): Double = it.next().unboxedBiallelicDosageGT
+        }
+    }
   }
 
   implicit def toRichIterableGenotype(ig: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(ig)

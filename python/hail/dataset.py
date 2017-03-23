@@ -2326,7 +2326,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def linreg(self, y, covariates=[], root='va.linreg', min_ac=1, min_af=0.0):
+    def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association using linear regression.
 
         **Examples**
@@ -2410,6 +2410,8 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
+        :param bool use_dosages: If true, use dosage genotypes rather that hard genotypes.
+
         :param int min_ac: Minimum alternate allele count.
 
         :param float min_af: Minimum alternate allele frequency.
@@ -2418,7 +2420,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, min_ac, min_af)
+        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
