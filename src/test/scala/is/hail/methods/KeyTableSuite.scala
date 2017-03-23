@@ -40,15 +40,14 @@ class KeyTableSuite extends SparkSuite {
   @Test def testImportExport() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
-    val kt = hc.importKeyTable(List(inputFile), None, TextTableConfiguration()).keyBy(List("Sample", "Status"))
+    val kt = hc.importKeyTable(inputFile).keyBy("Sample", "Status")
     kt.export(sc, outputFile, null)
 
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
     intercept[HailException] {
-      val kt = hc.importKeyTable(List(inputFile), None, TextTableConfiguration())
-        .keyBy(List("Sample", "Status", "BadKeyName"))
+      val kt = hc.importKeyTable(inputFile).keyBy(List("Sample", "Status", "BadKeyName"))
     }
 
     assert(importedData == exportedData)
@@ -56,7 +55,7 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val kt1 = hc.importKeyTable(List(inputFile), None, TextTableConfiguration(impute = true)).keyBy("Sample")
+    val kt1 = hc.importKeyTable(inputFile, impute = true).keyBy("Sample")
     val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
     val kt3 = kt2.annotate("")
     val kt4 = kt3.select(kt3.fieldNames, Array("qPhen", "NotStatus"))
@@ -111,8 +110,8 @@ class KeyTableSuite extends SparkSuite {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    val ktLeft = hc.importKeyTable(List(inputFile1), None, TextTableConfiguration(impute = true)).keyBy("Sample")
-    val ktRight = hc.importKeyTable(List(inputFile2), None, TextTableConfiguration(impute = true)).keyBy("Sample")
+    val ktLeft = hc.importKeyTable(inputFile1, impute = true).keyBy("Sample")
+    val ktRight = hc.importKeyTable(inputFile2, impute = true).keyBy("Sample")
 
     val ktLeftJoin = ktLeft.join(ktRight, "left")
     val ktRightJoin = ktLeft.join(ktRight, "right")
@@ -171,8 +170,8 @@ class KeyTableSuite extends SparkSuite {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    val ktLeft = hc.importKeyTable(List(inputFile1), None, TextTableConfiguration(impute = true)).keyBy("Sample")
-    val ktRight = hc.importKeyTable(List(inputFile2), None, TextTableConfiguration(impute = true))
+    val ktLeft = hc.importKeyTable(inputFile1, impute = true).keyBy("Sample")
+    val ktRight = hc.importKeyTable(inputFile2, impute = true)
       .keyBy("Sample")
       .rename(Map("Sample" -> "sample"))
     val ktBad = ktRight.select(ktRight.fieldNames, Array("qPhen2"))
@@ -325,20 +324,19 @@ class KeyTableSuite extends SparkSuite {
   }
 
   @Test def testQuery() {
-    val kt = hc.importKeyTable(List("src/test/resources/sampleAnnotations.tsv"),
-      config = TextTableConfiguration(impute=true))
+    val kt = hc.importKeyTable("src/test/resources/sampleAnnotations.tsv", impute = true)
 
     case class LineData(sample: String, status: String, qPhen: Option[Int])
 
     val localData = hadoopConf.readLines("src/test/resources/sampleAnnotations.tsv") { lines =>
       lines.drop(1).map { l =>
         val Array(sample, caseStatus, qPhen) = l.value.split("\t")
-        LineData(sample ,caseStatus, if (qPhen != "NA") Some(qPhen.toInt) else None)
+        LineData(sample, caseStatus, if (qPhen != "NA") Some(qPhen.toInt) else None)
       }.toArray
     }
 
-    val statComb = localData.flatMap {ld => ld.qPhen}
-        .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
+    val statComb = localData.flatMap { ld => ld.qPhen }
+      .aggregate(new StatCounter())({ case (sc, i) => sc.merge(i) }, { case (sc1, sc2) => sc1.merge(sc2) })
 
     val Array(ktMean, ktStDev) = kt.query(Array("qPhen.stats().mean", "qPhen.stats().stdev")).map(_._1)
 

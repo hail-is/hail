@@ -20,6 +20,7 @@ import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
 object HailContext {
@@ -300,9 +301,35 @@ class HailContext private(val sc: SparkContext,
       .copy(vaSignature = signature, wasSplit = true)
   }
 
-  def importKeyTable(inputs: Seq[String],
+  def importKeyTable(inputs: java.util.ArrayList[String],
+  nPartitions: Option[Int],
+  types: java.util.HashMap[String, Type],
+  commentChar: String,
+  separator: String,
+  missing:String,
+  noHeader: Boolean,
+  impute: Boolean): KeyTable = importKeyTables(inputs.asScala, nPartitions, types.asScala.toMap,
+  Option(commentChar), separator, missing, noHeader, impute)
+
+  def importKeyTable(input: String,
     nPartitions: Option[Int] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): KeyTable = {
+    types: Map[String, Type] = Map.empty[String, Type],
+    commentChar: Option[String] = None,
+    separator: String = "\t",
+    missing: String = "NA",
+    noHeader: Boolean = false,
+    impute: Boolean = false): KeyTable = {
+    importKeyTables(List(input), nPartitions, types, commentChar, separator, missing, noHeader, impute)
+  }
+
+  def importKeyTables(inputs: Seq[String],
+    nPartitions: Option[Int] = None,
+    types: Map[String, Type] = Map.empty[String, Type],
+    commentChar: Option[String] = None,
+    separator: String = "\t",
+    missing: String = "NA",
+    noHeader: Boolean = false,
+    impute: Boolean = false): KeyTable = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
     val files = hadoopConf.globAll(inputs)
@@ -310,7 +337,8 @@ class HailContext private(val sc: SparkContext,
       fatal("Arguments referred to no files")
 
     val (struct, rdd) =
-      TextTableReader.read(sc)(files, config, nPartitions.getOrElse(sc.defaultMinPartitions))
+      TextTableReader.read(sc)(files, types, commentChar, separator, missing,
+        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     KeyTable(this, rdd.map(_.value), struct, Array.empty[String])
   }

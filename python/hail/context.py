@@ -5,8 +5,12 @@ from pyspark.sql import SQLContext
 from hail.dataset import VariantDataset
 from hail.java import *
 from hail.keytable import KeyTable
+<<<<<<< HEAD
 from hail.expr import Type
 from hail.utils import TextTableConfig
+=======
+from hail.type import Type
+>>>>>>> Annotate loci
 from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
 
 
@@ -256,30 +260,170 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_keytable(self, path, npartitions=None, config=TextTableConfig()):
+    def import_keytable(self, paths, npartitions=None, impute=False, no_header=False,
+                        comment=None, delimiter="\t", missing="NA", types={}):
         """Import delimited text file (text table) as key table.
 
         The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
         to specify keys.
+        
+        **Example**
+    
+        Given this file
 
-        :param path: files to import.
-        :type path: str or list of str
+        .. code-block: text
+
+            $ cat data/samples1.tsv
+            Sample	Height	Status  Age
+            PT-1234	154.1	ADHD	24
+            PT-1236	160.9	Control	19
+            PT-1238	NA	ADHD	89
+            PT-1239	170.3	Control	55
+
+        The interesting thing about this table is that column ``Height`` is a floating-point number, 
+        and column ``Age`` is an integer. We can either provide have Hail impute these types from 
+        the file, or pass them ourselves:
+        
+        Pass the types ourselves:
+        >>> table = hc.import_keytable('data/samples1.tsv', types={'Height': TDouble(), 'Age': TInt()})
+        
+        Note that string columns like ``Sample`` and ``Status`` do not need to be typed, because ``String``
+        is the default type.
+        
+        Use type imputation (a bit easier, but requires reading the file twice):
+        >>> table = hc.import_keytable('data/samples1.tsv', impute=True)
+
+        **Detailed examples**
+
+        Let's import annotations from a CSV file with missing data and special characters:
+
+        .. code-block: text
+
+            $ cat data/samples2.tsv
+            Batch,PT-ID
+            1kg,PT-0001
+            1kg,PT-0002
+            study1,PT-0003
+            study3,PT-0003
+            .,PT-0004
+            1kg,PT-0005
+            .,PT-0006
+            1kg,PT-0007
+
+        In this case, we should:
+
+        - Pass the non-default delimiter ``,``
+
+        - Pass the non-default missing value ``.``
+
+        >>> table = hc.import_keytable('data/samples2.tsv', delimiter=',', missing='.')
+
+        Let's import annotations from a file with no header and sample IDs that need to be transformed. 
+        Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
+        sample ID is hidden in a field with other information.
+
+        .. code-block: text
+
+            $ cat data/samples3.tsv
+            1kg_NA12345   female
+            1kg_NA12346   male
+            1kg_NA12348   female
+            pgc_NA23415   male
+            pgc_NA23418   male
+
+        To import:
+
+        >>> annotations = (hc.import_keytable('data/samples3.tsv', no_header=True)
+        ...                   .annotate('sample = _1.split("_")[1]')
+        ...                   .key_by('sample'))
+        
+        The ``impute`` parameter, if ``True``, tells Hail to scan the file an extra time to gather
+        information about possible field types. While this is a bit slower for large files, it is
+        often worth the convenience.
+        
+        The ``delimiter`` parameter is a field separator regex. This regex follows the 
+         `Java regex standard <http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html>`_.
+        
+        .. note::
+        
+            It is possible to use ``delimiter='\\s+'`` to specify whitespace delimited files.
+            
+        The ``comment`` is an optional parameter which causes Hail to skip any line that starts in the
+        given pattern. Passing ``comment='#'`` will skip any line beginning in a pound sign, for example.
+        
+        The ``missing`` parameter defines the representation of missing data in the table. 
+        .. note::
+        
+            The ``comment`` and ``missing`` parameters are **NOT** regexes.
+
+        The ``no_header`` option 
+        
+        :param paths: files to import.
+        :type paths: str or list of str
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
-
+        :param bool no_header: File has no header and the N columns are named ``_0``, ``_1``, ... ``_N`` (0-indexed)
+        
+        :param bool impute: Impute column types from the file
+        
+        :param comment: Skip lines beginning with the given pattern
+        :type comment: str or None
+        
+        :param str delimiter: Field delimiter regex
+        
+        :param str missing: Specify identifier to be treated as missing
+        
+        :param types: Define types of fields in annotations files   
+        :type types: dict with str keys and :py:class:`.Type` values
+    
         :return: Key table constructed from text table.
         :rtype: :class:`.KeyTable`
         """
 
-        if not config:
-            config = TextTableConfig()
+        if not isinstance(paths, str) and not isinstance(paths, unicode):
+            raise TypeError("method 'import_keytable' expected param 'paths' to be str, but found %s" % type(paths))
+        paths = [paths]
+        if not isinstance(paths, list):
+            pass
+        else:
+            for p in paths:
+                if not isinstance(p, str) and not isinstance(p, unicode):
+                    raise TypeError(
+                        "method 'import_keytable' expected elements of param 'paths' to be str, but found %s" % type(p))
 
-        jkt = self._jhc.importKeyTable(jindexed_seq_args(path),
-                                       joption(npartitions), config._to_java())
+        if npartitions is not None and not isinstance(npartitions, int):
+            raise TypeError(
+                "method 'import_keytable' expected param 'npartitions' to be None or int, but found %s" %
+                type(npartitions))
+        if not isinstance(impute, bool):
+            raise TypeError("method 'import_keytable' expected param 'impute' to be bool, but found %s" % type(impute))
+        if not isinstance(no_header, bool):
+            raise TypeError(
+                "method 'import_keytable' expected param 'no_header' to be bool, but found %s" % type(no_header))
+        if comment is not None and not isinstance(comment, str) and not isinstance(comment, unicode):
+            raise TypeError(
+                "method 'import_keytable' expected param 'comment' to be None or str, but found %s" % type(comment))
+        if not isinstance(delimiter, str) and not isinstance(delimiter, unicode):
+            raise TypeError(
+                "method 'import_keytable' expected param 'delimiter' to be None or str, but found %s" % type(delimiter))
+        if not isinstance(missing, str) and not isinstance(missing, unicode):
+            raise TypeError(
+                "method 'import_keytable' expected param 'missing' to be None or str, but found %s" % type(missing))
+        if not isinstance(types, dict):
+            raise TypeError("method 'import_keytable' expected param 'types' to be dict, but found %s" % type(types))
+        for k, v in types.items():
+            if not isinstance(k, str) and not isinstance(k, unicode):
+                raise TypeError(
+                    "method 'import_keytable' expected keys of param 'types' to be str, but found %s" % type(k))
+            if not isinstance(v, Type):
+                raise TypeError(
+                    "method 'import_keytable' expected values of param 'types' to be Type, but found %s" % type(k))
+
+        jtypes = {k: v._jtype for k, v in types.items()}
+
+        jkt = self._jhc.importKeyTable(paths, joption(npartitions), jtypes, comment, delimiter, missing, no_header, impute)
         return KeyTable(self, jkt)
 
     @handle_py4j
