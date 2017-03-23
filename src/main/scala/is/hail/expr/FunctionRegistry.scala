@@ -1101,7 +1101,7 @@ object FunctionRegistry {
     Convert from genotype index (triangular numbers) to ``j/k`` pairs. Returns ``k``.
     """,
     "k" -> "Genotype index.")
-  register("gtIndex", (j: Int, k: Int) => Genotype.gtIndex(j, k),
+  register("gtIndex", (j: Int, k: Int) => Genotype.gtIndexWithSwap(j, k),
     """
     Convert from ``j/k`` pair to genotype index (triangular numbers).
     """,
