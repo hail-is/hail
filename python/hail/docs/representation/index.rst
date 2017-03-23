@@ -18,5 +18,6 @@ representation
     hail.representation.Call
     hail.representation.Locus
     hail.representation.Interval
-    hail.representation.IntervalTree
+    hail.representation.Trio
+    hail.representation.Pedigree
     hail.representation.Struct

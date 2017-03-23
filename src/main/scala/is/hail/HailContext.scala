@@ -19,6 +19,7 @@ import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
 object HailContext {
@@ -299,10 +300,38 @@ class HailContext private(val sc: SparkContext,
       .copy(vaSignature = signature, wasSplit = true)
   }
 
-  def importKeyTable(inputs: Seq[String],
+  def importKeyTable(inputs: java.util.ArrayList[String],
+    keyNames: java.util.ArrayList[String],
+    nPartitions: Option[Int],
+    types: java.util.HashMap[String, Type],
+    commentChar: String,
+    separator: String,
+    missing: String,
+    noHeader: Boolean,
+    impute: Boolean): KeyTable = importKeyTables(inputs.asScala, keyNames.asScala.toArray, nPartitions,
+    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute)
+
+  def importTable(input: String,
     keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
-    config: TextTableConfiguration = TextTableConfiguration()): KeyTable = {
+    types: Map[String, Type] = Map.empty[String, Type],
+    commentChar: Option[String] = None,
+    separator: String = "\t",
+    missing: String = "NA",
+    noHeader: Boolean = false,
+    impute: Boolean = false): KeyTable = {
+    importKeyTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute)
+  }
+
+  def importKeyTables(inputs: Seq[String],
+    keyNames: Array[String] = Array.empty[String],
+    nPartitions: Option[Int] = None,
+    types: Map[String, Type] = Map.empty[String, Type],
+    commentChar: Option[String] = None,
+    separator: String = "\t",
+    missing: String = "NA",
+    noHeader: Boolean = false,
+    impute: Boolean = false): KeyTable = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
     val files = hadoopConf.globAll(inputs)
@@ -310,7 +339,8 @@ class HailContext private(val sc: SparkContext,
       fatal("Arguments referred to no files")
 
     val (struct, rdd) =
-      TextTableReader.read(sc)(files, config, nPartitions.getOrElse(sc.defaultMinPartitions))
+      TextTableReader.read(sc)(files, types, commentChar, separator, missing,
+        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     KeyTable(this, rdd.map(_.value), struct, keyNames)
   }
@@ -395,7 +425,7 @@ class HailContext private(val sc: SparkContext,
   def readMetadata(file: String): (VariantMetadata, Boolean) = VariantDataset.readMetadata(hadoopConf, file)
 
   def readAllMetadata(files: Seq[String]): Array[(VariantMetadata, Boolean)] = files.map(readMetadata).toArray
-  
+
   def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false,
     metadata: Option[Array[(VariantMetadata, Boolean)]] = None): VariantDataset =
     readAll(List(file), dropSamples, dropVariants, metadata)
@@ -571,9 +601,6 @@ class HailContext private(val sc: SparkContext,
     afDist: Distribution = UniformDist(0.1, 0.9),
     seed: Int = 0): VariantDataset =
     BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist)
-
-  def dataframeToKeytable(df: DataFrame, keys: Array[String] = Array.empty[String]): KeyTable =
-    KeyTable.fromDF(this, df, keys)
 
   def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
 

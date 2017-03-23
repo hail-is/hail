@@ -54,7 +54,7 @@ class TextTableSuite extends SparkSuite {
     )))
 
     val (schema, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
-      config = TextTableConfiguration().copy(impute = true))
+      impute = true)
     assert(schema == TStruct(
       "Chromosome" -> TInt,
       "Position" -> TInt,
@@ -65,7 +65,7 @@ class TextTableSuite extends SparkSuite {
       "Gene" -> TString))
 
     val (schema2, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
-      config = TextTableConfiguration().copy(types = Map("Chromosome" -> TString), impute = true))
+      types = Map("Chromosome" -> TString), impute = true)
     assert(schema2 == TStruct(
       "Chromosome" -> TString,
       "Position" -> TInt,
@@ -76,7 +76,7 @@ class TextTableSuite extends SparkSuite {
       "Gene" -> TString))
 
     val (schema3, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.alternateformat.tsv"),
-      config = TextTableConfiguration().copy(impute = true))
+      impute = true)
     assert(schema3 == TStruct(
       "Chromosome:Position:Ref:Alt" -> TVariant,
       "Rand1" -> TDouble,
@@ -84,7 +84,7 @@ class TextTableSuite extends SparkSuite {
       "Gene" -> TString))
 
     val (schema4, _) = TextTableReader.read(sc)(Array("src/test/resources/sampleAnnotations.tsv"),
-      config = TextTableConfiguration().copy(impute = true))
+      impute = true)
     assert(schema4 == TStruct(
       "Sample" -> TString,
       "Status" -> TString,
@@ -97,13 +97,11 @@ class TextTableSuite extends SparkSuite {
       .filter(vds => vds.countVariants > 0 && vds.vaSignature != TDouble)) { vds: VariantDataset =>
 
       vds.exportVariants(outPath, "v = v, va = va", typeFile = true)
+
       val types = Type.parseMap(hadoopConf.readFile(outPath + ".types")(Source.fromInputStream(_).mkString))
 
-      vds.annotateVariantsTable(outPath,
-        "v",
-        code = Some("va = table.va"),
-        config = TextTableConfiguration(types = types))
-        .same(vds)
+      val kt = hc.importTable(outPath, types = types).keyBy("v")
+      vds.annotateVariantsTable(kt, root = "va").same(vds)
     }
 
     p.check()

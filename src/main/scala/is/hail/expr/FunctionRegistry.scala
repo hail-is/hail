@@ -1135,6 +1135,13 @@ object FunctionRegistry {
     "b" -> "the base.",
     "x" -> "the exponent.")
 
+  register("parseInterval", (s: String) => Locus.parseInterval(s),
+    """
+    Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
+    """,
+    "s" -> "The string to parse."
+  )
+
   register("pcoin", { (p: Double) => math.random < p },
     """
     Returns true with probability ``p``. This function is non-deterministic.

@@ -7,8 +7,8 @@ import org.testng.annotations.Test
 class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
     val vds = hc.importVCF("src/test/resources/mendel.vcf")
-    val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration, vds.sampleIds)
-    val men = MendelErrors(vds, ped.completeTrios)
+    val ped = Pedigree.fromFam("src/test/resources/mendel.fam", sc.hadoopConfiguration)
+    val men = MendelErrors(vds, ped.filterTo(vds.sampleIds.toSet).completeTrios)
 
     val nPerFam = men.nErrorPerNuclearFamily.collectAsMap()
     val nPerIndiv = men.nErrorPerIndiv.collectAsMap()
@@ -33,14 +33,14 @@ class MendelErrorsSuite extends SparkSuite {
     assert(nPerIndiv.size == 7)
     assert(nPerVariant.size == 28)
 
-    assert(nPerFam((dad, mom)) ==(41, 39))
-    assert(nPerFam((dad2, mom2)) ==(0, 0))
+    assert(nPerFam((dad, mom)) == (41, 39))
+    assert(nPerFam((dad2, mom2)) == (0, 0))
 
-    assert(nPerIndiv(son) ==(23, 22))
-    assert(nPerIndiv(dtr) ==(18, 17))
-    assert(nPerIndiv(dad) ==(19, 18))
-    assert(nPerIndiv(mom) ==(22, 21))
-    assert(nPerIndiv(dad2) ==(0, 0))
+    assert(nPerIndiv(son) == (23, 22))
+    assert(nPerIndiv(dtr) == (18, 17))
+    assert(nPerIndiv(dad) == (19, 18))
+    assert(nPerIndiv(mom) == (22, 21))
+    assert(nPerIndiv(dad2) == (0, 0))
 
     assert(nPerVariant(variant1) == 2)
     assert(nPerVariant(variant2) == 1)
@@ -52,14 +52,13 @@ class MendelErrorsSuite extends SparkSuite {
 
     val mendelBase = tmpDir.createTempFile("sample_mendel")
 
-    //FIXME: How to test these?
-    men.writeMendel(mendelBase + ".mendel", hc.tmpDir)
-    men.writeMendelL(mendelBase + ".lmendel", hc.tmpDir)
-    men.writeMendelF(mendelBase + ".fmendel")
-    men.writeMendelI(mendelBase + ".imendel")
+    men.mendelKT().typeCheck()
+    men.fMendelKT().typeCheck()
+    men.iMendelKT().typeCheck()
+    men.lMendelKT().typeCheck()
 
-    val ped2 = Pedigree.read("src/test/resources/mendelWithMissingSex.fam", sc.hadoopConfiguration, vds.sampleIds)
-    val men2 = MendelErrors(vds, ped2.completeTrios)
+    val ped2 = Pedigree.fromFam("src/test/resources/mendelWithMissingSex.fam", sc.hadoopConfiguration)
+    val men2 = MendelErrors(vds, ped2.filterTo(vds.sampleIds.toSet).completeTrios)
 
     assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == "Dtr1").collect().toSet)
   }

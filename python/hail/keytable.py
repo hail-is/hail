@@ -2,6 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
 from hail.expr import Type, TArray, TStruct
+from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
 
 def asc(col):
@@ -24,7 +25,7 @@ class KeyTable(object):
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
-    >>> kt1 = hc.import_keytable('data/kt_example1.tsv', config=TextTableConfig(impute=True))
+    >>> kt1 = hc.import_table('data/kt_example1.tsv', impute=True)
 
     +--+---+---+-+-+----+----+----+
     |ID|HT |SEX|X|Z| C1 | C2 | C3 |
@@ -38,7 +39,7 @@ class KeyTable(object):
     |4 |60 |F  |8|2|11	|90  |-10 |
     +--+---+---+-+-+----+----+----+
 
-    >>> kt2 = hc.import_keytable('data/kt_example2.tsv', config=TextTableConfig(impute=True))
+    >>> kt2 = hc.import_table('data/kt_example2.tsv', impute=True)
 
     +---+---+------+
     |ID	|A  |B     |
@@ -176,7 +177,7 @@ class KeyTable(object):
         return self._jkt.same(other._jkt)
 
     @handle_py4j
-    def export(self, output, types_file=None):
+    def export(self, output, types_file=None, header=True):
         """Export to a TSV file.
 
         **Examples**
@@ -189,9 +190,11 @@ class KeyTable(object):
         :param str output: Output file path.
 
         :param str types_file: Output path of types file.
+        
+        :param bool header: Write a header using the column names.
         """
 
-        self._jkt.export(self.hc._jsc, output, types_file)
+        self._jkt.export(output, types_file, header)
 
     @handle_py4j
     def filter(self, condition, keep=True):
@@ -627,8 +630,8 @@ class KeyTable(object):
         Assume ``kt3`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
         c3.
 
-        >>> kt3 = hc.import_keytable('data/kt_example3.tsv',
-        ...   config=TextTableConfig(impute=True, types='c1:String,c2:Array[Int],c3:Array[Array[Int]]'))
+        >>> kt3 = hc.import_table('data/kt_example3.tsv', impute=True,
+        ...                          types={'c1': TString(), 'c2': TArray(TInt()), 'c3': TArray(TArray(TInt()))})
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
         c1 cannot be exploded because its type is not an ``Array`` or ``Set``.
@@ -697,7 +700,6 @@ class KeyTable(object):
         :rtype: (annotation or list of annotation,  :class:`.Type` or list of :class:`.Type`)
         """
 
-
         if isinstance(exprs, list):
             result_list = self._jkt.query(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -708,7 +710,6 @@ class KeyTable(object):
             result = self._jkt.query(exprs)
             t = Type._from_java(result._2())
             return t._convert_to_py(result._1()), t
-
 
     @handle_py4j
     def query(self, exprs):
@@ -854,3 +855,222 @@ class KeyTable(object):
         jsort_columns = [asc(col) if isinstance(col, str) else col for col in cols]
         return KeyTable(self.hc,
                         self._jkt.orderBy(jarray(Env.hail().keytable.SortColumn, jsort_columns)))
+
+    def num_partitions(self):
+        """Returns the number of partitions in the key table.
+        
+        :rtype: int
+        """
+        return self._jkt.nPartitions()
+
+    @staticmethod
+    @handle_py4j
+    def import_interval_list(path):
+        """Import an interval list file in the GATK standard format.
+        
+        >>> intervals = KeyTable.import_interval_list('data/capture_intervals.txt')
+        
+        **The File Format**
+
+        Hail expects an interval file to contain either three or five fields per
+        line in the following formats:
+
+        - ``contig:start-end``
+        - ``contig  start  end`` (tab-separated)
+        - ``contig  start  end  direction  target`` (tab-separated)
+
+        A file in either of the first two formats produces a key table with one column:
+        
+         - **interval** (*Interval*), key column
+         
+        A file in the third format (with a "target" column) produces a key with two columns:
+        
+         - **interval** (*Interval*), key column
+         - **target** (*String*)
+         
+        .. note::
+
+            ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``.
+            :py:meth:`~hail.representation.Interval.parse` is exclusive of the end position.
+
+        .. note::
+
+            Hail uses the following ordering for contigs: 1-22 sorted numerically, then X, Y, MT,
+            then alphabetically for any contig not matching the standard human chromosomes.
+
+        .. caution::
+
+            The interval parser for these files does not support the full range of formats supported
+            by the python parser :py:meth:`~hail.representation.Interval.parse`.  'k', 'm', 'start', and 'end' are all
+            invalid motifs in the ``contig:start-end`` format here.
+
+        
+        :param str filename: Path to file.
+        
+        :return: Interval-keyed table.
+        :rtype: :class:`.KeyTable`
+        """
+        jkt = Env.hail().keytable.KeyTable.importIntervalList(Env.hc()._jhc, path)
+        return KeyTable(Env.hc(), jkt)
+
+    @staticmethod
+    @handle_py4j
+    def import_bed(path):
+        """Import a UCSC .bed file as a key table.
+
+        **Examples**
+
+        Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one 
+        interval of the three-column BED file `file1.bed`:
+
+        >>> bed = KeyTable.import_bed('data/file1.bed')
+        >>> vds_result = vds.annotate_variants_table(bed, root='va.cnvRegion')
+
+        Add a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`:
+        
+        >>> bed = KeyTable.import_bed('data/file2.bed')
+        >>> vds_result = vds.annotate_variants_table(bed, root='va.cnvID')
+
+        The file formats are
+
+        .. code-block:: text
+
+            $ cat data/file1.bed
+            track name="BedTest"
+            20    1          14000000
+            20    17000000   18000000
+            ...
+
+            $ cat file2.bed
+            track name="BedTest"
+            20    1          14000000  cnv1
+            20    17000000   18000000  cnv2
+            ...
+
+
+        **Notes**
+        
+        The key table produced by this method has one of two possible structures. If the .bed file has only
+        three fields (``chrom``, ``chromStart``, and ``chromEnd``), then the produced key table has only one
+        column:
+        
+         - **interval** (*Interval*) - Genomic interval.
+         
+        If the .bed file has four or more columns, then Hail will store the fourth column as another key 
+        table column:
+         
+         - **interval** (*Interval*) - Genomic interval.
+         - **target** (*String*) - Fourth column of .bed file.
+         
+
+        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, 
+        but Hail will only ever look at the first four. Hail ignores header lines in BED files.
+
+        .. caution:: UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105" will contain
+        locus ``5:105`` but not ``5:100``. Details `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`_.
+
+        :param str path: Path to .bed file.
+
+        :rtype: :class:`.KeyTable`
+        """
+
+        jkt = Env.hail().keytable.KeyTable.importBED(Env.hc()._jhc, path)
+        return KeyTable(Env.hc(), jkt)
+
+    @staticmethod
+    @handle_py4j
+    def from_dataframe(df, key=[]):
+        """Convert Spark SQL DataFrame to key table.
+
+        Spark SQL data types are converted to Hail types as follows:
+
+        .. code-block:: text
+
+          BooleanType => Boolean
+          IntegerType => Int
+          LongType => Long
+          FloatType => Float
+          DoubleType => Double
+          StringType => String
+          BinaryType => Binary
+          ArrayType => Array
+          StructType => Struct
+
+        Unlisted Spark SQL data types are currently unsupported.
+        
+        :param df: PySpark DataFrame.
+        :type df: ``DataFrame``
+        
+        :param key: Key column(s).
+        :type key: str or list of str
+
+        :return: Key table constructed from the Spark SQL DataFrame.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
+
+    def repartition(self, n):
+        """Change the number of distributed partitions.
+        
+        Always shuffles data.
+        
+        :param int n: Desired number of partitions.
+        
+        :rtype: :class:`.KeyTable` 
+        """
+
+        return KeyTable(self.hc, self._jkt.repartition(n))
+
+    @staticmethod
+    @handle_py4j
+    def import_fam(fam_file, quantitative=False, delimiter='\\\\s+', root='sa.fam', missing='NA'):
+        """Import PLINK .fam file into a key table.
+
+        **Examples**
+
+        Import case-control phenotype data from a tab-separated `PLINK .fam
+        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
+        annotations:
+
+        >>> fam_kt = KeyTable.import_fam('data/myStudy.fam')
+
+        In Hail, unlike PLINK, the user must *explicitly* distinguish between
+        case-control and quantitative phenotypes. Importing a quantitative
+        phenotype without ``quantitative=True`` will return an error
+        (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
+
+        >>> fam_kt = KeyTable.import_fam('data/myStudy.fam', quantitative=True)
+
+        **Columns**
+
+        The column, types, and missing values are shown below.
+
+            - **ID** (*String*) -- Sample ID (key column)
+            - **famID** (*String*) -- Family ID (missing = "0")
+            - **patID** (*String*) -- Paternal ID (missing = "0")
+            - **matID** (*String*) -- Maternal ID (missing = "0")
+            - **isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
+        
+        One of:
+    
+            - **isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9", non-numeric or the ``missing`` argument, if given.
+            - **qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the ``missing`` argument, if given.
+
+        :param str input: Path to .fam file.
+
+        :param bool quantitative: If True, .fam phenotype is interpreted as quantitative.
+
+        :param str delimiter: .fam file field delimiter regex.
+
+        :param str missing: The string used to denote missing values.
+            For case-control, 0, -9, and non-numeric are also treated
+            as missing.
+
+        :return: Key table with information from .fam file.
+        :rtype: :class:`.KeyTable`
+        """
+
+        hc = Env.hc()
+        jkt = scala_object(Env.hail().keytable, 'KeyTable').importFam(hc._jhc, input, quantitative, delimiter, missing)
+        return KeyTable(hc, jkt)

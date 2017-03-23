@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.methods.Pedigree
 import org.testng.annotations.Test
 
 class PipelineSuite extends SparkSuite {
@@ -20,17 +21,9 @@ class PipelineSuite extends SparkSuite {
       .variantQC()
 
     qc.gqByDP(gqByDPFile)
-    qc.mendelErrors(mendelBase, "src/test/resources/sample.fam")
+    qc.mendelErrors(Pedigree.fromFam("src/test/resources/sample.fam", hadoopConf))._1.export(mendelBase)
     qc.count()
     qc.filterVariantsExpr("va.qc.AF > 0.01 && va.qc.AF < 0.99")
       .pca("sa.scores")
-
-    /*
-    val linregFile = tmpDir.createTempFile("linreg", extension = ".tsv")
-
-    s = LinearRegressionCommand.run(s, Array("-c", pcaFile,
-      "-f", "src/test/resources/sample.fam",
-      "-o", linregFile))
-    */
   }
 }

@@ -4,6 +4,8 @@ import is.hail.utils.{BufferedAdvanceableOrderedPairIterator, _}
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 
+import scala.reflect.ClassTag
+
 object OrderedRDDIterator {
   def apply[PK, K, V](rdd: OrderedRDD[PK, K, V], partitions: Array[Partition],
     context: TaskContext, k0: K): OrderedRDDIterator[PK, K, V] = {
@@ -69,7 +71,7 @@ class OrderedRDDIterator[PK, K, V](
   }
 }
 
-class OrderedLeftJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: OrderedRDD[PK, K, V2])
+class OrderedLeftJoinDistinctRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: OrderedRDD[PK, K, V2])
   extends RDD[(K, (V1, Option[V2]))](left.sparkContext, Seq(new OneToOneDependency(left),
     new OrderedDependency(left.orderedPartitioner, right.orderedPartitioner, right)): Seq[Dependency[_]]) {
 
@@ -88,6 +90,31 @@ class OrderedLeftJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: Orde
     else {
       val rightIt = OrderedRDDIterator(right, rightPartitions, context, leftIt.head._1)
       leftIt.sortedLeftJoinDistinct(rightIt)
+    }
+  }
+}
+
+class OrderedLeftJoinRDD[PK, K, V1, V2](left: OrderedRDD[PK, K, V1], right: OrderedRDD[PK, K, V2])
+  (implicit vct: ClassTag[V2]) extends RDD[(K, (V1, Array[V2]))](left.sparkContext, Seq(new OneToOneDependency(left),
+    new OrderedDependency(left.orderedPartitioner, right.orderedPartitioner, right)): Seq[Dependency[_]]) {
+
+  private val rightPartitions = right.partitions
+
+  override val partitioner: Option[Partitioner] = left.partitioner
+
+  implicit private val kOrd = left.orderedPartitioner.kOk.kOrd
+
+  def getPartitions: Array[Partition] = left.partitions
+
+  override def getPreferredLocations(split: Partition): Seq[String] = left.preferredLocations(split)
+
+  override def compute(split: Partition, context: TaskContext): Iterator[(K, (V1, Array[V2]))] = {
+    val leftIt = left.iterator(split, context).buffered
+    if (leftIt.isEmpty)
+      Iterator()
+    else {
+      val rightIt = OrderedRDDIterator(right, rightPartitions, context, leftIt.head._1)
+      leftIt.sortedLeftJoin(rightIt)
     }
   }
 }

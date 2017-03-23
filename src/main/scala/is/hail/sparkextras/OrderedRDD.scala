@@ -213,7 +213,7 @@ object OrderedRDD {
             val r = it.next()
 
             if (i < rangeBoundsBc.value.length)
-              assert(kOk.project(r._1) <= rangeBoundsBc.value(i), s"key ${ r._1 } greater than partition max ${ rangeBoundsBc.value(i)   }")
+              assert(kOk.project(r._1) <= rangeBoundsBc.value(i), s"key ${ r._1 } greater than partition max ${ rangeBoundsBc.value(i) }")
             if (i > 0)
               assert(rangeBoundsBc.value(i - 1) < kOk.project(r._1),
                 s"key ${ r._1 } >= last max ${ rangeBoundsBc.value(i - 1) } in partition $i")
@@ -338,8 +338,34 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
   override def getPreferredLocations(split: Partition): Seq[String] = rdd.preferredLocations(split)
 
-  def orderedLeftJoinDistinct[V2](other: OrderedRDD[PK, K, V2]): RDD[(K, (V, Option[V2]))] =
+  def groupByKey(): OrderedRDD[PK, K, Array[V]] = {
+    new OrderedRDD[PK, K, Array[V]](rdd.mapPartitions { it =>
+
+      val bit = it.buffered
+      val buffer = mutable.ArrayBuffer.empty[V]
+
+      new Iterator[(K, Array[V])] {
+        def hasNext: Boolean = bit.hasNext
+
+        def next(): (K, Array[V]) = {
+          buffer.clear()
+          val (k, v) = bit.next()
+
+          buffer += v
+          while (bit.hasNext && bit.head._1 == k)
+            buffer += bit.next()._2
+
+          (k, buffer.toArray)
+        }
+      }
+    }, orderedPartitioner)
+  }
+
+  def orderedLeftJoin[V2](other: OrderedRDD[PK, K, V2])(implicit vct: ClassTag[V2]): RDD[(K, (V, Array[V2]))] =
     new OrderedLeftJoinRDD[PK, K, V, V2](this, other)
+
+  def orderedLeftJoinDistinct[V2](other: OrderedRDD[PK, K, V2]): RDD[(K, (V, Option[V2]))] =
+    new OrderedLeftJoinDistinctRDD[PK, K, V, V2](this, other)
 
   def orderedInnerJoinDistinct[V2](other: OrderedRDD[PK, K, V2]): RDD[(K, (V, V2))] =
     orderedLeftJoinDistinct(other)
@@ -439,7 +465,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     }
   }
 
-  def filterIntervals(intervals: IntervalTree[PK]): OrderedRDD[PK, K, V] = {
+  def filterIntervals(intervals: IntervalTree[PK, _]): OrderedRDD[PK, K, V] = {
 
     import kOk.pkOrd
     import kOk._
