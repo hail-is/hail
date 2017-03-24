@@ -17,7 +17,7 @@ def requireTGenotype(func, vds, *args, **kwargs):
     if vds._is_generic_genotype:
         if isinstance(vds.genotype_schema, TGenotype):
             coerced_vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
-            func(coerced_vds, *args, **kwargs)
+            return func(coerced_vds, *args, **kwargs)
         else:
             raise TypeError("Genotype signature must be of type TGenotype, but found '%s'" % type(vds.genotype_schema))
     return func(vds, *args, **kwargs)
