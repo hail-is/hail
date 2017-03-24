@@ -492,8 +492,6 @@ class HailContext(object):
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
         """
-        if not call_fields:
-            call_fields = []
 
         if generic:
             jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),

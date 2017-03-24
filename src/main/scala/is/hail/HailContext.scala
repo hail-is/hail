@@ -379,11 +379,10 @@ class HailContext private(val sc: SparkContext,
       info(s"Using sample and global annotations from ${ inputs(0) }")
   }
 
-  def readMetadata(file: String): Array[(VariantMetadata, Boolean)] = readAllMetadata(List(file))
+  def readMetadata(file: String): (VariantMetadata, Boolean) = VariantDataset.readMetadata(hadoopConf, file)
 
-  def readAllMetadata(files: Seq[String]): Array[(VariantMetadata, Boolean)] =
-    files.map( file => VariantDataset.readMetadata(hadoopConf, file) ).toArray
-
+  def readAllMetadata(files: Seq[String]): Array[(VariantMetadata, Boolean)] = files.map(readMetadata).toArray
+  
   def read(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false,
     metadata: Option[Array[(VariantMetadata, Boolean)]] = None): VariantDataset =
     readAll(List(file), sitesOnly, samplesOnly, metadata)
