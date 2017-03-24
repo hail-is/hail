@@ -65,7 +65,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(hc.eval_expr_typed('[1, 2, 3].map(x => x * 2)'), ([2, 4, 6], TArray(TInt())))
         self.assertEqual(hc.eval_expr('[1, 2, 3].map(x => x * 2)'), [2, 4, 6])
 
-        gds = hc.import_vcf_generic(test_resources + '/sample.vcf.bgz')
+        gds = hc.import_vcf(test_resources + '/sample.vcf.bgz', generic=True)
         gds.write('/tmp/sample_generic.vds', overwrite=True)
         gds = hc.read('/tmp/sample_generic.vds')
         gds.count(genotypes=True)

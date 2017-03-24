@@ -366,7 +366,7 @@ class HailContext(object):
         """
 
         metadata = self._jhc.readAllMetadata(jindexed_seq_args(path))
-        is_generic_genotype = metadata.apply(0)._1.isGenericGenotype()
+        is_generic_genotype = metadata[0]._1().isGenericGenotype()
 
         if is_generic_genotype:
             jvds = self._jhc.readAllGDS(jindexed_seq_args(path), sites_only, samples_only, joption(metadata))
