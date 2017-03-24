@@ -31,13 +31,13 @@ import scala.reflect.ClassTag
 
 object VariantDataset {
   def read(hc: HailContext, dirname: String,
+    metadata: VariantMetadata, parquetGenotypes: Boolean,
     skipGenotypes: Boolean = false, skipVariants: Boolean = false): VariantDataset = {
 
     val sqlContext = hc.sqlContext
     val sc = hc.sc
     val hConf = sc.hadoopConfiguration
 
-    val (metadata, parquetGenotypes) = readMetadata(hConf, dirname, skipGenotypes)
     val vaSignature = metadata.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 

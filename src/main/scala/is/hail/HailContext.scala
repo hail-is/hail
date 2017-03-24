@@ -328,6 +328,7 @@ class HailContext private(val sc: SparkContext,
     val vaSchema = datasets.head.vaSignature
     val wasSplit = datasets.head.wasSplit
     val genotypeSchema = datasets.head.genotypeSignature
+    val isGenericGenotype = datasets.head.isGenericGenotype
     val reference = inputs(0)
 
     datasets.indices.tail.foreach { i =>
@@ -335,6 +336,7 @@ class HailContext private(val sc: SparkContext,
       val ids = vds.sampleIds
       val vas = vds.vaSignature
       val gsig = vds.genotypeSignature
+      val isGenGt = vds.isGenericGenotype
       val path = inputs(i)
       if (ids != sampleIds) {
         fatal(
@@ -362,6 +364,14 @@ class HailContext private(val sc: SparkContext,
           genotypeSchema.toPrettyString(compact = true, printAttrs = true),
           gsig.toPrettyString(compact = true, printAttrs = true)
         )
+      } else if (isGenGt != isGenericGenotype) {
+        fatal(
+          s"""cannot read datasets with different data formats
+             |  Generic genotypes in reference file $reference: @1
+             |  Generic genotypes in file $path: @2""".stripMargin,
+          isGenericGenotype.toString,
+          isGenGt.toString
+        )
       }
     }
 
@@ -369,40 +379,55 @@ class HailContext private(val sc: SparkContext,
       info(s"Using sample and global annotations from ${ inputs(0) }")
   }
 
-  def readMetadata(file: String): VariantMetadata = readAllMetadata(List(file))
+  def readMetadata(file: String): Array[(VariantMetadata, Boolean)] = readAllMetadata(List(file))
 
-  def readAllMetadata(files: Seq[String]): VariantMetadata = {
-    VariantDataset.readMetadata(hadoopConf, files.head)._1
-  }
+  def readAllMetadata(files: Seq[String]): Array[(VariantMetadata, Boolean)] =
+    files.map( file => VariantDataset.readMetadata(hadoopConf, file) ).toArray
 
-  def read(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {
-    readAll(List(file), sitesOnly, samplesOnly)
-  }
+  def read(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false,
+    metadata: Option[Array[(VariantMetadata, Boolean)]] = None): VariantDataset =
+    readAll(List(file), sitesOnly, samplesOnly, metadata)
 
-  def readAll(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false): VariantDataset = {
+  def readAll(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false,
+    metadata: Option[Array[(VariantMetadata, Boolean)]] = None): VariantDataset = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
 
-    val vdses = inputs.map(input => VariantDataset.read(this, input,
-      skipGenotypes = sitesOnly, skipVariants = samplesOnly))
+    val (mdArray, pqgtArray) = metadata match {
+      case Some(data) => data.unzip
+      case _ => inputs.map(VariantDataset.readMetadata(sc.hadoopConfiguration, _)).unzip
+    }
+
+    val vdses = inputs.zipWithIndex.map { case (input, i) =>
+      VariantDataset.read(this, input, mdArray(i), pqgtArray(i),
+        skipGenotypes = sitesOnly, skipVariants = samplesOnly)
+    }
 
     checkDatasetSchemasCompatible(vdses, inputs)
 
     vdses(0).copy(rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
   }
 
-  def readGDS(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false): GenericDataset = {
-    readAllGDS(List(file), sitesOnly, samplesOnly)
-  }
+  def readGDS(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false,
+    metadata: Option[Array[(VariantMetadata, Boolean)]] = None): GenericDataset =
+    readAllGDS(List(file), sitesOnly, samplesOnly, metadata)
 
-  def readAllGDS(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false): GenericDataset = {
+  def readAllGDS(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false,
+    metadata: Option[Array[(VariantMetadata, Boolean)]] = None): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
 
-    val gdses = inputs.map(input => GenericDataset.read(this, input,
-      skipGenotypes = sitesOnly, skipVariants = samplesOnly))
+    val (mdArray, pqgtArray) = metadata match {
+      case Some(data) => data.unzip
+      case _ => inputs.map(VariantDataset.readMetadata(sc.hadoopConfiguration, _)).unzip
+    }
+
+    val gdses = inputs.zipWithIndex.map { case (input, i) =>
+      GenericDataset.read(this, input, mdArray(i), pqgtArray(i),
+        skipGenotypes = sitesOnly, skipVariants = samplesOnly)
+    }
 
     checkDatasetSchemasCompatible(gdses, inputs)
 

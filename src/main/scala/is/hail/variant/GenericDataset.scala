@@ -18,14 +18,13 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import scala.collection.mutable
 
 object GenericDataset {
-  def read(hc: HailContext, dirname: String,
+  def read(hc: HailContext, dirname: String, metadata: VariantMetadata, parquetGenotypes: Boolean,
     skipGenotypes: Boolean = false, skipVariants: Boolean = false): GenericDataset = {
 
     val sqlContext = hc.sqlContext
     val sc = hc.sc
     val hConf = sc.hadoopConfiguration
 
-    val (metadata, parquetGenotypes) = VariantDataset.readMetadata(hConf, dirname, skipGenotypes)
     val vaSignature = metadata.vaSignature
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 

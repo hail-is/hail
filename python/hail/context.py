@@ -365,12 +365,13 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        is_generic_genotype = self._jhc.readAllMetadata(jindexed_seq_args(path)).isGenericGenotype()
+        metadata = self._jhc.readAllMetadata(jindexed_seq_args(path))
+        is_generic_genotype = metadata.apply(0)._1.isGenericGenotype()
 
         if is_generic_genotype:
-            jvds = self._jhc.readAllGDS(jindexed_seq_args(path), sites_only, samples_only)
+            jvds = self._jhc.readAllGDS(jindexed_seq_args(path), sites_only, samples_only, joption(metadata))
         else:
-            jvds = self._jhc.readAll(jindexed_seq_args(path), sites_only, samples_only)
+            jvds = self._jhc.readAll(jindexed_seq_args(path), sites_only, samples_only, joption(metadata))
 
         return VariantDataset(self, jvds)
 
@@ -385,7 +386,8 @@ class HailContext(object):
 
     @handle_py4j
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
-                   sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False):
+                   sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
+                   call_fields=None):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -405,15 +407,37 @@ class HailContext(object):
         it to Hail using the ``force`` optional parameter. However, this is not recommended -- all parsing will have to take place on one node because
         gzip decompression is not parallelizable. In this case, import could take significantly longer.
 
-        Hail makes certain assumptions about the genotype fields, see :class:`Representation <hail.representation.Genotype>`. On import, Hail filters
+        If ``generic`` equals False (default), Hail makes certain assumptions about the genotype fields, see :class:`Representation <hail.representation.Genotype>`. On import, Hail filters
         (sets to no-call) any genotype that violates these assumptions. Hail interprets the format fields: GT, AD, OD, DP, GQ, PL; all others are
         silently dropped.
+
+        If ``generic`` equals True, the genotype schema is a :py:class:`~hail.type.TStruct` with field names equal to the IDs of the FORMAT fields.
+        The ``GT`` field is automatically read in as a :py:class:`~hail.type.TCall` type. To specify additional fields to import as a
+        :py:class:`~hail.type.TCall` type, use the ``call_fields`` parameter. All other fields are imported as the type specified in the FORMAT header field.
+
+        An example genotype schema after importing a VCF with ``generic=True`` is
+
+        .. code-block:: text
+
+            Struct {
+                GT: Call,
+                AD: Array[Int],
+                DP: Int,
+                GQ: Int,
+                PL: Array[Int]
+            }
+
+        .. warning::
+
+            - The variant dataset generated with ``generic=True`` will have significantly slower (~2X) performance.
+
+            - Not all :py:class:`.VariantDataset` methods will work with a generic genotype schema.
 
         :py:meth:`~hail.HailContext.import_vcf` does not perform deduplication - if the provided VCF(s) contain multiple records with the same chrom, pos, ref, alt, all
         these records will be imported and will not be collapsed into a single variant.
 
         Since Hail's genotype representation does not yet support ploidy other than 2,
-        this method imports haploid genotypes as diploid. Hail fills in missing indices
+        this method imports haploid genotypes as diploid. If ``generic=True``, Hail fills in missing indices
         in PL / PP arrays with 1000 to support the standard VCF / VDS "genotype schema.
 
         Below are two example haploid genotypes and diploid equivalents that Hail sees.
@@ -460,81 +484,24 @@ class HailContext(object):
             wrong number of elements to missing, rather than setting
             the entire genotype to missing.
 
-        :return: Variant dataset imported from VCF file(s)
-        :rtype: :py:class:`.VariantDataset`
-        """
+        :param bool generic: If True, read the genotype with a generic schema.
 
-        jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                    joption(npartitions), sites_only, store_gq,
-                                    pp_as_pl, skip_bad_ad)
-
-        return VariantDataset(self, jvds)
-
-    @handle_py4j
-    def import_vcf_generic(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
-                   sites_only=False, call_fields=None):
-        """Import VCF file(s) as variant dataset with generic genotype schema.
-
-        **Examples**
-
-        >>> vds = hc.import_vcf_generic('data/example2.vcf.bgz')
-
-        **Notes**
-
-        :py:meth:`~hail.HailContext.import_vcf_generic` is almost identical to :py:meth:`~hail.HailContext.import_vcf` except the
-        genotype schema is a :py:class:`~hail.type.TStruct` with field names equal to the IDs of the FORMAT fields.
-
-        The ``GT`` field is automatically read in as a :py:class:`~hail.type.TCall` type. To specify additional fields to import as a :py:class:`~hail.type.TCall` type, use the ``call_fields`` parameter.
-        All other fields are imported as the type specified in the FORMAT header field.
-
-        An example genotype schema is
-
-        .. code-block:: text
-
-            Struct {
-                GT: Call,
-                AD: Array[Int],
-                DP: Int,
-                GQ: Int,
-                PL: Array[Int]
-            }
-
-        .. warning::
-
-            - The variant dataset generated by :py:meth:`~hail.HailContext.import_vcf_generic` will have significantly slower performance than a variant dataset
-             generated with :py:meth:`~hail.HailContext.import_vcf`.
-
-            - Not all :py:class:`.VariantDataset` methods will work with a generic genotype schema.
-
-        :param path: VCF file(s) to read.
-        :type path: str or list of str
-
-        :param bool force: If True, load .gz files serially.
-
-        :param bool force_bgz: If True, load .gz files as blocked gzip files (BGZF)
-
-        :param header_file: File to load VCF header from.  If not specified, the first file in path is used.
-        :type header_file: str or None
-
-        :param npartitions: Number of partitions.
-        :type npartitions: int or None
-
-        :param bool sites_only: If True, create sites-only
-            variant dataset.  Don't load sample ids, sample annotations
-            or genotypes.
-
-        :param call_fields: FORMAT fields in VCF to treat as a `hai
+        :param call_fields: FORMAT fields in VCF to treat as a :py:class:`~hail.type.TCall`. Only applies if ``generic=True``.
         :type call_fields: str or list of str
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
         """
-
         if not call_fields:
             call_fields = []
 
-        jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                    joption(npartitions), sites_only, jset_args(call_fields))
+        if generic:
+            jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
+                                           joption(npartitions), sites_only, jset_args(call_fields))
+        else:
+            jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
+                                        joption(npartitions), sites_only, store_gq,
+                                        pp_as_pl, skip_bad_ad)
 
         return VariantDataset(self, jvds)
 
