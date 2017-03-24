@@ -387,7 +387,7 @@ class HailContext(object):
     @handle_py4j
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
                    sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
-                   call_fields=None):
+                   call_fields=[]):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -487,7 +487,7 @@ class HailContext(object):
         :param bool generic: If True, read the genotype with a generic schema.
 
         :param call_fields: FORMAT fields in VCF to treat as a :py:class:`~hail.type.TCall`. Only applies if ``generic=True``.
-        :type call_fields: str or list of str or None
+        :type call_fields: str or list of str
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
