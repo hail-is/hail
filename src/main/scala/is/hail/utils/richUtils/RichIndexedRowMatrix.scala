@@ -2,77 +2,78 @@ package is.hail.utils.richUtils
 
 import org.apache.spark.Partitioner
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 
 /**
-  * Adds a better to BlockMatrix method to IndexedRowMatrix
+  * Adds a better toBlockMatrix method to IndexedRowMatrix
   */
 
+object RichIndexedRowMatrix {
 
-class RichIndexedRowMatrix(rows: RDD[IndexedRow],
-  private var nRows: Long,
-  private var nCols: Int) extends IndexedRowMatrix(rows, nRows, nCols) {
+  implicit class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
+    def toBlockMatrixDense(): BlockMatrix = {
+      toBlockMatrixDense(1024, 1024)
+    }
 
-  def toBlockMatrixDense(): BlockMatrix = {
-    toBlockMatrixDense(1024, 1024)
-  }
+    def toBlockMatrixDense(rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix = {
+      require(rowsPerBlock > 0,
+        s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $rowsPerBlock")
+      require(colsPerBlock > 0,
+        s"colsPerBlock needs to be greater than 0. colsPerBlock: $colsPerBlock")
+      val m = indexedRowMatrix.numRows().toInt
+      val n = indexedRowMatrix.numCols().toInt
 
-  def toBlockMatrixDense(rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix = {
-    require(rowsPerBlock > 0,
-      s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $rowsPerBlock")
-    require(colsPerBlock > 0,
-      s"colsPerBlock needs to be greater than 0. colsPerBlock: $colsPerBlock")
-    val m = numRows().toInt
-    val n = numCols().toInt
+      val blocksRDD: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap({ ir =>
+        val blockRow = ir.index / rowsPerBlock
+        val rowInBlock = ir.index % rowsPerBlock
 
-    val blocksRDD: RDD[((Int, Int), Matrix)] = rows.flatMap({ir =>
-      val blockRow = ir.index / rowsPerBlock
-      val rowInBlock = ir.index % rowsPerBlock
+        val partitionedArray: Iterator[Array[Double]] = ir.vector.toArray.grouped(colsPerBlock)
+        val partitionedArrayWithIndices = partitionedArray.zipWithIndex
 
-      val partitionedArray: Iterator[Array[Double]] = ir.vector.toArray.grouped(colsPerBlock)
-      val partitionedArrayWithIndices = partitionedArray.zipWithIndex
-
-      partitionedArrayWithIndices.map(tuple =>
-        tuple match {
-          case (values, blockColumn) =>
-            ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
-        })
-    }).groupByKey(new GridPartitioner(m, n, rowsPerBlock, colsPerBlock)).map(tuple =>
-      tuple match {
-        case ((blockRow, blockColumn), itr: Iterable[(Int, Array[Double])]) =>
-          val actualNumRows =
-            if (m - blockRow * rowsPerBlock < rowsPerBlock) {
-              m - blockRow * rowsPerBlock
-            } else {
-              rowsPerBlock
-            }
-          val actualNumColumns =
-            if (n - blockColumn * colsPerBlock < colsPerBlock) {
-              n - blockColumn * colsPerBlock
-            } else {
-              colsPerBlock
-            }
-
-          val arraySize = actualNumRows * actualNumColumns
-          val array = new Array[Double](arraySize)
-          itr.foreach(element => element match {
-            case (rowWithinBlock, values) =>
-              var i = 0
-              while (i < values.length) {
-                array.update(i * actualNumRows + rowWithinBlock, values(i))
-                i += 1
-              }
+        partitionedArrayWithIndices.map(tuple =>
+          tuple match {
+            case (values, blockColumn) =>
+              ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
           })
-          ((blockRow, blockColumn),
-            new DenseMatrix(actualNumRows, actualNumColumns, array, false))
-      })
-    new BlockMatrix(blocksRDD, rowsPerBlock, colsPerBlock)
+      }).groupByKey(new GridPartitioner(m, n, rowsPerBlock, colsPerBlock)).map(tuple =>
+        tuple match {
+          case ((blockRow, blockColumn), itr) =>
+            val actualNumRows =
+              if (m - blockRow * rowsPerBlock < rowsPerBlock) {
+                m - blockRow * rowsPerBlock
+              } else {
+                rowsPerBlock
+              }
+            val actualNumColumns =
+              if (n - blockColumn * colsPerBlock < colsPerBlock) {
+                n - blockColumn * colsPerBlock
+              } else {
+                colsPerBlock
+              }
+
+            val arraySize = actualNumRows * actualNumColumns
+            val matrixAsArray = new Array[Double](arraySize)
+            itr.foreach(element => element match {
+              case (rowWithinBlock, values) =>
+                var i = 0
+                while (i < values.length) {
+                  matrixAsArray.update(i * actualNumRows + rowWithinBlock, values(i))
+                  i += 1
+                }
+            })
+            ((blockRow, blockColumn), new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray, false))
+        })
+      new BlockMatrix(blocksRDD, rowsPerBlock, colsPerBlock)
+    }
   }
 }
 
+
 /**
   * A grid partitioner, which uses a regular grid to partition coordinates.
+  *
+  * NOTE: This is ripped directly from Apache Spark's BlockMatrix class. It's private to mllib, so I copied it here.
   *
   * @param rows Number of rows.
   * @param cols Number of columns.
