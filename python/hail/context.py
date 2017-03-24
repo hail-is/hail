@@ -437,7 +437,7 @@ class HailContext(object):
         these records will be imported and will not be collapsed into a single variant.
 
         Since Hail's genotype representation does not yet support ploidy other than 2,
-        this method imports haploid genotypes as diploid. If ``generic=True``, Hail fills in missing indices
+        this method imports haploid genotypes as diploid. If ``generic=False``, Hail fills in missing indices
         in PL / PP arrays with 1000 to support the standard VCF / VDS "genotype schema.
 
         Below are two example haploid genotypes and diploid equivalents that Hail sees.
@@ -476,18 +476,18 @@ class HailContext(object):
             variant dataset.  Don't load sample ids, sample annotations
             or genotypes.
 
-        :param bool store_gq: If True, store GQ FORMAT field instead of computing from PL.
+        :param bool store_gq: If True, store GQ FORMAT field instead of computing from PL. Only applies if ``generic=False``.
 
-        :param bool pp_as_pl: If True, store PP FORMAT field as PL.  EXPERIMENTAL.
+        :param bool pp_as_pl: If True, store PP FORMAT field as PL.  EXPERIMENTAL. Only applies if ``generic=False``.
 
         :param bool skip_bad_ad: If True, set AD FORMAT field with
             wrong number of elements to missing, rather than setting
-            the entire genotype to missing.
+            the entire genotype to missing. Only applies if ``generic=False``.
 
         :param bool generic: If True, read the genotype with a generic schema.
 
         :param call_fields: FORMAT fields in VCF to treat as a :py:class:`~hail.type.TCall`. Only applies if ``generic=True``.
-        :type call_fields: str or list of str
+        :type call_fields: str or list of str or None
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
