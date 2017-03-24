@@ -2,11 +2,11 @@ package is.hail.utils.richUtils
 
 import org.apache.spark.Partitioner
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, GridPartitioner, IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 
 /**
-  * Created by johnc on 3/23/17.
+  * Adds a better to BlockMatrix method to IndexedRowMatrix
   */
 
 
@@ -14,12 +14,11 @@ class RichIndexedRowMatrix(rows: RDD[IndexedRow],
   private var nRows: Long,
   private var nCols: Int) extends IndexedRowMatrix(rows, nRows, nCols) {
 
-  def toBlockMatrixPlus(rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix = {
-    /*
-    PLAN:
-    1. For each row, partition into ceil(numCols/colsPerBlock) of size colsPerBlock, aware that last partition may be smaller.
-    2.
-    */
+  def toBlockMatrixDense(): BlockMatrix = {
+    toBlockMatrixDense(1024, 1024)
+  }
+
+  def toBlockMatrixDense(rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix = {
     require(rowsPerBlock > 0,
       s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $rowsPerBlock")
     require(colsPerBlock > 0,
@@ -27,7 +26,7 @@ class RichIndexedRowMatrix(rows: RDD[IndexedRow],
     val m = numRows().toInt
     val n = numCols().toInt
 
-    val temp = rows.flatMap({ir =>
+    val blocksRDD: RDD[((Int, Int), Matrix)] = rows.flatMap({ir =>
       val blockRow = ir.index / rowsPerBlock
       val rowInBlock = ir.index % rowsPerBlock
 
@@ -35,19 +34,40 @@ class RichIndexedRowMatrix(rows: RDD[IndexedRow],
       val partitionedArrayWithIndices = partitionedArray.zipWithIndex
 
       partitionedArrayWithIndices.map(tuple =>
-        tuple match { case (values, blockColumn) =>
-          ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))})
-    })
-
-    val rdd: RDD[((Int, Int), Matrix)] = temp.groupByKey(new GridPartitioner(m, n, rowsPerBlock, colsPerBlock)).map(tuple =>
-      tuple match {case (gridcoords, itr: Iterable[(Int, Array[Double])]) =>
-        val array = new Array[Double](rowsPerBlock * colsPerBlock)
-        itr.foreach(element => element match { case (rowWithinBlock, values) =>
-          values.copyToArray(array, rowWithinBlock * n)
+        tuple match {
+          case (values, blockColumn) =>
+            ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
         })
-        (gridcoords, new DenseMatrix(rowsPerBlock, colsPerBlock, array))
+    }).groupByKey(new GridPartitioner(m, n, rowsPerBlock, colsPerBlock)).map(tuple =>
+      tuple match {
+        case ((blockRow, blockColumn), itr: Iterable[(Int, Array[Double])]) =>
+          val actualNumRows =
+            if (m - blockRow * rowsPerBlock < rowsPerBlock) {
+              m - blockRow * rowsPerBlock
+            } else {
+              rowsPerBlock
+            }
+          val actualNumColumns =
+            if (n - blockColumn * colsPerBlock < colsPerBlock) {
+              n - blockColumn * colsPerBlock
+            } else {
+              colsPerBlock
+            }
+
+          val arraySize = actualNumRows * actualNumColumns
+          val array = new Array[Double](arraySize)
+          itr.foreach(element => element match {
+            case (rowWithinBlock, values) =>
+              var i = 0
+              while (i < values.length) {
+                array.update(i * actualNumRows + rowWithinBlock, values(i))
+                i += 1
+              }
+          })
+          ((blockRow, blockColumn),
+            new DenseMatrix(actualNumRows, actualNumColumns, array, false))
       })
-    new BlockMatrix(rdd, rowsPerBlock, colsPerBlock)
+    new BlockMatrix(blocksRDD, rowsPerBlock, colsPerBlock)
   }
 }
 

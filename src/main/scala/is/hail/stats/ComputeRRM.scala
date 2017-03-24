@@ -2,12 +2,18 @@ package is.hail.stats
 
 import breeze.linalg._
 import is.hail.utils._
+import is.hail.utils.richUtils.RichIndexedRowMatrix
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
 object ComputeLocalGrammian {
+
+  implicit def indexedRowToRich(indexedRowMatrix: IndexedRowMatrix): RichIndexedRowMatrix = {
+    new RichIndexedRowMatrix(indexedRowMatrix.rows, indexedRowMatrix.numRows(), indexedRowMatrix.numCols().toInt)
+  }
+
   def withoutBlock(A: RowMatrix): DenseMatrix[Double] = {
     val n = A.numCols().toInt
     val G = A.computeGramianMatrix().toArray
@@ -16,7 +22,7 @@ object ComputeLocalGrammian {
 
   def withBlock(A: IndexedRowMatrix): DenseMatrix[Double] = {
     val n = A.numCols().toInt
-    val B = A.toBlockMatrix().cache()
+    val B = A.toBlockMatrixDense(1024,1024).cache()
     val G = B.transpose.multiply(B).toLocalMatrix().toArray
     B.blocks.unpersist()
     new DenseMatrix[Double](n, n, G)
