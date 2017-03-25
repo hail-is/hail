@@ -176,6 +176,8 @@ test {
         events "passed", "skipped", "failed"
     }
 
+    jvmArgs = ['-Dcom.github.fommil.netlib.BLAS=com.github.fommil.netlib.F2jBLAS','-Dcom.github.fommil.netlib.LAPACK=com.github.fommil.netlib.F2jLAPACK','-Dcom.github.fommil.netlib.ARPACK=com.github.fommil.netlib.F2jARPACK']
+
     // listen to events in the test execution lifecycle
     beforeTest { descriptor ->
         logger.lifecycle("Running test: " + descriptor)
