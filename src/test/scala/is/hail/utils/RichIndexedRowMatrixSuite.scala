@@ -20,7 +20,7 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
       (0L, Vectors.dense(0.0, 1.0, 2.0)),
       (1L, Vectors.dense(3.0, 4.0, 5.0)),
       (3L, Vectors.dense(9.0, 0.0, 1.0))
-    ).map(x => IndexedRow(x._1, x._2))
+    ).map(IndexedRow.tupled)
     val indexedRows: RDD[IndexedRow] = sc.parallelize(data)
 
     val idxRowMat = new IndexedRowMatrix(indexedRows)

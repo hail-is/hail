@@ -5,8 +5,13 @@ import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 
+import scala.reflect.classTag
+
 /**
-  * Adds a better toBlockMatrix method to IndexedRowMatrix
+  * Adds toBlockMatrixDense method to IndexedRowMatrix
+  *
+  * The hope is that this class is temporary, as I'm going to make a PR to Spark with this method
+  * since it seems broadly useful.
   */
 
 object RichIndexedRowMatrix {
@@ -21,140 +26,57 @@ object RichIndexedRowMatrix {
         s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $rowsPerBlock")
       require(colsPerBlock > 0,
         s"colsPerBlock needs to be greater than 0. colsPerBlock: $colsPerBlock")
-      val m = indexedRowMatrix.numRows().toInt
-      val n = indexedRowMatrix.numCols().toInt
 
-      val blocksRDD: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap({ ir =>
+      val m = indexedRowMatrix.numRows()
+      val n = indexedRowMatrix.numCols()
+      val lastRowBlockIndex = m / rowsPerBlock
+      val lastColBlockIndex = n / colsPerBlock
+      val lastRowBlockSize = (m % rowsPerBlock).toInt
+      val lastColBlockSize = (n % colsPerBlock).toInt
+      val numRowBlocks = math.ceil(m.toDouble / rowsPerBlock).toInt
+      val numColBlocks = math.ceil(n.toDouble / colsPerBlock).toInt
+
+      val intClass = classTag[Int].runtimeClass
+      val gpConstructor = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner")
+        .getDeclaredConstructor(intClass,intClass,intClass,intClass)
+      def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, nRowsPerPart: Int, nColsPerPart: Int): Partitioner = try {
+        gpConstructor.setAccessible(true)
+        gpConstructor.newInstance(nRowBlocks: java.lang.Integer, nColBlocks: java.lang.Integer,
+          nRowsPerPart: java.lang.Integer, nColsPerPart: java.lang.Integer).asInstanceOf[Partitioner]
+      } finally {
+        gpConstructor.setAccessible(false)
+      }
+
+      val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap({ ir =>
         val blockRow = ir.index / rowsPerBlock
         val rowInBlock = ir.index % rowsPerBlock
 
-        val partitionedArray: Iterator[Array[Double]] = ir.vector.toArray.grouped(colsPerBlock)
-        val partitionedArrayWithIndices = partitionedArray.zipWithIndex
-
-        partitionedArrayWithIndices.map(tuple =>
-          tuple match {
-            case (values, blockColumn) =>
-              ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
+        ir.vector.toArray
+          .grouped(colsPerBlock)
+          .zipWithIndex
+          .map({ case (values, blockColumn) =>
+            ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
           })
-      }).groupByKey(new GridPartitioner(m, n, rowsPerBlock, colsPerBlock)).map(tuple =>
-        tuple match {
-          case ((blockRow, blockColumn), itr) =>
-            val actualNumRows =
-              if (m - blockRow * rowsPerBlock < rowsPerBlock) {
-                m - blockRow * rowsPerBlock
-              } else {
-                rowsPerBlock
-              }
-            val actualNumColumns =
-              if (n - blockColumn * colsPerBlock < colsPerBlock) {
-                n - blockColumn * colsPerBlock
-              } else {
-                colsPerBlock
-              }
+      }).groupByKey(sneakyGridPartitioner(numRowBlocks, numColBlocks, rowsPerBlock, colsPerBlock)).map({
+        case ((blockRow, blockColumn), itr) =>
+          val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else rowsPerBlock
+          val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else colsPerBlock
 
-            val arraySize = actualNumRows * actualNumColumns
-            val matrixAsArray = new Array[Double](arraySize)
-            itr.foreach(element => element match {
-              case (rowWithinBlock, values) =>
-                var i = 0
-                while (i < values.length) {
-                  matrixAsArray.update(i * actualNumRows + rowWithinBlock, values(i))
-                  i += 1
-                }
-            })
-            ((blockRow, blockColumn), new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray, false))
-        })
-      new BlockMatrix(blocksRDD, rowsPerBlock, colsPerBlock)
-    }
-  }
-}
-
-
-/**
-  * A grid partitioner, which uses a regular grid to partition coordinates.
-  *
-  * NOTE: This is ripped directly from Apache Spark's BlockMatrix class. It's private to mllib, so I copied it here.
-  *
-  * @param rows Number of rows.
-  * @param cols Number of columns.
-  * @param rowsPerPart Number of rows per partition, which may be less at the bottom edge.
-  * @param colsPerPart Number of columns per partition, which may be less at the right edge.
-  */
-private class GridPartitioner(
-  val rows: Int,
-  val cols: Int,
-  val rowsPerPart: Int,
-  val colsPerPart: Int) extends Partitioner {
-
-  require(rows > 0)
-  require(cols > 0)
-  require(rowsPerPart > 0)
-  require(colsPerPart > 0)
-
-  private val rowPartitions = math.ceil(rows * 1.0 / rowsPerPart).toInt
-  private val colPartitions = math.ceil(cols * 1.0 / colsPerPart).toInt
-
-  override val numPartitions: Int = rowPartitions * colPartitions
-
-  /**
-    * Returns the index of the partition the input coordinate belongs to.
-    *
-    * @param key The partition id i (calculated through this method for coordinate (i, j) in
-    *            `simulateMultiply`, the coordinate (i, j) or a tuple (i, j, k), where k is
-    *            the inner index used in multiplication. k is ignored in computing partitions.
-    * @return The index of the partition, which the coordinate belongs to.
-    */
-  override def getPartition(key: Any): Int = {
-    key match {
-      case i: Int => i
-      case (i: Int, j: Int) =>
-        getPartitionId(i, j)
-      case (i: Int, j: Int, _: Int) =>
-        getPartitionId(i, j)
-      case _ =>
-        throw new IllegalArgumentException(s"Unrecognized key: $key.")
+          val arraySize = actualNumRows * actualNumColumns
+          val matrixAsArray = new Array[Double](arraySize)
+          itr.foreach({ case (rowWithinBlock, values) =>
+            var i = 0
+            while (i < values.length) {
+              matrixAsArray.update(i * actualNumRows + rowWithinBlock, values(i))
+              i += 1
+            }
+          })
+          ((blockRow, blockColumn), new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray))
+      })
+      new BlockMatrix(blocks, rowsPerBlock, colsPerBlock)
     }
   }
 
-  /** Partitions sub-matrices as blocks with neighboring sub-matrices. */
-  private def getPartitionId(i: Int, j: Int): Int = {
-    require(0 <= i && i < rows, s"Row index $i out of range [0, $rows).")
-    require(0 <= j && j < cols, s"Column index $j out of range [0, $cols).")
-    i / rowsPerPart + j / colsPerPart * rowPartitions
-  }
-
-  override def equals(obj: Any): Boolean = {
-    obj match {
-      case r: GridPartitioner =>
-        (this.rows == r.rows) && (this.cols == r.cols) &&
-          (this.rowsPerPart == r.rowsPerPart) && (this.colsPerPart == r.colsPerPart)
-      case _ =>
-        false
-    }
-  }
-
-  override def hashCode: Int = {
-    com.google.common.base.Objects.hashCode(
-      rows: java.lang.Integer,
-      cols: java.lang.Integer,
-      rowsPerPart: java.lang.Integer,
-      colsPerPart: java.lang.Integer)
-  }
 }
 
-private object GridPartitioner {
 
-  /** Creates a new [[GridPartitioner]] instance. */
-  def apply(rows: Int, cols: Int, rowsPerPart: Int, colsPerPart: Int): GridPartitioner = {
-    new GridPartitioner(rows, cols, rowsPerPart, colsPerPart)
-  }
-
-  /** Creates a new [[GridPartitioner]] instance with the input suggested number of partitions. */
-  def apply(rows: Int, cols: Int, suggestedNumPartitions: Int): GridPartitioner = {
-    require(suggestedNumPartitions > 0)
-    val scale = 1.0 / math.sqrt(suggestedNumPartitions)
-    val rowsPerPart = math.round(math.max(scale * rows, 1.0)).toInt
-    val colsPerPart = math.round(math.max(scale * cols, 1.0)).toInt
-    new GridPartitioner(rows, cols, rowsPerPart, colsPerPart)
-  }
-}
