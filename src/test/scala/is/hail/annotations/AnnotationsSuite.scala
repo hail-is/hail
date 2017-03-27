@@ -103,8 +103,8 @@ class AnnotationsSuite extends SparkSuite {
 
     //Check that adding attributes to FILTERS / INFO outputs the correct Number/Description
     val vds_attr = vds
-      .setVAattribute("va.filters", "testFilter", "testFilterDesc")
-      .setVAattributes("va.info.MQ", Map("Number" -> ".", "Description" -> "testMQ", "foo" -> "bar"))
+      .setVaAttribute("va.filters", "testFilter", "testFilterDesc")
+      .setVaAttributes(Parser.parseAnnotationRoot("va.info.MQ", Annotation.VARIANT_HEAD), Map("Number" -> ".", "Description" -> "testMQ", "foo" -> "bar"))
 
     assert(vds_attr.vaSignature.fieldOption("filters")
       .map(f => f.attrs.getOrElse("testFilter", "") == "testFilterDesc")
@@ -360,20 +360,20 @@ class AnnotationsSuite extends SparkSuite {
 
     var vds = hc.importVCF("src/test/resources/sample.vcf").cache()
 
-    vds = vds.setVAattribute("va.info.DP", "new_key", "new_value")
-    assert(vds.getVAattributes("va.info.DP").getOrElse("new_key", "missing_value") == "new_value")
+    vds = vds.setVaAttribute("va.info.DP", "new_key", "new_value")
+    assert(vds.getVaAttributes("va.info.DP").getOrElse("new_key", "missing_value") == "new_value")
 
-    vds = vds.setVAattribute("va.info.DP", "new_key", "modified_value")
-    assert(vds.getVAattributes("va.info.DP").getOrElse("new_key", "missing_value") == "modified_value")
+    vds = vds.setVaAttribute("va.info.DP", "new_key", "modified_value")
+    assert(vds.getVaAttributes("va.info.DP").getOrElse("new_key", "missing_value") == "modified_value")
 
-    vds = vds.setVAattributes("va.info.DP", Map("key1" -> "value1", "key2" -> "value2"))
-    assert(vds.getVAattributes("va.info.DP").getOrElse("key1", "missing_value") == "value1")
-    assert(vds.getVAattributes("va.info.DP").getOrElse("key2", "missing_value") == "value2")
+    vds = vds.setVaAttributes(Parser.parseAnnotationRoot("va.info.DP", Annotation.VARIANT_HEAD), Map("key1" -> "value1", "key2" -> "value2"))
+    assert(vds.getVaAttributes("va.info.DP").getOrElse("key1", "missing_value") == "value1")
+    assert(vds.getVaAttributes("va.info.DP").getOrElse("key2", "missing_value") == "value2")
 
-    vds = vds.deleteVAattribute("va.info.DP", "new_key")
-    assert(!vds.getVAattributes("va.info.DP").contains("new_key"))
+    vds = vds.deleteVaAttribute("va.info.DP", "new_key")
+    assert(!vds.getVaAttributes("va.info.DP").contains("new_key"))
 
-    vds = vds.deleteVAattribute("va.info.DP", "new_key")
+    vds = vds.deleteVaAttribute("va.info.DP", "new_key")
 
   }
 

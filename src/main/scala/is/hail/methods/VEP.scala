@@ -394,7 +394,7 @@ object VEP {
         }
       }.asOrderedRDD
 
-    if (csq)
+    if (csq && newVASignature.isInstanceOf[TStruct])
       vsm.copy(rdd = newRDD,
         vaSignature = newVASignature.asInstanceOf[TStruct]
           .setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))

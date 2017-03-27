@@ -338,9 +338,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       inserterBuilder += i
       s
     }
-    val finalType = paths.foldLeft(newType.asInstanceOf[TStruct])({
-      case (res, path) => res.setFieldAttributes(path, Map("Number" -> "A"))
-    })
+    val finalType = if (newType.isInstanceOf[TStruct])
+      paths.foldLeft(newType.asInstanceOf[TStruct]) {
+        case (res, path) => res.setFieldAttributes(path, Map("Number" -> "A"))
+      }
+    else newType
+
     val inserters = inserterBuilder.result()
 
     val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
