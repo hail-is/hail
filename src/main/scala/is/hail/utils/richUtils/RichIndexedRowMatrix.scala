@@ -16,6 +16,17 @@ import scala.reflect.classTag
 
 object RichIndexedRowMatrix {
 
+  val intClass = classTag[Int].runtimeClass
+  val gpConstructor = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner")
+    .getDeclaredConstructor(intClass,intClass,intClass,intClass)
+  def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, nRowsPerPart: Int, nColsPerPart: Int): Partitioner = try {
+    gpConstructor.setAccessible(true)
+    gpConstructor.newInstance(nRowBlocks: java.lang.Integer, nColBlocks: java.lang.Integer,
+      nRowsPerPart: java.lang.Integer, nColsPerPart: java.lang.Integer).asInstanceOf[Partitioner]
+  } finally {
+    gpConstructor.setAccessible(false)
+  }
+
   implicit class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     def toBlockMatrixDense(): BlockMatrix = {
       toBlockMatrixDense(1024, 1024)
@@ -33,19 +44,9 @@ object RichIndexedRowMatrix {
       val lastColBlockIndex = n / colsPerBlock
       val lastRowBlockSize = (m % rowsPerBlock).toInt
       val lastColBlockSize = (n % colsPerBlock).toInt
-      val numRowBlocks = math.ceil(m.toDouble / rowsPerBlock).toInt
-      val numColBlocks = math.ceil(n.toDouble / colsPerBlock).toInt
+      val numRowBlocks = (m / rowsPerBlock + m % rowsPerBlock).toInt
+      val numColBlocks = (n / colsPerBlock + n % colsPerBlock).toInt
 
-      val intClass = classTag[Int].runtimeClass
-      val gpConstructor = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner")
-        .getDeclaredConstructor(intClass,intClass,intClass,intClass)
-      def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, nRowsPerPart: Int, nColsPerPart: Int): Partitioner = try {
-        gpConstructor.setAccessible(true)
-        gpConstructor.newInstance(nRowBlocks: java.lang.Integer, nColBlocks: java.lang.Integer,
-          nRowsPerPart: java.lang.Integer, nColsPerPart: java.lang.Integer).asInstanceOf[Partitioner]
-      } finally {
-        gpConstructor.setAccessible(false)
-      }
 
       val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap({ ir =>
         val blockRow = ir.index / rowsPerBlock
