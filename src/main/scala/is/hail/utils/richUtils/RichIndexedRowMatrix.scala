@@ -44,8 +44,8 @@ object RichIndexedRowMatrix {
       val lastColBlockIndex = n / colsPerBlock
       val lastRowBlockSize = (m % rowsPerBlock).toInt
       val lastColBlockSize = (n % colsPerBlock).toInt
-      val numRowBlocks = (m / rowsPerBlock + m % rowsPerBlock).toInt
-      val numColBlocks = (n / colsPerBlock + n % colsPerBlock).toInt
+      val numRowBlocks = (m / rowsPerBlock + (if (m % rowsPerBlock == 0) 0 else 1)).toInt
+      val numColBlocks = (n / colsPerBlock + (if (n % colsPerBlock == 0) 0 else 1)).toInt
 
 
       val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap({ ir =>
