@@ -498,6 +498,12 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Map[_, _]](""" genedict.mapValues(x => x + 1) """).contains(Map("gene1" -> 3, "gene2" -> 11, "gene3" -> 15)))
 
+    assert(eval[IndexedSeq[Int]]("""genedict.values""").contains(IndexedSeq(2,10,14)))
+    assert(eval[IndexedSeq[String]]("""genedict.keys""").contains(IndexedSeq("gene1","gene2","gene3")))
+    val ks = eval[Set[String]]("""genedict.keySet""")
+    assert(ks.isDefined)
+    ks.get should contain theSameElementsAs Seq("gene1","gene2","gene3")
+
     // caused exponential blowup previously
     assert(eval[Boolean](
       """
