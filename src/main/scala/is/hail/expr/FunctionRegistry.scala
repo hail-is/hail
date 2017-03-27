@@ -1264,11 +1264,15 @@ object FunctionRegistry {
   )(setHr(setHr(TTHr)), setHr(TTHr))
 
   registerMethod("keys", (m: Map[Any, Any]) =>
-    m.keysIterator.toArray[Any]: IndexedSeq[Any], null
+    m.keysIterator.toArray[Any]: IndexedSeq[Any], "Returns an Array containing the keys of the Dict."
   )(dictHr(TTHr, TUHr), arrayHr(TTHr))
 
+  registerMethod("values", (m: Map[Any, Any]) =>
+    m.valuesIterator.toArray[Any]: IndexedSeq[Any], "Returns an Array containing the values of the Dict."
+  )(dictHr(TTHr, TUHr), arrayHr(TUHr))
+
   registerMethod("keySet", (m: Map[Any, Any]) =>
-    m.keySet, null
+    m.keySet, "Returns a Set containing the keys of the Dict."
   )(dictHr(TTHr, TUHr), setHr(TTHr))
 
   registerMethod("get", (m: Map[Any, Any], key: Any) =>
