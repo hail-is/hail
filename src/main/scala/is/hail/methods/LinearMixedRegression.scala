@@ -99,6 +99,7 @@ object LinearMixedRegression {
     val Ut = fullU(::, (n - nEigs) until n).t
     val S = fullS((n - nEigs) until n)
 
+
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
     info(s"lmmreg: Evals $nEigs to ${math.max(1, nEigs - 20)}: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
 
@@ -135,7 +136,7 @@ object LinearMixedRegression {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
-          Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
+          Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals, nEigs),
           TStruct(("seH2", TDouble), ("normLkhdH2", TArray(TDouble)), ("maxLogLkhd", TDouble),
             ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
       case None =>
@@ -229,6 +230,7 @@ class FullRankScalerLMM(
 
     val b: Double = xQty / xQtx
     val s2 = invDf * (yQty - xQty * b)
+
     val chi2 = n * (logNullS2 - math.log(s2))
     val p = chiSquaredTail(1, chi2)
 
@@ -357,6 +359,7 @@ object DiagLMM {
 
           -0.5 * (logdetD + logdetCdC - logdetCtC + (n - d) * math.log(sigma2)) + shift
         }
+
       }
 
       // number of points per unit of log space
@@ -432,6 +435,7 @@ object DiagLMM {
 
       (FastMath.exp(maxlogDelta), GlobalFitLMM(maxLogLkhd, gridLogLkhd, sigmaH2, h2NormLkhd))
     }
+
 
     def fitUsingDelta(delta: Double, optGlobalFit: Option[GlobalFitLMM]): DiagLMM = {
       val invDelta = 1 / delta
