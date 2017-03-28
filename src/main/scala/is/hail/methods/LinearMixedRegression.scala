@@ -5,8 +5,10 @@ import breeze.numerics.{sigmoid, sqrt}
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats._
+import is.hail.stats.eigSymD.DenseeigSymD
 import is.hail.utils._
 import is.hail.variant.VariantDataset
+
 import org.apache.commons.math3.analysis.UnivariateFunction
 import org.apache.commons.math3.optim.MaxEval
 import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
@@ -31,7 +33,8 @@ object LinearMixedRegression {
     runAssoc: Boolean,
     optDelta: Option[Double],
     sparsityThreshold: Double,
-    useDosages: Boolean): VariantDataset = {
+    useDosages: Boolean,
+    optNumEigs: Option[Int] = None): VariantDataset = {
 
     require(assocVds.wasSplit)
 
@@ -65,7 +68,7 @@ object LinearMixedRegression {
 
     val cols = filteredKinshipMatrix.matrix.numCols().toInt
 
-    val rrm = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
+    val rrm = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
 
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
@@ -83,10 +86,7 @@ object LinearMixedRegression {
       case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
-    val UtC = Ut * cov
-    val Uty = Ut * y
-
-    val diagLMM = DiagLMM(UtC, Uty, S, optDelta, useML)
+    val diagLMM = DiagLMM(cov, y, S, eigK.eigenvectors, optNumEigs, optDelta, useML)
 
     val delta = diagLMM.delta
     val globalBetaMap = covNames.zip(diagLMM.globalB.toArray).toMap
@@ -163,66 +163,183 @@ object LinearMixedRegression {
   }
 }
 
+
+
 object DiagLMM {
   def apply(
     C: DenseMatrix[Double],
     y: DenseVector[Double],
-    S: DenseVector[Double],
+    FullS: DenseVector[Double],
+    FullU: DenseMatrix[Double],
+    optNumEigs: Option[Int],
     optDelta: Option[Double] = None,
     useML: Boolean = false): DiagLMM = {
 
-    require(C.rows == y.length)
+    new DiagLMMSolver(C, y, FullS, FullU, optNumEigs, optDelta, useML).solve()
+  }
+}
 
-    val (delta, optGlobalFit) = optDelta match {
-        case Some(d) => (d, None)
-        case None =>
-          val (d, gf) = fitDelta(C, y, S, useML)
-          (d, Some(gf))
-      }
 
-    val n = y.length
+class DiagLMMSolver(
+  C: DenseMatrix[Double],
+  y: DenseVector[Double],
+  FullS: DenseVector[Double],
+  FullU: DenseMatrix[Double],
+  optNumEigs: Option[Int],
+  optDelta: Option[Double] = None,
+  useML: Boolean = false) {
+  val U = optNumEigs match {
+    case Some(num) => {
+      val len = FullS.length
+      FullU(::, (len - num) until len)
+    }
+    case None => FullU
+  }
+
+  val S = optNumEigs match {
+    case Some(num) => {
+      val len = FullS.length
+      FullS((len - num) until len)
+    }
+    case None => FullS
+  }
+
+  val Ut = U.t
+  val UtC = Ut * C
+  val Uty = Ut * y
+
+  require(UtC.rows == Uty.length)
+
+  val CtC = C.t * C
+  val Cty = C.t * y
+  val yty = y.t * y
+  println(s"U has ${U.rows} rows and ${U.cols} columns")
+
+  val n = Uty.length
+  val d = C.cols
+
+  val (delta, optGlobalFit) = optDelta match {
+    case Some(d) => (d, None)
+    case None =>
+      val (d, gf) = fitDelta()
+      (d, Some(gf))
+  }
+
+  def solve(): DiagLMM = {
     val sqrtInvD = sqrt(S + delta).map(1 / _)
-    val TC = C(::, *) :* sqrtInvD
-    val Ty = y :* sqrtInvD
+    val TC = UtC(::, *) :* sqrtInvD
+    val Ty = Uty :* sqrtInvD
     val TyTy = Ty dot Ty
     val TCTy = TC.t * Ty
     val TCTC = TC.t * TC
     val b = TCTC \ TCTy
-    val s2 = (TyTy - (TCTy dot b)) / (if (useML) n else n - C.cols)
+    val s2 = (TyTy - (TCTy dot b)) / (if (useML) n else n - UtC.cols)
 
     DiagLMM(b, s2, math.log(s2), delta, optGlobalFit, sqrtInvD, TC, Ty, TyTy, useML)
   }
 
-  def fitDelta(C: DenseMatrix[Double], y: DenseVector[Double], S: DenseVector[Double], useML: Boolean): (Double, GlobalFitLMM) = {
+  def fitDelta(): (Double, GlobalFitLMM) = {
 
-    val n = y.length
-    val c = C.cols
+    val n = Uty.length
+    val c = UtC.cols
 
     object LogLkhdML extends UnivariateFunction {
       val shift: Double = n * (1 + math.log(2 * math.Pi) + math.log(1d / n))
 
       def value(logDelta: Double): Double = {
+
         val invD = (S + FastMath.exp(logDelta)).map(1 / _)
-        val dy = y :* invD
-        val ydy = y dot dy
-        val Cdy = C.t * dy
-        val CdC = C.t * (C(::, *) :* invD)
+        val dy = Uty :* invD
+        val ydy = Uty dot dy
+        val Cdy = UtC.t * dy
+        val CdC = UtC.t * (UtC(::, *) :* invD)
         val b = CdC \ Cdy
         val r = ydy - (Cdy dot b)
+        //println(s"FULL logDelta = $logDelta, beta = $b")
 
         -0.5 * (-sum(breeze.numerics.log(invD)) + n * math.log(r) + shift)
       }
     }
 
+    object LogLkhdMLLowRank extends UnivariateFunction {
+      val shift = n * (math.log(2 * math.Pi) + 1 + math.log(1d / n))
+
+      def value(logDelta: Double): Double = {
+        //Letting S have only the K eigenvalues so that S here is equivalent to S1 in paper
+        val delta = FastMath.exp(logDelta)
+        val D = S + delta
+        val dy = Uty :/ D //D^-1 * U^t * y
+        val ydy = Uty dot dy
+        val Cdy = UtC.t * dy //U^t * C * D^-1 * U^t * y
+        val CdC = UtC.t * (UtC(::, *) :/ D)
+        val b = (CdC + (1.0 / delta) * (CtC - UtC.t * UtC)) \ (Cdy + (1.0 / delta) * (Cty - UtC.t * Uty))
+        val Cb = C * b
+        val UtCb = UtC * b
+        val k = S.length
+
+        //println(s"ydy = $ydy")
+        //println(s"delta = $delta, \n Uty = $Uty \n dy = $dy, \n ydy = $ydy")
+
+        val r2: Double = ((yty - (Uty.t * Uty)) + (Cb.t * Cb - (UtCb).t * UtCb)) / delta
+
+        val nSigmaSquared = ydy - (Cdy dot b) + r2 //* r2
+
+        //println(s"M1: s2 = ${nSigmaSquared / n}, beta = $b" )
+
+        -0.5 * (sum(breeze.numerics.log(D)) + (n - k) * logDelta + n * math.log(nSigmaSquared) + shift)
+      }
+
+    }
+
+    //#3 from Jon's branch
+    object LogLkhdMLLowRank2 extends UnivariateFunction {
+      val shift = n * (math.log(2 * math.Pi) + 1)
+
+      def value(logDelta: Double): Double = {
+        val delta = FastMath.exp(logDelta)
+        val D = S + delta
+        val dy = Uty :/ D
+        val dC = UtC(::, *) :/ D
+        val ydy = Uty dot dy
+        val Cdy = UtC.t * dy
+        val CdC = UtC.t * dC
+        val k = S.length
+
+        val CpC = (C.t * C) - (UtC.t * UtC)
+        val Cpy = (C.t * y) - (UtC.t * Uty)
+        val ypy = (y dot y) - (Uty dot Uty)
+
+        val Cj = C - U * U.t * C
+        val yj = y - U * U.t * y
+        val trueBeta = (CdC + (Cj.t * Cj) / delta) \ (Cdy + (Cj.t * yj) / delta)
+        val beta = (CdC + (CpC / delta)) \ (Cdy + (Cpy / delta))
+        // println(s"logDelta  = $logDelta, beta = $beta")
+        val r1 = ydy - (Cdy dot beta)
+
+        val Cb = C * beta
+        val UtCb = UtC * beta
+        val r2J = (ypy - (Cpy dot beta)) / delta
+        val r2J2 = (ypy - ((Cb dot Cb) - (UtCb dot UtCb))) / delta
+        val r2Temp = (y - U * Uty) - (C * beta - (U * UtC) * beta)
+        val r2 = (r2Temp dot r2Temp) / delta
+        val s2 = (r1 + r2) / n
+        //println(s"Jon = $r2J, Jon2 = $r2J2, paper = $r2")
+
+        //println(s"M2: s2 = $s2, beta = $beta")
+
+        -0.5 * (sum(breeze.numerics.log(D)) + (n - k) * logDelta + n * math.log(s2) + shift)
+      }
+    }
+
     object LogLkhdREML extends UnivariateFunction {
-      val shift: Double = n * (1 + math.log(1d / n)) + (n - c) * math.log(2 * math.Pi) - logdet(C.t * C)._2
+      val shift: Double = n * (1 + math.log(1d / n)) + d * math.log(2 * math.Pi) - logdet(UtC.t * UtC)._2
 
       def value(logDelta: Double): Double = {
         val invD = (S + FastMath.exp(logDelta)).map(1 / _)
-        val dy = y :* invD
-        val ydy = y dot dy
-        val Cdy = C.t * dy
-        val CdC = C.t * (C(::, *) :* invD)
+        val dy = Uty :* invD
+        val ydy = Uty dot dy
+        val Cdy = UtC.t * dy
+        val CdC = UtC.t * (UtC(::, *) :* invD)
         val b = CdC \ Cdy
         val r = ydy - (Cdy dot b)
 
@@ -230,19 +347,122 @@ object DiagLMM {
       }
     }
 
+    /*object LogLkhdREMLLowRank extends UnivariateFunction {
+      val shift = n * math.log(2 * math.Pi) + n
+
+      def value(logDelta: Double): Double = {
+        //Letting S have only the K eigenvalues so that S here is equivalent to S1 in paper
+        val delta = FastMath.exp(logDelta)
+        val D = S + delta
+        val dy = Uty :/ D
+        val ydy = Uty dot dy
+        val Cdy = UtC.t * dy //U^t * C * D^-1 * U^t * y
+        val CdC = UtC.t * (UtC(::, *) :/ D)
+        val b = (CdC + (1.0 / delta) * (CtC - UtC.t * UtC)) \ (Cdy + (1.0 / delta) * (Cty - UtC.t * Uty))
+        val Cb = C * b
+        val UtCb = UtC * b
+        val k = S.length
+
+        val vectorLength: Double = ((yty - (Uty.t * Uty)) + (Cb.t * Cb - (UtCb).t * UtCb))
+
+        val sigmaSquared = (1.0 / (n - d)) * (ydy - (Cdy dot b) + (1.0 / delta) * vectorLength * vectorLength)
+
+        //Consider that CtC expression is used in beta computation and is constant.
+        val detExpr = CdC + (1.0 / delta) * (CtC - UtC.t * UtC)
+
+        -0.5 * (sum(breeze.numerics.log(D)) + (n - k) * logDelta  + (n - d) * math.log(sigmaSquared) + shift)
+        + 0.5 * (d * math.log(2 * math.Pi * sigmaSquared) + logdet(CtC)._2 - logdet(detExpr)._2)
+      }
+    }*/
+
+    object LogLkhdREMLLowRank2 extends UnivariateFunction {
+
+      def value(logDelta: Double): Double = {
+        //Letting S have only the K eigenvalues so that S here is equivalent to S1 in paper
+        val delta = FastMath.exp(logDelta)
+        val D = S + delta
+        val dy = Uty :/ D
+        val ydy = Uty dot dy
+        val Cdy = UtC.t * dy //U^t * C * D^-1 * U^t * y
+        val CdC = UtC.t * (UtC(::, *) :/ D)
+        val b = (CdC + (1.0 / delta) * (CtC - UtC.t * UtC)) \ (Cdy + (1.0 / delta) * (Cty - UtC.t * Uty))
+        val Cb = C * b
+        val UtCb = UtC * b
+        val k = S.length
+
+        val vectorLength: Double = (yty - (Uty.t * Uty)) + (Cb.t * Cb - (UtCb).t * UtCb)
+        val squaredVectorLength = vectorLength * vectorLength
+
+        val sigmaSquared = (1.0 / (n - d)) * (ydy - (Cdy dot b) + (1.0 / delta) * squaredVectorLength)
+
+        /*val fullD = FullS + delta
+        val fullDy = (FullU.t * y) :/ fullD
+        val fullUtC = (FullU.t * C)
+        val blah = (FullU.t * fullDy)
+        val blah2 = Cdy dot b
+
+        val sigmaSquared = (1.0 / (n - d)) *
+          (((FullU.t * y).t * fullDy) -
+            ((fullUtC.t * fullDy) dot b))*/
+
+
+        //Consider that CtC expression is used in beta computation and is constant.
+        val detExpr = CdC + (1.0 / delta) * (CtC - UtC.t * UtC)
+
+        (-.5 * (n * math.log(2 * math.Pi * sigmaSquared) + sum(breeze.numerics.log(D)) + (n - k) * logDelta)
+        + (-.5 * ((1.0 / sigmaSquared) * ((n - d) * sigmaSquared)))
+        + (.5 * (d * math.log(2 * math.Pi * sigmaSquared) + logdet(CtC)._2
+             - logdet(detExpr)._2)))
+      }
+    }
+
+    object TestingREML extends UnivariateFunction {
+
+      def value(logDelta: Double): Double = {
+        val fullAns = LogLkhdREML.value(logDelta)
+        val resAns = LogLkhdREMLLowRank2.value(logDelta)
+        println(s"REML On input $logDelta the full answer was $fullAns while the res answer was $resAns")
+        resAns
+      }
+    }
+
+    object TestingML extends UnivariateFunction {
+      def value(logDelta: Double): Double = {
+        //val fullAns = LogLkhdML.value(logDelta)
+        //println(s"Input = $logDelta")
+        //val ans1 = LogLkhdMLLowRank.value(logDelta)
+        val ans2 = LogLkhdMLLowRank2.value(logDelta)
+        //println(s"Output = $resAns")
+        //println(s"ML On input $logDelta the full answer was $fullAns while the res answer was $resAns")
+        //println(s"Lkhd1 = $ans1, Lkhd2 = $ans2")
+        ans2
+      }
+    }
+
+
     val minLogDelta = -8
     val maxLogDelta = 8
     val pointsPerUnit = 100 // number of points per unit of log space
 
     val grid = (minLogDelta * pointsPerUnit to maxLogDelta * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (minLogDelta to logMax by logres)
+    val logLkhdFunction = (useML, optNumEigs) match {
+      case (true, Some(numEigs)) => TestingML//LogLkhdMLLowRank
+      case (true, None) => LogLkhdML
+      case (false, Some(numEigs)) => TestingREML //LogLkhdREMLLowRank
+      case (false, None) => LogLkhdREML
+    }
 
-    val gridLogLkhd = if (useML)
+    println("The name is " + logLkhdFunction.getClass.getName)
+
+    val gridLogLkhd = grid.map(logDelta => (logDelta, logLkhdFunction.value(logDelta)))
+
+    /*val gridLogLkhd = if (useML)
       grid.map(logDelta => (logDelta, LogLkhdML.value(logDelta)))
     else
-      grid.map(logDelta => (logDelta, LogLkhdREML.value(logDelta)))
+      grid.map(logDelta => (logDelta, LogLkhdREML.value(logDelta)))*/
 
     val header = "logDelta\tlogLkhd"
-    val gridValsString = gridLogLkhd.map{ case (d, nll) => s"$d\t$nll" }.mkString("\n")
+    val gridValsString = gridLogLkhd.map { case (d, nll) => s"$d\t$nll" }.mkString("\n")
     log.info(s"\nlmmreg: table of delta\n$header\n$gridValsString\n")
 
     val approxLogDelta = gridLogLkhd.maxBy(_._2)._1
@@ -252,9 +472,11 @@ object DiagLMM {
     else if (approxLogDelta == maxLogDelta)
       fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta upper search boundary e^$maxLogDelta = ${FastMath.exp(maxLogDelta)}, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
 
+
     val searchInterval = new SearchInterval(minLogDelta, maxLogDelta, approxLogDelta)
     val goal = GoalType.MAXIMIZE
-    val objectiveFunction = new UnivariateObjectiveFunction(if (useML) LogLkhdML else LogLkhdREML)
+    val objectiveFunction = new UnivariateObjectiveFunction(logLkhdFunction)
+    //(if (useML) LogLkhdML else LogLkhdREML)
     val brentOptimizer = new BrentOptimizer(5e-8, 5e-7) // tol = 5e-8 * abs((ln(delta))) + 5e-7 <= 1e-6
     val logDeltaPointValuePair = brentOptimizer.optimize(objectiveFunction, goal, searchInterval, MaxEval.unlimited)
 
@@ -265,6 +487,7 @@ object DiagLMM {
       warn(s"lmmreg: the difference between the optimal value $approxLogDelta of ln(delta) on the grid and" +
         s"the optimal value $maxlogDelta of ln(delta) by Brent's method exceeds the grid resolution" +
         s"of ${1d / pointsPerUnit}. Plot the values over the full grid to investigate.")
+
     }
 
     val epsilon = 1d / pointsPerUnit
@@ -294,11 +517,8 @@ object DiagLMM {
     val sigmaH2 =
       math.sqrt(((x2 - x1) * (x1 - x3) * (x3 - x2)) / (-2 * (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2))))
 
-    val h2LogLkhd =
-      if (useML)
-        (0.01 to 0.99 by 0.01).map(h2 => LogLkhdML.value(math.log((1 - h2) / h2)))
-      else
-        (0.01 to 0.99 by 0.01).map(h2 => LogLkhdREML.value(math.log((1 - h2) / h2)))
+    val h2LogLkhd = (0.01 to 0.99 by 0.01).map(h2 => logLkhdFunction.value(math.log((1 - h2) / h2)))
+
 
     val h2Lkhd = h2LogLkhd.map(ll => math.exp(ll - maxLogLkhd))
     val h2LkhdSum = h2Lkhd.sum
