@@ -2,11 +2,12 @@ package is.hail.methods
 
 import org.apache.spark.rdd.RDD
 import is.hail.HailContext
-import is.hail.expr.{EvalContext, Parser, TStruct, TDouble, TLong, TString, TVariant}
+import is.hail.expr.{EvalContext, Parser, TDouble, TLong, TString, TStruct, TVariant}
 import is.hail.utils._
 import is.hail.keytable.KeyTable
 import is.hail.annotations.Annotation
 import is.hail.expr._
+import is.hail.methods.IBD.generateComputeMaf
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
@@ -269,7 +270,7 @@ object IBD {
     KeyTable(sc, ktRdd, ibdSignature, Array("i", "j"))
   }
 
-  private def generateComputeMaf(vds: VariantDataset, computeMafExpr: String): (Variant, Annotation) => Double = {
+  private[methods] def generateComputeMaf(vds: VariantDataset, computeMafExpr: String): (Variant, Annotation) => Double = {
     val mafSymbolTable = Map("v" -> (0, TVariant), "va" -> (1, vds.vaSignature))
     val mafEc = EvalContext(mafSymbolTable)
     val computeMafThunk = Parser.parseTypedExpr[java.lang.Double](computeMafExpr, mafEc)
@@ -292,10 +293,12 @@ object IBD {
 object IBDPrune {
   def apply(vds: VariantDataset,
     threshold: Double,
-    computeMaf: Option[(Variant, Annotation) => Double] = None,
+    computeMafExpr: Option[String] = None,
     bounded: Boolean = true): VariantDataset = {
 
     val sampleIDs: IndexedSeq[String] = vds.sampleIds
+
+    val computeMaf = computeMafExpr.map(generateComputeMaf(vds, _))
 
     val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
       .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
