@@ -193,7 +193,7 @@ class AggregatorSuite extends SparkSuite {
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\]")(
       vds.queryVariants("variants.filter(v => false)")
     )
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Sample\\]")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[String\\]")(
       vds.querySamples("samples.filter(s => false)")
     )
   }
