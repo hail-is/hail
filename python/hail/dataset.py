@@ -1344,7 +1344,7 @@ class VariantDataset(object):
 
         Export the same information without identifiers, resulting in a file with no header:
 
-        >>> vds.export_genotypes('output/genotypes.tsv', 's, v, s, g.dp, va.anno1, va.anno2')
+        >>> vds.export_genotypes('output/genotypes.tsv', 's, v, g.gq, g.dp, va.anno1, va.anno2')
 
         **Notes**
 
