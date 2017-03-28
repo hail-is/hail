@@ -808,9 +808,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def ibdPrune(threshold: Double, computeMafExpr: Option[String] = None, bounded: Boolean = true): VariantDataset = {
     requireSplit("IBD Prune")
 
-    val computeMaf = None
-
-    IBDPrune(vds, threshold)
+    IBDPrune(vds, threshold, computeMafExpr, bounded)
   }
 
   /**
