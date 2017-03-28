@@ -80,7 +80,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     assert(D_==(sg2, model.globalS2))
 
     val modelML = DiagLMM(LMMConstants(y, C, S, Ut), optDelta = Some(delta), useML = true)
-
     TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
     
@@ -447,6 +446,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vdsChr1FullRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None)
 
     val vdsChr1LowRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, nEigs = Some(242))
+
 
     globalLMMCompare(vdsChr1FullRankREML, vdsChr1LowRankREML)
 

@@ -3297,6 +3297,10 @@ class VariantDataset(object):
 
         :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
 
+        :param int n_eigs: Number of eigenvectors to use to fit the LMM
+
+        :param float dropped_variance_fraction: Upper bound on fraction of total variance lost by dropping eigenvectors with small eigenvalues.
+
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
         """
