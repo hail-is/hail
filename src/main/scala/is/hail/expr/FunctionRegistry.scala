@@ -131,10 +131,14 @@ object FunctionRegistry {
   }
 
   def lookupAggregator(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[TypedAggregator[_]] = {
-    val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
+    val f = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
       .valueOr(x => fatal(x.message))
 
-    m match {
+    buildAggregator(f, name, args, argTypes)
+  }
+
+  private def buildAggregator(f: Fun, name: String, args: Seq[AST], argTypes: Seq[Type]): CM[TypedAggregator[_]] = {
+    f match {
       case aggregator: Arity0Aggregator[_, _] =>
         ret(aggregator.ctor())
       case aggregator: Arity1Aggregator[_, u, _] =>
@@ -320,198 +324,16 @@ object FunctionRegistry {
       .valueOr(x => fatal(x.message))
 
     (m match {
-      case aggregator: Arity0Aggregator[_, _] =>
-        for (
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor());
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: Arity1Aggregator[_, u, _] =>
-        for (
-          ec <- ec();
-          u = args(1).run(ec)();
-
-          _ = (if (u == null)
-            fatal(s"Argument evaluated to missing in call to aggregator $name"));
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(u.asInstanceOf[u]));
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: Arity3Aggregator[_, u, v, w, _] =>
-        for (
-          ec <- ec();
-          u = args(1).run(ec)();
-          v = args(2).run(ec)();
-          w = args(3).run(ec)();
-
-          _ = (if (u == null)
-            fatal(s"Argument 1 evaluated to missing in call to aggregator $name"));
-          _ = (if (v == null)
-            fatal(s"Argument 2 evaluated to missing in call to aggregator $name"));
-          _ = (if (w == null)
-            fatal(s"Argument 3 evaluated to missing in call to aggregator $name"));
-
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(
-            u.asInstanceOf[u],
-            v.asInstanceOf[v],
-            w.asInstanceOf[w]));
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: UnaryLambdaAggregator[t, u, v] =>
-        val Lambda(_, param, body) = args(1)
-        val TFunction(Seq(paramType), _) = argTypes(1)
+      case (_: Arity0Aggregator[_, _]
+         | _: Arity1Aggregator[_, u, _]
+         | _: Arity3Aggregator[_, u, v, w, _]
+         | _: UnaryLambdaAggregator[t, u, v]
+         | _: BinaryLambdaAggregator[t, u, v, w]
+         | _: GroupByAggregatorFun[t]) =>
 
         for (
-          ec <- ec();
-          st <- currentSymbolTable();
-          (idx, localA) <- ecNewPosition();
-
-          bodyST = args(0).`type` match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => st
-          };
-
-          bodyFn = (for (
-            fb <- fb();
-            bindings = (bodyST.toSeq
-              .map { case (name, (i, typ)) =>
-              (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
-            res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
-
-          g = (x: Any) => {
-            localA(idx) = x
-            bodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
-          };
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(g));
-
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: BinaryLambdaAggregator[t, u, v, w] =>
-        val Lambda(_, param, body) = args(1)
-        val TFunction(Seq(paramType), _) = argTypes(1)
-
-        for (
-          ec <- ec();
-          st <- currentSymbolTable();
-          (idx, localA) <- ecNewPosition();
-
-          bodyST = args(0).`type` match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => st
-          };
-
-          bodyFn = (for (
-            fb <- fb();
-            bindings = (bodyST.toSeq
-              .map { case (name, (i, typ)) =>
-              (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
-            res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
-
-          g = (x: Any) => {
-            localA(idx) = x
-            bodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
-          };
-
-          v = args(2).run(ec)();
-
-          _ = (if (v == null)
-            fatal(s"Argument evaluated to missing in call to aggregator $name"));
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(g, v.asInstanceOf[v]));
-
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
-
-      case aggregator: GroupByAggregatorFun[t] =>
-        // val downstreamBodyFn = CM.ret(Code._null[AnyRef]).runWithDelayedValues(Seq(), EvalContext());
-
-        val Lambda(_, keyParam, keyBody) = args(1)
-        val TFunction(Seq(keyParamType), _) = argTypes(1)
-
-        val Lambda(_, downstreamParam, downstreamBody) = args(2)
-        val TFunction(Seq(downstreamParamType), _) = argTypes(2)
-
-        val kbc = keyBody.compile()
-
-        val a0 = args(0)
-
-        val a0type = a0.`type`
-
-        for (
-          (downstreamBodyCompiled, downstreamAggregator) <- downstreamBody.downstreamAggregator();
-
-          ec <- ec();
-          (idx, localA) <- ecNewPosition();
-
-          bodyST = a0type match {
-            case tagg: TAggregable => tagg.symTab
-            case _ => ec.st
-          };
-
-          keyBodyFn = (for (
-            fb <- fb();
-            bindings = (bodyST.toSeq
-              .map { case (name, (i, typ)) =>
-                (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((keyParam, keyParamType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(keyParamType.scalaClassTag)))));
-            res <- bindRepInRaw(bindings)(kbc)
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
-
-          key = (x: Any) => {
-            localA(idx) = x
-            keyBodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
-          };
-
-          (downstreamParamId, localA2) <- ecNewPosition();
-
-          downstreamParamTypeFixed = {
-            val x = downstreamParamType.asInstanceOf[TAggregable].copy();
-            // FIXME filter out old bindings
-            x.symTab = downstreamParamType.asInstanceOf[TAggregable].symTab + ((downstreamParam, (downstreamParamId, downstreamParamType.asInstanceOf[TAggregable].elementType)))
-            x
-          };
-
-          (continuationId, localA3) <- ecNewPosition();
-
-          downstreamBodyFn = (for (
-            fb <- fb();
-            bindings = (bodyST.toSeq
-              .map { case (name, (i, typ)) =>
-                (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((downstreamParam, downstreamParamType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", downstreamParamId))(downstreamParamTypeFixed.scalaClassTag))))
-            );
-            k = Code.checkcast[AnyRef => Unit](fb.arg2.invoke[Int, AnyRef]("apply", continuationId));
-            res <- bindRepInRaw(bindings)(downstreamBodyCompiled { (value: Code[AnyRef]) =>
-              CM.ret(Code(k.invoke[AnyRef, AnyRef]("apply", value), Code._pop[Unit]))
-            })
-          ) yield res
-          ).map(x => Code(x, Code._null[AnyRef])).runWithDelayedValues(
-            bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) },
-            ec.copy(st = (ec.st.filter { case (_, (_, typ)) => !typ.isInstanceOf[TAggregable] }) + ((downstreamParam, (downstreamParamId, downstreamParamTypeFixed)))));
-
-          transformation = {
-            val localA = localA3
-            val dpid = downstreamParamId
-            val cid = continuationId
-            val dbf = downstreamBodyFn
-            (x: Any, k: Any => Any) => {
-              localA(dpid) = x
-              localA(cid) = k
-              dbf(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
-            }
-          };
-
-          aggregationResultThunk <- addAggregation(a0, aggregator.ctor(key, transformation, downstreamAggregator.asInstanceOf[TypedAggregator[t]]));
-
+          aggregator <- buildAggregator(m, names, args, argTypes);
+          aggregationResultThunk <- addAggregation(args(0), aggregator);
           res <- invokePrimitive0(aggregationResultThunk)
         ) yield res.asInstanceOf[Code[AnyRef]]
 
