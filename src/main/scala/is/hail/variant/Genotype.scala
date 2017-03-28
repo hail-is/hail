@@ -594,9 +594,9 @@ object Genotype {
   }
 
   def phredToDosage(a: Array[Int]): Array[Double] = {
-    val transformedProbs = a.map { i => math.pow(10, i / -10.0) }
-    val s = transformedProbs.sum
-    transformedProbs.map(_ / s)
+    val lkhd = a.map { i => math.pow(10, i / -10.0) }
+    val s = lkhd.sum
+    lkhd.map(_ / s)
   }
 
   def phredToBiallelicDosageGT(a: Array[Int]): Double = {

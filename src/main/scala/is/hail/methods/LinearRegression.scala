@@ -53,21 +53,9 @@ object LinearRegression {
 
       val optStats: Option[(Vector[Double], Double, Double)] =
         if (useDosages)
-          RegressionUtils.toDosageStats(gs, n, yBc.value, sampleMaskBc.value)
-        else {
-          val lrb = new LinRegBuilder(yBc.value)
-          val gts = gs.hardCallIterator
-          val mask = sampleMaskBc.value
-          var i = 0
-          while (i < mask.length) {
-            val gt = gts.nextInt()
-            if (mask(i))
-              lrb.merge(gt)
-            i += 1
-          }
-
-          lrb.stats(yBc.value, n, combinedMinAC)
-          }
+          RegressionUtils.toLinregDosageStats(gs, yBc.value, sampleMaskBc.value, combinedMinAC)
+        else
+          RegressionUtils.toLinregHardCallStats(gs, yBc.value, sampleMaskBc.value, combinedMinAC)
 
       val linregAnnot = optStats.map { stats =>
         val (x, xx, xy) = stats
@@ -82,6 +70,8 @@ object LinearRegression {
         val se = math.sqrt((yyp / xxp - b * b) / d)
         val t = b / se
         val p = 2 * T.cumulative(-math.abs(t), d, true, false)
+
+        println(v, b, p)
 
         Annotation(b, se, t, p)
       }
