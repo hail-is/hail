@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import org.apache.spark.rdd.RDD
 import is.hail.HailContext
 import is.hail.expr.{EvalContext, Parser, TDouble, TLong, TString, TStruct, TVariant}
 import is.hail.utils._
@@ -8,7 +7,6 @@ import is.hail.keytable.KeyTable
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.methods.IBD.generateComputeMaf
-import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
