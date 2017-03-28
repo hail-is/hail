@@ -632,14 +632,6 @@ object Genotype {
     (a1 + 2 * a2) / (a0 + a1 + a2)
   }
 
-  def phredToBiallelicDosageGT(a: Array[Int]): Double = {
-    val a0 = math.pow(10, a(0) / -10.0)
-    val a1 = math.pow(10, a(1) / -10.0)
-    val a2 = math.pow(10, a(2) / -10.0)
-
-    (a1 + 2 * a2) / (a0 + a1 + a2)
-  }
-
   val smallGTPair = Array(GTPair(0, 0), GTPair(0, 1), GTPair(1, 1),
     GTPair(0, 2), GTPair(1, 2), GTPair(2, 2),
     GTPair(0, 3), GTPair(1, 3), GTPair(2, 3), GTPair(3, 3),

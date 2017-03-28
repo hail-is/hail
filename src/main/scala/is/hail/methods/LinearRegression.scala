@@ -71,6 +71,8 @@ object LinearRegression {
         val t = b / se
         val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 
+        println(v, b, p)
+
         Annotation(b, se, t, p)
       }
       .orNull
