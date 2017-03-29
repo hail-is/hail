@@ -2962,11 +2962,27 @@ class VariantDataset(object):
 
         **Notes**
 
-        The :py:meth:`~hail.VariantDataset.persist` and :py:meth:`~hail.VariantDataset.cache` commands allow you to store the current dataset on disk
-        or in memory to avoid redundant computation and improve the performance of Hail pipelines.
+        The :py:meth:`~hail.VariantDataset.persist` and :py:meth:`~hail.VariantDataset.cache` commands 
+        allow you to store the current dataset on disk or in memory to avoid redundant computation and 
+        improve the performance of Hail pipelines.
 
-        :py:meth:`~hail.VariantDataset.cache` is an alias for :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.  Most users will want "MEMORY_AND_DISK".
-        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ for a more in-depth discussion of persisting data.
+        :py:meth:`~hail.VariantDataset.cache` is an alias for 
+        :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.  Most users will want "MEMORY_AND_DISK".
+        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ 
+        for a more in-depth discussion of persisting data.
+        
+        .. warning ::
+            
+            Persist, like all other :class:`.VariantDataset` functions, is functional.
+            Its output must be captured. This is wrong:
+            
+            >>> vds = vds.linreg('sa.phenotype') # doctest: +SKIP
+            >>> vds.persist() # doctest: SKIP
+            
+            The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
+            The proper usage is this:
+            
+            >>> vds = vds.pca().persist() # doctest: +SKIP
 
         :param storage_level: Storage level.  One of: NONE, DISK_ONLY,
             DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER,
