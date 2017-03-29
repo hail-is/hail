@@ -1,5 +1,5 @@
 import py4j
-
+from decorator import decorator
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -100,46 +100,19 @@ def jarray_to_list(a):
     return list(a) if a else None
 
 
-<<<<<<< HEAD
 @decorator
 def handle_py4j(func, *args, **kwargs):
     try:
         r = func(*args, **kwargs)
-    except Py4JJavaError as e:
-        msg = Env.jutils().getMinimalMessage(e.java_exception)
-        raise FatalError(msg)
-    except Py4JError as e:
-        Env.jutils().log().error('hail: caught python exception: ' + str(e))
+    except py4j.protocol.Py4JJavaError as e:
+        tpl = Env.jutils().handleForPython(e.java_exception)
+        deepest, full = tpl._1(), tpl._2()
+
+        raise FatalError('%s\n\nJava stack trace:\n%s\n\nERROR SUMMARY: %s' % (deepest, full, deepest))
+    except py4j.protocol.Py4JError as e:
         if e.args[0].startswith('An error occurred while calling'):
-            raise TypeError('Method %s() received at least one parameter with an invalid type. '
-                            'See doc for function signature.' % func.__name__)
+            msg = 'An error occurred while calling into JVM, probably due to invalid parameter types.'
+            raise FatalError('%s\n\nJava stack trace:\n%s\n\nERROR SUMMARY: %s' % (msg, e.message, msg))
         else:
             raise e
     return r
-=======
-def capture_py4j_exception(f):
-    def deco(*a, **kw):
-        try:
-            return f(*a, **kw)
-        except py4j.protocol.Py4JJavaError as e:
-            tpl = env.jutils.handleForPython(e.java_exception)
-            deepest, full = tpl._1(), tpl._2()
-
-            raise FatalError('%s\n\nJava stack trace:\n%s\n\nERROR SUMMARY: %s' % (deepest, full, deepest))
-        except py4j.protocol.Py4JError as e:
-            if e.args[0].startswith('An error occurred while calling'):
-                msg = 'An error occurred while calling into JVM, probably due to invalid parameter types'
-                raise FatalError('%s\n\nJava stack trace:\n%s\n\nERROR SUMMARY: %s' % (msg, e.message, msg))
-
-    return deco
-
-
-def install_exception_handler():
-    original = py4j.protocol.get_return_value
-    patched = capture_py4j_exception(original)
-    py4j.protocol.get_return_value = patched
-    py4j.java_gateway.get_return_value = patched
-
-
-install_exception_handler()
->>>>>>> Better error checking
