@@ -180,7 +180,9 @@ object HailContext {
     }")
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
+    println(s"Welcome to hail ${is.hail.HAIL_REVISION}.")
+    hc
   }
 }
 
