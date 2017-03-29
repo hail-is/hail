@@ -734,6 +734,7 @@ class KeyTable(object):
 
         self._jkt.typeCheck()
 
+    @handle_py4j
     def write(self, output, overwrite=False):
         """Write as KT file.
 
@@ -745,8 +746,49 @@ class KeyTable(object):
 
         :param str output: Path of KT file to write.
 
-        :param bool overwrite: If True, overwrite any existing KT file. Cannot be used to read from and write to the same path.
+        :param bool overwrite: If True, overwrite any existing KT file. Cannot be used 
+               to read from and write to the same path.
 
         """
 
         self._jkt.write(output, overwrite)
+
+    def cache(self):
+        """Mark this key table to be cached in memory.
+
+        :py:meth:`~hail.KeyTable.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.KeyTable.persist>`.
+
+        :rtype: :class:`.KeyTable`
+
+        """
+        return KeyTable(self.hc, self._jkt.cache())
+
+    def persist(self, storage_level="MEMORY_AND_DISK"):
+        """Persist this key table to memory and/or disk.
+
+        **Examples**
+
+        Persist the key table to both memory and disk:
+
+        >>> kt = kt.persist() # doctest: +SKIP
+
+        **Notes**
+
+        The :py:meth:`~hail.KeyTable.persist` and :py:meth:`~hail.KeyTable.cache` methods 
+        allow you to store the current table on disk or in memory to avoid redundant computation and 
+        improve the performance of Hail pipelines.
+
+        :py:meth:`~hail.KeyTable.cache` is an alias for 
+        :func:`persist("MEMORY_ONLY") <hail.KeyTable.persist>`.  Most users will want "MEMORY_AND_DISK".
+        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ 
+        for a more in-depth discussion of persisting data.
+
+        :param storage_level: Storage level.  One of: NONE, DISK_ONLY,
+            DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER,
+            MEMORY_ONLY_SER_2, MEMORY_AND_DISK, MEMORY_AND_DISK_2,
+            MEMORY_AND_DISK_SER, MEMORY_AND_DISK_SER_2, OFF_HEAP
+        
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.persist(storage_level))

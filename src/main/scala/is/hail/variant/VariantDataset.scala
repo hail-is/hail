@@ -377,7 +377,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         fatal(s"unknown StorageLevel `$storageLevel'")
     }
 
-    vds.withGenotypeStream().copy(rdd = vds.rdd.persist(level))
+    val wgs = vds.withGenotypeStream()
+    wgs.copy(rdd = wgs.rdd.persist(level))
   }
 
   def withGenotypeStream(): VariantDataset = {
