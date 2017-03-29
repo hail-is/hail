@@ -394,13 +394,10 @@ object VEP {
         }
       }.asOrderedRDD
 
-    if (csq && newVASignature.isInstanceOf[TStruct])
-      vsm.copy(rdd = newRDD,
-        vaSignature = newVASignature.asInstanceOf[TStruct]
-          .setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
-    else
-      vsm.copy(rdd = newRDD,
-        vaSignature = newVASignature)
-
+    (csq, newVASignature) match {
+      case (true, t: TStruct) => vsm.copy(rdd = newRDD, vaSignature = newVASignature.asInstanceOf[TStruct]
+        .setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
+      case _ => vsm.copy(rdd = newRDD, vaSignature = newVASignature)
+    }
   }
 }

@@ -659,7 +659,7 @@ case class Field(name: String, typ: Type,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 
-  def attrsJava() : java.util.Map[java.lang.String, java.lang.String] = attrs.asJava
+  def attrsJava() : java.util.Map[String, String] = attrs.asJava
 
   def unify(cf: Field): Boolean =
     name == cf.name &&
@@ -763,15 +763,16 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     if (!hasField(path.head))
       throw new AnnotationPathException(s"struct has no field ${ path.head }")
 
-    copy(fields.map{
+    copy(fields.map {
       field =>
         if (field.name == path.head) {
           if (path.length == 1)
             field.copy(attrs = f(field.attrs))
           else {
-            if (!field.typ.isInstanceOf[TStruct])
-              fatal(s"Field ${ field.name } is not a Struct and cannot contain field ${ path.tail.mkString(".") }")
-            field.copy(typ = field.typ.asInstanceOf[TStruct].updateFieldAttributes(path.tail, f))
+            field.typ match {
+              case struct: TStruct => field.copy(typ = field.typ.asInstanceOf[TStruct].updateFieldAttributes(path.tail, f))
+              case t => fatal(s"Field ${ field.name } is not a Struct and cannot contain field ${ path.tail.mkString(".") }")
+            }
           }
         }
         else
@@ -783,7 +784,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     updateFieldAttributes(path, attributes => attributes ++ kv)
   }
 
-  def deleteFieldAttributes(path: List[String], attr: String): TStruct = {
+  def deleteFieldAttribute(path: List[String], attr: String): TStruct = {
     updateFieldAttributes(path, attributes => attributes - attr)
   }
 
@@ -1004,7 +1005,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         Annotation.fromSeq(newValues)
       }
 
-    (TStruct(newFields.zipWithIndex.map({ case (f, i) => f.copy(index = i) })), filterer)
+    (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
   override def toString = if (size == 0) "Empty" else "Struct"

@@ -1844,14 +1844,15 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def storageLevel: String = rdd.getStorageLevel.toReadableString()
 
-  def setVaAttribute(path: String, key: String, value: String): VariantSampleMatrix[T] = {
-    setVaAttributes(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), Map(key -> value))
+  def setVaAttributes(path: String, kv: Map[String, String]): VariantSampleMatrix[T] = {
+    setVaAttributes(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), kv)
   }
 
   def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
-    if(!vaSignature.isInstanceOf[TStruct])
-      fatal(s"Cannot set VA attributes to ${path.mkString(".")} since va is not a Struct.")
-    copy(vaSignature = vaSignature.asInstanceOf[TStruct].setFieldAttributes(path, kv))
+    vaSignature match{
+      case struct: TStruct => copy(vaSignature = vaSignature.asInstanceOf[TStruct].setFieldAttributes(path, kv))
+      case t => fatal(s"Cannot set va attributes to ${path.mkString(".")} since va is not a Struct.")
+    }
   }
 
   def deleteVaAttribute(path: String, attribute: String): VariantSampleMatrix[T] = {
@@ -1859,22 +1860,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
-    if(!vaSignature.isInstanceOf[TStruct])
-      fatal(s"Cannot delete VA attributes from ${path.mkString(".")} since va is not a Struct.")
-    copy(vaSignature = vaSignature.asInstanceOf[TStruct].deleteFieldAttributes(path, attribute))
-  }
-
-  def getVaAttributes(path: String): Map[String, String] = {
-    if(!vaSignature.isInstanceOf[TStruct])
-      fatal(s"Cannot get VA attributes from ${path.mkString(".")} since va is not a Struct.")
-    vaSignature.asInstanceOf[TStruct]
-      .fieldOption(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD))
-      .map(f => f.attrs)
-      .getOrElse(Map[String, String]())
-  }
-
-  def getVAattributesAsJava(path: String): util.Map[String, String] = {
-    getVaAttributes(path).asJava
+    vaSignature match{
+      case struct: TStruct => copy(vaSignature = vaSignature.asInstanceOf[TStruct].deleteFieldAttribute(path, attribute))
+      case t => fatal(s"Cannot delete va attributes from ${path.mkString(".")} since va is not a Struct.")
+    }
   }
 
   override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
