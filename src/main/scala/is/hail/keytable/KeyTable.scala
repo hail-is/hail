@@ -16,6 +16,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.storage.StorageLevel
 import org.json4s.JObject
 import org.json4s.JsonAST._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -579,5 +580,19 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     hc.sqlContext.createDataFrame(rowRDD, schema.asInstanceOf[StructType])
       .write.parquet(path + "/rdd.parquet")
+  }
+
+  def cache(): KeyTable = persist("MEMORY_ONLY")
+
+  def persist(storageLevel: String): KeyTable = {
+    val level = try {
+      StorageLevel.fromString(storageLevel)
+    } catch {
+      case e: IllegalArgumentException =>
+        fatal(s"unknown StorageLevel `$storageLevel'")
+    }
+
+    rdd.persist(level)
+    this
   }
 }

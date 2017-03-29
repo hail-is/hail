@@ -1190,10 +1190,11 @@ class VariantDataset(object):
         """Mark this variant dataset to be cached in memory.
 
         :py:meth:`~hail.VariantDataset.cache` is the same as :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.
+        
+        :rtype: :class:`.VariantDataset`
         """
 
-        self._jvdf.cache()
-        return self
+        return VariantDataset(self.hc, self._jvdf.cache())
 
     @handle_py4j
     @requireTGenotype
@@ -2988,10 +2989,11 @@ class VariantDataset(object):
             DISK_ONLY_2, MEMORY_ONLY, MEMORY_ONLY_2, MEMORY_ONLY_SER,
             MEMORY_ONLY_SER_2, MEMORY_AND_DISK, MEMORY_AND_DISK_2,
             MEMORY_AND_DISK_SER, MEMORY_AND_DISK_SER_2, OFF_HEAP
+            
+        :rtype: :class:`.VariantDataset`
         """
 
-        self._jvdf.persist(storage_level)
-        return self
+        return VariantDataset(self.hc, self._jvdf.persist(storage_level))
 
     @property
     def global_schema(self):
