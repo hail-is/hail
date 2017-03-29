@@ -217,7 +217,7 @@ object DiagLMM {
     val c = C.cols
 
     object LogLkhdML extends UnivariateFunction {
-      val shift: Double = n + n * math.log(2 * math.Pi)
+      val shift: Double = n * (1 + math.log(2 * math.Pi) + math.log(1d / n))
 
       def value(logDelta: Double): Double = {
         val D = S + FastMath.exp(logDelta)
@@ -233,7 +233,7 @@ object DiagLMM {
     }
 
     object LogLkhdREML extends UnivariateFunction {
-      val shift: Double = n + (n - c) * math.log(2 * math.Pi) - logdet(C.t * C)._2
+      val shift: Double = n * (1 + math.log(1d / n)) + (n - c) * math.log(2 * math.Pi) - logdet(C.t * C)._2
 
       def value(logDelta: Double): Double = {
         val D = S + FastMath.exp(logDelta)
