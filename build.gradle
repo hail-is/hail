@@ -40,10 +40,11 @@ if (!(new File("gradle.properties")).exists())
 
 if (!hasProperty('sparkVersion') || System.getProperty('spark.version') != null)
     ant.fail('''\
-The sparkVersion must now be explicitly specified in the `gradle.properties`
-file. This version *must* match the version of the spark installed on the
-machine or cluster that will execute hail. You can override the setting in
-`gradle.properties` with a command line like:
+The spark version must now be explicitly specified in the `gradle.properties`
+file. Do *not* specify it with `-Dspark.version`. This version *must* match the
+version of the spark installed on the machine or cluster that will execute
+hail. You can override the setting in `gradle.properties` with a command line
+like:
 
     ./gradlew -PsparkVersion=2.1.1 shadowJar
 
