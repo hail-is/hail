@@ -35,7 +35,9 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-String sparkVersion = System.getProperty("spark.version","2.0.2")
+String sparkVersion = System.getProperty("spark.version")
+if (sparkVersion == null)
+    ant.fail('Hail now requires an explicit spark version. You can specify this on the command line like: `./gradlew -Dspark.version=2.0.2 shadowJar`. The previous implicit default was 2.0.2.')
 
 if (!(sparkVersion ==~ /^2\..*/))
     ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.0.2.')
@@ -175,8 +177,6 @@ test {
     testLogging {
         events "passed", "skipped", "failed"
     }
-
-    jvmArgs = ['-Dcom.github.fommil.netlib.BLAS=com.github.fommil.netlib.F2jBLAS','-Dcom.github.fommil.netlib.LAPACK=com.github.fommil.netlib.F2jLAPACK','-Dcom.github.fommil.netlib.ARPACK=com.github.fommil.netlib.F2jARPACK']
 
     // listen to events in the test execution lifecycle
     beforeTest { descriptor ->
