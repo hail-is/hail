@@ -325,14 +325,14 @@ object FunctionRegistry {
 
     (m match {
       case (_: Arity0Aggregator[_, _]
-         | _: Arity1Aggregator[_, u, _]
-         | _: Arity3Aggregator[_, u, v, w, _]
-         | _: UnaryLambdaAggregator[t, u, v]
-         | _: BinaryLambdaAggregator[t, u, v, w]
-         | _: GroupByAggregatorFun[t]) =>
+         | _: Arity1Aggregator[_, _, _]
+         | _: Arity3Aggregator[_, _, _, _, _]
+         | _: UnaryLambdaAggregator[_, _, _]
+         | _: BinaryLambdaAggregator[_, _, _, _]
+         | _: GroupByAggregatorFun[_]) =>
 
         for (
-          aggregator <- buildAggregator(m, names, args, argTypes);
+          aggregator <- buildAggregator(m, name, args, argTypes);
           aggregationResultThunk <- addAggregation(args(0), aggregator);
           res <- invokePrimitive0(aggregationResultThunk)
         ) yield res.asInstanceOf[Code[AnyRef]]
