@@ -193,7 +193,7 @@ class AggregatorSuite extends SparkSuite {
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\]")(
       vds.queryVariants("variants.filter(v => false)")
     )
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Sample\\]")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[String\\]")(
       vds.querySamples("samples.filter(s => false)")
     )
   }
@@ -258,7 +258,7 @@ class AggregatorSuite extends SparkSuite {
       assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 4)
       assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 4)
 
-      vds.annotateVariantsExpr("""va = gs.filter(g => s.id == "a").map(g => 1).sum()""")
+      vds.annotateVariantsExpr("""va = gs.filter(g => s == "a").map(g => 1).sum()""")
         .rdd
         .collect()
         .foreach { case (_, (va, _)) => assert(va == 1) }

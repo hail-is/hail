@@ -26,7 +26,7 @@ class AnnotateSamplesSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
 
     val sampleMap = vds.annotateSamplesKeyTable(kt, "sa.annot = table")
-      .querySamples("index(samples.map(s => {s: s.id, anno: sa.annot}).collect(), s).mapValues(x => x.anno)")._1
+      .querySamples("index(samples.map(s => {s: s, anno: sa.annot}).collect(), s).mapValues(x => x.anno)")._1
       .asInstanceOf[Map[_, _]]
 
     val ktMap = kt.rdd
@@ -36,8 +36,8 @@ class AnnotateSamplesSuite extends SparkSuite {
     assert(sampleMap == ktMap)
 
 
-    val sampleMap2 = vds.annotateSamplesKeyTable(kt, List("s.id"), "sa.annot = table")
-      .querySamples("index(samples.map(s => {s: s.id, anno: sa.annot}).collect(), s).mapValues(x => x.anno)")._1
+    val sampleMap2 = vds.annotateSamplesKeyTable(kt, List("s"), "sa.annot = table")
+      .querySamples("index(samples.map(s => {s: s, anno: sa.annot}).collect(), s).mapValues(x => x.anno)")._1
       .asInstanceOf[Map[_, _]]
 
     assert(sampleMap2 == ktMap)

@@ -21,7 +21,7 @@ object RegressionUtils {
     covSA: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[String]) = {
 
     val symTab = Map(
-      "s" -> (0, TSample),
+      "s" -> (0, TString),
       "sa" -> (1, vds.saSignature))
 
     val ec = EvalContext(symTab)

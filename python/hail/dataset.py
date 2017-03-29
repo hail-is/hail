@@ -907,7 +907,7 @@ class VariantDataset(object):
 
         Collect a list of sample IDs with non-ref calls in LOF variants:
 
-        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef()).map(g => s.id).collect()')
+        >>> vds_result = vds.annotate_variants_expr('va.nonRefSamples = gs.filter(g => g.isCalledNonRef()).map(g => s).collect()')
 
         Substitute a custom string for the rsID field:
 
@@ -1324,7 +1324,7 @@ class VariantDataset(object):
 
         The sample file has 3 columns:
 
-        - ID_1 and ID_2 are identical and set to the sample ID (``s.id``).
+        - ID_1 and ID_2 are identical and set to the sample ID (``s``).
         - The third column ("missing") is set to 0 for all samples.
 
         :param str output: Output file base.  Will write GEN and SAMPLE files.
@@ -1344,7 +1344,7 @@ class VariantDataset(object):
 
         Export the same information without identifiers, resulting in a file with no header:
 
-        >>> vds.export_genotypes('output/genotypes.tsv', 's, v, s.id, g.dp, va.anno1, va.anno2')
+        >>> vds.export_genotypes('output/genotypes.tsv', 's, v, g.gq, g.dp, va.anno1, va.anno2')
 
         **Notes**
 
@@ -1367,7 +1367,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def export_plink(self, output, fam_expr='id = s.id'):
+    def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`_ BED, BIM and FAM.
 
         **Examples**
@@ -1871,7 +1871,7 @@ class VariantDataset(object):
 
         Remove samples with an ID that matches a regular expression:
 
-        >>> vds_result = vds.filter_samples_expr('"^NA" ~ s.id' , keep=False)
+        >>> vds_result = vds.filter_samples_expr('"^NA" ~ s' , keep=False)
 
         Filter samples from sample QC metrics and write output to a new variant dataset:
 

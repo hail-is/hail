@@ -1210,8 +1210,6 @@ object FunctionRegistry {
   registerMethod("size", (s: Set[Any]) => s.size, sizeDocstring)(setHr(TTHr), intHr)
   registerMethod("size", (d: Map[Any, Any]) => d.size, sizeDocstring)(dictHr(TTHr, TUHr), intHr)
 
-  registerField("id", (s: String) => s, "The ID of this sample, as read at import-time.")(sampleHr, stringHr)
-
   val isEmptyDocstring = "Returns true if the number of elements is equal to 0. false otherwise."
   registerMethod("isEmpty", (a: IndexedSeq[Any]) => a.isEmpty, isEmptyDocstring)(arrayHr(TTHr), boolHr)
   registerMethod("isEmpty", (s: Set[Any]) => s.isEmpty, isEmptyDocstring)(setHr(TTHr), boolHr)
@@ -1558,7 +1556,7 @@ object FunctionRegistry {
 
     Collect the list of sample IDs with heterozygote genotype calls per variant:
 
-    >>> vds_result = vds.annotate_variants_expr('va.hetSamples = gs.filter(g => g.isHet()).map(g => s.id).collect()')
+    >>> vds_result = vds.annotate_variants_expr('va.hetSamples = gs.filter(g => g.isHet()).map(g => s).collect()')
 
     ``va.hetSamples`` will have the type ``Array[String]``.
     """
@@ -1853,7 +1851,7 @@ object FunctionRegistry {
 
     Collect the first 5 sample IDs with at least one alternate allele per variant:
 
-    >>> vds_result = vds.annotate_variants_expr("va.nonRefSamples = gs.filter(g => g.nNonRefAlleles() > 0).map(g => s.id).take(5)")
+    >>> vds_result = vds.annotate_variants_expr("va.nonRefSamples = gs.filter(g => g.nNonRefAlleles() > 0).map(g => s).take(5)")
     """, "n" -> "Number of items to take.")(
     aggregableHr(TTHr), intHr, arrayHr(TTHr))
 

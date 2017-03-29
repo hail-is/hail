@@ -119,7 +119,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       ArrayType(StructType(Array(
         StructField("key", keyType.schema),
         StructField("value", valueType.schema))))
-    case TSample => StringType
     case TAltAllele => AltAllele.schema
     case TVariant => Variant.schema
     case TLocus => Locus.schema
@@ -281,7 +280,6 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
             "key" -> exportAnnotation(k, keyType),
             "value" -> exportAnnotation(v, valueType))
           }.toList)
-        case TSample => a.asInstanceOf[Sample].toJSON
         case TCall => JInt(a.asInstanceOf[Int])
         case TGenotype => a.asInstanceOf[Genotype].toJSON
         case TAltAllele => a.asInstanceOf[AltAllele].toJSON

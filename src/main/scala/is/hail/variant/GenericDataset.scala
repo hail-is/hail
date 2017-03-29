@@ -4,7 +4,7 @@ import java.io.FileNotFoundException
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TGenotype, TSample, TString, TStruct, TVariant, Type}
+import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TGenotype, TString, TStruct, TVariant, Type}
 import is.hail.io.vcf.ExportVCF
 import is.hail.methods.Filter
 import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
@@ -82,7 +82,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     val symTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, gds.vaSignature),
-      "s" -> (2, TSample),
+      "s" -> (2, TString),
       "sa" -> (3, gds.saSignature),
       "g" -> (4, gds.genotypeSignature),
       "global" -> (5, gds.globalSignature))
@@ -160,7 +160,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     val symTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, gds.vaSignature),
-      "s" -> (2, TSample),
+      "s" -> (2, TString),
       "sa" -> (3, gds.saSignature),
       "g" -> (4, gds.genotypeSignature),
       "global" -> (5, gds.globalSignature))

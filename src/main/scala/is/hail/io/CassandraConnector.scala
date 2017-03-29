@@ -3,7 +3,7 @@ package is.hail.io
 import com.datastax.driver.core.querybuilder.QueryBuilder
 import com.datastax.driver.core.schemabuilder.SchemaBuilder
 import com.datastax.driver.core.{Cluster, Session}
-import is.hail.expr.{EvalContext, Parser, TArray, TBoolean, TDouble, TFloat, TGenotype, TInt, TLong, TSample, TSet, TString, TVariant, Type}
+import is.hail.expr.{EvalContext, Parser, TArray, TBoolean, TDouble, TFloat, TGenotype, TInt, TLong, TSet, TString, TVariant, Type}
 import is.hail.utils.StringEscapeUtils.escapeStringSimple
 import is.hail.utils.{fatal, info, warn}
 import is.hail.variant.VariantDataset
@@ -120,7 +120,7 @@ object CassandraConnector {
     val gSymTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, vas),
-      "s" -> (2, TSample),
+      "s" -> (2, TString),
       "sa" -> (3, sas),
       "g" -> (4, TGenotype))
     val gEC = EvalContext(gSymTab)

@@ -15,7 +15,7 @@ class ExportSuite extends SparkSuite {
       .sampleQC()
 
     val out = tmpDir.createTempFile("out", ".tsv")
-    vds.exportSamples(out, "Sample = s.id, sa.qc.*")
+    vds.exportSamples(out, "Sample = s, sa.qc.*")
 
     val sb = new StringBuilder()
     sb.tsvAppend(Array(1, 2, 3, 4, 5))
@@ -39,12 +39,12 @@ class ExportSuite extends SparkSuite {
   @Test def testExportSamples() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
-      .filterSamplesExpr("""s.id == "C469::HG02026"""")
+      .filterSamplesExpr("""s == "C469::HG02026"""")
     assert(vds.nSamples == 1)
 
     // verify exports localSamples
     val f = tmpDir.createTempFile("samples", ".tsv")
-    vds.exportSamples(f, "s.id")
+    vds.exportSamples(f, "s")
     assert(sc.textFile(f).count() == 1)
   }
 
@@ -55,9 +55,9 @@ class ExportSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()
-    vds.exportSamples(f, "S.A.M.P.L.E.ID = s.id")
-    vds.exportSamples(f2, "$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS**** = s.id, ANOTHERTHING=s.id")
-    vds.exportSamples(f3, "`I have some spaces and tabs\\there` = s.id,`more weird stuff here`=s.id")
+    vds.exportSamples(f, "S.A.M.P.L.E.ID = s")
+    vds.exportSamples(f2, "$$$I_HEARD_YOU_LIKE!_WEIRD~^_CHARS**** = s, ANOTHERTHING=s")
+    vds.exportSamples(f3, "`I have some spaces and tabs\\there` = s,`more weird stuff here`=s")
     hadoopConf.readFile(f) { reader =>
       val lines = Source.fromInputStream(reader)
         .getLines()

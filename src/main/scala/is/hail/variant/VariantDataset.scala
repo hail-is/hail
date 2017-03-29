@@ -322,7 +322,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       "v" -> (1, TVariant),
       "va" -> (2, vas3),
       "g" -> (3, TGenotype),
-      "s" -> (4, TSample),
+      "s" -> (4, TString),
       "sa" -> (5, vds.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vds.globalSignature),
@@ -510,6 +510,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def exportGenotypes(path: String, expr: String, typeFile: Boolean,
     printRef: Boolean = false, printMissing: Boolean = false) {
+
     val localPrintRef = printRef
     val localPrintMissing = printMissing
 
@@ -519,11 +520,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.exportGenotypes(path, expr, typeFile, filterF)
   }
 
-  def exportPlink(path: String, famExpr: String = "id = s.id") {
+  def exportPlink(path: String, famExpr: String = "id = s") {
     requireSplit("export plink")
 
     val ec = EvalContext(Map(
-      "s" -> (0, TSample),
+      "s" -> (0, TString),
       "sa" -> (1, vds.saSignature),
       "global" -> (2, vds.globalSignature)))
 
@@ -701,7 +702,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val symTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, vas),
-      "s" -> (2, TSample),
+      "s" -> (2, TString),
       "sa" -> (3, sas),
       "g" -> (4, TGenotype),
       "global" -> (5, vds.globalSignature))
