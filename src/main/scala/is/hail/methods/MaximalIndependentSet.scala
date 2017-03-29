@@ -8,11 +8,30 @@ import scala.reflect.ClassTag
 
 object MaximalIndependentSet {
 
-  def apply[VD: ClassTag, ED: ClassTag](g: Graph[VD, ED], undirected: Boolean = false): Set[Long] = {
+  def apply[VD: ClassTag, ED: ClassTag](g: Graph[VD, ED], optComparisonFunction: Option[(Int, Int) => Int] = None): Set[Long] = {
 
+    val comparisonFunction: (Int, Int) => Int = optComparisonFunction.getOrElse((_, _) => 0)
     type Message = (Int, VertexId)
-    val pairOrd = implicitly[Ordering[Message]]
-    import pairOrd.mkOrderingOps
+
+    //val subOrd = Ordering.by[Message, Int]
+    //val ord: Ordering[Message] = Ordering.by[Message, Int](_._1).thenComparing(Ordering.by[Message, Int](_._2.toInt))
+    val ord = new Ordering[Message] {
+      override def compare(x: (Int, VertexId), y: (Int, VertexId)): Int = {
+        //By degree
+        (x._1 compare y._1) match {
+          case 0 => {
+            //By function
+            comparisonFunction(x._2.toInt, y._2.toInt) match {
+              //By VertexID
+              case 0 => x._2 compare y._2
+              case c => c
+            }
+          }
+          case c => c
+        }
+      }
+    }
+    import ord.mkOrderingOps
 
     val initialMsg = (-1, -1L)
 
@@ -23,7 +42,7 @@ object MaximalIndependentSet {
     def sendMsg(triplet: EdgeTriplet[Message, ED]): Iterator[(VertexId, Message)] = {
       if (triplet.srcAttr > triplet.dstAttr)
         Iterator((triplet.dstId, triplet.srcAttr))
-      else if (triplet.srcAttr < triplet.dstAttr && undirected)
+      else if (triplet.srcAttr < triplet.dstAttr)
         Iterator((triplet.srcId, triplet.dstAttr))
       else
         Iterator.empty
@@ -36,7 +55,7 @@ object MaximalIndependentSet {
       Graph(toBeComputed.vertices.leftZipJoin(toBeComputed.degrees) { (v, _, degree) => (degree.getOrElse(0), v) }, toBeComputed.edges)
     }
 
-    val edgeDirection = if (undirected) EdgeDirection.Either else EdgeDirection.Out
+    val edgeDirection = EdgeDirection.Either
 
     var idSetToDelete = mutable.Set[VertexId]()
 
@@ -64,7 +83,7 @@ object MaximalIndependentSet {
   }
 
 
-  def ofIBDMatrix(inputRDD: RDD[((Int, Int), Double)], thresh: Double, vertexIDs: Seq[Int]): Set[Long] = {
+  def ofIBDMatrix(inputRDD: RDD[((Int, Int), Double)], thresh: Double, vertexIDs: Seq[Int], comparisonFunction: Option[(Int, Int) => Int] = None): Set[Long] = {
     val sc = inputRDD.sparkContext
 
     val filteredRDD = inputRDD.filter(_._2 >= thresh)
@@ -75,6 +94,6 @@ object MaximalIndependentSet {
 
     val graph: Graph[Null, Double] = Graph(vertices, edges)
 
-    apply(graph, undirected = true)
+    apply(graph, comparisonFunction)
   }
 }

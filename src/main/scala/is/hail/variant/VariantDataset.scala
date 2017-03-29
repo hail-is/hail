@@ -806,10 +806,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     IBD.toKeyTable(vds.hc, IBD.validateAndCall(vds, computeMafExpr, bounded, minimum, maximum))
   }
 
-  def ibdPrune(threshold: Double, computeMafExpr: Option[String] = None, bounded: Boolean = true): VariantDataset = {
+  def ibdPrune(threshold: Double, tiebreakerExpr: Option[String] = None, computeMafExpr: Option[String] = None, bounded: Boolean = true): VariantDataset = {
     requireSplit("IBD Prune")
 
-    IBDPrune(vds, threshold, computeMafExpr, bounded)
+    IBDPrune(vds, threshold, tiebreakerExpr, computeMafExpr, bounded)
   }
 
   /**

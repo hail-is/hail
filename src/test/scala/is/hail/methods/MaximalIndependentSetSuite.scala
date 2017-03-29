@@ -34,10 +34,22 @@ class MaximalIndependentSetSuite extends SparkSuite {
       Edge(1, 2, "AB"), Edge(2, 3, "BC")
     ))
 
-    assert(MaximalIndependentSet(Graph(vertices, edges), true) == Set(1, 3))
+    assert(MaximalIndependentSet(Graph(vertices, edges)) == Set(1, 3))
   }
 
-  @Test def directedTest() {
+  @Test def testOneEdge() {
+    val vertices = sc.parallelize(Array[(VertexId, String)](
+      (1, "A"), (2, "B")
+    ))
+
+    val edges = sc.parallelize(Array[Edge[String]](
+      Edge(2, 1, "AB")
+    ))
+
+    assert(MaximalIndependentSet(Graph(vertices, edges)) == Set(1))
+  }
+
+  @Test def testTwoEdges() {
     val vertices = sc.parallelize(Array[(VertexId, String)](
       (1, "A"), (2, "B"), (3, "C")
     ))
@@ -47,6 +59,19 @@ class MaximalIndependentSetSuite extends SparkSuite {
     ))
 
     assert(MaximalIndependentSet(Graph(vertices, edges)) == Set(2, 3))
+  }
+
+  @Test def correctOrdering() {
+    val vertices = sc.parallelize(Array[(VertexId, String)](
+      (1, "A"), (2, "B"), (3, "C"), (4, "D")
+    ))
+
+    val edges = sc.parallelize(Array[Edge[String]](
+      Edge(1, 2, "AB"), Edge(3, 4, "CD")
+    ))
+
+    assert(MaximalIndependentSet(Graph(vertices, edges)) == Set(1, 3))
+    assert(MaximalIndependentSet(Graph(vertices, edges), Option((i1: Int, i2: Int) => i2 compare i1)) == Set(2, 4))
   }
 
   @Test def ofIBDMatrixTest1() {
