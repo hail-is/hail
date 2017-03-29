@@ -3368,17 +3368,17 @@ class VariantDataset(object):
         +---------------------------+--------+---------------------------------------------------------+
         | ``nNotCalled``            | Int    | Number of uncalled variants                             |
         +---------------------------+--------+---------------------------------------------------------+
-        | ``nSNP``                  | Int    | Number of SNP variants                                  |
+        | ``nSNP``                  | Int    | Number of non-reference SNP alleles                     |
         +---------------------------+--------+---------------------------------------------------------+
-        | ``nInsertion``            | Int    | Number of insertion variants                            |
+        | ``nInsertion``            | Int    | Number of non-reference insertion alleles               |
         +---------------------------+--------+---------------------------------------------------------+
-        | ``nDeletion``             | Int    | Number of deletion variants                             |
+        | ``nDeletion``             | Int    | Number of non-reference deletion alleles                |
         +---------------------------+--------+---------------------------------------------------------+
         | ``nSingleton``            | Int    | Number of private variants                              |
         +---------------------------+--------+---------------------------------------------------------+
-        | ``nTransition``           | Int    | Number of transition (A-G, C-T) variants                |
+        | ``nTransition``           | Int    | Number of non-reference transition (A-G, C-T) alleles   |
         +---------------------------+--------+---------------------------------------------------------+
-        | ``nTransversion``         | Int    | Number of transversion variants                         |
+        | ``nTransversion``         | Int    | Number of non-reference transversion alleles            |
         +---------------------------+--------+---------------------------------------------------------+
         | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                         |
         +---------------------------+--------+---------------------------------------------------------+
