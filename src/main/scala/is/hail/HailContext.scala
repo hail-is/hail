@@ -184,11 +184,11 @@ object HailContext {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
-    println(s"""Welcome to
+    println("""Welcome to
               |     __  __     <>__
               |    / /_/ /__  __/ /
               |   / __  / _ `/ / /
-              |  /_/ /_/\_,_/_/_/   version ${is.hail.HAIL_PRETTY_VERSION}""".stripMargin)
+              |  /_/ /_/\_,_/_/_/   version""".stripMargin + is.hail.HAIL_PRETTY_VERSION)
     hc
   }
 }
