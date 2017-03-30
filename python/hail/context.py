@@ -98,6 +98,14 @@ class HailContext(object):
 
         return Env.hc
 
+    @property
+    def version(self):
+        """Return the version of Hail associated with this HailContext.
+
+        :rtype: str
+        """
+        return self._jhc.version()
+
     @handle_py4j
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.

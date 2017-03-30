@@ -29,6 +29,9 @@ object HailContext {
   def configureAndCreateSparkContext(appName: String, master: Option[String], local: String,
     parquetCompression: String, blockSize: Long): SparkContext = {
     require(blockSize >= 0)
+    require(is.hail.HAIL_SPARK_VERSION == org.apache.spark.SPARK_VERSION,
+      s"""This Hail JAR was compiled for Spark ${ is.hail.HAIL_SPARK_VERSION },
+         |  but the version of Spark available at runtime is ${ org.apache.spark.SPARK_VERSION }.""".stripMargin)
 
     val conf = new SparkConf().setAppName(appName)
 
@@ -180,7 +183,16 @@ object HailContext {
     }")
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
+    val welcomeMessage =
+      """Welcome to
+        |     __  __     <>__
+        |    / /_/ /__  __/ /
+        |   / __  / _ `/ / /
+        |  /_/ /_/\_,_/_/_/   version """.stripMargin + is.hail.HAIL_PRETTY_VERSION
+    println(welcomeMessage)
+    log.info(welcomeMessage)
+    hc
   }
 }
 
@@ -189,6 +201,8 @@ class HailContext private(val sc: SparkContext,
   val tmpDir: String,
   val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
+
+  def version: String = is.hail.HAIL_PRETTY_VERSION
 
   def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
     val regexp = regex.r

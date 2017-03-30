@@ -95,7 +95,14 @@ compileJava {
     options.compilerArgs << "-Xlint:all" << "-Werror"
 }
 
+task generateBuildInfo(type: Exec) {
+    commandLine 'sh', 'generate-build-info.sh', sparkVersion
+    outputs.upToDateWhen { false }
+}
+
 compileScala {
+    dependsOn generateBuildInfo
+
     scalaCompileOptions.additionalParameters = ["-feature"] // , "-Xfatal-warnings"]
 }
 
