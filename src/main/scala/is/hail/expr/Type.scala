@@ -770,7 +770,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
             field.copy(attrs = f(field.attrs))
           else {
             field.typ match {
-              case struct: TStruct => field.copy(typ = field.typ.asInstanceOf[TStruct].updateFieldAttributes(path.tail, f))
+              case struct: TStruct => field.copy(typ = struct.updateFieldAttributes(path.tail, f))
               case t => fatal(s"Field ${ field.name } is not a Struct and cannot contain field ${ path.tail.mkString(".") }")
             }
           }

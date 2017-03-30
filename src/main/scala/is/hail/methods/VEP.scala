@@ -395,8 +395,8 @@ object VEP {
       }.asOrderedRDD
 
     (csq, newVASignature) match {
-      case (true, t: TStruct) => vsm.copy(rdd = newRDD, vaSignature = newVASignature.asInstanceOf[TStruct]
-        .setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
+      case (true, t: TStruct) => vsm.copy(rdd = newRDD,
+        vaSignature = t.setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
       case _ => vsm.copy(rdd = newRDD, vaSignature = newVASignature)
     }
   }

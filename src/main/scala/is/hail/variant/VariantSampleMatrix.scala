@@ -1850,7 +1850,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
     vaSignature match{
-      case struct: TStruct => copy(vaSignature = vaSignature.asInstanceOf[TStruct].setFieldAttributes(path, kv))
+      case t: TStruct => copy(vaSignature = t.setFieldAttributes(path, kv))
       case t => fatal(s"Cannot set va attributes to ${path.mkString(".")} since va is not a Struct.")
     }
   }
@@ -1861,7 +1861,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
     vaSignature match{
-      case struct: TStruct => copy(vaSignature = vaSignature.asInstanceOf[TStruct].deleteFieldAttribute(path, attribute))
+      case t: TStruct => copy(vaSignature = t.deleteFieldAttribute(path, attribute))
       case t => fatal(s"Cannot delete va attributes from ${path.mkString(".")} since va is not a Struct.")
     }
   }
