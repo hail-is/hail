@@ -429,7 +429,7 @@ class VariantDataset(object):
 
         For the gene list
 
-        .. code-block: text
+        .. code-block:: text
 
             $ cat data/genes.txt
             SCN2A
