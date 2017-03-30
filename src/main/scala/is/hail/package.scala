@@ -48,14 +48,14 @@ package object hail {
     }
   }
 
-  // FIXME: probably should use tags or something to choose English name
-  val HAIL_PRETTY_VERSION = "devel-" + HAIL_REVISION
-
   val HAIL_BUILD_USER = HailBuildInfo.hail_build_user
   val HAIL_REVISION = HailBuildInfo.hail_revision
   val HAIL_BRANCH = HailBuildInfo.hail_branch
   val HAIL_BUILD_DATE = HailBuildInfo.hail_build_date
   val HAIL_REPO_URL = HailBuildInfo.hail_repo_url
   val HAIL_SPARK_VERSION = HailBuildInfo.hail_spark_version
+
+  // FIXME: probably should use tags or something to choose English name
+  val HAIL_PRETTY_VERSION = "devel-" + HAIL_REVISION
 
 }
