@@ -412,12 +412,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         val (t, _) = try {
           t1.merge(t2)
         } catch {
-          case f: HailException => parseError(
-            s"""invalid arguments for method `$fn'
-               |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
-               |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
+               |  $e""".stripMargin)
         }
 
         t
@@ -494,7 +491,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         } catch {
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
-               |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
+               |  $e""".stripMargin)
         }
 
         `type` = tNew
