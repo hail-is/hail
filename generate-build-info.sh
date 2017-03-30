@@ -9,6 +9,6 @@ echo_build_properties() {
   echo sparkVersion=$1
 }
 
-mkdir -p build/extra-resources
+mkdir -p src/main/resources/
 
 echo_build_properties $1 > "src/main/resources/build-info.properties"
