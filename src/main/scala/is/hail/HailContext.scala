@@ -29,6 +29,9 @@ object HailContext {
   def configureAndCreateSparkContext(appName: String, master: Option[String], local: String,
     parquetCompression: String, blockSize: Long): SparkContext = {
     require(blockSize >= 0)
+    require(is.hail.HAIL_SPARK_VERSION == org.apache.spark.SPARK_VERSION,
+      s"""This Hail JAR was compiled for Spark ${is.hail.HAIL_SPARK_VERSION},
+         |but the version of Spark available at runtime is ${org.apache.spark.SPARK_VERSION}.""".stripMargin)
 
     val conf = new SparkConf().setAppName(appName)
 

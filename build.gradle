@@ -96,7 +96,8 @@ compileJava {
 }
 
 task generateBuildInfo(type: Exec) {
-    commandLine 'sh', 'generate-build-info.sh'
+    commandLine 'sh', 'generate-build-info.sh', sparkVersion
+    outputs.upToDateWhen { false }
 }
 
 compileScala {
