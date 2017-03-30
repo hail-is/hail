@@ -100,6 +100,10 @@ class HailContext(object):
 
     @property
     def version(self):
+        """Return the version of Hail associated with this HailContext.
+
+        :rtype: str
+        """
         return self._jhc.version()
 
     @handle_py4j
