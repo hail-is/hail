@@ -184,7 +184,11 @@ object HailContext {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
-    println(s"Welcome to hail ${is.hail.HAIL_REVISION}.")
+    println("""Welcome to
+              |     __  __     <>__
+              |    / /_/ /__  __/ /
+              |   / __  / _ `/ / /
+              |  /_/ /_/\_,_/_/_/   version ${is.hail.HAIL_PRETTY_VERSION}""".stripMargin)
     hc
   }
 }
@@ -194,6 +198,8 @@ class HailContext private(val sc: SparkContext,
   val tmpDir: String,
   val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
+
+  def version: String = is.hail.HAIL_PRETTY_VERSION
 
   def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
     val regexp = regex.r
