@@ -3473,7 +3473,7 @@ class VariantDataset(object):
 
         Compute the RRM for `vds`.
 
-        >>> vds.rrm()
+        >>> km = vds.rrm()
 
         **Notes**
 

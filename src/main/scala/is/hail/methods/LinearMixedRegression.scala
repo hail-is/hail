@@ -56,7 +56,8 @@ object LinearMixedRegression {
     val filtKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet.contains)
 
     if (filtKinshipMatrix.sampleIds.toVector != completeSamples)
-      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
+      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete " +
+        "samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
 
 
     val n = y.size
@@ -72,7 +73,6 @@ object LinearMixedRegression {
 
     val rrm = new DenseMatrix[Double](cols, cols, filtKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
 
-    //info(s"lmmreg: RRM computed using $m variants")
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
     val eigK = eigSymD(rrm)
