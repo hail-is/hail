@@ -99,7 +99,7 @@ class HailContext(object):
         return Env.hc
 
     def version(self):
-        self._jhc.version()
+        return self._jhc.version()
 
     @handle_py4j
     def grep(self, regex, path, max_count=100):
