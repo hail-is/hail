@@ -2199,29 +2199,43 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def ibd_prune(self, threshold, maf=None, bounded=True):
+    def ibd_prune(self, threshold, tiebreaking_expr=None, maf=None, bounded=True):
         """
         Prune samples from variant dataset based on PI_HAT values of IBD computation.
 
         **Examples**
 
-        Prune samples so that no two have a PI_HAT value greater than or equal to 0.4:
+        Prune samples so that no two have a PI_HAT value greater than or equal to 0.5:
 
-        >>> vds.ibd_prune(0.4)
+        >>> pruned_vds = vds.ibd_prune(0.5)
 
         **Notes**
 
         The variant dataset returned may change in near future as a result of algorithmic improvements. The current algorithm is very efficient on datasets with many small
-        families, less so on datasets with large families.
+        families, less so on datasets with large families. Currently, the algorithm works by deleting the person from each family who has the highest number of relatives,
+        and iterating until no two people have a PI_HAT value greater than that specified. If two people within a family have the same number of relatives, the tiebreaking_expr
+        given will be used to determine which sample gets deleted. 
+        
+        The tiebreaking_expr namespace has the following variables available:
+        
+        - ``s1``: The first sample id.
+        - ``sa1``: The annotations associated with s1.
+        - ``s2``: The second sample id. 
+        - ``sa2``: The annotations associated with s2. 
+        
+        The tiebreaking_expr must return an integer. A negative integer indicates that s1 should be considered less than s2. A zero indicates the two samples are equal, and 
+        a positive number indicates that s1 should be considered greater than s2. The greater sample is the one that gets removed. If this function is not specified properly,
+        ibd_prune may not terminate. 
 
         :param threshold: The desired maximum PI_HAT value between any pair of samples.
+        :param tiebreaking_expr: Expression used to choose between two samples with the same number of relatives. 
         :param maf: Expression for the minor allele frequency.
         :param bounded: Forces the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically meaningful values (in the range [0,1]).
 
         :return: A :py:class:`.VariantDataset` containing no samples with a PI_HAT greater than threshold.
         :rtype: :py:class:`.VariantDataset`
         """
-        return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(maf), bounded))
+        return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(tiebreaking_expr), joption(maf), bounded))
 
     @handle_py4j
     @requireTGenotype
