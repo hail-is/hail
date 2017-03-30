@@ -1,6 +1,8 @@
 package is.hail.variant
 
 import java.nio.ByteBuffer
+import java.util
+import scala.collection.JavaConverters._
 
 import is.hail.annotations._
 import is.hail.check.Gen
@@ -1841,6 +1843,28 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def storageLevel: String = rdd.getStorageLevel.toReadableString()
+
+  def setVaAttributes(path: String, kv: Map[String, String]): VariantSampleMatrix[T] = {
+    setVaAttributes(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), kv)
+  }
+
+  def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
+    vaSignature match{
+      case t: TStruct => copy(vaSignature = t.setFieldAttributes(path, kv))
+      case t => fatal(s"Cannot set va attributes to ${path.mkString(".")} since va is not a Struct.")
+    }
+  }
+
+  def deleteVaAttribute(path: String, attribute: String): VariantSampleMatrix[T] = {
+    deleteVaAttribute(Parser.parseAnnotationRoot(path, Annotation.VARIANT_HEAD), attribute)
+  }
+
+  def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
+    vaSignature match{
+      case t: TStruct => copy(vaSignature = t.deleteFieldAttribute(path, attribute))
+      case t => fatal(s"Cannot delete va attributes from ${path.mkString(".")} since va is not a Struct.")
+    }
+  }
 
   override def toString = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
 

@@ -376,15 +376,17 @@ class Field(object):
     :param str name: name of field
     :param typ: type of field
     :type typ: :class:`.Type`
+    :param dict attributes: key/value attributes of field
 
     :ivar str name: name of field
     :ivar typ: type of field
     :vartype typ: :class:`.Type`
     """
 
-    def __init__(self, name, typ):
+    def __init__(self, name, typ, attributes = {}):
         self.name = name
         self.typ = typ
+        self.attributes = attributes
 
 
 class TStruct(Type):
@@ -421,7 +423,7 @@ class TStruct(Type):
     def _init_from_java(self, jtype):
 
         jfields = Env.jutils().iterableToArrayList(jtype.fields())
-        self.fields = [Field(f.name(), Type._from_java(f.typ())) for f in jfields]
+        self.fields = [Field(f.name(), Type._from_java(f.typ()), dict(f.attrsJava())) for f in jfields]
 
     def _convert_to_py(self, annotation):
         if annotation:
