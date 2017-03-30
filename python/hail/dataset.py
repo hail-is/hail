@@ -3371,49 +3371,49 @@ class VariantDataset(object):
 
         :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the genotype data and stores the results as sample annotations that can be accessed with ``sa.qc.<identifier>``:
 
-        +---------------------------+--------+---------------------------------------------------------+
-        | Name                      | Type   | Description                                             |
-        +===========================+========+=========================================================+
-        | ``callRate``              | Double | Fraction of variants with called genotypes              |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nHomRef``               | Int    | Number of homozygous reference variants                 |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nHet``                  | Int    | Number of heterozygous variants                         |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nHomVar``               | Int    | Number of homozygous alternate variants                 |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nCalled``               | Int    | Sum of ``nHomRef`` + ``nHet`` + ``nHomVar``             |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nNotCalled``            | Int    | Number of uncalled variants                             |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nSNP``                  | Int    | Number of SNP variants                                  |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nInsertion``            | Int    | Number of insertion variants                            |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nDeletion``             | Int    | Number of deletion variants                             |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nSingleton``            | Int    | Number of private variants                              |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nTransition``           | Int    | Number of transition (A-G, C-T) variants                |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nTransversion``         | Int    | Number of transversion variants                         |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                         |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``rTiTv``                 | Double | Transition/Transversion ratio                           |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``rHetHomVar``            | Double | Het/HomVar ratio across all variants                    |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``rInsertionDeletion``    | Double | Insertion/Deletion ratio across all variants            |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``dpMean``                | Double | Depth mean across all variants                          |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``dpStDev``               | Double | Depth standard deviation across all variants            |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``gqMean``                | Double | The average genotype quality across all variants        |
-        +---------------------------+--------+---------------------------------------------------------+
-        | ``gqStDev``               | Double | Genotype quality standard deviation across all variants |
-        +---------------------------+--------+---------------------------------------------------------+
+        +---------------------------+--------+----------------------------------------------------------+
+        | Name                      | Type   | Description                                              |
+        +===========================+========+==========================================================+
+        | ``callRate``              | Double | Fraction of genotypes called                             |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nHomRef``               | Int    | Number of homozygous reference genotypes                 |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nHet``                  | Int    | Number of heterozygous genotypes                         |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nHomVar``               | Int    | Number of homozygous alternate genotypes                 |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nCalled``               | Int    | Sum of ``nHomRef`` + ``nHet`` + ``nHomVar``              |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nNotCalled``            | Int    | Number of uncalled genotypes                             |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nSNP``                  | Int    | Number of SNP alternate alleles                          |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nInsertion``            | Int    | Number of insertion alternate alleles                    |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nDeletion``             | Int    | Number of deletion alternate alleles                     |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nSingleton``            | Int    | Number of private alleles                                |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nTransition``           | Int    | Number of transition (A-G, C-T) alternate alleles        |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nTransversion``         | Int    | Number of transversion alternate alleles                 |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                          |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``rTiTv``                 | Double | Transition/Transversion ratio                            |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``rHetHomVar``            | Double | Het/HomVar genotype ratio                                |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``rInsertionDeletion``    | Double | Insertion/Deletion ratio                                 |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``dpMean``                | Double | Depth mean across all genotypes                          |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``dpStDev``               | Double | Depth standard deviation across all genotypes            |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``gqMean``                | Double | The average genotype quality across all genotypes        |
+        +---------------------------+--------+----------------------------------------------------------+
+        | ``gqStDev``               | Double | Genotype quality standard deviation across all genotypes |
+        +---------------------------+--------+----------------------------------------------------------+
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
 
