@@ -98,6 +98,7 @@ class HailContext(object):
 
         return Env.hc
 
+    @property
     def version(self):
         return self._jhc.version()
 
