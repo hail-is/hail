@@ -98,6 +98,9 @@ class HailContext(object):
 
         return Env.hc
 
+    def version():
+        self._jhc.version()
+
     @handle_py4j
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.
