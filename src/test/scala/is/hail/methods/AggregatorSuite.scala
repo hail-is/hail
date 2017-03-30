@@ -284,4 +284,54 @@ class AggregatorSuite extends SparkSuite {
       p1 && p2
     }.check()
   }
+
+  @Test def trivialGroupBy() {
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+      val vds2 = vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) (if (pcoin(0.5) \"EUR\" else \"EAS\") else (if (pcoin(0.5)) \"AMR\" else \"AFR\")")
+      val queryResult = vds.queryGenotypes("gs.groupBy(x => sa.pop, gs => 1)")._1.asInstanceOf[Map[String, Int]]
+      val (_, querier) = vds2.querySA("sa.pop")
+      val expectedResult =
+        vds2.sampleAnnotations.map(querier.asInstanceOf[Any => String]).groupBy(x => x).mapValues(x => 1)
+
+      expectedResult == queryResult
+    }.check()
+  }
+
+  @Test def groupByAndCount() {
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+      val vds2 = vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) (if (pcoin(0.5) \"EUR\" else \"EAS\") else (if (pcoin(0.5)) \"AMR\" else \"AFR\")")
+      val queryResult = vds.queryGenotypes("gs.groupBy(x => sa.pop, gs => gs.count())")._1.asInstanceOf[Map[String, Int]]
+      val (_, querier) = vds2.querySA("sa.pop")
+
+      val expectedResult = vds.mapValuesWithAll { case (v, va, s, sa, g) => (querier(sa).asInstanceOf[String], 1) }
+        .map(x => x)
+        .reduceByKey(_ + _)
+        .collectAsMap()
+
+      expectedResult == queryResult
+    }.check()
+  }
+
+  @Test def groupByWithMap() {
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+      val vds2 = vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) (if (pcoin(0.5) \"EUR\" else \"EAS\") else (if (pcoin(0.5)) \"AMR\" else \"AFR\")")
+      val queryResult = vds.queryGenotypes("gs.groupBy(x => sa.pop, gs => gs.map(x => 2).sum())")._1.asInstanceOf[Map[String, Int]]
+      val (_, querier) = vds2.querySA("sa.pop")
+
+      val expectedResult = vds.mapValuesWithAll { case (v, va, s, sa, g) => (querier(sa).asInstanceOf[String], 2) }
+        .map(x => x)
+        .reduceByKey(_ + _)
+        .collectAsMap()
+
+      expectedResult == queryResult
+    }.check()
+  }
+
+  @Test def groupByNoExceptionOnRealData() {
+    hc.importVCF("src/test/resources/sample2.vcf")
+      .annotateSamplesExpr("sa.foo = if (pcoin(0.5)) \"Red\" else \"Blue\"")
+      .annotateVariantsExpr("va.byFoo = gs.groupBy(x => sa.foo, foos => foos.map(x => x.gt).sum())")
+      .exportVariants("/tmp/test.out", "v, va.byFoo")
+  }
+
 }

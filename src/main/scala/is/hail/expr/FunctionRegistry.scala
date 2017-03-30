@@ -651,7 +651,33 @@ object FunctionRegistry {
   bind("groupBy",
     MethodType(aggregableHr(TTHr).typ, unaryHr(TTHr, TUHr).typ, unaryHr(aggregableHr(TTHr), TVHr).typ),
     GroupByAggregatorFun(dictHr(TUHr, TVHr).typ),
-    MetaData(Option(null), Seq()))
+    MetaData(
+      Option("""Groups a group of elements sharing a key and applies a separate aggregation
+               |to each group. For example, we can calculate Hardy Weinberg for each
+               |population separately:
+               |
+               |.. code-block:: text
+               |     :emphasize-lines: 2
+               |
+               |     gs.groupBy(x => sa.population, gs => gs.hardyWeinberg())
+               |
+               |Multiple `groupBy` aggregators can be nested to produce nested dictionaries:
+               |
+               |.. code-block:: text
+               |     :emphasize-lines: 2
+               |
+               |     gs.groupBy(x => sa.population, gs.groupBy(x => sa.sub_population, gs => gs.hardyWeinberg()))
+               |
+               |If we preferred a single dictionary with a compound key we can use a Struct
+               |
+               |.. code-block:: text
+               |     :emphasize-lines: 2
+               |
+               |     gs.groupBy(x => { pop: sa.population, subpop: sa.sub_population }, gs => gs.hardyWeinberg())
+               |""".stripMargin),
+      Seq(
+        "keyFun" -> "a lambda expression evaluating to the key for the given element",
+        "downstream" -> "a lambda expression whose argument is an aggregable of elements sharing a key, it should produce an aggregated value for this key")))
 
 
   import is.hail.variant.Call._
