@@ -125,49 +125,50 @@ Try running :py:meth:`~hail.VariantDataset.count` on *sample.filtered.vds* to se
 
 Note that during each run Hail writes a ``hail.log`` file in the current directory; this is useful to developers for debugging.
 
-Running on a CDH Spark cluster
-==============================
+Running on a Spark cluster
+==========================
 
-Hail uses Spark 2, so first install Spark 2 on your CDH cluster by following `these instructions
-<https://www.cloudera.com/documentation/spark2/latest/topics/spark2_installing.html>`_.
-You should work on a gateway node on the cluster that has the Hadoop and Spark packages
-installed on it.
+Hail can run on any cluster that has Spark 2 installed. For instructions
+specific to Google Cloud Dataproc clusters and Cloudera clusters, see below.
 
-Create the Hail JAR file and a zipfile of the Python code by running:
+For all other Spark clusters, you will need to build Hail from the source
+code. First, log onto the master node of the Spark cluster, and build a Hail JAR
+and a zipfile of the Python code by running:
 
   .. code-block:: text
 
     $ ./gradlew shadowJar archiveZip
 
-Then set the following environment variables::
+Then set the following environment variables with values peculiar to your
+cluster for ``SPARK_HOME`` and ``HAIL_HOME``::
 
-    $ export SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2
+    $ export SPARK_HOME=/path/to/spark/
     $ export HAIL_HOME=/path/to/hail
     $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip"
 
-Create an interactive Python shell by running the following (note ``pyspark2`` is the CDH
-version of Spark 2's ``pyspark``).
+You can open an interactive Python shell with the ``pyspark`` command:
 
   .. code-block:: text
 
-    $ pyspark2 --jars build/libs/hail-all-spark.jar \
-               --py-files build/distributions/hail-python.zip \
-               --conf spark.hadoop.io.compression.codecs=org.apache.hadoop.io.compress.DefaultCodec,is.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec \
-               --conf spark.sql.files.openCostInBytes=1099511627776 \
-               --conf spark.sql.files.maxPartitionBytes=1099511627776 \
-               --conf spark.hadoop.mapreduce.input.fileinputformat.split.minsize=1099511627776 \
-               --conf spark.hadoop.parquet.block.size=1099511627776
+    $ pyspark --jars build/libs/hail-all-spark.jar \
+              --py-files build/distributions/hail-python.zip \
+              --conf spark.hadoop.io.compression.codecs=org.apache.hadoop.io.compress.DefaultCodec,is.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec \
+              --conf spark.sql.files.openCostInBytes=1099511627776 \
+              --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+              --conf spark.hadoop.mapreduce.input.fileinputformat.split.minsize=1099511627776 \
+              --conf spark.hadoop.parquet.block.size=1099511627776
 
-Check that you can successfully create a ``HailContext`` by running the following
-commands. Note that you have to pass in the existing ``SparkContext`` instance ``sc``
-to the ``HailContext`` constructor.
+Within the interactive shell, check that you can successfully create a
+``HailContext`` by running the following commands. Note that you have to pass in
+the existing ``SparkContext`` instance ``sc`` to the ``HailContext``
+constructor.
 
   .. code-block:: python
 
     >>> import hail
     >>> hc = hail.HailContext(sc)
 
-In a separate shell, copy a VCF file to HDFS:
+In a separate shell, you can copy a VCF file to HDFS:
 
   .. code-block:: text
 
@@ -180,15 +181,16 @@ To convert *sample.vcf* into Hail's **.vds** format, run:
     >>> hc.import_vcf('sample.vcf').write('sample.vds')
 
 It is also possible to run Hail non-interactively, by passing a Python script to
-``spark2-submit``. In this case, it is not necessary to set any environment variables.
+``spark-submit``. In this case, it is not necessary to set any environment
+variables.
 
 For example,
 
   .. code-block:: text
 
-    $ spark2-submit --jars build/libs/hail-all-spark.jar \
-                    --py-files build/distributions/hail-python.zip \
-                    hailscript.py
+    $ spark-submit --jars build/libs/hail-all-spark.jar \
+                   --py-files build/distributions/hail-python.zip \
+                   hailscript.py
 
 runs the script `hailscript.py`:
 
@@ -198,11 +200,37 @@ runs the script `hailscript.py`:
     hc = hail.HailContext()
     hc.import_vcf('sample.vcf').write('sample.vds')
 
+Running on a Cloudera Cluster
+=============================
+
+`These instructions
+<https://www.cloudera.com/documentation/spark2/latest/topics/spark2_installing.html>`_
+explain how to install Spark 2 on a Cloudera cluster. You should work on a
+gateway node on the cluster that has the Hadoop and Spark packages installed on
+it.
+
+Once Spark is installed, running Hail on a Cloudera cluster is exactly the same
+as above, except:
+
+ - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
+   ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
+
+ - Cloudera's version of ``pyspark`` is called ``pyspark2``, and
+
+ - Cloudera's version of ``spark-submit`` is called ``spark2-submit``.
+
 Running in the cloud
 ====================
 
-`Google <https://cloud.google.com/dataproc/>`_ and `Amazon <https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance and exceptional scalability to tens of thousands of cores without the overhead of installing and managing an on-prem cluster.
-To get started running Hail on the Google Cloud Platform, see this `forum post <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_.
+`Google <https://cloud.google.com/dataproc/>`_ and `Amazon
+<https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance
+and exceptional scalability to tens of thousands of cores without the overhead
+of installing and managing an on-prem cluster.
+
+Hail publishes pre-built JARs for Google Cloud Platform's Dataproc Spark
+clusters. If you would prefer to avoid building Hail from source, learn how to
+get started on Google Cloud Platform by reading this `forum post
+<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_.
 
 Building with other versions of Spark 2
 =======================================
