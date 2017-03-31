@@ -203,8 +203,9 @@ object VariantQC {
       .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
         (comb1, comb2) => comb1.merge(comb2))
 
-  def apply(vds: VariantDataset): VariantDataset = {
-    val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature, "qc")
+  def apply(vds: VariantDataset, root: String): VariantDataset = {
+    val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature,
+      Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
     vds.mapAnnotationsWithAggregate(new VariantQCCombiner, newVAS)((comb, v, va, s, sa, g) => comb.merge(g),
       (comb1, comb2) => comb1.merge(comb2),
       (va, comb) => insertQC(va, comb.asAnnotation))

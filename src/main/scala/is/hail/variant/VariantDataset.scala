@@ -924,7 +924,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     ret
   }
 
-  def sampleQC(): VariantDataset = SampleQC(vds)
+  def sampleQC(root: String = "sa.qc"): VariantDataset = SampleQC(vds, root)
 
   /**
     *
@@ -950,9 +950,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 
-  def variantQC(): VariantDataset = {
+  def variantQC(root: String = "va.qc"): VariantDataset = {
     requireSplit("variant QC")
-    VariantQC(vds)
+    VariantQC(vds, root)
   }
 
   def write(dirname: String, overwrite: Boolean = false, parquetGenotypes: Boolean = false) {
