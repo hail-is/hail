@@ -55,7 +55,7 @@ object LinearRegression {
       val mask = sampleMaskBc.value
       var i = 0
       while (i < mask.length) {
-        val gt = gts.nextInt()
+        val gt = gts.next()
         if (mask(i))
           lrb.merge(gt)
         i += 1

@@ -16,10 +16,10 @@ class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) 
   override def next(): Genotype = Genotype.read(nAlleles, isDosage, b)
 }
 
-class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends IntIterator {
+class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends HailIterator[Int] {
   override def hasNext: Boolean = b.hasNext
 
-  override def nextInt(): Int = Genotype.hardCallRead(nAlleles, isDosage, b)
+  override def next(): Int = Genotype.hardCallRead(nAlleles, isDosage, b)
 }
 
 class MutableGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {

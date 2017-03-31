@@ -1,7 +1,7 @@
 package is.hail
 
 import is.hail.annotations.Annotation
-import is.hail.utils.IntIterator
+import is.hail.utils.HailIterator
 
 import scala.language.implicitConversions
 
@@ -20,13 +20,13 @@ package object variant {
           b.result()
       }
 
-    def hardCallIterator: IntIterator = ig match {
+    def hardCallIterator: HailIterator[Int] = ig match {
       case gs: GenotypeStream => gs.gsHardCallIterator
       case _ =>
-        new IntIterator {
+        new HailIterator[Int] {
           val it: Iterator[Genotype] = ig.iterator
           override def hasNext: Boolean = it.hasNext
-          override def nextInt(): Int = it.next().unboxedGT
+          override def next(): Int = it.next().unboxedGT
         }
     }
   }

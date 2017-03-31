@@ -14,7 +14,7 @@ object ExportBedBimFam {
     var b = 0
     var k = 0
     while (k < n) {
-      b |= gtMap(gts.nextInt() + 1) << ((k & 3) * 2)
+      b |= gtMap(gts.next() + 1) << ((k & 3) * 2)
       if ((k & 3) == 3) {
         a(k >> 2) = b.toByte
         b = 0
