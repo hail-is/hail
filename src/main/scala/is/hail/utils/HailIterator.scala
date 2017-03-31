@@ -2,12 +2,12 @@ package is.hail.utils
 
 import scala.reflect.ClassTag
 
-abstract class HailIterator[@specialized T](implicit tct: ClassTag[T]) {
+abstract class HailIterator[@specialized T] {
   def next(): T
 
   def hasNext: Boolean
 
-  def toArray: Array[T] = {
+  def toArray(implicit tct: ClassTag[T]): Array[T] = {
     val b = new ArrayBuilder[T]()
     while (hasNext)
       b += next()
