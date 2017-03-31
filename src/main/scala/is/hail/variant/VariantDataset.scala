@@ -843,27 +843,28 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.annotateSamples(result, signature, "sa.imputesex")
   }
 
-  def linreg(ySA: String, covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
+  def linreg(ySA: String, covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
     requireSplit("linear regression")
     LinearRegression(vds, ySA, covSA, root, useDosages, minAC, minAF)
   }
 
-  def lmmreg(kinshipVDS: VariantDataset, ySA: String,
-    covSA: Array[String],
-    useML: Boolean,
-    rootGA: String,
-    rootVA: String,
-    runAssoc: Boolean,
-    optDelta: Option[Double],
-    sparsityThreshold: Double,
-    forceBlock: Boolean,
-    forceGrammian: Boolean): VariantDataset = {
+  def lmmreg(kinshipVDS: VariantDataset,
+    ySA: String,
+    covSA: Array[String] = Array.empty[String],
+    useML: Boolean = false,
+    rootGA: String = "global.lmmreg",
+    rootVA: String = "va.lmmreg",
+    runAssoc: Boolean = true,
+    optDelta: Option[Double] = None,
+    sparsityThreshold: Double = 1.0,
+    forceBlock: Boolean = false,
+    forceGrammian: Boolean = false): VariantDataset = {
     requireSplit("linear mixed regression")
     LinearMixedRegression(vds, kinshipVDS, ySA, covSA, useML, rootGA, rootVA,
       runAssoc, optDelta, sparsityThreshold, forceBlock, forceGrammian)
   }
 
-  def logreg(test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
+  def logreg(test: String, ySA: String, covSA: Array[String] = Array.empty[String], root: String = "va.logreg"): VariantDataset = {
     requireSplit("logistic regression")
     LogisticRegression(vds, test, ySA, covSA, root)
   }

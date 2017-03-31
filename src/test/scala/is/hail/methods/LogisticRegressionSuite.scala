@@ -36,7 +36,8 @@ class LogisticRegressionSuite extends SparkSuite {
     // x = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
     val v9 = Variant("1", 9, "C", "T")
     // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
+    val v10 = Variant("1", 10, "C", "T")
+    // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2
@@ -134,7 +135,8 @@ class LogisticRegressionSuite extends SparkSuite {
     // x = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
     val v9 = Variant("1", 9, "C", "T")
     // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
+    val v10 = Variant("1", 10, "C", "T")
+    // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qChi2 = vds.queryVA("va.logreg.chi2")._2
@@ -227,7 +229,8 @@ class LogisticRegressionSuite extends SparkSuite {
     // x = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
     val v9 = Variant("1", 9, "C", "T")
     // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
+    val v10 = Variant("1", 10, "C", "T")
+    // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
 
     val qChi2 = vds.queryVA("va.logreg.chi2")._2
     val qPVal = vds.queryVA("va.logreg.pval")._2
@@ -350,7 +353,7 @@ class LogisticRegressionSuite extends SparkSuite {
     assertDouble(qPValLR, v3, 0.049675)
     assertDouble(qPValScore, v3, 0.049717)
     assertDouble(qBetaFirth, v3, -0.15567)
-    assertDouble(qPValFirth, v3, 0.04991	)
+    assertDouble(qPValFirth, v3, 0.04991)
 
     assertDouble(qBeta, v4, -0.88059)
     assertDouble(qSe, v4, 0.83769, 1e-3)

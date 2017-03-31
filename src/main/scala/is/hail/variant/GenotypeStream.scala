@@ -22,10 +22,10 @@ class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIt
   override def next(): Int = Genotype.hardCallRead(nAlleles, isDosage, b)
 }
 
-class DosageGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends DoubleIterator {
+class DosageGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends HailIterator[Double] {
   override def hasNext: Boolean = b.hasNext
 
-  override def nextDouble(): Double = Genotype.read(nAlleles, isDosage, b).unboxedBiallelicDosageGT
+  override def next(): Double = Genotype.read(nAlleles, isDosage, b).unboxedBiallelicDosageGT
 }
 
 class MutableGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
@@ -76,30 +76,18 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
   }
 
   def mutableIterator: MutableGenotypeStreamIterator = {
-    decompLenOption match {
-      case Some(decompLen) =>
-        new MutableGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
-      case None =>
-        new MutableGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
-    }
+    val bytes = decompLenOption.map(dl => LZ4Utils.decompress(dl, a)).getOrElse(a)
+    new MutableGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
   }
 
   def gsHardCallIterator: HardCallGenotypeStreamIterator = {
-    decompLenOption match {
-      case Some(decompLen) =>
-        new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
-      case None =>
-        new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
-    }
+    val bytes = decompLenOption.map(dl => LZ4Utils.decompress(dl, a)).getOrElse(a)
+    new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
   }
 
   def gsDosageIterator: DosageGenotypeStreamIterator = {
-    decompLenOption match {
-      case Some(decompLen) =>
-        new DosageGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
-      case None =>
-        new DosageGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
-    }
+    val bytes = decompLenOption.map(dl => LZ4Utils.decompress(dl, a)).getOrElse(a)
+    new DosageGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
   }
 
   override def newBuilder: mutable.Builder[Genotype, GenotypeStream] = {

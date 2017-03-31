@@ -211,7 +211,7 @@ object RegressionUtils {
     var i = 0
     var row = 0
     while (gts.hasNext) {
-      val gt = gts.nextDouble()
+      val gt = gts.next()
       if (mask(i)) {
         if (gt != -1d) {
           valsX(row) = gt
@@ -257,7 +257,7 @@ object RegressionUtils {
 
     var i = 0
     while (i < mask.length) {
-      val gt = gts.nextInt()
+      val gt = gts.next()
       if (mask(i))
         lrb.merge(gt)
       i += 1
