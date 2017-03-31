@@ -1,7 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
-from hail.type import Type, TArray, TStruct
+from hail.expr import Type, TArray, TStruct
 from pyspark.sql import DataFrame
 
 
