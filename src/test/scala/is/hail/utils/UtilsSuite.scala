@@ -195,4 +195,17 @@ class UtilsSuite extends SparkSuite {
 
     p.check()
   }
+
+  @Test def testDictionaryOrdering() {
+    val stringList = Seq("Cats", "Crayon", "Dog")
+
+    val longestToShortestLength = Ordering.by[String, Int](-_.length)
+    val byFirstLetter = Ordering.by[String, Char](_.charAt(0))
+    val alphabetically = Ordering.String
+
+    val ord1 = dictionaryOrdering(alphabetically, byFirstLetter, longestToShortestLength)
+    assert(stringList.sorted(ord1) == stringList)
+    val ord2 = dictionaryOrdering(byFirstLetter, longestToShortestLength)
+    assert(stringList.sorted(ord2) == Seq("Crayon", "Cats", "Dog"))
+  }
 }

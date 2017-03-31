@@ -6,31 +6,21 @@ import org.apache.spark.graphx._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
+import is.hail.utils.dictionaryOrdering
+
 object MaximalIndependentSet {
 
   def apply[VD: ClassTag, ED: ClassTag](g: Graph[VD, ED], optComparisonFunction: Option[(Int, Int) => Int] = None): Set[Long] = {
 
-    val comparisonFunction: (Int, Int) => Int = optComparisonFunction.getOrElse((_, _) => 0)
     type Message = (Int, VertexId)
 
-    //val subOrd = Ordering.by[Message, Int]
-    //val ord: Ordering[Message] = Ordering.by[Message, Int](_._1).thenComparing(Ordering.by[Message, Int](_._2.toInt))
-    val ord = new Ordering[Message] {
-      override def compare(x: (Int, VertexId), y: (Int, VertexId)): Int = {
-        //By degree
-        (x._1 compare y._1) match {
-          case 0 => {
-            //By function
-            comparisonFunction(x._2.toInt, y._2.toInt) match {
-              //By VertexID
-              case 0 => x._2 compare y._2
-              case c => c
-            }
-          }
-          case c => c
-        }
-      }
-    }
+    val cmp: (Int, Int) => Int= optComparisonFunction.getOrElse((_,_) => 0)
+    val cmpOrd = new Ordering[Int] { def compare(x: Int, y: Int): Int = cmp(x, y) }
+    val ord = dictionaryOrdering[Message](
+      Ordering.by(_._1),
+      Ordering.by[Message, Int](_._2.toInt)(cmpOrd),
+      Ordering.by(_._2))
+
     import ord.mkOrderingOps
 
     val initialMsg = (-1, -1L)

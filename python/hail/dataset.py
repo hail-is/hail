@@ -2142,7 +2142,7 @@ class VariantDataset(object):
         >>> vds.ibd()
 
         To calculate an IBD matrix containing only pairs of samples with
-        ``pi_hat`` in [0.2, 0.9], using minor allele frequencies stored in
+        ``PI_HAT`` in [0.2, 0.9], using minor allele frequencies stored in
         ``va.panel_maf``:
 
         >>> vds.ibd(maf='va.panel_maf', min=0.2, max=0.9)
@@ -2201,7 +2201,7 @@ class VariantDataset(object):
     @requireTGenotype
     def ibd_prune(self, threshold, tiebreaking_expr=None, maf=None, bounded=True):
         """
-        Prune samples from variant dataset based on PI_HAT values of IBD computation.
+        Prune samples from the :py:class:`.VariantDataset` based on :py:meth:`~hail.VariantDataset.ibd` PI_HAT measures of relatedness.
 
         **Examples**
 
@@ -2223,9 +2223,16 @@ class VariantDataset(object):
         - ``s2``: The second sample id. 
         - ``sa2``: The annotations associated with s2. 
         
-        The tiebreaking_expr must return an integer. A negative integer indicates that s1 should be considered less than s2. A zero indicates the two samples are equal, and 
-        a positive number indicates that s1 should be considered greater than s2. The greater sample is the one that gets removed. If this function is not specified properly,
-        ibd_prune may not terminate. 
+        The tiebreaking_expr returns an integer expressing the preference for one sample over the other. Any negative integer expresses a preference for keeping ``s1``. Any positive integer expresses a preference for keeping ``s2``. A zero expresses no preference. This function must induce a `preorder <https://en.wikipedia.org/wiki/Preorder>`_ on the samples, in particular:
+
+        - ``tiebreaking_expr(sample1, sample2)`` must equal ``-1 * tie breaking_expr(sample2, sample1)``, which evokes the common sense understanding that if ``x < y`` then `y > x``.
+        - ``tiebreaking_expr(sample1, sample1)`` must equal 0, i.e. ``x = x``
+        - if sample1 is preferred to sample2 and sample2 is preferred to sample3, then sample1 must also be preferred to sample3
+
+        The last requirement is only important if you have three related samples with the same number of relatives and all three are related to one another. In cases like this one, it is important that either:
+
+        - one of the three is preferred to **both** other ones, or
+        - there is no preference among the three samples 
 
         :param threshold: The desired maximum PI_HAT value between any pair of samples.
         :param tiebreaking_expr: Expression used to choose between two samples with the same number of relatives. 

@@ -294,8 +294,10 @@ object IBDPrune {
     computeMafExpr: Option[String] = None,
     bounded: Boolean = true): VariantDataset = {
 
+    val sc = vds.sparkContext
+
     val sampleIDs: IndexedSeq[String] = vds.sampleIds
-    val sampleAnnotations = vds.sampleAnnotations
+    val sampleAnnotations = sc.broadcast(vds.sampleAnnotations)
 
     val computeMaf = computeMafExpr.map(generateComputeMaf(vds, _))
 
@@ -306,9 +308,9 @@ object IBDPrune {
     val optCompareFunc = optCompThunk.map(compThunk => {
       (s1: Int, s2: Int) => {
         compEc.set(0, sampleIDs(s1))
-        compEc.set(1, sampleAnnotations(s1))
+        compEc.set(1, sampleAnnotations.value(s1))
         compEc.set(2, sampleIDs(s2))
-        compEc.set(3, sampleAnnotations(s2))
+        compEc.set(3, sampleAnnotations.value(s2))
         compThunk().toInt
       }
     })
