@@ -260,6 +260,11 @@ class HailContext private(val sc: SparkContext,
     tolerance: Double = 0.2): VariantDataset = {
     val inputs = hadoopConf.globAll(files)
 
+    inputs.foreach { input =>
+      if (!hadoopConf.stripCodec(input).endsWith(".gen"))
+        fatal(s"gen inputs must end in .gen[.bgz], found $input")
+    }
+
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
 
