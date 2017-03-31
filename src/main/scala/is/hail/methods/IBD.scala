@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.expr.{EvalContext, Parser, TDouble, TLong, TString, TStruct, TVariant}
-import is.hail.utils._
 import is.hail.keytable.KeyTable
 import is.hail.annotations.Annotation
 import is.hail.expr._
@@ -292,19 +291,37 @@ object IBD {
 object IBDPrune {
   def apply(vds: VariantDataset,
     threshold: Double,
+    tiebreakerExpr: Option[String] = None,
     computeMafExpr: Option[String] = None,
     bounded: Boolean = true): VariantDataset = {
 
+    val sc = vds.sparkContext
+
     val sampleIDs: IndexedSeq[String] = vds.sampleIds
+    val sampleAnnotations = sc.broadcast(vds.sampleAnnotations)
 
     val computeMaf = computeMafExpr.map(generateComputeMaf(vds, _))
+
+    val comparisonSymbolTable = Map("s1" -> (0, TString), "sa1" -> (1, vds.saSignature), "s2" -> (2, TString), "sa2" -> (3, vds.saSignature))
+    val compEc = EvalContext(comparisonSymbolTable)
+    val optCompThunk = tiebreakerExpr.map(Parser.parseTypedExpr[java.lang.Integer](_, compEc))
+
+    val optCompareFunc = optCompThunk.map(compThunk => {
+      (s1: Int, s2: Int) => {
+        compEc.set(0, sampleIDs(s1))
+        compEc.set(1, sampleAnnotations.value(s1))
+        compEc.set(2, sampleIDs(s2))
+        compEc.set(3, sampleAnnotations.value(s2))
+        compThunk().toInt
+      }
+    })
 
     val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
       .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
 
     info("Performing IBD Prune")
 
-    val setToKeep: Set[String] = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size)
+    val setToKeep: Set[String] = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size, optCompareFunc)
       .map(id =>sampleIDs(id.toInt))
 
     info("Pruning Complete")

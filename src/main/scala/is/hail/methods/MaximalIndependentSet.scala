@@ -6,13 +6,22 @@ import org.apache.spark.graphx._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
+import is.hail.utils.dictionaryOrdering
+
 object MaximalIndependentSet {
 
-  def apply[VD: ClassTag, ED: ClassTag](g: Graph[VD, ED], undirected: Boolean = false): Set[Long] = {
+  def apply[VD: ClassTag, ED: ClassTag](g: Graph[VD, ED], optComparisonFunction: Option[(Int, Int) => Int] = None): Set[Long] = {
 
     type Message = (Int, VertexId)
-    val pairOrd = implicitly[Ordering[Message]]
-    import pairOrd.mkOrderingOps
+
+    val cmp: (Int, Int) => Int= optComparisonFunction.getOrElse((_,_) => 0)
+    val cmpOrd = new Ordering[Int] { def compare(x: Int, y: Int): Int = cmp(x, y) }
+    val ord = dictionaryOrdering[Message](
+      Ordering.by(_._1),
+      Ordering.by[Message, Int](_._2.toInt)(cmpOrd),
+      Ordering.by(_._2))
+
+    import ord.mkOrderingOps
 
     val initialMsg = (-1, -1L)
 
@@ -23,7 +32,7 @@ object MaximalIndependentSet {
     def sendMsg(triplet: EdgeTriplet[Message, ED]): Iterator[(VertexId, Message)] = {
       if (triplet.srcAttr > triplet.dstAttr)
         Iterator((triplet.dstId, triplet.srcAttr))
-      else if (triplet.srcAttr < triplet.dstAttr && undirected)
+      else if (triplet.srcAttr < triplet.dstAttr)
         Iterator((triplet.srcId, triplet.dstAttr))
       else
         Iterator.empty
@@ -36,7 +45,7 @@ object MaximalIndependentSet {
       Graph(toBeComputed.vertices.leftZipJoin(toBeComputed.degrees) { (v, _, degree) => (degree.getOrElse(0), v) }, toBeComputed.edges)
     }
 
-    val edgeDirection = if (undirected) EdgeDirection.Either else EdgeDirection.Out
+    val edgeDirection = EdgeDirection.Either
 
     var idSetToDelete = mutable.Set[VertexId]()
 
@@ -64,7 +73,7 @@ object MaximalIndependentSet {
   }
 
 
-  def ofIBDMatrix(inputRDD: RDD[((Int, Int), Double)], thresh: Double, vertexIDs: Seq[Int]): Set[Long] = {
+  def ofIBDMatrix(inputRDD: RDD[((Int, Int), Double)], thresh: Double, vertexIDs: Seq[Int], comparisonFunction: Option[(Int, Int) => Int] = None): Set[Long] = {
     val sc = inputRDD.sparkContext
 
     val filteredRDD = inputRDD.filter(_._2 >= thresh)
@@ -75,6 +84,6 @@ object MaximalIndependentSet {
 
     val graph: Graph[Null, Double] = Graph(vertices, edges)
 
-    apply(graph, undirected = true)
+    apply(graph, comparisonFunction)
   }
 }

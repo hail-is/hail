@@ -385,6 +385,21 @@ package object utils extends Logging
     }
   }
 
+  def dictionaryOrdering[T](ords: Ordering[T]*): Ordering[T] = {
+    new Ordering[T] {
+      def compare(x: T, y: T): Int = {
+        var i = 0
+        while (i < ords.size) {
+          val v = ords(i).compare(x, y)
+          if (v != 0)
+            return v
+          i += 1
+        }
+        return 0
+      }
+    }
+  }
+
   implicit val jsonFormatsNoTypeHints: Formats = Serialization.formats(NoTypeHints)
 
   def caseClassJSONReaderWriter[T](implicit mf: scala.reflect.Manifest[T]): JSONReaderWriter[T] = new JSONReaderWriter[T] {
