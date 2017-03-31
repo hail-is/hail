@@ -6,20 +6,15 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
-import is.hail.utils.{FatalException, Interval, _}
+import is.hail.utils.{Interval, _}
 import is.hail.variant.{Call, Genotype, Locus, Variant}
 import is.hail.{SparkSuite, TestUtils}
+import org.apache.spark.sql.Row
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.scalatest.Matchers._
+import org.scalatest._
 import org.testng.annotations.Test
-import org.scalatest._
-import Matchers._
-
-import scala.collection.mutable
-import org.scalatest._
-import Matchers._
-import matchers._
-import org.apache.spark.sql.Row
 
 class ExprSuite extends SparkSuite {
 
@@ -455,8 +450,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[Any]]("""[1, 2, 3.0, 4]""").contains(IndexedSeq(1, 2, 3.0, 4)))
     assert(eval[Double]("""[1, 2, 3.0, 4].max()""").contains(4.0))
 
-    intercept[FatalException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
-    intercept[FatalException](eval[IndexedSeq[Any]]("""[] """))
+    intercept[HailException](eval[IndexedSeq[Any]]("""[1,2, "hello"] """))
+    intercept[HailException](eval[IndexedSeq[Any]]("""[] """))
 
     val (t, r) = evalWithType[Annotation](""" {field1: 1, field2: 2 } """)
     assert(r.contains(Annotation(1, 2)))
@@ -554,7 +549,7 @@ class ExprSuite extends SparkSuite {
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, 5,6,7) """))
     TestUtils.interceptFatal("invalid arguments for method `select'\\s+Duplicate identifiers found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,a,b,c,c) """))
-    TestUtils.interceptFatal("invalid arguments for method `select'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
+    TestUtils.interceptFatal("invalid arguments for method `select'\\s+is.hail.utils.HailException: invalid struct filter operation: fields \\[ ., . \\] not found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in select(x, a,b,c,d,e) """))
 
     assert(eval[Annotation](""" drop({a:1,b:2}, a) """).contains(Annotation(2)))
@@ -564,7 +559,7 @@ class ExprSuite extends SparkSuite {
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, 5,6,7) """))
     TestUtils.interceptFatal("invalid arguments for method `drop'\\s+Duplicate identifiers found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,a,b,c,c) """))
-    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
+    TestUtils.interceptFatal("invalid arguments for method `drop'\\s+is.hail.utils.HailException: invalid struct filter operation:\\s+fields \\[ ., . \\] not found")(
       eval[Annotation](""" let x = {a:1, b:2, c:3, `\tweird\t`: 4} in drop(x, a,b,c,d,e) """))
 
     assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
@@ -847,7 +842,7 @@ class ExprSuite extends SparkSuite {
 
     assert(Parser.parseAnnotationTypes(s1) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
     assert(Parser.parseAnnotationTypes(s2) == Map.empty[String, Type])
-    intercept[FatalException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
+    intercept[HailException](Parser.parseAnnotationTypes(s3) == Map("SIFT_Score" -> TDouble, "Age" -> TInt))
   }
 
   @Test def testTypePretty() {

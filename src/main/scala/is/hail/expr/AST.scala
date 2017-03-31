@@ -1,18 +1,11 @@
 package is.hail.expr
 
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.tree._
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.RowFactory
-import is.hail.asm4s.Code
-import is.hail.asm4s._
-import is.hail.utils._
+import is.hail.asm4s.{Code, _}
 import is.hail.utils.EitherIsAMonad._
-import is.hail.utils.{FatalException, _}
-import is.hail.annotations._
+import is.hail.utils.{HailException, _}
+import org.apache.spark.sql.{Row, RowFactory}
 import org.json4s.jackson.JsonMethods
 
-import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
@@ -317,10 +310,13 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       val i = f.index
       AST.evalComposeCode[Row](lhs) { r: Code[Row] => Code.checkcast(r.invoke[Int, AnyRef]("get", i))(f.typ.scalaClassTag) }
 
-    case t => FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
+    case t =>
+      val localPos = posn
+
+      FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
       .valueOr {
         case FunctionRegistry.NotFound(name, typ) =>
-          fatal(
+          ParserUtils.error(localPos, 
             s"""`$t' has neither a field nor a method named `$name'
                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
                |    counts.sum""".stripMargin)
@@ -416,12 +412,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         val (t, _) = try {
           t1.merge(t2)
         } catch {
-          case f: FatalException => parseError(
-            s"""invalid arguments for method `$fn'
-               |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
-               |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
+               |  $e""".stripMargin)
         }
 
         t
@@ -496,12 +489,9 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         val (tNew, _) = try {
           struct.filter(identifiers.toSet, include = fn == "select")
         } catch {
-          case f: FatalException => parseError(
-            s"""invalid arguments for method `$fn'
-               |  ${ f.getMessage }""".stripMargin)
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
-               |  ${ e.getClass.getName }: ${ e.getMessage }""".stripMargin)
+               |  $e""".stripMargin)
         }
 
         `type` = tNew

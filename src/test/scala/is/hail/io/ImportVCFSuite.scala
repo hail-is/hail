@@ -114,7 +114,7 @@ class ImportVCFSuite extends SparkSuite {
         .collect()
         .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080))))
     }
-    assert(e.getMessage.contains("FatalException"))
+    assert(e.getMessage.contains("is.hail.utils.HailException: sample_bad_AD.vcf: invalid AD field"))
   }
 
   @Test def testHaploid() {
@@ -209,10 +209,10 @@ class ImportVCFSuite extends SparkSuite {
     assert(getCall("0", 2) == Call(0))
     assert(getCall(".", 2) == null)
     assert(getCall("./.", 2) == null)
-    intercept[FatalException] {
+    intercept[HailException] {
       getCall("./0", 2) == Call(0)
     }
-    intercept[FatalException] {
+    intercept[HailException] {
       getCall("""0\0""", 2) == Call(0)
     }
   }

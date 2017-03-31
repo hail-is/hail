@@ -41,47 +41,47 @@ object Pedigree {
 
   def read(filename: String, hConf: hadoop.conf.Configuration, sampleIds: IndexedSeq[String]): Pedigree = {
     if (!filename.endsWith(".fam"))
-      fatal("-f | --fam filename must end in .fam")
+      fatal("file name must end in .fam")
 
     var nSamplesDiscarded = 0
 
     val sampleSet = sampleIds.toSet
 
     // .fam samples not in sampleIds are discarded
-    hConf.readFile(filename) { s =>
-      val readSampleSet = mutable.Set[String]()
-
-      val trios = Source.fromInputStream(s)
-        .getLines()
-        .filter(line => !line.isEmpty)
-        .flatMap { line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
-          val splitLine = line.split("\\s+") // FIXME: fails on names with spaces, will fix in PR for adding .fam to annotations by giving delimiter option
-          if (splitLine.size != 6)
-            fatal(s"Require 6 fields per line in .fam, but this line has ${splitLine.size}: $line")
-          val Array(fam, kid, dad, mom, sex, pheno) = splitLine
-          if (sampleSet(kid)) {
-            if (readSampleSet(kid))
-              fatal(s".fam sample name is not unique: $kid")
-            else
-              readSampleSet += kid
-            Some(Trio(
-              kid,
-              if (fam != "0") Some(fam) else None,
-              if (dad != "0") Some(dad) else None,
-              if (mom != "0") Some(mom) else None,
-              Sex.withNameOption(sex),
-              Phenotype.withNameOption(pheno)))
-          } else {
-            nSamplesDiscarded += 1
-            None
-          }
+    val trios = hConf.readLines(filename) { lines =>
+      val readSampleSet = mutable.Set.empty[String]
+      lines
+        .filter(line => !line.value.isEmpty)
+        .flatMap { lc =>
+          lc.map { line => // FIXME: check that pedigree makes sense (e.g., cannot be own parent)
+            val splitLine = line.split("\\s+") // FIXME: fails on names with spaces, will fix in PR for adding .fam to annotations by giving delimiter option
+            if (splitLine.size != 6)
+              fatal(s"Require 6 fields per line in .fam, but found ${ splitLine.size }")
+            val Array(fam, kid, dad, mom, sex, pheno) = splitLine
+            if (sampleSet(kid)) {
+              if (readSampleSet(kid))
+                fatal(s".fam sample name is not unique: $kid")
+              else
+                readSampleSet += kid
+              Some(Trio(
+                kid,
+                if (fam != "0") Some(fam) else None,
+                if (dad != "0") Some(dad) else None,
+                if (mom != "0") Some(mom) else None,
+                Sex.withNameOption(sex),
+                Phenotype.withNameOption(pheno)))
+            } else {
+              nSamplesDiscarded += 1
+              None
+            }
+          }.value
         }.toArray
-
-      if (nSamplesDiscarded > 0)
-        warn(s"$nSamplesDiscarded ${plural(nSamplesDiscarded, "sample")} discarded from .fam: missing from variant data set.")
-
-      new Pedigree(trios)
     }
+
+    if (nSamplesDiscarded > 0)
+      warn(s"$nSamplesDiscarded ${ plural(nSamplesDiscarded, "sample") } discarded from .fam: missing from variant data set.")
+
+    new Pedigree(trios)
   }
 
   // plink only prints # of kids under CHLD, but the list of kids may be useful, currently not used anywhere else
@@ -118,7 +118,7 @@ object Pedigree {
 
   def genWithIds(): Gen[(IndexedSeq[String], Pedigree)] = {
     for (ids <- Gen.distinctBuildableOf(Gen.identifier);
-         ped <- gen(ids))
+      ped <- gen(ids))
       yield (ids, ped)
   }
 }
@@ -157,9 +157,11 @@ class Pedigree(val trios: IndexedSeq[Trio]) {
   // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
   def write(filename: String, hConf: hadoop.conf.Configuration) {
     def sampleIdOrElse(s: Option[String]) = s.getOrElse("0")
+
     def toLine(t: Trio): String =
       t.fam.getOrElse("0") + "\t" + t.kid + "\t" + sampleIdOrElse(t.dad) + "\t" +
         sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t" + t.pheno.getOrElse("0")
+
     val lines = trios.map(toLine)
     hConf.writeTable(filename, lines)
   }

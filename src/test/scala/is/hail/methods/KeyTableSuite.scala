@@ -46,7 +46,7 @@ class KeyTableSuite extends SparkSuite {
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
-    intercept[FatalException] {
+    intercept[HailException] {
       val kt = hc.importKeyTable(List(inputFile), None, TextTableConfiguration())
         .keyBy(List("Sample", "Status", "BadKeyName"))
     }
@@ -172,7 +172,7 @@ class KeyTableSuite extends SparkSuite {
       .rename(Map("Sample" -> "sample"))
     val ktBad = ktRight.select(ktRight.fieldNames, Array("qPhen2"))
 
-    intercept[FatalException] {
+    intercept[HailException] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
       assert(ktJoinBad.keyNames sameElements Array("Sample"))
     }
@@ -235,11 +235,11 @@ class KeyTableSuite extends SparkSuite {
     val rename2 = kt.rename(Map("field1" -> "ID1"))
     assert(rename2.fieldNames sameElements Array("Sample", "ID1", "field2"))
 
-    intercept[FatalException](kt.rename(Array("ID1")))
+    intercept[HailException](kt.rename(Array("ID1")))
 
-    intercept[FatalException](kt.rename(Map("field1" -> "field2")))
+    intercept[HailException](kt.rename(Map("field1" -> "field2")))
 
-    intercept[FatalException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
+    intercept[HailException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
 
     val outputFile = tmpDir.createTempFile("rename", "tsv")
     rename2.export(sc, outputFile, null)
@@ -265,9 +265,9 @@ class KeyTableSuite extends SparkSuite {
     val select4 = kt.select(Array.empty[String], Array.empty[String])
     assert((select4.keyNames sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
 
-    intercept[FatalException](kt.select(Array.empty[String], Array("Sample")))
+    intercept[HailException](kt.select(Array.empty[String], Array("Sample")))
 
-    intercept[FatalException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
+    intercept[HailException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
 
     val outputFile1 = tmpDir.createTempFile("select1", "tsv")
     select1.export(sc, outputFile1, null)
@@ -297,7 +297,7 @@ class KeyTableSuite extends SparkSuite {
     val resRDD3 = sc.parallelize(result3.map(Annotation.fromSeq(_)))
     val ktResult3 = KeyTable(hc, resRDD3, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
 
-    intercept[FatalException](kt1.explode(Array("Sample")))
+    intercept[HailException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))
     assert(ktResult3.same(kt3.explode(Array("field1", "field2", "field1"))))
 

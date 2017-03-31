@@ -5,7 +5,6 @@ from hail.keytable import KeyTable
 from hail.type import Type, TGenotype
 from hail.representation import Interval, IntervalTree
 from hail.utils import TextTableConfig
-from py4j.protocol import Py4JJavaError
 from decorator import decorator
 
 import warnings

@@ -23,8 +23,6 @@ package object utils extends Logging
   with Py4jUtils
   with ErrorHandling {
 
-  class FatalException(val msg: String, val logMsg: Option[String] = None) extends RuntimeException(msg)
-
 
   trait Truncatable {
     def truncate: String

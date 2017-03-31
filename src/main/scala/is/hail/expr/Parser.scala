@@ -57,7 +57,7 @@ object Parser extends JavaTokenParsers {
     t.typecheck(ec)
 
     if (!t.`type`.isRealizable)
-      t.parseError(s"unrealizable type `${t.`type`}' as result of expression")
+      t.parseError(s"unrealizable type `${ t.`type` }' as result of expression")
 
     val thunk = evalNoTypeCheck(t, ec)
     (t.`type`, thunk)
@@ -162,7 +162,7 @@ object Parser extends JavaTokenParsers {
             t.size
 
           case t =>
-            fatal("cannot splat non-struct type: $t")
+            fatal(s"cannot splat non-struct type: $t")
         }
       } else
         1

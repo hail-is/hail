@@ -5,7 +5,7 @@ import com.datastax.driver.core.schemabuilder.SchemaBuilder
 import com.datastax.driver.core.{Cluster, Session}
 import is.hail.expr.{EvalContext, Parser, TArray, TBoolean, TDouble, TFloat, TGenotype, TInt, TLong, TSet, TString, TVariant, Type}
 import is.hail.utils.StringEscapeUtils.escapeStringSimple
-import is.hail.utils.{fatal, info, warn}
+import is.hail.utils._
 import is.hail.variant.VariantDataset
 
 import scala.collection.JavaConverters._

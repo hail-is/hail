@@ -26,7 +26,7 @@ object SolrConnector {
     // FIXME only 1 deep
     case i: TIterable => toSolrType(i.elementType)
     // FIXME
-    case _ => fatal("")
+    case _ => fatal(s"invalid Solr type $t")
   }
 
   def escapeString(name: String): String =
@@ -262,7 +262,7 @@ object SolrConnector {
             } catch {
               case t: Throwable =>
                 warn(s"caught exception while adding documents: ${
-                  expandException(t)
+                  expandException(t, logMessage = true)
                 }\n\tretrying")
 
                 try {
@@ -270,7 +270,7 @@ object SolrConnector {
                 } catch {
                   case t: Throwable =>
                     warn(s"caught exception while closing SorlClient: ${
-                      expandException(t)
+                      expandException(t, logMessage = true)
                     }\n\tignoring")
                 }
 

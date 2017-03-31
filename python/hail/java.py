@@ -1,6 +1,5 @@
-from py4j.protocol import Py4JJavaError, Py4JError
+import py4j
 from decorator import decorator
-
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -105,14 +104,19 @@ def jarray_to_list(a):
 def handle_py4j(func, *args, **kwargs):
     try:
         r = func(*args, **kwargs)
-    except Py4JJavaError as e:
-        msg = Env.jutils().getMinimalMessage(e.java_exception)
-        raise FatalError(msg)
-    except Py4JError as e:
-        Env.jutils().log().error('hail: caught python exception: ' + str(e))
+    except py4j.protocol.Py4JJavaError as e:
+        tpl = Env.jutils().handleForPython(e.java_exception)
+        deepest, full = tpl._1(), tpl._2()
+
+        raise FatalError('%s\n\nJava stack trace:\n%s\n'
+                         'Hail version: %s\n'
+                         'Error summary: %s' % (deepest, full, Env.hc().version, deepest))
+    except py4j.protocol.Py4JError as e:
         if e.args[0].startswith('An error occurred while calling'):
-            raise TypeError('Method %s() received at least one parameter with an invalid type. '
-                            'See doc for function signature.' % func.__name__)
+            msg = 'An error occurred while calling into JVM, probably due to invalid parameter types.'
+            raise FatalError('%s\n\nJava stack trace:\n%s\n'
+                             'Hail version: %s\n'
+                             'Error summary: %s' % (msg, e.message, Env.hc().version, msg))
         else:
             raise e
     return r
