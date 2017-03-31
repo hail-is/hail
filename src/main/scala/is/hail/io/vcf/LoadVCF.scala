@@ -283,12 +283,12 @@ object LoadVCF {
       .map(_.map(lineVariant).value)
     justVariants.persist(StorageLevel.MEMORY_AND_DISK)
 
-    val hasMulti = justVariants.exists(_.nAlleles > 2)
+    val noMulti = justVariants.forall(_.nAlleles == 2)
 
-    if (hasMulti)
-      info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
-    if (!hasMulti)
+    if (noMulti)
       info("No multiallelics detected.")
+    if (!noMulti)
+      info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
     val reportAccs = partitionFile.toSet.iterator
       .map { (file: String) =>
@@ -335,6 +335,6 @@ object LoadVCF {
       TStruct.empty,
       genotypeSignature,
       isGenericGenotype = reader.genericGenotypes,
-      wasSplit = !hasMulti), rdd)
+      wasSplit = noMulti), rdd)
   }
 }
