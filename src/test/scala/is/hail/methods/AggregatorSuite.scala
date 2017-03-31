@@ -285,18 +285,6 @@ class AggregatorSuite extends SparkSuite {
     }.check()
   }
 
-  @Test def trivialGroupBy() {
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) (if (pcoin(0.5)) \"EUR\" else \"EAS\") else (if (pcoin(0.5)) \"AMR\" else \"AFR\")")
-      val queryResult = vds2.queryGenotypes("gs.groupBy(x => sa.pop, gs => 1)")._1.asInstanceOf[Map[String, Int]]
-      val (_, querier) = vds2.querySA("sa.pop")
-      val expectedResult =
-        vds2.sampleAnnotations.map(querier.asInstanceOf[Any => String]).groupBy(x => x).mapValues(x => 1)
-
-      expectedResult == queryResult
-    }.check()
-  }
-
   @Test def groupByAndCount() {
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) (if (pcoin(0.5)) \"EUR\" else \"EAS\") else (if (pcoin(0.5)) \"AMR\" else \"AFR\")")
