@@ -155,7 +155,7 @@ object LinearMixedRegression {
         val mask = sampleMaskBc.value
         var i = 0
         while (i < mask.length) {
-          val gt = gts.nextInt()
+          val gt = gts.next()
           if (mask(i))
             sb.merge(gt)
           i += 1

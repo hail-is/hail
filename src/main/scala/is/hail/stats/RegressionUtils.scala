@@ -68,7 +68,7 @@ object RegressionUtils {
     (y, cov, completeSamples)
   }
 
-  def setLastColumnToMaskedGts(X: DenseMatrix[Double], gts: IntIterator, mask: Array[Boolean]): Boolean = {
+  def setLastColumnToMaskedGts(X: DenseMatrix[Double], gts: HailIterator[Int], mask: Array[Boolean]): Boolean = {
     require(X.offset == 0 && X.majorStride == X.rows && !X.isTranspose)
 
     val n = X.rows
@@ -78,7 +78,7 @@ object RegressionUtils {
     var j = k * n
     var gtSum = 0
     while (i < mask.length) {
-      val gt = gts.nextInt()
+      val gt = gts.next()
       if (mask(i)) {
         if (gt != -1) {
           gtSum += gt
@@ -115,7 +115,7 @@ object RegressionUtils {
 
     var i = 0
     while (i < nSamples) {
-      val gt = gts.nextInt()
+      val gt = gts.next()
       gtVals(i) = gt
       (gt: @unchecked) match {
         case 0 =>
@@ -161,7 +161,7 @@ object RegressionUtils {
 
     var i = 0
     while (i < nSamples) {
-      val gt = gts.nextInt()
+      val gt = gts.next()
       gtVals(i) = gt
       (gt: @unchecked) match {
         case 0 =>
