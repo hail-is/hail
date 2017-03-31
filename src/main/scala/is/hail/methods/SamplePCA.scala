@@ -51,4 +51,14 @@ object SamplePCA {
 
     (sampleScores.toMap, loadings, eigenvalues)
   }
+
+  def justScores(vds: VariantDataset, k: Int): DenseMatrix = {
+
+    val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vds)
+    val sc = vds.sparkContext
+
+    val svd = mat.computeSVD(k, computeU = false)
+
+    svd.V.multiply(DenseMatrix.diag(svd.s))
+  }
 }
