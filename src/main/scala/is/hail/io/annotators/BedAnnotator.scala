@@ -37,9 +37,15 @@ object BedAnnotator {
           .filter(l => !l.value.isEmpty)
           .foreach {
             _.foreach { line =>
-              val Array(chrom, strStart, strEnd, value) = line.split("""\s+""")
+              val spl = line.split("""\s+""")
+              if (spl.length < 4)
+                fatal(s"Expected at least 4 fields, but found ${spl.length}")
+              val chrom = spl(0)
+              val start = spl(1).toInt + 1
+              val end = spl(2).toInt + 1
+              val value = spl(3)
               // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
-              val interval = Interval(Locus(chrom, strStart.toInt + 1), Locus(chrom, strEnd.toInt + 1))
+              val interval = Interval(Locus(chrom, start), Locus(chrom, end))
               m.updateValue(interval, Nil, prev => value :: prev)
             }
           }
