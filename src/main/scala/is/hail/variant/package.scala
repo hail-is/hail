@@ -36,7 +36,7 @@ package object variant {
         new HailIterator[Double] {
           val it: Iterator[Genotype] = ig.iterator
           override def hasNext: Boolean = it.hasNext
-          override def next(): Double = it.next().unboxedBiallelicDosageGT
+          override def next(): Double = it.next().unboxedBiallelicDosage
         }
     }
   }
