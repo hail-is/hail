@@ -53,12 +53,11 @@ object LinearMixedRegression {
 
     val covNames = "intercept" +: covSA
 
-    val filtKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet.contains)
+    val filtKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet)
 
-    if (filtKinshipMatrix.sampleIds.toVector != completeSamples)
-      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete " +
+    if (!(filtKinshipMatrix.sampleIds sameElements completeSamples))
+      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
         "samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
-
 
     val n = y.size
     val k = cov.cols

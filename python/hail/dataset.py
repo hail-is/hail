@@ -2635,7 +2635,7 @@ class VariantDataset(object):
 
         Hail's initial version of :py:meth:`.lmmreg` scales to well beyond 10k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. The first analysts to apply :py:meth:`.lmmreg` in research computed kinship from 262k common variants and tested 25 million non-rare variants on 8185 whole genomes in 32 minutes. As another example, starting from a VDS of the 1000 Genomes Project (consisting of 2535 whole genomes), :py:meth:`.lmmreg` computes a kinship matrix based on 100k common variants, fits coefficients and variance components in the sample-covariates-only model, runs a linear-mixed-model likelihood ratio test for all 15 million high-quality non-rare variants, and exports the results in 3m42s minutes. Here we used 42 preemptible workers (~680 cores) on 2k partitions at a compute cost of about 50 cents on Google cloud (see `Using Hail on the Google Cloud Platform <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_).
 
-        While :py:meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full eigendecomposition (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`_, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`_. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
+        While :py:meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`_ (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`_, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`_. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
 
         Given the eigendecomposition, fitting the global model (Step 4) takes on the order of a few seconds on master. Association testing (Step 5) is fully distributed by variant with per-variant time complexity that is completely independent of the number of sample covariates and dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
 
@@ -2711,8 +2711,7 @@ class VariantDataset(object):
 
         **Kinship Matrix**
 
-        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` will work with this method,
-        so long as the instance of :py:class:`KinshipMatrix` has a list of sampleIds that is a subset of the sampleIds present in the :py:class:`.VariantDataset` that lmmreg is called on.
+        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
 
         **Further background**
 
@@ -3467,13 +3466,11 @@ class VariantDataset(object):
 
     @handle_py4j
     def rrm(self, force_block = False, force_gramian = False):
-        """Computes the Realized Relationship Matrix based on this dataset.
+        """Computes the Realized Relationship Matrix (RRM).
 
         **Examples**
 
-        Compute the RRM for `vds`.
-
-        >>> km = vds.rrm()
+        >>> kinship_matrix = vds.rrm()
 
         **Notes**
 
@@ -3494,10 +3491,11 @@ class VariantDataset(object):
 
         Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in :py:meth:`~hail.VariantDataset.grm` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
 
-        :param force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
-        :param force_gramian: Force using Spark's RowMatrix.computeGramian to compute kinship (advanced).
+        :param bool force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
 
-        :return: Realized Relationship Matrix of all samples contained in this vds.
+        :param bool force_gramian: Force using Spark's RowMatrix.computeGramian to compute kinship (advanced).
+
+        :return: Realized Relationship Matrix for all samples.
         :rtype: :py:class:`KinshipMatrix`
         """
         return KinshipMatrix(self._jvdf.rrm(force_block, force_gramian))
