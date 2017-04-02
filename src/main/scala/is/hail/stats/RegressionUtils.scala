@@ -195,68 +195,77 @@ object RegressionUtils {
       Some(gtVals)
     }
   }
-}
 
-// constructs SparseVector of genotype calls with missing values mean-imputed
-// if all genotypes are missing then all elements are NaN
-class SparseGtBuilder extends Serializable {
-  private val missingRowIndices = new ArrayBuilder[Int]()
-  private val rowsX = new ArrayBuilder[Int]()
-  private val valsX = new ArrayBuilder[Double]()
-  private var row = 0
-  private var sparseLength = 0
-  // current length of rowsX and valsX, used to track missingRowIndices
-  private var nHet = 0
-  private var nHomVar = 0
+  // mean 0, norm sqrt(n), variance 1 (constant variants return None)
+  def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {
+    val nSamples = y.length
+    val valsX = Array.ofDim[Double](nSamples)
+    var sumX = 0d
+    var sumXX = 0d
+    var sumXY = 0d
+    var sumYMissing = 0d
+    var nMissing = 0
+    val missingRowIndices = new ArrayBuilder[Int]()
 
-  def merge(gt: Int): SparseGtBuilder = {
-    (gt: @unchecked) match {
-      case 0 =>
-      case 1 =>
-        nHet += 1
-        rowsX += row
-        valsX += 1d
-        sparseLength += 1
-      case 2 =>
-        nHomVar += 1
-        rowsX += row
-        valsX += 2d
-        sparseLength += 1
-      case -1 =>
-        missingRowIndices += sparseLength
-        rowsX += row
-        valsX += 0d // placeholder for meanX
-        sparseLength += 1
-    }
-    row += 1
-
-    this
-  }
-
-  def toSparseGtVectorAndStats(nSamples: Int): SparseGtVectorAndStats = {
-    val missingRowIndicesArray = missingRowIndices.result()
-    val nMissing = missingRowIndicesArray.size
-    val nPresent = nSamples - nMissing
-    val nHomRef = nSamples - nHet - nHomVar - nMissing
-    val sumX = nHet + 2 * nHomVar
-    val rowsXArray = rowsX.result()
-    val valsXArray = valsX.result()
-
-    val isConstant = nHomRef == nPresent || nHomVar == nPresent || nHet == nPresent || nPresent == 0
-
-    val meanX = if (nPresent > 0) sumX.toDouble / nPresent else Double.NaN
-
+    val gts = gs.dosageIterator
     var i = 0
-    while (i < missingRowIndicesArray.length) {
-      valsXArray(i) = meanX
+    var row = 0
+    while (gts.hasNext) {
+      val gt = gts.next()
+      if (mask(i)) {
+        if (gt != -1d) {
+          valsX(row) = gt
+          sumX += gt
+          sumXX += gt * gt
+          sumXY += gt * y(row)
+        } else {
+          nMissing += 1
+          missingRowIndices += row
+          sumYMissing += y(row)
+        }
+        row += 1
+      }
       i += 1
     }
 
-    SparseGtVectorAndStats(new SparseVector(rowsXArray, valsXArray, nSamples), isConstant, meanX / 2, nHomRef, nHet, nHomVar, nMissing)
+    val nPresent = nSamples - nMissing
+
+    if (sumX < minAC)
+      None
+    else {
+      val meanX = sumX / nPresent
+      val missingRowIndicesArray = missingRowIndices.result()
+
+      var i = 0
+      while (i < missingRowIndicesArray.length) {
+        valsX(missingRowIndicesArray(i)) = meanX
+        i += 1
+      }
+
+      val x = DenseVector(valsX)
+      val xx = sumXX + meanX * meanX * nMissing
+      val xy = sumXY + meanX * sumYMissing
+
+      Some(x, xx, xy)
+    }
+  }
+
+  def toLinregHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
+    val nSamples = y.length
+    val lrb = new LinRegBuilder(y)
+    val gts = gs.hardCallIterator
+
+    var i = 0
+    while (i < mask.length) {
+      val gt = gts.next()
+      if (mask(i))
+        lrb.merge(gt)
+      i += 1
+    }
+
+    lrb.stats(y, nSamples, minAC)
   }
 }
-
-case class SparseGtVectorAndStats(x: SparseVector[Double], isConstant: Boolean, af: Double, nHomRef: Int, nHet: Int, nHomVar: Int, nMissing: Int)
 
 // constructs SparseVector of genotype calls (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
 class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
@@ -330,3 +339,63 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
     }
   }
 }
+
+// constructs SparseVector of genotype calls with missing values mean-imputed
+// if all genotypes are missing then all elements are NaN
+class SparseGtBuilder extends Serializable {
+  private val missingRowIndices = new ArrayBuilder[Int]()
+  private val rowsX = new ArrayBuilder[Int]()
+  private val valsX = new ArrayBuilder[Double]()
+  private var row = 0
+  private var sparseLength = 0 // current length of rowsX and valsX, used to track missingRowIndices
+  private var nHet = 0
+  private var nHomVar = 0
+
+  def merge(gt: Int): SparseGtBuilder = {
+    (gt: @unchecked) match {
+      case 0 =>
+      case 1 =>
+        nHet += 1
+        rowsX += row
+        valsX += 1d
+        sparseLength += 1
+      case 2 =>
+        nHomVar += 1
+        rowsX += row
+        valsX += 2d
+        sparseLength += 1
+      case -1 =>
+        missingRowIndices += sparseLength
+        rowsX += row
+        valsX += 0d // placeholder for meanX
+        sparseLength += 1
+    }
+    row += 1
+
+    this
+  }
+
+  def toSparseGtVectorAndStats(nSamples: Int): SparseGtVectorAndStats = {
+    val missingRowIndicesArray = missingRowIndices.result()
+    val nMissing = missingRowIndicesArray.size
+    val nPresent = nSamples - nMissing
+    val nHomRef = nSamples - nHet - nHomVar - nMissing
+    val sumX = nHet + 2 * nHomVar
+    val rowsXArray = rowsX.result()
+    val valsXArray = valsX.result()
+
+    val isConstant = nHomRef == nPresent || nHomVar == nPresent || nHet == nPresent || nPresent == 0
+
+    val meanX = if (nPresent > 0) sumX.toDouble / nPresent else Double.NaN
+
+    var i = 0
+    while (i < missingRowIndicesArray.length) {
+      valsXArray(i) = meanX
+      i += 1
+    }
+
+    SparseGtVectorAndStats(new SparseVector(rowsXArray, valsXArray, nSamples), isConstant, meanX / 2, nHomRef, nHet, nHomVar, nMissing)
+  }
+}
+
+case class SparseGtVectorAndStats(x: SparseVector[Double], isConstant: Boolean, af: Double, nHomRef: Int, nHet: Int, nHomVar: Int, nMissing: Int)

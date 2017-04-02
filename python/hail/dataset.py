@@ -2326,7 +2326,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def linreg(self, y, covariates=[], root='va.linreg', min_ac=1, min_af=0.0):
+    def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association using linear regression.
 
         **Examples**
@@ -2341,8 +2341,9 @@ class VariantDataset(object):
         the :math:`t`-test for the genotype coefficient of the linear function
         of best fit from sample genotype and covariates to quantitative
         phenotype or case-control status. Hail only includes samples for which
-        phenotype and all covariates are defined. For each variant, Hail imputes
-        missing genotypes as the mean of called genotypes.
+        phenotype and all covariates are defined. For each variant, missing genotypes
+        as the mean of called genotypes. Genotypes are  by hard calls (``g.gt``) by default
+        and by dosages if ``use_dosages=True``, namely :math:`\mathrm{P}(\mathrm{Het}) + 2 * \mathrm{P}(\mathrm{HomVar})`.
 
         Assuming there are sample annotations ``sa.pheno.height``,
         ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the command:
@@ -2379,13 +2380,6 @@ class VariantDataset(object):
 
         For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
 
-        Hail's linear regression test corresponds to the ``q.lm`` test in
-        `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`_. For
-        each variant, Hail imputes missing genotypes as the mean of called
-        genotypes, whereas EPACTS subsets to those samples with called
-        genotypes. Hence, Hail and EPACTS results will currently only agree for
-        variants with no missing genotypes.
-
         The standard least-squares linear regression model is derived in Section
         3.2 of `The Elements of Statistical Learning, 2nd Edition
         <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`_. See
@@ -2410,6 +2404,8 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
+        :param bool use_dosages: If true, use dosage genotypes rather that hard call genotypes.
+
         :param int min_ac: Minimum alternate allele count.
 
         :param float min_af: Minimum alternate allele frequency.
@@ -2418,7 +2414,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, min_ac, min_af)
+        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

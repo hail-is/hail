@@ -45,7 +45,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     catchError {
-      multi.linreg("foo", Array(), "foo", 1, 1)
+      multi.linreg("foo", Array(), "foo", false, 1, 1)
     }
 
     catchError {
