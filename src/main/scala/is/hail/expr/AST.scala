@@ -212,7 +212,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
 
   def typecheckThis(ec: EvalContext): Type = typecheckThis()
 
-  def typecheckThis(): Type = throw new UnsupportedOperationException
+  def typecheckThis(): Type = parseError(s"Found out-of-place expression of type ${this.getClass.getSimpleName}")
 
   def typecheck(ec: EvalContext) {
     subexprs.foreach(_.typecheck(ec))

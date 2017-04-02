@@ -20,10 +20,9 @@ class FilterSuite extends SparkSuite {
 
     assert(vds.filterVariantsExpr("va.info.AN == 200").countVariants() == 310)
 
-    /*
-    assert(FilterVariants.run(state, Array("--keep", "-c", "va.info.AC.contains(20)"))
-      .vds.nVariants == 3)
-      */
+    TestUtils.interceptFatal("out-of-place expression") {
+      vds.filterVariantsExpr("x => v.altAllele.isSNP()")
+    }
 
     assert(vds.filterVariantsExpr("""va.filters.contains("VQSRTrancheSNP99.60to99.80")""").countVariants() == 3)
 
