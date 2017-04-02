@@ -609,11 +609,13 @@ object Genotype {
     Array(l0, l1, l2)
   }
 
+  val dosageNorm: Double = 1 / 32768.0
+
+  val maxPhredInTable = 8192
+
   lazy val linearToPhredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
 
-  lazy val phredToLinearConversionTable: Array[Double] = (0 to 8192).map { i => math.pow(10, i / -10.0) }.toArray
-
-  val dosageNorm: Double = 1 / 32768.0
+  lazy val phredToLinearConversionTable: Array[Double] = (0 to maxPhredInTable).map { i => math.pow(10, i / -10.0) }.toArray
 
   def linearToPhred(a: Array[Int]): Array[Int] = {
     val x = a.map(linearToPhredConversionTable)
@@ -621,15 +623,15 @@ object Genotype {
   }
 
   def phredToDosage(a: Array[Int]): Array[Double] = {
-    val lkhd = a.map(i => if (i < 8192) phredToLinearConversionTable(i) else math.pow(10, i / -10.0))
+    val lkhd = a.map(i => if (i < maxPhredInTable) phredToLinearConversionTable(i) else math.pow(10, i / -10.0))
     val s = lkhd.sum
     lkhd.map(_ / s)
   }
 
   def phredToBiallelicDosageGenotype(a: Array[Int]): Double = {
-    val p0 = if (a(0) < 8192) phredToLinearConversionTable(a(0)) else math.pow(10, a(0) / -10.0)
-    val p1 = if (a(1) < 8192) phredToLinearConversionTable(a(1)) else math.pow(10, a(1) / -10.0)
-    val p2 = if (a(2) < 8192) phredToLinearConversionTable(a(2)) else math.pow(10, a(2) / -10.0)
+    val p0 = if (a(0) < maxPhredInTable) phredToLinearConversionTable(a(0)) else math.pow(10, a(0) / -10.0)
+    val p1 = if (a(1) < maxPhredInTable) phredToLinearConversionTable(a(1)) else math.pow(10, a(1) / -10.0)
+    val p2 = if (a(2) < maxPhredInTable) phredToLinearConversionTable(a(2)) else math.pow(10, a(2) / -10.0)
 
     (p1 + 2 * p2) / (p0 + p1 + p2)
   }
@@ -875,9 +877,9 @@ object Genotype {
         if (isDosage)
           (px1 + 2 * px2) * Genotype.dosageNorm
         else {
-          val p0 = if (px0 < 8192) phredToLinearConversionTable(px0) else math.pow(10, px0 / -10.0)
-          val p1 = if (px1 < 8192) phredToLinearConversionTable(px1) else math.pow(10, px1 / -10.0)
-          val p2 = if (px2 < 8192) phredToLinearConversionTable(px2) else math.pow(10, px2 / -10.0)
+          val p0 = if (px0 < maxPhredInTable) phredToLinearConversionTable(px0) else math.pow(10, px0 / -10.0)
+          val p1 = if (px1 < maxPhredInTable) phredToLinearConversionTable(px1) else math.pow(10, px1 / -10.0)
+          val p2 = if (px2 < maxPhredInTable) phredToLinearConversionTable(px2) else math.pow(10, px2 / -10.0)
 
           (p1 + 2 * p2) / (p0 + p1 + p2)
         }
