@@ -135,9 +135,9 @@ class LinearRegressionSuite extends SparkSuite {
     def assertEmpty(q: Querier, v: Variant) =
       assert(q(annotationMap(v)) == null)
 
-    val gt0 = Genotype.phredToBiallelicDosage(Array(0, 20, 100))
-    val gt1 = Genotype.phredToBiallelicDosage(Array(20, 0, 100))
-    val gt2 = Genotype.phredToBiallelicDosage(Array(20, 100, 0))
+    val gt0 = Genotype.phredToBiallelicDosageGenotype(Array(0, 20, 100))
+    val gt1 = Genotype.phredToBiallelicDosageGenotype(Array(20, 0, 100))
+    val gt2 = Genotype.phredToBiallelicDosageGenotype(Array(20, 100, 0))
 
     assert(D_==(gt0, 0.009900990296049406))
     assert(D_==(gt1, 0.9900990100009803))
@@ -226,9 +226,9 @@ class LinearRegressionSuite extends SparkSuite {
     val g1 = Genotype.apply(gt = Some(1), px=Some(Array(20, 32648, 100)), isDosage = true)
     val g2 = Genotype.apply(gt = Some(2), px=Some(Array(20, 100, 32648)), isDosage = true)
 
-    assert(D_==(g0.unboxedBiallelicDosage, (20 + 2 * 100) / 32768d))
-    assert(D_==(g1.unboxedBiallelicDosage, (32648 + 2 * 100) / 32768d))
-    assert(D_==(g2.unboxedBiallelicDosage, (100 + 2 * 32648) / 32768d))
+    assert(D_==(g0.unboxedBiallelicDosageGenotype, (20 + 2 * 100) / 32768d))
+    assert(D_==(g1.unboxedBiallelicDosageGenotype, (32648 + 2 * 100) / 32768d))
+    assert(D_==(g2.unboxedBiallelicDosageGenotype, (100 + 2 * 32648) / 32768d))
 
     /*
     comparing to output of R code:

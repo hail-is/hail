@@ -160,7 +160,7 @@ object RegressionUtils {
     var nMissing = 0
     var gtSum = 0
     var gtSumSq = 0
-    val gts = gs.hardCallIterator
+    val gts = gs.hardCallGenotypeIterator
 
     var i = 0
     while (i < nSamples) {
@@ -206,7 +206,7 @@ object RegressionUtils {
     val gtVals = Array.ofDim[Double](nSamples)
     var nMissing = 0
     var gtSum = 0
-    val gts = gs.hardCallIterator
+    val gts = gs.hardCallGenotypeIterator
 
     var i = 0
     while (i < nSamples) {
@@ -256,7 +256,7 @@ object RegressionUtils {
     var nMissing = 0
     val missingRowIndices = new ArrayBuilder[Int]()
 
-    val gts = gs.dosageIterator
+    val gts = gs.biallelicDosageGenotypeIterator
     var i = 0
     var row = 0
     while (gts.hasNext) {
@@ -303,7 +303,7 @@ object RegressionUtils {
   def toLinregHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
     val nSamples = y.length
     val lrb = new LinRegBuilder(y)
-    val gts = gs.hardCallIterator
+    val gts = gs.hardCallGenotypeIterator
 
     var i = 0
     while (i < mask.length) {
@@ -320,7 +320,7 @@ object RegressionUtils {
   // if all genotypes are missing then all elements are NaN
   def toLinMixedHardCallStats(gs: Iterable[Genotype], mask: Array[Boolean], nSamples: Int): SparseGtVectorAndStats = {
     val sb = new SparseGtBuilder()
-    val gts = gs.hardCallIterator
+    val gts = gs.hardCallGenotypeIterator
 
     var i = 0
     while (i < mask.length) {
