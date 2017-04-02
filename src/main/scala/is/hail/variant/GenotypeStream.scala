@@ -87,7 +87,7 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
     new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
   }
 
-  def gsDosageIterator: BiallelicDosageGenotypeStreamIterator = {
+  def gsBiallelicDosageIterator: BiallelicDosageGenotypeStreamIterator = {
     val bytes = decompLenOption.map(dl => LZ4Utils.decompress(dl, a)).getOrElse(a)
     new BiallelicDosageGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
   }

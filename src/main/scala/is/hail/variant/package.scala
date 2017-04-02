@@ -31,7 +31,7 @@ package object variant {
     }
 
     def dosageIterator: HailIterator[Double] = ig match {
-      case gs: GenotypeStream => gs.gsDosageIterator
+      case gs: GenotypeStream => gs.gsBiallelicDosageIterator
       case _ =>
         new HailIterator[Double] {
           val it: Iterator[Genotype] = ig.iterator
