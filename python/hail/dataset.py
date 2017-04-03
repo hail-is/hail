@@ -2374,9 +2374,7 @@ class VariantDataset(object):
 
         Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`_ without identifiers, such as:
 
-        .. code-block:: text
-
-          if (sa.isFemale) sa.cov.age else (2 * sa.cov.age + 10)
+        >>> vds_result = vds.linreg('if (sa.pheno.isFemale) sa.pheno.age else (2 * sa.pheno.age + 10)', covariates=[])
 
         For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
 
