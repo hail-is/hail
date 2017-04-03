@@ -37,7 +37,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
 
-    assert(vdsOrig.eraseSplit().same(vdsNew.eraseSplit()))
+    assert(vdsOrig.same(vdsNew))
 
     val infoSize = vdsNew.vaSignature.getAsOption[TStruct]("info").get.size
     val toAdd = Annotation.fromSeq(Array.fill[Any](infoSize)(null))
@@ -48,7 +48,7 @@ class ExportVcfSuite extends SparkSuite {
 
     vdsNewMissingInfo.exportVCF(outFile2)
 
-    assert(hc.importVCF(outFile2).eraseSplit().same(vdsNewMissingInfo.eraseSplit(), 1e-2))
+    assert(hc.importVCF(outFile2).same(vdsNewMissingInfo, 1e-2))
   }
 
   @Test def testSorted() {

@@ -157,7 +157,7 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int, genericGenotypes: Boolean = false , callFields: Set[String] = Set.empty[String]): Field = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int, genericGenotypes: Boolean = false, callFields: Set[String] = Set.empty[String]): Field = {
     val id = line.getID
     val isCall = genericGenotypes && (id == "GT" || callFields.contains(id))
 
@@ -217,7 +217,7 @@ object LoadVCF {
     } catch {
       case e: TribbleException => fatal(
         s"""encountered problem with file $file1
-            |  ${ e.getLocalizedMessage }""".stripMargin)
+           |  ${ e.getLocalizedMessage }""".stripMargin)
     }
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
@@ -250,7 +250,7 @@ object LoadVCF {
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
       fatal(
         s"""corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'
-            |  found: @1""".stripMargin, headerLine)
+           |  found: @1""".stripMargin, headerLine)
 
     val sampleIds: Array[String] =
       if (skipGenotypes)
@@ -274,13 +274,21 @@ object LoadVCF {
     val partitionFile = lines.partitions.map(partitionPath)
 
     val justVariants = lines
-      .filter(_.map { line => !line.isEmpty &&
-        line(0) != '#' &&
-        lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
+      .filter(_.map { line =>
+        !line.isEmpty &&
+          line(0) != '#' &&
+          lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
         // FIXME this doesn't filter symbolic, but also avoids decoding the line.  Won't cause errors but might cause unnecessary shuffles
       }.value)
       .map(_.map(lineVariant).value)
     justVariants.persist(StorageLevel.MEMORY_AND_DISK)
+
+    val noMulti = justVariants.forall(_.nAlleles == 2)
+
+    if (noMulti)
+      info("No multiallelics detected.")
+    if (!noMulti)
+      info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
     val reportAccs = partitionFile.toSet.iterator
       .map { (file: String) =>
@@ -298,21 +306,22 @@ object LoadVCF {
         val codec = new htsjdk.variant.vcf.VCFCodec()
         codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
 
-        lines.flatMap { l => l.map { line =>
-          if (line.isEmpty || line(0) == '#')
-            None
-          else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
-            reportAcc += VCFReport.RefNonACGTN
-            None
-          } else {
-            val vc = codec.decode(line)
-            if (vc.isSymbolic) {
-              reportAcc += VCFReport.Symbolic
+        lines.flatMap { l =>
+          l.map { line =>
+            if (line.isEmpty || line(0) == '#')
               None
-            } else
-              Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value))
-          }
-        }.value
+            else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
+              reportAcc += VCFReport.RefNonACGTN
+              None
+            } else {
+              val vc = codec.decode(line)
+              if (vc.isSymbolic) {
+                reportAcc += VCFReport.Symbolic
+                None
+              } else
+                Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value))
+            }
+          }.value
         }
       }.toOrderedRDD(justVariants)
 
@@ -325,6 +334,7 @@ object LoadVCF {
       variantAnnotationSignatures,
       TStruct.empty,
       genotypeSignature,
-      isGenericGenotype = reader.genericGenotypes), rdd)
+      isGenericGenotype = reader.genericGenotypes,
+      wasSplit = noMulti), rdd)
   }
 }

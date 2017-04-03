@@ -14,9 +14,11 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def reorderPartitions(oldIndices: Array[Int])(implicit tct: ClassTag[T]): RDD[T] =
     new ReorderedPartitionsRDD[T](r, oldIndices)
 
-  def forall(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(true)(_ && _)
+  def forall(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = !exists(x => !p(x))
 
-  def exists(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.map(p).fold(false)(_ || _)
+  def exists(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.mapPartitions { it =>
+    Iterator(it.exists(p))
+  }.fold(false)(_ || _)
 
   def writeTable(filename: String, tmpDir: String, header: Option[String] = None, parallelWrite: Boolean = false) {
     val hConf = r.sparkContext.hadoopConfiguration
