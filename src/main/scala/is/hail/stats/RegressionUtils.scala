@@ -4,6 +4,7 @@ import breeze.linalg.{DenseMatrix, DenseVector, SparseVector}
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Genotype, VariantDataset}
+import org.apache.spark.sql.Row
 
 object RegressionUtils {
   def toDouble(t: Type, code: String): Any => Double = t match {
@@ -245,8 +246,9 @@ object RegressionUtils {
     }
   }
 
-  def denseStats(data: Seq[java.lang.Number], y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
-    val n = data.length
+  //keyedRow consists of row key followed by numeric data (passed with key to avoid copying, key is ignored here)
+  def denseStats(keyedRow: Row, y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
+    val n = keyedRow.length - 1
     assert(y.length == n)
 
     val valsX = Array.ofDim[Double](n)
@@ -257,13 +259,13 @@ object RegressionUtils {
     val missingRowIndices = new ArrayBuilder[Int]()
 
     var i = 0
-    while (i < data.length) {
-      if (data(i) == null) {
+    while (i < n) {
+      if (keyedRow.get(i + 1) == null) {
         missingRowIndices += i
         sumYMissing += y(i)
       }
       else {
-        val e = data(i).doubleValue()
+        val e = keyedRow.get(i + 1).asInstanceOf[java.lang.Number].doubleValue()
         valsX(i) = e
         sumX += e
         sumXX += e * e

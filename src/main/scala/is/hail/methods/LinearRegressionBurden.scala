@@ -45,7 +45,7 @@ object LinearRegressionBurden {
 
     val kt: KeyTable = vds.filterSamples { case (s, sa) => completeSamplesSet(s) }
       .filterVariants { case (v, va, gs) => variantKeysQuerier(va).asInstanceOf[Set[String]].nonEmpty }
-      .makeKT(s"$keyName = $variantKeySetVA", s"`` = $genotypeExpr", Array[String]())
+      .makeKT(s"$keyName = $variantKeySetVA", s"`` = $genotypeExpr", Array[String](keyName))
       .explode(keyName)
       .aggregate(s"$keyName = $keyName", aggExpr)
 
@@ -61,10 +61,10 @@ object LinearRegressionBurden {
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
 
     val newRDD = kt.mapAnnotations { a =>
-      val (keySeq, dataX) = a.asInstanceOf[Row].toSeq.splitAt(1)
-      val key = keySeq.head.asInstanceOf[String]
+      val keyedRow = a.asInstanceOf[Row]
+      val key = keyedRow.get(0).asInstanceOf[String]
 
-      RegressionUtils.denseStats(dataX.asInstanceOf[Seq[java.lang.Number]], y) match {
+      RegressionUtils.denseStats(keyedRow, y) match {
         case Some((x, xx, xy)) =>
           val qtx = QtBc.value * x
           val qty = QtyBc.value
@@ -80,21 +80,20 @@ object LinearRegressionBurden {
           if (dropSamples)
             Annotation(key, b, se, t, p)
           else
-            Row.fromSeq(Seq(key, b, se, t, p) ++ dataX): Annotation
+            Row.fromSeq(keyedRow.toSeq ++ Seq(b, se, t, p)): Annotation
         case None =>
           if (dropSamples)
             Annotation(key +: emptyStats)
           else
-            Row.fromSeq((key +: emptyStats) ++ dataX): Annotation
+            Row.fromSeq(keyedRow.toSeq ++ emptyStats): Annotation
       }
     }
 
     def newSignature =
       if (dropSamples)
-        TStruct((keyName -> TString) +: LinearRegression.`type`.fields.map(x => x.name -> x.typ): _*)
+        TStruct(keyName -> TString).merge(LinearRegression.`type`)._1
       else
-        TStruct(((keyName -> TString) +: LinearRegression.`type`.fields.map(x => x.name -> x.typ))
-          ++ kt.fields.tail.map(x => x.name -> x.typ): _*)
+        kt.signature.merge(LinearRegression.`type`)._1
 
     new KeyTable(kt.hc, newRDD, signature = newSignature, keyNames = Array(keyName))
   }
