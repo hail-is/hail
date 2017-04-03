@@ -3380,12 +3380,14 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def sample_qc(self):
+    def sample_qc(self, root='sa.qc'):
         """Compute per-sample QC metrics.
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the genotype data and stores the results as sample annotations that can be accessed with ``sa.qc.<identifier>``:
+        :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the 
+        genotype data and stores the results as sample annotations that can be accessed with
+         ``sa.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
         +---------------------------+--------+----------------------------------------------------------+
         | Name                      | Type   | Description                                              |
@@ -3433,11 +3435,15 @@ class VariantDataset(object):
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
 
+        :param str root: Sample annotation root for the computed struct.
+        
         :return: Annotated variant dataset with new sample qc annotations.
         :rtype: :class:`.VariantDataset`
         """
+        if not isinstance(root, str) and not isinstance(root, unicode):
+            raise TypeError("Parameter 'root' must be type str, but found %s" % type(root))
 
-        return VariantDataset(self.hc, self._jvdf.sampleQC())
+        return VariantDataset(self.hc, self._jvdf.sampleQC(root))
 
     @handle_py4j
     def storage_level(self):
@@ -3789,7 +3795,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def variant_qc(self):
+    def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
         **Examples**
@@ -3800,7 +3806,9 @@ class VariantDataset(object):
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.variant_qc` computes 18 variant statistics from the genotype data and stores the results as variant annotations that can be accessed with ``va.qc.<identifier>``:
+        :py:meth:`~hail.VariantDataset.variant_qc` computes 18 variant statistics from the 
+        genotype data and stores the results as variant annotations that can be accessed 
+        with ``va.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
         +---------------------------+--------+--------------------------------------------------------+
         | Name                      | Type   | Description                                            |
@@ -3842,13 +3850,20 @@ class VariantDataset(object):
         | ``gqStDev``               | Double | Genotype quality standard deviation across all samples |
         +---------------------------+--------+--------------------------------------------------------+
 
-        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
+        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly 
+        in filtering and written as "NA" in export modules. The empirical standard deviation is computed
+        with zero degrees of freedom.
+
+        :param str root: Variant annotation root for computed struct.
 
         :return: Annotated variant dataset with new variant QC annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.variantQC()
+        if not isinstance(root, str) and not isinstance(root, unicode):
+            raise TypeError("Parameter 'root' must be type str, but found %s" % type(root))
+
+        jvds = self._jvdf.variantQC(root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

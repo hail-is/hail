@@ -254,11 +254,12 @@ object SampleQC {
       .toMap
   }
 
-  def apply(vds: VariantDataset): VariantDataset = {
+  def apply(vds: VariantDataset, root: String): VariantDataset = {
 
     val r = results(vds)
-    vds.annotateSamples(SampleQCCombiner.signature, List("qc"), { (x: String) =>
-      r.get(x).map(_.asAnnotation).orNull
-    })
+    vds.annotateSamples(SampleQCCombiner.signature,
+      Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), { (x: String) =>
+        r.get(x).map(_.asAnnotation).orNull
+      })
   }
 }
