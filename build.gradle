@@ -332,6 +332,11 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 
+task archiveZip(type: Zip) {
+    from fileTree('python')
+    classifier = 'python'
+}
+
 task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
 }
