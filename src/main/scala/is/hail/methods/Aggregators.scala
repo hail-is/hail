@@ -3,7 +3,7 @@ package is.hail.methods
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{TAggregable, _}
+import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
