@@ -161,18 +161,20 @@ constructor.
 
     >>> import hail
     >>> hc = hail.HailContext(sc)
+    
+Files can be accessed from both Hadoop and Google Storage. If you're running on Google's Dataproc, you'll want to store your files in Google Storage. In most on premises clusters, you'll want to store your files in Hadoop.
 
-In a separate shell, you can copy a VCF file to HDFS:
-
-  .. code-block:: text
-
-    $ hadoop fs -put src/test/resources/sample.vcf sample.vcf
-
-To convert *sample.vcf* into Hail's **.vds** format, run:
+To convert *sample.vcf* stored in Google Storage into Hail's **.vds** format, run:
 
   .. code-block:: python
 
-    >>> hc.import_vcf('sample.vcf').write('sample.vds')
+    >>> hc.import_vcf('gs:///path/to/sample.vcf').write('gs:///output/path/sample.vds')
+    
+To convert *sample.vcf* stored in Hadoop into Hail's **.vds** format, run:
+
+   .. code-block:: python
+
+    >>> hc.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
 
 It is also possible to run Hail non-interactively, by passing a Python script to
 ``spark-submit``. In this case, it is not necessary to set any environment
@@ -186,13 +188,13 @@ For example,
                    --py-files build/distributions/hail-python.zip \
                    hailscript.py
 
-runs the script `hailscript.py`:
+runs the script `hailscript.py` (which reads and writes files from Hadoop):
 
   .. code-block:: python
 
     import hail
     hc = hail.HailContext()
-    hc.import_vcf('sample.vcf').write('sample.vds')
+    hc.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
 
 Running on a Cloudera Cluster
 =============================
