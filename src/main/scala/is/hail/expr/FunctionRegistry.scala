@@ -707,7 +707,7 @@ object FunctionRegistry {
                |.. code-block:: text
                |     :emphasize-lines: 2
                |
-               |     gs.groupBy(x => sa.population, gs.groupBy(x => sa.sub_population, gs => gs.hardyWeinberg()))
+               |     gs.groupBy(x => sa.population, gs => gs.groupBy(x => sa.sub_population, gs => gs.hardyWeinberg()))
                |
                |If we preferred a single dictionary with a compound key we can use a Struct
                |
