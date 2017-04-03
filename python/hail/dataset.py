@@ -3439,7 +3439,7 @@ class VariantDataset(object):
 
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
 
-        :param str root: Annotation root for the computed struct.
+        :param str root: Sample annotation root for the computed struct.
         
         :return: Annotated variant dataset with new sample qc annotations.
         :rtype: :class:`.VariantDataset`
@@ -3858,7 +3858,7 @@ class VariantDataset(object):
         in filtering and written as "NA" in export modules. The empirical standard deviation is computed
         with zero degrees of freedom.
 
-        :param str root: Annotation root for computed struct.
+        :param str root: Variant annotation root for computed struct.
 
         :return: Annotated variant dataset with new variant QC annotations.
         :rtype: :py:class:`.VariantDataset`
