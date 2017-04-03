@@ -232,8 +232,6 @@ object FunctionRegistry {
         ) yield aggregator.ctor(g, v.asInstanceOf[v])
 
       case aggregator: GroupByAggregatorFun[t] =>
-        // val downstreamBodyFn = CM.ret(Code._null[AnyRef]).runWithDelayedValues(Seq(), EvalContext());
-
         val Lambda(_, keyParam, keyBody) = args(1)
         val TFunction(Seq(keyParamType), _) = argTypes(1)
 
