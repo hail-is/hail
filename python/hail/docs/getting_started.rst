@@ -146,17 +146,11 @@ cluster for ``SPARK_HOME`` and ``HAIL_HOME``::
     $ export HAIL_HOME=/path/to/hail
     $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*-src.zip"
 
-You can open an interactive Python shell with the ``pyspark`` command:
+You can open an IPython shell with the ``ipython`` command:
 
   .. code-block:: text
 
-    $ pyspark --jars build/libs/hail-all-spark.jar \
-              --py-files build/distributions/hail-python.zip \
-              --conf spark.hadoop.io.compression.codecs=org.apache.hadoop.io.compress.DefaultCodec,is.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec \
-              --conf spark.sql.files.openCostInBytes=1099511627776 \
-              --conf spark.sql.files.maxPartitionBytes=1099511627776 \
-              --conf spark.hadoop.mapreduce.input.fileinputformat.split.minsize=1099511627776 \
-              --conf spark.hadoop.parquet.block.size=1099511627776
+    $ ipython
 
 Within the interactive shell, check that you can successfully create a
 ``HailContext`` by running the following commands. Note that you have to pass in
@@ -215,7 +209,15 @@ as above, except:
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
 
- - Cloudera's version of ``pyspark`` is called ``pyspark2``, and
+ - On Cloudera, you can create an interactive Python shell using ``pyspark2``:
+ 
+     $ pyspark2 --jars build/libs/hail-all-spark.jar \
+              --py-files build/distributions/hail-python.zip \
+              --conf spark.hadoop.io.compression.codecs=org.apache.hadoop.io.compress.DefaultCodec,is.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec \
+              --conf spark.sql.files.openCostInBytes=1099511627776 \
+              --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+              --conf spark.hadoop.mapreduce.input.fileinputformat.split.minsize=1099511627776 \
+              --conf spark.hadoop.parquet.block.size=1099511627776
 
  - Cloudera's version of ``spark-submit`` is called ``spark2-submit``.
 
