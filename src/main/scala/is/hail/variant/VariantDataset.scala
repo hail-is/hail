@@ -933,6 +933,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def rrm(forceBlock : Boolean = false, forceGramian : Boolean = false): KinshipMatrix = {
     requireSplit("rrm")
+    info(s"rrm: Beginning RRM computation")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants")
     new KinshipMatrix(rrm, vds.sampleIds.toArray)
