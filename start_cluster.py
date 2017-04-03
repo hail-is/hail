@@ -63,11 +63,11 @@ else:
     pass_metadata = ''
 
 # default initialization script to start up cluster with
-init_actions = 'gs://labbott/init_default.py'
+init_actions = 'gs://hail-common/init_default.py'
 
 # add notebook action
 if args.notebook:
-    init_actions = init_actions + ',' + 'gs://labbott/init_notebook.py'
+    init_actions = init_actions + ',' + 'gs://hail-common/init_notebook.py'
 
 # add VEP action
 if args.vep:
