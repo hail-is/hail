@@ -10,7 +10,7 @@ class BiallelicMethodsSuite extends SparkSuite {
   }
 
   @Test def test() {
-    val multi = hc.importVCF("src/test/resources/sample.vcf")
+    val multi = hc.importVCF("src/test/resources/sample2.vcf")
 
     catchError {
       multi.concordance(multi)
