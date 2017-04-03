@@ -240,9 +240,7 @@ object FunctionRegistry {
 
         val kbc = keyBody.compile()
 
-        val a0 = args(0)
-
-        val a0type = a0.`type`
+        val a0type = args(0).`type`
 
         for (
           (downstreamBodyCompiled, downstreamAggregator) <- downstreamBody.downstreamAggregator();
