@@ -3,7 +3,7 @@ package is.hail.expr
 import is.hail.utils.Interval
 import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
 
-trait HailRep[+T] { self =>
+trait HailRep[T] { self =>
   def typ: Type
 }
 
