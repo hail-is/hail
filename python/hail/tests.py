@@ -296,7 +296,6 @@ class ContextTests(unittest.TestCase):
         sample.file_version()
         sample.sample_ids[:5]
 
-        self.assertFalse(sample.was_split())
         self.assertTrue(sample_split.was_split())
 
         self.assertFalse(sample.is_dosage())
