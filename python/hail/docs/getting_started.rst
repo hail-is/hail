@@ -144,7 +144,7 @@ cluster for ``SPARK_HOME`` and ``HAIL_HOME``::
 
     $ export SPARK_HOME=/path/to/spark/
     $ export HAIL_HOME=/path/to/hail
-    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip"
+    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*-src.zip"
 
 You can open an interactive Python shell with the ``pyspark`` command:
 
