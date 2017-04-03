@@ -373,7 +373,12 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
 
 class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[Any] {
 
-  var _state: T = ev.zero
+  var _state: T = ct.runtimeClass match {
+    case q if q == classOf[Int] => Int.MinValue.asInstanceOf[T]
+    case q if q == classOf[Long] => Long.MinValue.asInstanceOf[T]
+    case q if q == classOf[Float] => Float.NegativeInfinity.asInstanceOf[T]
+    case q if q == classOf[Double] => Double.NegativeInfinity.asInstanceOf[T]
+  }
 
   var _isNull: Boolean = true
 
@@ -381,18 +386,14 @@ class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) exte
 
   def seqOp(x: Any) {
     if (x != null) {
-      if (_isNull) {
+      _isNull = false
+      if (ev.compare(x.asInstanceOf[T], _state) > 0)
         _state = x.asInstanceOf[T]
-        _isNull = false
-      } else
-        if (ev.compare(x.asInstanceOf[T], _state) > 0)
-          _state = x.asInstanceOf[T]
     }
   }
 
-  def combOp(agg2: this.type) = {
-    if (agg2._state != null)
-      if (_state != null && ev.compare(_state, agg2._state) >= 0)
+  def combOp(agg2: this.type) {
+    if (ev.compare(_state, agg2._state) >= 0)
         _state = agg2._state
   }
 
