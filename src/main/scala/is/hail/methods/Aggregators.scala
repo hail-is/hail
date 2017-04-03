@@ -431,7 +431,7 @@ class CallStatsAggregator(variantF: (Any) => Any)
   var first = true
   var combiner: CallStatsCombiner = _
 
-  def result: Annotation =
+  def result =
     if (combiner != null)
       combiner.result().asAnnotation
     else
