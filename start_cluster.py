@@ -3,7 +3,7 @@
 import os
 import json
 import argparse
-from subprocess import call, Popen, PIPE, check_call, CalledProcessError
+from subprocess import call
 
 parser = argparse.ArgumentParser()
 
