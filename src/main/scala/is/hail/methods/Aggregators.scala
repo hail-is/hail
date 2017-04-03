@@ -310,7 +310,7 @@ class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregat
 
   var _state: T = ev.zero
 
-  def result: T = _state
+  def result = _state
 
   def seqOp(x: Any) {
     if (x != null)
