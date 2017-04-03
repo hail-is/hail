@@ -1,5 +1,5 @@
 # cloud-tools
-Scripts for working with Google Cloud Dataproc service
+Scripts for working with Hail on Google Cloud Dataproc service
 
 Recommended lines to add in `~/.bash_profile` or `~/.bashrc`:
 ```
