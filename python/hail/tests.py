@@ -7,7 +7,7 @@ import unittest
 
 from hail import HailContext, TextTableConfig
 from hail.representation import *
-from hail.type import *
+from hail.expr import *
 from hail.java import *
 
 hc = None

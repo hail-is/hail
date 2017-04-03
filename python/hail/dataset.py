@@ -2,7 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.type import Type, TGenotype
+from hail.expr import Type, TGenotype
 from hail.representation import Interval, IntervalTree
 from hail.utils import TextTableConfig
 from decorator import decorator

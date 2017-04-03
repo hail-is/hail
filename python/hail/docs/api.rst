@@ -29,5 +29,5 @@ introduction to using this API to analyze genetic data.
     :maxdepth: 1
 
     representation <representation/index>
-    type <type/index>
+    expr <expr/index>
 
