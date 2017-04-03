@@ -532,11 +532,12 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     val newSignature = signature.copy(fields = fields.updated(index, Field(columnName, explodeType, index)))
 
+    val empty = Iterable.empty[Seq[Any]]
     val explodedRDD = rdd.flatMap { a =>
       val row = a.asInstanceOf[Row].toSeq
       val it = row(index)
       if (it == null)
-        None
+        empty
       else
         for (element <- row(index).asInstanceOf[Iterable[_]]) yield row.updated(index, element)
     }.map(Annotation.fromSeq)
