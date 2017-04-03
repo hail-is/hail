@@ -2483,7 +2483,7 @@ class VariantDataset(object):
         phenotype and all covariates are defined. For each variant, missing genotypes
         as the mean of called genotypes. By default, genotypes values are given by hard call genotypes (``g.gt``).
         If ``use_dosages=True``, then genotype values are given by dosage genotypes, defined by
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 * \mathrm{P}(\mathrm{HomVar})`,
+        :math:`\mathrm{P}(\mathrm{Het}) + 2 \mathrm{P}(\mathrm{HomVar})`,
         where these probabilities are derived from a uniform prior and the PL likelihoods (converted from Phred-scale)
         if :py:meth:`.is_dosage` on this variant dataset is ``False``.
 
