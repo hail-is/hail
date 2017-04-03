@@ -10,32 +10,32 @@ role = Popen('/usr/share/google/get_metadata_value attributes/dataproc-role', sh
 # initialization actions to perform on master machine only
 if role == 'Master':
 
-	# additional packages to install
+    # additional packages to install
     pkgs = [
         'lxml',
         'jupyter-spark',
         'jgscm'
     ]
 
-	# use pip to install packages
+    # use pip to install packages
     for pkg in pkgs:
         call('/home/anaconda2/bin/pip install {}'.format(pkg), shell=True)
 
-	# get latest Hail hash
+    # get latest Hail hash
     hash = Popen('gsutil cat gs://hail-common/latest-hash.txt', shell=True, stdout=PIPE, stderr=PIPE).communicate()[0].strip()
 
-	# Hail jar and zip names
+    # Hail jar and zip names
     hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hash)
     hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
 
-	# make directory for Hail and Jupyter notebook related files
+    # make directory for Hail and Jupyter notebook related files
     call('mkdir /home/hail/', shell=True)
 
-	# copy Hail jar and zip to local directory on master node
+    # copy Hail jar and zip to local directory on master node
     call('gsutil cp gs://hail-common/{} /home/hail/'.format(hail_jar), shell=True)
     call('gsutil cp gs://hail-common/{} /home/hail/'.format(hail_zip), shell=True)
 
-	# modify default Spark config file to reference Hail jar and zip
+    # modify default Spark config file to reference Hail jar and zip
     with open('/etc/spark/conf/spark-defaults.conf', 'ab') as f:
         opts = [
             'spark.jars=/home/hail/{}'.format(hail_jar),
@@ -43,8 +43,8 @@ if role == 'Master':
         ]
         f.write('\n'.join(opts))
 
-	# create Jupyter configuration file
-	call('mkdir -p /home/anaconda2/etc/jupyter/', shell=True)
+    # create Jupyter configuration file
+    call('mkdir -p /home/anaconda2/etc/jupyter/', shell=True)
     with open('/home/anaconda2/etc/jupyter/jupyter_notebook_config.py', 'wb') as f:
 	    opts = [
 		    'c.Application.log_level = "DEBUG"',
