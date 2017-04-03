@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.utils.Interval
 import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
+import scala.collection.mutable
 
 trait HailRep[T] { self =>
   def typ: Type
