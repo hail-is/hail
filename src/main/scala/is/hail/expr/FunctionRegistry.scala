@@ -1595,7 +1595,7 @@ object FunctionRegistry {
     "Compute the sum by index. All elements in the aggregable must have the same length."
   )(aggregableHr(arrayHr(doubleHr)), arrayHr(doubleHr))
 
-  val maxAggDocstring = """Compute the max of all non-missing elements. The empty max is missing."""
+  val maxAggDocstring = """Compute the maximum of all non-missing elements. The empty max is missing."""
   registerAggregator[Int, Any]("max", () => new MaxAggregator[Int]()(ev = implicitly[Numeric[Int]], ct = ClassTag.apply(classOf[Int])), maxAggDocstring)(aggregableHr(intHr), boxedintHr)
 
   registerAggregator[Long, Any]("max", () => new MaxAggregator[Long](), maxAggDocstring)(aggregableHr(longHr), boxedlongHr)
@@ -1603,6 +1603,15 @@ object FunctionRegistry {
   registerAggregator[Float, Any]("max", () => new MaxAggregator[Float](), maxAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
 
   registerAggregator[Double, Any]("max", () => new MaxAggregator[Double](), maxAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
+
+  val minAggDocstring = """Compute the minimum of all non-missing elements. The empty max is missing."""
+  registerAggregator[Int, Any]("min", () => new MinAggregator[Int]()(ev = implicitly[Numeric[Int]], ct = ClassTag.apply(classOf[Int])), minAggDocstring)(aggregableHr(intHr), boxedintHr)
+
+  registerAggregator[Long, Any]("min", () => new MinAggregator[Long](), minAggDocstring)(aggregableHr(longHr), boxedlongHr)
+
+  registerAggregator[Float, Any]("min", () => new MinAggregator[Float](), minAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
+
+  registerAggregator[Double, Any]("min", () => new MinAggregator[Double](), minAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
 
   registerAggregator[Genotype, Any]("infoScore", () => new InfoScoreAggregator(),
     """

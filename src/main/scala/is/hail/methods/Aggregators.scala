@@ -391,11 +391,38 @@ class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) exte
   }
 
   def combOp(agg2: this.type) {
-    if (_isNull || !agg2._isNull && ev.compare(_state, agg2._state) >= 0)
+    if (_isNull || !agg2._isNull && ev.compare(_state, agg2._state) > 0)
           _state = agg2._state
   }
 
   def copy() = new MaxAggregator()
+}
+
+class MinAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[Any] {
+
+  var _state: T = ev.zero
+
+  var _isNull: Boolean = true
+
+  def result: Any = if (_isNull) null else _state
+
+  def seqOp(x: Any) {
+    if (x != null) {
+      if (_isNull) {
+        _state = x.asInstanceOf[T]
+        _isNull = false
+      } else
+      if (ev.compare(x.asInstanceOf[T], _state) < 0)
+        _state = x.asInstanceOf[T]
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    if (_isNull || !agg2._isNull && ev.compare(_state, agg2._state) < 0)
+      _state = agg2._state
+  }
+
+  def copy() = new MinAggregator()
 }
 
 class CallStatsAggregator(variantF: (Any) => Any)
