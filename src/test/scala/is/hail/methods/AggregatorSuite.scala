@@ -123,6 +123,22 @@ class AggregatorSuite extends SparkSuite {
     p.check()
   }
 
+  @Test def testMax() {
+    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+      val vds2 = vds.splitMulti()
+        .variantQC()
+        .annotateVariantsExpr("va.maxGT = gs.map(g => g.gt).max()")
+        .annotateVariantsExpr("va.same = va.qc.nCalled == 0 && isMissing(va.maxGT) || (va.maxGT == " +
+          "(if (va.qc.nHomVar > 0) 2 else if (va.qc.nHet > 0) 1 else 0))")
+      val (_, querier) = vds2.queryVA("va.same")
+      vds2.variantsAndAnnotations
+        .forall { case (v, va) =>
+          Option(querier(va)).exists(_.asInstanceOf[Boolean])
+        }
+    }
+    p.check()
+  }
+
   @Test def testHist() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
 

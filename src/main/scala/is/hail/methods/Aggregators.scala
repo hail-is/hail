@@ -310,7 +310,7 @@ class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregat
 
   var _state: T = ev.zero
 
-  def result = _state
+  def result: T = _state
 
   def seqOp(x: Any) {
     if (x != null)
@@ -371,13 +371,41 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
   def copy() = new SumArrayAggregator()
 }
 
+class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[Any] {
+
+  var _state: T = ev.zero
+
+  var _isNull: Boolean = true
+
+  def result: Any = if (_isNull) null else _state
+
+  def seqOp(x: Any) {
+    if (x != null) {
+      if (_isNull) {
+        _state = x.asInstanceOf[T]
+        _isNull = false
+      } else
+        if (ev.compare(x.asInstanceOf[T], _state) > 0)
+          _state = x.asInstanceOf[T]
+    }
+  }
+
+  def combOp(agg2: this.type) = {
+    if (agg2._state != null)
+      if (_state != null && ev.compare(_state, agg2._state) >= 0)
+        _state = agg2._state
+  }
+
+  def copy() = new MaxAggregator()
+}
+
 class CallStatsAggregator(variantF: (Any) => Any)
   extends TypedAggregator[Annotation] {
 
   var first = true
   var combiner: CallStatsCombiner = _
 
-  def result =
+  def result: Annotation =
     if (combiner != null)
       combiner.result().asAnnotation
     else

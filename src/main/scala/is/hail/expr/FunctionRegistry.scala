@@ -1562,7 +1562,7 @@ object FunctionRegistry {
     """
   )(aggregableHr(TTHr), arrayHr(TTHr))
 
-  val sumAggDocstring = """Compute the sum of all elements."""
+  val sumAggDocstring = """Compute the sum of all non-missing elements. The empty sum is 0."""
   registerAggregator[Int, Int]("sum", () => new SumAggregator[Int](), sumAggDocstring)(aggregableHr(intHr), intHr)
 
   registerAggregator[Long, Long]("sum", () => new SumAggregator[Long](), sumAggDocstring)(aggregableHr(longHr), longHr)
@@ -1577,7 +1577,7 @@ object FunctionRegistry {
 
     **Examples**
 
-    Compute the counts of each allele per variant:
+    Count the total number of occurances of each allele across samples, per variant:
 
     >>> vds_result = vds.annotate_variants_expr('va.AC = gs.map(g => g.oneHotAlleles(v)).sum()')
     """
@@ -1594,6 +1594,15 @@ object FunctionRegistry {
   registerAggregator[IndexedSeq[Double], IndexedSeq[Double]]("sum", () => new SumArrayAggregator[Double](),
     "Compute the sum by index. All elements in the aggregable must have the same length."
   )(aggregableHr(arrayHr(doubleHr)), arrayHr(doubleHr))
+
+  val maxAggDocstring = """Compute the max of all non-missing elements. The empty max is missing."""
+  registerAggregator[Int, Any]("max", () => new MaxAggregator[Int]()(ev = implicitly[Numeric[Int]], ct = ClassTag.apply(classOf[Int])), maxAggDocstring)(aggregableHr(intHr), boxedintHr)
+
+  registerAggregator[Long, Any]("max", () => new MaxAggregator[Long](), maxAggDocstring)(aggregableHr(longHr), boxedlongHr)
+
+  registerAggregator[Float, Any]("max", () => new MaxAggregator[Float](), maxAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
+
+  registerAggregator[Double, Any]("max", () => new MaxAggregator[Double](), maxAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
 
   registerAggregator[Genotype, Any]("infoScore", () => new InfoScoreAggregator(),
     """
