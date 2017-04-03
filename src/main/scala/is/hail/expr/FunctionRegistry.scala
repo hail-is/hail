@@ -1604,7 +1604,7 @@ object FunctionRegistry {
 
   registerAggregator[Double, Any]("max", () => new MaxAggregator[Double](), maxAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
 
-  val minAggDocstring = """Compute the minimum of all non-missing elements. The empty max is missing."""
+  val minAggDocstring = """Compute the minimum of all non-missing elements. The empty min is missing."""
   registerAggregator[Int, Any]("min", () => new MinAggregator[Int]()(ev = implicitly[Numeric[Int]], ct = ClassTag.apply(classOf[Int])), minAggDocstring)(aggregableHr(intHr), boxedintHr)
 
   registerAggregator[Long, Any]("min", () => new MinAggregator[Long](), minAggDocstring)(aggregableHr(longHr), boxedlongHr)
