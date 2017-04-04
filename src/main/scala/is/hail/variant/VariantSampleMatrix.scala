@@ -685,7 +685,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       .filter(_._1 != null)
       .collectAsMap()
 
-    annotateSamples(ktMap, finalType, inserter)
+    annotateSamples(s => ktMap.getOrElse(s, null), finalType, inserter)
   }
 
   def annotateSamplesKeyTable(kt: KeyTable, vdsKey: java.util.ArrayList[String], code: String): VariantSampleMatrix[T] =
@@ -717,7 +717,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val annotationMap = ktRdd.join(thisRdd).map { case (_, (tableAnnotation, s)) => (s, tableAnnotation) }
       .collectAsMap()
 
-    annotateSamples(annotationMap, finalType, inserter)
+    annotateSamples(s => annotationMap.getOrElse(s, null), finalType, inserter)
   }
 
   def annotateSamples(annotation: (String) => Annotation, newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {
