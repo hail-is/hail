@@ -1,6 +1,9 @@
 package is.hail.methods
 
+import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
+import is.hail.expr._
+import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
@@ -123,36 +126,22 @@ class AggregatorSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testMax() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.splitMulti()
-        .variantQC()
-        .annotateVariantsExpr("va.maxGT = gs.map(g => g.gt).max()")
-        .annotateVariantsExpr("va.same = va.qc.nCalled == 0 && isMissing(va.maxGT) || (va.maxGT == " +
-          "(if (va.qc.nHomVar > 0) 2 else if (va.qc.nHet > 0) 1 else 0))")
-      val (_, querier) = vds2.queryVA("va.same")
-      vds2.variantsAndAnnotations
-        .forall { case (v, va) =>
-          Option(querier(va)).exists(_.asInstanceOf[Boolean])
-        }
-    }
-    p.check()
-  }
+  @Test def testMaxMin() {
+    val rdd = sc.parallelize(Seq(
+      Annotation("a",  0,    1, -1.0, null,  1,   -1, null, null),
+      Annotation("a", -1, null,  1.0, null,  0, null,   1f, null),
+      Annotation("a",  1,   -1, null, null, -1,    1,  -1f, null)))
 
-  @Test def testMin() {
-    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.splitMulti()
-        .variantQC()
-        .annotateVariantsExpr("va.minGT = gs.map(g => -g.gt).min()")
-        .annotateVariantsExpr("va.same = va.qc.nCalled == 0 && isMissing(va.minGT) || (va.minGT == " +
-          "(if (va.qc.nHomVar > 0) -2 else if (va.qc.nHet > 0) -1 else 0))")
-      val (_, querier) = vds2.queryVA("va.same")
-      vds2.variantsAndAnnotations
-        .forall { case (v, va) =>
-          Option(querier(va)).exists(_.asInstanceOf[Boolean])
-        }
-    }
-    p.check()
+    val signature = TStruct("group" -> TString,
+      "s1" -> TInt, "s2" -> TInt, "s3" -> TDouble, "s4" -> TInt,
+      "s5" -> TInt, "s6" -> TInt, "s7" -> TFloat, "s8" -> TLong)
+
+    val kt = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
+      .aggregate("group = group",
+        "max1 = s1.max(), max2 = s2.max(), max3 = s3.max(), max4 = s4.max(), " +
+          "min5 = s5.min(), min6 = s6.min(), min7 = s7.min(), min8 = s8.min()")
+
+    assert(kt.collect() == IndexedSeq(Annotation("a", 1, 1, 1.0, null, -1, -1, -1.0, null)))
   }
 
   @Test def testHist() {

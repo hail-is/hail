@@ -7,8 +7,8 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
+import is.hail.utils.richUtils.NumericJavaLang._
 import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
-import org.apache.commons.math3
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -1577,7 +1577,7 @@ object FunctionRegistry {
 
     **Examples**
 
-    Count the total number of occurances of each allele across samples, per variant:
+    Count the total number of occurrences of each allele across samples, per variant:
 
     >>> vds_result = vds.annotate_variants_expr('va.AC = gs.map(g => g.oneHotAlleles(v)).sum()')
     """
@@ -1596,22 +1596,22 @@ object FunctionRegistry {
   )(aggregableHr(arrayHr(doubleHr)), arrayHr(doubleHr))
 
   val maxAggDocstring = """Compute the maximum of all non-missing elements. The empty max is missing."""
-  registerAggregator[Int, Any]("max", () => new MaxAggregator[Int]()(ev = implicitly[Numeric[Int]], ct = ClassTag.apply(classOf[Int])), maxAggDocstring)(aggregableHr(intHr), boxedintHr)
+  registerAggregator[Int, java.lang.Integer]("max", () => new MaxAggregator[java.lang.Integer](), maxAggDocstring)(aggregableHr(intHr), boxedintHr)
 
-  registerAggregator[Long, Any]("max", () => new MaxAggregator[Long](), maxAggDocstring)(aggregableHr(longHr), boxedlongHr)
+  registerAggregator[Long, java.lang.Long]("max", () => new MaxAggregator[java.lang.Long](), maxAggDocstring)(aggregableHr(longHr), boxedlongHr)
 
-  registerAggregator[Float, Any]("max", () => new MaxAggregator[Float](), maxAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
+  registerAggregator[Float, java.lang.Float]("max", () => new MaxAggregator[java.lang.Float](), maxAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
 
-  registerAggregator[Double, Any]("max", () => new MaxAggregator[Double](), maxAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
+  registerAggregator[Double, java.lang.Double]("max", () => new MaxAggregator[java.lang.Double](), maxAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
 
   val minAggDocstring = """Compute the minimum of all non-missing elements. The empty min is missing."""
-  registerAggregator[Int, Any]("min", () => new MinAggregator[Int]()(ev = implicitly[Numeric[Int]], ct = ClassTag.apply(classOf[Int])), minAggDocstring)(aggregableHr(intHr), boxedintHr)
+  registerAggregator[Int, java.lang.Integer]("min", () => new MinAggregator[java.lang.Integer](), minAggDocstring)(aggregableHr(intHr), boxedintHr)
 
-  registerAggregator[Long, Any]("min", () => new MinAggregator[Long](), minAggDocstring)(aggregableHr(longHr), boxedlongHr)
+  registerAggregator[Long, java.lang.Long]("min", () => new MinAggregator[java.lang.Long](), minAggDocstring)(aggregableHr(longHr), boxedlongHr)
 
-  registerAggregator[Float, Any]("min", () => new MinAggregator[Float](), minAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
+  registerAggregator[Float, java.lang.Float]("min", () => new MinAggregator[java.lang.Float](), minAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
 
-  registerAggregator[Double, Any]("min", () => new MinAggregator[Double](), minAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
+  registerAggregator[Double, java.lang.Double]("min", () => new MinAggregator[java.lang.Double](), minAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
 
   registerAggregator[Genotype, Any]("infoScore", () => new InfoScoreAggregator(),
     """

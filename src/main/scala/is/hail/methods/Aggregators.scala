@@ -371,59 +371,44 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
   def copy() = new SumArrayAggregator()
 }
 
-class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[Any] {
+class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[T] {
 
-  var _state: T = ev.zero
+  var _state: T = _
 
-  var _isNull: Boolean = true
-
-  def result: Any = if (_isNull) null else _state
+  def result = _state
 
   def seqOp(x: Any) {
-    if (x != null) {
-      if (_isNull) {
-        _state = x.asInstanceOf[T]
-        _isNull = false
-      } else
-        if (ev.compare(x.asInstanceOf[T], _state) > 0)
-          _state = x.asInstanceOf[T]
-    }
+    if (_state == null || (x != null && ev.compare(x.asInstanceOf[T], _state) > 0))
+      _state = x.asInstanceOf[T]
   }
 
   def combOp(agg2: this.type) {
-    if (_isNull || !agg2._isNull && ev.compare(_state, agg2._state) > 0)
+    if (_state == null || (agg2._state != null && ev.compare(agg2._state, _state) > 0))
           _state = agg2._state
   }
 
   def copy() = new MaxAggregator()
 }
 
-class MinAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[Any] {
+class MinAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[T] {
 
-  var _state: T = ev.zero
+  var _state: T = _
 
-  var _isNull: Boolean = true
-
-  def result: Any = if (_isNull) null else _state
+  def result = _state
 
   def seqOp(x: Any) {
-    if (x != null) {
-      if (_isNull) {
-        _state = x.asInstanceOf[T]
-        _isNull = false
-      } else
-      if (ev.compare(x.asInstanceOf[T], _state) < 0)
-        _state = x.asInstanceOf[T]
-    }
+    if (_state == null || (x != null && ev.compare(x.asInstanceOf[T], _state) < 0))
+      _state = x.asInstanceOf[T]
   }
 
   def combOp(agg2: this.type) {
-    if (_isNull || !agg2._isNull && ev.compare(_state, agg2._state) < 0)
+    if (_state == null || (agg2._state != null && ev.compare(agg2._state, _state) < 0))
       _state = agg2._state
   }
 
   def copy() = new MinAggregator()
 }
+
 
 class CallStatsAggregator(variantF: (Any) => Any)
   extends TypedAggregator[Annotation] {
