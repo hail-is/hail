@@ -45,4 +45,9 @@ Another way to use the Dataproc service is through a Jupyter notebook running on
 $ start-cluster --name mycluster --notebook
 ...wait for cluster to start...
 $ connect-cluster --name mycluster --notebook
-...
+```
+When your browser opens with the connection to the Jupyter notebook server, you should see the home directory of the Google project your cluster was launched in, with all of the project's buckets listed. 
+
+Select the bucket you'd like to work in, and you should see all of the files and directories in that bucket. You can either resume working on an existing `.ipynb` in the bucket, or create a new notebook by selecting `Hail` from the `New` notebook drop-down in the upper-right corner.
+
+When you save your notebooks using either `File -> Save and Checkpoint` or `command + s`, they should be saved automatically to the bucket.
