@@ -1562,7 +1562,7 @@ object FunctionRegistry {
     """
   )(aggregableHr(TTHr), arrayHr(TTHr))
 
-  val sumAggDocstring = """Compute the sum of all non-missing elements. The empty sum is 0."""
+  val sumAggDocstring = """Compute the sum of all non-missing elements. The empty sum is zero."""
   registerAggregator[Int, Int]("sum", () => new SumAggregator[Int](), sumAggDocstring)(aggregableHr(intHr), intHr)
 
   registerAggregator[Long, Long]("sum", () => new SumAggregator[Long](), sumAggDocstring)(aggregableHr(longHr), longHr)
