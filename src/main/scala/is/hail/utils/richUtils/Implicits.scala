@@ -1,7 +1,6 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
-import is.hail.utils.richUtils.NumericJavaLang.{NumericJavaLangDouble, NumericJavaLangFloat, NumericJavaLangInt, NumericJavaLangLong}
 import is.hail.utils.{ArrayBuilder, JSONWriter, MultiArray2, Truncatable}
 import is.hail.variant.Variant
 import org.apache.hadoop
@@ -99,12 +98,4 @@ trait Implicits {
   implicit def toJSONWritable[T](x: T)(implicit jw: JSONWriter[T]): JSONWritable[T] = new JSONWritable(x, jw)
 
   implicit def toRichJValue(jv: JValue): RichJValue = new RichJValue(jv)
-
-  implicit val numericJavaLangInt: Numeric[java.lang.Integer] = NumericJavaLangInt
-
-  implicit val numericJavaLangLong: Numeric[java.lang.Long] = NumericJavaLangLong
-
-  implicit val numericJavaLangFloat: Numeric[java.lang.Float] = NumericJavaLangFloat
-
-  implicit val numericJavaLangDouble: Numeric[java.lang.Double] = NumericJavaLangDouble
 }

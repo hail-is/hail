@@ -7,6 +7,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
+import is.hail.utils.NumericPairs._
 import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
@@ -1595,22 +1596,22 @@ object FunctionRegistry {
   )(aggregableHr(arrayHr(doubleHr)), arrayHr(doubleHr))
 
   val maxAggDocstring = """Compute the maximum of all non-missing elements. The empty max is missing."""
-  registerAggregator[Int, java.lang.Integer]("max", () => new MaxAggregator[java.lang.Integer](), maxAggDocstring)(aggregableHr(intHr), boxedintHr)
+  registerAggregator[Int, java.lang.Integer]("max", () => new MaxAggregator[Int, java.lang.Integer](), maxAggDocstring)(aggregableHr(intHr), boxedintHr)
 
-  registerAggregator[Long, java.lang.Long]("max", () => new MaxAggregator[java.lang.Long](), maxAggDocstring)(aggregableHr(longHr), boxedlongHr)
+  registerAggregator[Long, java.lang.Long]("max", () => new MaxAggregator[Long, java.lang.Long](), maxAggDocstring)(aggregableHr(longHr), boxedlongHr)
 
-  registerAggregator[Float, java.lang.Float]("max", () => new MaxAggregator[java.lang.Float](), maxAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
+  registerAggregator[Float, java.lang.Float]("max", () => new MaxAggregator[Float, java.lang.Float](), maxAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
 
-  registerAggregator[Double, java.lang.Double]("max", () => new MaxAggregator[java.lang.Double](), maxAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
+  registerAggregator[Double, java.lang.Double]("max", () => new MaxAggregator[Double, java.lang.Double](), maxAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
 
   val minAggDocstring = """Compute the minimum of all non-missing elements. The empty min is missing."""
-  registerAggregator[Int, java.lang.Integer]("min", () => new MinAggregator[java.lang.Integer](), minAggDocstring)(aggregableHr(intHr), boxedintHr)
+  registerAggregator[Int, java.lang.Integer]("min", () => new MinAggregator[Int, java.lang.Integer](), minAggDocstring)(aggregableHr(intHr), boxedintHr)
 
-  registerAggregator[Long, java.lang.Long]("min", () => new MinAggregator[java.lang.Long](), minAggDocstring)(aggregableHr(longHr), boxedlongHr)
+  registerAggregator[Long, java.lang.Long]("min", () => new MinAggregator[Long, java.lang.Long](), minAggDocstring)(aggregableHr(longHr), boxedlongHr)
 
-  registerAggregator[Float, java.lang.Float]("min", () => new MinAggregator[java.lang.Float](), minAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
+  registerAggregator[Float, java.lang.Float]("min", () => new MinAggregator[Float, java.lang.Float](), minAggDocstring)(aggregableHr(floatHr), boxedfloatHr)
 
-  registerAggregator[Double, java.lang.Double]("min", () => new MinAggregator[java.lang.Double](), minAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
+  registerAggregator[Double, java.lang.Double]("min", () => new MinAggregator[Double, java.lang.Double](), minAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
 
   registerAggregator[Genotype, Any]("infoScore", () => new InfoScoreAggregator(),
     """

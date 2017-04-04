@@ -319,7 +319,7 @@ class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregat
 
   def combOp(agg2: this.type) = _state += agg2._state
 
-  def copy() = new SumAggregator[T]()
+  def copy() = new SumAggregator()
 }
 
 class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
@@ -368,47 +368,46 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
     }
   }
 
-  def copy() = new SumArrayAggregator[T]()
+  def copy() = new SumArrayAggregator()
 }
 
-class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[T] {
+class MaxAggregator[T, U](implicit ev: NumericPair[T, U], ct: ClassTag[T]) extends TypedAggregator[U] {
 
-  var _state: T = _
+  var _state: U = _
 
   def result = _state
 
   def seqOp(x: Any) {
-    if (_state == null || (x != null && ev.compare(x.asInstanceOf[T], _state) > 0))
-      _state = x.asInstanceOf[T]
+    if (_state == null || (x != null && ev.numeric.compare(ev.unbox(x.asInstanceOf[U]), ev.unbox(_state)) > 0))
+      _state = x.asInstanceOf[U]
   }
 
   def combOp(agg2: this.type) {
-    if (_state == null || (agg2._state != null && ev.compare(agg2._state, _state) > 0))
+    if (_state == null || (agg2._state != null && ev.numeric.compare(ev.unbox(agg2._state), ev.unbox(_state)) > 0))
           _state = agg2._state
   }
 
-  def copy() = new MaxAggregator[T]()
+  def copy() = new MaxAggregator()
 }
 
-class MinAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[T] {
+class MinAggregator[T, U](implicit ev: NumericPair[T, U], ct: ClassTag[T]) extends TypedAggregator[U] {
 
-  var _state: T = _
+  var _state: U = _
 
   def result = _state
 
   def seqOp(x: Any) {
-    if (_state == null || (x != null && ev.compare(x.asInstanceOf[T], _state) < 0))
-      _state = x.asInstanceOf[T]
+    if (_state == null || (x != null && ev.numeric.compare(ev.unbox(x.asInstanceOf[U]), ev.unbox(_state)) < 0))
+      _state = x.asInstanceOf[U]
   }
 
   def combOp(agg2: this.type) {
-    if (_state == null || (agg2._state != null && ev.compare(agg2._state, _state) < 0))
+    if (_state == null || (agg2._state != null && ev.numeric.compare(ev.unbox(agg2._state), ev.unbox(_state)) < 0))
       _state = agg2._state
   }
 
-  def copy() = new MinAggregator[T]()
+  def copy() = new MinAggregator()
 }
-
 
 class CallStatsAggregator(variantF: (Any) => Any)
   extends TypedAggregator[Annotation] {
@@ -530,7 +529,7 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
     agg2._state.foreach { case (x, p) => seqOp(x) }
   }
 
-  def copy() = new TakeByAggregator[T](f, n)
+  def copy() = new TakeByAggregator(f, n)
 
   private def writeObject(oos: ObjectOutputStream) {
     oos.writeObject(f)

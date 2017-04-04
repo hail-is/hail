@@ -128,20 +128,22 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testMaxMin() {
     val rdd = sc.parallelize(Seq(
-      Annotation("a",  0,    1, -1.0, null,  1,   -1, null, null),
-      Annotation("a", -1, null,  1.0, null,  0, null,   1f, null),
-      Annotation("a",  1,   -1, null, null, -1,    1,  -1f, null)))
+      Annotation("a",  0,    1, -1.0, null),
+      Annotation("a", -1, null,  1.0, null),
+      Annotation("a",  1,   -1, null, null)))
 
-    val signature = TStruct("group" -> TString,
-      "s1" -> TInt, "s2" -> TInt, "s3" -> TDouble, "s4" -> TInt,
-      "s5" -> TInt, "s6" -> TInt, "s7" -> TFloat, "s8" -> TLong)
+    val signature = TStruct("group" -> TString, "s1" -> TInt, "s2" -> TInt, "s3" -> TDouble, "s4" -> TInt)
 
-    val kt = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
-      .aggregate("group = group",
-        "max1 = s1.max(), max2 = s2.max(), max3 = s3.max(), max4 = s4.max(), " +
-          "min5 = s5.min(), min6 = s6.min(), min7 = s7.min(), min8 = s8.min()")
+    val ktMax = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
+      .aggregate("group = group", "s1 = s1.max(), s2 = s2.max(), s3 = s3.max(), s4 = s4.max()")
 
-    assert(kt.collect() == IndexedSeq(Annotation("a", 1, 1, 1.0, null, -1, -1, -1.0, null)))
+    assert(ktMax.collect() == IndexedSeq(Annotation("a", 1, 1, 1.0, null)))
+
+    val ktMin = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
+      .aggregate("group = group", "s1 = s1.min(), s2 = s2.min(), s3 = s3.min(), s4 = s4.min()")
+
+    assert(ktMin.collect() == IndexedSeq(Annotation("a", -1, -1, -1.0, null)))
+
   }
 
   @Test def testHist() {
