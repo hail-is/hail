@@ -183,6 +183,8 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithTwoCovDosage() {
+    // .gen and .sample files created from regressionLinear.vcf
+    // dosages are derived from PLs so results should agree with testWithTwoCovPhred
     val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
       .filterMulti()
       .annotateSamplesTable("src/test/resources/regressionLinear.cov",
