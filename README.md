@@ -1,10 +1,12 @@
 # cloud-tools
 Scripts for working with Hail on Google Cloud Dataproc service from your local machine.
 
-To get started, clone this repository:    
-`git clone https://github.com/Nealelab/cloud-tools.git`
+To get started, clone this repository:
+```
+git clone https://github.com/Nealelab/cloud-tools.git`
+```
 
-Recommended lines to add in `~/.bash_profile` or `~/.bashrc` if you'd like shortcuts to these scripts:
+If you'd like command line shortcuts to these scripts, add these lines in `~/.bash_profile` or `~/.bashrc`: 
 ```
 alias start-cluster=< local cloud-tools directory >/start_cluster.py
 alias submit-cluster=< local cloud-tools directory >/submit_cluster.py
