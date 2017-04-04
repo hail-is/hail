@@ -34,7 +34,9 @@ $ submit-cluster --name mycluster myhailscript.py
 Job [...] finished successfully.
 ```
 
-This snippet starts a cluster with the defaults included in `start_cluster.py` and submits a Hail Python script as a job. The default initialization script installs the Anaconda Python2.7 distribution on the cluster's master machine, so you'll have access to pandas, numpy, etc. in your scripts.
+This snippet starts a cluster with the defaults included in `start_cluster.py` and submits a Hail Python script as a job. 
+
+The default initialization script installs the Anaconda Python2.7 distribution on the cluster's master machine, so you'll have access to pandas, numpy, etc. in your scripts.
 
 While your job is running, you can monitor its progress through the SparkUI running on the cluster's master machine. To connect to the SparkUI from your local machine, use:
 ```
