@@ -5,7 +5,8 @@ import argparse
 from subprocess import call
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--name', '-n', required=True, type=str, help='Name of cluster.')
+parser.add_argument('--name', '-n', required=True, type=str, help='Name of the cluster.')
+parser.add_argument('--zone', '-z', required=False, type=str, default='us-central1-b', help='Zone of the cluster.')
 parser.add_argument('--notebook', '--nb', action='store_true')
 args = parser.parse_args()
 
@@ -13,6 +14,7 @@ args = parser.parse_args()
 cmd = ' '.join([
     'gcloud compute ssh',
     '{}'.format(args.name + '-m'),
+    '--zone={}'.format(args.zone),
     '--ssh-flag="-D 10000 -N -f -n"',
     '> /dev/null 2>&1 &'
 ])
