@@ -63,3 +63,5 @@ hc = hail.HailContext()
 ```
 
 When you save your notebooks using either `File -> Save and Checkpoint` or `command + s`, they should be saved automatically to the bucket.
+
+**NOTE:** While you can reference Google Storage objects directly in many Hail functions -- `vds.annotate_variants_table('gs://mylist.tsv', ...)`, etc. -- you  
