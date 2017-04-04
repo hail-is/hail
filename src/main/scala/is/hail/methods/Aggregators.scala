@@ -6,6 +6,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
+import is.hail.utils.richUtils.NumericJavaLang
 import is.hail.variant._
 import org.apache.spark.util.StatCounter
 
