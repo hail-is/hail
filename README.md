@@ -29,10 +29,12 @@ Job [...] finished successfully.
 
 This snippet starts a cluster with the defaults included in `start_cluster.py` and submits a Hail Python script as a job.    
 
-While your job is running, you can monitor its progress through the SparkUI. To connect to the SparkUI (which is running on the master machine in your cluster) from your local machine, use:
+While your job is running, you can monitor its progress through the SparkUI running on the cluster's master machine. To connect to the SparkUI from your local machine, use:
 ```
 $ connect-cluster --name mycluster
 ```
+
+**NOTE:** The `connect_cluster.py` script assumes that Google Chrome is installed on your local machine in the (default) location: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
 
 ### Interactive Hail with Jupyter Notebook
 
