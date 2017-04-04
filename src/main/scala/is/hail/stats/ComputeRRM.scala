@@ -7,10 +7,9 @@ import is.hail.utils.richUtils.RichIndexedRowMatrix._
 
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vector, Vectors}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix, RowMatrix}
+import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vectors}
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix, RowMatrix}
 
-import scala.collection.parallel.immutable.ParSeq
 
 // diagonal values are approximately m assuming independent variants by Central Limit Theorem
 object ComputeGramian {
@@ -58,17 +57,15 @@ object ComputeRRM {
     val mRec = 1d / rowCount
 
     (new IndexedRowMatrix(computedGramian.rows.map(ir => new IndexedRow(ir.index, ir.vector.map(_ * mRec)))), rowCount)
-    //val scaledBlockRDD = computedGramian.blocks.map(tuple => tuple match {case (coords, matrix) => (coords, scaleMatrix(matrix, mRec))})
-    //(new BlockMatrix(scaledBlockRDD, computedGramian.rowsPerBlock, computedGramian.colsPerBlock), rowCount.toInt)
   }
 }
 
 object LocalDenseMatrixToIndexedRowMatrix {
   def apply(dm: DenseMatrix[Double], sc: SparkContext): IndexedRowMatrix = {
     //TODO Is there a better Breeze to Spark conversion?
-    val range = (0 until dm.rows).par
-    val numberedDVs: ParSeq[IndexedRow] = range.map(rowNum => IndexedRow(rowNum.toLong, (dm(rowNum, ::).t)))
-    new IndexedRowMatrix(sc.parallelize(numberedDVs.seq))
+    val range = (0 until dm.rows)
+    val numberedDVs = range.map(rowNum => IndexedRow(rowNum.toLong, (dm(rowNum, ::).t)))
+    new IndexedRowMatrix(sc.parallelize(numberedDVs))
   }
 }
 

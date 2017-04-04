@@ -53,9 +53,9 @@ object LinearMixedRegression {
 
     val covNames = "intercept" +: covSA
 
-    val filtKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet)
+    val filteredKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet)
 
-    if (!(filtKinshipMatrix.sampleIds sameElements completeSamples))
+    if (!(filteredKinshipMatrix.sampleIds sameElements completeSamples))
       fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
         "samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
 
@@ -68,9 +68,9 @@ object LinearMixedRegression {
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
 
-    val cols = filtKinshipMatrix.matrix.numCols().toInt
+    val cols = filteredKinshipMatrix.matrix.numCols().toInt
 
-    val rrm = new DenseMatrix[Double](cols, cols, filtKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
+    val rrm = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
 
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
