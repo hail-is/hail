@@ -58,7 +58,7 @@ Select the bucket you'd like to work in, and you should see all of the files and
 From the notebook, you can use Hail the same way that you would in a complete job script:
 ```
 import hail
-hc = hail.HailContext(log = '...')
+hc = hail.HailContext()
 ...
 ```
 
