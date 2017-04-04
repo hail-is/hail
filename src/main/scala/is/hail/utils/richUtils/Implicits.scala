@@ -100,11 +100,11 @@ trait Implicits {
 
   implicit def toRichJValue(jv: JValue): RichJValue = new RichJValue(jv)
 
-  implicit val numericJavaLangInt: NumericJavaLangInt.type = NumericJavaLangInt
+  implicit val numericJavaLangInt: Numeric[java.lang.Integer] = NumericJavaLangInt
 
-  implicit val numericJavaLangLong: NumericJavaLangLong.type = NumericJavaLangLong
+  implicit val numericJavaLangLong: Numeric[java.lang.Long] = NumericJavaLangLong
 
-  implicit val numericJavaLangFloat: NumericJavaLangFloat.type = NumericJavaLangFloat
+  implicit val numericJavaLangFloat: Numeric[java.lang.Float] = NumericJavaLangFloat
 
-  implicit val numericJavaLangDouble: NumericJavaLangDouble.type = NumericJavaLangDouble
+  implicit val numericJavaLangDouble: Numeric[java.lang.Double] = NumericJavaLangDouble
 }

@@ -6,7 +6,6 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
-import is.hail.utils.richUtils.NumericJavaLang
 import is.hail.variant._
 import org.apache.spark.util.StatCounter
 
@@ -320,7 +319,7 @@ class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregat
 
   def combOp(agg2: this.type) = _state += agg2._state
 
-  def copy() = new SumAggregator()
+  def copy() = new SumAggregator[T]()
 }
 
 class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
@@ -369,7 +368,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
     }
   }
 
-  def copy() = new SumArrayAggregator()
+  def copy() = new SumArrayAggregator[T]()
 }
 
 class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[T] {
@@ -388,7 +387,7 @@ class MaxAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) exte
           _state = agg2._state
   }
 
-  def copy() = new MaxAggregator()
+  def copy() = new MaxAggregator[T]()
 }
 
 class MinAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) extends TypedAggregator[T] {
@@ -407,7 +406,7 @@ class MinAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T]) exte
       _state = agg2._state
   }
 
-  def copy() = new MinAggregator()
+  def copy() = new MinAggregator[T]()
 }
 
 
@@ -531,7 +530,7 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
     agg2._state.foreach { case (x, p) => seqOp(x) }
   }
 
-  def copy() = new TakeByAggregator(f, n)
+  def copy() = new TakeByAggregator[T](f, n)
 
   private def writeObject(oos: ObjectOutputStream) {
     oos.writeObject(f)
