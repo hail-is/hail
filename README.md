@@ -6,7 +6,7 @@ To get started, clone this repository:
 git clone https://github.com/Nealelab/cloud-tools.git`
 ```
 
-If you'd like command line shortcuts to these scripts, add these lines in `~/.bash_profile` or `~/.bashrc`: 
+If you'd like command line shortcuts to these scripts, add these lines to `~/.bash_profile` or `~/.bashrc`: 
 ```
 alias start-cluster=< local cloud-tools directory >/start_cluster.py
 alias submit-cluster=< local cloud-tools directory >/submit_cluster.py
