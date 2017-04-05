@@ -26,8 +26,7 @@ def requireTGenotype(func, vds, *args, **kwargs):
 def convertVDS(func, vds, *args, **kwargs):
     if vds._is_generic_genotype:
         if isinstance(vds.genotype_schema, TGenotype):
-            coerced_vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
-            return func(coerced_vds, *args, **kwargs)
+            vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
 
     return func(vds, *args, **kwargs)
 
@@ -378,14 +377,35 @@ class VariantDataset(object):
 
         **Notes**
 
+        :py:meth:`~hail.VariantDataset.annotate_genotypes_expr` evaluates the expression given by ``expr`` and assigns
+        the result of the right hand side to the annotation path specified by the left-hand side (must
+        begin with ``g``). This is analogous to :py:meth:`~hail.VariantDataset.annotate_variants_expr` and
+        :py:meth:`~hail.VariantDataset.annotate_samples_expr` where the annotation paths are ``va`` and ``sa`` respectively.
+
+        ``expr`` is in genotype context so the following symbols are in scope:
+
+          - ``g``: genotype annotation
+          - ``v`` (*Variant*): :ref:`variant`
+          - ``va``: variant annotations
+          - ``s`` (*Sample*): :ref:`sample`
+          - ``sa``: sample annotations
+          - ``global``: global annotations
+
+        For more information, see the documentation on writing `expressions <overview.html#expressions>`_
+        and using the `Hail Expression Language <exprlang.html>`_.
+
         .. warning::
 
             - If the resulting genotype schema is not :py:class:`~hail.expr.TGenotype`,
-            subsequent function calls on the annotated variant dataset may not work such as
-            :py:meth:`~hail.VariantDataset.pca` and :py:meth:`~hail.VariantDataset.linreg`.
+              subsequent function calls on the annotated variant dataset may not work such as
+              :py:meth:`~hail.VariantDataset.pca` and :py:meth:`~hail.VariantDataset.linreg`.
 
             - Hail performance may be significantly slower (~2X) if the annotated variant dataset does not have a
-            genotype schema equal to :py:class:`~hail.expr.TGenotype`.
+              genotype schema equal to :py:class:`~hail.expr.TGenotype`.
+
+            - Genotypes are immutable. For example, if ``g`` is initially of type ``Genotype``, the expression
+              ``g.gt = g.gt + 1`` will return a ``Struct`` with one field ``gt`` of type ``Int`` and **NOT** a ``Genotype``
+              with the ``gt`` incremented by 1.
 
         :param expr: Annotation expression.
         :type expr: str or list of str
