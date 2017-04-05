@@ -39,9 +39,9 @@ if role == 'Master':
     with open('/etc/spark/conf/spark-defaults.conf', 'ab') as f:
         opts = [
             'spark.files=/home/hail/{}'.format(hail_jar),
-            #'spark.submit.pyFiles=/home/hail/{}'.format(hail_zip),
-            'spark.driver.extraClassPath=/home/hail/{}'.format(hail_jar),
-            'spark.executor.extraClassPath=/home/hail/{}'.format(hail_jar)
+            'spark.submit.pyFiles=/home/hail/{}'.format(hail_zip),
+            'spark.driver.extraClassPath=./{}'.format(hail_jar),
+            'spark.executor.extraClassPath=./{}'.format(hail_jar)
         ]
         f.write('\n'.join(opts))
 
