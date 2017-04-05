@@ -376,18 +376,21 @@ class MaxAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   import ev.numeric
   import Ordering.Implicits._
 
-  var _state: BoxedT = _
+  var _state: T = ev.numeric.zero
+  var _isNull: Boolean = true
 
-  def result = _state
+  def result: BoxedT = if (_isNull) null else ev.box(_state)
 
   def seqOp(x: Any) {
-    if (_state == null || (x != null && ev.unbox(x.asInstanceOf[BoxedT]) > ev.unbox(_state)))
-      _state = x.asInstanceOf[BoxedT]
+    if (x != null && (_isNull || ev.unbox(x.asInstanceOf[BoxedT]) > _state)) {
+      _isNull = false
+      _state = ev.unbox(x.asInstanceOf[BoxedT])
+    }
   }
 
   def combOp(agg2: this.type) {
-    if (_state == null || (agg2._state != null && ev.unbox(agg2._state) > ev.unbox(_state)))
-          _state = agg2._state
+    if (!agg2._isNull && (_isNull || agg2._state > _state))
+      _state = agg2._state
   }
 
   def copy() = new MaxAggregator[T, BoxedT]()
@@ -398,17 +401,20 @@ class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   import ev.numeric
   import Ordering.Implicits._
 
-  var _state: BoxedT = _
+  var _state: T = ev.numeric.zero
+  var _isNull: Boolean = true
 
-  def result = _state
+  def result: BoxedT = if (_isNull) null else ev.box(_state)
 
   def seqOp(x: Any) {
-    if (_state == null || (x != null && ev.unbox(x.asInstanceOf[BoxedT]) < ev.unbox(_state)))
-      _state = x.asInstanceOf[BoxedT]
+    if (x != null && (_isNull || ev.unbox(x.asInstanceOf[BoxedT]) < _state)) {
+      _isNull = false
+      _state = ev.unbox(x.asInstanceOf[BoxedT])
+    }
   }
 
   def combOp(agg2: this.type) {
-    if (_state == null || (agg2._state != null && ev.unbox(agg2._state) < ev.unbox(_state)))
+    if (!agg2._isNull && (_isNull || agg2._state < _state))
       _state = agg2._state
   }
 
