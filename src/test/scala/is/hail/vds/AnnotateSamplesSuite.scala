@@ -35,6 +35,9 @@ class AnnotateSamplesSuite extends SparkSuite {
 
     assert(sampleMap == ktMap)
 
+    // should run without throwing an index error
+    vds.annotateSamplesKeyTable(kt.filter("false", keep = true), "sa.annot = table")
+
 
     val sampleMap2 = vds.annotateSamplesKeyTable(kt, List("s"), "sa.annot = table")
       .querySamples("index(samples.map(s => {s: s, anno: sa.annot}).collect(), s).mapValues(x => x.anno)")._1
