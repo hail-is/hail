@@ -25,13 +25,13 @@ class Trio(object):
     @staticmethod
     def _get_sex_jobject():
         if not Trio._sex_jobject:
-            Trio._sex_jobject = scala_object(env.hail.variant, 'Sex')
+            Trio._sex_jobject = scala_object(Env.hail().variant, 'Sex')
         return Trio._sex_jobject
 
     @staticmethod
     def _get_pheno_jobject():
         if not Trio._pheno_jobject:
-            Trio._pheno_jobject = scala_object(env.hail.variant, 'Phenotype')
+            Trio._pheno_jobject = scala_object(Env.hail().variant, 'Phenotype')
         return Trio._pheno_jobject
 
     @handle_py4j
@@ -56,7 +56,7 @@ class Trio(object):
 
         if sex:
             if not Trio._sex_jobject:
-                Trio._sex_jobject = scala_object(env.hail.variant, 'Sex')
+                Trio._sex_jobject = scala_object(Env.hail().variant, 'Sex')
             jsex = jsome(Trio._sex_jobject.Male()) if sex == 1 else jsome(Trio._sex_jobject.Female())
         else:
             jsex = jnone()
@@ -67,7 +67,7 @@ class Trio(object):
         else:
             jpheno = jnone()
 
-        self._jrep = env.hail.methods.BaseTrio(proband, joption(fam), joption(father), joption(mother), jsex, jpheno)
+        self._jrep = Env.hail().methods.BaseTrio(proband, joption(fam), joption(father), joption(mother), jsex, jpheno)
         self._fam = fam
         self._proband = proband
         self._father = father
@@ -257,7 +257,7 @@ class Pedigree(object):
             if not isinstance(t, Trio):
                 raise TypeError("all elements of list 'trios' must be of type Trio, but found '%s'" % type(t))
 
-        self._jrep = env.hail.methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
+        self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = trios
         self._complete_trios = None
 
@@ -293,7 +293,7 @@ class Pedigree(object):
         :rtype: :class:`.Pedigree`
         """
 
-        jrep = scala_object(env.hail.methods, 'Pedigree').fromFam(fam_path, env.hc._jhc.hadoopConf(), delimiter)
+        jrep = scala_object(Env.hail().methods, 'Pedigree').fromFam(fam_path, Env.hc()._jhc.hadoopConf(), delimiter)
         return Pedigree._from_java(jrep)
 
     @property
@@ -345,4 +345,4 @@ class Pedigree(object):
         :param str path: output path
         """
 
-        self._jrep.write(path, env.hc._jhc.hadoopConf())
+        self._jrep.write(path, Env.hc()._jhc.hadoopConf())
