@@ -2,13 +2,13 @@ package is.hail.utils
 
 import scala.math.Numeric.{DoubleIsFractional, FloatIsFractional, IntIsIntegral, LongIsIntegral}
 
-trait NumericPair[T, U] extends Serializable {
+trait NumericPair[T, BoxedT >: Null] extends Serializable {
 
-  def box(t: T): U
+  def box(t: T): BoxedT
 
-  def unbox(u: U): T
+  def unbox(u: BoxedT): T
 
-  def numeric: scala.math.Numeric[T]
+  implicit val numeric: scala.math.Numeric[T]
 }
 
 object NumericPairs {
@@ -19,7 +19,7 @@ object NumericPairs {
 
     def unbox(u: java.lang.Integer): Int = Int.unbox(u)
 
-    def numeric: scala.math.Numeric[Int] = IntIsIntegral
+    val numeric: scala.math.Numeric[Int] = implicitly[Numeric[Int]]
   }
 
   implicit object LongPair extends NumericPair[Long, java.lang.Long] {
@@ -28,7 +28,7 @@ object NumericPairs {
 
     def unbox(u: java.lang.Long): Long = Long.unbox(u)
 
-    def numeric: scala.math.Numeric[Long] = LongIsIntegral
+    val numeric: scala.math.Numeric[Long] = implicitly[Numeric[Long]]
   }
 
   implicit object FloatPair extends NumericPair[Float, java.lang.Float] {
@@ -37,7 +37,7 @@ object NumericPairs {
 
     def unbox(u: java.lang.Float): Float = Float.unbox(u)
 
-    def numeric: scala.math.Numeric[Float] = FloatIsFractional
+    val numeric: scala.math.Numeric[Float] = implicitly[Numeric[Float]]
   }
 
 
@@ -47,6 +47,6 @@ object NumericPairs {
 
     def unbox(u: java.lang.Double): Double = Double.unbox(u)
 
-    def numeric: scala.math.Numeric[Double] = DoubleIsFractional
+    val numeric: scala.math.Numeric[Double] = implicitly[Numeric[Double]]
   }
 }

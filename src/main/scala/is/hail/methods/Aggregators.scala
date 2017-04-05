@@ -371,42 +371,48 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
   def copy() = new SumArrayAggregator()
 }
 
-class MaxAggregator[T, U](implicit ev: NumericPair[T, U], ct: ClassTag[T]) extends TypedAggregator[U] {
+class MaxAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T]) extends TypedAggregator[BoxedT] {
 
-  var _state: U = _
+  import ev.numeric
+  import Ordering.Implicits._
+
+  var _state: BoxedT = _
 
   def result = _state
 
   def seqOp(x: Any) {
-    if (_state == null || (x != null && ev.numeric.compare(ev.unbox(x.asInstanceOf[U]), ev.unbox(_state)) > 0))
-      _state = x.asInstanceOf[U]
+    if (_state == null || (x != null && ev.unbox(x.asInstanceOf[BoxedT]) > ev.unbox(_state)))
+      _state = x.asInstanceOf[BoxedT]
   }
 
   def combOp(agg2: this.type) {
-    if (_state == null || (agg2._state != null && ev.numeric.compare(ev.unbox(agg2._state), ev.unbox(_state)) > 0))
+    if (_state == null || (agg2._state != null && ev.unbox(agg2._state) > ev.unbox(_state)))
           _state = agg2._state
   }
 
-  def copy() = new MaxAggregator()
+  def copy() = new MaxAggregator[T, BoxedT]()
 }
 
-class MinAggregator[T, U](implicit ev: NumericPair[T, U], ct: ClassTag[T]) extends TypedAggregator[U] {
+class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T]) extends TypedAggregator[BoxedT] {
 
-  var _state: U = _
+  import ev.numeric
+  import Ordering.Implicits._
+
+  var _state: BoxedT = _
 
   def result = _state
 
   def seqOp(x: Any) {
-    if (_state == null || (x != null && ev.numeric.compare(ev.unbox(x.asInstanceOf[U]), ev.unbox(_state)) < 0))
-      _state = x.asInstanceOf[U]
+    if (_state == null || (x != null && ev.unbox(x.asInstanceOf[BoxedT]) < ev.unbox(_state)))
+      _state = x.asInstanceOf[BoxedT]
   }
 
   def combOp(agg2: this.type) {
-    if (_state == null || (agg2._state != null && ev.numeric.compare(ev.unbox(agg2._state), ev.unbox(_state)) < 0))
+    if (_state == null || (agg2._state != null && ev.unbox(agg2._state) < ev.unbox(_state)))
       _state = agg2._state
   }
 
-  def copy() = new MinAggregator()
+  def copy() = new MinAggregator[T, BoxedT]()
 }
 
 class CallStatsAggregator(variantF: (Any) => Any)
