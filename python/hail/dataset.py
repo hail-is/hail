@@ -5213,6 +5213,7 @@ class VariantDataset(object):
         jvds = self._jvds.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
+    @handle_py4j
     def nirvana(self, config, block_size = 1000, root = 'va.nirvana'):
         """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_
 
