@@ -389,14 +389,17 @@ class MaxAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   }
 
   def combOp(agg2: this.type) {
-    if (!agg2._isNull && (_isNull || agg2._state > _state))
+    if (!agg2._isNull && (_isNull || agg2._state > _state)) {
+      _isNull = false
       _state = agg2._state
+    }
   }
 
   def copy() = new MaxAggregator[T, BoxedT]()
 }
 
-class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T]) extends TypedAggregator[BoxedT] {
+class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T])
+  extends TypedAggregator[BoxedT] {
 
   import ev.numeric
   import Ordering.Implicits._
@@ -414,8 +417,10 @@ class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   }
 
   def combOp(agg2: this.type) {
-    if (!agg2._isNull && (_isNull || agg2._state < _state))
+    if (!agg2._isNull && (_isNull || agg2._state < _state)) {
+      _isNull = false
       _state = agg2._state
+    }
   }
 
   def copy() = new MinAggregator[T, BoxedT]()
