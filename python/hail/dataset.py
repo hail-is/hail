@@ -19,6 +19,15 @@ def requireTGenotype(func, vds, *args, **kwargs):
             return func(coerced_vds, *args, **kwargs)
         else:
             raise TypeError("Genotype signature must be of type TGenotype, but found '%s'" % type(vds.genotype_schema))
+
+    return func(vds, *args, **kwargs)
+
+@decorator
+def convertVDS(func, vds, *args, **kwargs):
+    if vds._is_generic_genotype:
+        if isinstance(vds.genotype_schema, TGenotype):
+            vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
+
     return func(vds, *args, **kwargs)
 
 class VariantDataset(object):
@@ -347,6 +356,73 @@ class VariantDataset(object):
 
         jvds = self._jvdf.annotateAllelesExpr(expr, propagate_gq)
         return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    def annotate_genotypes_expr(self, expr):
+        """Annotate genotypes with expression.
+
+        **Examples**
+
+        Convert the genotype schema to a :py:class:`~hail.expr.TStruct` with two fields ``GT`` and ``CASE_HET``:
+
+        >>> vds_result = vds.annotate_genotypes_expr('g = {GT: g.gt, CASE_HET: sa.pheno.isCase && g.isHet()}')
+
+        Assume a VCF is imported with ``generic=True`` and the resulting genotype schema
+        is a ``Struct`` and the field ``GTA`` is a ``Call`` type. Use the ``Genotype()`` constructor in the
+        expression language to convert a ``Call`` to a ``Genotype``. ``vds_gta`` will have a genotype schema equal to
+        :py:class:`~hail.expr.TGenotype`
+
+        >>> vds_gta = (hc.import_vcf('data/example3.vcf.bgz', generic=True, call_fields=['GTA'])
+        ...                 .annotate_genotypes_expr('g = Genotype(g.GTA)'))
+
+        **Notes**
+
+        :py:meth:`~hail.VariantDataset.annotate_genotypes_expr` evaluates the expression given by ``expr`` and assigns
+        the result of the right hand side to the annotation path specified by the left-hand side (must
+        begin with ``g``). This is analogous to :py:meth:`~hail.VariantDataset.annotate_variants_expr` and
+        :py:meth:`~hail.VariantDataset.annotate_samples_expr` where the annotation paths are ``va`` and ``sa`` respectively.
+
+        ``expr`` is in genotype context so the following symbols are in scope:
+
+          - ``g``: genotype annotation
+          - ``v`` (*Variant*): :ref:`variant`
+          - ``va``: variant annotations
+          - ``s`` (*Sample*): :ref:`sample`
+          - ``sa``: sample annotations
+          - ``global``: global annotations
+
+        For more information, see the documentation on writing `expressions <overview.html#expressions>`_
+        and using the `Hail Expression Language <exprlang.html>`_.
+
+        .. warning::
+
+            - If the resulting genotype schema is not :py:class:`~hail.expr.TGenotype`,
+              subsequent function calls on the annotated variant dataset may not work such as
+              :py:meth:`~hail.VariantDataset.pca` and :py:meth:`~hail.VariantDataset.linreg`.
+
+            - Hail performance may be significantly slower (~2X) if the annotated variant dataset does not have a
+              genotype schema equal to :py:class:`~hail.expr.TGenotype`.
+
+            - Genotypes are immutable. For example, if ``g`` is initially of type ``Genotype``, the expression
+              ``g.gt = g.gt + 1`` will return a ``Struct`` with one field ``gt`` of type ``Int`` and **NOT** a ``Genotype``
+              with the ``gt`` incremented by 1.
+
+        :param expr: Annotation expression.
+        :type expr: str or list of str
+
+        :return: Annotated variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        if isinstance(expr, list):
+            expr = ",".join(expr)
+
+        jvds = self._jvdf.annotateGenotypesExpr(expr)
+        vds = VariantDataset(self.hc, jvds)
+        if isinstance(vds.genotype_schema, TGenotype):
+            return VariantDataset(self.hc, vds._jvdf.toVDS())
+        else:
+            return vds
 
     @handle_py4j
     def annotate_global_expr(self, expr):
@@ -1259,7 +1335,9 @@ class VariantDataset(object):
         ``'nSamples'``, ``'nVariants'``, and ``'nGenotypes'``.
 
         :param bool genotypes: If True, include number of called
-            genotypes and genotype call rate as keys ``'nCalled'`` and ``'callRate'``, respectively.
+            genotypes and genotype call rate as keys ``'nCalled'`` and ``'callRate'``, respectively. If the genotype
+            schema does not equal :py:class:`~hail.expr.TGenotype`, the definition of "called" is the genotype cell (``g``) is
+            not missing.
 
         :rtype: dict
         """
@@ -1348,9 +1426,14 @@ class VariantDataset(object):
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
+        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default if the genotype schema is equal to :py:class:`~hail.expr.TGenotype`. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
 
         The ``expr`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
+
+        .. warning::
+
+            If the genotype schema does not have the type :py:class:`~hail.expr.TGenotype`, all genotypes will be exported unless the value of ``g`` is missing.
+            Use :py:meth:`~hail.VariantDataset.filter_genotypes` to filter out genotypes based on an expression before exporting.
 
         :param str output: Output path.
 
@@ -1358,12 +1441,15 @@ class VariantDataset(object):
 
         :param bool types: Write types of exported columns to a file at (output + ".types")
 
-        :param bool export_ref: If True, export reference genotypes.
+        :param bool export_ref: If True, export reference genotypes. Only applicable if the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         :param bool export_missing: If True, export missing genotypes.
         """
 
-        self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing)
+        if self._is_generic_genotype:
+            self._jvdf.exportGenotypes(output, expr, types, export_missing)
+        else:
+            self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing)
 
     @handle_py4j
     @requireTGenotype
@@ -1603,6 +1689,13 @@ class VariantDataset(object):
 
         Hail only exports the contents of ``va.info`` to the INFO field. No other annotations besides ``va.info`` are exported.
 
+        The genotype schema must have the type :py:class:`~hail.expr.TGenotype` or :py:class:`~hail.expr.TStruct`. If the type is
+        :py:class:`~hail.expr.TGenotype`, then the FORMAT fields will be GT, AD, DP, GQ, and PL (or PP if ``export_pp`` is True).
+        If the type is :py:class:`~hail.expr.TStruct`, then the exported FORMAT fields will be the names of each field of the Struct.
+        Each field must have a type of String, Char, Int, Double, or Call. Arrays and Sets are also allowed as long as they are not nested.
+        For example, a field with type ``Array[Int]`` can be exported but not a field with type ``Array[Array[Int]]``.
+        Nested Structs are also not allowed.
+
         .. caution::
 
             If samples or genotypes are filtered after import, the value stored in ``va.info.AC`` value may no longer reflect the number of called alternate alleles in the filtered VDS. If the filtered VDS is then exported to VCF, downstream tools may produce erroneous results. The solution is to create new annotations in ``va.info`` or overwrite existing annotations. For example, in order to produce an accurate ``AC`` field, one can run :py:meth:`~hail.VariantDataset.variant_qc` and copy the ``va.qc.AC`` field to ``va.info.AC``:
@@ -1625,6 +1718,7 @@ class VariantDataset(object):
         self._jvdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
 
     @handle_py4j
+    @convertVDS
     def write(self, output, overwrite=False, parquet_genotypes=False):
         """Write variant dataset as VDS file.
 

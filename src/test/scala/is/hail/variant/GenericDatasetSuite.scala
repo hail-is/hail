@@ -111,6 +111,11 @@ class GenericDatasetSuite extends SparkSuite {
     val vds = hc.importVCF(vcf)
     val gds = hc.importVCFGeneric(vcf).annotateGenotypesExpr("g = g.GT")
     assert(vds.count(countGenotypes = true) == gds.count(countGenotypes = true))
+
+    assert(gds
+      .filterGenotypes("false")
+      .count(countGenotypes = true)
+      .nCalled.get == 0)
   }
 
   @Test def testPersistCoalesce() {

@@ -101,6 +101,10 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     }
     val inserters = inserterBuilder.result()
 
+    info(s"""Modified the genotype schema with AnnotateGenotypesExpr.
+             |  Original: ${gds.genotypeSignature.toPrettyString(compact = true)}
+             |  New: ${finalType.toPrettyString(compact = true)}""".stripMargin)
+
     gds.mapValuesWithAll(
       (v: Variant, va: Annotation, s: String, sa: Annotation, g: Annotation) => {
         ec.setAll(v, va, s, sa, g)

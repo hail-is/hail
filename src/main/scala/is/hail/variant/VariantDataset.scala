@@ -373,6 +373,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }.copy(vaSignature = finalType)
   }
 
+  def annotateGenotypesExpr(expr: String): GenericDataset = vds.toGDS.annotateGenotypesExpr(expr)
+
   def cache(): VariantDataset = persist("MEMORY_ONLY")
 
   def persist(storageLevel: String = "MEMORY_AND_DISK"): VariantDataset = {
