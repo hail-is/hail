@@ -147,7 +147,7 @@ class AggregatorSuite extends SparkSuite {
     val ktMin = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
       .aggregate("group = group", "s1 = s1.min(), s2 = s2.min(), s3 = s3.min(),  s4 = s4.min(), s5 = s5.min()")
 
-    assert(ktMin.collect() == IndexedSeq(Annotation("a", -1, -2, -2, -1.0, null)))
+    assert(ktMin.collect() == IndexedSeq(Annotation("a", -1, -2, -4, -1.0, null)))
 
   }
 
