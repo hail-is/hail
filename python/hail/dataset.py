@@ -613,7 +613,7 @@ class VariantDataset(object):
 
         The file must have no header and one sample per line
 
-        .. code-block: text
+        .. code-block:: text
 
             $ cat data/batch1.txt
             SampleA
@@ -644,7 +644,7 @@ class VariantDataset(object):
 
         Given this file
 
-        .. code-block: text
+        .. code-block:: text
 
             $ cat data/samples1.tsv
             Sample	Height	Status  Age
@@ -663,7 +663,7 @@ class VariantDataset(object):
 
         Let's import annotations from a CSV file with missing data and special characters
 
-        .. code-block: text
+        .. code-block:: text
 
             $ cat data/samples2.tsv
             Batch,PT-ID
@@ -691,7 +691,7 @@ class VariantDataset(object):
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information
 
-        .. code-block: text
+        .. code-block:: text
 
             $ cat data/samples3.tsv
             1kg_NA12345   female
@@ -724,25 +724,25 @@ class VariantDataset(object):
 
         Don't generate a full struct in a table with only one annotation column
 
-        .. code-block: text
+        .. code-block:: text
 
             code='sa.annot = table._1'
 
         Put annotations on the top level under `sa`
 
-        .. code-block: text
+        .. code-block:: text
 
             code='sa = merge(sa, table)'
 
         Load only specific annotations from the table
 
-        .. code-block: text
+        .. code-block:: text
 
             code='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
 
         The above is equivalent to
 
-        .. code-block: text
+        .. code-block:: text
 
             code='sa.annotations.toKeep1 = table.toKeep1,
                 sa.annotations.toKeep2 = table.toKeep2,
@@ -858,7 +858,7 @@ class VariantDataset(object):
 
         The file formats are
 
-        .. code-block: text
+        .. code-block:: text
 
             $ cat data/file1.bed
             track name="BedTest"
@@ -2165,7 +2165,7 @@ class VariantDataset(object):
         Conceptually, the output is a symmetric, sample-by-sample matrix. The
         output key table has the following form
 
-        .. code-block: text
+        .. code-block:: text
 
             i		j	ibd.Z0	ibd.Z1	ibd.Z2	ibd.PI_HAT ibs0	ibs1	ibs2
             sample1	sample2	1.0000	0.0000	0.0000	0.0000 ...
