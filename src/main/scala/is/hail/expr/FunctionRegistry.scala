@@ -7,7 +7,6 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.utils.NumericPairs._
 import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._

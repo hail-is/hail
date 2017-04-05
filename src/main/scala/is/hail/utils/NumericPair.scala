@@ -1,7 +1,5 @@
 package is.hail.utils
 
-import scala.math.Numeric.{DoubleIsFractional, FloatIsFractional, IntIsIntegral, LongIsIntegral}
-
 trait NumericPair[T, BoxedT >: Null] extends Serializable {
 
   def box(t: T): BoxedT
@@ -11,7 +9,7 @@ trait NumericPair[T, BoxedT >: Null] extends Serializable {
   implicit val numeric: scala.math.Numeric[T]
 }
 
-object NumericPairs {
+trait NumericPairImplicits {
 
   implicit object IntPair extends NumericPair[Int, java.lang.Integer] {
 

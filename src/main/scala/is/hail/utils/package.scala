@@ -19,6 +19,7 @@ import scala.reflect.ClassTag
 
 package object utils extends Logging
   with richUtils.Implicits
+  with NumericPairImplicits
   with utils.NumericImplicits
   with Py4jUtils
   with ErrorHandling {

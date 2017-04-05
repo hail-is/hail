@@ -13,7 +13,6 @@ import org.json4s.JValue
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
-import scala.math.Ordering
 import scala.reflect.ClassTag
 
 trait Implicits {
