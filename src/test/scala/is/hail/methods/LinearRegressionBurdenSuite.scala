@@ -164,7 +164,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
         root = Some("sa.cov"),
         config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
 
-    val kt = vds.linregBurden("gene", "va.gene", "stats().max", "g.gt.toDouble", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
+    val kt = vds.linregBurden("gene", "va.gene", "max()", "g.gt.toDouble", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
 
     // kt.toDF(hc.sqlContext).show()
 
