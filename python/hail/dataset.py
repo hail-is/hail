@@ -2165,7 +2165,7 @@ class VariantDataset(object):
         Conceptually, the output is a symmetric, sample-by-sample matrix. The
         output key table has the following form
 
-        .. code-block::text
+        .. code-block:: text
 
             i		j	ibd.Z0	ibd.Z1	ibd.Z2	ibd.PI_HAT ibs0	ibs1	ibs2
             sample1	sample2	1.0000	0.0000	0.0000	0.0000 ...
