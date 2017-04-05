@@ -17,14 +17,15 @@ import scala.reflect.classTag
 object RichIndexedRowMatrix {
 
   val intClass = classTag[Int].runtimeClass
-  val gpConstructor = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner")
-    .getDeclaredConstructor(intClass,intClass,intClass,intClass)
-  def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, suggestedNumParts: Int): Partitioner = try {
-    gpConstructor.setAccessible(true)
-    gpConstructor.newInstance(nRowBlocks: java.lang.Integer, nColBlocks: java.lang.Integer,
-      suggestedNumParts).asInstanceOf[Partitioner]
+  val gpObjectClass = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner$")
+  val gpApply = gpObjectClass.getMethod("apply", intClass, intClass, intClass)
+
+  def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, suggestedNumPartitions: Int): Partitioner = try {
+    gpApply.setAccessible(true)
+    gpApply.invoke(gpObjectClass.getField("MODULE$").get(null), nRowBlocks: java.lang.Integer,
+      nColBlocks: java.lang.Integer, suggestedNumPartitions: java.lang.Integer).asInstanceOf[Partitioner]
   } finally {
-    gpConstructor.setAccessible(false)
+    gpApply.setAccessible(false)
   }
 
   implicit class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
