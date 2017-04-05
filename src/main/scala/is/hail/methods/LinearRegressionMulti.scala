@@ -1,0 +1,94 @@
+package is.hail.methods
+
+import breeze.linalg._
+import breeze.numerics.sqrt
+import is.hail.annotations.Annotation
+import is.hail.expr._
+import is.hail.stats._
+import is.hail.utils._
+import is.hail.variant._
+import net.sourceforge.jdistlib.T
+
+object LinearRegressionMulti {
+  def `type` = TStruct(
+    ("beta", TArray(TDouble)),
+    ("se", TArray(TDouble)),
+    ("tstat", TArray(TDouble)),
+    ("pval", TArray(TDouble)))
+
+  def apply(vds: VariantDataset, ySA: Array[String], covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
+    require(vds.wasSplit)
+
+    val (y, cov, completeSamples) = RegressionUtils.getPhenosCovCompleteSamples(vds, ySA, covSA)
+    val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
+
+    val n = y.rows
+    val k = cov.cols
+    val d = n - k - 1
+    val dRec = 1d / d
+
+    if (minAC < 1)
+      fatal(s"Minumum alternate allele count must be a positive integer, got $minAC")
+    if (minAF < 0d || minAF > 1d)
+      fatal(s"Minumum alternate allele frequency must lie in [0.0, 1.0], got $minAF")
+    val combinedMinAC = math.max(minAC, (math.ceil(2 * n * minAF) + 0.5).toInt)
+
+    if (d < 1)
+      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+
+    info(s"Running linreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+
+    val Qt = qr.reduced.justQ(cov).t
+    val Qty = Qt * y
+
+    val sc = vds.sparkContext
+    val sampleMaskBc = sc.broadcast(sampleMask)
+    val yBc = sc.broadcast(y)
+    val QtBc = sc.broadcast(Qt)
+    val QtyBc = sc.broadcast(Qty)
+    val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
+
+    val yDummyBc = sc.broadcast(DenseVector.zeros[Double](n))
+
+    val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
+    val (newVAS, inserter) = vds.insertVA(LinearRegressionMulti.`type`, pathVA)
+
+    vds.mapAnnotations { case (v, va, gs) =>
+
+      val optStats: Option[(Vector[Double], Double, Double)] =
+        if (useDosages)
+          RegressionUtils.toLinregDosageStats(gs, yDummyBc.value, sampleMaskBc.value, combinedMinAC)
+        else
+          RegressionUtils.toLinregHardCallStats(gs, yDummyBc.value, sampleMaskBc.value, combinedMinAC)
+
+      val linregAnnot = optStats.map { stats =>
+        val (x, xx, xyDummy) = stats
+
+        val qtx: DenseVector[Double] = QtBc.value * x
+        val qty: DenseMatrix[Double] = QtyBc.value
+        val xxpRec: Double = 1 / (xx - (qtx dot qtx))
+        val xyp: DenseVector[Double] = (yBc.value.t * x) - (qty.t * qtx)
+        val yyp: DenseVector[Double] = yypBc.value
+
+        val b = xxpRec * xyp
+        val se = sqrt(dRec * (xxpRec * yyp  - (b :* b)))
+        val t = b :/ se
+        val p = t.map(s => 2 * T.cumulative(-math.abs(s), d, true, false))
+
+        assert(b.offset == 0 && se.offset == 0 && t.offset == 0 && p.offset == 0
+          && b.stride == 1 && se.stride == 1 && t.stride == 1 && p.stride == 1)
+
+        Annotation(
+          b.data: IndexedSeq[Double],
+          se.data: IndexedSeq[Double],
+          t.data: IndexedSeq[Double],
+          p.data: IndexedSeq[Double])
+      }
+      .orNull
+
+      val newAnnotation = inserter(va, linregAnnot)
+      assert(newVAS.typeCheck(newAnnotation))
+      newAnnotation
+    }.copy(vaSignature = newVAS)
+  }
+}

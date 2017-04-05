@@ -852,6 +852,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LinearRegression(vds, ySA, covSA, root, useDosages, minAC, minAF)
   }
 
+  def linregMulti(ySA: Array[String], covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
+    requireSplit("linear regression")
+    LinearRegressionMulti(vds, ySA, covSA, root, useDosages, minAC, minAF)
+  }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,
     ySA: String,
