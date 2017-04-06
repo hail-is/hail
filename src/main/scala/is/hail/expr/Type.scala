@@ -202,7 +202,7 @@ object TNumeric {
 }
 
 abstract class TNumeric extends Type {
-  def conv: NumericConversion[_,_]
+  def conv: NumericConversion[_, _]
 
   override def canCompare(other: Type): Boolean = other.isInstanceOf[TNumeric]
 }
@@ -539,7 +539,6 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     case _ => false
   }
 
-
   def elementType: Type = valueType
 
   override def children = Seq(keyType, valueType)
@@ -586,7 +585,7 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     A ``Dict`` is an unordered collection of key-value pairs. Each key can only appear once in the collection.
     """
 
-  override def scalaClassTag: ClassTag[Map[_,_]] = classTag[Map[_,_]]
+  override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 }
 
 case object TGenotype extends Type {
@@ -676,7 +675,7 @@ case class Field(name: String, typ: Type,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 
-  def attrsJava() : java.util.Map[String, String] = attrs.asJava
+  def attrsJava(): java.util.Map[String, String] = attrs.asJava
 
   def unify(cf: Field): Boolean =
     name == cf.name &&

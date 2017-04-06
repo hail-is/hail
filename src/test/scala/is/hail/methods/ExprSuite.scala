@@ -839,7 +839,6 @@ class ExprSuite extends SparkSuite {
     assert(eval("{a: 1, b: NA: Genotype} != {a: 2, b: NA: Genotype}").contains(true))
     assert(eval("{a: 1, b: NA: Genotype} == {a: 1, b: NA: Genotype}").contains(true))
 
-    //    TestUtils.interceptFatal("cannot compare")
     TestUtils.interceptFatal("Cannot compare arguments") {
       eval("1 == str(1)")
     }
