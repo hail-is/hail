@@ -78,6 +78,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       else
         getRandomName
     }
+
     getRandomName
   }
 
@@ -276,5 +277,12 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
           fw.write('\n')
         }
     }
+  }
+
+  def unsafeReader(filename: String): InputStream = open(filename)
+
+  def unsafeWriter(filename: String): OutputStreamWriter = {
+    val oos = create(filename)
+    new OutputStreamWriter(oos)
   }
 }

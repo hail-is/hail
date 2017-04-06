@@ -1,8 +1,13 @@
 package is.hail.utils
 
+import java.io.{InputStream, OutputStreamWriter}
+
+import is.hail.HailContext
+import is.hail.utils._
 import is.hail.variant.Locus
 
 import scala.collection.JavaConverters._
+import scala.io.{BufferedSource, Source}
 
 trait Py4jUtils {
   def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
@@ -49,4 +54,40 @@ trait Py4jUtils {
   def makeDouble(f: Float): Double = f.toDouble
 
   def makeDouble(d: Double): Double = d
+
+  def readFile(path: String, hc: HailContext): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
+    new HadoopPyReader(hc.hadoopConf.unsafeReader(path))
+  }
+
+  def writeFile(path: String, hc: HailContext): HadoopPyWriter = {
+    new HadoopPyWriter(hc.hadoopConf.unsafeWriter(path))
+  }
+}
+
+class HadoopPyReader(in: InputStream) {
+  private val lines = Source.fromInputStream(in).getLines()
+
+  def close() {
+    in.close()
+  }
+
+  def hasNext: Boolean = lines.hasNext
+
+  def next(): String = lines.next()
+}
+
+class HadoopPyWriter(out: OutputStreamWriter) {
+
+  def write(s: String) {
+    out.write(s)
+  }
+
+  def writeLine(s: String) {
+    out.write(s)
+    out.write('\n')
+  }
+
+  def close() {
+    out.close()
+  }
 }

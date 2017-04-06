@@ -51,4 +51,53 @@ class FunctionDocumentation(object):
     def functions_rst(self, file_name):
         Env.hail().utils.FunctionDocumentation.makeFunctionsDocs(file_name)
 
+@handle_py4j
+def hdfs_read(path):
+    return HadoopReader(path)
 
+@handle_py4j
+def hdfs_write(path):
+    return HadoopWriter(path)
+
+class HadoopReader(object):
+    def __init__(self, path):
+        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc)
+
+    def __iter__(self):
+        return self
+
+    @handle_py4j
+    def next(self):
+        if not self._jfile.hasNext():
+            raise StopIteration
+        else:
+            return self._jfile.next()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._jfile.close()
+
+    def close(self):
+        self._jfile.close()
+
+class HadoopWriter(object):
+    def __init__(self, path):
+        self._jfile = Env.jutils().writeFile(path, Env.hc()._jhc)
+
+    @handle_py4j
+    def write(self, text, newline=True):
+        if newline:
+            self._jfile.writeLine(text)
+        else:
+            self._jfile.write(text)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._jfile.close()
+
+    def close(self):
+        self._jfile.close()
