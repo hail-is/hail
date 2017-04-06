@@ -85,8 +85,10 @@ case class AltAllele(ref: String,
       Complex
   }
 
-  def isSNP: Boolean = (ref.length == 1 && alt.length == 1) ||
-    (ref.length == alt.length && nMismatch == 1)
+  def isStar: Boolean = alt == "*"
+
+  def isSNP: Boolean = !isStar && ( (ref.length == 1 && alt.length == 1) ||
+    (ref.length == alt.length && nMismatch == 1) )
 
   def isMNP: Boolean = ref.length > 1 &&
     ref.length == alt.length &&
@@ -356,32 +358,37 @@ case class Variant(contig: String,
     0
   }
 
-  def minrep : Variant = {
-    val alts = altAlleles.map(a => a.alt)
-    require(alts.forall(ref != _))
+  def minRep : Variant = {
+    val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
 
-    val min_length = math.min(ref.length, alts.map(x => x.length).min)
-    var ne = 0
-
-    while( ne < min_length - 1
-      && alts.forall(x => ref(ref.length - ne - 1) == x(x.length - ne - 1))
-    ){
-      ne += 1
-    }
-
-    var ns = 0
-    while(ns < min_length - ne -1
-      && alts.forall(x => ref(ns) == x(ns))
-    ){
-      ns += 1
-    }
-
-    if(ne + ns == 0)
+    if(alts.isEmpty)
       this
     else {
-      assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
-      Variant(contig,start + ns, ref.substring(ns, ref.length - ne),
-        alts.map(x => x.substring(ns, x.length - ne)).toArray)
+      require(alts.forall(ref != _))
+
+      val min_length = math.min(ref.length, alts.map(x => x.length).min)
+      var ne = 0
+
+      while (ne < min_length - 1
+        && alts.forall(x => ref(ref.length - ne - 1) == x(x.length - ne - 1))
+      ) {
+        ne += 1
+      }
+
+      var ns = 0
+      while (ns < min_length - ne - 1
+        && alts.forall(x => ref(ns) == x(ns))
+      ) {
+        ns += 1
+      }
+
+      if (ne + ns == 0)
+        this
+      else {
+        assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
+        Variant(contig, start + ns, ref.substring(ns, ref.length - ne),
+          altAlleles.map(a => if (a.isStar) a.alt else a.alt.substring(ns, a.alt.length - ne)).toArray)
+      }
     }
   }
 

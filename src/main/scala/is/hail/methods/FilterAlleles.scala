@@ -13,7 +13,7 @@ object FilterAlleles {
 
   def apply(vds: VariantDataset, filterExpr: String, annotationExpr: String = "va = va",
     filterAlteredGenotypes: Boolean = false, keep: Boolean = true,
-    subset: Boolean = true, maxShift: Int = 100): VariantDataset = {
+    subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {
 
     if (vds.wasSplit)
       warn("this VDS was already split; this module was designed to handle multi-allelics, perhaps you should use filtervariants instead.")
@@ -66,7 +66,7 @@ object FilterAlleles {
           .map { case (_, idx) => v.altAlleles(idx - 1) }
           .toArray
 
-        Some((v.copy(altAlleles = altAlleles).minrep, newToOld: IndexedSeq[Int], oldToNew))
+        Some((v.copy(altAlleles = altAlleles).minRep, newToOld: IndexedSeq[Int], oldToNew))
       }
     }
 
@@ -151,7 +151,7 @@ object FilterAlleles {
             val newGs = updateGenotypes(gs, oldToNew, newToOld.length)
             (newV, (newVa, newGs))
           }
-        }
+        }.filter { case (v, (va, gs)) => keepStar || !(v.isBiallelic && v.altAllele.isStar) }
 
 
     val partitionerBc = vds.sparkContext.broadcast(vds.rdd.orderedPartitioner)

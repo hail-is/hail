@@ -24,7 +24,7 @@ object SplitMulti {
     f: (Variant) => Boolean): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
 
     if (v.isBiallelic) {
-      val minrep = v.minrep
+      val minrep = v.minRep
       if (f(minrep))
         return Iterator((minrep, (insertSplitAnnots(va, 1, false), it)))
       else
@@ -32,8 +32,8 @@ object SplitMulti {
     }
 
     val splitVariants = v.altAlleles.iterator.zipWithIndex
-      .filter(keepStar || _._1.alt != "*")
-      .map { case (aa, aai) => (Variant(v.contig, v.start, v.ref, Array(aa)).minrep, aai + 1) }
+      .filter(keepStar || !_._1.isStar)
+      .map { case (aa, aai) => (Variant(v.contig, v.start, v.ref, Array(aa)).minRep, aai + 1) }
       .filter { case (sv, _) => f(sv) }
       .toArray
 

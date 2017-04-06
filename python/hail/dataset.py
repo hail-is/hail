@@ -1758,7 +1758,7 @@ class VariantDataset(object):
     @handle_py4j
     @requireTGenotype
     def filter_alleles(self, condition, annotation='va = va', subset=True, keep=True,
-                       filter_altered_genotypes=False, max_shift=100):
+                       filter_altered_genotypes=False, max_shift=100, keep_star=False):
         """Filter a user-defined set of alternate alleles for each variant.
         If all alternate alleles of a variant are filtered, the
         variant itself is filtered.  The condition expression is
@@ -1893,11 +1893,13 @@ class VariantDataset(object):
             cause Hail to throw an error if a variant that moves further
             is encountered.
 
+        :param bool keepStar: If true, keep variants where the only allele left is a ``*`` allele.
+
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterAlleles(condition, annotation, filter_altered_genotypes, keep, subset, max_shift)
+        jvds = self._jvdf.filterAlleles(condition, annotation, filter_altered_genotypes, keep, subset, max_shift, keep_star)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

@@ -34,7 +34,7 @@ class SplitSuite extends SparkSuite {
       val method2 = vds.variants.flatMap { v =>
         v.altAlleles.iterator
           .map { aa =>
-            Variant(v.contig, v.start, v.ref, Array(aa)).minrep
+            Variant(v.contig, v.start, v.ref, Array(aa)).minRep
           }
       }.collect().toSet
 
