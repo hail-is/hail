@@ -132,7 +132,7 @@ class AggregatorSuite extends SparkSuite {
       Annotation("a", -1,   -1, null,   -2, null,    1, null, null, -1l, -1f, -1d),
       Annotation("a",  1,   -2,    2, null,   -1, null, null, null,  1l,  1f,  1d)), numSlices = 2)
 
-    val signature = TStruct((("group" -> TString) +:(0 until 8).map(i => s"s$i" -> TInt))
+    val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt))
       ++ IndexedSeq("s8" -> TLong, "s9" -> TFloat, "s10" -> TDouble): _*)
 
     val ktMax = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
