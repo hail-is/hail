@@ -90,6 +90,7 @@ object PCRelate {
   trait MMatrix[T <: MMatrix[T]] {
     def m: T
 
+    def map2(f: (Double, Double) => Double)(that: T): T
     def multiply(that: T): T
     def multiply(that: DenseMatrix): T
     def transpose: T
@@ -99,6 +100,7 @@ object PCRelate {
     def pointwiseDivide(that: T): T
     def scalarMultiply(i: Double): T
     def scalarAdd(i: Double): T
+    def map(f: Double => Double): T
 
     def vectorExtendAddRowWise(v: MyVector): T
 
@@ -154,6 +156,8 @@ object PCRelate {
     def multiply(that: DenseMatrix): M = lift(localMultiply(that))
     def transpose: M = lift(_.transpose)
 
+    def map2(f: (Double, Double) => Double)(that: M): M =
+      lift2(pointwiseOp(f))(that)
     def pointwiseAdd(that: M): M =
       lift2(pointwiseOp(_ - _))(that)
     def pointwiseSubtract(that: M): M =
@@ -162,6 +166,8 @@ object PCRelate {
       lift2(pointwiseOp(_ * _))(that)
     def pointwiseDivide(that: M): M =
       lift2(pointwiseOp(_ / _))(that)
+    def map(f: Double => Double): M =
+      lift(elementMap(f))
     def scalarMultiply(i: Double): M =
       lift(elementMap(_ * i))
     def scalarAdd(i: Double): M =
@@ -203,7 +209,7 @@ object PCRelate {
   implicit def removeMMatrix[M <: MMatrix[M]](mm: MMatrix[M]): M = mm.m
   object MMatrix {
     def from(rdd: RDD[Array[Double]]): MMatrix[BetterBlockMatrix] =
-      new IndexedRowMatrix(rdd.zipWithIndex().map { case (x, i) => new IndexedRow(i, new DenseVector(x)) })
+      new IndexedRowMatrix(rdd.zipWithIndex().map { case (x, i) => new IndexedRow(i, new DenseVector(x)) }, nRows, nCols)
         .toBlockMatrix()
   }
 
@@ -218,13 +224,14 @@ object PCRelate {
 
     val (beta0, betas) = fitBeta(g, pcsbc)
 
-    Result(phiHat(g, muHat(pcsbc, beta0, betas)))
+    val phihat = phiHat(g, muHat(pcsbc, beta0, betas))
+
+    Result(phihat)
   }
 
   def vdsToMeanImputedMatrix(vds: VariantDataset): MyMatrix = {
-    val rdd = vds.rdd.mapPartitions { stuff =>
-      val ols = new OLSMultipleLinearRegression()
-      stuff.map { case (v, (va, gs)) =>
+    val rdd = vds.rdd.mapPartitions { part =>
+      part.map { case (v, (va, gs)) =>
         val goptions = gs.map(_.gt.map(_.toDouble)).toArray
         val defined = goptions.flatMap(x => x)
         val mean = defined.sum / defined.length
@@ -241,9 +248,6 @@ object PCRelate {
     *  result: (SNP, SNP x D)
     */
   def fitBeta(g: MyMatrix, pcs: Broadcast[DenseMatrix]): (MyVector, MyMatrix) = {
-    println("one sample data")
-    println(pcs.value.rowIter.map(x => x.toArray: IndexedSeq[Double]).toArray[IndexedSeq[Double]] : IndexedSeq[IndexedSeq[Double]])
-    println(g.m.bm.blocks.collect():IndexedSeq[((Int, Int), Matrix)])
     val rdd: RDD[(Double, Array[Double])] = g.mapRows { row =>
       val aa = pcs.value.rowIter.map(_.toArray).toArray
       val ols = new OLSMultipleLinearRegression()
@@ -263,6 +267,14 @@ object PCRelate {
     (Vector.from(vecRdd), MMatrix.from(matRdd))
   }
 
+  private def clipToInterval(x: Double): Double =
+    if (x <= 0)
+      Double.MinPositiveValue
+    else if (x >= 1)
+      1 - Double.MinPositiveValue
+    else
+      x
+
   /**
     *  pcs: Sample x D
     *  betas: SNP x D
@@ -271,19 +283,8 @@ object PCRelate {
     *  result: SNP x Sample
     */
   def muHat(pcs: Broadcast[DenseMatrix], beta0: MyVector, betas: MyMatrix): MyMatrix = {
-    println("pcs:")
-    println(pcs.value)
-    println("betas")
-    println(betas.bm.blocks.take(1)(0))
-    println("beta0")
-    println(beta0.v.a: IndexedSeq[Double])
-    println("betas * pcs")
-    println(betas.multiply(pcs.value.transpose).bm.blocks.take(1)(0))
-    println("betas * pcs + [beta0, beta0, ...]")
-    println(betas.multiply(pcs.value.transpose).vectorExtendAddRowWise(beta0).bm.blocks.take(1)(0))
-    println("(betas * pcs + [beta0, beta0, ...])/2")
-    println(betas.multiply(pcs.value.transpose).vectorExtendAddRowWise(beta0).scalarMultiply(1.0/2.0).bm.blocks.take(1)(0))
-    betas.multiply(pcs.value.transpose).vectorExtendAddRowWise(beta0).scalarMultiply(1.0/2.0)
+    val muHat = betas.multiply(pcs.value.transpose).vectorExtendAddRowWise(beta0).scalarMultiply(1.0/2.0)
+    muHat.map(clipToInterval)
   }
 
   /**
@@ -294,14 +295,8 @@ object PCRelate {
     val gMinusMu = g.pointwiseSubtract(muHat.scalarMultiply(2.0))
     val oneMinusMu = muHat.scalarMultiply(-1.0).scalarAdd(1.0)
     val varianceHat = muHat.pointwiseMultiply(oneMinusMu)
-    println("mu")
-    println(muHat.bm.blocks.take(1)(0))
-    println("1 - mu")
-    println(oneMinusMu.bm.blocks.take(1)(0))
-    println("mu(1 - mu)")
-    println(varianceHat.bm.blocks.take(1)(0))
-    gMinusMu.multiply(gMinusMu.transpose)
-      .pointwiseDivide(varianceHat.multiply(varianceHat.transpose).sqrt)
+    gMinusMu.transpose.multiply(gMinusMu)
+      .pointwiseDivide(varianceHat.transpose.multiply(varianceHat).sqrt)
       .scalarMultiply(1.0/4.0)
   }
 

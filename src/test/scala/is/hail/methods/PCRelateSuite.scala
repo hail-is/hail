@@ -10,8 +10,8 @@ import is.hail.stats._
 
 class PCRelateSuite extends SparkSuite {
   @Test def noErrors() {
-    val vds: VariantDataset = BaldingNicholsModel(hc, 2, 5, 10, None, None, 0, None, BetaDist(0.5,0.5)).splitMulti()
-    val pcs = SamplePCA.justScores(vds, 1)
+    val vds: VariantDataset = BaldingNicholsModel(hc, 3, 50, 10000, None, None, 0, None, BetaDist(0.5,0.5)).splitMulti()
+    val pcs = SamplePCA.justScores(vds, 2)
     println(PCRelate.pcRelate(vds, pcs).phiHat.bm.blocks.take(1).toSeq)
   }
 
