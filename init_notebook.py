@@ -38,8 +38,10 @@ if role == 'Master':
     # modify default Spark config file to reference Hail jar and zip
     with open('/etc/spark/conf/spark-defaults.conf', 'ab') as f:
         opts = [
-            'spark.jars=/home/hail/{}'.format(hail_jar),
-            'spark.submit.pyFiles=/home/hail/{}'.format(hail_zip)
+            'spark.files=/home/hail/{}'.format(hail_jar),
+            'spark.submit.pyFiles=/home/hail/{}'.format(hail_zip),
+            'spark.driver.extraClassPath=./{}'.format(hail_jar),
+            'spark.executor.extraClassPath=./{}'.format(hail_jar)
         ]
         f.write('\n'.join(opts))
 
