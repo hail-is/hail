@@ -110,7 +110,7 @@ def hdfs_copy(src, dest):
     :param str src: Source file. 
     :param str dest: Destination file.
     """
-    Env.jutils().copyFile(src, dest, )
+    Env.jutils().copyFile(src, dest, Env.hc()._jhc)
 
 class HadoopReader(object):
     def __init__(self, path):

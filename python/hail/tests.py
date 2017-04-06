@@ -10,6 +10,7 @@ from hail.representation import *
 from hail.expr import *
 from hail.java import *
 from hail.keytable import asc, desc
+from hail.utils import *
 import time
 hc = None
 
@@ -798,3 +799,32 @@ class ContextTests(unittest.TestCase):
 
         glob, samples, variants = bn1.concordance(bn2)
         self.assertEqual(samples.sample_annotations[samples.sample_ids[0]].concordance, glob)
+
+    def test_hdfs_files(self):
+        data = ['foo', 'bar', 'baz']
+        data.extend(map(str, range(100)))
+
+        with hdfs_write('/tmp/test_out.txt') as f:
+            for d in data:
+                f.write(d)
+
+        with hdfs_read('/tmp/test_out.txt') as f:
+            data2 = [line for line in f]
+
+        self.assertEqual(data, data2)
+
+        with hdfs_write('/tmp/test_out.txt.gz') as f:
+            for d in data:
+                f.write(d)
+
+        with hdfs_read('/tmp/test_out.txt.gz') as f:
+            data3 = [line for line in f]
+
+        self.assertEqual(data, data3)
+
+        hdfs_copy('/tmp/test_out.txt.gz', '/tmp/test_out.copy.txt.gz')
+
+        with hdfs_read('/tmp/test_out.copy.txt.gz') as f:
+            data4 = [line for line in f]
+
+        self.assertEqual(data, data4)
