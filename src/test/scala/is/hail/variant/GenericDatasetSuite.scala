@@ -99,7 +99,7 @@ class GenericDatasetSuite extends SparkSuite {
     val path2 = tmpDir.createTempFile(extension = ".vds")
 
     gds
-      .annotateGenotypesExpr("g = Genotype(g.GT)")
+      .annotateGenotypesExpr("g = g.GT.toGenotype()")
       .toVDS
       .exportVCF(path)
 

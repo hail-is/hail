@@ -370,12 +370,12 @@ class VariantDataset(object):
         >>> vds_result = vds.annotate_genotypes_expr('g = {GT: g.gt, CASE_HET: sa.pheno.isCase && g.isHet()}')
 
         Assume a VCF is imported with ``generic=True`` and the resulting genotype schema
-        is a ``Struct`` and the field ``GTA`` is a ``Call`` type. Use the ``Genotype()`` constructor in the
+        is a ``Struct`` and the field ``GTA`` is a ``Call`` type. Use the ``.toGenotype()`` method in the
         expression language to convert a ``Call`` to a ``Genotype``. ``vds_gta`` will have a genotype schema equal to
         :py:class:`~hail.expr.TGenotype`
 
         >>> vds_gta = (hc.import_vcf('data/example3.vcf.bgz', generic=True, call_fields=['GTA'])
-        ...                 .annotate_genotypes_expr('g = Genotype(g.GTA)'))
+        ...                 .annotate_genotypes_expr('g = g.GTA.toGenotype()'))
 
         **Notes**
 
