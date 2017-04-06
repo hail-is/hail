@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.expr._
+import is.hail.utils._
 import is.hail.utils.TestRDDBuilder
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
@@ -101,9 +102,10 @@ class FilterSuite extends SparkSuite {
     val vds = TestRDDBuilder.buildRDD(8, 8, hc)
       .splitMulti()
 
-    assert(vds.filterSamplesList("src/test/resources/filter.sample_list").nSamples == 3)
+    val sampleList = hadoopConf.readLines("src/test/resources/filter.sample_list")(_.map(_.value).toSet)
+    assert(vds.filterSamplesList(sampleList).nSamples == 3)
 
-    assert(vds.filterSamplesList("src/test/resources/filter.sample_list", keep = false).nSamples == 5)
+    assert(vds.filterSamplesList(sampleList, keep = false).nSamples == 5)
 
     assert(vds.filterIntervals("src/test/resources/filter.interval_list", keep = true).countVariants() == 6)
 

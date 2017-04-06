@@ -11,6 +11,7 @@ import warnings
 
 warnings.filterwarnings(module=__name__, action='once')
 
+
 @decorator
 def requireTGenotype(func, vds, *args, **kwargs):
     if vds._is_generic_genotype:
@@ -22,6 +23,7 @@ def requireTGenotype(func, vds, *args, **kwargs):
 
     return func(vds, *args, **kwargs)
 
+
 @decorator
 def convertVDS(func, vds, *args, **kwargs):
     if vds._is_generic_genotype:
@@ -29,6 +31,7 @@ def convertVDS(func, vds, *args, **kwargs):
             vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
 
     return func(vds, *args, **kwargs)
+
 
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
@@ -917,8 +920,6 @@ class VariantDataset(object):
             jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, vds_key, expr)
 
         return VariantDataset(self.hc, jvds)
-
-
 
     @handle_py4j
     def annotate_variants_bed(self, input, root, all=False):
@@ -1899,7 +1900,8 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterAlleles(condition, annotation, filter_altered_genotypes, keep, subset, max_shift, keep_star)
+        jvds = self._jvdf.filterAlleles(condition, annotation, filter_altered_genotypes, keep, subset, max_shift,
+                                        keep_star)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2020,24 +2022,32 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def filter_samples_list(self, input, keep=True):
-        """Filter samples with a sample list file.
-
+    def filter_samples_list(self, samples, keep=True):
+        """Filter samples with a list of samples.
+    
         **Examples**
-
-        >>> vds_result = vds.filter_samples_list('data/exclude_samples.txt', keep=False)
-
-        The file at the path ``input`` should contain on sample per
-        line with no header or other fields.
-
-        :param str input: Path to sample list file.
-
+    
+        >>> to_remove = ['NA12878', 'NA12891', 'NA12892']
+        >>> vds_result = vds.filter_samples_list(to_remove, keep=False)
+        
+        Read list from a file:
+        >>> to_remove = [s.strip() for s in open('data/exclude_samples.txt')]
+        >>> vds_result = vds.filter_samples_list(to_remove, keep=False)
+    
+        :param input: List of samples to keep or remove.
+        :type input: list of str
+    
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.filterSamplesList(input, keep)
-        return VariantDataset(self.hc, jvds)
+        if not isinstance(samples, list):
+            raise TypeError("expected parameter 'samples' to be type list, but found %s" % type(samples))
+        for s in samples:
+            if not isinstance(s, str) and not isinstance(s, unicode):
+                raise TypeError("expected elements in 'samples' to be type str, but found %s" % type(s))
+
+        return VariantDataset(self.hc, self._jvds.filterSamplesList(samples, keep))
 
     @handle_py4j
     def drop_variants(self):
@@ -3658,7 +3668,6 @@ class VariantDataset(object):
 
         return VariantDataset(self.hc, self._jvds.setVaAttributes(ann_path, Env.jutils().javaMapToMap(attributes)))
 
-
     @handle_py4j
     def delete_va_attribute(self, ann_path, attribute):
         """Removes an attribute from a variant annotation field.
@@ -3689,7 +3698,6 @@ class VariantDataset(object):
         """
 
         return VariantDataset(self.hc, self._jvds.deleteVaAttribute(ann_path, attribute))
-
 
     @handle_py4j
     @requireTGenotype
