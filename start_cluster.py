@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import time
 import json
 import argparse
 from subprocess import call
@@ -95,3 +96,7 @@ cmd = ' '.join([
 
 # spin up cluster
 call(cmd, shell=True)
+
+# wait for Jupyter server process to start if notebook action is taken
+if args.notebook:
+    time.sleep(30)
