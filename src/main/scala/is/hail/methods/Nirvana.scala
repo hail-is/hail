@@ -257,12 +257,18 @@ object Nirvana {
               printElement(oldSignature),
               _ => ())
             //The drop is to ignore the header line, the filter is because every other output line is a comma.
-            val kt = jt.drop(1).filter(_.startsWith("{")).map { s =>
+            val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
+                if(startQuery(a).asInstanceOf[Int] == 0) {
+                  println()
+                  println(s)
+                  println(a)
+                }
                 val v = variantFromInput(contigQuery(a).asInstanceOf[String],
                   startQuery(a).asInstanceOf[Int],
                   refQuery(a).asInstanceOf[String],
-                  altsQuery(a).asInstanceOf[Seq[String]].toArray)
+                  altsQuery(a).asInstanceOf[Seq[String]].toArray
+                )
                 (v, a)
               }
 
