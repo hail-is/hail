@@ -108,7 +108,7 @@ case class DocumentationEntry(name: String, category: String, objType: Option[Ty
 
   def hasAnnotation = retType.isInstanceOf[TStruct]
 
-  val retTypePretty = retType.toString.replaceAll("\\?", "")
+  val retTypePretty = retType.toString.replaceAll("\\?", "").replaceAll("Empty", "Struct")
   val objTypePretty = objType.getOrElse("").toString.replaceAll("\\?", "")
 
   def formatDocstring: (Int, String) = {
