@@ -53,11 +53,64 @@ class FunctionDocumentation(object):
 
 @handle_py4j
 def hdfs_read(path):
+    """Open an iterable file handle. Supports distributed file systems like hdfs, gs, and s3.
+    
+    .. doctest::
+    :options: +SKIP
+
+        >>> with hdfs_read('gs://my-bucket/notes.txt') as f:
+        ...     for line in f:
+        ...         print(line)
+    
+    .. caution::
+    
+        These file handles are *much* slower than standard python file handles.
+        If you are reading a file larger than a few thousand lines, it may be 
+        faster to use :py:meth`.hdfs_copy` to copy the file locally, then read it
+        with standard Python I/O tools.
+
+    
+    :param str path: Source file.
+    
+    :return: Iterable file reader object.
+    :rtype: :class:`.HadoopReader`
+    """
     return HadoopReader(path)
 
 @handle_py4j
 def hdfs_write(path):
+    """Open a writable file handle. Supports distributed file systems like hdfs, gs, and s3. 
+    
+    .. doctest::
+    :options: +SKIP
+
+        >>> with hdfs_write('gs://my-bucket/notes.txt') as f:
+        ...     f.write('result1: %s' % result1)
+        ...     f.write('result2: %s' % result2)
+    
+    .. caution::
+    
+        These file handles are *much* slower than standard python file handles.
+        It may be faster to write to a local file using standard Python I/O and 
+        use :py:meth`.hdfs_copy` to move your file to a distributed file system.
+    
+    :param str path: Destination file.
+    
+    :return: File writer object.
+    :rtype: :class:`.HadoopWriter:
+    """
     return HadoopWriter(path)
+
+@handle_py4j
+def hdfs_copy(src, dest):
+    """Copy a file. Supports distributed file systems like hdfs, gs, and s3.
+    
+    >>> hdfs_copy('gs://hail-common/LCR.interval_list', 'file:///user/me/LCR.interval_list') # doctest: +SKIP
+    
+    :param str src: Source file. 
+    :param str dest: Destination file.
+    """
+    Env.jutils().copyFile(src, dest, )
 
 class HadoopReader(object):
     def __init__(self, path):

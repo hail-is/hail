@@ -62,6 +62,10 @@ trait Py4jUtils {
   def writeFile(path: String, hc: HailContext): HadoopPyWriter = {
     new HadoopPyWriter(hc.hadoopConf.unsafeWriter(path))
   }
+
+  def copyFile(from: String, to: String, hc: HailContext) {
+    hc.hadoopConf.copy(from, to)
+  }
 }
 
 class HadoopPyReader(in: InputStream) {
