@@ -147,6 +147,8 @@ sealed abstract class Type {
   def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance): Boolean = a1 == a2
 
   def scalaClassTag: ClassTag[_ <: AnyRef]
+
+  def canCompare(other: Type): Boolean = this == other
 }
 
 case object TBinary extends Type {
@@ -200,7 +202,9 @@ object TNumeric {
 }
 
 abstract class TNumeric extends Type {
-  def conv: NumericConversion[_,_]
+  def conv: NumericConversion[_, _]
+
+  override def canCompare(other: Type): Boolean = other.isInstanceOf[TNumeric]
 }
 
 abstract class TIntegral extends TNumeric
@@ -343,6 +347,8 @@ case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends 
 
   override def desc: String = TAggregable.desc
 
+  override def canCompare(other: Type): Boolean = false
+
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")
 }
 
@@ -423,6 +429,11 @@ abstract class TIterable extends TContainer {
       && (a1.asInstanceOf[Iterable[_]].size == a2.asInstanceOf[Iterable[_]].size)
       && a1.asInstanceOf[Iterable[_]].zip(a2.asInstanceOf[Iterable[_]])
       .forall { case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance) })
+
+  override def canCompare(other: Type): Boolean = other match {
+    case TArray(otherType) => elementType.canCompare(otherType)
+    case _ => false
+  }
 }
 
 case class TArray(elementType: Type) extends TIterable {
@@ -523,6 +534,11 @@ case class TSet(elementType: Type) extends TIterable {
 
 case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
+  override def canCompare(other: Type): Boolean = other match {
+    case TDict(okt, ovt) => keyType.canCompare(okt) && valueType.canCompare(ovt)
+    case _ => false
+  }
+
   def elementType: Type = valueType
 
   override def children = Seq(keyType, valueType)
@@ -569,7 +585,7 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     A ``Dict`` is an unordered collection of key-value pairs. Each key can only appear once in the collection.
     """
 
-  override def scalaClassTag: ClassTag[Map[_,_]] = classTag[Map[_,_]]
+  override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 }
 
 case object TGenotype extends Type {
@@ -659,7 +675,7 @@ case class Field(name: String, typ: Type,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
 
-  def attrsJava() : java.util.Map[String, String] = attrs.asJava
+  def attrsJava(): java.util.Map[String, String] = attrs.asJava
 
   def unify(cf: Field): Boolean =
     name == cf.name &&
@@ -715,6 +731,13 @@ object TStruct {
 
 case class TStruct(fields: IndexedSeq[Field]) extends Type {
   override def children = fields.map(_.typ)
+
+  override def canCompare(other: Type): Boolean = other match {
+    case t: TStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>
+      f1.name == f2.name && f1.typ.canCompare(f2.typ)
+    }
+    case _ => false
+  }
 
   override def unify(concrete: Type) = concrete match {
     case TStruct(cfields) =>

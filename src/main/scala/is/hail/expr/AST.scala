@@ -419,6 +419,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
         t
 
+      case ("==" | "!=", Array(left, right)) =>
+        val lt = left.`type`
+        val rt = right.`type`
+        if (!lt.canCompare(rt))
+          parseError(s"Cannot compare arguments of type $lt and $rt")
+        else
+          TBoolean
       case (_, _) => FunctionRegistry.lookupFunReturnType(fn, args.map(_.`type`).toSeq)
         .valueOr(x => parseError(x.message))
     }

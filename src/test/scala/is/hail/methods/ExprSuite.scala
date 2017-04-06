@@ -493,11 +493,11 @@ class ExprSuite extends SparkSuite {
 
     assert(eval[Map[_, _]](""" genedict.mapValues(x => x + 1) """).contains(Map("gene1" -> 3, "gene2" -> 11, "gene3" -> 15)))
 
-    assert(eval[IndexedSeq[Int]]("""genedict.values""").contains(IndexedSeq(2,10,14)))
-    assert(eval[IndexedSeq[String]]("""genedict.keys""").contains(IndexedSeq("gene1","gene2","gene3")))
+    assert(eval[IndexedSeq[Int]]("""genedict.values""").contains(IndexedSeq(2, 10, 14)))
+    assert(eval[IndexedSeq[String]]("""genedict.keys""").contains(IndexedSeq("gene1", "gene2", "gene3")))
     val ks = eval[Set[String]]("""genedict.keySet""")
     assert(ks.isDefined)
-    ks.get should contain theSameElementsAs Seq("gene1","gene2","gene3")
+    ks.get should contain theSameElementsAs Seq("gene1", "gene2", "gene3")
 
     // caused exponential blowup previously
     assert(eval[Boolean](
@@ -833,6 +833,18 @@ class ExprSuite extends SparkSuite {
       assert(eval("-2 ** -2").contains(-0.25))
     }
 
+    assert(eval("1 == 1.0").contains(true))
+    assert(eval("[1,2] == [1.0, 2.0]").contains(true))
+    assert(eval("[1,2] != [1.1, 2.0]").contains(true))
+    assert(eval("{a: 1, b: NA: Genotype} != {a: 2, b: NA: Genotype}").contains(true))
+    assert(eval("{a: 1, b: NA: Genotype} == {a: 1, b: NA: Genotype}").contains(true))
+
+    TestUtils.interceptFatal("Cannot compare arguments") {
+      eval("1 == str(1)")
+    }
+    TestUtils.interceptFatal("Cannot compare arguments") {
+      eval("str(1) == 1")
+    }
   }
 
   @Test def testParseTypes() {

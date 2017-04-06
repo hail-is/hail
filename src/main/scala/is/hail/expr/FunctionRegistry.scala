@@ -1677,8 +1677,8 @@ object FunctionRegistry {
     Add a new variant annotation that calculates HWE p-value by phenotype:
 
     >>> vds_result = vds.annotate_variants_expr([
-    ...   'va.hweCase = gs.filter(g => sa.pheno == "Case").hardyWeinberg()',
-    ...   'va.hweControl = gs.filter(g => sa.pheno == "Control").hardyWeinberg()'])
+    ...   'va.hweCase = gs.filter(g => sa.pheno.isCase).hardyWeinberg()',
+    ...   'va.hweControl = gs.filter(g => !sa.pheno.isCase).hardyWeinberg()'])
 
     **Notes**
 
