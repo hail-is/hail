@@ -153,7 +153,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
       fatal("cannot produce a keyed RDD from a key table with no key columns")
 
     val keyIndices = keyFields.map(_.index)
-    rdd.map { r => (MaskedRow(r, keyIndices), r) }
+    rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), r) }
   }
 
   def same(other: KeyTable): Boolean = {
