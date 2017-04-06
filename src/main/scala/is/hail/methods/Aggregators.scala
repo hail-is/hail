@@ -3,7 +3,7 @@ package is.hail.methods
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import is.hail.annotations.Annotation
-import is.hail.expr.{TAggregable, _}
+import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
@@ -369,6 +369,61 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
   }
 
   def copy() = new SumArrayAggregator()
+}
+
+class MaxAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T]) extends TypedAggregator[BoxedT] {
+
+  import ev.numeric
+  import Ordering.Implicits._
+
+  var _state: T = ev.numeric.zero
+  var _isNull: Boolean = true
+
+  def result: BoxedT = if (_isNull) null else ev.box(_state)
+
+  def seqOp(x: Any) {
+    if (x != null && (_isNull || ev.unbox(x.asInstanceOf[BoxedT]) > _state)) {
+      _isNull = false
+      _state = ev.unbox(x.asInstanceOf[BoxedT])
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    if (!agg2._isNull && (_isNull || agg2._state > _state)) {
+      _isNull = false
+      _state = agg2._state
+    }
+  }
+
+  def copy() = new MaxAggregator[T, BoxedT]()
+}
+
+class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T])
+  extends TypedAggregator[BoxedT] {
+
+  import ev.numeric
+  import Ordering.Implicits._
+
+  var _state: T = ev.numeric.zero
+  var _isNull: Boolean = true
+
+  def result: BoxedT = if (_isNull) null else ev.box(_state)
+
+  def seqOp(x: Any) {
+    if (x != null && (_isNull || ev.unbox(x.asInstanceOf[BoxedT]) < _state)) {
+      _isNull = false
+      _state = ev.unbox(x.asInstanceOf[BoxedT])
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    if (!agg2._isNull && (_isNull || agg2._state < _state)) {
+      _isNull = false
+      _state = agg2._state
+    }
+  }
+
+  def copy() = new MinAggregator[T, BoxedT]()
 }
 
 class CallStatsAggregator(variantF: (Any) => Any)

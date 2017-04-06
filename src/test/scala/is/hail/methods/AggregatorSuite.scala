@@ -1,6 +1,9 @@
 package is.hail.methods
 
+import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
+import is.hail.expr._
+import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
@@ -121,6 +124,26 @@ class AggregatorSuite extends SparkSuite {
         }
     }
     p.check()
+  }
+
+  @Test def testMaxMin() {
+    val rdd = sc.parallelize(Seq(
+      Annotation("a",  0, null,    1,   -1, null, null,    1, null,  0l,  0f,  0d),
+      Annotation("a", -1,   -1, null,   -2, null,    1, null, null, -1l, -1f, -1d),
+      Annotation("a",  1,   -2,    2, null,   -1, null, null, null,  1l,  1f,  1d)), numSlices = 2)
+
+    val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt))
+      ++ IndexedSeq("s8" -> TLong, "s9" -> TFloat, "s10" -> TDouble): _*)
+
+    val ktMax = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
+      .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.max()").mkString(","))
+
+    assert(ktMax.collect() == IndexedSeq(Annotation("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
+
+    val ktMin = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
+      .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.min()").mkString(","))
+
+    assert(ktMin.collect() == IndexedSeq(Annotation("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))
   }
 
   @Test def testHist() {
