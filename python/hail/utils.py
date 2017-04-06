@@ -1,5 +1,6 @@
 from hail.java import Env, handle_py4j
 
+
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
 
@@ -38,11 +39,11 @@ class TextTableConfig(object):
     def _to_java(self):
         """Convert to Java TextTableConfiguration object."""
         return Env.hail().utils.TextTableConfiguration.apply(self.types, self.comment,
-                                                           self.delimiter, self.missing,
-                                                           self.noheader, self.impute)
+                                                             self.delimiter, self.missing,
+                                                             self.noheader, self.impute)
+
 
 class FunctionDocumentation(object):
-
     @handle_py4j
     def types_rst(self, file_name):
         Env.hail().utils.FunctionDocumentation.makeTypesDocs(file_name)
@@ -50,6 +51,7 @@ class FunctionDocumentation(object):
     @handle_py4j
     def functions_rst(self, file_name):
         Env.hail().utils.FunctionDocumentation.makeFunctionsDocs(file_name)
+
 
 @handle_py4j
 def hdfs_read(path):
@@ -77,6 +79,7 @@ def hdfs_read(path):
     """
     return HadoopReader(path)
 
+
 @handle_py4j
 def hdfs_write(path):
     """Open a writable file handle. Supports distributed file systems like hdfs, gs, and s3. 
@@ -101,6 +104,7 @@ def hdfs_write(path):
     """
     return HadoopWriter(path)
 
+
 @handle_py4j
 def hdfs_copy(src, dest):
     """Copy a file. Supports distributed file systems like hdfs, gs, and s3.
@@ -111,6 +115,7 @@ def hdfs_copy(src, dest):
     :param str dest: Destination file.
     """
     Env.jutils().copyFile(src, dest, Env.hc()._jhc)
+
 
 class HadoopReader(object):
     def __init__(self, path):
@@ -134,6 +139,7 @@ class HadoopReader(object):
 
     def close(self):
         self._jfile.close()
+
 
 class HadoopWriter(object):
     def __init__(self, path):
