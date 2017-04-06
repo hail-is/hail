@@ -99,4 +99,6 @@ call(cmd, shell=True)
 
 # wait for Jupyter server process to start if notebook action is taken
 if args.notebook:
+    print "Waiting for Jupyter notebook server to start..."
     time.sleep(30)
+    print "Done!"
