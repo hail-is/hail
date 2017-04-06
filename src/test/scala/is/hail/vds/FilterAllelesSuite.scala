@@ -20,7 +20,7 @@ class FilterAllelesSuite extends SparkSuite {
 
   @Test def filterNoAlleles(): Unit = {
     Prop.forAll(VSMSubgen.random.gen(hc)) { vds =>
-      vds.filterAlleles("true", subset = true)
+      vds.filterAlleles("true", subset = true, keepStar = true)
         .countVariants() == vds.countVariants()
     }.check()
   }
