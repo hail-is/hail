@@ -313,6 +313,20 @@ object FunctionRegistry {
         yield result.asInstanceOf[Code[AnyRef]]
       case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
         throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : ${argTypes.mkString(",")}) in non-aggregator position")
+      case f: Arity7Special[_, _, _, _, _, _, _] => {
+        val g = ((t: AnyRef, u: AnyRef, v: AnyRef, w: AnyRef, x: AnyRef, y: AnyRef) =>
+          f.asInstanceOf[(() => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef) => AnyRef](() => t, () => u, () => v, () => w, () => x, () => y))
+
+        for (
+          t <- args(0).compile();
+          u <- args(1).compile();
+          v <- args(2).compile();
+          w <- args(3).compile();
+          x <- args(4).compile();
+          y <- args(5).compile();
+          result <- invokePrimitive7(g)(t, u, v, w, x, y))
+          yield result
+      }
       case x =>
         throw new RuntimeException(s"Internal hail error, unexpected Fun type: ${x.getClass} $x")
     }).map(Code.checkcast(_)(m.retType.scalaClassTag))
@@ -481,6 +495,11 @@ object FunctionRegistry {
   def register[T, U, V, W, X](name: String, impl: (T, U, V, W) => X, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4Fun[T, U, V, W, X](hrx.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerSpecial[T, U, V, W, X, Y, Z](name: String, impl: (() => Any, () => Any, () => Any, () => Any, () => Any, () => Any) => Z, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y], hrz: HailRep[Z]) = {
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ, hry.typ), Arity7Special[T, U, V, W, X, Y, Z](hrz.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerAnn[T](name: String, t: TStruct, impl: T => Annotation, docstring: String, argNames: (String, String)*)
@@ -771,6 +790,27 @@ object FunctionRegistry {
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
 
+  registerSpecial("Genotype", { (v: () => Any, gtF: () => Any, adF: () => Any, dpF: () => Any, gqF: () => Any, plF: () => Any) =>
+    val ad = adF()
+    val pl = plF()
+
+    Genotype(v().asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer],
+      if (ad == null) null else ad.asInstanceOf[IndexedSeq[Int]].toArray, dpF().asInstanceOf[java.lang.Integer],
+      gqF().asInstanceOf[java.lang.Integer], if (pl == null) null else pl.asInstanceOf[IndexedSeq[Int]].toArray) },
+    """
+    Construct a :ref:`genotype` object by specifying the variant, call, allelic depths, depth, genotype quality, and phred-scaled likelihoods.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let v = Variant("7:76324539:A:G") and call = Call(0) and
+          ad = [10, 0] and dp = 10 and gq = 20 and pl = [0, 10, 100] and
+          g = Genotype(v, call, ad, dp, gq, pl) in g.isHomRef()
+        result: true
+    """,
+    "v" -> "Variant", "c" -> "Call", "ad" -> "Allelic depths", "dp" -> "Depth", "gq" -> "Genotype quality", "pl" -> "Phred-scaled likelihoods"
+  )(variantHr, boxedintHr, arrayHr[Int], boxedintHr, boxedintHr, arrayHr[Int], genotypeHr)
+  
   register("Variant", { (x: String) => Variant.parse(x) },
     """
     Construct a :ref:`variant` object.
