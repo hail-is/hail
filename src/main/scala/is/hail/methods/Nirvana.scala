@@ -4,7 +4,7 @@ import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TDouble, TInt, TString, TStruct, Type}
+import is.hail.expr.{JSONAnnotationImpex, Parser, TArray, TBoolean, TDouble, TInt, TSet, TString, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.storage.StorageLevel
@@ -94,7 +94,7 @@ object Nirvana {
       "exacSasAn" -> TInt,
       "regulatoryRegions" -> TArray(TStruct(
         "id" -> TString,
-        "consequence" -> TArray(TString), //TSET
+        "consequence" -> TSet(TString),
         "type" -> TString
       )),
       "transcripts" -> TStruct(
@@ -109,7 +109,7 @@ object Nirvana {
           "introns" -> TString,
           "geneId" -> TString,
           "hgnc" -> TString,
-          "consequence" -> TArray(TString), //TSET
+          "consequence" -> TSet(TString),
           "hgvsc" -> TString,
           "hgvsp" -> TString,
           "isCanonical" -> TBoolean,
@@ -259,8 +259,10 @@ object Nirvana {
             //The drop is to ignore the header line, the filter is because every other output line is a comma.
             val kt = jt.drop(1).filter(_.startsWith("{")).map { s =>
                 val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature)
-                val v = variantFromInput(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int],
-                  refQuery(a).asInstanceOf[String], altsQuery(a).asInstanceOf[Seq[String]].toArray)
+                val v = variantFromInput(contigQuery(a).asInstanceOf[String],
+                  startQuery(a).asInstanceOf[Int],
+                  refQuery(a).asInstanceOf[String],
+                  altsQuery(a).asInstanceOf[Seq[String]].toArray)
                 (v, a)
               }
 

@@ -321,7 +321,7 @@ class VariantDataset(HistoryMixin):
         
         >>> vds_result = vds.annotate_global('global.populations',
         ...                                     ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
-        ...                                     TArray(TString()))
+        ...                                     TArray(String()))
 
         **Notes**
 
@@ -1747,7 +1747,7 @@ class VariantDataset(HistoryMixin):
         **Downcode algorithm**
 
         The downcode algorithm (``subset=False``) recodes occurances of filtered alleles
-        to occurances of the reference allele (e.g. 1 -> 0 in our example). So the depths of filtered alleles in the AD field
+        to occurances of the reference allele (e.g. 1: 0 in our example). So the depths of filtered alleles in the AD field
         are added to the depth of the reference allele. Where downcodeing filtered alleles merges distinct genotypes, the minimum PL is used (since PL is on a log scale, this roughly corresponds to adding probabilities). The PLs
         are then re-normalized (shifted) so that the most likely genotype has a PL of 0, and GT is set to this genotype.
         If an allele is filtered, this algorithm acts similarly to :py:meth:`~hail.VariantDataset.split_multi`.
@@ -5323,7 +5323,7 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     def nirvana(self, config, block_size = 1000, root = 'va.nirvana'):
-        """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_
+        """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
         ***Configuration***
         :py:meth:`~hail.VariantDataset.nirvana` needs a configuration file to tell it how to run
@@ -5333,8 +5333,144 @@ class VariantDataset(HistoryMixin):
         - **hail.nirvana.dotnet** -- Location of dotnet. Optional, default: dotnet.
         - **hail.nirvana.path** -- Value of the PATH environment variable when invoking Nirvana.  Optional, by default PATH is not set.
         - **hail.nirvana.location** -- Location of Nirvana.dll. Required.
-        - **hail.nirvana.cache** --Location of cache. required.
+        - **hail.nirvana.cache** --Location of cache. Required.
         - **hail.nirvana.supplementaryAnnotationDirectory -- Location of Supplementary Database. Optional, no supplementary database by default.
+        
+        **Annotations**
+
+        Annotations with the following schema are placed in the location specified by ``root``.
+
+        .. code-block:: text
+        
+            Struct{
+                "chromosome": String,
+                "refAllele": String,
+                "position": Int,
+                "altAlleles": Array[String],
+                "cytogeneticBand": String,
+                "filters": Array[String],
+                "variants": Array[Struct{
+                  "ancestralAllele": String,
+                  "altAllele": String,
+                  "refAllele": String,
+                  "chromosome": String,
+                  "begin": Int,
+                  "end": Int,
+                  "phylopScore": Double,
+                  "dbsnp": Array[String],
+                  "globalMinorAllele": String,
+                  "gmaf": Double,
+                  "isReferenceMinorAllele": Boolean,
+                  "variantType": String,
+                  "vid": String,
+                  "oneKgAll": Double,
+                  "oneKgAllAc": Int,
+                  "oneKgAllAn": Int,
+                  "oneKgAfr": Double,
+                  "oneKgAfrAc": Int,
+                  "oneKgAfrAn": Int,
+                  "oneKgAmr": Double,
+                  "oneKgAmrAc": Int,
+                  "oneKgAmrAn": Int,
+                  "oneKgEas": Double,
+                  "oneKgEasAc": Int,
+                  "oneKgEasAn": Int,
+                  "oneKgEur": Double,
+                  "oneKgEurAc": Int,
+                  "oneKgEurAn": Int,
+                  "oneKgSas": Double,
+                  "oneKgSasAc": Int,
+                  "oneKgSasAn": Int,
+                  "evsCoverage": Int,
+                  "evsSamples": Int,
+                  "evsAll": Double,
+                  "evsAfr": Double,
+                  "evsEur": Double,
+                  "exacCoverage": Int,
+                  "exacAll": Double,
+                  "exacAllAc": Int,
+                  "exacAllAn": Int,
+                  "exacAfr": Double,
+                  "exacAfrAc": Int,
+                  "exacAfrAn": Int,
+                  "exacAmr": Double,
+                  "exacAmrAc": Int,
+                  "exacAmrAn": Int,
+                  "exacEas": Double,
+                  "exacEasAc": Int,
+                  "exacEasAn": Int,
+                  "exacFin": Double,
+                  "exacFinAc": Int,
+                  "exacFinAn": Int,
+                  "exacNfe": Double,
+                  "exacNfeAc": Int,
+                  "exacNfeAn": Int,
+                  "exacOth": Double,
+                  "exacOthAc": Int,
+                  "exacOthAn": Int,
+                  "exacSas": Double,
+                  "exacSasAc": Int,
+                  "exacSasAn": Int,
+                  "regulatoryRegions": Array[Struct{
+                    "id": String,
+                    "consequence": Set(String),
+                    "type": String
+                  }],
+                  "transcripts": Struct{
+                    "ensembl": Array[Struct{
+                      "transcript": String,
+                      "aminoAcids": String,
+                      "bioType": String,
+                      "cDnaPos": String,
+                      "codons": String,
+                      "cdsPos": String,
+                      "exons": String,
+                      "introns": String,
+                      "geneId": String,
+                      "hgnc": String,
+                      "consequence": Set(String),
+                      "hgvsc": String,
+                      "hgvsp": String,
+                      "isCanonical": Boolean,
+                      "polyPhenScore": Double,
+                      "polyPhenPrediction": String,
+                      "proteinId": String,
+                      "proteinPos": String,
+                      "siftScore": Double,
+                      "siftPrediction": String
+                    }]
+                  },
+                  "clinVar": Array[Struct{
+                    "id": String,
+                    "reviewStatus": String,
+                    "isAlleleSpecific": Boolean,
+                    "alleleOrigin": String,
+                    "refAllele": String,
+                    "altAllele": String,
+                    "phenotype": String,
+                    "geneReviewsId": String,
+                    "medGenId": String,
+                    "omimId": String,
+                    "orphanetId": String,
+                    "significance": String,
+                    "snoMetCtId": String,
+                    "lastEvaluatedDate": String,
+                    "pubMedIds": Array[String]
+                  }],
+                  "cosmic": Array[Struct{
+                    "id": String,
+                    "isAlleleSpecific": Boolean,
+                    "refAllele": String,
+                    "altAllele": String,
+                    "gene": String,
+                    "studies": Array[Struct{
+                      "id": Int,
+                      "histology": String,
+                      "primarySite": String
+                    }]
+                  }]
+                }]
+            }
 
         """
         jvds = self._jvdf.nirvana(config, block_size, root)
