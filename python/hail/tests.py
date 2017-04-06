@@ -828,3 +828,14 @@ class ContextTests(unittest.TestCase):
             data4 = [line for line in f]
 
         self.assertEqual(data, data4)
+
+        with open('/tmp/numbers.txt', 'w') as f:
+            for i in range(1000):
+                f.write(str(i))
+                f.write('\n')
+
+        with hdfs_read('/tmp/numbers.txt', buffer_size=75) as f:
+            numbers = [int(x) for x in f]
+
+        self.assertEqual(numbers, list(range(1000)))
+

@@ -70,16 +70,11 @@ trait Py4jUtils {
 }
 
 class HadoopPyReader(in: InputStream, buffer: Int) {
-  private val source = Source.fromInputStream(in)
-  private val lines = source.getLines()
+  private val lines = Source.fromInputStream(in).getLines()
 
   def close() {
-    source.close()
+    in.close()
   }
-
-  def hasNext: Boolean = lines.hasNext
-
-  def next(): String = lines.next()
 
   def readFully(): String = {
     lines.mkString("\n")

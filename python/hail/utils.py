@@ -74,6 +74,8 @@ def hdfs_read(path, buffer_size=1000):
     
     :param str path: Source file.
     
+    :param int buffer_size: Size of internal line buffer.
+    
     :return: Iterable file reader object.
     :rtype: :class:`.HadoopReader`
     """
@@ -120,22 +122,26 @@ def hdfs_copy(src, dest):
 class HadoopReader(object):
     def __init__(self, path, buffer_size):
         self._jfile = Env.jutils().readFile(path, Env.hc()._jhc, buffer_size)
-        self._iter = iter([])
+        self._line_buffer = []
+        self._i = 0
 
 
     def __iter__(self):
         return self
 
     def next(self):
-        try:
-            return self._iter.next()
-        except StopIteration:
+        if self._i == len(self._line_buffer):
             it = self._jfile.readChunk()
             if it is None:
                 raise StopIteration
             else:
-                self._iter = iter(it)
+                self._line_buffer = it.split('\n')
+                self._i = 0
                 return self.next()
+        else:
+            r = self._line_buffer[self._i]
+            self._i += 1
+            return r
 
     @handle_py4j
     def read(self):
@@ -153,13 +159,13 @@ class HadoopReader(object):
         :return: List of lines in the file.
         :rtype: list of str
         """
-        return self._jfile.readFully().split("\n")
+        return self._jfile.readFully().split('\n')
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._jfile.close()
+        self.close()
 
     def close(self):
         self._jfile.close()
