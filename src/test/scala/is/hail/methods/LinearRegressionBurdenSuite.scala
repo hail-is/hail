@@ -18,7 +18,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
     val kt = hc.read("python/hail/docs/data/example_burden.vds")
       .annotateVariantsIntervals("python/hail/docs/data/genes.interval_list", "va.genes", all=true)
-      .linregBurden("gene", "va.genes", "stats().max", "g.gt", "sa.burden.pheno", covSA = Array("sa.burden.cov1", "sa.burden.cov2"), dropSamples = false)
+      .linregBurden("gene", "va.genes", "max()", "g.gt", "sa.burden.pheno", covSA = Array("sa.burden.cov1", "sa.burden.cov2"), dropSamples = false)
 
     kt.toDF(hc.sqlContext).show()
 

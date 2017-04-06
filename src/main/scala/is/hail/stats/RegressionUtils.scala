@@ -296,7 +296,6 @@ object RegressionUtils {
     else
       None
   }
-}
 
   // mean 0, norm sqrt(n), variance 1 (constant variants return None)
   def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {

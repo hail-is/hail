@@ -2599,6 +2599,84 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    def linreg_burden(self, key_name, variant_key_set, aggregate_with, genotype_expr, y, covariates=[], drop_samples=True):
+        r"""Test each group of variants for association using the linear regression model.
+
+        **Examples**
+
+        Max
+
+        >>> kt = (vds.annotate_variants_intervals('genes.interval_list', 'va.genes', all=True)
+        ...    .linreg_burden(key_name='gene', variant_key_set='va.genes',
+        ...                   aggregate_with='max()', genotype_expr='g.gt',
+        ...                   y='sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+
+        Weighted sum
+
+        >>> kt = (vds.annotate_variants_intervals('genes.interval_list', 'va.genes', all=True)
+        ...    .linreg_burden(key_name='gene', variant_key_set='va.genes',
+        ...                   aggregate_with='sum()', genotype_expr='va.weight * g.gt',
+        ...                   y='sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+
+        Weighted sum without mean imputation
+
+        >>> kt = (vds.annotate_variants_intervals('genes.interval_list', 'va.genes', all=True)
+        ...    .filterSamplesExpr("isDefined(sa.pheno.height) && isDefined(sa.pheno.age) && isDefined(sa.pheno.isFemale)")
+        ...    .variant_qc()
+        ...    .linreg_burden(key_name='gene', variant_key_set='va.genes',
+        ...                   aggregate_with='sum()', genotype_expr='va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)',
+        ...                   y='sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+
+        **Notes**
+
+        This method extends linear regression by generalizing the covariate of interest. Namely, the genotype of a variant is replaced by a numeric score computed from a group of variants with a common key. The method proceeds as follows:
+
+        1) Filter to samples with all phenotype and covariates non-missing, and to variants with non-empty ``variant_key_set``.
+
+        2) Map each genotype to a numeric value using ``genotype_expr``. The visible are ``v``. ``va``, ``s``, ``sa``, and ``g``.
+
+        3) For each key and sample, aggregate these values across all variants with this key in their ``variant_key_set`` using ``aggregate_with``, which is
+           `method <https://hail.is/hail/types.html#aggregable>`_ on Aggregable[T],
+           where ``T`` is the type of ``genotype_expr``, that returns a numeric type.
+           This results in a key table with key column ``key_name`` and a column for each complete sample.
+           For each key (row), missing values are mean-imputed across all samples.
+
+        4) For each key, fit the linear regression model with phenotype and covariates as described in :py:meth:`.linreg`, with
+           sample genotype ``gt`` replaced by the aggregated value for that sample and key.
+
+        :py:meth:`.linreg` returns a key table with the following columns:
+
+        - **key** (*String*) -- variant group
+        - **beta** (*Double*) -- fit coefficient, :math:`\hat\beta_1`
+        - **se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
+        - **tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+        - **pval** (*Double*) -- :math:`p`-value
+
+        If `drop_samples=False`, the key table has an additional column for each sample included in the regression. The column name equals the sample ID and the value for each key is the result of the aggregation for that key and sample, which has a numeric type. If `drop_samples=False`, sample names cannot coincide with ``key_name``, 'beta', 'se', 'tstat', or 'pval'.
+
+        :param str key_name: Name to assign to key column of returned key table.
+
+        :param str variant_key_set: Set(String)-valued variant annotation path for the set of keys associated to each variant.
+
+        :param str aggregate_with: `Method <https://hail.is/hail/types.html#aggregable>`_ on Aggregable[T], where ``T`` is the type of ``genotype_expr``, that returns a numeric type.
+
+        :param str genotype_expr: Numeric-valued expression for the value per genotype.
+
+        :param str y: Response expression
+
+        :param covariates: list of covariate expressions
+        :type covariates: list of str
+
+        :param bool drop_samples: If true, only include resulting keytable
+
+        :return: Keytable with linear regression variant annotations.
+        :rtype: :py:class:`.KeyTable`
+        """
+
+        jvds = self._jvdf.linregBurden(key_name, variant_key_set, aggregate_with, genotype_expr, y, jarray(env.jvm.java.lang.String, covariates), drop_samples)
+        return KeyTable(self.hc, jvds)
+
+    @handle_py4j
     @requireTGenotype
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
                run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0):
