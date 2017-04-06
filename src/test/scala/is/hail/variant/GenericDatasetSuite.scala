@@ -142,6 +142,37 @@ class GenericDatasetSuite extends SparkSuite {
     val vcf = "src/test/resources/sample.vcf.bgz"
     val vds = hc.importVCF(vcf)
     val result = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.ad, g.dp, g.gq, g.pl)").toVDS
+    val result2 = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.dosage())").toVDS
+    val result3 = vds.annotateGenotypesExpr("g = Genotype(v, g.dosage())").toVDS
     assert(vds.same(result))
+
+    def compareDosages(vds1: VariantDataset, vds2: VariantDataset): Boolean = {
+      vds1.rdd.fullOuterJoin(vds2.rdd).forall { case (v, (data1, data2)) =>
+        (data1, data2) match {
+          case (Some((va1, gs1)), Some((va2, gs2))) =>
+            gs1.zip(gs2).forall { case (g1, g2) =>
+              (g1.dosage, g2.dosage) match {
+                case (Some(x), Some(y)) => x.zip(y).forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
+                case (None, None) => true
+                case _ => false
+              }
+            case _ => false
+            }
+          case _ => false
+        }
+      }
+    }
+
+    def compareGenotypes(vds1: VariantDataset, vds2: VariantDataset): Boolean = {
+      vds1.rdd.fullOuterJoin(vds2.rdd).forall { case (v, (data1, data2)) =>
+        (data1, data2) match {
+          case (Some((va1, gs1)), Some((va2, gs2))) => gs1.zip(gs2).forall { case (g1, g2) => g1.unboxedGT == g2.unboxedGT }
+          case _ => false
+        }
+      }
+    }
+
+    assert(compareDosages(vds, result2) && compareGenotypes(vds, result2))
+    assert(compareDosages(vds, result3))
   }
 }
