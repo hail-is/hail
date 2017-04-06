@@ -697,7 +697,8 @@ object FunctionRegistry {
   registerMethod("isIndel", { (x: AltAllele) => x.isIndel }, "True if an insertion or a deletion.")
   registerMethod("isInsertion", { (x: AltAllele) => x.isInsertion }, "True if ``v.alt`` begins with and is longer than ``v.ref``.")
   registerMethod("isDeletion", { (x: AltAllele) => x.isDeletion }, "True if ``v.ref`` begins with and is longer than ``v.alt``.")
-  registerMethod("isComplex", { (x: AltAllele) => x.isComplex }, "True if not a SNP, MNP, insertion, or deletion.")
+  registerMethod("isStar", { (x: AltAllele) => x.isStar }, "True if ``v.alt`` is ``*``.")
+  registerMethod("isComplex", { (x: AltAllele) => x.isComplex }, "True if not a SNP, MNP, star, insertion, or deletion.")
   registerMethod("isTransition", { (x: AltAllele) => x.isTransition }, "True if a purine-purine or pyrimidine-pyrimidine SNP.")
   registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion }, "True if a purine-pyrimidine SNP.")
 

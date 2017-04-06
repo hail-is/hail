@@ -1514,11 +1514,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     }.asOrderedRDD)
   }
 
-  def minrep(maxShift: Int = 100): VariantSampleMatrix[T] = {
+  def minRep(maxShift: Int = 100): VariantSampleMatrix[T] = {
     require(maxShift > 0, s"invalid value for maxShift: $maxShift. Parameter must be a positive integer.")
     val minrepped = rdd.map {
       case (v, (va, gs)) =>
-        (v.minrep, (va, gs))
+        (v.minRep, (va, gs))
     }
     copy(rdd = minrepped.smartShuffleAndSort(rdd.orderedPartitioner, maxShift))
   }
