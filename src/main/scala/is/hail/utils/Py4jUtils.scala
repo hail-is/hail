@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import java.io.{InputStream, OutputStreamWriter}
+import java.util
 
 import is.hail.HailContext
 import is.hail.utils._
@@ -55,8 +56,8 @@ trait Py4jUtils {
 
   def makeDouble(d: Double): Double = d
 
-  def readFile(path: String, hc: HailContext): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
-    new HadoopPyReader(hc.hadoopConf.unsafeReader(path))
+  def readFile(path: String, hc: HailContext, buffer: Int): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
+    new HadoopPyReader(hc.hadoopConf.unsafeReader(path), buffer)
   }
 
   def writeFile(path: String, hc: HailContext): HadoopPyWriter = {
@@ -68,16 +69,28 @@ trait Py4jUtils {
   }
 }
 
-class HadoopPyReader(in: InputStream) {
-  private val lines = Source.fromInputStream(in).getLines()
+class HadoopPyReader(in: InputStream, buffer: Int) {
+  private val source = Source.fromInputStream(in)
+  private val lines = source.getLines()
 
   def close() {
-    in.close()
+    source.close()
   }
 
   def hasNext: Boolean = lines.hasNext
 
   def next(): String = lines.next()
+
+  def readFully(): String = {
+    lines.mkString("\n")
+  }
+
+  def readChunk(): String = {
+    if (lines.isEmpty)
+      null
+    else
+      lines.take(buffer).mkString("\n")
+  }
 }
 
 class HadoopPyWriter(out: OutputStreamWriter) {

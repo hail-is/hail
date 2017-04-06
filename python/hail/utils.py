@@ -54,7 +54,7 @@ class FunctionDocumentation(object):
 
 
 @handle_py4j
-def hdfs_read(path):
+def hdfs_read(path, buffer_size=1000):
     """Open an iterable file handle. Supports distributed file systems like hdfs, gs, and s3.
     
     .. doctest::
@@ -77,7 +77,7 @@ def hdfs_read(path):
     :return: Iterable file reader object.
     :rtype: :class:`.HadoopReader`
     """
-    return HadoopReader(path)
+    return HadoopReader(path, buffer_size=buffer_size)
 
 
 @handle_py4j
@@ -118,18 +118,42 @@ def hdfs_copy(src, dest):
 
 
 class HadoopReader(object):
-    def __init__(self, path):
-        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc)
+    def __init__(self, path, buffer_size):
+        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc, buffer_size)
+        self._iter = iter([])
+
 
     def __iter__(self):
         return self
 
-    @handle_py4j
     def next(self):
-        if not self._jfile.hasNext():
-            raise StopIteration
-        else:
-            return self._jfile.next()
+        try:
+            return self._iter.next()
+        except StopIteration:
+            it = self._jfile.readChunk()
+            if it is None:
+                raise StopIteration
+            else:
+                self._iter = iter(it)
+                return self.next()
+
+    @handle_py4j
+    def read(self):
+        """Reads the file and returns a string with all contained text.
+        
+        :return: Full text of the file.
+        :rtype: str
+        """
+        return self._jfile.readFully()
+
+    @handle_py4j
+    def lines(self):
+        """Reads the file and returns the contents as a list of lines.
+        
+        :return: List of lines in the file.
+        :rtype: list of str
+        """
+        return self._jfile.readFully().split("\n")
 
     def __enter__(self):
         return self
@@ -141,12 +165,18 @@ class HadoopReader(object):
         self._jfile.close()
 
 
+
 class HadoopWriter(object):
     def __init__(self, path):
         self._jfile = Env.jutils().writeFile(path, Env.hc()._jhc)
 
     @handle_py4j
     def write(self, text, newline=True):
+        """Write a string to the file.
+        
+        :param str text: Text to write to the file. 
+        :param bool newline: Write a newline character after the given text.
+        """
         if newline:
             self._jfile.writeLine(text)
         else:
