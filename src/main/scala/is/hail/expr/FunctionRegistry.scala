@@ -600,6 +600,7 @@ object FunctionRegistry {
     else
       box(gt)
   }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")
+  registerMethod("call", { (x: Genotype) => x.call }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(genotypeHr, callHr)
   registerMethod("gtj", { (x: Genotype) =>
     val gt = x.unboxedGT
     if (gt == -1)

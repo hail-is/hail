@@ -24,6 +24,7 @@ expr
     hail.expr.TDict
     hail.expr.TVariant
     hail.expr.TGenotype
+    hail.expr.TCall
     hail.expr.TAltAllele
     hail.expr.TLocus
     hail.expr.TInterval
