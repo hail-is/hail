@@ -97,7 +97,7 @@ if role == 'Master':
     		'User=root',
     		'Group=root',
     		'WorkingDirectory=/home/hail/',
-    		'ExecStart=/bin/sh -c "/home/anaconda2/bin/python /home/anaconda2/bin/jupyter notebook > /home/hail/jupyter.log 2>&1"',
+            'ExecStart=/home/anaconda2/bin/python /home/anaconda2/bin/jupyter notebook',
     		'Restart=always',
     		'RestartSec=1',
     		'[Install]',
