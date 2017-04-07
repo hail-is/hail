@@ -64,160 +64,143 @@ object PCRelate {
       .map { case ((s1, s2), x) => ((sampleIndexToId(s1), sampleIndexToId(s2)), x) }
   }
 
-  trait Vector[T <: Vector[T]] {
-    def v: T
-    def apply(i: Int): Double
-    def plus(that: T): T
-    def size: Long
-  }
-  implicit class ArrayIsVector(val a: Array[Double]) extends Vector[ArrayIsVector] with Serializable {
-    type V = ArrayIsVector
+  trait DistributedMatrix[M] {
+    def from(rdd: RDD[Array[Double]]): M
 
-    def v: V = a
+    def transpose(m: M): M
 
-    def apply(i: Int): Double = a(i)
-    def plus(that: V): V = new ArrayIsVector(a.zip(that.a).map { case (x: Double, y: Double) => x + y } )
-    def size: Long = a.length
-  }
-  object Vector {
-    def from(rdd: RDD[Double]): ArrayIsVector = {
-      require(rdd.count() < Int.MaxValue)
-      new ArrayIsVector(rdd.collect())
-    }
-  }
-  type MyVector = Vector[ArrayIsVector]
+    def multiply(l: M, r: M): M
+    def multiply(l: M, r: DenseMatrix): M
 
-  trait MMatrix[T <: MMatrix[T]] {
-    def m: T
+    def map2(f: (Double, Double) => Double)(l: M, r: M): M
+    def pointwiseAdd(l: M, r: M): M
+    def pointwiseSubtract(l: M, r: M): M
+    def pointwiseMultiply(l: M, r: M): M
+    def pointwiseDivide(l: M, r: M): M
 
-    def map2(f: (Double, Double) => Double)(that: T): T
-    def multiply(that: T): T
-    def multiply(that: DenseMatrix): T
-    def transpose: T
-    def pointwiseAdd(that: T): T
-    def pointwiseSubtract(that: T): T
-    def pointwiseMultiply(that: T): T
-    def pointwiseDivide(that: T): T
-    def scalarMultiply(i: Double): T
-    def scalarAdd(i: Double): T
-    def map(f: Double => Double): T
+    def map(f: Double => Double)(m: M): M
+    def scalarAdd(m: M, i: Double): M
+    def scalarSubtract(m: M, i: Double): M
+    def scalarMultiply(m: M, i: Double): M
+    def scalarDivide(m: M, i: Double): M
 
-    def vectorExtendAddRowWise(v: MyVector): T
+    def vectorAddToEveryColumn(v: Array[Double])(m: M): M
 
-    def toArrayArray: Array[Array[Double]]
+    def mapRows[U](m: M, f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U]
 
-    def mapRows[U](f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U]
-  }
-  object BetterBlockMatrix {
-    private def localMultiply(dm: DenseMatrix)(bm: BlockMatrix): BlockMatrix =
-      bm.toIndexedRowMatrix().multiply(dm).toBlockMatrix()
-    private def pointwiseOp(op: (Double, Double) => Double)(x: BlockMatrix, y: BlockMatrix): BlockMatrix = {
-      require(x.numRows() == y.numRows())
-      require(x.numCols() == y.numCols())
-      require(x.rowsPerBlock == y.rowsPerBlock)
-      require(x.colsPerBlock == y.colsPerBlock)
-      val blocks: RDD[((Int, Int), Matrix)] = x.blocks.join(y.blocks).map { case (block, (m1, m2)) =>
-        (block, new DenseMatrix(m1.numRows, m1.numCols, m1.toArray.zip(m2.toArray).map(op.tupled))) }
-      new BlockMatrix(blocks, x.rowsPerBlock, x.colsPerBlock, x.numRows(), x.numCols())
-    }
-    private def elementMap(op: (Double) => Double)(x: BlockMatrix): BlockMatrix = {
-      val blocks: RDD[((Int, Int), Matrix)] = x.blocks.map { case (block, m) =>
-        (block, new DenseMatrix(m.numRows, m.numCols, m.toArray.map(op)))
+    def toBlockRdd(m: M): RDD[((Int, Int), Matrix)]
+    def toCoordinateMatrix(m: M): CoordinateMatrix
+
+    object ops {
+      implicit class Shim(l: M) {
+        def t: M =
+          transpose(l)
+
+        def *(r: M): M =
+          multiply(l, r)
+        def *(r: DenseMatrix): M =
+          multiply(l, r)
+
+        def +(r: M): M =
+          pointwiseAdd(l, r)
+        def -(r: M): M =
+          pointwiseSubtract(l, r)
+        // def *(r: M): M =
+        //   pointwiseMultiply(l, r)
+        def /(r: M): M =
+          pointwiseDivide(l, r)
+
+        def +(r: Double): M =
+          scalarAdd(l, r)
+        def -(r: Double): M =
+          scalarSubtract(l, r)
+        def *(r: Double): M =
+          scalarMultiply(l, r)
+        def /(r: Double): M =
+          scalarDivide(l, r)
+
+        def :+(v: Array[Double]) =
+          vectorAddToEveryColumn(v)(l)
       }
-      new BlockMatrix(blocks, x.rowsPerBlock, x.colsPerBlock, x.numRows(), x.numCols())
     }
-    private def elementMapWithRowIndex(op: (Double, Int) => Double)(x: BlockMatrix): BlockMatrix = {
-      val nRows = x.numRows
-      val nCols = x.numCols
-      val blocks: RDD[((Int, Int), Matrix)] = x.blocks.map { case ((blockRow, blockCol), m) =>
-        ((blockRow, blockCol), new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
-          if (blockRow * x.rowsPerBlock + j % x.colsPerBlock < nRows &&
-            blockCol * x.colsPerBlock + j / x.colsPerBlock < nCols)
-            op(e, blockRow * x.rowsPerBlock + j % x.colsPerBlock)
-          else
-            e
-        }))
+  }
+
+  object DistributedMatrix {
+    def apply[M: DistributedMatrix] = implicitly[DistributedMatrix[M]]
+  }
+
+  object DistributedMatrixImplicits {
+    implicit object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
+      type M = BlockMatrix
+
+      def from(rdd: RDD[Array[Double]]): M =
+        new IndexedRowMatrix(rdd.zipWithIndex().map { case (x, i) => new IndexedRow(i, new DenseVector(x)) })
+          .toBlockMatrix()
+
+      def transpose(m: M): M = m.transpose
+
+      def multiply(l: M, r: M): M = l.multiply(r)
+      def multiply(l: M, r: DenseMatrix): M =
+        l.toIndexedRowMatrix().multiply(r).toBlockMatrix()
+
+      def map2(op: (Double, Double) => Double)(l: M, r: M): M = {
+        require(l.numRows() == r.numRows())
+        require(l.numCols() == r.numCols())
+        require(l.rowsPerBlock == r.rowsPerBlock)
+        require(l.colsPerBlock == r.colsPerBlock)
+        val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).map { case (block, (m1, m2)) =>
+          (block, new DenseMatrix(m1.numRows, m1.numCols, m1.toArray.zip(m2.toArray).map(op.tupled)))
+        }
+        new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
       }
-      new BlockMatrix(blocks, x.rowsPerBlock, x.colsPerBlock, x.numRows(), x.numCols())
+
+      def pointwiseAdd(l: M, r: M): M = map2(_ + _)(l, r)
+      def pointwiseSubtract(l: M, r: M): M = map2(_ - _)(l, r)
+      def pointwiseMultiply(l: M, r: M): M = map2(_ * _)(l, r)
+      def pointwiseDivide(l: M, r: M): M = map2(_ / _)(l, r)
+
+      def map(op: Double => Double)(m: M): M = {
+        val blocks: RDD[((Int, Int), Matrix)] = m.blocks.map { case (block, m) =>
+          (block, new DenseMatrix(m.numRows, m.numCols, m.toArray.map(op)))
+        }
+        new BlockMatrix(blocks, m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols())
+      }
+      def scalarAdd(m: M, i: Double): M = map(_ + i)(m)
+      def scalarSubtract(m: M, i: Double): M = map(_ - i)(m)
+      def scalarMultiply(m: M, i: Double): M = map(_ * i)(m)
+      def scalarDivide(m: M, i: Double): M = map(_ / i)(m)
+
+      private def mapWithRowIndex(op: (Double, Int) => Double)(x: M): M = {
+        val nRows = x.numRows
+        val nCols = x.numCols
+        val blocks: RDD[((Int, Int), Matrix)] = x.blocks.map { case ((blockRow, blockCol), m) =>
+          ((blockRow, blockCol), new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
+            if (blockRow * x.rowsPerBlock + j % x.colsPerBlock < nRows &&
+              blockCol * x.colsPerBlock + j / x.colsPerBlock < nCols)
+              op(e, blockRow * x.rowsPerBlock + j % x.colsPerBlock)
+            else
+              e
+          }))
+        }
+        new BlockMatrix(blocks, x.rowsPerBlock, x.colsPerBlock, x.numRows(), x.numCols())
+      }
+
+      def vectorAddToEveryColumn(v: Array[Double])(m: M): M = {
+        require(v.length == m.numRows())
+        mapWithRowIndex((x,i) => x * v(i))(m)
+      }
+
+      def mapRows[U](m: M, f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U] =
+        m.toIndexedRowMatrix().rows.map((ir: IndexedRow) => f(ir.vector.toArray))
+
+      def toBlockRdd(m: M): RDD[((Int, Int), Matrix)] = m.blocks
+      def toCoordinateMatrix(m: M): CoordinateMatrix = m.toCoordinateMatrix()
     }
   }
-  implicit class BetterBlockMatrix(val bm: BlockMatrix) extends MMatrix[BetterBlockMatrix] {
-    import BetterBlockMatrix._
-    type M = BetterBlockMatrix
 
-    def m: M = this
+  case class Result[M: DistributedMatrix](phiHat: M)
 
-    private def lift(f: BlockMatrix => BlockMatrix) =
-      new BetterBlockMatrix(f(this.bm))
-    private def lift2(f: (BlockMatrix, BlockMatrix) => BlockMatrix)(that: BetterBlockMatrix) =
-      new BetterBlockMatrix(f(this.bm, that.bm))
-
-    def multiply(that: M): M = lift2((x: BlockMatrix, y: BlockMatrix) => x.multiply(y))(that)
-    def multiply(that: DenseMatrix): M = lift(localMultiply(that))
-    def transpose: M = lift(_.transpose)
-
-    def map2(f: (Double, Double) => Double)(that: M): M =
-      lift2(pointwiseOp(f))(that)
-    def pointwiseAdd(that: M): M =
-      lift2(pointwiseOp(_ - _))(that)
-    def pointwiseSubtract(that: M): M =
-      lift2(pointwiseOp(_ - _))(that)
-    def pointwiseMultiply(that: M): M =
-      lift2(pointwiseOp(_ * _))(that)
-    def pointwiseDivide(that: M): M =
-      lift2(pointwiseOp(_ / _))(that)
-    def map(f: Double => Double): M =
-      lift(elementMap(f))
-    def scalarMultiply(i: Double): M =
-      lift(elementMap(_ * i))
-    def scalarAdd(i: Double): M =
-      lift(elementMap(_ + i))
-    def sqrt: M =
-      lift(elementMap(Math.sqrt _))
-    def vectorExtendAddRowWise(v: MyVector): M = {
-      require(v.size == this.bm.numRows())
-      lift(elementMapWithRowIndex((x,i) => x * v(i)))
-    }
-
-    def toArrayArray: Array[Array[Double]] = {
-      require(this.bm.numRows() < Int.MaxValue)
-      this.bm.blocks.collect()
-        .groupBy { case ((blockRow, _), m) => blockRow }
-        .mapValues(rowOfBlocks => rowOfBlocks
-          .sortBy { case ((_, blockCol), m) => blockCol }
-          .map { case (_, m) =>
-            val a = m.toArray
-            val r = Array.fill(this.bm.rowsPerBlock, this.bm.colsPerBlock)(0.0)
-            var col = 0
-            while (col < this.bm.colsPerBlock) {
-              var row = 0
-              while (row < this.bm.rowsPerBlock) {
-                r(row)(col) = a(col * this.bm.rowsPerBlock + row)
-                row += 1
-              }
-              col += 1
-            }
-            r
-        }.reduce((x,y) => x.zip(y).map { case (x,y) => x ++ y }.toArray))
-        .values
-        .reduce((x,y) => x ++ y)
-    }
-
-    def mapRows[U](f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U] =
-      this.bm.toIndexedRowMatrix().rows.map((ir: IndexedRow) => f(ir.vector.toArray))
-  }
-  implicit def removeMMatrix[M <: MMatrix[M]](mm: MMatrix[M]): M = mm.m
-  object MMatrix {
-    def from(rdd: RDD[Array[Double]]): MMatrix[BetterBlockMatrix] =
-      new IndexedRowMatrix(rdd.zipWithIndex().map { case (x, i) => new IndexedRow(i, new DenseVector(x)) })
-        .toBlockMatrix()
-  }
-
-  type MyMatrix = MMatrix[BetterBlockMatrix]
-
-  case class Result(phiHat: MyMatrix)
-
-  def pcRelate(vds: VariantDataset, pcs: DenseMatrix): Result = {
+  def pcRelate[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
     val g = vdsToMeanImputedMatrix(vds)
 
     val pcsbc = vds.sparkContext.broadcast(pcs)
@@ -229,7 +212,7 @@ object PCRelate {
     Result(phihat)
   }
 
-  def vdsToMeanImputedMatrix(vds: VariantDataset): MyMatrix = {
+  def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): M = {
     val rdd = vds.rdd.mapPartitions { part =>
       part.map { case (v, (va, gs)) =>
         val goptions = gs.map(_.gt.map(_.toDouble)).toArray
@@ -238,7 +221,7 @@ object PCRelate {
         goptions.map(_.getOrElse(mean))
       }
     }
-    MMatrix.from(rdd)
+    DistributedMatrix[M].from(rdd)
   }
 
   /**
@@ -247,24 +230,17 @@ object PCRelate {
     *
     *  result: (SNP, SNP x D)
     */
-  def fitBeta(g: MyMatrix, pcs: Broadcast[DenseMatrix]): (MyVector, MyMatrix) = {
-    val rdd: RDD[(Double, Array[Double])] = g.mapRows { row =>
-      val aa = pcs.value.rowIter.map(_.toArray).toArray
+  def fitBeta[M: DistributedMatrix](g: M, pcs: Broadcast[DenseMatrix]): (Array[Double], M) = {
+    val aa = pcs.value.rowIter.map(_.toArray).toArray
+    val rdd: RDD[(Double, Array[Double])] = DistributedMatrix[M].mapRows(g, { row =>
       val ols = new OLSMultipleLinearRegression()
       ols.newSampleData(row, aa)
-      val allBetas = try {
-        ols.estimateRegressionParameters()
-      } catch {
-        case e: org.apache.commons.math3.linear.SingularMatrixException =>
-          println(row: Seq[Double])
-          println(aa.map(x => x: Seq[Double]) : Seq[Seq[Double]])
-          throw e
-      }
+      val allBetas = ols.estimateRegressionParameters()
       (allBetas(0), allBetas.slice(1, allBetas.length))
-    }
+    })
     val vecRdd = rdd.map(_._1)
     val matRdd = rdd.map(_._2)
-    (Vector.from(vecRdd), MMatrix.from(matRdd))
+    (vecRdd.collect(), DistributedMatrix[M].from(matRdd))
   }
 
   private def clipToInterval(x: Double): Double =
@@ -282,28 +258,32 @@ object PCRelate {
     *
     *  result: SNP x Sample
     */
-  def muHat(pcs: Broadcast[DenseMatrix], beta0: MyVector, betas: MyMatrix): MyMatrix = {
-    val muHat = betas.multiply(pcs.value.transpose).vectorExtendAddRowWise(beta0).scalarMultiply(1.0/2.0)
-    muHat.map(clipToInterval)
+  def muHat[M: DistributedMatrix](pcs: Broadcast[DenseMatrix], beta0: Array[Double], betas: M): M = {
+    val dm = DistributedMatrix[M]
+    import dm.ops._
+
+    dm.map(clipToInterval _)((betas * pcs.value.transpose :+ beta0) / 2.0)
   }
 
   /**
     * g: SNP x Sample
     * muHat: SNP x Sample
     **/
-  def phiHat(g: MyMatrix, muHat: MyMatrix): MyMatrix = {
-    val gMinusMu = g.pointwiseSubtract(muHat.scalarMultiply(2.0))
-    val oneMinusMu = muHat.scalarMultiply(-1.0).scalarAdd(1.0)
-    val varianceHat = muHat.pointwiseMultiply(oneMinusMu)
+  def phiHat[M: DistributedMatrix](g: M, muHat: M): M = {
+    val dm = DistributedMatrix[M]
+    import dm.ops._
+
+    val gMinusMu = g - (muHat * 2.0)
+    val oneMinusMu = dm.map(1 - _)(muHat)
+    val varianceHat = dm.pointwiseMultiply(muHat, oneMinusMu)
     println("means")
-    println(muHat.scalarMultiply(2.0).bm.blocks.take(1)(0))
+    println(dm.toBlockRdd(muHat * 2.0).take(1)(0))
     println("numerator")
-    println(gMinusMu.transpose.multiply(gMinusMu).bm.blocks.take(1)(0))
+    println(dm.toBlockRdd(gMinusMu.t * gMinusMu).take(1)(0))
     println("denominator")
-    println(varianceHat.transpose.multiply(varianceHat).sqrt.bm.blocks.take(1)(0))
-    gMinusMu.transpose.multiply(gMinusMu)
-      .pointwiseDivide(varianceHat.transpose.multiply(varianceHat).sqrt)
-      .scalarMultiply(1.0/4.0)
+    println(dm.toBlockRdd(dm.map(Math.sqrt _)(varianceHat.t * varianceHat)).take(1)(0))
+
+    ((gMinusMu.t * gMinusMu) / dm.map(Math.sqrt _)(varianceHat.t * varianceHat)) / 4.0
   }
 
 }
