@@ -2604,28 +2604,21 @@ class VariantDataset(object):
 
         **Examples**
 
-        Max
+        Annotate variants by gene set and run a linear regression burden test using the maximum genotype per gene:
 
-        >>> kt = (vds.annotate_variants_intervals('genes.interval_list', 'va.genes', all=True)
-        ...    .linreg_burden(key_name='gene', variant_key_set='va.genes',
-        ...                   aggregate_with='max()', genotype_expr='g.gt',
-        ...                   y='sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+        >>> kt = (hc.read("data/")
+        ...     .annotate_variants_intervals('data/genes.interval_list', 'va.genes', all=True)
+        ...     .linreg_burden(key_name='gene',
+        ...                    variant_key_set='va.genes',
+        ...                    aggregate_with='max()',
+        ...                    genotype_expr='g.gt',
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2'],
+        ...                    drop_samples=False))
 
-        Weighted sum
+        To use a weighted sum of genotypes, with weighted given by ``va.weight``, set ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * g.gt'``
 
-        >>> kt = (vds.annotate_variants_intervals('genes.interval_list', 'va.genes', all=True)
-        ...    .linreg_burden(key_name='gene', variant_key_set='va.genes',
-        ...                   aggregate_with='sum()', genotype_expr='va.weight * g.gt',
-        ...                   y='sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
-
-        Weighted sum without mean imputation
-
-        >>> kt = (vds.annotate_variants_intervals('genes.interval_list', 'va.genes', all=True)
-        ...    .filterSamplesExpr("isDefined(sa.pheno.height) && isDefined(sa.pheno.age) && isDefined(sa.pheno.isFemale)")
-        ...    .variant_qc()
-        ...    .linreg_burden(key_name='gene', variant_key_set='va.genes',
-        ...                   aggregate_with='sum()', genotype_expr='va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)',
-        ...                   y='sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale']))
+        To use a weighted sum of genotypes with missing genotypes mean-imputed, use ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)'``, where ``va.qc.AF`` is the allele frequency over those samples with phenotype and sample covariates all non-missing.
 
         **Notes**
 
@@ -2654,6 +2647,87 @@ class VariantDataset(object):
 
         If `drop_samples=False`, the key table has an additional column for each sample included in the regression. The column name equals the sample ID and the value for each key is the result of the aggregation for that key and sample, which has a numeric type. If `drop_samples=False`, sample names cannot coincide with ``key_name``, 'beta', 'se', 'tstat', or 'pval'.
 
+        Let's walk through these steps in the `max()` toy example above.
+        The variant dataset ``example_burden.vds`` contains of three
+        variants with the following ``gt`` values:
+
+        .. code::
+
+            +---------+---+---+---+---+---+---+
+            |         |  A|  B|  C|  D|  E|  F|
+            +=========+===+===+===+===+===+===+
+            | 1:1:A:C |  0|  1|  0|  0|  0|  1|
+            +---------+---+---+---+---+---+---+
+            | 1:2:C:T |  .|  2|  .|  2|  0|  0|
+            +---------+---+---+---+---+---+---+
+            | 1:3:G:C |  0|  .|  1|  1|  1|  .|
+            +---------+---+---+---+---+---+---+
+
+        The variant dataset also contains six samples with the following annotations:
+
+        .. code::
+
+            +--------+-------+------+------+
+            | Sample | pheno | cov1 | cov2 |
+            +========+=======+======+======+
+            |      A |     1 |    0 |   -1 |
+            +--------+-------+------+------+
+            |      B |     1 |    2 |    3 |
+            +--------+-------+------+------+
+            |      C |     2 |    1 |    5 |
+            +--------+-------+------+------+
+            |      D |     2 |   -2 |    0 |
+            +--------+-------+------+------+
+            |      E |     2 |   -2 |   -4 |
+            +--------+-------+------+------+
+            |      F |     2 |    4 |    3 |
+            +--------+-------+------+------+
+
+        The columns of ``genes.interval_list`` correspond to chromosome, start, end, strand, and gene:
+
+        .. code::
+
+            1	1	2	+	geneA
+            1	2	2	-	geneB
+            1	1	3	+	geneC
+
+        So there are three overlapping genes, gene A containing two variants,
+        gene B just containing one variant, and gene C containing all three variants.
+
+        .. code::
+
+           +--------+---------+---------+---------+
+           |  gene  | 1:1:A:C | 1:2:C:T | 1:3:G:C |
+           +========+=========+=========+=========+
+           |  geneA |    X    |    X    |         |
+           +--------+---------+---------+---------+
+           |  geneB |         |    X    |         |
+           +--------+---------+---------+---------+
+           |  geneC |    X    |    X    |    X    |
+           +--------+---------+---------+---------+
+
+        :py:meth:`.annotate_variants_intervals` with ``all=True`` creates a variant annotation with
+        values ``Set('geneA', 'geneB')``, ``Set('geneB')``, and ``Set('geneA', 'geneB', 'geneC')``.
+
+        :py:meth:`.linear_burden` proceeds through the four steps above. Step (1) is vacuous in this case
+        since all samples are complete and every variant is in at least one gene. Step (2) maps each
+        genotype to the ``gt`` field shown in the first table above. Step (3) finds the maximum value
+        for each gene and sample, resulting in columns A through F below. Step (4) runs linear regression
+        for each gene using these values for the covariate of interest, and the phenotype and covariates
+        in the table above. Since ``drop_samples=False``, the returned key table ``kt`` is then:
+
+        .. code::
+
+            +-----+---+---+---+---+---+---+-------+------+-------+------+
+            | gene|  A|  B|  C|  D|  E|  F|   beta|    se|  tstat|  pval|
+            +=====+===+===+===+===+===+===+=======+======+=======+======+
+            |geneA|  0|  2|  0|  2|  0|  1| -0.084| 0.368| -0.227| 0.841|
+            +-----+---+---+---+---+---+---+-------+------+-------+------+
+            |geneB| NA|  2| NA|  2|  0|  0| -0.542| 0.335| -1.617| 0.247|
+            +-----+---+---+---+---+---+---+-------+------+-------+------+
+            |geneC|  0|  2|  1|  2|  1|  1|  0.075| 0.515|  0.145| 0.898|
+            +-----+---+---+---+---+---+---+-------+------+-------+------+
+
         :param str key_name: Name to assign to key column of returned key table.
 
         :param str variant_key_set: Set(String)-valued variant annotation path for the set of keys associated to each variant.
@@ -2673,7 +2747,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.KeyTable`
         """
 
-        jvds = self._jvdf.linregBurden(key_name, variant_key_set, aggregate_with, genotype_expr, y, jarray(env.jvm.java.lang.String, covariates), drop_samples)
+        jvds = self._jvdf.linregBurden(key_name, variant_key_set, aggregate_with, genotype_expr, y, jarray(Env.jvm().java.lang.String, covariates), drop_samples)
         return KeyTable(self.hc, jvds)
 
     @handle_py4j

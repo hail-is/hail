@@ -137,15 +137,13 @@
     **example_burden.vds**
 
     ```
-    >>> (hc.import_vcf('src/test/resources/sample.vcf')
-    ...    .split_multi()
+    >>> (hc.import_vcf('python/hail/docs/data/example_burden.vcf')
+    ...    .filter_multi()
+    ...    .annotate_samples_table('python/hail/docs/data/example_burden.tsv', 'Sample', root = 'sa.burden'),
+    ...      config = TextTableConfiguration(impute=True))
+    ...    .annotate_variants_expr('va.weight = v.start.toDouble')
     ...    .variant_qc()
-    ...    .annotate_samples_expr('sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
-    ...    .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
-    ...    .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
-    ...    .annotate_samples_expr('sa.cov2 = rnorm(0,1)')
-    ...    .linreg('sa.pheno', ['sa.cov1', 'sa.cov2']).annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
-    ...    .write("python/hail/docs/data/example_lmmreg.vds", overwrite=True))
+    ...    .write('python/hail/docs/data/example_burden.vds', overwrite=True)
     ```
 
 ## Tutorial Setup

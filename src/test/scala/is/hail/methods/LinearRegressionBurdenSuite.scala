@@ -7,7 +7,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class LinearRegressionBurdenSuite extends SparkSuite {
-  @Test def testPythonDocs() {
+//  @Test def testPythonDocs() {
 //    val vds = hc.importVCF("python/hail/docs/data/example_burden.vcf")
 //      .filterMulti()
 //      .annotateSamplesTable("python/hail/docs/data/example_burden.tsv", "Sample", root = Some("sa.burden"),
@@ -15,14 +15,14 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 //      .annotateVariantsExpr("va.weight = v.start.toDouble")
 //      .variantQC()
 //      .write("python/hail/docs/data/example_burden.vds")
-
-    val kt = hc.read("python/hail/docs/data/example_burden.vds")
-      .annotateVariantsIntervals("python/hail/docs/data/genes.interval_list", "va.genes", all=true)
-      .linregBurden("gene", "va.genes", "max()", "g.gt", "sa.burden.pheno", covSA = Array("sa.burden.cov1", "sa.burden.cov2"), dropSamples = false)
-
-    kt.toDF(hc.sqlContext).show()
-
-  }
+//
+//    val kt = hc.read("python/hail/docs/data/example_burden.vds")
+//      .annotateVariantsIntervals("python/hail/docs/data/genes.interval_list", "va.genes", all=true)
+//      .linregBurden("gene", "va.genes", "max()", "g.gt", "sa.burden.pheno", covSA = Array("sa.burden.cov1", "sa.burden.cov2"), dropSamples = false)
+//
+//    kt.toDF(hc.sqlContext).show()
+//
+//  }
 
 
   @Test def testWeightedSum() {
