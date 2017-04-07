@@ -2031,6 +2031,7 @@ class VariantDataset(object):
         >>> vds_result = vds.filter_samples_list(to_remove, keep=False)
         
         Read list from a file:
+        
         >>> to_remove = [s.strip() for s in open('data/exclude_samples.txt')]
         >>> vds_result = vds.filter_samples_list(to_remove, keep=False)
     
