@@ -154,7 +154,9 @@ class ContextTests(unittest.TestCase):
             downsampled.export_variants('/tmp/sample2_loci.tsv', 'chr = v.contig, pos = v.start')
             downsampled.export_variants('/tmp/sample2_variants.tsv', 'v')
 
-            (dataset.filter_samples_list(test_resources + '/sample2.sample_list')
+            with open(test_resources + '/sample2.sample_list') as f:
+                samples = [s.strip() for s in f]
+            (dataset.filter_samples_list(samples)
              .count()['nSamples'] == 56)
 
             dataset.export_vcf('/tmp/sample2.vcf.bgz')

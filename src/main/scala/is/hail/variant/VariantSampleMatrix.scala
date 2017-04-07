@@ -1199,20 +1199,16 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     filterSamples(p)
   }
 
+  def filterSamplesList(samples: java.util.ArrayList[String], keep: Boolean): VariantSampleMatrix[T] =
+    filterSamplesList(samples.asScala.toSet, keep)
+
   /**
     * Filter samples using a text file containing sample IDs
-    * @param path path to sample list file
-    * @param keep keep listed samples
+    * @param samples Set of samples to keep or remove
+    * @param keep Keep listed samples.
     */
-  def filterSamplesList(path: String, keep: Boolean = true): VariantSampleMatrix[T] = {
-    val samples = hc.hadoopConf.readFile(path) { reader =>
-      Source.fromInputStream(reader)
-        .getLines()
-        .filter(line => !line.isEmpty)
-        .toSet
-    }
+  def filterSamplesList(samples: Set[String], keep: Boolean = true): VariantSampleMatrix[T] = {
     val p = (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
-
     filterSamples(p)
   }
 
