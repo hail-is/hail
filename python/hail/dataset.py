@@ -2602,6 +2602,8 @@ class VariantDataset(object):
     def linreg_burden(self, key_name, variant_key_set, aggregate_with, genotype_expr, y, covariates=[], drop_samples=True):
         r"""Test each group of variants for association using the linear regression model.
 
+        .. include:: requireTGenotype.rst
+
         **Examples**
 
         Annotate variants by gene set and run a linear regression burden test using the maximum genotype per gene:
