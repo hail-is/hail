@@ -18,52 +18,6 @@ import scala.reflect.ClassTag
 
 object PCRelate {
 
-  /**
-    *
-    * @param vds
-    * @param mean (variant, (sample, mean))
-    * @return
-    */
-  def apply(vds: VariantDataset, mean: RDD[(Variant, (Int, Double))]): RDD[((String, String), Double)] = {
-    assert(vds.wasSplit, "PCRelate requires biallelic VDSes")
-
-    // (variant, (sample, gt))
-    val g = vds.rdd.flatMap { case (v, (va, gs)) =>
-      gs.zipWithIndex.map { case (g, i) =>
-        (v, (i, g.nNonRefAlleles.getOrElse[Int](-1): Double)) } }
-
-    val meanPairs = mean.join(mean)
-      .filter { case (_, ((i, _), (j, _))) => j >= i }
-      .map { case (vi, ((s1, mean1), (s2, mean2))) =>
-        ((s1, s2, vi), (mean1, mean2))
-    }
-
-    val numerator = g.join(g)
-      .filter { case (_, ((i, _), (j, _))) => j >= i }
-      .map { case (vi, ((s1, gt1), (s2, gt2))) =>
-        ((s1, s2, vi), (gt1, gt2))
-    }
-      .join(meanPairs)
-      .map { case ((s1, s2, vi), ((gt1, gt2), (mean1, mean2))) =>
-        ((s1, s2), (gt1 - 2 * mean1) * (gt2 - 2 * mean2))
-    }
-      .reduceByKey(_ + _)
-
-    val denominator = mean.join(mean)
-      .filter { case (_, ((i, _), (j, _))) => j >= i }
-      .map { case (vi, ((s1, mean1), (s2, mean2))) =>
-        ((s1, s2), Math.sqrt(mean1 * (1 - mean1) * mean2 * (1 - mean2)))
-    }
-      .reduceByKey(_ + _)
-
-    val sampleIndexToId =
-      vds.sampleIds.zipWithIndex.map { case (s, i) => (i, s) }.toMap
-
-    numerator.join(denominator)
-      .map { case ((s1, s2), (numerator, denominator)) => ((s1, s2), numerator / denominator / 4) }
-      .map { case ((s1, s2), x) => ((sampleIndexToId(s1), sampleIndexToId(s2)), x) }
-  }
-
   trait DistributedMatrix[M] {
     def from(rdd: RDD[Array[Double]]): M
 
@@ -200,7 +154,7 @@ object PCRelate {
 
   case class Result[M: DistributedMatrix](phiHat: M)
 
-  def pcRelate[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
+  def apply[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
     val g = vdsToMeanImputedMatrix(vds)
 
     val pcsbc = vds.sparkContext.broadcast(pcs)
