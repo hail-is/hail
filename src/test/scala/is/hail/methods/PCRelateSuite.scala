@@ -5,6 +5,7 @@ import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Paths
 
+import org.apache.spark.mllib.linalg.distributed._
 import is.hail.SparkSuite
 import org.apache.hadoop
 import org.apache.spark.sql.Row
@@ -17,6 +18,8 @@ import is.hail.variant.VSMSubgen
 import is.hail.stats._
 import is.hail.utils.{TextTableConfiguration, TextTableReader, _}
 import scala.sys.process._
+import is.hail.methods.PCRelate.DistributedMatrix
+import is.hail.methods.PCRelate.DistributedMatrixImplicits._
 
 class PCRelateSuite extends SparkSuite {
   private def toI(a: Any): Int =
@@ -72,7 +75,7 @@ class PCRelateSuite extends SparkSuite {
 
     val pcs = SamplePCA.justScores(vds, 2)
     println(pcs)
-    val hailPcRelate = PCRelate.pcRelate(vds, pcs).phiHat.bm.toCoordinateMatrix().entries.collect()
+    val hailPcRelate = DistributedMatrix[BlockMatrix].toCoordinateMatrix(PCRelate.pcRelate[BlockMatrix](vds, pcs).phiHat).entries.collect()
       .filter(me => me.i < me.j)
       .map(me => ((indexToId(me.i.toInt), indexToId(me.j.toInt)), me.value))
       .toMap
