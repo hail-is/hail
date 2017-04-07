@@ -300,6 +300,17 @@ object FunctionRegistry {
         ) yield res
       case f: Arity3Fun[_, _, _, _] =>
         AST.evalComposeCodeM(args(0), args(1), args(2))(invokePrimitive3(f.asInstanceOf[(AnyRef, AnyRef, AnyRef) => AnyRef]))
+      case f: Arity3Special[_, _, _, _] => {
+        val g = ((x: AnyRef, y: AnyRef, z: AnyRef) =>
+          f.asInstanceOf[(() => AnyRef, () => AnyRef, () => AnyRef) => AnyRef](() => x, () => y, () => z))
+
+        for (
+          t <- args(0).compile();
+          u <- args(1).compile();
+          v <- args(2).compile();
+          result <- invokePrimitive3(g)(t, u, v))
+          yield result
+      }
       case f: Arity4Fun[_, _, _, _, _] =>
         AST.evalComposeCodeM(args(0), args(1), args(2), args(3))(invokePrimitive4(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
       case f: UnaryFunCode[t, u] =>
@@ -313,6 +324,20 @@ object FunctionRegistry {
         yield result.asInstanceOf[Code[AnyRef]]
       case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
         throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : ${argTypes.mkString(",")}) in non-aggregator position")
+      case f: Arity6Special[_, _, _, _, _, _, _] => {
+        val g = ((t: AnyRef, u: AnyRef, v: AnyRef, w: AnyRef, x: AnyRef, y: AnyRef) =>
+          f.asInstanceOf[(() => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef) => AnyRef](() => t, () => u, () => v, () => w, () => x, () => y))
+
+        for (
+          t <- args(0).compile();
+          u <- args(1).compile();
+          v <- args(2).compile();
+          w <- args(3).compile();
+          x <- args(4).compile();
+          y <- args(5).compile();
+          result <- invokePrimitive6(g)(t, u, v, w, x, y))
+          yield result
+      }
       case x =>
         throw new RuntimeException(s"Internal hail error, unexpected Fun type: ${x.getClass} $x")
     }).map(Code.checkcast(_)(m.retType.scalaClassTag))
@@ -478,9 +503,19 @@ object FunctionRegistry {
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Fun[T, U, V, W](hrw.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  def registerSpecial[T, U, V, W](name: String, impl: (() => Any, () => Any, () => Any) => W, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ), Arity3Special[T, U, V, W](hrw.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def register[T, U, V, W, X](name: String, impl: (T, U, V, W) => X, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ), Arity4Fun[T, U, V, W, X](hrx.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
+  def registerSpecial[T, U, V, W, X, Y, Z](name: String, impl: (() => Any, () => Any, () => Any, () => Any, () => Any, () => Any) => Z, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y], hrz: HailRep[Z]) = {
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ, hry.typ), Arity6Special[T, U, V, W, X, Y, Z](hrz.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerAnn[T](name: String, t: TStruct, impl: T => Annotation, docstring: String, argNames: (String, String)*)
@@ -770,7 +805,70 @@ object FunctionRegistry {
     "start" -> "Starting number of the sequence.",
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
+  
+  registerSpecial("Genotype", { (vF: () => Any, dosF: () => Any) =>
+    val v = vF()
+    val dos = dosF()
 
+    if (v == null)
+      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
+
+    Genotype(v.asInstanceOf[Variant].nAlleles, if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray) },
+    """
+    Construct a :ref:`genotype` object from a variant and an array of genotype probabilities.
+
+    .. code-block:: text
+        :emphasize-lines: 3
+
+        let v = Variant("7:76324539:A:G") and prob = [0.2, 0.7, 0.1] and
+          g = Genotype(v, prob) in g.isHet()
+        result: true
+    """, "v" -> "Variant", "prob" -> "Genotype probabilities")(variantHr, arrayHr[Double], genotypeHr)
+
+  registerSpecial("Genotype", { (vF: () => Any, gtF: () => Any, dosF: () => Any) =>
+    val v = vF()
+    val dos = dosF()
+
+    if (v == null)
+      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
+
+    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer], if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray) },
+    """
+    Construct a :ref:`genotype` object from a variant, a genotype call, and an array of genotype probabilities.
+
+    .. code-block:: text
+        :emphasize-lines: 3
+
+        let v = Variant("7:76324539:A:G") and gt = 0 and prob = [0.8, 0.1, 0.1] and
+          g = Genotype(v, gt, prob) in g.isHomRef()
+        result: true
+    """, "v" -> "Variant", "gt" -> "Genotype call integer", "prob" -> "Genotype probabilities")(variantHr, boxedintHr, arrayHr[Double], genotypeHr)
+
+  registerSpecial("Genotype", { (vF: () => Any, gtF: () => Any, adF: () => Any, dpF: () => Any, gqF: () => Any, plF: () => Any) =>
+    val v = vF()
+    val ad = adF()
+    val pl = plF()
+
+    if (v == null)
+      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
+
+    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer],
+      if (ad == null) null else ad.asInstanceOf[IndexedSeq[Int]].toArray, dpF().asInstanceOf[java.lang.Integer],
+      gqF().asInstanceOf[java.lang.Integer], if (pl == null) null else pl.asInstanceOf[IndexedSeq[Int]].toArray) },
+    """
+    Construct a :ref:`genotype` object by specifying the variant, call, allelic depths, depth, genotype quality, and phred-scaled likelihoods.
+
+    .. code-block:: text
+        :emphasize-lines: 4
+
+        let v = Variant("7:76324539:A:G") and call = Call(0) and
+          ad = [10, 0] and dp = 10 and gq = 20 and pl = [0, 10, 100] and
+          g = Genotype(v, call, ad, dp, gq, pl) in g.isHomRef()
+        result: true
+    """,
+    "v" -> "Variant", "c" -> "Call", "ad" -> "Allelic depths", "dp" -> "Depth", "gq" -> "Genotype quality", "pl" -> "Phred-scaled likelihoods"
+  )(variantHr, boxedintHr, arrayHr[Int], boxedintHr, boxedintHr, arrayHr[Int], genotypeHr)
+  
   register("Variant", { (x: String) => Variant.parse(x) },
     """
     Construct a :ref:`variant` object.

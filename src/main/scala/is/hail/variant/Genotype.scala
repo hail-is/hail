@@ -383,6 +383,31 @@ object Genotype {
     Genotype(gtx)
   }
 
+  def apply(nAlleles: Int, gt: java.lang.Integer, dos: Array[Double]): Genotype = {
+    val gtx: Int = if (gt == null) -1 else gt
+    val g = new DosageGenotype(gtx, if (dos == null) null else Genotype.weightsToLinear(dos))
+    g.check(nAlleles)
+    g
+  }
+
+  def apply(nAlleles: Int, dos: Array[Double]): Genotype = {
+    val px = if (dos == null) null else Genotype.weightsToLinear(dos)
+    val gtx = if (dos == null) -1 else Genotype.unboxedGTFromLinear(px)
+    val g = new DosageGenotype(gtx, px)
+    g.check(nAlleles)
+    g
+  }
+
+  def apply(nAlleles: Int, gt: java.lang.Integer, ad: Array[Int], dp: java.lang.Integer, gq: java.lang.Integer, pl: Array[Int]): Genotype = {
+    val gtx: Int = if (gt == null) -1 else gt
+    val dpx: Int = if (dp == null) -1 else dp
+    val gqx: Int = if (gq == null) -1 else gq
+
+    val g = new GenericGenotype(gtx, ad, dpx, gqx, pl, fakeRef = false, isDosage = false)
+    g.check(nAlleles)
+    g
+  }
+
   def apply(gt: Option[Int], fakeRef: Boolean): Genotype =
     new GenericGenotype(gt.getOrElse(-1), null, -1, -1, null, fakeRef, false)
 

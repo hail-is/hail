@@ -204,6 +204,15 @@ case class Arity3Fun[T, U, V, W](retType: Type, f: (T, U, V) => W) extends Fun w
   }
 }
 
+case class Arity3Special[T, U, V, W](retType: Type, f: (() => Any, () => Any, () => Any) => W)
+  extends Fun with Serializable with ((() => Any, () => Any, () => Any) => W) {
+  def apply(t: () => Any, u: () => Any, v: () => Any): W = f(t, u, v)
+
+  def subst() = Arity3Special(retType.subst(), f)
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
+}
+
 case class Arity4Fun[T, U, V, W, X](retType: Type, f: (T, U, V, W) => X) extends Fun with Serializable with ((T, U, V, W) => X) {
   def apply(t: T, u: U, v: V, w: W): X = f(t, u, v, w)
 
@@ -217,4 +226,13 @@ case class Arity4Fun[T, U, V, W, X](retType: Type, f: (T, U, V, W) => X) extends
       transformations(2).f(c).asInstanceOf[V],
       transformations(3).f(d).asInstanceOf[W]))
   }
+}
+
+case class Arity6Special[T, U, V, W, X, Y, Z](retType: Type, f: (() => Any, () => Any, () => Any, () => Any, () => Any, () => Any) => Z)
+  extends Fun with Serializable with ((() => Any, () => Any, () => Any, () => Any, () => Any, () => Any) => Z) {
+  def apply(t: () => Any, u: () => Any, v: () => Any, w: () => Any, x: () => Any, y: () => Any): Z = f(t, u, v, w, x, y)
+
+  def subst() = Arity6Special(retType.subst(), f)
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = ???
 }
