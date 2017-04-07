@@ -209,7 +209,7 @@ object PCRelate {
   implicit def removeMMatrix[M <: MMatrix[M]](mm: MMatrix[M]): M = mm.m
   object MMatrix {
     def from(rdd: RDD[Array[Double]]): MMatrix[BetterBlockMatrix] =
-      new IndexedRowMatrix(rdd.zipWithIndex().map { case (x, i) => new IndexedRow(i, new DenseVector(x)) }, nRows, nCols)
+      new IndexedRowMatrix(rdd.zipWithIndex().map { case (x, i) => new IndexedRow(i, new DenseVector(x)) })
         .toBlockMatrix()
   }
 
@@ -253,7 +253,7 @@ object PCRelate {
       val ols = new OLSMultipleLinearRegression()
       ols.newSampleData(row, aa)
       val allBetas = try {
-        ols.estimateRegressionParameters().toArray
+        ols.estimateRegressionParameters()
       } catch {
         case e: org.apache.commons.math3.linear.SingularMatrixException =>
           println(row: Seq[Double])
@@ -295,6 +295,12 @@ object PCRelate {
     val gMinusMu = g.pointwiseSubtract(muHat.scalarMultiply(2.0))
     val oneMinusMu = muHat.scalarMultiply(-1.0).scalarAdd(1.0)
     val varianceHat = muHat.pointwiseMultiply(oneMinusMu)
+    println("means")
+    println(muHat.scalarMultiply(2.0).bm.blocks.take(1)(0))
+    println("numerator")
+    println(gMinusMu.transpose.multiply(gMinusMu).bm.blocks.take(1)(0))
+    println("denominator")
+    println(varianceHat.transpose.multiply(varianceHat).sqrt.bm.blocks.take(1)(0))
     gMinusMu.transpose.multiply(gMinusMu)
       .pointwiseDivide(varianceHat.transpose.multiply(varianceHat).sqrt)
       .scalarMultiply(1.0/4.0)
