@@ -2618,7 +2618,7 @@ class VariantDataset(object):
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2'],
         ...                    drop_samples=False))
 
-        To use a weighted sum (linear combination) of genotypes, with weights given by a variant annotation ``va.weight``, set ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * g.gt'``
+        To use a weighted sum (linear combination) of genotypes, with weights given by a variant annotation ``va.weight``, set ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * g.gt'``.
 
         To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, use ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)'``, where ``va.qc.AF`` is the allele frequency over those samples with phenotype and sample covariates all non-missing.
 
@@ -2682,7 +2682,7 @@ class VariantDataset(object):
 
         The columns of ``genes.interval_list`` correspond to chromosome, start, end, strand, and gene:
 
-        .. code-block::
+        .. code-block:: text
 
             1	1	2	+	geneA
             1	2	2	-	geneB
