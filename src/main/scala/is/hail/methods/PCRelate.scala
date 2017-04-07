@@ -230,6 +230,7 @@ object PCRelate {
     val gMinusMu = g - (muHat * 2.0)
     val oneMinusMu = dm.map(1 - _)(muHat)
     val varianceHat = dm.pointwiseMultiply(muHat, oneMinusMu)
+
     println("means")
     println(dm.toBlockRdd(muHat * 2.0).take(1)(0))
     println("numerator")
