@@ -353,7 +353,7 @@ class ContextTests(unittest.TestCase):
 
         sample2.filter_alleles('pcoin(0.5)')
 
-        gds.annotate_genotypes_expr('g = Genotype(g.GT)').split_multi()
+        gds.annotate_genotypes_expr('g = g.GT.toGenotype()').split_multi()
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
