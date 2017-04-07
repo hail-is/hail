@@ -75,7 +75,7 @@ class PCRelateSuite extends SparkSuite {
 
     val pcs = SamplePCA.justScores(vds, 2)
     println(pcs)
-    val hailPcRelate = DistributedMatrix[BlockMatrix].toCoordinateMatrix(PCRelate.pcRelate[BlockMatrix](vds, pcs).phiHat).entries.collect()
+    val hailPcRelate = DistributedMatrix[BlockMatrix].toCoordinateMatrix(PCRelate[BlockMatrix](vds, pcs).phiHat).entries.collect()
       .filter(me => me.i < me.j)
       .map(me => ((indexToId(me.i.toInt), indexToId(me.j.toInt)), me.value))
       .toMap
@@ -87,6 +87,6 @@ class PCRelateSuite extends SparkSuite {
   def foo() {
     val vds: VariantDataset = hc.read("/Users/dking/projects/hail-data/profile.vds").splitMulti()
     val pcs = SamplePCA.justScores(vds, 3)
-    val result = PCRelate.pcRelate(vds, pcs)
+    val result = PCRelate(vds, pcs)
   }
 }
