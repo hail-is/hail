@@ -22,6 +22,7 @@ object PCRelate {
     def from(rdd: RDD[Array[Double]]): M
 
     def transpose(m: M): M
+    def diagonal(m: M): Array[Double]
 
     def multiply(l: M, r: M): M
     def multiply(l: M, r: DenseMatrix): M
@@ -37,8 +38,13 @@ object PCRelate {
     def scalarSubtract(m: M, i: Double): M
     def scalarMultiply(m: M, i: Double): M
     def scalarDivide(m: M, i: Double): M
+    def scalarAdd(i: Double, m: M): M
+    def scalarSubtract(i: Double, m: M): M
+    def scalarMultiply(i: Double, m: M): M
+    def scalarDivide(i: Double, m: M): M
 
     def vectorAddToEveryColumn(v: Array[Double])(m: M): M
+    def vectorPointwiseMultiplyEveryColumn(v: Array[Double])(m: M): M
 
     def mapRows[U](m: M, f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U]
 
@@ -49,19 +55,21 @@ object PCRelate {
       implicit class Shim(l: M) {
         def t: M =
           transpose(l)
+        def diag: Array[Double] =
+          diagonal(l)
 
         def *(r: M): M =
           multiply(l, r)
         def *(r: DenseMatrix): M =
           multiply(l, r)
 
-        def +(r: M): M =
+        def :+:(r: M): M =
           pointwiseAdd(l, r)
-        def -(r: M): M =
+        def :-:(r: M): M =
           pointwiseSubtract(l, r)
-        // def *(r: M): M =
-        //   pointwiseMultiply(l, r)
-        def /(r: M): M =
+        def :*:(r: M): M =
+          pointwiseMultiply(l, r)
+        def :/:(r: M): M =
           pointwiseDivide(l, r)
 
         def +(r: Double): M =
@@ -73,8 +81,23 @@ object PCRelate {
         def /(r: Double): M =
           scalarDivide(l, r)
 
-        def :+(v: Array[Double]) =
+        def :+(v: Array[Double]): M =
           vectorAddToEveryColumn(v)(l)
+        def :*(v: Array[Double]): M =
+          vectorPointwiseMultiplyEveryColumn(v)(l)
+
+        def sqrt: M =
+          map(Math.sqrt _)(l)
+      }
+      implicit class ScalarShim(l: Double) {
+        def +(r: M): M =
+          scalarAdd(l, r)
+        def -(r: M): M =
+          scalarSubtract(l, r)
+        def *(r: M): M =
+          scalarMultiply(l, r)
+        def /(r: M): M =
+          scalarDivide(l, r)
       }
     }
   }
@@ -92,6 +115,13 @@ object PCRelate {
           .toBlockMatrix()
 
       def transpose(m: M): M = m.transpose
+      def diagonal(m: M): Array[Double] = toCoordinateMatrix(m)
+        .entries
+        .filter(me => me.i == me.j)
+        .map(me => (me.i, me.value))
+        .collect()
+        .sortBy(_._1)
+        .map(_._2)
 
       def multiply(l: M, r: M): M = l.multiply(r)
       def multiply(l: M, r: DenseMatrix): M =
@@ -123,6 +153,10 @@ object PCRelate {
       def scalarSubtract(m: M, i: Double): M = map(_ - i)(m)
       def scalarMultiply(m: M, i: Double): M = map(_ * i)(m)
       def scalarDivide(m: M, i: Double): M = map(_ / i)(m)
+      def scalarAdd(i: Double, m: M): M = map(i + _)(m)
+      def scalarSubtract(i: Double, m: M): M = map(i - _)(m)
+      def scalarMultiply(i: Double, m: M): M = map(i * _)(m)
+      def scalarDivide(i: Double, m: M): M = map(i / _)(m)
 
       private def mapWithRowIndex(op: (Double, Int) => Double)(x: M): M = {
         val nRows = x.numRows
@@ -140,6 +174,11 @@ object PCRelate {
       }
 
       def vectorAddToEveryColumn(v: Array[Double])(m: M): M = {
+        require(v.length == m.numRows())
+        mapWithRowIndex((x,i) => x + v(i))(m)
+      }
+
+      def vectorPointwiseMultiplyEveryColumn(v: Array[Double])(m: M): M = {
         require(v.length == m.numRows())
         mapWithRowIndex((x,i) => x * v(i))(m)
       }
@@ -227,18 +266,29 @@ object PCRelate {
     val dm = DistributedMatrix[M]
     import dm.ops._
 
-    val gMinusMu = g - (muHat * 2.0)
-    val oneMinusMu = dm.map(1 - _)(muHat)
-    val varianceHat = dm.pointwiseMultiply(muHat, oneMinusMu)
+    val gMinusMu = g :-: (muHat * 2.0)
+    val varianceHat = muHat :*: (1.0 - muHat)
 
     println("means")
     println(dm.toBlockRdd(muHat * 2.0).take(1)(0))
     println("numerator")
     println(dm.toBlockRdd(gMinusMu.t * gMinusMu).take(1)(0))
     println("denominator")
-    println(dm.toBlockRdd(dm.map(Math.sqrt _)(varianceHat.t * varianceHat)).take(1)(0))
+    println(dm.toBlockRdd(varianceHat.t * varianceHat).take(1)(0))
 
-    ((gMinusMu.t * gMinusMu) / dm.map(Math.sqrt _)(varianceHat.t * varianceHat)) / 4.0
+    ((gMinusMu.t * gMinusMu) :/: (varianceHat.t * varianceHat).sqrt) / 4.0
   }
 
+  def f[M: DistributedMatrix](phiHat: M): Array[Double] =
+    DistributedMatrix[M].diagonal(phiHat).map(2.0 * _ - 1.0)
+
+  def k2[M: DistributedMatrix](f: Array[Double], gD: M, mu: M): M = {
+    val dm = DistributedMatrix[M]
+    import dm.ops._
+
+    val normalizedGD = gD :-: ((mu :*: (1.0 - mu)) :* (f.map(1 + _)))
+    val variance = mu * (1.0 - mu)
+
+    (normalizedGD.t * normalizedGD) :/: (variance.t * variance)
+  }
 }
