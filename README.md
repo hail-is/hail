@@ -39,7 +39,7 @@ To get started using Hail on your data:
 - check out the [Overview](https://hail.is/hail/overview.html), [Tutorial](https://hail.is/hail/tutorial.html), and [Python API](https://hail.is/hail/index.html)
 - chat with the Hail team in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 
-We encourage use of the [Discussion Forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
+We encourage use of the [Discussion Forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Follow Hail on Twitter [@hailgenetics](https://twitter.com/hailgenetics). Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
 
 #### Hail Team
 
