@@ -2606,7 +2606,7 @@ class VariantDataset(object):
 
         Annotate variants by gene set and run a linear regression burden test using the maximum genotype per gene:
 
-        >>> kt = (hc.read("data/")
+        >>> kt = (hc.read("data/example_burden.vds")
         ...     .annotate_variants_intervals('data/genes.interval_list', 'va.genes', all=True)
         ...     .linreg_burden(key_name='gene',
         ...                    variant_key_set='va.genes',
@@ -2648,21 +2648,6 @@ class VariantDataset(object):
         If `drop_samples=False`, the key table has an additional column for each sample included in the regression. The column name equals the sample ID and the value for each key is the result of the aggregation for that key and sample, which has a numeric type. If `drop_samples=False`, sample names cannot coincide with ``key_name``, 'beta', 'se', 'tstat', or 'pval'.
 
         Let's walk through these steps in the `max()` toy example above.
-        The variant dataset ``example_burden.vds`` contains of three
-        variants with the following ``gt`` values:
-
-        .. code::
-
-            +---------+---+---+---+---+---+---+
-            |         |  A|  B|  C|  D|  E|  F|
-            +=========+===+===+===+===+===+===+
-            | 1:1:A:C |  0|  1|  0|  0|  0|  1|
-            +---------+---+---+---+---+---+---+
-            | 1:2:C:T |  .|  2|  .|  2|  0|  0|
-            +---------+---+---+---+---+---+---+
-            | 1:3:G:C |  0|  .|  1|  1|  1|  .|
-            +---------+---+---+---+---+---+---+
-
         The variant dataset also contains six samples with the following annotations:
 
         .. code::
@@ -2683,6 +2668,20 @@ class VariantDataset(object):
             |      F |     2 |    4 |    3 |
             +--------+-------+------+------+
 
+        The variant dataset contains three variants with the following ``gt`` values:
+
+        .. code::
+
+            +---------+---+---+---+---+---+---+
+            |         | A | B | C | D | E | F |
+            +=========+===+===+===+===+===+===+
+            | 1:1:A:C | 0 | 1 | 0 | 0 | 0 | 1 |
+            +---------+---+---+---+---+---+---+
+            | 1:2:C:T | . | 2 | . | 2 | 0 | 0 |
+            +---------+---+---+---+---+---+---+
+            | 1:3:G:C | 0 | . | 1 | 1 | 1 | . |
+            +---------+---+---+---+---+---+---+
+
         The columns of ``genes.interval_list`` correspond to chromosome, start, end, strand, and gene:
 
         .. code::
@@ -2692,7 +2691,7 @@ class VariantDataset(object):
             1	1	3	+	geneC
 
         So there are three overlapping genes, gene A containing two variants,
-        gene B just containing one variant, and gene C containing all three variants.
+        gene B containing one variant, and gene C containing all three variants.
 
         .. code::
 
@@ -2706,20 +2705,21 @@ class VariantDataset(object):
            |  geneC |    X    |    X    |    X    |
            +--------+---------+---------+---------+
 
-        :py:meth:`.annotate_variants_intervals` with ``all=True`` creates a variant annotation with
-        values ``Set('geneA', 'geneB')``, ``Set('geneB')``, and ``Set('geneA', 'geneB', 'geneC')``.
+        Therefore :py:meth:`.annotate_variants_intervals` with ``all=True`` creates
+        a variant annotation of type Set(String) with values ``Set('geneA', 'geneB')``,
+        ``Set('geneB')``, and ``Set('geneA', 'geneB', 'geneC')``.
 
         :py:meth:`.linear_burden` proceeds through the four steps above. Step (1) is vacuous in this case
         since all samples are complete and every variant is in at least one gene. Step (2) maps each
         genotype to the ``gt`` field shown in the first table above. Step (3) finds the maximum value
         for each gene and sample, resulting in columns A through F below. Step (4) runs linear regression
-        for each gene using these values for the covariate of interest, and the phenotype and covariates
+        for each gene using these values for the covariate of interest, and the phenotype and sample covariates
         in the table above. Since ``drop_samples=False``, the returned key table ``kt`` is then:
 
         .. code::
 
             +-----+---+---+---+---+---+---+-------+------+-------+------+
-            | gene|  A|  B|  C|  D|  E|  F|   beta|    se|  tstat|  pval|
+            | gene| A | B | C | D | E | F |  beta |   se | tstat | pval |
             +=====+===+===+===+===+===+===+=======+======+=======+======+
             |geneA|  0|  2|  0|  2|  0|  1| -0.084| 0.368| -0.227| 0.841|
             +-----+---+---+---+---+---+---+-------+------+-------+------+
@@ -2727,6 +2727,8 @@ class VariantDataset(object):
             +-----+---+---+---+---+---+---+-------+------+-------+------+
             |geneC|  0|  2|  1|  2|  1|  1|  0.075| 0.515|  0.145| 0.898|
             +-----+---+---+---+---+---+---+-------+------+-------+------+
+
+        With ``drop_samples=True``, columns A through F would be dropped.
 
         :param str key_name: Name to assign to key column of returned key table.
 
