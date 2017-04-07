@@ -32,8 +32,8 @@ if role == 'Master':
     call('mkdir /home/hail/', shell=True)
 
     # copy Hail jar and zip to local directory on master node
-    call('gsutil cp gs://hail-common/{} /home/hail/'.format(hail_jar), shell=True)
-    call('gsutil cp gs://hail-common/{} /home/hail/'.format(hail_zip), shell=True)
+    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_jar), '/home/hail/'])
+    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_zip), '/home/hail/'])
 
     # modify default Spark config file to reference Hail jar and zip
     with open('/etc/spark/conf/spark-defaults.conf', 'ab') as f:

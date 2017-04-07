@@ -20,12 +20,16 @@ hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hail_hash)
 hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hail_hash)
 
 # pyspark submit command
-cmd = ' '.join([
-    'gcloud dataproc jobs submit pyspark',
+cmd = [
+    'gcloud',
+    'dataproc',
+    'jobs',
+    'submit',
+    'pyspark',
     args.script,
     '--cluster={}'.format(args.name),
     '--files={}'.format('gs://hail-common/' + hail_jar),
     '--py-files={}'.format('gs://hail-common/' + hail_zip),
     '--properties="spark.driver.extraClassPath=./{0},spark.executor.extraClassPath=./{0}"'.format(hail_jar)
-])
-call(cmd, shell=True)
+]
+call(cmd)
