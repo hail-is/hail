@@ -24,7 +24,19 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
+import scala.language.implicitConversions
 
+sealed abstract class SortOrder
+
+case object Ascending extends SortOrder
+
+case object Descending extends SortOrder
+
+object SortField {
+  implicit def fromField(field: String): SortField = SortField(field, Ascending)
+}
+
+case class SortField(field: String, sortOrder: SortOrder)
 
 object KeyTable {
   final val fileVersion: Int = 1
@@ -610,5 +622,38 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     rdd.persist(level)
     this
+  }
+
+  def orderBy(fields: SortField*): KeyTable =
+    orderBy(fields.toArray)
+
+  def orderBy(fields: Array[SortField]): KeyTable = {
+    val fieldOrds = fields.map { case SortField(n, so) =>
+      val i = signature.fieldIdx(n)
+      val f = signature.fields(i)
+
+      val fo = f.typ.ordering(so == Ascending)
+
+      (i, if (so == Ascending) fo else fo.reverse)
+    }
+
+    val ord: Ordering[Annotation] = new Ordering[Annotation] {
+      def compare(a: Annotation, b: Annotation): Int = {
+        var i = 0
+        while (i < fieldOrds.length) {
+          val (fi, ford) = fieldOrds(i)
+          val c = ford.compare(
+            a.asInstanceOf[Row].get(fi),
+            b.asInstanceOf[Row].get(fi))
+          if (c != 0) return c
+          i += 1
+        }
+
+        0
+      }
+    }
+
+    val act = implicitly[ClassTag[Annotation]]
+    copy(rdd = rdd.sortBy(identity[Annotation], ascending = true)(ord, act))
   }
 }

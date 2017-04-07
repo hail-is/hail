@@ -108,7 +108,6 @@ abstract class Genotype extends Serializable {
     fakeRef: Boolean = this.fakeRef,
     isDosage: Boolean = this.isDosage): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
 
-
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
       unboxedGT == g.unboxedGT &&
@@ -451,16 +450,16 @@ object Genotype {
   final val flagSimpleGQBit = 0x100
   final val flagFakeRefBit = 0x200
 
-  def flagHasGT(isBiallelic: Boolean, flags: Int) =
+  def flagHasGT(isBiallelic: Boolean, flags: Int): Boolean =
     if (isBiallelic)
       (flags & flagBiGTMask) != 0
     else
       (flags & flagMultiHasGTBit) != 0
 
-  def flagStoresGT(isBiallelic: Boolean, flags: Int) =
+  def flagStoresGT(isBiallelic: Boolean, flags: Int): Boolean =
     isBiallelic || ((flags & flagMultiGTRefBit) != 0)
 
-  def flagGT(isBiallelic: Boolean, flags: Int) = {
+  def flagGT(isBiallelic: Boolean, flags: Int): Int = {
     assert(flagStoresGT(isBiallelic, flags))
     if (isBiallelic)
       (flags & flagBiGTMask) - 1
@@ -893,6 +892,39 @@ object Genotype {
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
+
+  implicit val ordering: Ordering[Genotype] =
+    new Ordering[Genotype] {
+      implicit val aiOrd: Ordering[Any] =
+        extendOrderingToNull(missingGreatest = true)(
+          new Ordering[Array[Byte]] {
+            private val ibord = Ordering.Iterable[Byte]
+
+            def compare(a: Array[Byte], b: Array[Byte]): Int = ibord.compare(a, b)
+          })
+
+      def compare(a: Genotype, b: Genotype): Int = {
+        val compareGT = a.unboxedGT.compare(b.unboxedGT)
+        if (compareGT != 0) return compareGT
+
+        val compareAD = aiOrd.compare(a.unboxedAD, b.unboxedAD)
+        if (compareAD != 0) return compareAD
+
+        val compareDP = a.unboxedDP.compare(b.unboxedDP)
+        if (compareDP != 0) return compareDP
+
+        val compareGQ = a.unboxedGQ.compare(b.unboxedGQ)
+        if (compareGQ != 0) return compareGQ
+
+        val comparePX = aiOrd.compare(a.unboxedPX, b.unboxedPX)
+        if (comparePX != 0) return comparePX
+
+        val compareFakeRef = a.fakeRef.compare(b.fakeRef)
+        if (compareFakeRef != 0) return compareFakeRef
+
+        a.isDosage.compare(b.isDosage)
+      }
+    }
 }
 
 class GenericGenotype(val unboxedGT: Int,

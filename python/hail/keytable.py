@@ -4,6 +4,11 @@ from hail.java import *
 from hail.expr import Type, TArray, TStruct
 from pyspark.sql import DataFrame
 
+def asc(f):
+    return scala_package_object(Env.hail().keytable).asc(f)
+
+def desc(f):
+    return scala_package_object(Env.hail().keytable).desc(f)
 
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
@@ -792,3 +797,8 @@ class KeyTable(object):
         """
 
         return KeyTable(self.hc, self._jkt.persist(storage_level))
+
+    def order_by(self, *args):
+        sort_fields = [asc(f) if isinstance(f, str) else f for f in args]
+        return KeyTable(self.hc,
+                        self._jkt.orderBy(jarray(Env.hail().keytable.SortField, sort_fields)))

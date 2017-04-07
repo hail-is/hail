@@ -1,14 +1,13 @@
 package is.hail.utils
 
 import is.hail.check._
-import is.hail.variant.Locus
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
 import scala.collection.mutable
 import scala.math.Ordering.Implicits._
-import scala.util.parsing.combinator.JavaTokenParsers
 
+import scala.language.implicitConversions
 
 // interval inclusive of start, exclusive of end: [start, end)
 case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Ordered[Interval[T]] {
@@ -37,6 +36,10 @@ case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Order
 }
 
 object Interval {
+  implicit def intervalOrder[T](ev: Ordering[T]): Ordering[Interval[T]] = new Ordering[Interval[T]] {
+    def compare(x: Interval[T], y: Interval[T]): Int = x.compare(y)
+  }
+
   def gen[T: Ordering](tgen: Gen[T]): Gen[Interval[T]] =
     Gen.zip(tgen, tgen)
       .filter { case (x, y) => x != y }

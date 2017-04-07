@@ -149,6 +149,8 @@ sealed abstract class Type {
   def scalaClassTag: ClassTag[_ <: AnyRef]
 
   def canCompare(other: Type): Boolean = this == other
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation]
 }
 
 case object TBinary extends Type {
@@ -159,6 +161,15 @@ case object TBinary extends Type {
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf(arbitrary[Byte])
 
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
+    val ord = Ordering.Iterable[Byte]
+
+    extendOrderingToNull(missingGreatest)(
+      new Ordering[Array[Byte]] {
+        def compare(a: Array[Byte], b: Array[Byte]): Int = ord.compare(a, b)
+      })
+  }
 }
 
 case object TBoolean extends Type {
@@ -171,6 +182,9 @@ case object TBoolean extends Type {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Boolean]
 
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]])
 }
 
 case object TChar extends Type {
@@ -184,6 +198,9 @@ case object TChar extends Type {
     .map(s => s.substring(0, 1))
 
   override def scalaClassTag: ClassTag[java.lang.String] = classTag[java.lang.String]
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]])
 }
 
 object TNumeric {
@@ -219,6 +236,10 @@ case object TInt extends TIntegral {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Int]
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]])
+
 }
 
 case object TLong extends TIntegral {
@@ -231,6 +252,9 @@ case object TLong extends TIntegral {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Long]
 
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Long]])
 }
 
 case object TFloat extends TNumeric {
@@ -248,6 +272,9 @@ case object TFloat extends TNumeric {
     a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float], tolerance))
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Float]])
 }
 
 case object TDouble extends TNumeric {
@@ -265,6 +292,9 @@ case object TDouble extends TNumeric {
     a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double], tolerance))
 
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]])
 }
 
 case object TString extends Type {
@@ -275,6 +305,9 @@ case object TString extends Type {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
+
+  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]])
 }
 
 case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -282,7 +315,7 @@ case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
 
   override def isRealizable = false
 
-  override def unify(concrete: Type) = {
+  override def unify(concrete: Type): Boolean = {
     concrete match {
       case TFunction(cparamTypes, creturnType) =>
         paramTypes.length == cparamTypes.length &&
@@ -297,11 +330,15 @@ case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
 
   override def subst() = TFunction(paramTypes.map(_.subst()), returnType.subst())
 
-  def typeCheck(a: Any) = ???
+  def typeCheck(a: Any): Boolean =
+    throw new RuntimeException("TFunction is not realizable")
 
-  override def children = paramTypes :+ returnType
+  override def children: Seq[Type] = paramTypes :+ returnType
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TFunction is not realizable")
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    throw new RuntimeException("TFunction is not realizable")
 }
 
 case class Box[T](var b: Option[T] = None) {
@@ -326,9 +363,10 @@ case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends 
 
   override def children = Seq(elementType)
 
-  def typeCheck(a: Any) = ???
+  def typeCheck(a: Any): Boolean =
+    throw new RuntimeException("TAggregableVariable is not realizable")
 
-  override def unify(concrete: Type) = concrete match {
+  override def unify(concrete: Type): Boolean = concrete match {
     case cagg: TAggregable =>
       elementType.unify(cagg.elementType) && st.unify(cagg.symTab)
     case _ => false
@@ -340,7 +378,7 @@ case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends 
     st.clear()
   }
 
-  override def subst() = {
+  override def subst(): Type = {
     assert(st != null)
     TAggregable(elementType.subst(), st.get)
   }
@@ -350,6 +388,9 @@ case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends 
   override def canCompare(other: Type): Boolean = false
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    throw new RuntimeException("TAggregableVariable is not realizable")
 }
 
 case class TVariable(name: String, var t: Type = null) extends Type {
@@ -357,9 +398,10 @@ case class TVariable(name: String, var t: Type = null) extends Type {
 
   override def isRealizable = false
 
-  def typeCheck(a: Any) = ???
+  def typeCheck(a: Any): Boolean =
+    throw new RuntimeException("TVariable is not realizable")
 
-  override def unify(concrete: Type) = {
+  override def unify(concrete: Type): Boolean = {
     if (t == null) {
       t = concrete
       true
@@ -373,12 +415,15 @@ case class TVariable(name: String, var t: Type = null) extends Type {
     t = null
   }
 
-  override def subst() = {
+  override def subst(): Type = {
     assert(t != null)
     t
   }
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TVariable is not realizable")
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    throw new RuntimeException("TVariable is not realizable")
 }
 
 object TAggregable {
@@ -396,7 +441,7 @@ case class TAggregable(elementType: Type) extends TContainer {
   // not used for equality
   var symTab: SymbolTable = _
 
-  override def unify(concrete: Type) = {
+  override def unify(concrete: Type): Boolean = {
     concrete match {
       case TAggregable(celementType) => elementType.unify(celementType)
       case _ => false
@@ -408,13 +453,17 @@ case class TAggregable(elementType: Type) extends TContainer {
 
   override def isRealizable = false
 
-  def typeCheck(a: Any) = ???
+  def typeCheck(a: Any): Boolean =
+    throw new RuntimeException("TAggregable is not realizable")
 
   override def toString: String = s"Aggregable[${ elementType.toString }]"
 
   override def desc: String = TAggregable.desc
 
   override def scalaClassTag: ClassTag[_ <: AnyRef] = elementType.scalaClassTag
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    throw new RuntimeException("TAggregable is not realizable")
 }
 
 abstract class TContainer extends Type {
@@ -424,6 +473,7 @@ abstract class TContainer extends Type {
 }
 
 abstract class TIterable extends TContainer {
+
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
     a1 == a2 || (a1 != null && a2 != null
       && (a1.asInstanceOf[Iterable[_]].size == a2.asInstanceOf[Iterable[_]].size)
@@ -434,12 +484,17 @@ abstract class TIterable extends TContainer {
     case TArray(otherType) => elementType.canCompare(otherType)
     case _ => false
   }
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
+    extendOrderingToNull(missingGreatest)(
+      Ordering.Iterable(elementType.ordering(missingGreatest)))
+  }
 }
 
 case class TArray(elementType: Type) extends TIterable {
   override def toString = s"Array[$elementType]"
 
-  override def unify(concrete: Type) = {
+  override def unify(concrete: Type): Boolean = {
     concrete match {
       case TArray(celementType) => elementType.unify(celementType)
       case _ => false
@@ -490,7 +545,7 @@ case class TArray(elementType: Type) extends TIterable {
 case class TSet(elementType: Type) extends TIterable {
   override def toString = s"Set[$elementType]"
 
-  override def unify(concrete: Type) = concrete match {
+  override def unify(concrete: Type): Boolean = concrete match {
     case TSet(celementType) => elementType.unify(celementType)
     case _ => false
   }
@@ -586,6 +641,14 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     """
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
+    extendOrderingToNull(missingGreatest)(
+      Ordering.Iterable(
+        Ordering.Tuple2(
+          elementType.ordering(missingGreatest),
+          elementType.ordering(missingGreatest))))
+  }
 }
 
 case object TGenotype extends Type {
@@ -598,6 +661,9 @@ case object TGenotype extends Type {
   override def desc: String = "A ``Genotype`` is a Hail data type representing a genotype in the Variant Dataset. It is referred to as ``g`` in the expression language."
 
   override def scalaClassTag: ClassTag[Genotype] = classTag[Genotype]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Genotype]])
 }
 
 case object TCall extends Type {
@@ -610,6 +676,9 @@ case object TCall extends Type {
   override def desc: String = "A ``Call`` is a Hail data type representing a genotype call (ex: 0/0) in the Variant Dataset."
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]])
 }
 
 case object TAltAllele extends Type {
@@ -622,6 +691,9 @@ case object TAltAllele extends Type {
   override def desc: String = "An ``AltAllele`` is a Hail data type representing an alternate allele in the Variant Dataset."
 
   override def scalaClassTag: ClassTag[AltAllele] = classTag[AltAllele]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]])
 }
 
 case object TVariant extends Type {
@@ -644,6 +716,9 @@ case object TVariant extends Type {
     """
 
   override def scalaClassTag: ClassTag[Variant] = classTag[Variant]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]])
 }
 
 case object TLocus extends Type {
@@ -656,6 +731,9 @@ case object TLocus extends Type {
   override def desc: String = "A ``Locus`` is a Hail data type representing a specific genomic location in the Variant Dataset."
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]])
 }
 
 case object TInterval extends Type {
@@ -667,7 +745,10 @@ case object TInterval extends Type {
 
   override def desc: String = "An ``Interval`` is a Hail data type representing a range of genomic locations in the Variant Dataset."
 
-  override def scalaClassTag: ClassTag[Interval[AnyRef]] = classTag[Interval[AnyRef]]
+  override def scalaClassTag: ClassTag[Interval[Locus]] = classTag[Interval[Locus]]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
+    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]])
 }
 
 case class Field(name: String, typ: Type,
@@ -730,7 +811,7 @@ object TStruct {
 }
 
 case class TStruct(fields: IndexedSeq[Field]) extends Type {
-  override def children = fields.map(_.typ)
+  override def children: Seq[Type] = fields.map(_.typ)
 
   override def canCompare(other: Type): Boolean = other match {
     case t: TStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>
@@ -739,7 +820,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     case _ => false
   }
 
-  override def unify(concrete: Type) = concrete match {
+  override def unify(concrete: Type): Boolean = concrete match {
     case TStruct(cfields) =>
       fields.length == cfields.length &&
         (fields, cfields).zipped.forall { case (f, cf) =>
@@ -1031,7 +1112,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
-  override def toString = if (size == 0) "Empty" else "Struct"
+  override def toString: String = if (size == 0) "Empty" else "Struct"
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
     if (size == 0)
@@ -1053,16 +1134,14 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   override def typeCheck(a: Any): Boolean =
-    if (fields.isEmpty)
-      a == null || a.isInstanceOf[Row] && a.asInstanceOf[Row].length == 0
-    else a == null ||
-      a.isInstanceOf[Row] && {
+    a == null ||
+      (a.isInstanceOf[Row] && {
         val r = a.asInstanceOf[Row]
         r.length == fields.length &&
           r.toSeq.zip(fields).forall {
             case (v, f) => f.typ.typeCheck(v)
           }
-      }
+      })
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
@@ -1099,4 +1178,24 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     """
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
+
+  override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
+    val fieldOrderings = fields.map(f => f.typ.ordering(missingGreatest))
+
+    extendOrderingToNull(missingGreatest)(new Ordering[Row] {
+      def compare(a: Row, b: Row): Int = {
+        var i = 0
+        while (i < a.size) {
+          val c = fieldOrderings(i).compare(a.get(i), b.get(i))
+          if (c != 0)
+            return c
+
+          i += 1
+        }
+
+        // equal
+        0
+      }
+    })
+  }
 }
