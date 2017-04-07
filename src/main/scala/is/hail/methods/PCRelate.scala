@@ -46,6 +46,8 @@ object PCRelate {
     def vectorAddToEveryColumn(v: Array[Double])(m: M): M
     def vectorPointwiseMultiplyEveryColumn(v: Array[Double])(m: M): M
 
+    def vectorPointwiseMultiplyEveryRow(v: Array[Double])(m: M): M
+
     def mapRows[U](m: M, f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U]
 
     def toBlockRdd(m: M): RDD[((Int, Int), Matrix)]
@@ -85,6 +87,9 @@ object PCRelate {
           vectorAddToEveryColumn(v)(l)
         def :*(v: Array[Double]): M =
           vectorPointwiseMultiplyEveryColumn(v)(l)
+
+        def --*(v: Array[Double]): M =
+          vectorPointwiseMultiplyEveryRow(v)(l)
 
         def sqrt: M =
           map(Math.sqrt _)(l)
@@ -172,15 +177,32 @@ object PCRelate {
         }
         new BlockMatrix(blocks, x.rowsPerBlock, x.colsPerBlock, x.numRows(), x.numCols())
       }
+      private def mapWithColIndex(op: (Double, Int) => Double)(x: M): M = {
+        val nRows = x.numRows
+        val nCols = x.numCols
+        val blocks: RDD[((Int, Int), Matrix)] = x.blocks.map { case ((blockRow, blockCol), m) =>
+          ((blockRow, blockCol), new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
+            if (blockRow * x.rowsPerBlock + j % x.colsPerBlock < nRows &&
+              blockCol * x.colsPerBlock + j / x.colsPerBlock < nCols)
+              op(e, blockCol * x.colsPerBlock + j / x.colsPerBlock)
+            else
+              e
+          }))
+        }
+        new BlockMatrix(blocks, x.rowsPerBlock, x.colsPerBlock, x.numRows(), x.numCols())
+      }
 
       def vectorAddToEveryColumn(v: Array[Double])(m: M): M = {
         require(v.length == m.numRows())
         mapWithRowIndex((x,i) => x + v(i))(m)
       }
-
       def vectorPointwiseMultiplyEveryColumn(v: Array[Double])(m: M): M = {
         require(v.length == m.numRows())
         mapWithRowIndex((x,i) => x * v(i))(m)
+      }
+      def vectorPointwiseMultiplyEveryRow(v: Array[Double])(m: M): M = {
+        require(v.length == m.numCols())
+        mapWithColIndex((x,i) => x * v(i))(m)
       }
 
       def mapRows[U](m: M, f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U] =
@@ -286,7 +308,7 @@ object PCRelate {
     val dm = DistributedMatrix[M]
     import dm.ops._
 
-    val normalizedGD = gD :-: ((mu :*: (1.0 - mu)) :* (f.map(1 + _)))
+    val normalizedGD = gD :-: ((mu :*: (1.0 - mu)) --* (f.map(1 + _)))
     val variance = mu * (1.0 - mu)
 
     (normalizedGD.t * normalizedGD) :/: (variance.t * variance)
