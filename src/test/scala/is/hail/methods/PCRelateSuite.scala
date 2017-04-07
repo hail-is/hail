@@ -74,6 +74,7 @@ class PCRelateSuite extends SparkSuite {
     val indexToId: Map[Int, String] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
 
     val pcs = SamplePCA.justScores(vds, 2)
+    println("First two PCs for every sample:")
     println(pcs)
     val hailPcRelate = DistributedMatrix[BlockMatrix].toCoordinateMatrix(PCRelate[BlockMatrix](vds, pcs).phiHat).entries.collect()
       .filter(me => me.i < me.j)
