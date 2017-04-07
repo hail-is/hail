@@ -27,7 +27,7 @@ object LinearMixedRegression {
 
   def apply(
     assocVds: VariantDataset,
-    kinshipVds: VariantDataset,
+    kinshipMatrix: KinshipMatrix,
     ySA: String,
     covSA: Array[String],
     useML: Boolean,
@@ -35,14 +35,9 @@ object LinearMixedRegression {
     rootVA: String,
     runAssoc: Boolean,
     optDelta: Option[Double],
-    sparsityThreshold: Double,
-    forceBlock: Boolean,
-    forceGrammian: Boolean): VariantDataset = {
+    sparsityThreshold: Double): VariantDataset = {
 
     require(assocVds.wasSplit)
-
-    if (!kinshipVds.wasSplit)
-      fatal("lmmreg requires bi-allelic VDS for kinship. Run split_multi or filter_multi first")
 
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
@@ -51,21 +46,18 @@ object LinearMixedRegression {
     val completeSamplesSet = completeSamples.toSet
     val sampleMask = assocVds.sampleIds.map(completeSamplesSet).toArray
 
+
     optDelta.foreach(delta =>
       if (delta <= 0d)
         fatal(s"delta must be positive, got ${ delta }"))
 
     val covNames = "intercept" +: covSA
 
-    val useBlock = (forceBlock, forceGrammian) match {
-      case (false, false) => y.length > 3000 // for small matrices, computeGrammian fits in memory and runs faster than BlockMatrix product
-      case (true, true) => fatal("Cannot force both Block and Grammian")
-      case (b, _) => b
-    }
-    
-    val filtKinshipVds = kinshipVds.filterSamples((s, sa) => completeSamplesSet(s))
-    if (filtKinshipVds.sampleIds != completeSamples)
-      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_vds (with both filtered to complete samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
+    val filteredKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet)
+
+    if (!(filteredKinshipMatrix.sampleIds sameElements completeSamples))
+      fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
+        "samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
 
     val n = y.size
     val k = cov.cols
@@ -76,11 +68,10 @@ object LinearMixedRegression {
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
 
-    info(s"lmmreg: Computing RRM for $n samples...")
+    val cols = filteredKinshipMatrix.matrix.numCols().toInt
 
-    val (rrm, m) = ComputeRRM(filtKinshipVds, useBlock)
+    val rrm = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
 
-    info(s"lmmreg: RRM computed using $m variants")
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
     val eigK = eigSymD(rrm)

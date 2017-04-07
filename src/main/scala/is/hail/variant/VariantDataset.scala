@@ -12,11 +12,13 @@ import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable
 import is.hail.methods._
 import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
+import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
 import org.apache.kudu.spark.kudu.{KuduContext, _}
 import org.apache.spark.SparkEnv
+import org.apache.spark.mllib.linalg.distributed.BlockMatrix
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
@@ -850,7 +852,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LinearRegression(vds, ySA, covSA, root, useDosages, minAC, minAF)
   }
 
-  def lmmreg(kinshipVDS: VariantDataset,
+
+  def lmmreg(kinshipMatrix: KinshipMatrix,
     ySA: String,
     covSA: Array[String] = Array.empty[String],
     useML: Boolean = false,
@@ -858,12 +861,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     rootVA: String = "va.lmmreg",
     runAssoc: Boolean = true,
     optDelta: Option[Double] = None,
-    sparsityThreshold: Double = 1.0,
-    forceBlock: Boolean = false,
-    forceGrammian: Boolean = false): VariantDataset = {
+    sparsityThreshold: Double = 1.0): VariantDataset = {
+
     requireSplit("linear mixed regression")
-    LinearMixedRegression(vds, kinshipVDS, ySA, covSA, useML, rootGA, rootVA,
-      runAssoc, optDelta, sparsityThreshold, forceBlock, forceGrammian)
+    LinearMixedRegression(vds, kinshipMatrix, ySA, covSA, useML, rootGA, rootVA,
+      runAssoc, optDelta, sparsityThreshold)
   }
 
   def logreg(test: String, ySA: String, covSA: Array[String] = Array.empty[String], root: String = "va.logreg"): VariantDataset = {
@@ -928,6 +930,15 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def sampleQC(root: String = "sa.qc"): VariantDataset = SampleQC(vds, root)
+
+  def rrm(forceBlock : Boolean = false, forceGramian : Boolean = false): KinshipMatrix = {
+    requireSplit("rrm")
+    info(s"rrm: Computing Realized Relationship Matrix...")
+    val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
+    info(s"rrm: RRM computed using $m variants.")
+    new KinshipMatrix(rrm, vds.sampleIds.toArray)
+  }
+
 
   /**
     *

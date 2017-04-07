@@ -114,9 +114,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TDouble, "sa.cov2")
     val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= 2)
 
-    val vds = LinearMixedRegression(assocVds, kinshipVds, "sa.pheno", covSA = Array("sa.cov1", "sa.cov2"),
+    val vds = LinearMixedRegression(assocVds, kinshipVds.rrm(), "sa.pheno", covSA = Array("sa.cov1", "sa.cov2"),
       useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = true, optDelta = Some(delta),
-      sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
+      sparsityThreshold = 1.0)
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
@@ -252,9 +252,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(covData, covSchema, "sa.covs")
     val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= mW)
 
-    val vds = LinearMixedRegression(assocVds, kinshipVds, "sa.pheno", covSA = covSA,
+    val vds = LinearMixedRegression(assocVds, kinshipVds.rrm(), "sa.pheno", covSA = covSA,
       useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = true, optDelta = Some(delta),
-      sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
+      sparsityThreshold = 1.0)
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
@@ -290,9 +290,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamplesTable("src/test/resources/fastlmmCov.txt", "_1", code=Some("sa.cov=table._2"), config=TextTableConfiguration(noHeader=true, impute=true))
       .annotateSamplesTable("src/test/resources/fastlmmPheno.txt", "_1", code=Some("sa.pheno=table._2"), config=TextTableConfiguration(noHeader=true, impute=true, separator=" "))
 
-    val vdsChr1 = vds.filterVariantsExpr("""v.contig == "1"""").lmmreg(vds.filterVariantsExpr("""v.contig != "1""""), "sa.pheno", Array("sa.cov"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
+    val vdsChr1 = vds.filterVariantsExpr("""v.contig == "1"""").lmmreg(vds.filterVariantsExpr("""v.contig != "1"""").rrm(), "sa.pheno", Array("sa.cov"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0)
 
-    val vdsChr3 = vds.filterVariantsExpr("""v.contig == "3"""").lmmreg(vds.filterVariantsExpr("""v.contig != "3""""), "sa.pheno", Array("sa.cov"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
+    val vdsChr3 = vds.filterVariantsExpr("""v.contig == "3"""").lmmreg(vds.filterVariantsExpr("""v.contig != "3"""").rrm(), "sa.pheno", Array("sa.cov"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0)
 
     val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
     val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
@@ -313,7 +313,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val vdsKinship = vdsAssoc.filterVariantsExpr("v.start < 4")
 
-    vdsAssoc = vdsAssoc.lmmreg(vdsKinship, "sa.pheno.PhenoLMM", Array("sa.cov.Cov1", "sa.cov.Cov2"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0, forceBlock = false, forceGrammian = false)
+    vdsAssoc = vdsAssoc.lmmreg(vdsKinship.rrm(), "sa.pheno.PhenoLMM", Array("sa.cov.Cov1", "sa.cov.Cov2"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0)
 
     vdsAssoc.count()
   }

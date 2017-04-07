@@ -5,6 +5,8 @@ from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype
 from hail.representation import Interval, IntervalTree
 from hail.utils import TextTableConfig
+from hail.kinshipMatrix import KinshipMatrix
+from py4j.protocol import Py4JJavaError
 from decorator import decorator
 
 import warnings
@@ -2554,9 +2556,8 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def lmmreg(self, kinship_vds, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, force_block=False,
-               force_grammian=False):
+    def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
@@ -2566,16 +2567,15 @@ class VariantDataset(object):
         Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotation ``va.useInKinship`` and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
 
         >>> assoc_vds = hc.read("data/example_lmmreg.vds")
-        >>> kinship_vds = assoc_vds.filter_variants_expr('va.useInKinship')
-        >>> lmm_vds = assoc_vds.lmmreg(kinship_vds, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
+        >>> kinship_matrix = assoc_vds.filter_variants_expr('va.useInKinship').rrm()
+        >>> lmm_vds = assoc_vds.lmmreg(kinship_matrix, 'sa.pheno', ['sa.cov1', 'sa.cov2'])
 
-        will execute the following five steps in order:
+        will execute the following four steps in order:
 
-        1) filter to samples for which ``sa.pheno``, ``sa.cov``, and ``sa.cov2`` are all defined
-        2) compute the kinship matrix :math:`K` (the RRM defined below) using those variants in ``kinship_vds``
-        3) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
-        4) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`_), storing results in global annotations under ``global.lmmreg``
-        5) test each variant for association, storing results under ``va.lmmreg`` in variant annotations
+        1) filter to samples in given kinship matrix to those for which ``sa.pheno``, ``sa.cov``, and ``sa.cov2`` are all defined
+        2) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
+        3) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`_), storing results in global annotations under ``global.lmmreg``
+        4) test each variant for association, storing results under ``va.lmmreg`` in variant annotations
 
         This plan can be modified as follows:
 
@@ -2648,7 +2648,7 @@ class VariantDataset(object):
 
         Hail's initial version of :py:meth:`.lmmreg` scales to well beyond 10k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. The first analysts to apply :py:meth:`.lmmreg` in research computed kinship from 262k common variants and tested 25 million non-rare variants on 8185 whole genomes in 32 minutes. As another example, starting from a VDS of the 1000 Genomes Project (consisting of 2535 whole genomes), :py:meth:`.lmmreg` computes a kinship matrix based on 100k common variants, fits coefficients and variance components in the sample-covariates-only model, runs a linear-mixed-model likelihood ratio test for all 15 million high-quality non-rare variants, and exports the results in 3m42s minutes. Here we used 42 preemptible workers (~680 cores) on 2k partitions at a compute cost of about 50 cents on Google cloud (see `Using Hail on the Google Cloud Platform <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_).
 
-        While :py:meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full eigendecomposition (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`_, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`_. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
+        While :py:meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`_ (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`_, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`_. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
 
         Given the eigendecomposition, fitting the global model (Step 4) takes on the order of a few seconds on master. Association testing (Step 5) is fully distributed by variant with per-variant time complexity that is completely independent of the number of sample covariates and dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
 
@@ -2722,28 +2722,16 @@ class VariantDataset(object):
 
         and follows a chi-squared distribution with one degree of freedom. Here the ratio :math:`\\hat{\sigma}^2_g / \\hat{\sigma}_{g,v}^2` captures the degree to which adding the variant :math:`v` to the global model reduces the residual phenotypic variance.
 
-        **Kinship: Realized Relationship Matrix (RRM)**
+        **Kinship Matrix**
 
-        As in FastLMM, :py:meth:`.lmmreg` uses the Realized Relationship Matrix (RRM) for kinship, defined as follows. Consider the :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal variants for which ``va.useInKinship`` is true; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
-
-        .. math::
-
-          M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{\\frac{m}{n} \sum_{k=1}^n (C_{ij}-2p_j)^2}},
-
-        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes each variant column to have empirical variance :math:`1/m`, which gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the :math:`n \\times n` sample correlation or realized relationship matrix (RRM) :math:`K` as simply
-
-        .. math::
-
-          K = MM^T
-
-        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in :py:meth:`~hail.VariantDataset.pca` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
+        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
 
         **Further background**
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`_. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`_.
 
-        :param kinship_vds: Variant dataset used to compute kinship
-        :type kinship_vds: :class:`.VariantDataset`
+        :param kinshipMatrix: Kinship matrix to be used
+        :type kinshipMatrix: :class:`KinshipMatrix`
 
         :param str y: Response sample annotation.
 
@@ -2763,17 +2751,13 @@ class VariantDataset(object):
 
         :param float sparsity_threshold: AF threshold above which to use dense genotype vectors in rotation (advanced).
 
-        :param bool force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
-
-        :param bool force_grammian: Force using Spark's RowMatrix.computeGrammian to compute kinship (advanced).
-
         :return: Variant dataset with linear mixed regression annotations
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.lmmreg(kinship_vds._jvds, y, jarray(Env.jvm().java.lang.String, covariates),
+        jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc,
-                                 joption(delta), sparsity_threshold, force_block, force_grammian)
+                                 joption(delta), sparsity_threshold)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3492,6 +3476,42 @@ class VariantDataset(object):
 
         jvds = self._jvdf.coalesce(num_partitions, shuffle)
         return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    def rrm(self, force_block = False, force_gramian = False):
+        """Computes the Realized Relationship Matrix (RRM).
+
+        **Examples**
+
+        >>> kinship_matrix = vds.rrm()
+
+        **Notes**
+
+        The Realized Relationship Matrix is defined as follows. Consider the :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by :math:`n` samples and
+        columns indexed by the :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which
+        can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column
+        :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
+
+        .. math::
+
+          M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{\\frac{m}{n} \sum_{k=1}^n (C_{ij}-2p_j)^2}},
+
+        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes each variant column to have empirical variance :math:`1/m`, which gives each sample row approximately unit total variance (assuming linkage equilibrium) and yields the :math:`n \\times n` sample correlation or realized relationship matrix (RRM) :math:`K` as simply
+
+        .. math::
+
+          K = MM^T
+
+        Note that the only difference between the Realized Relationship Matrix and the Genetic Relationship Matrix (GRM) used in :py:meth:`~hail.VariantDataset.grm` is the variant (column) normalization: where RRM uses empirical variance, GRM uses expected variance under Hardy-Weinberg Equilibrium.
+
+        :param bool force_block: Force using Spark's BlockMatrix to compute kinship (advanced).
+
+        :param bool force_gramian: Force using Spark's RowMatrix.computeGramian to compute kinship (advanced).
+
+        :return: Realized Relationship Matrix for all samples.
+        :rtype: :py:class:`KinshipMatrix`
+        """
+        return KinshipMatrix(self._jvdf.rrm(force_block, force_gramian))
 
     @handle_py4j
     def same(self, other, tolerance=1e-6):
