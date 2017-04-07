@@ -324,7 +324,7 @@ object FunctionRegistry {
         yield result.asInstanceOf[Code[AnyRef]]
       case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
         throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : ${argTypes.mkString(",")}) in non-aggregator position")
-      case f: Arity7Special[_, _, _, _, _, _, _] => {
+      case f: Arity6Special[_, _, _, _, _, _, _] => {
         val g = ((t: AnyRef, u: AnyRef, v: AnyRef, w: AnyRef, x: AnyRef, y: AnyRef) =>
           f.asInstanceOf[(() => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef) => AnyRef](() => t, () => u, () => v, () => w, () => x, () => y))
 
@@ -335,7 +335,7 @@ object FunctionRegistry {
           w <- args(3).compile();
           x <- args(4).compile();
           y <- args(5).compile();
-          result <- invokePrimitive7(g)(t, u, v, w, x, y))
+          result <- invokePrimitive6(g)(t, u, v, w, x, y))
           yield result
       }
       case x =>
@@ -515,7 +515,7 @@ object FunctionRegistry {
 
   def registerSpecial[T, U, V, W, X, Y, Z](name: String, impl: (() => Any, () => Any, () => Any, () => Any, () => Any, () => Any) => Z, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y], hrz: HailRep[Z]) = {
-    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ, hry.typ), Arity7Special[T, U, V, W, X, Y, Z](hrz.typ, impl), MetaData(Option(docstring), argNames))
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ, hry.typ), Arity6Special[T, U, V, W, X, Y, Z](hrz.typ, impl), MetaData(Option(docstring), argNames))
   }
 
   def registerAnn[T](name: String, t: TStruct, impl: T => Annotation, docstring: String, argNames: (String, String)*)
@@ -805,15 +805,15 @@ object FunctionRegistry {
     "start" -> "Starting number of the sequence.",
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
-
-  registerSpecial("Genotype", { (c: () => Any) => Genotype(c().asInstanceOf[Call]) },
-    """
-    Construct a :ref:`genotype` object from a :ref:`call`.
-    """)(callHr, genotypeHr)
-
-  registerSpecial("Genotype", { (v: () => Any, dosF: () => Any) =>
+  
+  registerSpecial("Genotype", { (vF: () => Any, dosF: () => Any) =>
+    val v = vF()
     val dos = dosF()
-    Genotype(v().asInstanceOf[Variant].nAlleles, if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray) },
+
+    if (v == null)
+      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
+
+    Genotype(v.asInstanceOf[Variant].nAlleles, if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray) },
     """
     Construct a :ref:`genotype` object from a variant and an array of genotype probabilities.
 
@@ -825,9 +825,14 @@ object FunctionRegistry {
         result: true
     """, "v" -> "Variant", "prob" -> "Genotype probabilities")(variantHr, arrayHr[Double], genotypeHr)
 
-  registerSpecial("Genotype", { (v: () => Any, gtF: () => Any, dosF: () => Any) =>
+  registerSpecial("Genotype", { (vF: () => Any, gtF: () => Any, dosF: () => Any) =>
+    val v = vF()
     val dos = dosF()
-    Genotype(v().asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer], if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray) },
+
+    if (v == null)
+      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
+
+    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer], if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray) },
     """
     Construct a :ref:`genotype` object from a variant, a genotype call, and an array of genotype probabilities.
 
@@ -838,12 +843,16 @@ object FunctionRegistry {
           g = Genotype(v, gt, prob) in g.isHomRef()
         result: true
     """, "v" -> "Variant", "gt" -> "Genotype call integer", "prob" -> "Genotype probabilities")(variantHr, boxedintHr, arrayHr[Double], genotypeHr)
-  
-  registerSpecial("Genotype", { (v: () => Any, gtF: () => Any, adF: () => Any, dpF: () => Any, gqF: () => Any, plF: () => Any) =>
+
+  registerSpecial("Genotype", { (vF: () => Any, gtF: () => Any, adF: () => Any, dpF: () => Any, gqF: () => Any, plF: () => Any) =>
+    val v = vF()
     val ad = adF()
     val pl = plF()
 
-    Genotype(v().asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer],
+    if (v == null)
+      throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
+
+    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer],
       if (ad == null) null else ad.asInstanceOf[IndexedSeq[Int]].toArray, dpF().asInstanceOf[java.lang.Integer],
       gqF().asInstanceOf[java.lang.Integer], if (pl == null) null else pl.asInstanceOf[IndexedSeq[Int]].toArray) },
     """

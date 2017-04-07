@@ -162,7 +162,7 @@ object CM {
   def invokePrimitive4[A,B,C,D,R](f: (A, B, C, D) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D])
     (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], rct: ClassTag[R]) : CM[Code[R]] =
     foreignFun(f).map(_.invoke[R]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass), Array(a, b, c, d)))
-  def invokePrimitive7[A,B,C,D,E,F,R](fn: (A, B, C, D, E, F) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E], f: Code[F])
+  def invokePrimitive6[A,B,C,D,E,F,R](fn: (A, B, C, D, E, F) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E], f: Code[F])
     (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], ect: ClassTag[E], fct: ClassTag[F], rct: ClassTag[R]) : CM[Code[R]] =
     foreignFun(fn).map(_.invoke[R]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass, ect.runtimeClass, fct.runtimeClass), Array(a, b, c, d, e, f)))
   def createLambda[T <: AnyRef](name: String, typ: Type, body: CM[Code[T]])(implicit tti: TypeInfo[T]): CM[Code[(AnyRef) => T]] = {
