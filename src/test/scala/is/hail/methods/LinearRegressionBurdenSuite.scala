@@ -54,8 +54,6 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
     val kt = vds.linregBurden("gene", "va.gene", "sum()", "va.weight * g.gt", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
 
-    // kt.toDF(hc.sqlContext).show()
-
     val values = kt.collect().map { r => val s = r.asInstanceOf[Row].toSeq
       s.head.asInstanceOf[String] -> s.tail.asInstanceOf[Seq[Double]] }.toMap
 
@@ -112,8 +110,6 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
     val kt = vds.linregBurden("Gene", "va.gene", "sum()", "va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
 
-    // kt.toDF(hc.sqlContext).show()
-
     val values = kt.collect().map { r => val s = r.asInstanceOf[Row].toSeq
       s.head.asInstanceOf[String] -> s.tail.asInstanceOf[Seq[Double]] }.toMap
 
@@ -166,8 +162,6 @@ class LinearRegressionBurdenSuite extends SparkSuite {
         config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
 
     val kt = vds.linregBurden("gene", "va.gene", "max()", "g.gt.toDouble", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
-
-    // kt.toDF(hc.sqlContext).show()
 
     val values = kt.collect().map { r => val s = r.asInstanceOf[Row].toSeq
       s.head.asInstanceOf[String] -> s.tail }.toMap
