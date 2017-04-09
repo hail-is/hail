@@ -52,6 +52,7 @@ def jarray(jtype, lst):
         jarr[i] = s
     return jarr
 
+
 def scala_object(jpackage, name):
     return getattr(getattr(jpackage, name + '$'), 'MODULE$')
 
