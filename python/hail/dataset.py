@@ -2442,14 +2442,34 @@ class VariantDataset(object):
 
         **Notes**
 
-        Variants are pruned in each contig from smallest start position to largest.
-        A variant is included in the pruned set if the pair-wise correlation with
-        all variants within a given ``window`` size in the pruned set is less than :math:`R^2`.
+        Variants are pruned in each contig from smallest start position to largest. The LD pruning algorithm is as follows:
 
-        :py:meth:`.ld_prune` is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``. The results will be different because Hail mean-imputes missing values and the order in which variant pairs are tested is not the same as PLINK.
+        .. code-block:: python
 
-        Be sure to provide enough disk space per worker. :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ up to 3 copies of the data to both memory and disk.
-        The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``. The number of bytes stored in memory per variant is estimated to be ``nSamples / 4 + 50``.
+            pruned_set = []
+            for v1 in contig:
+                keep = True
+                for v2 in pruned_set:
+                    if (v1.position - v2.position <= window and correlation(v1, v2) >= r2):
+                        keep = False
+                if keep:
+                    s += v1
+
+        The parameter ``window`` defines the maximum distance in base pairs between two variants to check whether
+        the variants are independent (:math:`R^2` < ``r2``).
+        The correlation :math:`R^2` is computed by squaring the `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`_
+        :math:`{\\rho}_{x,y}` between the two genotype vectors :math:`{\\mathbf{x}}` and :math:`{\\mathbf{y}}`.
+
+        .. math::
+
+            {\\rho}_{x,y} = \\frac{E[XY] - E[X]E[Y]}{\\sqrt{E[{X}^2] - {[E[X]]}^2}\\sqrt{E[{X}^2] - {[E[X]]}^2}}
+
+
+        :py:meth:`.ld_prune` with default arguments is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``.
+        The list of pruned variants returned by Hail and PLINK will differ because Hail mean-imputes missing values and tests pairs of variants in a different order than PLINK.
+
+        Be sure to provide enough disk space per worker because :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ up to 3 copies of the data to both memory and disk.
+        The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``. The number of bytes stored in memory per variant is about ``nSamples / 4 + 50``.
 
         .. warning::
 
@@ -2459,13 +2479,13 @@ class VariantDataset(object):
 
         :param float r2: Maximum :math:`R^2` threshold between two variants in the pruned set within a given window.
 
-        :param int window: Number of base pair window to compute pair-wise :math:`R^2` values.
+        :param int window: Width of window in base-pairs for computing pair-wise :math:`R^2` values.
 
-        :param float memory_per_core: Total amount of memory available for each core in MB. We recommend using the default value.
+        :param float memory_per_core: Total amount of memory available for each core in MB. If unsure, use the default value.
 
-        :param int num_cores: The number of cores available. Equivalent to the total number of workers (preemptible & non-preemptible) times the number of cores per worker.
+        :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
 
-        :return: A filtered dataset with variants that have been pruned.
+        :return: Variant dataset filtered to those variants which remain after LD pruning.
 
         :rtype: VariantDataset
         """
