@@ -2577,10 +2577,10 @@ class VariantDataset(object):
         - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
         - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
 
-        :param str y: list of one or more response expressions
+        :param y: list of one or more response expressions.
         :type covariates: list of str
 
-        :param covariates: list of covariate expressions
+        :param covariates: list of covariate expressions.
         :type covariates: list of str
 
         :param str root: Variant annotation path to store result of linear regression.
