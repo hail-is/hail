@@ -88,7 +88,7 @@ object Pedigree {
   def nuclearFams(completeTrios: IndexedSeq[CompleteTrio]): Map[(String, String), IndexedSeq[String]] =
     completeTrios.groupBy(t => (t.dad, t.mom)).mapValues(_.map(_.kid)).force
 
-  def gen(sampleIds: IndexedSeq[String]): Gen[Pedigree] = {
+  def gen(sampleIds: IndexedSeq[String], completeTrios: Boolean = false): Gen[Pedigree] = {
     Gen.parameterized { p =>
       val rng = p.rng
       Gen.shuffle(sampleIds)
@@ -97,18 +97,20 @@ object Pedigree {
             .filter(_ => rng.nextUniform(0, 1) > 0.25)
             .map { g =>
               val r = rng.nextUniform(0, 1)
-              if (r < 0.10)
-                g.take(1)
-              if (r < 0.20)
+              if (completeTrios || r > 0.20)
+                g
+              else if (r > 0.10)
                 g.take(2)
               else
-                g
+                g.take(1)
             }
           val trios = groups.map { g =>
             val (kid, mom, dad) = (g(0),
               if (g.length >= 2) Some(g(1)) else None,
               if (g.length >= 3) Some(g(2)) else None)
-            Trio(kid, fam = None, mom = mom, dad = dad, sex = None, pheno = None)
+            Trio(kid, fam = None, mom = mom, dad = dad,
+              pheno = Some(Gen.oneOf(Phenotype.Case, Phenotype.Control).sample()),
+              sex = Some(Gen.oneOf(Sex.Female, Sex.Male).sample()))
           }
             .toArray
           new Pedigree(trios)

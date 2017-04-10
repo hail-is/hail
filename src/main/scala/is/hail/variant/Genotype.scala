@@ -13,6 +13,12 @@ import org.json4s._
 
 import scala.language.implicitConversions
 
+case class CompleteGenotype(gt: Int, ad: Array[Int], dp: Int, gq: Int, pl: Array[Int]) {
+  def toGenotype: Genotype = new GenericGenotype(gt, ad, dp, gq, pl, false, false)
+
+  override def toString: String = s"$gt:${ad.mkString(",")}:$dp:$gq:${pl.mkString(",")}"
+}
+
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
   val HomRef = Value(0)
@@ -336,6 +342,13 @@ abstract class Genotype extends Serializable {
     ("px", px.map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)),
     ("fakeRef", JBool(fakeRef)),
     ("isDosage", JBool(isDosage)))
+
+  def toCompleteGenotype: Option[CompleteGenotype] = {
+    if (unboxedGT >= 0 && unboxedAD != null && unboxedDP >= 0 && unboxedGQ >= 0 && unboxedPX != null)
+      Some(CompleteGenotype(unboxedGT, unboxedAD, unboxedDP, unboxedGQ, unboxedPX))
+    else
+      None
+  }
 }
 
 class RowGenotype(r: Row) extends Genotype {

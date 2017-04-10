@@ -269,7 +269,7 @@ class HailContext(object):
         :type npartitions: int or None
 
         :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
+        :type config: :dclass:`.TextTableConfig`
 
         :return: Key table constructed from text table.
         :rtype: :class:`.KeyTable`
