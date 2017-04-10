@@ -35,6 +35,8 @@ class PCRelateSuite extends SparkSuite {
   @Test def compareToPCRelateR() {
     val vds: VariantDataset = BaldingNicholsModel(hc, 3, 100, 10000, None, None, 0, None, UniformDist(0.4,0.6)).splitMulti()
 
+    println("total samples, total variants, total genotypes: " + vds.count(true))
+
     val truth: Map[(String, String), Double] = {
       val tmpfile = tmpDir.createTempFile(prefix = "pcrelate")
       val localTmpfile = tmpDir.createLocalTempFile(prefix = "pcrelate")
