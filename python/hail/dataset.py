@@ -2556,7 +2556,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def linreg_multi_pheno(self, y, covariates=[], root='va.linreg_multi', use_dosages=False, min_ac=1, min_af=0.0):
+    def linreg_multi_pheno(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association with multiple phenotypes using linear regression.
 
         This method runs linear regression for multiple phenotypes more efficiently
