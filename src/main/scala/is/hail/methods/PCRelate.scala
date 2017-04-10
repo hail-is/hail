@@ -296,7 +296,7 @@ object PCRelate {
     println("numerator")
     println(dm.toBlockRdd(gMinusMu.t * gMinusMu).take(1)(0))
     println("denominator")
-    println(dm.toBlockRdd(varianceHat.t * varianceHat).take(1)(0))
+    println(dm.toBlockRdd((varianceHat.t * varianceHat).sqrt).take(1)(0))
 
     ((gMinusMu.t * gMinusMu) :/: (varianceHat.t * varianceHat).sqrt) / 4.0
   }
