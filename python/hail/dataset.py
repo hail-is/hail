@@ -2560,9 +2560,12 @@ class VariantDataset(object):
         r"""Test each variant for association with multiple phenotypes using linear regression.
 
         This method runs linear regression for multiple phenotypes more efficiently
-        than looping over :py:meth:`.linreg`. Note that :py:meth:`.linreg_multi_pheno` uses
-        the same set of samples for each phenotype, namely the set of samples for which
-        **all** phenotypes and covariates are defined.
+        than looping over :py:meth:`.linreg`.
+
+        .. warning::
+
+            :py:meth:`.linreg_multi_pheno` uses the same set of samples for each phenotype,
+            namely the set of samples for which **all** phenotypes and covariates are defined.
 
         **Annotations**
 
