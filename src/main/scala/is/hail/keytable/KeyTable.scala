@@ -1,12 +1,6 @@
 package is.hail.keytable
 
 import is.hail.HailContext
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.io.exportTypes
@@ -85,8 +79,7 @@ object KeyTable {
 
       val keyNames = (fields.get("key_names"): @unchecked) match {
         case Some(JArray(a)) =>
-          a.map { case JString(s) => s
-          }.toArray[String]
+          a.map { case JString(s) => s }.toArray[String]
       }
 
       (signature, keyNames)
@@ -112,6 +105,18 @@ object KeyTable {
       }
 
     KeyTable(hc, rdd, signature, keyNames)
+  }
+
+  def parallelize(hc: HailContext, rows: java.util.ArrayList[Annotation], signature: TStruct,
+    keyNames: java.util.ArrayList[String], nPartitions: Option[Int]): KeyTable = {
+    val sc = hc.sc
+    KeyTable(hc,
+      nPartitions match {
+        case Some(n) =>
+          sc.parallelize(rows.asScala, n)
+        case None =>
+          sc.parallelize(rows.asScala)
+      }, signature, keyNames.asScala.toArray)
   }
 }
 

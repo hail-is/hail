@@ -64,6 +64,14 @@ class KeyTable(object):
     def __repr__(self):
         return self._jkt.toString()
 
+    @staticmethod
+    def from_py(hc, rows_py, schema, key_names=[], npartitions=None):
+        return KeyTable(
+            hc,
+            Env.hail().keytable.KeyTable.parallelize(
+                hc._jhc, [schema._convert_to_j(r) for r in rows_py],
+                schema._jtype, key_names, joption(npartitions)))
+
     @property
     def num_columns(self):
         """Number of columns.
