@@ -853,7 +853,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def linregMultiPheno(ySA: Array[String], covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
-    requireSplit("linear regression")
+    requireSplit("linear regression for multiple phenotypes")
     LinearRegressionMultiPheno(vds, ySA, covSA, root, useDosages, minAC, minAF)
   }
 
