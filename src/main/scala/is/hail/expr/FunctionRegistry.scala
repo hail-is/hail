@@ -4,6 +4,9 @@ import breeze.linalg.DenseVector
 import is.hail.annotations.Annotation
 import is.hail.asm4s.{Code, _}
 import is.hail.methods._
+import is.hail.asm4s._
+import is.hail.asm4s.Code
+import is.hail.expr.CM._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
@@ -125,30 +128,26 @@ object FunctionRegistry {
     }
   }
 
-  def call(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[Code[AnyRef]] = {
-    import is.hail.expr.CM._
-
-    val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
+  def lookupAggregator(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[TypedAggregator[_]] = {
+    val f = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
       .valueOr(x => fatal(x.message))
 
-    (m match {
-      case aggregator: Arity0Aggregator[_, _] =>
-        for (
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor());
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
+    buildAggregator(f, name, args, argTypes)
+  }
 
+  private def buildAggregator(f: Fun, name: String, args: Seq[AST], argTypes: Seq[Type]): CM[TypedAggregator[_]] = {
+    f match {
+      case aggregator: Arity0Aggregator[_, _] =>
+        ret(aggregator.ctor())
       case aggregator: Arity1Aggregator[_, u, _] =>
         for (
           ec <- ec();
           u = args(1).run(ec)();
 
           _ = (if (u == null)
-            fatal(s"Argument evaluated to missing in call to aggregator $name"));
+            fatal(s"Argument evaluated to missing in call to aggregator $name"))
 
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(u.asInstanceOf[u]));
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
+        ) yield aggregator.ctor(u.asInstanceOf[u])
 
       case aggregator: Arity3Aggregator[_, u, v, w, _] =>
         for (
@@ -162,15 +161,9 @@ object FunctionRegistry {
           _ = (if (v == null)
             fatal(s"Argument 2 evaluated to missing in call to aggregator $name"));
           _ = (if (w == null)
-            fatal(s"Argument 3 evaluated to missing in call to aggregator $name"));
+            fatal(s"Argument 3 evaluated to missing in call to aggregator $name"))
 
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(
-            u.asInstanceOf[u],
-            v.asInstanceOf[v],
-            w.asInstanceOf[w]));
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
+        ) yield aggregator.ctor(u.asInstanceOf[u],v.asInstanceOf[v],w.asInstanceOf[w])
 
       case aggregator: UnaryLambdaAggregator[t, u, v] =>
         val Lambda(_, param, body) = args(1)
@@ -198,12 +191,8 @@ object FunctionRegistry {
           g = (x: Any) => {
             localA(idx) = x
             bodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
-          };
-
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(g));
-
-          res <- invokePrimitive0(aggregationResultThunk)
-        ) yield res.asInstanceOf[Code[AnyRef]]
+          }
+        ) yield aggregator.ctor(g)
 
       case aggregator: BinaryLambdaAggregator[t, u, v, w] =>
         val Lambda(_, param, body) = args(1)
@@ -236,10 +225,113 @@ object FunctionRegistry {
           v = args(2).run(ec)();
 
           _ = (if (v == null)
-            fatal(s"Argument evaluated to missing in call to aggregator $name"));
+            fatal(s"Argument evaluated to missing in call to aggregator $name"))
 
-          aggregationResultThunk <- addAggregation(args(0), aggregator.ctor(g, v.asInstanceOf[v]));
+        ) yield aggregator.ctor(g, v.asInstanceOf[v])
 
+      case aggregator: GroupByAggregatorFun[t] =>
+        // val downstreamBodyFn = CM.ret(Code._null[AnyRef]).runWithDelayedValues(Seq(), EvalContext());
+
+        val Lambda(_, keyParam, keyBody) = args(1)
+        val TFunction(Seq(keyParamType), _) = argTypes(1)
+
+        val Lambda(_, downstreamParam, downstreamBody) = args(2)
+        val TFunction(Seq(downstreamParamType), _) = argTypes(2)
+
+        val kbc = keyBody.compile()
+
+        val a0 = args(0)
+
+        val a0type = a0.`type`
+
+        for (
+          (downstreamBodyCompiled, downstreamAggregator) <- downstreamBody.downstreamAggregator();
+
+          ec <- ec();
+          (idx, localA) <- ecNewPosition();
+
+          bodyST = a0type match {
+            case tagg: TAggregable => tagg.symTab
+            case _ => ec.st
+          };
+
+          keyBodyFn = (for (
+            fb <- fb();
+            bindings = (bodyST.toSeq
+              .map { case (name, (i, typ)) =>
+                (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            } :+ ((keyParam, keyParamType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(keyParamType.scalaClassTag)))));
+            res <- bindRepInRaw(bindings)(kbc)
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
+
+          key = (x: Any) => {
+            localA(idx) = x
+            keyBodyFn(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
+          };
+
+          (downstreamParamId, localA2) <- ecNewPosition();
+
+          downstreamParamTypeFixed = {
+            val x = downstreamParamType.asInstanceOf[TAggregable].copy();
+            // FIXME filter out old bindings
+            x.symTab = downstreamParamType.asInstanceOf[TAggregable].symTab + ((downstreamParam, (downstreamParamId, downstreamParamType.asInstanceOf[TAggregable].elementType)))
+            x
+          };
+
+          (continuationId, localA3) <- ecNewPosition();
+
+          downstreamBodyFn = (for (
+            fb <- fb();
+            bindings = (bodyST.toSeq
+              .map { case (name, (i, typ)) =>
+                (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            } :+ ((downstreamParam, downstreamParamType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", downstreamParamId))(downstreamParamTypeFixed.scalaClassTag))))
+            );
+            k = Code.checkcast[AnyRef => Unit](fb.arg2.invoke[Int, AnyRef]("apply", continuationId));
+            res <- bindRepInRaw(bindings)(downstreamBodyCompiled { (value: Code[AnyRef]) =>
+              CM.ret(Code(k.invoke[AnyRef, AnyRef]("apply", value), Code._pop[Unit]))
+            })
+          ) yield res
+          ).map(x => Code(x, Code._null[AnyRef])).runWithDelayedValues(
+            bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) },
+            ec.copy(st = (ec.st.filter { case (_, (_, typ)) => !typ.isInstanceOf[TAggregable] }) + ((downstreamParam, (downstreamParamId, downstreamParamTypeFixed)))));
+
+          transformation = {
+            val localA = localA3
+            val dpid = downstreamParamId
+            val cid = continuationId
+            val dbf = downstreamBodyFn
+            (x: Any, k: Any => Any) => {
+              localA(dpid) = x
+              localA(cid) = k
+              dbf(localA.asInstanceOf[mutable.ArrayBuffer[AnyRef]])
+            }
+          }
+        ) yield aggregator.ctor(key, transformation, downstreamAggregator.asInstanceOf[TypedAggregator[t]]);
+      case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
+        throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : ${argTypes.mkString(",")}) in non-aggregator position")
+      case x =>
+        throw new RuntimeException(s"Internal hail error, unexpected Fun type: ${x.getClass} $x")
+    }
+  }
+
+  def call(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[Code[AnyRef]] = {
+    import is.hail.expr.CM._
+
+    val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
+      .valueOr(x => fatal(x.message))
+
+    (m match {
+      case (_: Arity0Aggregator[_, _]
+         | _: Arity1Aggregator[_, _, _]
+         | _: Arity3Aggregator[_, _, _, _, _]
+         | _: UnaryLambdaAggregator[_, _, _]
+         | _: BinaryLambdaAggregator[_, _, _, _]
+         | _: GroupByAggregatorFun[_]) =>
+
+        for (
+          aggregator <- buildAggregator(m, name, args, argTypes);
+          aggregationResultThunk <- addAggregation(args(0), aggregator);
           res <- invokePrimitive0(aggregationResultThunk)
         ) yield res.asInstanceOf[Code[AnyRef]]
 
@@ -589,6 +681,38 @@ object FunctionRegistry {
   val BoxedTTHr = new HailRep[AnyRef] {
     def typ = TTBoxed
   }
+
+  bind("groupBy",
+    MethodType(aggregableHr(TTHr).typ, unaryHr(TTHr, TUHr).typ, unaryHr(aggregableHr(TTHr), TVHr).typ),
+    GroupByAggregatorFun(dictHr(TUHr, TVHr).typ),
+    MetaData(
+      Option("""Groups a group of elements sharing a key and applies a separate aggregation
+               |to each group. For example, we can calculate Hardy Weinberg for each
+               |population separately:
+               |
+               |.. code-block:: text
+               |     :emphasize-lines: 2
+               |
+               |     gs.groupBy(x => sa.population, gs => gs.hardyWeinberg())
+               |
+               |Multiple `groupBy` aggregators can be nested to produce nested dictionaries:
+               |
+               |.. code-block:: text
+               |     :emphasize-lines: 2
+               |
+               |     gs.groupBy(x => sa.population, gs.groupBy(x => sa.sub_population, gs => gs.hardyWeinberg()))
+               |
+               |If we preferred a single dictionary with a compound key we can use a Struct
+               |
+               |.. code-block:: text
+               |     :emphasize-lines: 2
+               |
+               |     gs.groupBy(x => { pop: sa.population, subpop: sa.sub_population }, gs => gs.hardyWeinberg())
+               |""".stripMargin),
+      Seq(
+        "keyFun" -> "a lambda expression evaluating to the key for the given element",
+        "downstream" -> "a lambda expression whose argument is an aggregable of elements sharing a key, it should produce an aggregated value for this key")))
+
 
   import is.hail.variant.Call._
   registerField("gt", { (c: Call) => c}, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedintHr)
