@@ -9,6 +9,8 @@ import org.testng.annotations.Test
 
 class LinearRegressionMultiPhenoSuite extends SparkSuite {
 
+  // ensuring that result for one phenotype and hard calls is the same as with linreg
+  // and that including the same phenotype a second time gives same result as well.
   @Test def testWithTwoCov() {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
@@ -20,7 +22,7 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
         "Sample",
         root = Some("sa.pheno"),
         config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
-      .linregMulti(Array("sa.pheno.Pheno", "sa.pheno.Pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = false, 1, 0.0)
+      .linregMultiPheno(Array("sa.pheno.Pheno", "sa.pheno.Pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = false, 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
@@ -73,6 +75,7 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
     assertDouble(qTstat, v1, -0.22442167)
     assertDouble(qPval, v1, 0.84327106)
 
+    // checking that second copy of phenotype gives the same answer
     assertDouble1(qBeta, v1, -0.28589421)
     assertDouble1(qSe, v1, 1.2739153)
     assertDouble1(qTstat, v1, -0.22442167)
@@ -106,6 +109,7 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
     assertEmpty(qBeta, v10)
   }
 
+  // ensuring that result for one phenotype and dosages is the same as with linreg.
   @Test def testWithTwoCovPhred() {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
@@ -117,7 +121,7 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
         "Sample",
         root = Some("sa.pheno"),
         config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
-      .linregMulti(Array("sa.pheno.Pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
+      .linregMultiPheno(Array("sa.pheno.Pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
@@ -147,14 +151,6 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
 
     def assertEmpty(q: Querier, v: Variant) =
       assert(q(annotationMap(v)) == null)
-
-    val gt0 = Genotype.phredToBiallelicDosageGT(Array(0, 20, 100))
-    val gt1 = Genotype.phredToBiallelicDosageGT(Array(20, 0, 100))
-    val gt2 = Genotype.phredToBiallelicDosageGT(Array(20, 100, 0))
-
-    assert(D_==(gt0, 0.009900990296049406))
-    assert(D_==(gt1, 0.9900990100009803))
-    assert(D_==(gt2, 1.980198019704931))
 
     /*
     comparing to output of R code:
