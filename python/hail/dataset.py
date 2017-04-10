@@ -2556,11 +2556,11 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def linreg_multi(self, y, covariates=[], root='va.linreg_multi', use_dosages=False, min_ac=1, min_af=0.0):
+    def linreg_multi_pheno(self, y, covariates=[], root='va.linreg_multi', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association with multiple phenotypes using linear regression.
 
         This method runs linear regression for multiple phenotypes more efficiently
-        than looping over :py:meth:`.linreg`. Note that :py:meth:`.linreg_multi` uses
+        than looping over :py:meth:`.linreg`. Note that :py:meth:`.linreg_multi_pheno` uses
         the same set of samples for each phenotype, namely the set of samples for which
         **all** phenotypes and covariates are defined.
 
@@ -2592,7 +2592,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linregMulti(jarray(Env.jvm().java.lang.String, y), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, y), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

@@ -7,7 +7,7 @@ import is.hail.utils._
 import is.hail.variant.{Genotype, Variant}
 import org.testng.annotations.Test
 
-class LinearRegressionMultiSuite extends SparkSuite {
+class LinearRegressionMultiPhenoSuite extends SparkSuite {
 
   @Test def testWithTwoCov() {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")

@@ -9,7 +9,7 @@ import is.hail.utils._
 import is.hail.variant._
 import net.sourceforge.jdistlib.T
 
-object LinearRegressionMulti {
+object LinearRegressionMultiPheno {
   def `type` = TStruct(
     ("beta", TArray(TDouble)),
     ("se", TArray(TDouble)),
@@ -51,7 +51,7 @@ object LinearRegressionMulti {
     val yDummyBc = sc.broadcast(DenseVector.zeros[Double](n))
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(LinearRegressionMulti.`type`, pathVA)
+    val (newVAS, inserter) = vds.insertVA(LinearRegressionMultiPheno.`type`, pathVA)
 
     vds.mapAnnotations { case (v, va, gs) =>
 
