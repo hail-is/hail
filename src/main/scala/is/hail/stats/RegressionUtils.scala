@@ -65,6 +65,9 @@ object RegressionUtils {
       majorStride = 1 + k,
       isTranspose = true)
 
+    if (n < vds.nSamples)
+      warn(s"${vds.nSamples - n} of ${vds.nSamples} samples have a missing phenotype or covariate.")
+    
     (y, cov, completeSamples)
   }
 
