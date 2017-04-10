@@ -18,25 +18,35 @@ object LDPrune {
 
   case class GlobalPruneIntermediate(rdd: GeneralRDD[(Variant, BitPackedVector)], index: Int, persist: Boolean)
 
-  case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, sdRecip: Double) {
+  case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevRec: Double) {
     def unpack(): Array[Int] = {
+      val gts = Array.ofDim[Int](nSamples)
+      val nPacks = gs.length
 
-      val shifts = (0 until genotypesPerPack * 2 by 2).reverse
+      var packIndex = 0
+      var i = 0
+      val shiftInit = genotypesPerPack * 2 - 2
+      while (packIndex < nPacks && i < nSamples) {
+        val l = gs(packIndex)
+        var shift = shiftInit
+        while (shift >= 0 && i < nSamples) {
+          val gt = (l >> shift) & 3
+          if (gt == 3)
+            gts(i) = -1
+          else
+            gts(i) = gt.toInt
+          shift -= 2
+          i += 1
+        }
+        packIndex += 1
+      }
 
-      gs.flatMap { l =>
-        shifts.map { s => (l >> s) & 3 match {
-          case 0 => 0
-          case 1 => 1
-          case 2 => 2
-          case 3 => -1
-        }
-        }
-      }.take(nSamples)
+      gts
     }
   }
 
-  val table = {
-    val t = Array.fill[Byte](256 * 4)(0)
+  val table: Array[Byte] = {
+    val t = Array.ofDim[Byte](256 * 4)
 
     (0 until 256).foreach { i =>
       val xi = i & 3
@@ -83,15 +93,12 @@ object LDPrune {
   }
 
   def toBitPackedVector(it: HailIterator[Int], nSamples: Int): Option[BitPackedVector] = {
+    require(nSamples >= 0)
     val nBitsPerPack = 2 * genotypesPerPack
+    val nPacks = (nSamples - 1) / genotypesPerPack + 1
+    val a = Array.ofDim[Long](nPacks)
 
-    val padding = genotypesPerPack - nSamples % genotypesPerPack
-    val nGenotypes = nSamples + padding
-    val nPacks = nGenotypes / genotypesPerPack
-    require(nGenotypes % genotypesPerPack == 0)
-    val a = new Array[Long](nPacks)
-
-    var nPresent = 0
+    var nMissing = 0
     var gtSum = 0
     var gtSumSq = 0
 
@@ -112,17 +119,23 @@ object LDPrune {
       }
       packOffset -= 2
 
-      if (gt >= 0) {
-        nPresent += 1
-        gtSum += gt
-        gtSumSq += gt * gt
+      if (gt == 1) {
+        gtSum += 1
+        gtSumSq += 1
+      } else if (gt == 2) {
+        gtSum += 2
+        gtSumSq += 4
+      } else if (gt == -1) {
+        nMissing += 1
       }
+
       i += 1
     }
 
-    a(packIndex) = pack
+    if (packIndex < nPacks)
+      a(packIndex) = pack
 
-    val nMissing = nSamples - nPresent
+    val nPresent = nSamples - nMissing
     val allHomRef = gtSum == 0
     val allHet = gtSum == nPresent && gtSumSq == nPresent
     val allHomVar = gtSum == 2 * nPresent
@@ -148,8 +161,8 @@ object LDPrune {
     val N = x.nSamples
     val meanX = x.mean
     val meanY = y.mean
-    val sdrecipX = x.sdRecip
-    val sdrecipY = y.sdRecip
+    val stdDevRecX = x.stdDevRec
+    val stdDevRecY = y.stdDevRec
 
     var XbarYbarCount = 0
     var XbarCount = 0
@@ -157,11 +170,12 @@ object LDPrune {
     var xySum = 0
 
     val nPacks = gsX.length
+    val shiftInit = 2 * (genotypesPerPack - 2)
     var pack = 0
     while (pack < nPacks) {
       val lX = gsX(pack)
       val lY = gsY(pack)
-      var shift = 2 * (genotypesPerPack - 2)
+      var shift = shiftInit
 
       while (shift >= 0) {
         val b = (((lY >> shift) & 15) << 4 | ((lX >> shift) & 15)).toInt
@@ -174,13 +188,14 @@ object LDPrune {
       pack += 1
     }
 
-    val r = sdrecipX * sdrecipY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
+    val r = stdDevRecX * stdDevRecY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
     val r2 = r * r
-    assert(r2 >= 0d || r2 >= 1d, s"R2 must be between [0,1]. Found $r2.")
+    assert(r2 >= 0d && r2 <= 1.0000001, s"R2 must be between [0,1]. Found $r2.")
     r2
   }
 
-  private def pruneLocal(inputRDD: OrderedRDD[Locus, Variant, BitPackedVector], r2Threshold: Double, window: Int, queueSize: Option[Int]) = {
+  private def pruneLocal(inputRDD: OrderedRDD[Locus, Variant, BitPackedVector],
+    r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): OrderedRDD[Locus, Variant, BitPackedVector] = {
     inputRDD.rdd.mapPartitions({ it =>
       val queue = queueSize match {
         case Some(qs) => new util.ArrayDeque[(Variant, BitPackedVector)](qs)
@@ -194,7 +209,7 @@ object LDPrune {
 
         while (!done && qit.hasNext) {
           val (v2, bpv2) = qit.next()
-          if (v.contig != v2.contig || v.start - v2.start > window)
+          if (v.contig != v2.contig || (v.start - v2.start) > windowSize)
             done = true
           else {
             val r2 = computeR2(bpv, bpv2)
@@ -219,7 +234,8 @@ object LDPrune {
     }, preservesPartitioning = true).asOrderedRDD
   }
 
-  private def pruneGlobal(inputRDD: OrderedRDD[Locus, Variant, BitPackedVector], r2Threshold: Double, window: Int) = {
+  private def pruneGlobal(inputRDD: OrderedRDD[Locus, Variant, BitPackedVector],
+    r2Threshold: Double, windowSize: Int): (OrderedRDD[Locus, Variant, Any], Long) = {
     val sc = inputRDD.sparkContext
 
     require(sc.getPersistentRDDs.get(inputRDD.id).isDefined)
@@ -234,9 +250,9 @@ object LDPrune {
         Array(partitionId)
       else {
         val startLocus = rangeBounds(partitionId - 1) // this is the best estimate of the first locus of the partition
-        val minimumLocus = Locus(startLocus.contig, math.max(startLocus.position - window, 0))
-        val partMinimum = rangePartitioner.getPartitionT(minimumLocus)
-        partitionIndices.filter(idx => idx >= partMinimum && idx <= partitionId).reverse
+        val minLocus = Locus(startLocus.contig, math.max(startLocus.position - windowSize, 0))
+        val minPart = rangePartitioner.getPartitionT(minLocus)
+        partitionIndices.filter(idx => idx >= minPart && idx <= partitionId).reverse
       }
     }
 
@@ -253,7 +269,7 @@ object LDPrune {
         prevPartitions.foreach { it =>
           it.foreach { case (v2, bpv2) =>
             targetData = targetData.filter { case (v, bpv) =>
-              if (v.contig != v2.contig || v.start - v2.start > window)
+              if (v.contig != v2.contig || (v.start - v2.start) > windowSize)
                 true
               else {
                 computeR2(bpv, bpv2) < r2Threshold
@@ -328,15 +344,15 @@ object LDPrune {
     (maxQueueSize, nPartitions)
   }
 
-  def apply(vds: VariantDataset, r2Threshold: Double, window: Int, nCores: Int, memoryPerCore: Long = 268435456): VariantDataset = {
+  def apply(vds: VariantDataset, r2Threshold: Double, windowSize: Int, nCores: Int, memoryPerCore: Long = 268435456): VariantDataset = {
     if (nCores <= 0)
-      fatal(s"Number of cores must be greater than 0.")
+      fatal(s"Number of cores must be positive.")
 
     if (r2Threshold < 0 || r2Threshold > 1)
       fatal(s"R^2 threshold must be in the range [0,1]. Found `$r2Threshold'.")
 
-    if (window < 0)
-      fatal(s"Window must be greater than or equal to 0. Found `$window'.")
+    if (windowSize < 0)
+      fatal(s"Window size must be greater than or equal to 0. Found `$windowSize'.")
 
     val sc = vds.sparkContext
 
@@ -347,23 +363,23 @@ object LDPrune {
     val minMemoryPerCore = math.ceil((1d / fractionMemoryToUse) * 8 * nSamples + variantByteOverhead)
     val (maxQueueSize, _) = estimateMemoryRequirements(nVariantsInitial, nSamples, nCores, memoryPerCore)
 
-    info(s"InputData: nSamples=$nSamples nVariants=$nVariantsInitial nPartitions=$nPartitionsInitial maxQueueSize=$maxQueueSize")
+    info(s"Running LD prune with nSamples=$nSamples, nVariants=$nVariantsInitial, nPartitions=$nPartitionsInitial, and maxQueueSize=$maxQueueSize.")
 
     if (memoryPerCore < minMemoryPerCore)
-      fatal(s"Memory per core must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB")
+      fatal(s"`memory_per_core' must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB.")
 
     val standardizedRDD: OrderedRDD[Locus, Variant, BitPackedVector] = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
       .flatMapValues { case (va, gs) => toBitPackedVector(gs.hardCallIterator, nSamples) }.asOrderedRDD
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
-      val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, window, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)
+      val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, windowSize, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)
       val nVariantsKept = prunedRDD.count()
       val nPartitions = prunedRDD.partitions.length
       assert(nVariantsKept >= 1)
       standardizedRDD.unpersist()
       (prunedRDD, nVariantsKept, nPartitions)
     })
-    info(s"Local Prune 1: nVariantsKept=$nVariantsLP1 nPartitions=$nPartitionsLP1 time=${ formatTime(durationLP1) }")
+    info(s"LD Prune step 1/3: nVariantsKept=$nVariantsLP1, nPartitions=$nPartitionsLP1, time=${ formatTime(durationLP1) }")
 
     val ((rddLP2, nVariantsLP2, nPartitionsLP2), durationLP2) = time({
       val (_, nPartitionsRequired) = estimateMemoryRequirements(nVariantsLP1, nSamples, nCores, memoryPerCore)
@@ -371,18 +387,18 @@ object LDPrune {
       repartRDD.persist(StorageLevel.MEMORY_AND_DISK)
       repartRDD.count()
       rddLP1.unpersist()
-      val prunedRDD = pruneLocal(repartRDD, r2Threshold, window, None).persist(StorageLevel.MEMORY_AND_DISK)
+      val prunedRDD = pruneLocal(repartRDD, r2Threshold, windowSize, None).persist(StorageLevel.MEMORY_AND_DISK)
       val nVariantsKept = prunedRDD.count()
       val nPartitions = prunedRDD.partitions.length
       assert(nVariantsKept >= 1)
       repartRDD.unpersist()
       (prunedRDD, nVariantsKept, nPartitions)
     })
-    info(s"Local Prune 2: nVariantsKept=$nVariantsLP2 nPartitions=$nPartitionsLP2 time=${ formatTime(durationLP2) }")
+    info(s"LD Prune step 2/3: nVariantsKept=$nVariantsLP2, nPartitions=$nPartitionsLP2, time=${ formatTime(durationLP2) }")
 
 
-    val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(rddLP2, r2Threshold, window))
-    info(s"Global Prune: nVariantsRemaining=$nVariantsFinal time=${ formatTime(globalDuration) }")
+    val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(rddLP2, r2Threshold, windowSize))
+    info(s"LD Prune step 3/3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
 
     vds.copy(rdd = vds.rdd.orderedInnerJoinDistinct(globalPrunedRDD)
       .mapValues { case ((va, gs), _) => (va, gs) }
