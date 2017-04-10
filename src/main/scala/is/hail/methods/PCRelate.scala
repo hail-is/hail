@@ -313,4 +313,14 @@ object PCRelate {
 
     (normalizedGD.t * normalizedGD) :/: (variance.t * variance)
   }
+
+  def k0[M: DistributedMatrix](f: Array[Double], gD: M, mu: M): M =
+    ???
+
+  def k1[M: DistributedMatrix](k2: M, k0: M): M = {
+    val dm = DistributedMatrix[M]
+    import dm.ops._
+
+    1.0 - (k2 :-: k0)
+  }
 }
