@@ -113,9 +113,9 @@ object KeyTable {
     KeyTable(hc,
       nPartitions match {
         case Some(n) =>
-          sc.parallelize(rows.asScala, n)
+          sc.parallelize(rows.asScala.toSeq, n)
         case None =>
-          sc.parallelize(rows.asScala)
+          sc.parallelize(rows.asScala.toSeq)
       }, signature, keyNames.asScala.toArray)
   }
 }
