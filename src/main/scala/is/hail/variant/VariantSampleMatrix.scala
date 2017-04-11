@@ -675,7 +675,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           } ]"
         }")
 
-    val ec = EvalContext(Map("sa" -> (0, saSignature), "table" -> (1, kt.signature)))
+    val ec = EvalContext(Map("sa" -> (0, saSignature), "table" -> (1, kt.valueSignature)))
 
     val (finalType, inserter) =
       buildInserter(code, saSignature, ec, Annotation.SAMPLE_HEAD)
@@ -700,9 +700,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     if (!(keyTypes sameElements vdsKeyType))
       fatal(s"Key signature of KeyTable, `${ keyTypes.mkString(", ") }', must match type of computed key, `${ vdsKeyType.mkString(", ") }'.")
 
-    val ktSig = kt.signature
-
-    val inserterEc = EvalContext(Map("sa" -> (0, saSignature), "table" -> (1, ktSig)))
+    val inserterEc = EvalContext(Map("sa" -> (0, saSignature), "table" -> (1, kt.valueSignature)))
 
     val (finalType, inserter) =
       buildInserter(code, vaSignature, inserterEc, Annotation.SAMPLE_HEAD)
@@ -795,9 +793,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     if (ktKeyTypes.length != 1 || ktKeyTypes(0) != TVariant)
       fatal(s"Key signature of KeyTable must be 1 field with type `Variant'. Found `${ ktKeyTypes.mkString(", ") }'")
 
-    val ktSig = kt.signature
-
-    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, ktSig)))
+    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, kt.valueSignature)))
 
     val (finalType, inserter) =
       buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
@@ -822,12 +818,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     if (!(keyTypes sameElements vdsKeyType))
       fatal(s"Key signature of KeyTable, `${ keyTypes.mkString(", ") }', must match type of computed key, `${ vdsKeyType.mkString(", ") }'.")
 
-    val ktSig = kt.signature
+    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, kt.valueSignature)))
 
-    val inserterEc = EvalContext(Map("va" -> (0, vaSignature), "table" -> (1, ktSig)))
-
-    val (finalType, inserter) =
-      buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
+    val (finalType, inserter) = buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
     val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v)}
 

@@ -39,7 +39,7 @@ object Annotation {
     case TChar => TString
     case TVariant => Variant.expandedType
     case TGenotype => Genotype.expandedType
-    case TLocus => Locus.expandedSchema
+    case TLocus => Locus.expandedType
     case TArray(elementType) =>
       TArray(expandType(elementType))
     case TStruct(fields) =>
@@ -53,8 +53,8 @@ object Annotation {
     case TAltAllele => AltAllele.expandedType
     case TInterval =>
       TStruct(
-        "start" -> Locus.expandedSchema,
-        "end" -> Locus.expandedSchema)
+        "start" -> Locus.expandedType,
+        "end" -> Locus.expandedType)
     case _ => t
   }
 

@@ -141,9 +141,9 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
       if (!localSignature.typeCheck(a))
         fatal(
           s"""found violation in row annotation
-             |Schema: ${ localSignature.toPrettyString() }
+             |  Schema: ${ localSignature.toPrettyString() }
              |
-             |Annotation: ${ Annotation.printAnnotation(a) }""".stripMargin
+             |  Annotation: ${ Annotation.printAnnotation(a) }""".stripMargin
         )
     }
   }
@@ -152,8 +152,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     if (nKeys == 0)
       fatal("cannot produce a keyed RDD from a key table with no key columns")
 
-    val keyIndices = keyFields.map(_.index)
-    rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), r) }
+    val keySet = keyFields.map(_.name).toSet
+    val keyIndices = fields.filter(f => keySet.contains(f.name)).map(_.index)
+    val valueIndices = fields.filter(f => !keySet.contains(f.name)).map(_.index)
+    rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
   def same(other: KeyTable): Boolean = {
@@ -179,8 +181,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         (v1, v2) match {
           case (None, None) => true
           case (Some(x), Some(y)) =>
-            val r1 = x.map(r => thisFieldNames.zip(r.asInstanceOf[Row].toSeq).toMap).toSet
-            val r2 = y.map(r => otherFieldNames.zip(r.asInstanceOf[Row].toSeq).toMap).toSet
+            val r1 = x.map(r => thisFieldNames.zip(r.toSeq).toMap).toSet
+            val r2 = y.map(r => otherFieldNames.zip(r.toSeq).toMap).toSet
             val res = r1 == r2
             if (!res)
               info(s"k=$k r1=${ r1.mkString(",") } r2=${ r2.mkString(",") }")
@@ -193,7 +195,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     }
   }
 
-  def mapAnnotations[T](f: (Row) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(a => f(a))
+  def mapAnnotations[T](f: (Row) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(r => f(r))
 
   def query(expr: String): (Annotation, Type) = query(Array(expr)).head
 
@@ -250,11 +252,11 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val nFieldsLocal = nFields
 
-    val annotF: Row => Row = { a =>
-      ec.setAllFromRow(a)
+    val annotF: Row => Row = { r =>
+      ec.setAllFromRow(r)
 
       f().zip(inserters)
-        .foldLeft(a) { case (a1, (v, inserter)) =>
+        .foldLeft(r) { case (a1, (v, inserter)) =>
           inserter(a1, v).asInstanceOf[Row]
         }
     }
@@ -345,32 +347,35 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     if (keyNames.length != other.keyNames.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
         s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
-           |Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
+           |  Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
+           |  Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
 
     val overlappingFields = fieldNames.toSet.intersect(other.fieldNames.toSet) -- keyNames -- other.keyNames
     if (overlappingFields.nonEmpty)
       fatal(
         s"""Columns that are not keys cannot be present in both key tables.
-           |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
+           |  Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
-    val mergeFields = other.fields.filterNot(fd => other.keyNames.contains(fd.name))
+    val mergeFields = other.valueSignature.fields
     val mergeIndices = mergeFields.map(_.index)
 
     val newSignature = TStruct((fields ++ mergeFields).map(fd => (fd.name, fd.typ)): _*)
 
     val size1 = nFields
     val targetSize = newSignature.size
+    val localNKeys = nKeys
 
-    val merger = (r1: Row, r2: Row) => {
+    val merger = (k: Row, r1: Row, r2: Row) => {
       val result = Array.fill[Any](targetSize)(null)
-      if (r1 != null) {
-        (0 until r1.length).foreach { i => result(i) = r1.get(i) }
+
+      (0 until localNKeys).foreach{i =>
+        result(i) = k.get(i)
       }
 
-      if (r2 != null) {
-        mergeIndices.zipWithIndex.foreach { case (i, j) => result(size1 + j) = r2(i) }
+      if (r1 != null) {
+        (localNKeys until r1.length).foreach { i => result(i) = r1.get(i - localNKeys) }
       }
+
       if (r2 != null) {
         mergeIndices.indices.foreach { i =>
           result(size1 + i) = r2(mergeIndices(i))
@@ -383,10 +388,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val rddRight = other.keyedRDD()
 
     val joinedRDD = joinType match {
-      case "left" => rddLeft.leftOuterJoin(rddRight).map { case (k, (l, r)) => merger(l, r.orNull) }
-      case "right" => rddLeft.rightOuterJoin(rddRight).map { case (k, (l, r)) => merger(l.orNull, r) }
-      case "inner" => rddLeft.join(rddRight).map { case (k, (l, r)) => merger(l, r) }
-      case "outer" => rddLeft.fullOuterJoin(rddRight).map { case (k, (l, r)) => merger(l.orNull, r.orNull) }
+      case "left" => rddLeft.leftOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l, r.orNull) }
+      case "right" => rddLeft.rightOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r) }
+      case "inner" => rddLeft.join(rddRight).map { case (k, (l, r)) => merger(k, l, r) }
+      case "outer" => rddLeft.fullOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r.orNull) }
       case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
     }
 

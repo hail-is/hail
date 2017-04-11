@@ -245,7 +245,7 @@ object VariantDataset {
       sa = Array.empty[Annotation],
       globalAnnotation = Annotation.empty,
       sas = TStruct.empty,
-      vas = kt.signature,
+      vas = kt.valueSignature,
       globalSignature = TStruct.empty
     )
 

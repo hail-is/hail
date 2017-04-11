@@ -34,7 +34,7 @@ object Locus {
       StructField("contig", StringType, nullable = false),
       StructField("position", IntegerType, nullable = false)))
 
-  def expandedSchema: TStruct = TStruct(
+  def expandedType: TStruct = TStruct(
     "contig" -> TString,
     "position" -> TInt)
 
