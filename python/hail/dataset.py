@@ -2544,7 +2544,7 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param bool use_dosages: If true, use dosage genotypes rather that hard call genotypes.
+        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :param int min_ac: Minimum alternate allele count.
 
@@ -2588,7 +2588,7 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param bool use_dosages: If true, use dosage genotypes rather that hard call genotypes.
+        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :param int min_ac: Minimum alternate allele count.
 
