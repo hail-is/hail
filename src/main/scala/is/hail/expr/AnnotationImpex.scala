@@ -119,13 +119,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
       ArrayType(StructType(Array(
         StructField("key", keyType.schema),
         StructField("value", valueType.schema))))
-    case TAltAllele => AltAllele.schema
-    case TVariant => Variant.schema
-    case TLocus => Locus.schema
+    case TAltAllele => AltAllele.sparkSchema
+    case TVariant => Variant.sparkSchema
+    case TLocus => Locus.sparkSchema
     case TInterval => StructType(Array(
-      StructField("start", Locus.schema, nullable = false),
-      StructField("end", Locus.schema, nullable = false)))
-    case TGenotype => Genotype.schema
+      StructField("start", Locus.sparkSchema, nullable = false),
+      StructField("end", Locus.sparkSchema, nullable = false)))
+    case TGenotype => Genotype.sparkSchema
     case TCall => IntegerType
     case TStruct(fields) =>
       if (fields.isEmpty)

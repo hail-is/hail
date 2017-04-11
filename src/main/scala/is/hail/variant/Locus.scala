@@ -29,12 +29,12 @@ object LocusImplicits {
 object Locus {
   val simpleContigs: Seq[String] = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")
 
-  val schema: StructType =
+  def sparkSchema: StructType =
     StructType(Array(
       StructField("contig", StringType, nullable = false),
       StructField("position", IntegerType, nullable = false)))
 
-  val t: Type = TStruct(
+  def expandedType: TStruct = TStruct(
     "contig" -> TString,
     "position" -> TInt)
 

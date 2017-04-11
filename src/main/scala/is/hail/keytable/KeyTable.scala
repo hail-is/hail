@@ -32,7 +32,7 @@ object KeyTable {
   def fromDF(hc: HailContext, df: DataFrame, keyNames: Array[String]): KeyTable = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     KeyTable(hc, df.rdd.map { r =>
-      SparkAnnotationImpex.importAnnotation(r, signature)
+      SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
     },
       signature, keyNames)
   }
@@ -93,17 +93,17 @@ object KeyTable {
     val rdd = hc.sqlContext.read.parquet(parquetFile)
       .rdd
       .map { r =>
-        (if (requiresConversion)
-          SparkAnnotationImpex.importAnnotation(r, signature)
+        if (requiresConversion)
+          SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
         else
-          r): Annotation
+          r
       }
 
     KeyTable(hc, rdd, signature, keyNames)
   }
 }
 
-case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
+case class KeyTable(hc: HailContext, rdd: RDD[Row],
   signature: TStruct, keyNames: Array[String]) {
 
   if (!fieldNames.areDistinct())
@@ -117,8 +117,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
   def keyFields: Array[Field] = keyNames.map(signature.fieldIdx).map(i => fields(i))
 
-  def schema = signature.schema
-
   def fieldNames: Array[String] = fields.map(_.name)
 
   def nRows: Long = rdd.count()
@@ -127,29 +125,37 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
   def nKeys: Int = keyNames.length
 
+  def keySignature: TStruct = {
+    val keySet = keyNames.toSet
+    TStruct(signature.fields.filter(f => keySet.contains(f.name)).map(f => (f.name, f.typ)): _*)
+  }
+
+  def valueSignature: TStruct = {
+    val keySet = keyNames.toSet
+    TStruct(signature.fields.filter(f => !keySet.contains(f.name)).map(f => (f.name, f.typ)): _*)
+  }
+
   def typeCheck() {
     val localSignature = signature
     rdd.foreach { a =>
       if (!localSignature.typeCheck(a))
         fatal(
           s"""found violation in row annotation
-             |Schema: ${ localSignature.toPrettyString() }
+             |  Schema: ${ localSignature.toPrettyString() }
              |
-             |Annotation: ${ Annotation.printAnnotation(a) }""".stripMargin
+             |  Annotation: ${ Annotation.printAnnotation(a) }""".stripMargin
         )
     }
   }
 
-  def keyedRDD(): RDD[(Annotation, Annotation)] = {
+  def keyedRDD(): RDD[(Row, Row)] = {
     if (nKeys == 0)
       fatal("cannot produce a keyed RDD from a key table with no key columns")
 
-    val keyIndices = keyFields.map(_.index)
-    rdd.map { a =>
-      val r = a.asInstanceOf[Row].toSeq
-      val keyRow = keyIndices.map(i => r(i))
-      (Annotation.fromSeq(keyRow), a)
-    }
+    val keySet = keyFields.map(_.name).toSet
+    val keyIndices = fields.filter(f => keySet.contains(f.name)).map(_.index)
+    val valueIndices = fields.filter(f => !keySet.contains(f.name)).map(_.index)
+    rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
   def same(other: KeyTable): Boolean = {
@@ -175,8 +181,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
         (v1, v2) match {
           case (None, None) => true
           case (Some(x), Some(y)) =>
-            val r1 = x.map(r => thisFieldNames.zip(r.asInstanceOf[Row].toSeq).toMap).toSet
-            val r2 = y.map(r => otherFieldNames.zip(r.asInstanceOf[Row].toSeq).toMap).toSet
+            val r1 = x.map(r => thisFieldNames.zip(r.toSeq).toMap).toSet
+            val r2 = y.map(r => otherFieldNames.zip(r.toSeq).toMap).toSet
             val res = r1 == r2
             if (!res)
               info(s"k=$k r1=${ r1.mkString(",") } r2=${ r2.mkString(",") }")
@@ -189,7 +195,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     }
   }
 
-  def mapAnnotations[T](f: (Annotation) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(a => f(a))
+  def mapAnnotations[T](f: (Row) => T)(implicit tct: ClassTag[T]): RDD[T] = rdd.map(r => f(r))
 
   def query(expr: String): (Annotation, Type) = query(Array(expr)).head
 
@@ -246,12 +252,12 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     val nFieldsLocal = nFields
 
-    val annotF: Annotation => Annotation = { a =>
-      ec.setAllFromRow(a.asInstanceOf[Row])
+    val annotF: Row => Row = { r =>
+      ec.setAllFromRow(r)
 
       f().zip(inserters)
-        .foldLeft(a) { case (a1, (v, inserter)) =>
-          inserter(a1, v)
+        .foldLeft(r) { case (a1, (v, inserter)) =>
+          inserter(a1, v).asInstanceOf[Row]
         }
     }
 
@@ -283,7 +289,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     if (badKeys.nonEmpty)
       fatal(
-        s"""Invalid keys: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
+        s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
            |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
 
     copy(keyNames = newKeys.toArray)
@@ -302,9 +308,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     val newSignature = TStruct(fieldTransform.zipWithIndex.map { case (oldIndex, newIndex) => signature.fields(oldIndex).copy(index = newIndex) })
 
-    val selectF: Annotation => Annotation = { a =>
-      val r = a.asInstanceOf[Row].toSeq
-      Annotation.fromSeq(fieldTransform.map { i => r(i) })
+    val selectF: Row => Row = { r =>
+      Row.fromSeq(fieldTransform.map(r.get))
     }
 
     KeyTable(hc, mapAnnotations(selectF), newSignature, newKeys)
@@ -342,44 +347,51 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     if (keyNames.length != other.keyNames.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
         s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
-           |Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
-           |Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
+           |  Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
+           |  Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
 
     val overlappingFields = fieldNames.toSet.intersect(other.fieldNames.toSet) -- keyNames -- other.keyNames
     if (overlappingFields.nonEmpty)
       fatal(
         s"""Columns that are not keys cannot be present in both key tables.
-           |Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
+           |  Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
-    val mergeFields = other.fields.filterNot(fd => other.keyNames.contains(fd.name))
+    val mergeFields = other.valueSignature.fields
     val mergeIndices = mergeFields.map(_.index)
 
     val newSignature = TStruct((fields ++ mergeFields).map(fd => (fd.name, fd.typ)): _*)
 
     val size1 = nFields
     val targetSize = newSignature.size
+    val localNKeys = nKeys
 
-    val merger = (a1: Annotation, a2: Annotation) => {
+    val merger = (k: Row, r1: Row, r2: Row) => {
       val result = Array.fill[Any](targetSize)(null)
-      if (a1 != null) {
-        val r1 = a1.asInstanceOf[Row].toSeq
-        r1.indices.foreach { i => result(i) = r1(i) }
+
+      (0 until localNKeys).foreach{i =>
+        result(i) = k.get(i)
       }
-      if (a2 != null) {
-        val r2 = a2.asInstanceOf[Row].toSeq
-        mergeIndices.zipWithIndex.foreach { case (i, j) => result(size1 + j) = r2(i) }
+
+      if (r1 != null) {
+        (localNKeys until r1.length).foreach { i => result(i) = r1.get(i - localNKeys) }
       }
-      Annotation.fromSeq(result)
+
+      if (r2 != null) {
+        mergeIndices.indices.foreach { i =>
+          result(size1 + i) = r2(mergeIndices(i))
+        }
+      }
+      Row.fromSeq(result)
     }
 
     val rddLeft = keyedRDD()
     val rddRight = other.keyedRDD()
 
     val joinedRDD = joinType match {
-      case "left" => rddLeft.leftOuterJoin(rddRight).map { case (k, (l, r)) => merger(l, r.orNull) }
-      case "right" => rddLeft.rightOuterJoin(rddRight).map { case (k, (l, r)) => merger(l.orNull, r) }
-      case "inner" => rddLeft.join(rddRight).map { case (k, (l, r)) => merger(l, r) }
-      case "outer" => rddLeft.fullOuterJoin(rddRight).map { case (k, (l, r)) => merger(l.orNull, r.orNull) }
+      case "left" => rddLeft.leftOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l, r.orNull) }
+      case "right" => rddLeft.rightOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r) }
+      case "inner" => rddLeft.join(rddRight).map { case (k, (l, r)) => merger(k, l, r) }
+      case "outer" => rddLeft.fullOuterJoin(rddRight).map { case (k, (l, r)) => merger(k, l.orNull, r.orNull) }
       case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
     }
 
@@ -391,7 +403,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     rdd.forall { a =>
-      ec.setAllFromRow(a.asInstanceOf[Row])
+      ec.setAllFromRow(a)
       val b = f()
       if (b == null)
         false
@@ -404,8 +416,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val ec = EvalContext(fields.map(f => (f.name, f.typ)): _*)
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
-    rdd.exists { a =>
-      ec.setAllFromRow(a.asInstanceOf[Row])
+    rdd.exists { r =>
+      ec.setAllFromRow(r)
       val b = f()
       if (b == null)
         false
@@ -427,12 +439,11 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     rdd.mapPartitions { it =>
       val sb = new StringBuilder()
 
-      it.map { a =>
+      it.map { r =>
         sb.clear()
-        val r = a.asInstanceOf[Row].toSeq
 
         localTypes.indices.foreachBetween { i =>
-          sb.append(localTypes(i).str(r(i)))
+          sb.append(localTypes(i).str(r.get(i)))
         }(sb += '\t')
 
         sb.result()
@@ -461,24 +472,24 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val keySignature = TStruct((newKeyNames, keyTypes).zipped.toSeq: _*)
     val aggSignature = TStruct((aggNames, aggTypes).zipped.toSeq: _*)
 
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
-      case (ec, a) =>
-        ec.setAllFromRow(a.asInstanceOf[Row])
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Row](ec, {
+      case (ec, r) =>
+        ec.setAllFromRow(r)
     })
 
     val newRDD = rdd.mapPartitions {
       it =>
         it.map {
-          a =>
-            keyEC.setAllFromRow(a.asInstanceOf[Row])
-            val key = Annotation.fromSeq(keyF())
-            (key, a)
+          r =>
+            keyEC.setAllFromRow(r)
+            val key = Row.fromSeq(keyF())
+            (key, r)
         }
     }.aggregateByKey(zVals)(seqOp, combOp)
       .map {
         case (k, agg) =>
           resultOp(agg)
-          Annotation.fromSeq(k.asInstanceOf[Row].toSeq ++ aggF())
+          Row.fromSeq(k.toSeq ++ aggF())
       }
 
     KeyTable(hc, newRDD, keySignature.merge(aggSignature)._1, newKeyNames)
@@ -488,7 +499,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val localSignature = signature
     val expandedSignature = Annotation.expandType(localSignature).asInstanceOf[TStruct]
 
-    KeyTable(hc, rdd.map { a => Annotation.expandAnnotation(a, localSignature) },
+    KeyTable(hc, rdd.map { a => Annotation.expandAnnotation(a, localSignature).asInstanceOf[Row] },
       expandedSignature,
       keyNames)
   }
@@ -499,7 +510,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
     val flattenedSignature = Annotation.flattenType(localSignature).asInstanceOf[TStruct]
     val flattenedKeyNames = Annotation.flattenType(keySignature).asInstanceOf[TStruct].fields.map(_.name).toArray
 
-    KeyTable(hc, rdd.map { a => Annotation.flattenAnnotation(a, localSignature) },
+    KeyTable(hc, rdd.map { a => Annotation.flattenAnnotation(a, localSignature).asInstanceOf[Row] },
       flattenedSignature,
       flattenedKeyNames)
   }
@@ -510,7 +521,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
       rdd.map {
         a => SparkAnnotationImpex.exportAnnotation(a, localSignature).asInstanceOf[Row]
       },
-      schema.asInstanceOf[StructType])
+      signature.schema.asInstanceOf[StructType])
   }
 
   def explode(columnName: String): KeyTable = {
@@ -532,15 +543,15 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
 
     val newSignature = signature.copy(fields = fields.updated(index, Field(columnName, explodeType, index)))
 
-    val empty = Iterable.empty[Seq[Any]]
+    val empty = Iterable.empty[Row]
     val explodedRDD = rdd.flatMap { a =>
-      val row = a.asInstanceOf[Row].toSeq
+      val row = a.toSeq
       val it = row(index)
       if (it == null)
         empty
       else
-        for (element <- row(index).asInstanceOf[Iterable[_]]) yield row.updated(index, element)
-    }.map(Annotation.fromSeq)
+        for (element <- row(index).asInstanceOf[Iterable[_]]) yield Row.fromSeq(row.updated(index, element))
+    }
 
     KeyTable(hc, explodedRDD, newSignature, keyNames)
   }
@@ -583,7 +594,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Annotation],
         a).asInstanceOf[Row]
     }
 
-    hc.sqlContext.createDataFrame(rowRDD, schema.asInstanceOf[StructType])
+    hc.sqlContext.createDataFrame(rowRDD, signature.schema.asInstanceOf[StructType])
       .write.parquet(path + "/rdd.parquet")
   }
 

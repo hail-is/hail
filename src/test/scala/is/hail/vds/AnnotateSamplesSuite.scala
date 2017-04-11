@@ -29,8 +29,8 @@ class AnnotateSamplesSuite extends SparkSuite {
       .querySamples("index(samples.map(s => {s: s, anno: sa.annot}).collect(), s).mapValues(x => x.anno)")._1
       .asInstanceOf[Map[_, _]]
 
-    val ktMap = kt.rdd
-      .map { r => (r.asInstanceOf[Row].getAs[String](0), r) }
+    val ktMap = kt.keyedRDD()
+      .map { case (k, v) => (k.getAs[String](0), v) }
       .collectAsMap()
 
     assert(sampleMap == ktMap)

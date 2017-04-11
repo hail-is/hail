@@ -239,7 +239,7 @@ object VariantDataset {
     val rdd = kt.keyedRDD()
       .map { case (k, v) => (k.asInstanceOf[Row].getAs[Variant](0), v) }
       .filter(_._1 != null)
-      .mapValues(a => (a, Iterable.empty[Genotype]))
+      .mapValues(a => (a: Annotation, Iterable.empty[Genotype]))
       .toOrderedRDD
 
     val metadata = VariantMetadata(
@@ -247,7 +247,7 @@ object VariantDataset {
       sa = Array.empty[Annotation],
       globalAnnotation = Annotation.empty,
       sas = TStruct.empty,
-      vas = kt.signature,
+      vas = kt.valueSignature,
       globalSignature = TStruct.empty
     )
 
@@ -291,14 +291,14 @@ object VariantDataset {
     new VariantSampleMatrix[Genotype](hc, metadata, rdd.toOrderedRDD)
   }
 
-  def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.t,
+  def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.expandedType,
     "annotations" -> vaSignature,
     "gs" -> GenotypeStream.t,
     "sample_group" -> TString)
 
   private def makeSchemaForKudu(vaSignature: Type): StructType =
     StructType(Array(
-      StructField("variant", Variant.schema, nullable = false),
+      StructField("variant", Variant.sparkSchema, nullable = false),
       StructField("annotations", vaSignature.schema, nullable = false),
       StructField("gs", GenotypeStream.schema, nullable = false),
       StructField("sample_group", StringType, nullable = false)
@@ -1005,11 +1005,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def makeSchema(parquetGenotypes: Boolean): StructType = {
     require(!(parquetGenotypes && vds.isGenericGenotype))
     StructType(Array(
-      StructField("variant", Variant.schema, nullable = false),
+      StructField("variant", Variant.sparkSchema, nullable = false),
       StructField("annotations", vds.vaSignature.schema),
       StructField("gs",
         if (parquetGenotypes)
-          ArrayType(Genotype.schema, containsNull = false)
+          ArrayType(Genotype.sparkSchema, containsNull = false)
         else
           GenotypeStream.schema,
         nullable = false)

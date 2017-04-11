@@ -165,7 +165,7 @@ class OrderedRDDSuite extends SparkSuite {
     property("writeRead") = Prop.forAll(g) { case (nPar, is) =>
       val rdd = sc.parallelize(is, nPar).toOrderedRDD
       val schema = StructType(Array(
-        StructField("variant", Variant.schema, nullable = false),
+        StructField("variant", Variant.sparkSchema, nullable = false),
         StructField("str", StringType, nullable = false)))
       hadoopConf.delete(tmpRdd, recursive = true)
       val df = sqlContext.createDataFrame(rdd.map { case (v, s) => Row.fromSeq(Seq(v.toRow, s)) }, schema)
