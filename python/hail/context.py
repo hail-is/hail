@@ -1,17 +1,13 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
+from hail.type import Type
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
+from hail.expr import Type
 from hail.java import *
 from hail.keytable import KeyTable
-<<<<<<< HEAD
-from hail.expr import Type
-from hail.utils import TextTableConfig
-=======
-from hail.type import Type
->>>>>>> Annotate loci
-from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
+from hail.stats import UniformDist
 
 
 class HailContext(object):

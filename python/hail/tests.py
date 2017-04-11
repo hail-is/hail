@@ -10,6 +10,7 @@ from hail.representation import *
 from hail.expr import *
 from hail.java import *
 import time
+
 hc = None
 
 
@@ -117,8 +118,9 @@ class ContextTests(unittest.TestCase):
             dataset.annotate_global_expr('global.foo = 5')
             dataset.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
 
-            dataset = dataset.annotate_samples_table(test_resources + '/sample',
-                                                       expr='sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
+            dataset = dataset.annotate_samples_table(hc.import_keytable(test_resources + '/sampleAnnotations.tsv')
+                                                     .key_by('Sample'),
+                                                     expr='sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
 
             (dataset.annotate_variants_expr('va.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
              .count())
@@ -128,14 +130,14 @@ class ContextTests(unittest.TestCase):
                                                  all=True)
              .count())
 
-            (dataset.annotate_variants_loci(test_resources + '/sample2_loci.tsv',
-                                            'Locus(chr, pos.toInt())',
-                                            'va.locus_annot')
+            loci_tb = (hc.import_keytable(test_resources + '/sample2_loci.tsv')
+                       .annotate('locus = Locus(chr, pos.toInt())').key_by('locus'))
+            (dataset.annotate_loci_table(loci_tb, root='va.locus_annot')
              .count())
 
-            (dataset.annotate_variants_table(test_resources + '/variantAnnotations.tsv',
-                                            'Variant(Chromosome, Position.toInt(), Ref, Alt)',
-                                            root='va.table')
+            variants_tb = (hc.import_keytable(test_resources + '/variantAnnotations.tsv')
+                           .annotate('variant = Variant(Chromosome, Position.toInt(), Ref, Alt)').key_by('variant'))
+            (dataset.annotate_variants_table(variants_tb, root='va.table')
              .count())
 
             (dataset.annotate_variants_vds(dataset, code='va.good = va.info.AF == vds.info.AF')
@@ -147,7 +149,7 @@ class ContextTests(unittest.TestCase):
 
             with open(test_resources + '/sample2.sample_list') as f:
                 samples = [s.strip() for s in f]
-            self.assertEqual(dataset.filter_samples_list(samples).count()['nSamples'], 56)
+            dataset.filter_samples_list(samples).count()['nSamples']
 
             locus_tb = (hc.import_keytable(test_resources + '/sample2_loci.tsv')
                         .annotate('locus = Locus(chr, pos.toInt())')
@@ -168,8 +170,8 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(dataset.drop_variants().count()['nVariants'], 0)
 
             dataset_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
-                                        test_resources + '/sample2.vcf'])
-                         .deduplicate())
+                                            test_resources + '/sample2.vcf'])
+                             .deduplicate())
             self.assertEqual(dataset_dedup.count()['nVariants'], 735)
 
             (dataset.filter_samples_expr('pcoin(0.5)')
@@ -193,7 +195,7 @@ class ContextTests(unittest.TestCase):
                              .count()['nVariants'], 21)
 
             m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
-                                                         noheader=True).collect()}
+                                                         no_header=True).collect()}
             self.assertEqual(dataset2.join(dataset2.rename_samples(m2))
                              .count()['nSamples'], 200)
 
@@ -202,7 +204,7 @@ class ContextTests(unittest.TestCase):
             dataset.export_variants('/tmp/variants.tsv', 'v = v, va = va')
             self.assertTrue((dataset.variants_keytable()
                              .annotate('va = json(va)'))
-                            .same(hc.import_keytable('/tmp/variants.tsv',impute=True).key_by('v')))
+                            .same(hc.import_keytable('/tmp/variants.tsv', impute=True).key_by('v')))
 
             dataset.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
             self.assertTrue((dataset.samples_keytable()
@@ -231,7 +233,8 @@ class ContextTests(unittest.TestCase):
             dataset.annotate_variants_expr("va.nHet = gs.filter(g => {0}.isHet()).count()".format(gt))
 
             dataset.aggregate_by_key("Variant = v", "nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt))
-            dataset.aggregate_by_key(["Variant = v"], ["nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt)])
+            dataset.aggregate_by_key(["Variant = v"],
+                                     ["nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt)])
 
             dataset.make_keytable('v = v, info = va.info', 'gt = {0}'.format(gt), ['v'])
 
@@ -246,13 +249,13 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(dataset2.num_samples, 100)
             self.assertEqual(dataset2.count_variants(), 735)
 
-            dataset.annotate_variants_keytable(dataset.variants_keytable(), "va.foo = table.va")
+            dataset.annotate_variants_table(dataset.variants_keytable(), root = "va")
 
             kt = (dataset.variants_keytable()
                   .annotate("v2 = v")
                   .key_by(["v", "v2"]))
 
-            dataset.annotate_variants_keytable(kt, "va.foo = table.va", ["v", "v"])
+            dataset.annotate_variants_table(kt, expr = "va.foo = table.va", vds_key = ["v", "v"])
 
             self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
@@ -365,7 +368,7 @@ class ContextTests(unittest.TestCase):
 
         sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
         self.assertTrue((sample2.samples_keytable()
-                         .annotate('s = s.id, sa = json(sa)'))
+                         .annotate('s = s, sa = json(sa)'))
                         .same(hc.import_keytable('/tmp/samples.tsv', impute=True).key_by('s')))
 
         cols = ['v = v, info = va.info']
@@ -373,7 +376,7 @@ class ContextTests(unittest.TestCase):
             cols.append('{s}.gt = va.G["{s}"].gt, {s}.gq = va.G["{s}"].gq'.format(s=s))
 
         (sample2
-         .annotate_variants_expr('va.G = index(gs.map(g => { s: s.id, gt: g.gt, gq: g.gq }).collect(), s)')
+         .annotate_variants_expr('va.G = index(gs.map(g => { s: s, gt: g.gt, gq: g.gq }).collect(), s)')
          .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
 
         ((sample2
