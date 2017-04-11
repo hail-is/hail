@@ -24,3 +24,10 @@ class KinshipMatrix:
         :rtype: `IndexedRowMatrix <https://spark.apache.org/docs/latest/api/python/pyspark.mllib.html#pyspark.mllib.linalg.distributed.IndexedRowMatrix>`_
         """
         return IndexedRowMatrix(self._jkm.matrix())
+
+    def export_tsv(self, file_path):
+        """
+        Writes the KinshipMatrix out to a tsv file with the sample list as a header. 
+        
+        """
+        self._jkm.exportTSV(file_path)

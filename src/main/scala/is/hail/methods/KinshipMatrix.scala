@@ -1,13 +1,16 @@
 package is.hail.methods
 
+import is.hail.HailContext
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+
 import scala.collection.Searching._
+import is.hail.utils._
 
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-class KinshipMatrix(val matrix: IndexedRowMatrix, val sampleIds: Array[String]) {
+class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampleIds: Array[String]) {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   /**
@@ -31,6 +34,17 @@ class KinshipMatrix(val matrix: IndexedRowMatrix, val sampleIds: Array[String]) 
       new IndexedRow(index, Vectors.dense(filteredArray))
     })
 
-    new KinshipMatrix(new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds)
+    new KinshipMatrix(hc, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds)
+  }
+
+  /**
+    * Writes out the matrix as a TSV file, with the sample names as a header on the first line.
+    *
+    * @param filePath The path to the output file.
+    */
+  def exportTSV(filePath: String) {
+    require(filePath.endsWith(".tsv"), "KinshipMatrix write paths must end in '.tsv'")
+    matrix.rows.sortBy(ir => ir.index).map(ir => ir.vector.toArray.mkString("\t"))
+      .writeTable(filePath, hc.tmpDir, Some(sampleIds.mkString("\t")))
   }
 }
