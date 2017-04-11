@@ -28,7 +28,7 @@ object LinearRegressionBurden {
     val pattern = """gs.map\(g => (.*)\).(.*)""".r
 
     val m = pattern.findFirstMatchIn(aggregateExpr).getOrElse {
-      fatal("aggregateExpr is not of the form 'gs.map(g => A).B")
+      fatal("Aggregate expression is not of the form 'gs.map(g => A).B")
     }
 
     val genotypeExpr = m.group(1)
