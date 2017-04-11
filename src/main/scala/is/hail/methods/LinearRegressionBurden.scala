@@ -25,15 +25,6 @@ object LinearRegressionBurden {
 
     info(s"Running linreg_burden, aggregated by key $keyName using $aggregateExpr, on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
-    val pattern = """gs.map\(g => (.*)\).(.*)""".r
-
-    val m = pattern.findFirstMatchIn(aggregateExpr).getOrElse {
-      fatal("Aggregate expression is not of the form 'gs.map(g => A).B")
-    }
-
-    val genotypeExpr = m.group(1)
-    val aggregateWith = m.group(2)
-
     val completeSamplesSet = completeSamples.toSet
 
     if (completeSamplesSet(keyName))
@@ -49,6 +40,15 @@ object LinearRegressionBurden {
 
     if (variantKeysType != TSet(TString))
       fatal(s"Variant keys must be of type Set(String), got $variantKeysType")
+
+    val pattern = """gs.map\(g => (.*)\).(.*)""".r
+
+    val m = pattern.findFirstMatchIn(aggregateExpr).getOrElse {
+      fatal("Aggregate expression is not of the form 'gs.map(g => A).B")
+    }
+
+    val genotypeExpr = m.group(1)
+    val aggregateWith = m.group(2)
 
     val aggExpr = completeSamples.map(s => s"`$s` = `$s`.$aggregateWith").mkString(", ")
 
