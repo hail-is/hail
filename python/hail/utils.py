@@ -167,6 +167,9 @@ class HadoopReader(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def __del__(self):
+        self.close()
+
     def close(self):
         self._jfile.close()
 
@@ -192,7 +195,10 @@ class HadoopWriter(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._jfile.close()
+        self.close()
+
+    def __del__(self):
+        self.close()
 
     def close(self):
         self._jfile.close()
