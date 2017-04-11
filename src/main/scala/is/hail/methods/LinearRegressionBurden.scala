@@ -8,6 +8,7 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import net.sourceforge.jdistlib.T
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 object LinearRegressionBurden {
@@ -31,7 +32,7 @@ object LinearRegressionBurden {
       fatal(s"Sample name conflicts with the key name $keyName")
 
     if (!dropSamples) {
-      val conflicts = completeSamplesSet.intersect(LinearRegression.`type`.fields.map(x => x.name).toSet)
+      val conflicts = completeSamplesSet.intersect(LinearRegression.schema.fields.map(x => x.name).toSet)
       if (conflicts.nonEmpty)
         fatal(s"Sample names conflict with these reserved statistical names: ${conflicts.mkString(", ")}")
     }
@@ -60,8 +61,7 @@ object LinearRegressionBurden {
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
 
-    val newRDD = kt.mapAnnotations { a =>
-      val keyedRow = a.asInstanceOf[Row]
+    val newRDD = kt.mapAnnotations { keyedRow =>
       val key = keyedRow.get(0).asInstanceOf[String]
 
       RegressionUtils.denseStats(keyedRow, y) match {
@@ -78,22 +78,22 @@ object LinearRegressionBurden {
           val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 
           if (dropSamples)
-            Annotation(key, b, se, t, p)
+            Row(key, b, se, t, p)
           else
-            Row.fromSeq(keyedRow.toSeq ++ Seq(b, se, t, p)): Annotation
+            Row.fromSeq(keyedRow.toSeq ++ Seq(b, se, t, p))
         case None =>
           if (dropSamples)
-            Annotation(key +: emptyStats)
+            Row(key +: emptyStats)
           else
-            Row.fromSeq(keyedRow.toSeq ++ emptyStats): Annotation
+            Row.fromSeq(keyedRow.toSeq ++ emptyStats)
       }
     }
 
     def newSignature =
       if (dropSamples)
-        TStruct(keyName -> TString).merge(LinearRegression.`type`)._1
+        TStruct(keyName -> TString).merge(LinearRegression.schema)._1
       else
-        kt.signature.merge(LinearRegression.`type`)._1
+        kt.signature.merge(LinearRegression.schema)._1
 
     new KeyTable(kt.hc, newRDD, signature = newSignature, keyNames = Array(keyName))
   }
