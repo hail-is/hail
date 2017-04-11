@@ -29,7 +29,7 @@ class KinshipMatrixSuite extends SparkSuite {
     ))
     val irm = new IndexedRowMatrix(irdd)
     val samples = (0 to 3).map(i => s"S$i")
-    val km = new KinshipMatrix(irm, samples.toArray)
+    val km = new KinshipMatrix(hc, irm, samples.toArray)
 
     val kmOneEntry = km.filterSamples(Set("S2").contains)
     assert(kmOneEntry.matrix.toBlockMatrix().toLocalMatrix()(0, 0) == 11)
