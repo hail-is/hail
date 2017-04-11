@@ -9,7 +9,7 @@ import is.hail.variant._
 import net.sourceforge.jdistlib.T
 
 object LinearRegression {
-  def `type`: Type = TStruct(
+  val schema: Type = TStruct(
     ("beta", TDouble),
     ("se", TDouble),
     ("tstat", TDouble),
@@ -47,7 +47,7 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(LinearRegression.`type`, pathVA)
+    val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
 
     vds.mapAnnotations { case (v, va, gs) =>
 

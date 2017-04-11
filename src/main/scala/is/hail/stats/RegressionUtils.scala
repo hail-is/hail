@@ -15,10 +15,34 @@ object RegressionUtils {
     case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
   }
 
+  def getSampleAnnotation(vds: VariantDataset, annot: String, ec: EvalContext): IndexedSeq[Option[Double]] = {
+    val (aT, aQ) = Parser.parseExpr(annot, ec)
+    val aToDouble = toDouble(aT, annot)
+
+    vds.sampleIdsAndAnnotations.map { case (s, sa) =>
+      ec.setAll(s, sa)
+      Option(aQ()).map(aToDouble)
+    }
+  }
+
+  // IndexedSeq indexed by samples, Array by annotations
+  def getSampleAnnotations(vds: VariantDataset, annots: Array[String], ec: EvalContext): IndexedSeq[Array[Option[Double]]] = {
+    val (aT, aQ0) = annots.map(Parser.parseExpr(_, ec)).unzip
+    val aQ = () => aQ0.map(_.apply())
+    val aToDouble = (aT, annots).zipped.map(toDouble)
+
+    vds.sampleIdsAndAnnotations.map { case (s, sa) =>
+      ec.setAll(s, sa)
+      (aQ().map(Option(_)), aToDouble).zipped.map(_.map(_))
+    }
+  }
+
   def getPhenoCovCompleteSamples(
     vds: VariantDataset,
     ySA: String,
     covSA: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[String]) = {
+
+    val nCovs = covSA.size + 1 // intercept
 
     val symTab = Map(
       "s" -> (0, TString),
@@ -26,20 +50,8 @@ object RegressionUtils {
 
     val ec = EvalContext(symTab)
 
-    val (yT, yQ) = Parser.parseExpr(ySA, ec)
-    val yToDouble = toDouble(yT, ySA)
-    val yIS = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      ec.setAll(s, sa)
-      Option(yQ()).map(yToDouble)
-    }
-
-    val (covT, covQ0) = covSA.map(Parser.parseExpr(_, ec)).unzip
-    val covQ = () => covQ0.map(_.apply())
-    val covToDouble = (covT, covSA).zipped.map(toDouble)
-    val covIS = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      ec.setAll(s, sa)
-      (covQ().map(Option(_)), covToDouble).zipped.map(_.map(_))
-    }
+    val yIS = getSampleAnnotation(vds, ySA, ec)
+    val covIS = getSampleAnnotations(vds, covSA, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (yIS, covIS, vds.sampleIds)
@@ -55,15 +67,8 @@ object RegressionUtils {
       fatal(s"Constant phenotype: all complete samples have phenotype ${ yArray(0) }")
     val y = DenseVector(yArray)
 
-    val k = covT.size
     val covArray = covForCompleteSamples.flatMap(1.0 +: _.map(_.get)).toArray
-    val cov = new DenseMatrix(
-      rows = n,
-      cols = 1 + k,
-      data = covArray,
-      offset = 0,
-      majorStride = 1 + k,
-      isTranspose = true)
+    val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
     if (n < vds.nSamples)
       warn(s"${vds.nSamples - n} of ${vds.nSamples} samples have a missing phenotype or covariate.")
@@ -76,31 +81,20 @@ object RegressionUtils {
     ySA: Array[String],
     covSA: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[String]) = {
 
+    val nPhenos = ySA.size
+    val nCovs = covSA.size + 1 // intercept
+
+    if (nPhenos == 0)
+      fatal("No phenotypes present.")
+
     val symTab = Map(
       "s" -> (0, TString),
       "sa" -> (1, vds.saSignature))
 
     val ec = EvalContext(symTab)
 
-    val (yT, yQ0) = ySA.map(Parser.parseExpr(_, ec)).unzip
-
-    if (yT.isEmpty)
-      fatal("No phenotypes present.")
-
-    val yQ = () => yQ0.map(_.apply())
-    val yToDouble = (yT, ySA).zipped.map(toDouble)
-    val yIS = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      ec.setAll(s, sa)
-      (yQ().map(Option(_)), yToDouble).zipped.map(_.map(_))
-    }
-
-    val (covT, covQ0) = covSA.map(Parser.parseExpr(_, ec)).unzip
-    val covQ = () => covQ0.map(_.apply())
-    val covToDouble = (covT, covSA).zipped.map(toDouble)
-    val covIS = vds.sampleIdsAndAnnotations.map { case (s, sa) =>
-      ec.setAll(s, sa)
-      (covQ().map(Option(_)), covToDouble).zipped.map(_.map(_))
-    }
+    val yIS = getSampleAnnotations(vds, ySA, ec)
+    val covIS = getSampleAnnotations(vds, covSA, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (yIS, covIS, vds.sampleIds)
@@ -111,25 +105,11 @@ object RegressionUtils {
     if (n == 0)
       fatal("No complete samples: each sample is missing its phenotype or some covariate")
 
-    val l = yT.size
     val yArray = yForCompleteSamples.flatMap(_.map(_.get)).toArray
-    val y = new DenseMatrix(
-      rows = n,
-      cols = l,
-      data = yArray,
-      offset = 0,
-      majorStride = l,
-      isTranspose = true)
+    val y = new DenseMatrix(rows = n, cols = nPhenos, data = yArray, offset = 0, majorStride = nPhenos, isTranspose = true)
 
-    val k = covT.size
     val covArray = covForCompleteSamples.flatMap(1.0 +: _.map(_.get)).toArray
-    val cov = new DenseMatrix(
-      rows = n,
-      cols = 1 + k,
-      data = covArray,
-      offset = 0,
-      majorStride = 1 + k,
-      isTranspose = true)
+    val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
     if (n < vds.nSamples)
       warn(s"${vds.nSamples - n} of ${vds.nSamples} samples have a missing phenotype or covariate.")

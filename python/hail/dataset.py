@@ -2556,7 +2556,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def linreg_multi_pheno(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
+    def linreg_multi_pheno(self, ys, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association with multiple phenotypes using linear regression.
 
         This method runs linear regression for multiple phenotypes more efficiently
@@ -2577,7 +2577,7 @@ class VariantDataset(object):
         - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
         - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
 
-        :param y: list of one or more response expressions.
+        :param ys: list of one or more response expressions.
         :type covariates: list of str
 
         :param covariates: list of covariate expressions.
@@ -2595,7 +2595,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, y), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

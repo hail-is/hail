@@ -7,7 +7,7 @@ import is.hail.expr._
 
 abstract class LogisticRegressionTest extends Serializable {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResult[LogisticRegressionStats]
-  def `type`: Type
+  val schema: Type
   val emptyStats: Seq[Annotation]
 }
 
@@ -48,12 +48,12 @@ object WaldTest extends LogisticRegressionTest {
     new LogisticRegressionTestResultWithFit[WaldStats](waldStats, fit)
   }
 
-  def `type`: Type = TStruct(
+  val schema: Type = TStruct(
     ("beta", TDouble),
     ("se", TDouble),
     ("zstat", TDouble),
     ("pval", TDouble),
-    ("fit", LogisticRegressionFit.`type`))
+    ("fit", LogisticRegressionFit.schema))
 
   val emptyStats = Annotation.emptyIndexedSeq(4)
 }
@@ -84,11 +84,11 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
     new LogisticRegressionTestResultWithFit[LikelihoodRatioStats](lrStats, fit)
   }
 
-  def `type` = TStruct(
+  val schema = TStruct(
     ("beta", TDouble),
     ("chi2", TDouble),
     ("pval", TDouble),
-    ("fit", LogisticRegressionFit.`type`))
+    ("fit", LogisticRegressionFit.schema))
 
   val emptyStats = Annotation.emptyIndexedSeq(3)
 }
@@ -127,11 +127,11 @@ object FirthTest extends LogisticRegressionTest {
       new LogisticRegressionTestResultWithFit[FirthStats](None, nullFitFirth)
   }
 
-  def `type` = TStruct(
+  val schema = TStruct(
     ("beta", TDouble),
     ("chi2", TDouble),
     ("pval", TDouble),
-    ("fit", LogisticRegressionFit.`type`))
+    ("fit", LogisticRegressionFit.schema))
 
   val emptyStats = Annotation.emptyIndexedSeq(3)
 }
@@ -183,7 +183,7 @@ object ScoreTest extends LogisticRegressionTest {
     new LogisticRegressionTestResult[ScoreStats](scoreStats)
   }
 
-  def `type`: Type = TStruct(
+  val schema: Type = TStruct(
     ("chi2", TDouble),
     ("pval", TDouble))
 
@@ -310,7 +310,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
 }
 
 object LogisticRegressionFit {
-  def `type`: Type = TStruct(
+  val schema: Type = TStruct(
     ("nIter", TInt),
     ("converged", TBoolean),
     ("exploded", TBoolean))

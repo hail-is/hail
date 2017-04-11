@@ -10,16 +10,16 @@ import is.hail.variant._
 import net.sourceforge.jdistlib.T
 
 object LinearRegressionMultiPheno {
-  def `type` = TStruct(
+  def schema = TStruct(
     ("beta", TArray(TDouble)),
     ("se", TArray(TDouble)),
     ("tstat", TArray(TDouble)),
     ("pval", TArray(TDouble)))
 
-  def apply(vds: VariantDataset, ySA: Array[String], covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
+  def apply(vds: VariantDataset, ysSA: Array[String], covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
     require(vds.wasSplit)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenosCovCompleteSamples(vds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenosCovCompleteSamples(vds, ysSA, covSA)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     val n = y.rows
@@ -48,10 +48,10 @@ object LinearRegressionMultiPheno {
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
-    val yDummyBc = sc.broadcast(DenseVector.zeros[Double](n))
+    val yDummyBc = sc.broadcast(DenseVector.zeros[Double](n)) // dummy input in order to reuse RegressionUtils
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(LinearRegressionMultiPheno.`type`, pathVA)
+    val (newVAS, inserter) = vds.insertVA(LinearRegressionMultiPheno.schema, pathVA)
 
     vds.mapAnnotations { case (v, va, gs) =>
 
