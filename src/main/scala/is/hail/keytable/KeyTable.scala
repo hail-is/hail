@@ -107,15 +107,15 @@ object KeyTable {
     KeyTable(hc, rdd, signature, keyNames)
   }
 
-  def parallelize(hc: HailContext, rows: java.util.ArrayList[Annotation], signature: TStruct,
+  def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
     keyNames: java.util.ArrayList[String], nPartitions: Option[Int]): KeyTable = {
     val sc = hc.sc
     KeyTable(hc,
       nPartitions match {
         case Some(n) =>
-          sc.parallelize(rows.asScala.toSeq, n)
+          sc.parallelize(rows.asScala, n)
         case None =>
-          sc.parallelize(rows.asScala.toSeq)
+          sc.parallelize(rows.asScala)
       }, signature, keyNames.asScala.toArray)
   }
 }
