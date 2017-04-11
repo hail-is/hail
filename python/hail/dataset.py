@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype
-from hail.representation import Interval, IntervalTree
+from hail.representation import Interval, IntervalTree, Pedigree
 from hail.kinshipMatrix import KinshipMatrix
 from decorator import decorator
 
@@ -2876,7 +2876,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def mendel_errors(self, output, fam):
+    def mendel_errors(self, output, pedigree):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
@@ -2885,19 +2885,20 @@ class VariantDataset(object):
         **Examples**
 
         Find all violations of Mendelian inheritance in each (dad,
-        mom, kid) trio in *trios.fam* and save results to files with root ``mydata``:
+        mom, kid) trio in a pedigree and save results to files:
 
-        >>> vds_result = vds.mendel_errors('output/genomes', 'data/trios.fam')
+        >>> ped = Pedigree.read('data/trios.fam')
+        >>> vds_result = vds.mendel_errors('output/genomes', ped)
 
         **Notes**
 
         The code above outputs four TSV files according to the `PLINK mendel
         formats <https://www.cog-genomics.org/plink2/formats#mendel>`_:
 
-        - ``mydata.mendel`` -- all mendel errors: FID KID CHR SNP CODE ERROR
-        - ``mydata.fmendel`` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
-        - ``mydata.imendel`` -- error count per individual: FID IID N NSNP
-        - ``mydata.lmendel`` -- error count per variant: CHR SNP N
+        - ``output/genomes.mendel`` -- all mendel errors: FID KID CHR SNP CODE ERROR
+        - ``output/genomes.fmendel`` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
+        - ``output/genomes.imendel`` -- error count per individual: FID IID N NSNP
+        - ``output/genomes.lmendel`` -- error count per variant: CHR SNP N
 
         **FID**, **KID**, **PAT**, **MAT**, and **IID** refer to family, kid,
         dad, mom, and individual ID, respectively, with missing values set to
@@ -2965,10 +2966,16 @@ class VariantDataset(object):
 
         :param str output: Output root filename.
 
-        :param str fam: Path to .fam file.
+        :param pedigree: Sample pedigree.
+        :type pedigree: :class:`~hail.representation.Pedigree`
         """
 
-        self._jvdf.mendelErrors(output, fam)
+        if not isinstance(pedigree, Pedigree):
+            raise TypeError("expected parameter 'pedigree' to be of type Pedigree, but found %s" % type(pedigree))
+        if not isinstance(output, str) and not isinstance(output, unicode):
+            raise TypeError("expected parameter 'output' to be of type str, but found %s" % type(output))
+
+        self._jvdf.mendelErrors(output, pedigree._jrep)
 
     @handle_py4j
     def min_rep(self, max_shift=100):
@@ -3848,7 +3855,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def tdt(self, fam, root='va.tdt'):
+    def tdt(self, pedigree, root='va.tdt'):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
@@ -3858,7 +3865,8 @@ class VariantDataset(object):
 
         Compute TDT association results:
 
-        >>> (vds.tdt("data/trios.fam")
+        >>> pedigree = Pedigree.from_fam('data/trios.fam')
+        >>> (vds.tdt(pedigree)
         ...     .export_variants("output/tdt_results.tsv", "Variant = v, va.tdt.*"))
 
         **Notes**
@@ -3937,7 +3945,8 @@ class VariantDataset(object):
 
          - **va.tdt.pval** (*Double*) -- p-value.
 
-        :param str fam: Path to FAM file.
+        :param pedigree: Sample pedigree.
+        :type pedigree: :class:`~hail.representation.Pedigree`
 
         :param root: Variant annotation root to store TDT result.
 
@@ -3945,7 +3954,12 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.tdt(fam, root)
+        if not isinstance(pedigree, Pedigree):
+            raise TypeError("expected parameter 'pedigree' to be of type Pedigree, but found %s" % type(pedigree))
+        if not isinstance(root, str) and not isinstance(root, unicode):
+            raise TypeError("expected parameter 'root' to be of type str, but found %s" % type(root))
+
+        jvds = self._jvdf.tdt(pedigree._jrep, root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

@@ -24,23 +24,10 @@ class PedigreeSuite extends SparkSuite {
 
     assert(ped.nSatisfying(_.isMale) == 6 && ped.nSatisfying(_.isFemale) == 5)
 
-    assert(ped.nSatisfying(_.isCase) == 4 && ped.nSatisfying(_.isControl) == 3)
-
-    assert(ped.nSatisfying(_.isComplete, _.isMale) == 2 && ped.nSatisfying(_.isComplete, _.isFemale) == 1 &&
-      ped.nSatisfying(_.isComplete, _.isCase) == 2 && ped.nSatisfying(_.isComplete, _.isControl) == 1)
-
-    assert(ped.nSatisfying(_.isComplete, _.isCase, _.isMale) == 1 &&
-      ped.nSatisfying(_.isComplete, _.isCase, _.isFemale) == 1 &&
-      ped.nSatisfying(_.isComplete, _.isControl, _.isMale) == 1 &&
-      ped.nSatisfying(_.isComplete, _.isControl, _.isFemale) == 0)
-
     val ped2 = Pedigree.fromFam("src/test/resources/pedigreeWithExtraSample.fam", sc.hadoopConfiguration)
       .filterTo(vds.sampleIds.toSet)
 
     assert(ped.trios.toSet == ped2.trios.toSet)
-
-    // FIXME: How to test
-    // ped.writeSummary("/tmp/pedigree.sumfam", sc.hadoopConfiguration)
   }
 
   @Test def generated() {

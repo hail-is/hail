@@ -831,9 +831,9 @@ class ContextTests(unittest.TestCase):
 
     def test_pedigree(self):
 
-        ped = Pedigree.read_fam('src/test/resources/sample.fam')
+        ped = Pedigree.read('src/test/resources/sample.fam')
         ped.write_fam('/tmp/sample_out.fam')
-        ped2 = Pedigree.read_fam('/tmp/sample_out.fam')
+        ped2 = Pedigree.read('/tmp/sample_out.fam')
         self.assertEqual(ped, ped2)
         print(ped.trios[:5])
         print(ped.complete_trios)

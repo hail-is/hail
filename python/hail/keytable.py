@@ -792,3 +792,54 @@ class KeyTable(object):
         """
 
         return KeyTable(self.hc, self._jkt.persist(storage_level))
+
+    @staticmethod
+    @handle_py4j
+    def import_fam(fam_file, quantitative=False, delimiter='\\\\s+', root='sa.fam', missing='NA'):
+        """Import PLINK .fam file into a key table.
+
+        **Examples**
+
+        Import case-control phenotype data from a tab-separated `PLINK .fam
+        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
+        annotations:
+
+        >>> fam_kt = KeyTable.import_fam('data/myStudy.fam')
+
+        In Hail, unlike PLINK, the user must *explicitly* distinguish between
+        case-control and quantitative phenotypes. Importing a quantitative
+        phenotype without ``quantitative=True`` will return an error
+        (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
+
+        >>> fam_kt = KeyTable.import_fam('data/myStudy.fam', quantitative=True)
+
+        **Columns**
+
+        The column, types, and missing values are shown below.
+
+            - **s** (*String*) -- Sample ID (key column)
+            - **famID** (*String*) -- Family ID (missing = "0")
+            - **patID** (*String*) -- Paternal ID (missing = "0")
+            - **matID** (*String*) -- Maternal ID (missing = "0")
+            - **isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
+        
+        One of:
+    
+            - **isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9", non-numeric or the ``missing`` argument, if given.
+            - **qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the ``missing`` argument, if given.
+
+        :param str input: Path to .fam file.
+
+        :param str root: Sample annotation path to store .fam file.
+
+        :param bool quantpheno: If True, .fam phenotype is interpreted as quantitative.
+
+        :param str delimiter: .fam file field delimiter regex.
+
+        :param str missing: The string used to denote missing values.
+            For case-control, 0, -9, and non-numeric are also treated
+            as missing.
+
+        :return: Annotated variant dataset with sample annotations from fam file.
+        :rtype: :class:`.VariantDataset`
+        """

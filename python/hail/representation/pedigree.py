@@ -2,7 +2,7 @@ from hail.java import *
 
 
 class Trio(object):
-    """Class containing information about sample sex, case status, and nuclear family relatedness.
+    """Class containing information about nuclear family relatedness and sex.
 
     :param str proband: sample ID of proband
 
@@ -14,9 +14,6 @@ class Trio(object):
 
     :param sex: sex of proband: 1 for male, 2 for female
     :type sex: int or None
-
-    :param case_status: case status of proband: 1 for control, 2 for case
-    :type case_status: int or None
     """
 
     _sex_jobject = None
@@ -35,7 +32,7 @@ class Trio(object):
         return Trio._pheno_jobject
 
     @handle_py4j
-    def __init__(self, proband, fam=None, father=None, mother=None, sex=None, case_status=None):
+    def __init__(self, proband, fam=None, father=None, mother=None, sex=None):
         if not isinstance(proband, str) and not isinstance(proband, unicode):
             raise TypeError("param 'proband' must be of type str or unicode, but  found '%s'" % type(proband))
 
@@ -51,9 +48,6 @@ class Trio(object):
         if sex and sex != 1 and sex != 2:
             raise ValueError("sex must be 1, 2, or None, but found '%s'" % sex)
 
-        if case_status and case_status != 1 and case_status != 2:
-            raise ValueError("case_status must be 1, 2, or None, but found '%s'" % sex)
-
         if sex:
             if not Trio._sex_jobject:
                 Trio._sex_jobject = scala_object(Env.hail().variant, 'Sex')
@@ -61,24 +55,16 @@ class Trio(object):
         else:
             jsex = jnone()
 
-        if case_status:
-            jpheno = jsome(Trio._get_pheno_jobject().Control()) if case_status == 1 else jsome(
-                Trio._get_pheno_jobject().Case())
-        else:
-            jpheno = jnone()
-
         self._jrep = Env.hail().methods.BaseTrio(proband, joption(fam), joption(father), joption(mother), jsex, jpheno)
         self._fam = fam
         self._proband = proband
         self._father = father
         self._mother = mother
-        self._case = case_status
         self._sex = sex
         self._calc_fam = True
         self._calc_father = True
         self._calc_mother = True
         self._calc_sex = True
-        self._calc_case = True
         self._calc_complete = False
 
     @classmethod
@@ -90,21 +76,18 @@ class Trio(object):
         trio._calc_father = False
         trio._calc_mother = False
         trio._calc_sex = False
-        trio._calc_case = False
         trio._calc_complete = False
         return trio
 
     def __repr__(self):
-        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, sex=%s, case_status=%s)' % (
+        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, sex=%s)' % (
             repr(self.proband), repr(self.fam), repr(self.father),
-            repr(self.mother), repr(self.sex), repr(self.case_status)
-        )
+            repr(self.mother), repr(self.sex))
 
     def __str__(self):
-        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, sex=%s, case_status=%s)' % (
+        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, sex=%s)' % (
             str(self.proband), str(self.fam), str(self.father),
-            str(self.mother), str(self.sex), str(self.case_status)
-        )
+            str(self.mother), str(self.sex))
 
     def __eq__(self, other):
         if not isinstance(other, Trio):
@@ -177,23 +160,6 @@ class Trio(object):
             self._calc_sex = True
         return self._sex
 
-    @property
-    def case_status(self):
-        """Case status of proband: 1 for control, 2 for case. May be missing.
-
-        :rtype: int or None
-        """
-
-        if not self._calc_case:
-            jpheno = self._jrep.pheno()
-            if jpheno.isDefined():
-                self._case = 1 if jpheno.get() == Trio._get_pheno_jobject().Control() else 2
-            else:
-                self._case = None
-            self._calc_case = True
-
-        return self._case
-
     def is_male(self):
         """Returns True if the proband is a reported male, False if reported female or missing.
 
@@ -210,28 +176,12 @@ class Trio(object):
 
         return self.sex is 2
 
-    def is_control(self):
-        """Returns True if the proband is a reported control, False if reported case or missing.
-
-        :rtype: bool
-        """
-
-        return self.case_status == 2
-
-    def is_case(self):
-        """Returns True if the proband is a reported case, False if reported control or missing.
-
-        :rtype: bool
-        """
-
-        return self.case_status == 1
-
     def is_complete(self):
-        """Returns True if the trio has a defined mother, father, case_status, and sex.
+        """Returns True if the trio has a defined mother, father, and sex.
 
-        The considered fields are ``mother``, ``father``, ``case_status``, and ``sex``.
-        Recall that ``proband`` may not be missing. The ``fam`` field may be missing in
-        a complete trio.
+        The considered fields are ``mother``, ``father``, and ``sex``.
+        Recall that ``proband`` may not ever be missing. The ``fam`` field 
+        may be missing in a complete trio.
 
         :rtype: bool
         """
@@ -280,7 +230,7 @@ class Pedigree(object):
 
     @staticmethod
     @handle_py4j
-    def read_fam(fam_path, delimiter='\\s+'):
+    def read(fam_path, delimiter='\\s+'):
         """Read a .fam file and return a pedigree object.
 
         This method reads a `PLINK .fam file <https://www.cog-genomics.org/plink2/formats#fam>`_.
@@ -288,7 +238,8 @@ class Pedigree(object):
         Hail expects a file in the same spec as PLINK outlines.
 
         :param str fam_path: path to .fam file.
-        :param str delimiter: field delimiter
+        
+        :param str delimiter: Field delimiter.
 
         :rtype: :class:`.Pedigree`
         """
@@ -309,7 +260,7 @@ class Pedigree(object):
 
     @property
     def complete_trios(self):
-        """List of trio objects that have a defined father, mother, case status, and sex.
+        """List of trio objects that have a defined father, mother, and sex.
 
         :rtype: list of :class:`.Trio`
         """

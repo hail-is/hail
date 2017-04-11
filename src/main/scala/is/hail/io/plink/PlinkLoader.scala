@@ -73,7 +73,7 @@ object PlinkLoader {
         val mom1 = if (mom != "0") mom else null
 
         val isFemale1 = isFemale match {
-          case "N/A" => null
+          case ffConfig.missingValue => null
           case "-9" => null
           case "0" => null
           case "1" => false
