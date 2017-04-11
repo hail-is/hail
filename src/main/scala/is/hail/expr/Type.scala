@@ -29,21 +29,25 @@ object Type {
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
         Gen.zip(genArb.resize(size - 1), genArb.resize(size - 1)).map { case (k, v) => TDict(k, v) },
-        Gen.buildableOf[Array, (String, Type, Map[String, String])](
-          Gen.zip(Gen.identifier,
-            genArb,
-            Gen.option(
-              Gen.buildableOf2[Map, String, String](
-                Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])))
-              .map(o => o.getOrElse(Map.empty[String, String]))))
-          .filter(fields => fields.map(_._1).areDistinct())
-          .map(fields => TStruct(fields
-            .iterator
-            .zipWithIndex
-            .map { case ((k, t, m), i) => Field(k, t, i, m) }
-            .toIndexedSeq)))
+        genStructSized(size))
   }
 
+  def genStructSized(size: Int): Gen[TStruct] =
+    Gen.buildableOf[Array, (String, Type, Map[String, String])](
+      Gen.zip(Gen.identifier,
+        genArb.resize(size - 1),
+        Gen.option(
+          Gen.buildableOf2[Map, String, String](
+            Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])))
+          .map(o => o.getOrElse(Map.empty[String, String]))))
+      .filter(fields => fields.map(_._1).areDistinct())
+      .map(fields => TStruct(fields
+        .iterator
+        .zipWithIndex
+        .map { case ((k, t, m), i) => Field(k, t, i, m) }
+        .toIndexedSeq))
+
+  def genStruct: Gen[TStruct] = Gen.sized(genStructSized)
 
   def genArb: Gen[Type] = Gen.sized(genSized)
 
