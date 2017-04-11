@@ -55,7 +55,7 @@ object LogisticRegression {
     val logRegTestBc = sc.broadcast(logRegTest)
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(logRegTest.`type`, pathVA)
+    val (newVAS, inserter) = vds.insertVA(logRegTest.schema, pathVA)
     val emptyStats = logRegTest.emptyStats
 
     vds.copy(rdd = vds.rdd.mapPartitions( { it =>
@@ -75,4 +75,4 @@ object LogisticRegression {
   }
 }
 
-case class LogisticRegression(rdd: RDD[(Variant, Annotation)], `type`: Type)
+case class LogisticRegression(rdd: RDD[(Variant, Annotation)], schema: Type)
