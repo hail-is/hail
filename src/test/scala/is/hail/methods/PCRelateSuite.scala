@@ -190,10 +190,25 @@ class PCRelateSuite extends SparkSuite {
     assert(mapSameElements(hailPcRelate, truth, (x: Double, y: Double) => D_==(x, y)))
   }
 
-  // @Test
+  @Test
   def foo() {
-    val vds: VariantDataset = hc.read("/Users/dking/projects/hail-data/profile.vds").splitMulti()
-    val pcs = SamplePCA.justScores(vds, 3)
-    val result = PCRelate(vds, pcs)
+    import is.hail.keytable._
+    import is.hail.annotations.Annotation
+    import is.hail.expr.{TStruct, _}
+
+    println(s"started foo ${System.nanoTime()}")
+
+    val vds: VariantDataset = hc.read("/Users/dking/projects/hail-data/profile-with-case.vds").splitMulti()
+
+    val indexToId: Map[Int, String] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
+    val pcs = SamplePCA.justScores(vds, 2)
+    println(s"one with pcs ${System.nanoTime()}")
+
+    val result = DistributedMatrix[BlockMatrix].toCoordinateMatrix(PCRelate[BlockMatrix](vds, pcs).phiHat).entries
+      .filter(me => me.i < me.j)
+      .map(me => Annotation(indexToId(me.i.toInt), indexToId(me.j.toInt), me.value))
+
+    KeyTable(vds.hc, result, TStruct("i" -> TString, "j" -> TString, "kin" -> TDouble), Array("i", "k"))
+      .write("/tmp/profile-with-case-hail-pc-relate.out")
   }
 }

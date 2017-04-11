@@ -216,18 +216,22 @@ object PCRelate {
   case class Result[M: DistributedMatrix](phiHat: M)
 
   def apply[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
+    println(s"Starting pc relate ${System.nanoTime()}")
     val g = vdsToMeanImputedMatrix(vds)
 
+    println(s"mean imputed ${System.nanoTime()}")
     val pcsbc = vds.sparkContext.broadcast(pcs)
 
     val (beta0, betas) = fitBeta(g, pcsbc)
 
-    val phihat = phiHat(g, muHat(pcsbc, beta0, betas))
+    println(s"fitted Beta ${System.nanoTime()}")
+    val phihat = phiHat(DistributedMatrix[M].from(g), muHat(pcsbc, beta0, betas))
 
+    println(s"calculated phiHat ${System.nanoTime()}")
     Result(phihat)
   }
 
-  def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): M = {
+  def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): RDD[Array[Double]] = {
     val rdd = vds.rdd.mapPartitions { part =>
       part.map { case (v, (va, gs)) =>
         val goptions = gs.map(_.gt.map(_.toDouble)).toArray
@@ -236,7 +240,7 @@ object PCRelate {
         goptions.map(_.getOrElse(mean))
       }
     }
-    DistributedMatrix[M].from(rdd)
+    rdd
   }
 
   /**
@@ -245,14 +249,14 @@ object PCRelate {
     *
     *  result: (SNP, SNP x D)
     */
-  def fitBeta[M: DistributedMatrix](g: M, pcs: Broadcast[DenseMatrix]): (Array[Double], M) = {
+  def fitBeta[M: DistributedMatrix](g: RDD[Array[Double]], pcs: Broadcast[DenseMatrix]): (Array[Double], M) = {
     val aa = pcs.value.rowIter.map(_.toArray).toArray
-    val rdd: RDD[(Double, Array[Double])] = DistributedMatrix[M].mapRows(g, { row =>
+    val rdd: RDD[(Double, Array[Double])] = g.map { row =>
       val ols = new OLSMultipleLinearRegression()
       ols.newSampleData(row, aa)
       val allBetas = ols.estimateRegressionParameters()
       (allBetas(0), allBetas.slice(1, allBetas.length))
-    })
+    }
     val vecRdd = rdd.map(_._1)
     val matRdd = rdd.map(_._2)
     (vecRdd.collect(), DistributedMatrix[M].from(matRdd))
@@ -291,12 +295,12 @@ object PCRelate {
     val gMinusMu = g :-: (muHat * 2.0)
     val varianceHat = muHat :*: (1.0 - muHat)
 
-    println("means")
-    println(dm.toBlockRdd(muHat * 2.0).take(1)(0))
-    println("numerator")
-    println(dm.toBlockRdd(gMinusMu.t * gMinusMu).take(1)(0))
-    println("denominator")
-    println(dm.toBlockRdd((varianceHat.t * varianceHat).sqrt).take(1)(0))
+    // println("means")
+    // println(dm.toBlockRdd(muHat * 2.0).take(1)(0))
+    // println("numerator")
+    // println(dm.toBlockRdd(gMinusMu.t * gMinusMu).take(1)(0))
+    // println("denominator")
+    // println(dm.toBlockRdd((varianceHat.t * varianceHat).sqrt).take(1)(0))
 
     ((gMinusMu.t * gMinusMu) :/: (varianceHat.t * varianceHat).sqrt) / 4.0
   }
