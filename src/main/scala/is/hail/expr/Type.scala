@@ -45,7 +45,7 @@ object Type {
         .iterator
         .zipWithIndex
         .map { case ((k, t, m), i) => Field(k, t, i, m) }
-        .toIndexedSeq))
+        .toArray))
 
   def genArb: Gen[Type] = Gen.sized(genSized)
 

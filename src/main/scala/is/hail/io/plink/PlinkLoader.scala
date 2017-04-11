@@ -101,7 +101,7 @@ object PlinkLoader {
             }
 
         (kid, Annotation(fam1, dad1, mom1, isFemale1, pheno1))
-      }.value).toIndexedSeq
+      }.value).toArray: IndexedSeq[(String, Annotation)]
     }
 
     if (m.isEmpty)
