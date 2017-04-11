@@ -2431,6 +2431,8 @@ class VariantDataset(object):
 
         .. include:: requireTGenotype.rst
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True.
+
         **Examples**
 
         Export the set of common LD pruned variants to a file:
@@ -2453,7 +2455,7 @@ class VariantDataset(object):
                     if ((v1.position - v2.position) <= window and correlation(v1, v2) >= r2):
                         keep = False
                 if keep:
-                    s += v1
+                    pruned_set.append(v1)
 
         The parameter ``window`` defines the maximum distance in base pairs between two variants to check whether
         the variants are independent (:math:`R^2` < ``r2``) where ``r2`` is the maximum correlation allowed.
