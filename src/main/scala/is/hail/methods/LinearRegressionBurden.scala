@@ -8,12 +8,11 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import net.sourceforge.jdistlib.T
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 object LinearRegressionBurden {
 
-  def apply(vds: VariantDataset, keyName: String, variantKeySetVA: String, aggregateWith: String, genotypeExpr: String, ySA: String, covSA: Array[String], dropSamples: Boolean): KeyTable = {
+  def apply(vds: VariantDataset, keyName: String, variantKeySetVA: String, aggregateExpr: String, ySA: String, covSA: Array[String], dropSamples: Boolean): KeyTable = {
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
 
@@ -24,7 +23,18 @@ object LinearRegressionBurden {
     if (d < 1)
       fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg_burden, aggregated by key $keyName using $aggregateWith, on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"Running linreg_burden, aggregated by key $keyName using $aggregateExpr, on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+
+    val pattern = """gs.map\(g => (.*)\).(.*)""".r
+
+    // val (genotypeExpr, aggregateWith) =
+
+    val m = pattern.findFirstMatchIn(aggregateExpr).getOrElse {
+      fatal("aggregateExpr is not of the form 'gs.map(g => A).B")
+    }
+
+    val genotypeExpr = m.group(1)
+    val aggregateWith = m.group(2)
 
     val completeSamplesSet = completeSamples.toSet
 

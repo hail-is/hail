@@ -52,7 +52,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
         root = Some("sa.cov"),
         config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
 
-    val kt = vds.linregBurden("gene", "va.gene", "sum()", "va.weight * g.gt", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
+    val kt = vds.linregBurden("gene", "va.gene", "gs.map(g => va.weight * g.gt).sum()", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
 
     val values = kt.collect().map { r => val s = r.asInstanceOf[Row].toSeq
       s.head.asInstanceOf[String] -> s.tail.asInstanceOf[Seq[Double]] }.toMap
@@ -108,7 +108,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       .filterSamplesExpr("isDefined(sa.pheno.Pheno) && isDefined(sa.cov.Cov1) && isDefined(sa.cov.Cov2)")
       .variantQC()
 
-    val kt = vds.linregBurden("Gene", "va.gene", "sum()", "va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
+    val kt = vds.linregBurden("Gene", "va.gene", "gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
 
     val values = kt.collect().map { r => val s = r.asInstanceOf[Row].toSeq
       s.head.asInstanceOf[String] -> s.tail.asInstanceOf[Seq[Double]] }.toMap
@@ -161,7 +161,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
         root = Some("sa.cov"),
         config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
 
-    val kt = vds.linregBurden("gene", "va.gene", "max()", "g.gt.toDouble", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
+    val kt = vds.linregBurden("gene", "va.gene", "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covSA = Array("sa.cov.Cov1", "sa.cov.Cov2"), dropSamples = false)
 
     val values = kt.collect().map { r => val s = r.asInstanceOf[Row].toSeq
       s.head.asInstanceOf[String] -> s.tail }.toMap

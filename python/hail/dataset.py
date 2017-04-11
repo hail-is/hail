@@ -2599,7 +2599,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def linreg_burden(self, key_name, variant_key_set, aggregate_with, genotype_expr, y, covariates=[], drop_samples=True):
+    def linreg_burden(self, key_name, variant_key_set, aggregate_expr, y, covariates=[], drop_samples=True):
         r"""Test each group of variants for association using the linear regression model.
 
         .. include:: requireTGenotype.rst
@@ -2611,33 +2611,35 @@ class VariantDataset(object):
         >>> kt = (hc.read("data/example_burden.vds")
         ...     .annotate_variants_intervals('data/genes.interval_list', 'va.genes', all=True)
         ...     .linreg_burden(key_name='gene',
-        ...                    variant_key_set='va.genes',
-        ...                    aggregate_with='max()',
-        ...                    genotype_expr='g.gt',
+        ...                    variant_keyset_expr='va.genes',
+        ...                    aggregate_expr='gs.map(g => g.gt).max()',
         ...                    y='sa.burden.pheno',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2'],
         ...                    drop_samples=False))
 
-        To use a weighted sum (linear combination) of genotypes, with weights given by a variant annotation ``va.weight``, set ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * g.gt'``.
+        To use a weighted sum (linear combination) of genotypes, with weights given by a variant annotation ``va.weight``, set ``aggregate_expr='gs.map(g => g.gt).sum()``.
 
-        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, use ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)'``, where ``va.qc.AF`` is the allele frequency over those samples with phenotype and sample covariates all non-missing.
+        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set ``aggregate_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'``, where ``va.qc.AF`` is the allele frequency over those samples with phenotype and sample covariates all non-missing.
 
         **Notes**
 
-        This method extends linear regression by generalizing the covariate of interest. Namely, the genotype of a variant is replaced by a numeric score computed from a group of variants with a common key. The method proceeds as follows:
+        This method extends linear regression by generalizing the genotypic covariate of interest. Namely, for each key, the genotype of a variant is replaced by a numeric score computed from the genotypes of all variants with that key. Conceptually, the method proceeds as follows:
 
-        1) Filter to samples with all phenotype and covariates non-missing, and filter to variants with non-empty ``variant_key_set``.
+        1) Filter to samples with all phenotype and covariates non-missing, and filter to variants with non-empty ``variant_keyset_expr``.
 
-        2) Map each genotype to a numeric value using ``genotype_expr``. ``v``, ``va``, ``s``, ``sa``, and ``g`` are all visible.
+        2) For the ``aggragate_expr`` of the form ``gs.map(g => A).B``, map each genotype using the
+           subexpression ``A``, for which the fields ``g`` , ``v``, ``va``, ``s``, and ``sa`` are all visible.
 
-        3) For each key and sample, aggregate these values across all variants with this key in their ``variant_key_set`` using ``aggregate_with``.
-           The latter is any `method <https://hail.is/hail/types.html#aggregable>`_ on Aggregable[T] that returns a numeric type,
-           where ``T`` is the type of ``genotype_expr``.
-           This results in a key table with key column ``key_name`` and a column for each complete sample.
+           Then for each key and sample, aggregate the values for this sample over all variants with
+           this key using the numeric-valued method ``B`` on
+           `Aggregable[T] <https://hail.is/hail/types.html#aggregable>`_
+           where ``T`` is the type of ``A``.
+
+           This results in a key table with key column ``key_name`` and a numeric column for each complete sample.
            For each key (row), missing values are mean-imputed across all samples.
 
-        4) For each key, fit the linear regression model with phenotype and covariates as described in :py:meth:`.linreg`, with
-           sample genotype ``gt`` replaced by the aggregated value for that sample and key.
+        4) For each key, fit the linear regression model with phenotype and covariates as described
+           in :py:meth:`.linreg`, with sample genotype ``gt`` replaced by the aggregated value for that sample and key.
 
         :py:meth:`.linreg_burden` returns a key table with the following columns:
 
@@ -2707,8 +2709,8 @@ class VariantDataset(object):
 
         :py:meth:`.linear_burden` proceeds through the four steps above. Step (1) is vacuous in this case
         since all samples are complete and every variant is in at least one gene. Step (2) maps each
-        genotype to the ``gt`` field shown in the variant table above. Step (3) finds the maximum value
-        for each gene and sample, resulting in columns A through F below. Step (4) runs linear regression
+        genotype to the ``gt`` field shown in the variant table above and then finds the maximum value
+        for each gene and sample, resulting in columns A through F below. Step (3) runs linear regression
         for each gene using these values for the covariate of interest, and the phenotype and sample covariates
         in the table above. Since ``drop_samples=False``, the returned key table ``kt`` is then:
 
@@ -2728,7 +2730,7 @@ class VariantDataset(object):
 
         :param str variant_key_set: Set(String)-valued variant annotation path for the set of keys associated to each variant.
 
-        :param str aggregate_with: `Method <https://hail.is/hail/types.html#aggregable>`_ on Aggregable[T], where ``T`` is the type of ``genotype_expr``, that returns a numeric type.
+        :param str aggregate_expr: Expression of the form ``gs.map(g => A).B`` where ``A`` is an expression of type ``T`` with ``g``, ``v``, ``va``, ``s``, ``sa`` visible, and ``B`` is a numeric-valued method on `Aggregable[T] <https://hail.is/hail/types.html#aggregable>`_.
 
         :param str genotype_expr: Numeric-valued expression for the value per genotype.
 
@@ -2743,7 +2745,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.KeyTable`
         """
 
-        jvds = self._jvdf.linregBurden(key_name, variant_key_set, aggregate_with, genotype_expr, y, jarray(Env.jvm().java.lang.String, covariates), drop_samples)
+        jvds = self._jvdf.linregBurden(key_name, variant_key_set, aggregate_expr, y, jarray(Env.jvm().java.lang.String, covariates), drop_samples)
         return KeyTable(self.hc, jvds)
 
     @handle_py4j
