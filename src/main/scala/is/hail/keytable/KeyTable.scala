@@ -403,7 +403,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](code, ec)(boxedboolHr)
 
     rdd.forall { a =>
-      ec.setAllFromRow(a.asInstanceOf[Row])
+      ec.setAllFromRow(a)
       val b = f()
       if (b == null)
         false
@@ -472,9 +472,9 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val keySignature = TStruct((newKeyNames, keyTypes).zipped.toSeq: _*)
     val aggSignature = TStruct((aggNames, aggTypes).zipped.toSeq: _*)
 
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, {
-      case (ec, a) =>
-        ec.setAllFromRow(a.asInstanceOf[Row])
+    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Row](ec, {
+      case (ec, r) =>
+        ec.setAllFromRow(r)
     })
 
     val newRDD = rdd.mapPartitions {
