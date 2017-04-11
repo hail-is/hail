@@ -2599,7 +2599,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def linreg_burden(self, key_name, variant_key_set, aggregate_expr, y, covariates=[], drop_samples=True):
+    def linreg_burden(self, key_name, variant_keyset_expr, aggregate_expr, y, covariates=[], drop_samples=True):
         r"""Test each group of variants for association using the linear regression model.
 
         .. include:: requireTGenotype.rst
@@ -2728,7 +2728,7 @@ class VariantDataset(object):
 
         :param str key_name: Name to assign to key column of returned key table.
 
-        :param str variant_key_set: Set(String)-valued variant annotation path for the set of keys associated to each variant.
+        :param str variant_keyset_expr: Set(String)-valued variant annotation path for the set of keys associated to each variant.
 
         :param str aggregate_expr: Expression of the form ``gs.map(g => A).B`` where ``A`` is an expression of type ``T`` with ``g``, ``v``, ``va``, ``s``, ``sa`` visible, and ``B`` is a numeric-valued method on `Aggregable[T] <https://hail.is/hail/types.html#aggregable>`_.
 
@@ -2745,7 +2745,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.KeyTable`
         """
 
-        jvds = self._jvdf.linregBurden(key_name, variant_key_set, aggregate_expr, y, jarray(Env.jvm().java.lang.String, covariates), drop_samples)
+        jvds = self._jvdf.linregBurden(key_name, variant_keyset_expr, aggregate_expr, y, jarray(Env.jvm().java.lang.String, covariates), drop_samples)
         return KeyTable(self.hc, jvds)
 
     @handle_py4j
