@@ -208,7 +208,7 @@ class PCRelateSuite extends SparkSuite {
       .filter(me => me.i < me.j)
       .map(me => Annotation(indexToId(me.i.toInt), indexToId(me.j.toInt), me.value))
 
-    KeyTable(vds.hc, result, TStruct("i" -> TString, "j" -> TString, "kin" -> TDouble), Array("i", "k"))
+    KeyTable(vds.hc, result, TStruct("i" -> TString, "j" -> TString, "kin" -> TDouble), Array("i", "j"))
       .write("/tmp/profile-with-case-hail-pc-relate.out")
   }
 }
