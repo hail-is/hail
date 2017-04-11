@@ -585,6 +585,14 @@ class KeyTable(object):
          .exportMongoDB(self.hc._jsql_context, self._jkt, mode))
 
     @handle_py4j
+    def export_solr(self, zk_host, collection, block_size=100):
+        self._jkt.exportSolr(zk_host, collection, block_size)
+
+    @handle_py4j
+    def export_cassandra(self, address, keyspace, table, block_size=100, rate=1000):
+        self._jkt.exportCassandra(address, keyspace, table, block_size, rate)
+
+    @handle_py4j
     def explode(self, column_names):
         """Explode columns of this key table.
 

@@ -1362,7 +1362,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       rdd = joined)
   }
 
-  def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String]): KeyTable = {
+  def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String] = Array.empty, seperator: String = "."): KeyTable = {
     val vSymTab = Map(
       "v" -> (0, TVariant),
       "va" -> (1, vaSignature))
@@ -1388,7 +1388,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           (if (n.isEmpty)
             s
           else
-            s + "." + n, t)
+            s + seperator + n, t)
         }
       }).toSeq: _*)
 

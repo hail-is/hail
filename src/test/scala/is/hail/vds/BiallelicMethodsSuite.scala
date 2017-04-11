@@ -25,14 +25,6 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     catchError {
-      multi.exportVariantsCassandra("foo", "foo", "foo", "foo", "foo")
-    }
-
-    catchError {
-      multi.exportVariantsSolr("foo", "foo")
-    }
-
-    catchError {
       multi.ibd()
     }
 

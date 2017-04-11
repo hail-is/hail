@@ -1,19 +1,187 @@
 package is.hail.io
 
+import java.nio.ByteBuffer
+
 import com.datastax.driver.core.querybuilder.QueryBuilder
-import com.datastax.driver.core.schemabuilder.SchemaBuilder
-import com.datastax.driver.core.{Cluster, Session}
-import is.hail.expr.{EvalContext, Parser, TArray, TBoolean, TDouble, TFloat, TGenotype, TInt, TLong, TSet, TString, TVariant, Type}
-import is.hail.utils.StringEscapeUtils.escapeStringSimple
+import com.datastax.driver.core.{Cluster, DataType, Session, TableMetadata, Row => CassRow}
+import is.hail.expr._
+import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import org.apache.spark.sql.Row
+import org.json4s._
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.util.Random
+
+object CassandraImpex {
+  def importSchema(table: TableMetadata): TStruct =
+    TStruct(
+      table.getColumns.asScala
+        .map(col => (col.getName, importType(col.getType))): _*)
+
+  def importRow(table: TableMetadata, row: CassRow): Any = {
+    val a = new Array[Any](table.getColumns.size)
+
+    val tableColIndex = table.getColumns.asScala
+      .map(col => col.getName)
+      .zipWithIndex
+      .toMap
+
+    val rowColumns = row.getColumnDefinitions
+
+    val n = rowColumns.size
+    var i = 0
+    while (i < n) {
+      val colName = rowColumns.getName(i)
+      val j = tableColIndex(colName)
+      a(j) = importAnnotation(row.getObject(i), rowColumns.getType(i))
+      i += 1
+    }
+
+    Row.fromSeq(a)
+  }
+
+  def exportType(t: Type): DataType = exportType(t, 0)
+
+  def exportType(t: Type, depth: Int): DataType = t match {
+    case TBoolean => DataType.cboolean()
+    case TInt => DataType.cint()
+    case TLong => DataType.bigint()
+    case TFloat => DataType.cfloat()
+    case TDouble => DataType.cdouble()
+    case TString => DataType.text()
+    case TChar => DataType.text()
+    case TBinary => DataType.blob()
+    case TCall => DataType.cint()
+    case TArray(elementType) => DataType.list(exportType(elementType, depth + 1), depth == 1)
+    case TSet(elementType) => DataType.set(exportType(elementType, depth + 1), depth == 1)
+    case TDict(keyType, valueType) =>
+      DataType.map(exportType(keyType, depth + 1),
+        exportType(valueType, depth + 1), depth == 1)
+    case TAltAllele => DataType.text()
+    case TVariant => DataType.text()
+    case TLocus => DataType.text()
+    case TInterval => DataType.text()
+    case TGenotype => DataType.text()
+    case s: TStruct => DataType.text()
+  }
+
+  def importType(dt: DataType): Type = {
+    (dt.getName: @unchecked) match {
+      case DataType.Name.BOOLEAN => TBoolean
+      case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR => TString
+      case DataType.Name.TINYINT => TInt
+      case DataType.Name.SMALLINT => TInt
+      case DataType.Name.INT => TInt
+      case DataType.Name.BIGINT | DataType.Name.COUNTER => TLong
+      case DataType.Name.FLOAT => TFloat
+      case DataType.Name.DOUBLE => TDouble
+
+      case DataType.Name.LIST =>
+        val typeArgs = dt.getTypeArguments
+        assert(typeArgs.size() == 1)
+        TArray(importType(typeArgs.get(0)))
+
+      case DataType.Name.SET =>
+        val typeArgs = dt.getTypeArguments
+        assert(typeArgs.size() == 1)
+        TSet(importType(typeArgs.get(0)))
+
+      case DataType.Name.MAP =>
+        val typeArgs = dt.getTypeArguments
+        assert(typeArgs.size() == 2)
+        TDict(
+          importType(typeArgs.get(0)),
+          importType(typeArgs.get(1)))
+
+      // FIXME nice message
+    }
+  }
+
+  def exportAnnotation(a: Any, t: Type): Any = t match {
+    case TBoolean => a
+    case TInt => a
+    case TLong => a
+    case TFloat => a
+    case TDouble => a
+    case TString => a
+    case TChar => a
+    case TBinary => ByteBuffer.wrap(a.asInstanceOf[Array[Byte]])
+    case TCall => a
+    case TArray(elementType) =>
+      if (a == null)
+        null
+      else
+        a.asInstanceOf[Seq[_]].map(x => exportAnnotation(x, elementType)).asJava
+    case TSet(elementType) =>
+      if (a == null)
+        null
+      else
+        a.asInstanceOf[Set[_]].map(x => exportAnnotation(x, elementType)).asJava
+    case TDict(keyType, valueType) =>
+      if (a == null)
+        null
+      else
+        a.asInstanceOf[Map[_, _]].map { case (k, v) =>
+          (exportAnnotation(k, keyType),
+            exportAnnotation(v, valueType))
+        }.asJava
+    case TAltAllele | TVariant | TLocus | TInterval | TGenotype =>
+      JsonMethods.compact(t.toJSON(a))
+    case s: TStruct => DataType.text()
+      JsonMethods.compact(t.toJSON(a))
+  }
+
+  def importAnnotation(a: Any, dt: DataType): Any =
+    if (a == null)
+      null
+    else {
+      (dt.getName: @unchecked) match {
+        case DataType.Name.BOOLEAN => a
+        case DataType.Name.ASCII | DataType.Name.TEXT | DataType.Name.VARCHAR => a
+        case DataType.Name.TINYINT => a.asInstanceOf[java.lang.Byte].toInt
+        case DataType.Name.SMALLINT => a.asInstanceOf[java.lang.Short].toInt
+        case DataType.Name.INT => a
+        case DataType.Name.BIGINT | DataType.Name.COUNTER => a
+        case DataType.Name.FLOAT => a
+        case DataType.Name.DOUBLE => a
+
+        case DataType.Name.LIST =>
+          val typeArgs = dt.getTypeArguments
+          assert(typeArgs.size() == 1)
+          val elementDataType = typeArgs.get(0)
+
+          a.asInstanceOf[java.util.List[_]].asScala
+            .map(x => importAnnotation(x, elementDataType))
+            .toArray[Any]: IndexedSeq[Any]
+
+        case DataType.Name.SET =>
+          val typeArgs = dt.getTypeArguments
+          assert(typeArgs.size() == 1)
+          val elementDataType = typeArgs.get(0)
+          a.asInstanceOf[java.util.Set[_]].asScala
+            .map(x => importAnnotation(x, elementDataType))
+            .toSet
+
+        case DataType.Name.MAP =>
+          val typeArgs = dt.getTypeArguments
+          assert(typeArgs.size() == 2)
+          val keyDataType = typeArgs.get(0)
+          val valueDataType = typeArgs.get(1)
+          a.asInstanceOf[java.util.Map[_, _]].asScala
+            .map { case (k, v) =>
+              (importAnnotation(k, keyDataType),
+                importAnnotation(v, valueDataType))
+            }.toMap
+      }
+    }
+}
 
 object CassandraConnector {
-  private var cluster: Cluster = null
-  private var session: Session = null
+  private var cluster: Cluster = _
+  private var session: Session = _
 
   private var refcount: Int = 0
 
@@ -46,117 +214,45 @@ object CassandraConnector {
     }
   }
 
-  def toCassType(t: Type): String = t match {
-    case TBoolean => "boolean"
-    case TInt => "int"
-    case TLong => "bigint"
-    case TFloat => "float"
-    case TDouble => "double"
-    case TString => "text"
-    case TArray(elementType) => s"list<${ toCassType(elementType) }>"
-    case TSet(elementType) => s"set<${ toCassType(elementType) }>"
-    case _ =>
-      fatal(s"unsupported type: $t")
-  }
-
-  def toCassValue(a: Any, t: Type): AnyRef = t match {
-    case TArray(elementType) =>
-      if (a == null)
-        null
-      else
-        a.asInstanceOf[Seq[_]].asJava
-    case TSet(elementType) =>
-      if (a == null)
-        null
-      else
-        a.asInstanceOf[Set[_]].asJava
-    case _ => a.asInstanceOf[AnyRef]
-  }
-
-  def escapeString(name: String): String =
-    escapeStringSimple(name, '_', !_.isLetter, !_.isLetterOrDigit)
-
-  def escapeCassColumnName(name: String): String = {
-    val sb = new StringBuilder
-
-    if (name.head.isDigit)
-      sb += 'x'
-
-    name.foreach { c =>
-      if (c.isLetterOrDigit)
-        sb += c.toLower
-      else
-        sb += '_'
+  def pause(nano: Long): Unit = {
+    if (nano > 0) {
+      Thread.sleep((nano / 1000000).toInt, (nano % 1000000).toInt)
     }
-
-    sb.result()
   }
 
-  def exportVariants(vds: VariantDataset,
-    address: String,
-    keySpace: String,
-    table: String,
-    genotypeExpr: String,
-    variantExpr: String,
-    drop: Boolean = false,
-    exportRef: Boolean = false,
-    exportMissing: Boolean = false,
-    blockSize: Int = 100) {
+  def export(kt: KeyTable,
+    address: String, keyspace: String, table: String,
+    blockSize: Int = 100, rate: Int = 1000) {
 
-    val sc = vds.sparkContext
-    val vas = vds.vaSignature
-    val sas = vds.saSignature
+    val sc = kt.hc.sc
 
-    val qualifiedTable = keySpace + "." + table
+    val qualifiedTable = keyspace + "." + table
 
-    val vSymTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vas))
-    val vEC = EvalContext(vSymTab)
-    val vA = vEC.a
-
-    val (vNames, vTypes, vf) = Parser.parseNamedExprs(variantExpr, vEC)
-
-    val gSymTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vas),
-      "s" -> (2, TString),
-      "sa" -> (3, sas),
-      "g" -> (4, TGenotype))
-    val gEC = EvalContext(gSymTab)
-    val gA = gEC.a
-
-    val (gHeader, gTypes, gf) = Parser.parseNamedExprs(genotypeExpr, gEC)
-
-    val symTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vas))
-    val ec = EvalContext(symTab)
-
-    val fields = vNames.map(escapeString).zip(vTypes) ++ vds.sampleIds.flatMap { s =>
-      gHeader.map(field => s"${ escapeString(s) }__${ escapeString(field) }").zip(gTypes)
-    }
+    val fields = kt.signature.fields.map { f => (f.name, f.typ) }
 
     val session = CassandraConnector.getSession(address)
 
+    var keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
+    var tableMetadata = keyspaceMetadata.getTable(table)
+
+    /*
     // get keyspace (create it if it doesn't exist)
-    var keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keySpace)
     if (keyspaceMetadata == null) {
-      info(s"creating keyspace ${ keySpace }")
+      info(s"creating keyspace ${ keyspace }")
       try {
-        session.execute(s"CREATE KEYSPACE ${ keySpace } " +
+        session.execute(s"CREATE KEYSPACE ${ keyspace } " +
           "WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true")
       } catch {
-        case e: Exception => fatal(s"exportvariantscass: unable to create keyspace ${ keySpace }: ${ e }")
+        case e: Exception => fatal(s"exportvariantscass: unable to create keyspace ${ keyspace }: ${ e }")
       }
-      keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keySpace)
+      keyspaceMetadata = session.getCluster.getMetadata.getKeyspace(keyspace)
     }
 
     // get table (drop and create it if necessary)
     if (drop) {
       info(s"dropping table ${ qualifiedTable }")
       try {
-        session.execute(SchemaBuilder.dropTable(keySpace, table).ifExists());
+        session.execute(SchemaBuilder.dropTable(keyspace, table).ifExists());
       } catch {
         case e: Exception => warn(s"exportvariantscass: unable to drop table ${ qualifiedTable }: ${ e }")
       }
@@ -173,7 +269,7 @@ object CassandraConnector {
       }
       //info(s"table ${qualifiedTable} created")
       tableMetadata = keyspaceMetadata.getTable(table)
-    }
+    } */
 
     val preexistingFields = tableMetadata.getColumns.asScala.map(_.getName).toSet
     val toAdd = fields
@@ -181,60 +277,82 @@ object CassandraConnector {
 
     if (toAdd.nonEmpty) {
       session.execute(s"ALTER TABLE $qualifiedTable ADD (${
-        toAdd.map { case (name, t) => s""""$name" ${ toCassType(t) }""" }.mkString(",")
+        toAdd.map { case (name, t) => s""""$name" ${ CassandraImpex.exportType(t) }""" }.mkString(",")
       })")
     }
 
     CassandraConnector.disconnect()
 
-    val sampleIdsBc = sc.broadcast(vds.sampleIds)
-    val sampleAnnotationsBc = sc.broadcast(vds.sampleAnnotations)
+    val localSignature = kt.signature
     val localBlockSize = blockSize
+    val maxRetryInterval = 3 * 60 * 1000 // 3m
 
-    val futures = vds.rdd
-      .foreachPartition { it =>
-        val session = CassandraConnector.getSession(address)
-        val nb = mutable.ArrayBuilder.make[String]
-        val vb = mutable.ArrayBuilder.make[AnyRef]
+    val minInsertTimeNano = 1000000000L / rate
 
-        it
-          .grouped(localBlockSize)
-          .foreach { block =>
-            val futures = block
-              .map { case (v, (va, gs)) =>
-                nb.clear()
-                vb.clear()
+    kt.rdd.foreachPartition { it =>
+      val session = CassandraConnector.getSession(address)
+      val nb = new mutable.ArrayBuffer[String]
+      val vb = new mutable.ArrayBuffer[AnyRef]
 
-                vEC.setAll(v, va)
-                vf().zipWithIndex.foreach { case (a, i) =>
-                  nb += s""""${ escapeString(vNames(i)) }""""
-                  vb += toCassValue(a, vTypes(i))
+      var lastInsertNano = System.nanoTime()
+
+      it
+        .grouped(localBlockSize)
+        .foreach { block =>
+
+          var retryInterval = 3 * 1000 // 3s
+
+          var toInsert = block.map { r =>
+            nb.clear()
+            vb.clear()
+
+            (r.asInstanceOf[Row].toSeq, localSignature.fields).zipped
+              .map { case (a, f) =>
+                if (a != null) {
+                  nb += "\"" + f.name + "\""
+                  vb += CassandraImpex.exportAnnotation(a, f.typ).asInstanceOf[AnyRef]
                 }
-
-                gs.iterator.zipWithIndex.foreach { case (g, i) =>
-                  val s = sampleIdsBc.value(i)
-                  val sa = sampleAnnotationsBc.value(i)
-                  if ((exportMissing || g.isCalled) && (exportRef || !g.isHomRef)) {
-                    gEC.setAll(v, va, s, sa, g)
-                    gf().zipWithIndex.foreach { case (a, j) =>
-                      nb += s""""${ escapeString(s) }__${ escapeString(gHeader(j)) }""""
-                      vb += toCassValue(a, gTypes(j))
-                    }
-                  }
-                }
-
-                val names = nb.result()
-                val values = vb.result()
-
-                session.executeAsync(QueryBuilder
-                  .insertInto(keySpace, table)
-                  .values(names, values))
               }
 
-            futures.foreach(_.getUninterruptibly())
+            (nb.toArray, vb.toArray)
           }
 
-        CassandraConnector.disconnect()
-      }
+          while (toInsert.nonEmpty) {
+            val nano = System.nanoTime()
+            pause(minInsertTimeNano - (nano - lastInsertNano))
+
+            toInsert = toInsert.map { case nv@(names, values) =>
+              val future = session.executeAsync(QueryBuilder
+                .insertInto(keyspace, table)
+                .values(names, values)
+                // .enableTracing()
+              )
+
+              (nv, future)
+            }.flatMap { case (nv, future) =>
+              try {
+                val rs = future.getUninterruptibly()
+                // val micros = rs.getExecutionInfo.getQueryTrace.getDurationMicros
+                // println(s"time: ${ micros }us")
+                None
+              } catch {
+                case t: Throwable =>
+                  warn(s"caught exception while adding inserting: ${
+                    expandException(t, logMessage = true)
+                  }\n\tretrying")
+
+                  Some(nv)
+              }
+            }
+
+            if (toInsert.nonEmpty) {
+              Thread.sleep(Random.nextInt(retryInterval))
+              retryInterval = (retryInterval * 2).max(maxRetryInterval)
+            }
+          }
+        }
+
+      CassandraConnector.disconnect()
+    }
   }
 }

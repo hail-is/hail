@@ -1642,43 +1642,6 @@ class VariantDataset(object):
         self._jvds.exportVariants(output, expr, types)
 
     @handle_py4j
-    @requireTGenotype
-    def export_variants_cass(self, variant_expr, genotype_expr,
-                             address,
-                             keyspace,
-                             table,
-                             export_missing=False,
-                             export_ref=False,
-                             drop=False,
-                             block_size=100):
-        """Export variant information to Cassandra.
-
-        .. include:: requireTGenotype.rst
-        """
-
-        self._jvdf.exportVariantsCassandra(address, genotype_expr, keyspace, table, variant_expr,
-                                           drop, export_ref, export_missing, block_size)
-
-    @handle_py4j
-    @requireTGenotype
-    def export_variants_solr(self, variant_expr, genotype_expr,
-                             solr_url=None,
-                             solr_cloud_collection=None,
-                             zookeeper_host=None,
-                             drop=False,
-                             num_shards=1,
-                             export_missing=False,
-                             export_ref=False,
-                             block_size=100):
-        """Export variant information to Solr.
-
-        .. include:: requireTGenotype.rst
-        """
-
-        self._jvdf.exportVariantsSolr(variant_expr, genotype_expr, solr_cloud_collection, solr_url, zookeeper_host,
-                                      export_missing, export_ref, drop, num_shards, block_size)
-
-    @handle_py4j
     def export_vcf(self, output, append_to_header=None, export_pp=False, parallel=False):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
@@ -4344,12 +4307,13 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
-    def make_keytable(self, variant_expr, genotype_expr, key_names=[]):
+    def make_keytable(self, variant_expr, genotype_expr, key_names=[], separator='.'):
         """Make a KeyTable with one row per variant.
 
-        Per sample field names in the result are formed by concatenating the
-        sample ID with the ``genotype_expr`` left hand side with dot (.).
-        If the left hand side is empty::
+        Per sample field names in the result are formed by
+        concatenating the sample ID with the ``genotype_expr`` left
+        hand side with ``seperator`` (default: dot (.)).  If the left
+        hand side is empty::
 
           `` = expr
 
@@ -4367,7 +4331,7 @@ class VariantDataset(object):
 
         Then:
 
-        >>> kt = vds.make_keytable('v = v', ['gt = g.gt', 'gq = g.gq'], [])
+        >>> kt = vds.make_keytable('v = v', ['gt = g.gt', 'gq = g.gq'])
 
         returns a :py:class:`KeyTable` with schema
 
@@ -4398,7 +4362,10 @@ class VariantDataset(object):
         :param key_names: list of key columns
         :type key_names: list of str
 
+        :param str separator: Seperator to use between sample IDs and genotype expression left hand side identifiers.
+
         :rtype: :py:class:`.KeyTable`
+
         """
 
         if isinstance(variant_expr, list):
@@ -4407,5 +4374,5 @@ class VariantDataset(object):
             genotype_expr = ','.join(genotype_expr)
 
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
-                                jarray(Env.jvm().java.lang.String, key_names))
+                                jarray(Env.jvm().java.lang.String, key_names), separator)
         return KeyTable(self.hc, jkt)
