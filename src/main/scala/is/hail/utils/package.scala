@@ -2,6 +2,7 @@ package is.hail
 
 import java.lang.reflect.Method
 import java.net.URI
+import java.util.zip.Inflater
 
 import is.hail.check.Gen
 import org.apache.hadoop.fs.PathIOException
@@ -454,5 +455,16 @@ package object utils extends Logging
       i += 1
     }
     s
+  }
+
+  def decompress(input: Array[Byte], size: Int): Array[Byte] = {
+    val expansion = Array.ofDim[Byte](size)
+    val inflater = new Inflater
+    inflater.setInput(input)
+    var off = 0
+    while (off < expansion.length) {
+      off += inflater.inflate(expansion, off, expansion.length - off)
+    }
+    expansion
   }
 }
