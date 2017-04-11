@@ -448,7 +448,8 @@ class ContextTests(unittest.TestCase):
         byab = [(r.get('a'), r.get('b')) for r in kt4.order_by('a', 'b').collect()]
         self.assertEqual(byab, [(-1, 'quam'), (5, 'quam'), (5, None), (7, 'baz'), (None, 'foo')])
 
-        bydescab = [(r.get('a'), r.get('b')) for r in kt4.order_by(desc('a'), 'b').collect()]
+        bydescab = [(r.get('a'), r.get('b'))
+                    for r in kt4.order_by(desc('a'), 'b').collect()]
         self.assertEqual(bydescab, [(7, 'baz'), (5, 'quam'), (5, None), (-1, 'quam'), (None, 'foo')])
 
     def test_representation(self):

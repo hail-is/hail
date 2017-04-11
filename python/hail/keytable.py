@@ -4,11 +4,15 @@ from hail.java import *
 from hail.expr import Type, TArray, TStruct
 from pyspark.sql import DataFrame
 
-def asc(f):
-    return scala_package_object(Env.hail().keytable).asc(f)
+def asc(col):
+    """Sort by ``col`` ascending."""
+    
+    return scala_package_object(Env.hail().keytable).asc(col)
 
-def desc(f):
-    return scala_package_object(Env.hail().keytable).desc(f)
+def desc(col):
+    """Sort by ``col`` descending."""
+    
+    return scala_package_object(Env.hail().keytable).desc(col)
 
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
@@ -806,7 +810,16 @@ class KeyTable(object):
 
         return KeyTable(self.hc, self._jkt.persist(storage_level))
 
-    def order_by(self, *args):
-        sort_fields = [asc(f) if isinstance(f, str) else f for f in args]
+    def order_by(self, *cols):
+        """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
+
+        :param cols: Columns to sort by.
+        :type: str or asc(str) or desc(str)
+
+        :return: Key table sorted by ``cols``.
+        :rtype: :class:`.KeyTable`
+        """
+        
+        jsort_columns = [asc(col) if isinstance(col, str) else col for col in cols]
         return KeyTable(self.hc,
-                        self._jkt.orderBy(jarray(Env.hail().keytable.SortField, sort_fields)))
+                        self._jkt.orderBy(jarray(Env.hail().keytable.SortColumn, jsort_columns)))

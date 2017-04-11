@@ -26,11 +26,11 @@ case object Ascending extends SortOrder
 
 case object Descending extends SortOrder
 
-object SortField {
-  implicit def fromField(field: String): SortField = SortField(field, Ascending)
+object SortColumn {
+  implicit def fromField(field: String): SortColumn = SortColumn(field, Ascending)
 }
 
-case class SortField(field: String, sortOrder: SortOrder)
+case class SortColumn(field: String, sortOrder: SortOrder)
 
 object KeyTable {
   final val fileVersion: Int = 1
@@ -629,11 +629,11 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     this
   }
 
-  def orderBy(fields: SortField*): KeyTable =
+  def orderBy(fields: SortColumn*): KeyTable =
     orderBy(fields.toArray)
 
-  def orderBy(fields: Array[SortField]): KeyTable = {
-    val fieldOrds = fields.map { case SortField(n, so) =>
+  def orderBy(fields: Array[SortColumn]): KeyTable = {
+    val fieldOrds = fields.map { case SortColumn(n, so) =>
       val i = signature.fieldIdx(n)
       val f = signature.fields(i)
 
