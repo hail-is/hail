@@ -30,8 +30,7 @@ object Contig {
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
-  // FIXME add "*"
-  val SNP, MNP, Insertion, Deletion, Complex = Value
+  val SNP, MNP, Insertion, Deletion, Complex, Star = Value
 }
 
 object CopyState extends Enumeration {
@@ -70,17 +69,16 @@ case class AltAllele(ref: String,
   import AltAlleleType._
 
   def altAlleleType: AltAlleleType = {
-    if (ref.length == 1 && alt.length == 1)
+    if (isSNP)
       SNP
-    else if (ref.length == alt.length)
-      if (nMismatch == 1)
-        SNP
-      else
-        MNP
-    else if (alt.startsWith(ref))
+    else if (isInsertion)
       Insertion
-    else if (ref.startsWith(alt))
+    else if (isDeletion)
       Deletion
+    else if (isStar)
+      Star
+    else if (ref.length == alt.length)
+      MNP
     else
       Complex
   }
@@ -94,7 +92,7 @@ case class AltAllele(ref: String,
     ref.length == alt.length &&
     nMismatch > 1
 
-  def isInsertion: Boolean = ref.length < alt.length && alt.startsWith(ref)
+  def isInsertion: Boolean = ref.length < alt.length && ref(0) == alt(0) && alt.endsWith(ref.substring(1))
 
   def isDeletion: Boolean = alt.length < ref.length && ref.startsWith(alt)
 
@@ -358,12 +356,13 @@ case class Variant(contig: String,
     0
   }
 
-  def minRep : Variant = {
-    val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
-
-    if(alts.isEmpty)
+  def minRep: Variant = {
+    if (ref.length == 1)
       this
+    else if (altAlleles.forall(a => a.isStar))
+      Variant(contig, start, ref.substring(0, 1), altAlleles.map(_.alt).toArray)
     else {
+      val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
       require(alts.forall(ref != _))
 
       val min_length = math.min(ref.length, alts.map(x => x.length).min)
