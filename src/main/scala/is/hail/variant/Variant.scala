@@ -94,7 +94,7 @@ case class AltAllele(ref: String,
     ref.length == alt.length &&
     nMismatch > 1
 
-  def isInsertion: Boolean = ref.length < alt.length && alt.startsWith(ref)
+  def isInsertion: Boolean = ref.length < alt.length && ref(0) == alt(0) && alt.endsWith(ref.substring(1))
 
   def isDeletion: Boolean = alt.length < ref.length && ref.startsWith(alt)
 
@@ -358,12 +358,13 @@ case class Variant(contig: String,
     0
   }
 
-  def minRep : Variant = {
-    val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
-
-    if(alts.isEmpty)
+  def minRep: Variant = {
+    if (ref.length == 1)
       this
+    else if (altAlleles.forall(a => a.isStar))
+      Variant(contig, start, ref.substring(0, 1), altAlleles.map(_.alt).toArray)
     else {
+      val alts = altAlleles.filter(!_.isStar).map(a => a.alt)
       require(alts.forall(ref != _))
 
       val min_length = math.min(ref.length, alts.map(x => x.length).min)
