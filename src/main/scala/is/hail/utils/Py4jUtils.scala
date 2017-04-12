@@ -25,7 +25,8 @@ trait Py4jUtils {
   def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]]): IntervalTree[Locus] =
     IntervalTree(intervals.asScala.toArray, prune = true)
 
-  def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toArray: IndexedSeq[T]
+  // FIXME don't use vector
+  def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toIndexedSeq
 
   def arrayListToSet[T](al: java.util.ArrayList[T]): Set[T] = al.asScala.toSet
 

@@ -149,7 +149,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           a.asInstanceOf[Map[_, _]]
             .map { case (k, v) =>
               Row.fromSeq(Seq(exportAnnotation(k, keyType), exportAnnotation(v, valueType)))
-            }.toArray: IndexedSeq[_]
+            }.toArray
         case TGenotype =>
           val g = a.asInstanceOf[Genotype]
           Row(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.px.map(_.toSeq).orNull, g.fakeRef, g.isDosage)

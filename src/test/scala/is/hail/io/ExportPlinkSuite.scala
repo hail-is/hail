@@ -72,7 +72,7 @@ class ExportPlinkSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/mendel.vcf")
       .splitMulti()
       .hardCalls()
-      .annotateSamplesKeyTable(KeyTable.importFam(hc, "src/test/resources/mendel.fam", delimiter = "\\\\s+"), code = "sa.fam = table")
+      .annotateSamplesTable(KeyTable.importFam(hc, "src/test/resources/mendel.fam", delimiter = "\\\\s+"), root = Some("sa.fam = table"))
       .annotateSamplesExpr("sa = sa.fam")
       .annotateVariantsExpr("va = {rsid: str(v)}")
 

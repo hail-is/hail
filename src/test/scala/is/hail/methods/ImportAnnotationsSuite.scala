@@ -69,8 +69,8 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     var vds = hc.importVCF("src/test/resources/importFam.vcf")
 
-    vds = vds.annotateSamplesKeyTable(
-      KeyTable.importFam(hc, "src/test/resources/importFamCaseControl.fam"), code = "sa.fam=table")
+    vds = vds.annotateSamplesTable(
+      KeyTable.importFam(hc, "src/test/resources/importFamCaseControl.fam"), root = Some("sa.fam"))
     val m = qMap("sa.fam", vds)
 
     assert(m("A").contains(Annotation("Newton", "C", "D", false, false)))
@@ -84,8 +84,8 @@ class ImportAnnotationsSuite extends SparkSuite {
       KeyTable.importFam(hc, "src/test/resources/importFamCaseControlNumericException.fam")
     }
 
-    vds = vds.annotateSamplesKeyTable(
-      KeyTable.importFam(hc, "src/test/resources/importFamQPheno.fam", isQuantitative = true), code = "sa.fam=table")
+    vds = vds.annotateSamplesTable(
+      KeyTable.importFam(hc, "src/test/resources/importFamQPheno.fam", isQuantitative = true), root = Some("sa.fam"))
     val m1 = qMap("sa.fam", vds)
 
     assert(m1("A").contains(Annotation("Newton", "C", "D", false, 1.0)))
@@ -96,9 +96,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(m1("F").isEmpty)
 
 
-    vds = vds.annotateSamplesKeyTable(
+    vds = vds.annotateSamplesTable(
       KeyTable.importFam(hc, "src/test/resources/importFamQPheno.space.m9.fam", isQuantitative = true,
-        delimiter = "\\\\s+", missingValue = "-9"), code = "sa.ped = table")
+        delimiter = "\\\\s+", missingValue = "-9"), root = Some("sa.ped"))
 
     val m2 = qMap("sa.ped", vds)
 
