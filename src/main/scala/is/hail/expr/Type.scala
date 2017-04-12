@@ -29,13 +29,13 @@ object Type {
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
         Gen.zip(genArb.resize(size - 1), genArb.resize(size - 1)).map { case (k, v) => TDict(k, v) },
-        genStructSized(size))
+        genStruct.resize(size))
   }
 
-  def genStructSized(size: Int): Gen[TStruct] =
+  def genStruct: Gen[TStruct] =
     Gen.buildableOf[Array, (String, Type, Map[String, String])](
       Gen.zip(Gen.identifier,
-        genArb.resize(size - 1),
+        genArb,
         Gen.option(
           Gen.buildableOf2[Map, String, String](
             Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])))
@@ -46,8 +46,6 @@ object Type {
         .zipWithIndex
         .map { case ((k, t, m), i) => Field(k, t, i, m) }
         .toIndexedSeq))
-
-  def genStruct: Gen[TStruct] = Gen.sized(genStructSized)
 
   def genArb: Gen[Type] = Gen.sized(genSized)
 
