@@ -1,5 +1,7 @@
 package is.hail.methods
 
+
+import scala.io.Source
 import is.hail.SparkSuite
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -9,6 +11,14 @@ import org.testng.annotations.Test
   * Tests for KinshipMatrix.
   */
 class KinshipMatrixSuite extends SparkSuite {
+
+  val data = Seq(
+    IndexedRow(0L, Vectors.dense(1, 2, 3, 4)),
+    IndexedRow(1L, Vectors.dense(5, 6, 7, 8)),
+    IndexedRow(2L, Vectors.dense(9, 10, 11, 12)),
+    IndexedRow(3L, Vectors.dense(13, 14, 15, 16))
+  )
+
 
   @Test def testFilterSamplesDimensions() {
     val km = hc.baldingNicholsModel(1, 15, 15).rrm()
@@ -21,12 +31,7 @@ class KinshipMatrixSuite extends SparkSuite {
   }
 
   @Test def testFilterSamplesValues() {
-    val irdd = sc.parallelize(Seq(
-      IndexedRow(0L, Vectors.dense(1, 2, 3, 4)),
-      IndexedRow(1L, Vectors.dense(5, 6, 7, 8)),
-      IndexedRow(2L, Vectors.dense(9, 10, 11, 12)),
-      IndexedRow(3L, Vectors.dense(13, 14, 15, 16))
-    ))
+    val irdd = sc.parallelize(data)
     val irm = new IndexedRowMatrix(irdd)
     val samples = (0 to 3).map(i => s"S$i")
     val km = new KinshipMatrix(hc, irm, samples.toArray)
@@ -36,5 +41,21 @@ class KinshipMatrixSuite extends SparkSuite {
 
     val kmTwoByTwo = km.filterSamples(Set("S1", "S3").contains)
     assert(kmTwoByTwo.matrix.toBlockMatrix().toLocalMatrix().toArray.toSeq == Seq(6.0, 14.0, 8.0, 16.0))
+  }
+
+  @Test def exportTSV() {
+    val irdd = sc.parallelize(data)
+    val irm = new IndexedRowMatrix(irdd)
+    val samples = (0 to 3).map(i => s"S$i")
+    val km = new KinshipMatrix(hc, irm, samples.toArray)
+
+    km.exportTSV(tmpDir.createTempFile("kinshipMatrixExportTSVTest", ".tsv"))
+
+    val bufferedSource = Source.fromFile(tmpDir + "/kinshipMatrixExportTSVTest.tsv")
+
+    val readInValues = bufferedSource.getLines().drop(1).flatMap(s => s.split("\t")).map(_.toDouble).toArray
+
+    assert(km.matrix.toBlockMatrix().toLocalMatrix().toArray == readInValues)
+
   }
 }
