@@ -58,7 +58,7 @@ class AltAlleleSuite extends TestNGSuite {
     assert(!snp1.isIndel && !snp2.isIndel &&
       !mnp1.isIndel && !mnp2.isIndel &&
       !complex1.isIndel && !complex2.isIndel &&
-    !star.isIndel)
+      !star.isIndel)
 
     assert(complex1.isComplex && complex2.isComplex)
     assert(!snp1.isComplex && !snp2.isComplex &&

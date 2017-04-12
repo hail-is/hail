@@ -69,15 +69,15 @@ case class AltAllele(ref: String,
   import AltAlleleType._
 
   def altAlleleType: AltAlleleType = {
-    if(isSNP)
+    if (isSNP)
       SNP
-    else if(isInsertion)
+    else if (isInsertion)
       Insertion
-    else if(isDeletion)
+    else if (isDeletion)
       Deletion
-    else if(isStar)
+    else if (isStar)
       Star
-    else if(ref.length == alt.length)
+    else if (ref.length == alt.length)
       MNP
     else
       Complex
