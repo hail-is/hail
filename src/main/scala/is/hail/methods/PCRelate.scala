@@ -194,15 +194,18 @@ object PCRelate {
 
       def vectorAddToEveryColumn(v: Array[Double])(m: M): M = {
         require(v.length == m.numRows())
-        mapWithRowIndex((x,i) => x + v(i))(m)
+        val vbc = m.blocks.sparkContext.broadcast(v)
+        mapWithRowIndex((x,i) => x + vbc.value(i))(m)
       }
       def vectorPointwiseMultiplyEveryColumn(v: Array[Double])(m: M): M = {
         require(v.length == m.numRows())
-        mapWithRowIndex((x,i) => x * v(i))(m)
+        val vbc = m.blocks.sparkContext.broadcast(v)
+        mapWithRowIndex((x,i) => x * vbc.value(i))(m)
       }
       def vectorPointwiseMultiplyEveryRow(v: Array[Double])(m: M): M = {
         require(v.length == m.numCols())
-        mapWithColIndex((x,i) => x * v(i))(m)
+        val vbc = m.blocks.sparkContext.broadcast(v)
+        mapWithColIndex((x,i) => x * vbc.value(i))(m)
       }
 
       def mapRows[U](m: M, f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U] =
@@ -217,7 +220,7 @@ object PCRelate {
 
   def apply[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
     println(s"Starting pc relate ${System.nanoTime()}")
-    val g = vdsToMeanImputedMatrix(vds)
+    val g = vdsToMeanImputedMatrix(vds).cache()
 
     println(s"mean imputed ${System.nanoTime()}")
     val pcsbc = vds.sparkContext.broadcast(pcs)
@@ -256,7 +259,7 @@ object PCRelate {
       ols.newSampleData(row, aa)
       val allBetas = ols.estimateRegressionParameters()
       (allBetas(0), allBetas.slice(1, allBetas.length))
-    }
+    }.cache()
     val vecRdd = rdd.map(_._1)
     val matRdd = rdd.map(_._2)
     (vecRdd.collect(), DistributedMatrix[M].from(matRdd))
