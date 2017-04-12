@@ -45,7 +45,7 @@ object PlinkLoader {
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def parseFam(filename: String, ffConfig: FamFileConfig,
-    hConf: hadoop.conf.Configuration): (IndexedSeq[(String, Annotation)], Type) = {
+    hConf: hadoop.conf.Configuration): (IndexedSeq[(String, Annotation)], TStruct) = {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 

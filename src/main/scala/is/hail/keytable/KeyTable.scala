@@ -10,6 +10,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRow
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.io.exportTypes
+import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
 import org.apache.spark.SparkContext
@@ -100,6 +101,23 @@ object KeyTable {
       }
 
     KeyTable(hc, rdd, signature, keyNames)
+  }
+
+  def importFam(hc: HailContext, path: String, isQuantitative: Boolean = false,
+    delimiter: String = "\\t",
+    missingValue: String = "NA"): KeyTable = {
+
+    val ffConfig = FamFileConfig(isQuantitative, delimiter, missingValue)
+
+    val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
+
+    val rows = data.map { case (id, values) => Row.fromSeq(id :+ values.asInstanceOf[Row].toSeq)}.toArray
+    val rdd = hc.sc.parallelize(rows)
+
+    val newFields = List("ID" -> TString) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
+    val struct = TStruct(newFields: _*)
+
+    KeyTable(hc, rdd, struct, Array("ID"))
   }
 }
 

@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.check.Prop
 import is.hail.expr.{TDouble, TInt, TString, TStruct}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
+import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
@@ -68,7 +69,8 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     var vds = hc.importVCF("src/test/resources/importFam.vcf")
 
-    vds = vds.annotateSamplesFam("src/test/resources/importFamCaseControl.fam")
+    vds = vds.annotateSamplesKeyTable(
+      KeyTable.importFam(hc, "src/test/resources/importFamCaseControl.fam"), code = "sa.fam=table")
     val m = qMap("sa.fam", vds)
 
     assert(m("A").contains(Annotation("Newton", "C", "D", false, false)))
@@ -79,10 +81,11 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(m("F").isEmpty)
 
     interceptFatal("non-numeric") {
-      vds.annotateSamplesFam("src/test/resources/importFamCaseControlNumericException.fam")
+      KeyTable.importFam(hc, "src/test/resources/importFamCaseControlNumericException.fam")
     }
 
-    vds = vds.annotateSamplesFam("src/test/resources/importFamQPheno.fam", config = FamFileConfig(isQuantitative = true))
+    vds = vds.annotateSamplesKeyTable(
+      KeyTable.importFam(hc, "src/test/resources/importFamQPheno.fam", isQuantitative = true), code = "sa.fam=table")
     val m1 = qMap("sa.fam", vds)
 
     assert(m1("A").contains(Annotation("Newton", "C", "D", false, 1.0)))
@@ -93,8 +96,9 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(m1("F").isEmpty)
 
 
-    vds = vds.annotateSamplesFam("src/test/resources/importFamQPheno.space.m9.fam", "sa.ped",
-      config = FamFileConfig(isQuantitative = true, delimiter = "\\\\s+", missingValue = "-9"))
+    vds = vds.annotateSamplesKeyTable(
+      KeyTable.importFam(hc, "src/test/resources/importFamQPheno.space.m9.fam", isQuantitative = true,
+        delimiter = "\\\\s+", missingValue = "-9"), code = "sa.ped = table")
 
     val m2 = qMap("sa.ped", vds)
 

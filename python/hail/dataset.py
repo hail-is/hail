@@ -632,58 +632,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_samples_fam(self, input, quantpheno=False, delimiter='\\\\s+', root='sa.fam', missing='NA'):
-        """Import PLINK .fam file into sample annotations.
-
-        **Examples**
-
-        Import case-control phenotype data from a tab-separated `PLINK .fam
-        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
-        annotations:
-
-        >>> vds_result = vds.annotate_samples_fam("data/myStudy.fam")
-
-        In Hail, unlike PLINK, the user must *explicitly* distinguish between
-        case-control and quantitative phenotypes. Importing a quantitative
-        phenotype without ``quantpheno=True`` will return an error
-        (unless all values happen to be ``0``, ``1``, ``2``, and ``-9``):
-
-        >>> vds_result = vds.annotate_samples_fam("data/myStudy.fam", quantpheno=True)
-
-        **Annotations**
-
-        The annotation names, types, and missing values are shown below,
-        assuming the default root ``sa.fam``.
-
-        - **sa.fam.famID** (*String*) -- Family ID (missing = "0")
-        - **s** (*String*) -- Sample ID
-        - **sa.fam.patID** (*String*) -- Paternal ID (missing = "0")
-        - **sa.fam.matID** (*String*) -- Maternal ID (missing = "0")
-        - **sa.fam.isFemale** (*Boolean*) -- Sex (missing = "NA", "-9", "0")
-        - **sa.fam.isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9", non-numeric or the ``missing`` argument, if given.
-        - **sa.fam.qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the ``missing`` argument, if given.
-
-        :param str input: Path to .fam file.
-
-        :param str root: Sample annotation path to store .fam file.
-
-        :param bool quantpheno: If True, .fam phenotype is interpreted as quantitative.
-
-        :param str delimiter: .fam file field delimiter regex.
-
-        :param str missing: The string used to denote missing values.
-            For case-control, 0, -9, and non-numeric are also treated
-            as missing.
-
-        :return: Annotated variant dataset with sample annotations from fam file.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        ffc = Env.hail().io.plink.FamFileConfig(quantpheno, delimiter, missing)
-        jvds = self._jvds.annotateSamplesFam(input, root, ffc)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
     def annotate_samples_list(self, input, root):
         """Annotate samples with a Boolean indicating presence in a list of samples in a text file.
 
@@ -2545,7 +2493,9 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
+                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
+                                           min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3479,7 +3429,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def rrm(self, force_block = False, force_gramian = False):
+    def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
         **Examples**

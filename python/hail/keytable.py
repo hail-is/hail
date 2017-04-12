@@ -649,7 +649,6 @@ class KeyTable(object):
         :rtype: (annotation or list of annotation,  :class:`.Type` or list of :class:`.Type`)
         """
 
-
         if isinstance(exprs, list):
             result_list = self._jkt.query(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
@@ -660,7 +659,6 @@ class KeyTable(object):
             result = self._jkt.query(exprs)
             t = Type._from_java(result._2())
             return t._convert_to_py(result._1()), t
-
 
     @handle_py4j
     def query(self, exprs):
@@ -817,7 +815,7 @@ class KeyTable(object):
 
         The column, types, and missing values are shown below.
 
-            - **s** (*String*) -- Sample ID (key column)
+            - **ID** (*String*) -- Sample ID (key column)
             - **famID** (*String*) -- Family ID (missing = "0")
             - **patID** (*String*) -- Paternal ID (missing = "0")
             - **matID** (*String*) -- Maternal ID (missing = "0")
@@ -830,9 +828,7 @@ class KeyTable(object):
 
         :param str input: Path to .fam file.
 
-        :param str root: Sample annotation path to store .fam file.
-
-        :param bool quantpheno: If True, .fam phenotype is interpreted as quantitative.
+        :param bool quantitative: If True, .fam phenotype is interpreted as quantitative.
 
         :param str delimiter: .fam file field delimiter regex.
 
@@ -840,6 +836,10 @@ class KeyTable(object):
             For case-control, 0, -9, and non-numeric are also treated
             as missing.
 
-        :return: Annotated variant dataset with sample annotations from fam file.
-        :rtype: :class:`.VariantDataset`
+        :return: Key table with information from .fam file.
+        :rtype: :class:`.KeyTable`
         """
+
+        hc = Env.hc()
+        jkt = scala_object(Env.hail().keytable, 'KeyTable').importFam(hc._jhc, input, quantitative, delimiter, missing)
+        return KeyTable(hc, jkt)
