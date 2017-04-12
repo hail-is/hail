@@ -126,7 +126,7 @@ object LinearMixedRegression {
     }
 
     if (runAssoc) {
-      info(s"lmmreg: Computing LMM statistics for each variant...")
+      info(s"lmmreg: Computing statistics for each variant...")
 
       val T = Ut(::, *) :* diagLMM.sqrtInvD
       val Qt = qr.reduced.justQ(diagLMM.TC).t
