@@ -25,9 +25,10 @@ class KinshipMatrix:
         """
         return IndexedRowMatrix(self._jkm.matrix())
 
-    def export_tsv(self, file_path):
+    def export_tsv(self, output):
         """
-        Writes the KinshipMatrix out to a tsv file with the sample list as a header. 
+        Export kinship matrix to tab-delimited text file with sample list as header.
         
+        :param string output: The file path to output the matrix to. 
         """
-        self._jkm.exportTSV(file_path)
+        self._jkm.exportTSV(output)

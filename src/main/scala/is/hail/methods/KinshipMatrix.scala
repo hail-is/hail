@@ -40,11 +40,11 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
   /**
     * Writes out the matrix as a TSV file, with the sample names as a header on the first line.
     *
-    * @param filePath The path to the output file.
+    * @param output The path to the output file.
     */
-  def exportTSV(filePath: String) {
-    require(filePath.endsWith(".tsv"), "KinshipMatrix write paths must end in '.tsv'")
+  def exportTSV(output: String) {
+    require(output.endsWith(".tsv"), "Kinship matrix output must end in '.tsv'")
     matrix.rows.sortBy(ir => ir.index).map(ir => ir.vector.toArray.mkString("\t"))
-      .writeTable(filePath, hc.tmpDir, Some(sampleIds.mkString("\t")))
+      .writeTable(output, hc.tmpDir, Some(sampleIds.mkString("\t")))
   }
 }
