@@ -34,7 +34,7 @@ object LinearRegression {
     if (d < 1)
       fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"Running linear regression on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
