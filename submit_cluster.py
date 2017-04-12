@@ -6,6 +6,7 @@ from subprocess import call, Popen, PIPE
 parser = argparse.ArgumentParser()
 parser.add_argument('--name', '-n', required=True, type=str)
 parser.add_argument('--hash', required=False, type=str)
+parser.add_argument('--properties', '-p', required=False, type=str)
 parser.add_argument('script', type=str)
 args = parser.parse_args()
 
@@ -19,8 +20,13 @@ else:
 hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hail_hash)
 hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hail_hash)
 
+# create properties argument
+properties = 'spark.driver.extraClassPath=./{0},spark.executor.extraClassPath=./{0}'.format(hail_jar)
+if args.properties:
+    properties = properties + ',' + args.properties
+
 # pyspark submit command
-cmd = [
+cmd = ' '.join([
     'gcloud',
     'dataproc',
     'jobs',
@@ -30,6 +36,6 @@ cmd = [
     '--cluster={}'.format(args.name),
     '--files={}'.format('gs://hail-common/' + hail_jar),
     '--py-files={}'.format('gs://hail-common/' + hail_zip),
-    '--properties="spark.driver.extraClassPath=./{0},spark.executor.extraClassPath=./{0}"'.format(hail_jar)
-]
-call(cmd)
+    '--properties={}'.format(properties)
+])
+call(cmd, shell=True)

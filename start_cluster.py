@@ -30,8 +30,8 @@ parser.add_argument('--notebook', '-nb', action='store_true')
 parser.add_argument('--vep', action='store_true')
 
 # default Spark configuration properties
-parser.add_argument('--spark-driver-memory', default='85g', type=str, help='Memory to allocate to Spark driver on master machine.')
-parser.add_argument('--spark-driver-max-result-size', default='50g', type=str, help='Spark driver maxResultSize.')
+#parser.add_argument('--spark-driver-memory', default='85g', type=str, help='Memory to allocate to Spark driver on master machine.')
+#parser.add_argument('--spark-driver-max-result-size', default='50g', type=str, help='Spark driver maxResultSize.')
 parser.add_argument('--spark-task-max-failures', default='20', type=str, help='Maximum task failures allowed before job failure.')
 parser.add_argument('--spark-kryo-buffer-max', default='1g', type=str, help='Kryoserializer buffer max.')
 
@@ -41,10 +41,33 @@ parser.add_argument('--hdfs-dfs-replication', default='1', type=str, help='HDFS 
 # parse arguments
 args = parser.parse_args()
 
+# master machine type to memory map, to set spark.driver.memory property
+machine_mem = {
+    'n1-standard-1': 3.75,
+    'n1-standard-2': 7.5,
+    'n1-standard-4': 15,
+    'n1-standard-8': 30,
+    'n1-standard-16': 60,
+    'n1-standard-32': 120,
+    'n1-standard-64': 240,
+    'n1-highmem-2': 13,
+    'n1-highmem-4': 26,
+    'n1-highmem-8': 52,
+    'n1-highmem-16': 104,
+    'n1-highmem-32': 208,
+    'n1-highmem-64': 416,
+    'n1-highcpu-2': 1.8,
+    'n1-highcpu-4': 3.6,
+    'n1-highcpu-8': 7.2,
+    'n1-highcpu-16': 14.4,
+    'n1-highcpu-32': 28.8,
+    'n1-highcpu-64': 57.6
+}
+
 # parse Spark and HDFS configuration parameters, combine into properties argument
 spark_properties = [
-    'spark:spark.driver.memory={}'.format(args.spark_driver_memory),
-    'spark:spark.driver.maxresultSize={}'.format(args.spark_driver_max_result_size),
+    'spark:spark.driver.memory={}g'.format(str(int(machine_mem[args.master_machine_type] * 0.8))),
+    'spark:spark.driver.maxresultSize=0',
     'spark:spark.task.maxFailures={}'.format(args.spark_task_max_failures),
     'spark:spark.kryoserializer.buffer.max={}'.format(args.spark_kryo_buffer_max),
     'spark:spark.driver.extraJavaOptions=-Xss4M',
