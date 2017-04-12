@@ -258,6 +258,7 @@ class ContextTests(unittest.TestCase):
             variants_py = (dataset
                            .annotate_variants_expr('va.hets = gs.filter(g => {0}.isHet()).collect()'.format(gt))
                            .variants_keytable()
+                           .filter('pcoin(0.1)')
                            .collect())
 
             if dataset._is_generic_genotype:
