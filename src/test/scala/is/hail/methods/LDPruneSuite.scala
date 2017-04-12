@@ -203,7 +203,7 @@ class LDPruneSuite extends SparkSuite {
             val r2Breeze = rBreeze * rBreeze
             val r2BitPacked = LDPrune.computeR2(a, b)
 
-            val isSame = D_==(r2BitPacked, r2Breeze) && r2BitPacked >= 0d && r2BitPacked <= 1.000001
+            val isSame = D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
             if (!isSame)
               println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples v1=${ v1.mkString(",") } v2=${ v2.mkString(",") }")
             isSame

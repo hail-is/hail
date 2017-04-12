@@ -190,7 +190,7 @@ object LDPrune {
 
     val r = stdDevRecX * stdDevRecY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
     val r2 = r * r
-    assert(r2 >= 0d && r2 <= 1.0000001, s"R2 must be between [0,1]. Found $r2.")
+    assert(D_>=(r2, 0d) && D_<=(r2, 1d), s"R2 must be between [0,1]. Found $r2.")
     r2
   }
 
@@ -209,7 +209,7 @@ object LDPrune {
 
         while (!done && qit.hasNext) {
           val (v2, bpv2) = qit.next()
-          if (v.contig != v2.contig || (v.start - v2.start) > windowSize)
+          if (v.contig != v2.contig || math.abs(v.start - v2.start) > windowSize)
             done = true
           else {
             val r2 = computeR2(bpv, bpv2)
@@ -269,7 +269,7 @@ object LDPrune {
         prevPartitions.foreach { it =>
           it.foreach { case (v2, bpv2) =>
             targetData = targetData.filter { case (v, bpv) =>
-              if (v.contig != v2.contig || (v.start - v2.start) > windowSize)
+              if (v.contig != v2.contig || math.abs(v.start - v2.start) > windowSize)
                 true
               else {
                 computeR2(bpv, bpv2) < r2Threshold
@@ -379,7 +379,7 @@ object LDPrune {
       standardizedRDD.unpersist()
       (prunedRDD, nVariantsKept, nPartitions)
     })
-    info(s"LD Prune step 1/3: nVariantsKept=$nVariantsLP1, nPartitions=$nPartitionsLP1, time=${ formatTime(durationLP1) }")
+    info(s"LD prune step 1 of 3: nVariantsKept=$nVariantsLP1, nPartitions=$nPartitionsLP1, time=${ formatTime(durationLP1) }")
 
     val ((rddLP2, nVariantsLP2, nPartitionsLP2), durationLP2) = time({
       val (_, nPartitionsRequired) = estimateMemoryRequirements(nVariantsLP1, nSamples, nCores, memoryPerCore)
@@ -394,11 +394,11 @@ object LDPrune {
       repartRDD.unpersist()
       (prunedRDD, nVariantsKept, nPartitions)
     })
-    info(s"LD Prune step 2/3: nVariantsKept=$nVariantsLP2, nPartitions=$nPartitionsLP2, time=${ formatTime(durationLP2) }")
+    info(s"LD prune step 2 of 3: nVariantsKept=$nVariantsLP2, nPartitions=$nPartitionsLP2, time=${ formatTime(durationLP2) }")
 
 
     val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(rddLP2, r2Threshold, windowSize))
-    info(s"LD Prune step 3/3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
+    info(s"LD prune step 3 of 3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
 
     vds.copy(rdd = vds.rdd.orderedInnerJoinDistinct(globalPrunedRDD)
       .mapValues { case ((va, gs), _) => (va, gs) }

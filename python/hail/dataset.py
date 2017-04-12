@@ -2444,7 +2444,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        Variants are pruned in each contig from smallest start position to largest. The LD pruning algorithm is as follows:
+        Variants are pruned in each contig from smallest to largest start position. The LD pruning algorithm is as follows:
 
         .. code-block:: python
 
@@ -2458,13 +2458,13 @@ class VariantDataset(object):
                     pruned_set.append(v1)
 
         The parameter ``window`` defines the maximum distance in base pairs between two variants to check whether
-        the variants are independent (:math:`R^2` < ``r2``) where ``r2`` is the maximum correlation allowed.
-        The correlation :math:`R^2` is computed by squaring the `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`_
+        the variants are independent (:math:`R^2` < ``r2``) where ``r2`` is the maximum :math:`R^2` allowed.
+        :math:`R^2` is defined as the square of the `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`_
         :math:`{\\rho}_{x,y}` between the two genotype vectors :math:`{\\mathbf{x}}` and :math:`{\\mathbf{y}}`.
 
         .. math::
 
-            {\\rho}_{x,y} = \\frac{E[XY] - E[X]E[Y]}{\\sqrt{E[{X}^2] - {[E[X]]}^2}\\sqrt{E[{X}^2] - {[E[X]]}^2}}
+            {\\rho}_{x,y} = \\frac{\\mathrm{Cov}(X,Y)}{\\sigma_X \\sigma_Y}
 
 
         :py:meth:`.ld_prune` with default arguments is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``.
