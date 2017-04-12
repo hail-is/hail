@@ -30,8 +30,7 @@ object Contig {
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
-  // FIXME add "*"
-  val SNP, MNP, Insertion, Deletion, Complex = Value
+  val SNP, MNP, Insertion, Deletion, Complex, Star = Value
 }
 
 object CopyState extends Enumeration {
@@ -70,17 +69,16 @@ case class AltAllele(ref: String,
   import AltAlleleType._
 
   def altAlleleType: AltAlleleType = {
-    if (ref.length == 1 && alt.length == 1)
+    if(isSNP)
       SNP
-    else if (ref.length == alt.length)
-      if (nMismatch == 1)
-        SNP
-      else
-        MNP
-    else if (alt.startsWith(ref))
+    else if(isInsertion)
       Insertion
-    else if (ref.startsWith(alt))
+    else if(isDeletion)
       Deletion
+    else if(isStar)
+      Star
+    else if(ref.length == alt.length)
+      MNP
     else
       Complex
   }
