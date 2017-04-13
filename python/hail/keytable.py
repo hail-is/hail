@@ -580,16 +580,39 @@ class KeyTable(object):
 
     @handle_py4j
     def export_mongodb(self, mode='append'):
-        """Export to MongoDB"""
+        """Export to MongoDB
+
+        .. warning::
+
+          :py:meth:`~.export_mongodb` is EXPERIMENTAL.
+
+        """
+        
         (scala_package_object(self.hc._hail.driver)
          .exportMongoDB(self.hc._jsql_context, self._jkt, mode))
 
     @handle_py4j
     def export_solr(self, zk_host, collection, block_size=100):
+        """Export to Solr.
+        
+        .. warning::
+
+          :py:meth:`~.export_solr` is EXPERIMENTAL.
+
+        """
+
         self._jkt.exportSolr(zk_host, collection, block_size)
 
     @handle_py4j
     def export_cassandra(self, address, keyspace, table, block_size=100, rate=1000):
+        """Export to Cassandra.
+
+        .. warning::
+
+          :py:meth:`~.export_cassandra` is EXPERIMENTAL.
+
+        """
+        
         self._jkt.exportCassandra(address, keyspace, table, block_size, rate)
 
     @handle_py4j

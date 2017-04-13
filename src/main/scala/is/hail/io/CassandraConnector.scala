@@ -214,7 +214,7 @@ object CassandraConnector {
     }
   }
 
-  def pause(nano: Long): Unit = {
+  def pause(nano: Long) {
     if (nano > 0) {
       Thread.sleep((nano / 1000000).toInt, (nano % 1000000).toInt)
     }
