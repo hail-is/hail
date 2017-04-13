@@ -807,25 +807,27 @@ class ContextTests(unittest.TestCase):
         with hdfs_write('/tmp/test_out.txt') as f:
             for d in data:
                 f.write(d)
+                f.write('\n')
 
         with hdfs_read('/tmp/test_out.txt') as f:
-            data2 = [line for line in f]
+            data2 = [line.strip() for line in f]
 
         self.assertEqual(data, data2)
 
         with hdfs_write('/tmp/test_out.txt.gz') as f:
             for d in data:
                 f.write(d)
+                f.write('\n')
 
         with hdfs_read('/tmp/test_out.txt.gz') as f:
-            data3 = [line for line in f]
+            data3 = [line.strip() for line in f]
 
         self.assertEqual(data, data3)
 
         hdfs_copy('/tmp/test_out.txt.gz', '/tmp/test_out.copy.txt.gz')
 
         with hdfs_read('/tmp/test_out.copy.txt.gz') as f:
-            data4 = [line for line in f]
+            data4 = [line.strip() for line in f]
 
         self.assertEqual(data, data4)
 
@@ -835,7 +837,7 @@ class ContextTests(unittest.TestCase):
                 f.write('\n')
 
         with hdfs_read('/tmp/numbers.txt', buffer_size=75) as f:
-            numbers = [int(x) for x in f]
+            numbers = [int(x.strip()) for x in f]
 
         self.assertEqual(numbers, list(range(1000)))
 
