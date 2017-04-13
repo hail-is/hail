@@ -3587,7 +3587,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def sample_qc(self, root='sa.qc'):
+    def sample_qc(self, root='sa.qc', keep_star = False):
         """Compute per-sample QC metrics.
 
         .. include:: requireTGenotype.rst
@@ -3645,6 +3645,7 @@ class VariantDataset(object):
         Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
 
         :param str root: Sample annotation root for the computed struct.
+        :param bool keep_star: Count star alleles as non-reference alleles
         
         :return: Annotated variant dataset with new sample qc annotations.
         :rtype: :class:`.VariantDataset`
@@ -3652,7 +3653,7 @@ class VariantDataset(object):
         if not isinstance(root, str) and not isinstance(root, unicode):
             raise TypeError("Parameter 'root' must be type str, but found %s" % type(root))
 
-        return VariantDataset(self.hc, self._jvdf.sampleQC(root))
+        return VariantDataset(self.hc, self._jvdf.sampleQC(root, keep_star))
 
     @handle_py4j
     def storage_level(self):

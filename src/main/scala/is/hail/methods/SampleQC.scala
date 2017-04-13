@@ -50,7 +50,7 @@ object SampleQCCombiner {
     "rInsertionDeletion" -> TDouble)
 }
 
-class SampleQCCombiner extends Serializable {
+class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
   var nNotCalled: Int = 0
   var nHomRef: Int = 0
   var nHet: Int = 0
@@ -77,33 +77,34 @@ class SampleQCCombiner extends Serializable {
         nHomRef += 1
 
       case Some(gt) =>
-        val nonRefAlleleIndices = Genotype.gtPair(gt).alleleIndices.filter(_ > 0)
+        val nonRefAlleleIndices = Genotype.gtPair(gt).alleleIndices.filter(i => i > 0 && (keepStar || !v.altAlleles(i - 1).isStar))
 
-        nonRefAlleleIndices.foreach({
-          ai =>
-            val altAllele = v.altAlleles(ai - 1)
-            if (altAllele.isSNP) {
-              nSNP += 1
-              if (altAllele.isTransition)
-                nTi += 1
-              else {
-                assert(altAllele.isTransversion)
-                nTv += 1
-              }
-            } else if (altAllele.isInsertion)
-              nIns += 1
-            else if (altAllele.isDeletion)
-              nDel += 1
+        if (!nonRefAlleleIndices.isEmpty) {
+          nonRefAlleleIndices.foreach({
+            ai =>
+              val altAllele = v.altAlleles(ai - 1)
+              if (altAllele.isSNP) {
+                nSNP += 1
+                if (altAllele.isTransition)
+                  nTi += 1
+                else {
+                  assert(altAllele.isTransversion)
+                  nTv += 1
+                }
+              } else if (altAllele.isInsertion)
+                nIns += 1
+              else if (altAllele.isDeletion)
+                nDel += 1
 
-            if (ACs(ai - 1) == 1)
-              nSingleton += 1
-        })
+              if (ACs(ai - 1) == 1)
+                nSingleton += 1
+          })
 
-        if (nonRefAlleleIndices.length == 1 || nonRefAlleleIndices(0) != nonRefAlleleIndices(1))
-          nHet += 1
-        else
-          nHomVar += 1
-
+          if (nonRefAlleleIndices.length == 1 || nonRefAlleleIndices(0) != nonRefAlleleIndices(1))
+            nHet += 1
+          else
+            nHomVar += 1
+        }
       case None =>
         nNotCalled += 1
 
@@ -226,13 +227,13 @@ class SampleQCCombiner extends Serializable {
 }
 
 object SampleQC {
-  def results(vds: VariantDataset): Map[String, SampleQCCombiner] = {
+  def results(vds: VariantDataset, keepStar: Boolean): Map[String, SampleQCCombiner] = {
     val depth = treeAggDepth(vds.hc, vds.nPartitions)
     vds.sampleIds.iterator
       .zip(
         vds
           .rdd
-          .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner))({ case (acc, (v, (va, gs))) =>
+          .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner(keepStar)))({ case (acc, (v, (va, gs))) =>
 
             val ACs = gs.foldLeft(Array.fill(v.nAltAlleles)(0))({
               case (acc, g) =>
@@ -254,9 +255,9 @@ object SampleQC {
       .toMap
   }
 
-  def apply(vds: VariantDataset, root: String): VariantDataset = {
+  def apply(vds: VariantDataset, root: String, keepStar: Boolean): VariantDataset = {
 
-    val r = results(vds)
+    val r = results(vds, keepStar)
     vds.annotateSamples(SampleQCCombiner.signature,
       Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), { (x: String) =>
         r.get(x).map(_.asAnnotation).orNull
