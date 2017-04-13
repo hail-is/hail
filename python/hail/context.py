@@ -474,7 +474,7 @@ class HailContext(object):
 
         **Annotations**
 
-        - **va.filters** (*Set[String]*) -- The containing the list of filters applied to a variant. 
+        - **va.filters** (*Set[String]*) -- The set containing all filters applied to a variant. 
         - **va.rsid** (*String*) -- The rsID of the variant, if it has one ("." otherwise).
         - **va.qual** (*Double*) -- The floating-point number in the QUAL field.
         - **va.info** (*Struct*) -- All INFO fields defined in the VCF header can be found in the
@@ -486,7 +486,7 @@ class HailContext(object):
         :type path: str or list of str
 
         :param bool force: If True, load .gz files serially. This means that no downstream operations
-            will parallelized, so this is not recommended for a VCF larger than a few MB.
+            can be parallelized, so using this mode is strongly discouraged for VCFs larger than a few MB.
 
         :param bool force_bgz: If True, load .gz files as blocked gzip files (BGZF)
 
