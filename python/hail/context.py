@@ -465,7 +465,7 @@ class HailContext(object):
             
             The information in the FILTER field of a VCF is contained in the ``va.filters`` annotation.
             This annotation is a ``Set`` and can be queried for filter membership with expressions 
-            like ``va.filters.contains("VQSRTranche99.5...")``. Variant that are flagged as "PASS" 
+            like ``va.filters.contains("VQSRTranche99.5...")``. Variants that are flagged as "PASS" 
             will have no filters applied; for these variants, ``va.filters.isEmpty()`` is true. Thus, 
             filtering to PASS variants can be done with :py:meth:`.VariantDataset.filter_variants_expr`
             as follows:
