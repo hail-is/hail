@@ -55,7 +55,7 @@ class Trio(object):
         else:
             jsex = jnone()
 
-        self._jrep = Env.hail().methods.BaseTrio(proband, joption(fam), joption(father), joption(mother), jsex, jpheno)
+        self._jrep = Env.hail().methods.BaseTrio(proband, joption(fam), joption(father), joption(mother), jsex)
         self._fam = fam
         self._proband = proband
         self._father = father
