@@ -196,8 +196,9 @@ class KeyTable(object):
     @handle_py4j
     @typecheck_method(output=strlike,
                       types_file=nullable(strlike),
-                      header=bool)
-    def export(self, output, types_file=None, header=True):
+                      header=bool,
+                      parallel=bool)
+    def export(self, output, types_file=None, header=True, parallel=False):
         """Export to a TSV file.
 
         **Examples**
@@ -212,9 +213,11 @@ class KeyTable(object):
         :param str types_file: Output path of types file.
         
         :param bool header: Write a header using the column names.
+
+        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jkt.export(output, types_file, header)
+        self._jkt.export(output, types_file, header, parallel)
 
     @handle_py4j
     @typecheck_method(expr=strlike,

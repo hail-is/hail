@@ -1051,7 +1051,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       }
   }
 
-  def exportGenotypes(path: String, expr: String, typeFile: Boolean, filterF: T => Boolean) {
+  def exportGenotypes(path: String, expr: String, typeFile: Boolean, filterF: T => Boolean, parallel: Boolean = false) {
     val symTab = Map(
       "v" -> (0, vSignature),
       "va" -> (1, vaSignature),
@@ -1087,7 +1087,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }
-    }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")))
+    }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")), parallelWrite = parallel)
   }
 
   def exportSamples(path: String, expr: String, typeFile: Boolean = false) {
@@ -1121,7 +1121,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     hadoopConf.writeTable(path, lines, names.map(_.mkString("\t")))
   }
 
-  def exportVariants(path: String, expr: String, typeFile: Boolean = false) {
+  def exportVariants(path: String, expr: String, typeFile: Boolean = false, parallel: Boolean = false) {
     val vas = vaSignature
     val hConf = hc.hadoopConf
 
@@ -1153,7 +1153,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
           f().foreachBetween(x => sb.append(x))(sb += '\t')
           sb.result()
         }
-      }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")))
+      }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")), parallelWrite = parallel)
   }
 
   def filterIntervals(intervals: java.util.ArrayList[Interval[Locus]], keep: Boolean): VariantSampleMatrix[T] = {

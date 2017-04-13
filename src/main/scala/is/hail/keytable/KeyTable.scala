@@ -495,7 +495,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     }
   }
 
-  def export(output: String, typesFile: String = null, header: Boolean = true) {
+  def export(output: String, typesFile: String = null, header: Boolean = true, parallel: Boolean = false) {
     val hConf = hc.hadoopConf
     hConf.delete(output, recursive = true)
 
@@ -517,7 +517,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
         sb.result()
       }
-    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header))
+    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), parallelWrite = parallel)
   }
 
   def aggregate(keyCond: String, aggCond: String): KeyTable = {

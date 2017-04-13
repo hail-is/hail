@@ -61,11 +61,11 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
   def coalesce(k: Int, shuffle: Boolean = true): GenericDataset =
     gds.copy(rdd = gds.rdd.coalesce(k, shuffle = shuffle)(null).toOrderedRDD)
 
-  def exportGenotypes(path: String, expr: String, typeFile: Boolean, printMissing: Boolean = false) {
+  def exportGenotypes(path: String, expr: String, typeFile: Boolean, printMissing: Boolean = false, parallel: Boolean = false) {
     val localPrintMissing = printMissing
     val filterF: Annotation => Boolean = g => g != null || localPrintMissing
 
-    gds.exportGenotypes(path, expr, typeFile, filterF)
+    gds.exportGenotypes(path, expr, typeFile, filterF, parallel)
   }
 
   /**
