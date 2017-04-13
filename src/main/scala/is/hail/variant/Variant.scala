@@ -133,7 +133,7 @@ case class AltAllele(ref: String,
   override def toString: String = s"$ref/$alt"
 
   def compare(that: AltAllele): Int = {
-    var c = ref.compare(that.ref)
+    val c = ref.compare(that.ref)
     if (c != 0)
       return c
 

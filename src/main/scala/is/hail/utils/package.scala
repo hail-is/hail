@@ -229,19 +229,19 @@ package object utils extends Logging
   def extendOrderingToNull[T](missingGreatest: Boolean)(implicit ord: Ordering[T]): Ordering[Any] = {
     new Ordering[Any] {
       def compare(a: Any, b: Any): Int =
-        (a, b) match {
-          case (null, null) => 0
-          case (null, _) =>
-            if (missingGreatest)
-              1
-            else
-              -1
-          case (_, null) =>
-            if (missingGreatest)
-              -1
-            else
-              1
-          case _ => ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
+        if (a == null) {
+          if (b == null)
+            0 // null, null
+          else {
+            // null, _
+            if (missingGreatest) 1 else -1
+          }
+        } else {
+          if (b == null) {
+            // _, null
+            if (missingGreatest) -1 else 1
+          } else
+            ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
         }
     }
   }
@@ -289,9 +289,9 @@ package object utils extends Logging
   /**
     * An abstraction for building an {@code Array} of known size. Guarantees a left-to-right traversal
     *
-    * @param xs the thing to iterate over
-    * @param size the size of array to allocate
-    * @param key given the source value and its source index, yield the target index
+    * @param xs      the thing to iterate over
+    * @param size    the size of array to allocate
+    * @param key     given the source value and its source index, yield the target index
     * @param combine given the target value, the target index, the source value, and the source index, compute the new target value
     * @tparam A
     * @tparam B
@@ -437,9 +437,13 @@ package object utils extends Logging
   }
 
   def box(i: Int): java.lang.Integer = i
+
   def box(l: Long): java.lang.Long = l
+
   def box(f: Float): java.lang.Float = f
+
   def box(d: Double): java.lang.Double = d
+
   def box(b: Boolean): java.lang.Boolean = b
 
   def intArraySum(a: Array[Int]): Int = {
