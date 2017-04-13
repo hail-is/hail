@@ -2410,7 +2410,7 @@ object FunctionRegistry {
       v
   },
     """
-    If ``a`` is not missing, returns ``aa``. Otherwise, returns ``b``.
+    If ``a`` is not missing, returns ``a``. Otherwise, returns ``b``.
 
     **Examples**
 
