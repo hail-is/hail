@@ -4,6 +4,7 @@ import breeze.linalg.{Vector => BVector}
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
+import is.hail.stats.RegressionUtils
 import is.hail.variant._
 import is.hail.utils._
 import org.testng.annotations.Test
@@ -12,52 +13,6 @@ class LDPruneSuite extends SparkSuite {
   val bytesPerCore = 256L * 1024L * 1024L
 
   def convertGtsToGs(gts: Array[Int]): Iterable[Genotype] = gts.map(Genotype(_)).toIterable
-
-  def toNormalizedGtArray(gs: Array[Int], nSamples: Int): Option[Array[Double]] = {
-    val a = new Array[Double](nSamples)
-    val gts = new Array[Int](nSamples)
-    val it = gs.iterator
-
-    var nPresent = 0
-    var gtSum = 0
-    var gtSumSq = 0
-
-    var i = 0
-    while (i < nSamples) {
-      val gt = it.next()
-      gts.update(i, gt)
-      if (gt >= 0) {
-        nPresent += 1
-        gtSum += gt
-        gtSumSq += gt * gt
-      }
-      i += 1
-    }
-
-    val nMissing = nSamples - nPresent
-    val allHomRef = gtSum == 0
-    val allHet = gtSum == nPresent && gtSumSq == nPresent
-    val allHomVar = gtSum == 2 * nPresent
-
-    if (allHomRef || allHet || allHomVar || nMissing == nSamples)
-      None
-    else {
-      val gtMean = gtSum.toDouble / nPresent
-      val gtMeanAll = (gtSum + nMissing * gtMean) / nSamples
-      val gtMeanSqAll = (gtSumSq + nMissing * gtMean * gtMean) / nSamples
-      val gtStdDevRec = 1d / math.sqrt((gtMeanSqAll - gtMeanAll * gtMeanAll) * nSamples)
-
-      var i = 0
-      while (i < nSamples) {
-        val gt = gts(i)
-        if (gt >= 0)
-          a.update(i, (gt - gtMean) * gtStdDevRec)
-        i += 1
-      }
-
-      Some(a)
-    }
-  }
 
   def correlationMatrix(gts: Array[Iterable[Genotype]], nSamples: Int) = {
     val bvi = gts.map { gs => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples) }
@@ -194,18 +149,19 @@ class LDPruneSuite extends SparkSuite {
         val gs2 = convertGtsToGs(v2)
         val bv1 = LDPrune.toBitPackedVector(gs1.hardCallIterator, nSamples)
         val bv2 = LDPrune.toBitPackedVector(gs2.hardCallIterator, nSamples)
-        val sgs1 = toNormalizedGtArray(v1, nSamples).map(BVector(_))
-        val sgs2 = toNormalizedGtArray(v2, nSamples).map(BVector(_))
+        val sgs1 = RegressionUtils.toNormalizedGtArray(gs1, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs2 = RegressionUtils.toNormalizedGtArray(gs2, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {
-          case (Some(a), Some(b), Some(c), Some(d)) =>
+          case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>
             val rBreeze = c.dot(d): Double
             val r2Breeze = rBreeze * rBreeze
             val r2BitPacked = LDPrune.computeR2(a, b)
 
             val isSame = D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
-            if (!isSame)
-              println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples v1=${ v1.mkString(",") } v2=${ v2.mkString(",") }")
+            if (!isSame) {
+              println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples")
+            }
             isSame
           case _ => true
         }

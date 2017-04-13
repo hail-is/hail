@@ -2452,7 +2452,7 @@ class VariantDataset(object):
             for v1 in contig:
                 keep = True
                 for v2 in pruned_set:
-                    if ((v1.position - v2.position) <= window and correlation(v1, v2) >= r2):
+                    if ((v1.position - v2.position) <= window && correlation(v1, v2) >= r2):
                         keep = False
                 if keep:
                     pruned_set.append(v1)
