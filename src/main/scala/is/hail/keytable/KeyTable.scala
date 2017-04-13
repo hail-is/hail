@@ -111,10 +111,10 @@ object KeyTable {
 
     val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
 
-    val rows = data.map { case (id, values) => Row.fromSeq(id :+ values.asInstanceOf[Row].toSeq)}.toArray
+    val rows = data.map { case (id, values) => Row.fromSeq(id :+ values.toSeq)}.toArray
     val rdd = hc.sc.parallelize(rows)
 
-    val newFields = List("ID" -> TString) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
+    val newFields = List("ID" -> TString) ++ typ.fields.map(f => (f.name, f.typ))
     val struct = TStruct(newFields: _*)
 
     KeyTable(hc, rdd, struct, Array("ID"))
@@ -122,7 +122,7 @@ object KeyTable {
 }
 
 case class KeyTable(hc: HailContext, rdd: RDD[Row],
-  signature: TStruct, keyNames: Array[String]) {
+  signature: TStruct, keyNames: Array[String] = Array.empty) {
 
   if (!fieldNames.areDistinct())
     fatal(s"Column names are not distinct: ${ fieldNames.duplicates().mkString(", ") }")

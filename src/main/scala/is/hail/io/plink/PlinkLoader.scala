@@ -9,6 +9,7 @@ import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 
@@ -45,7 +46,7 @@ object PlinkLoader {
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def parseFam(filename: String, ffConfig: FamFileConfig,
-    hConf: hadoop.conf.Configuration): (IndexedSeq[(String, Annotation)], TStruct) = {
+    hConf: hadoop.conf.Configuration): (IndexedSeq[(String, Row)], TStruct) = {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
@@ -100,7 +101,7 @@ object PlinkLoader {
               case _ => null
             }
 
-        (kid, Annotation(fam1, dad1, mom1, isFemale1, pheno1))
+        (kid, Row(fam1, dad1, mom1, isFemale1, pheno1))
       }.value).toArray
     }
 
