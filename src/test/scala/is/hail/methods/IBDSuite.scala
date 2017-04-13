@@ -5,7 +5,7 @@ import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.{TDouble, TInt, TString}
 import is.hail.utils.AbsoluteFuzzyComparable._
-import is.hail.utils.{AbsoluteFuzzyComparable, TextTableConfiguration, TextTableReader, _}
+import is.hail.utils.{AbsoluteFuzzyComparable, TextTableReader, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -27,6 +27,7 @@ class IBDSuite extends SparkSuite {
   implicit object ibdAbsoluteFuzzyComparable extends AbsoluteFuzzyComparable[IBDInfo] {
     def absoluteEq(tolerance: Double, x: IBDInfo, y: IBDInfo) = {
       def feq(x: Double, y: Double) = AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y)
+
       def NaNorFeq(x: Double, y: Double) =
         x.isNaN && y.isNaN || feq(x, y)
 
@@ -37,6 +38,7 @@ class IBDSuite extends SparkSuite {
   implicit object eibdAbsoluteFuzzyComparable extends AbsoluteFuzzyComparable[ExtendedIBDInfo] {
     def absoluteEq(tolerance: Double, x: ExtendedIBDInfo, y: ExtendedIBDInfo) = {
       def feq(x: Double, y: Double) = AbsoluteFuzzyComparable.absoluteEq(tolerance, x, y)
+
       AbsoluteFuzzyComparable.absoluteEq(tolerance, x.ibd, y.ibd) &&
         feq(x.ibs0, y.ibs0) && feq(x.ibs1, y.ibs1) && feq(x.ibs2, y.ibs2)
     }
@@ -61,17 +63,16 @@ class IBDSuite extends SparkSuite {
 
     s"plink --double-id --allow-extra-chr --vcf ${ uriPath(localVCFFile) } --genome full --out ${ uriPath(localTmpdir) } " + thresholdString !
 
-    val genomeFormat = TextTableConfiguration(
-      types = Map(("IID1", TString), ("IID2", TString), ("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble),
-        ("PI_HAT", TDouble), ("IBS0", TInt), ("IBS1", TInt), ("IBS2", TInt)),
-      separator = " +")
-
     val genomeFile = tmpdir + ".genome"
     val localGenomeFile = localTmpdir + ".genome"
 
     hadoopConf.copy(localGenomeFile, genomeFile)
 
-    val (_, rdd) = TextTableReader.read(sc)(Array(tmpdir + ".genome"), genomeFormat)
+    val (_, rdd) = TextTableReader.read(sc)(Array(tmpdir + ".genome"),
+      types = Map(("IID1", TString), ("IID2", TString), ("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble),
+        ("PI_HAT", TDouble), ("IBS0", TInt), ("IBS1", TInt), ("IBS2", TInt)),
+      separator = " +"
+    )
 
     rdd.collect()
       .map(_.value)

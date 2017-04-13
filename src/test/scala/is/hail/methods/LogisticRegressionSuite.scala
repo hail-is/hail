@@ -10,16 +10,15 @@ import org.testng.annotations.Test
 class LogisticRegressionSuite extends SparkSuite {
 
   @Test def waldTestWithTwoCov() {
+    val covariates = hc.importKeyTable("src/test/resources/regressionLogistic.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importKeyTable("src/test/resources/regressionLogisticBoolean.pheno",
+      types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .splitMulti()
-      .annotateSamplesTable("src/test/resources/regressionLogistic.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLogisticBoolean.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("wald", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")
@@ -108,16 +107,15 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   @Test def lrTestWithTwoCov() {
+    val covariates = hc.importKeyTable("src/test/resources/regressionLogistic.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importKeyTable("src/test/resources/regressionLogisticBoolean.pheno",
+      types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .splitMulti()
-      .annotateSamplesTable("src/test/resources/regressionLogistic.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLogisticBoolean.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
 
@@ -203,16 +201,15 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   @Test def scoreTestWithTwoCov() {
+    val covariates = hc.importKeyTable("src/test/resources/regressionLogistic.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importKeyTable("src/test/resources/regressionLogisticBoolean.pheno",
+      types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .splitMulti()
-      .annotateSamplesTable("src/test/resources/regressionLogistic.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLogisticBoolean.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")
@@ -285,13 +282,14 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   @Test def waldEpactsTest() {
+
+    val covariates = hc.importKeyTable("src/test/resources/regressionLogisticEpacts.cov",
+      types = Map("PC1" -> TDouble, "PC2" -> TDouble), missing = "0").keyBy("IND_ID")
+
     val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")
       .splitMulti()
       .annotateSamplesFam("src/test/resources/regressionLogisticEpacts.fam")
-      .annotateSamplesTable("src/test/resources/regressionLogisticEpacts.cov",
-        "IND_ID",
-        root = Some("sa.pc"),
-        config = TextTableConfiguration(types = Map("PC1" -> TDouble, "PC2" -> TDouble), missing = "0"))
+      .annotateSamplesTable(covariates, root = "sa.pc")
       .logreg("wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
       .logreg("lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
       .logreg("score", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.score")
