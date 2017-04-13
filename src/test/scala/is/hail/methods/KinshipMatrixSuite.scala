@@ -1,6 +1,6 @@
 package is.hail.methods
 
-
+import is.hail.utils._
 import scala.io.Source
 import is.hail.SparkSuite
 import org.apache.spark.mllib.linalg.Vectors
@@ -49,13 +49,18 @@ class KinshipMatrixSuite extends SparkSuite {
     val samples = (0 to 3).map(i => s"S$i")
     val km = new KinshipMatrix(hc, irm, samples.toArray)
 
-    km.exportTSV(tmpDir.createTempFile("kinshipMatrixExportTSVTest", ".tsv"))
+    val out = tmpDir.createTempFile("kinshipMatrixExportTSVTest", ".tsv")
 
-    val bufferedSource = Source.fromFile(tmpDir + "/kinshipMatrixExportTSVTest.tsv")
+    km.exportTSV(out)
 
-    val readInValues = bufferedSource.getLines().drop(1).flatMap(s => s.split("\t")).map(_.toDouble).toArray
+    val readInValues = hadoopConf.readFile(out) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .drop(1)
+        .map(s => s.split("\t").map(_.toDouble)).toArray
+    }
 
-    assert(km.matrix.toBlockMatrix().toLocalMatrix().toArray == readInValues)
+    assert(km.matrix.toBlockMatrix().toLocalMatrix().rowIter.map(v => v.toArray).toArray.deep == readInValues.deep)
 
   }
 }
