@@ -459,18 +459,34 @@ class HailContext(object):
             Imported as: 2/2:0,0,9:9:24:24,1000,40,1000:1000:0
 
 
+        .. note::
+            
+            Using the **FILTER** field:
+            
+            The information in the FILTER field of a VCF is contained in the ``va.filters`` annotation.
+            This annotation is a ``Set``, and can be queried for filter membership with expressions 
+            like: ``va.filters.contains("VQSRTranche99.5...")``. A variant that was flagged as "PASS" 
+            will have no filters applied: for these variants, `va.filters.isEmpty()` is true. Thus, 
+            filtering to PASS variants can be done with :py:meth:`.VariantDataset.filter_variants_expr`
+            as follows:
+            
+            >>> pass_vds = vds.filter_variants_expr('va.filters.isEmpty()', keep=True)
+
         **Annotations**
 
-        - **va.pass** (*Boolean*) -- true if the variant contains `PASS` in the filter field (false if `.` or other)
-        - **va.filters** (*Set[String]*) -- set containing the list of filters applied to a variant. Accessible using `va.filters.contains("VQSRTranche99.5...")`, for example
-        - **va.rsid** (*String*) -- rsid of the variant, if it has one ("." otherwise)
-        - **va.qual** (*Double*) -- the number in the qual field
-        - **va.info** (*T*) -- matches (with proper capitalization) any defined info field. Data types match the type specified in the vcf header, and if the `Number` is "A", "R", or "G", the result will be stored in an array (accessed with array\[index\]).
+        - **va.filters** (*Set[String]*) -- The containing the list of filters applied to a variant. 
+        - **va.rsid** (*String*) -- The rsID of the variant, if it has one ("." otherwise).
+        - **va.qual** (*Double*) -- The floating-point number in the QUAL field.
+        - **va.info** (*Struct*) -- All INFO fields defined in the VCF header can be found in the
+          struct ``va.info``. Data types match the type specified in the vcf header, and if 
+          the ``Number`` is not 1, the result will be stored as an array. 
+
 
         :param path: VCF file(s) to read.
         :type path: str or list of str
 
-        :param bool force: If True, load .gz files serially.
+        :param bool force: If True, load .gz files serially. This means that no downstream operations
+            will parallelized, so this is not recommended for a VCF larger than a few MB.
 
         :param bool force_bgz: If True, load .gz files as blocked gzip files (BGZF)
 
