@@ -58,6 +58,10 @@ object AltAllele {
     for (ref <- genDNAString;
       alt <- genDNAString if alt != ref)
       yield AltAllele(ref, alt)
+
+  implicit def altAlleleOrder: Ordering[AltAllele] = new Ordering[AltAllele] {
+    def compare(x: AltAllele, y: AltAllele): Int = x.compare(y)
+  }
 }
 
 case class AltAllele(ref: String,
@@ -122,10 +126,17 @@ case class AltAllele(ref: String,
 
   def toJSON: JValue = JObject(
     ("ref", JString(ref)),
-    ("alt", JString(alt))
-  )
+    ("alt", JString(alt)))
 
   override def toString: String = s"$ref/$alt"
+
+  def compare(that: AltAllele): Int = {
+    val c = ref.compare(that.ref)
+    if (c != 0)
+      return c
+
+    alt.compare(that.alt)
+  }
 }
 
 object Variant {
@@ -215,7 +226,6 @@ object Variant {
   implicit def variantOrder: Ordering[Variant] = new Ordering[Variant] {
     def compare(x: Variant, y: Variant): Int = x.compare(y)
   }
-
 }
 
 object VariantSubgen {

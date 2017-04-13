@@ -55,3 +55,6 @@ class Struct(object):
 
     def __hash__(self):
         return 37 + hash(tuple(sorted(self._attrs.items())))
+
+    def get(self, item, default=None):
+        return self._attrs.get(item, default)

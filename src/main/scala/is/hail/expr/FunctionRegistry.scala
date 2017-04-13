@@ -2259,9 +2259,9 @@ object FunctionRegistry {
     registerMethod("min", ord.min _, "Returns the minimum value.")
     registerMethod("max", ord.max _, "Returns the maximum value.")
 
-    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extendOrderingToNull(ord)), "Sort the collection in ascending order.")(arrayHr(hrboxedt), arrayHr(hrboxedt))
+    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extendOrderingToNull(missingGreatest = true)(ord)), "Sort the collection in ascending order.")(arrayHr(hrboxedt), arrayHr(hrboxedt))
     registerMethod("sort", (a: IndexedSeq[Any], ascending: Boolean) =>
-      a.sorted(extendOrderingToNull(
+      a.sorted(extendOrderingToNull(missingGreatest = true)(
         if (ascending)
           ord
         else
@@ -2269,11 +2269,11 @@ object FunctionRegistry {
     )(arrayHr(hrboxedt), boolHr, arrayHr(hrboxedt))
 
     registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any) =>
-      a.sortBy(f)(extendOrderingToNull(ord)), "Sort the collection in ascending order after evaluating ``f`` for each element.", "f" -> "Lambda expression."
+      a.sortBy(f)(extendOrderingToNull(missingGreatest = true)(ord)), "Sort the collection in ascending order after evaluating ``f`` for each element.", "f" -> "Lambda expression."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), arrayHr(TTHr))
 
     registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any, ascending: Boolean) =>
-      a.sortBy(f)(extendOrderingToNull(
+      a.sortBy(f)(extendOrderingToNull(missingGreatest = true)(
         if (ascending)
           ord
         else
@@ -2281,7 +2281,6 @@ object FunctionRegistry {
       "f" -> "Lambda expression.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), boolHr, arrayHr(TTHr))
   }
-
 
   register("<", implicitly[Ordering[Boolean]].lt _, null)
   registerCode("<", (x: Code[java.lang.Integer], y: Code[java.lang.Integer]) => CM.ret(Code.boxBoolean(Code.intValue(x) < Code.intValue(y))), null)

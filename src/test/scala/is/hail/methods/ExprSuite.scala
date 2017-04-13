@@ -954,6 +954,24 @@ class ExprSuite extends SparkSuite {
     val expr = """let v = Variant("1:650000:A:T") and ref = v.ref and isHet = v.isAutosomal and s = "1" in s.toInt"""
     val (t, f) = Parser.parseExpr(expr, EvalContext())
     assert(f().asInstanceOf[Int] == 1 && t == TInt)
+  }
 
+  @Test def testOrdering() {
+    val intOrd = TInt.ordering(true)
+
+    assert(intOrd.compare(-2, -2) == 0)
+    assert(intOrd.compare(null, null) == 0)
+    assert(intOrd.compare(5, 7) < 0)
+    assert(intOrd.compare(5, null) < 0)
+    assert(intOrd.compare(null, -2) > 0)
+
+    val g = for (t <- Type.genArb;
+      a <- t.genValue;
+      b <- t.genValue) yield (t, a, b)
+
+    val p = forAll(g) { case (t, a, b) =>
+        val ord = t.ordering(missingGreatest = true)
+        ord.compare(a, b) == - ord.compare(b, a)
+    }
   }
 }

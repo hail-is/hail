@@ -438,7 +438,7 @@ class TStruct(Type):
         if annotation is not None:
             return scala_object(Env.hail().annotations, 'Annotation').fromSeq(
                 Env.jutils().arrayListToISeq(
-                    [f.typ._convert_to_j(annotation[f.name]) for f in self.fields]
+                    [f.typ._convert_to_j(annotation.get(f.name)) for f in self.fields]
                 )
             )
         else:

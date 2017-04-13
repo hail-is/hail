@@ -1,12 +1,6 @@
 package is.hail.keytable
 
 import is.hail.HailContext
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.io.exportTypes
@@ -24,7 +18,19 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
+import scala.language.implicitConversions
 
+sealed abstract class SortOrder
+
+case object Ascending extends SortOrder
+
+case object Descending extends SortOrder
+
+object SortColumn {
+  implicit def fromField(field: String): SortColumn = SortColumn(field, Ascending)
+}
+
+case class SortColumn(field: String, sortOrder: SortOrder)
 
 object KeyTable {
   final val fileVersion: Int = 1
@@ -73,8 +79,7 @@ object KeyTable {
 
       val keyNames = (fields.get("key_names"): @unchecked) match {
         case Some(JArray(a)) =>
-          a.map { case JString(s) => s
-          }.toArray[String]
+          a.map { case JString(s) => s }.toArray[String]
       }
 
       (signature, keyNames)
@@ -100,6 +105,18 @@ object KeyTable {
       }
 
     KeyTable(hc, rdd, signature, keyNames)
+  }
+
+  def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
+    keyNames: java.util.ArrayList[String], nPartitions: Option[Int]): KeyTable = {
+    val sc = hc.sc
+    KeyTable(hc,
+      nPartitions match {
+        case Some(n) =>
+          sc.parallelize(rows.asScala, n)
+        case None =>
+          sc.parallelize(rows.asScala)
+      }, signature, keyNames.asScala.toArray)
   }
 }
 
@@ -613,5 +630,38 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     rdd.persist(level)
     this
+  }
+
+  def orderBy(fields: SortColumn*): KeyTable =
+    orderBy(fields.toArray)
+
+  def orderBy(fields: Array[SortColumn]): KeyTable = {
+    val fieldOrds = fields.map { case SortColumn(n, so) =>
+      val i = signature.fieldIdx(n)
+      val f = signature.fields(i)
+
+      val fo = f.typ.ordering(so == Ascending)
+
+      (i, if (so == Ascending) fo else fo.reverse)
+    }
+
+    val ord: Ordering[Annotation] = new Ordering[Annotation] {
+      def compare(a: Annotation, b: Annotation): Int = {
+        var i = 0
+        while (i < fieldOrds.length) {
+          val (fi, ford) = fieldOrds(i)
+          val c = ford.compare(
+            a.asInstanceOf[Row].get(fi),
+            b.asInstanceOf[Row].get(fi))
+          if (c != 0) return c
+          i += 1
+        }
+
+        0
+      }
+    }
+
+    val act = implicitly[ClassTag[Annotation]]
+    copy(rdd = rdd.sortBy(identity[Annotation], ascending = true)(ord, act))
   }
 }

@@ -5,10 +5,11 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext, TextTableConfig
+from hail import HailContext, TextTableConfig, KeyTable
 from hail.representation import *
 from hail.expr import *
 from hail.java import *
+from hail.keytable import asc, desc
 import time
 hc = None
 
@@ -429,6 +430,28 @@ class ContextTests(unittest.TestCase):
         kt.write('/tmp/sampleAnnotations.kt', overwrite=True)
         kt3 = hc.read_keytable('/tmp/sampleAnnotations.kt')
         self.assertTrue(kt.same(kt3))
+
+        # test order_by
+        schema = TStruct(['a', 'b'], [TInt(), TString()])
+        rows = [{'a': 5},
+                {'a': 5, 'b': 'quam'},
+                {'a': -1, 'b': 'quam'},
+                {'b': 'foo'},
+                {'a': 7, 'b': 'baz'}]
+        kt4 = KeyTable.from_py(hc, rows, schema, npartitions=3)
+
+        bya = [r.get('a') for r in kt4.order_by('a').collect()]
+        self.assertEqual(bya, [-1, 5, 5, 7, None])
+
+        bydesca = [r.get('a') for r in kt4.order_by(desc('a')).collect()]
+        self.assertEqual(bydesca, [7, 5, 5, -1, None])
+
+        byab = [(r.get('a'), r.get('b')) for r in kt4.order_by('a', 'b').collect()]
+        self.assertEqual(byab, [(-1, 'quam'), (5, 'quam'), (5, None), (7, 'baz'), (None, 'foo')])
+
+        bydescab = [(r.get('a'), r.get('b'))
+                    for r in kt4.order_by(desc('a'), 'b').collect()]
+        self.assertEqual(bydescab, [(7, 'baz'), (5, 'quam'), (5, None), (-1, 'quam'), (None, 'foo')])
 
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
