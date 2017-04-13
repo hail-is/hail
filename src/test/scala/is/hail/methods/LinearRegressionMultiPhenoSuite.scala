@@ -18,8 +18,8 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linregMultiPheno(Array("sa.pheno.Pheno", "sa.pheno.Pheno"), Array("sa.cov.Cov1",
         "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = false, 1, 0.0)
 
@@ -117,8 +117,8 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linregMultiPheno(Array("sa.pheno.Pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)

@@ -35,7 +35,7 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val anno1 = vds.annotateSamplesTable(
       hc.importKeyTable("src/test/resources/sampleAnnotations.tsv", types = Map("qPhen" -> TInt)).keyBy("Sample"),
-      root = Some("sa.`my phenotype`"))
+      root = "sa.`my phenotype`")
 
     val q1 = anno1.querySA("sa.`my phenotype`.Status")._2
     val q2 = anno1.querySA("sa.`my phenotype`.qPhen")._2
@@ -157,7 +157,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .keyBy("Variant")
 
     val anno1 = vds.annotateVariantsTable(kt1,
-      expr = Some("va.stuff = select(table, Rand1, Rand2, Gene)"))
+      expr = "va.stuff = select(table, Rand1, Rand2, Gene)")
 
     val q1 = anno1.queryVA("va.stuff")._2
     anno1.rdd
@@ -173,14 +173,14 @@ class ImportAnnotationsSuite extends SparkSuite {
       .annotate("v = Variant(`Chromosome:Position:Ref:Alt`)")
       .keyBy("v")
     val anno1alternate = vds.annotateVariantsTable(kt2,
-      expr = Some("va.stuff = select(table, Rand1, Rand2, Gene)"))
+      expr = "va.stuff = select(table, Rand1, Rand2, Gene)")
 
     val kt3 = hc.importKeyTable("src/test/resources/variantAnnotations.split.*.tsv",
       types = Map("Rand1" -> TDouble, "Rand2" -> TDouble))
       .annotate("v = Variant(Chromosome, Position.toInt(), Ref, Alt)")
       .keyBy("v")
     val anno1glob = vds.annotateVariantsTable(kt3,
-      expr = Some("va.stuff = select(table, Rand1, Rand2, Gene)"))
+      expr = "va.stuff = select(table, Rand1, Rand2, Gene)")
 
     assert(anno1alternate.same(anno1))
     assert(anno1glob.same(anno1))
@@ -281,7 +281,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .keyBy("v")
 
     vds = sSample
-      .annotateVariantsTable(kt, expr = Some("va.stuff = drop(table, v)"))
+      .annotateVariantsTable(kt, expr = "va.stuff = table")
 
     var t = sSample.annotateVariantsVDS(hc.read(importTSVFile), root = Some("va.stuff"))
 
@@ -303,7 +303,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .filterMulti()
     vds.write(importJSONFile)
 
-    vds = sSample.annotateVariantsTable(kt2, root = Some("va.third"))
+    vds = sSample.annotateVariantsTable(kt2, root = "va.third")
       .annotateVariantsExpr("va.third = va.third._0")
 
     t = sSample.annotateVariantsVDS(hc.read(importJSONFile), root = Some("va.third"))
@@ -399,35 +399,35 @@ class ImportAnnotationsSuite extends SparkSuite {
     val kt1 = hc.importKeyTable(tmpf1, separator = "\\s+", impute = true)
       .annotate("v = Variant(str(Chr), Pos, Ref, Alt)")
       .keyBy("v")
-    val fmt1 = vds.annotateVariantsTable(kt1, expr = Some("va = merge(va, select(table, Anno1, Anno2))"))
+    val fmt1 = vds.annotateVariantsTable(kt1, expr = "va = merge(va, select(table, Anno1, Anno2))")
 
     val fmt2 = vds.annotateVariantsTable(hc.importKeyTable(tmpf2, separator = "\\s+", impute = true,
       commentChar = Some("#"))
       .annotate("v = Variant(str(Chr), Pos, Ref, Alt)")
       .keyBy("v"),
-      expr = Some("va = merge(va, select(table, Anno1, Anno2))"))
+      expr = "va = merge(va, select(table, Anno1, Anno2))")
 
     val fmt3 = vds.annotateVariantsTable(hc.importKeyTable(tmpf3,
       commentChar = Some("#"), separator = "\\s+", noHeader = true, impute = true)
       .annotate("v = Variant(str(_0), _1, _2, _3)")
       .keyBy("v"),
-      expr = Some("va.Anno1 = table._4, va.Anno2 = table._5"))
+      expr = "va.Anno1 = table._4, va.Anno2 = table._5")
 
     val fmt4 = vds.annotateVariantsTable(hc.importKeyTable(tmpf4, separator = ",", noHeader = true, impute = true)
       .annotate("v = Variant(str(_0), _1, _2, _3)")
       .keyBy("v"),
-      expr = Some("va.Anno1 = table._4, va.Anno2 = table._5"))
+      expr = "va.Anno1 = table._4, va.Anno2 = table._5")
 
     val fmt5 = vds.annotateVariantsTable(hc.importKeyTable(tmpf5, separator = "\\s+", impute = true, missing = ".")
       .annotate("v = Variant(str(Chr), Pos, Ref, Alt)")
       .keyBy("v"),
-      expr = Some("va.Anno1 = table.Anno1, va.Anno2 = table.Anno2"))
+      expr = "va.Anno1 = table.Anno1, va.Anno2 = table.Anno2")
 
     val fmt6 = vds.annotateVariantsTable(hc.importKeyTable(tmpf6,
       noHeader = true, impute = true, separator = ",", commentChar = Some("!"))
       .annotate("v = Variant(str(_0), _1, _2, _3)")
       .keyBy("v"),
-      expr = Some("va.Anno1 = table._5, va.Anno2 = table._7"))
+      expr = "va.Anno1 = table._5, va.Anno2 = table._7")
 
     val vds1 = fmt1.cache()
 
@@ -466,7 +466,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .annotate("v = Variant(Chromosome, Position.toInt(), Ref, Alt)")
       .keyBy("v")
     val byVariant = vds.annotateVariantsTable(kt2,
-      expr = Some("va.stuff = select(table, Rand1, Rand2)"))
+      expr = "va.stuff = select(table, Rand1, Rand2)")
 
     assert(byPosition.same(byVariant))
   }

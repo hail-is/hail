@@ -17,8 +17,8 @@ class LogisticRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("wald", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")
@@ -114,8 +114,8 @@ class LogisticRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
 
@@ -208,8 +208,8 @@ class LogisticRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .logreg("score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val v1 = Variant("1", 1, "C", "T")
@@ -289,7 +289,7 @@ class LogisticRegressionSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")
       .splitMulti()
       .annotateSamplesFam("src/test/resources/regressionLogisticEpacts.fam")
-      .annotateSamplesTable(covariates, root = Some("sa.pc"))
+      .annotateSamplesTable(covariates, root = "sa.pc")
       .logreg("wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
       .logreg("lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
       .logreg("score", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.score")

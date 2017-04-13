@@ -19,8 +19,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", false, 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
@@ -102,8 +102,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
@@ -187,7 +187,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.0)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
@@ -250,7 +250,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesFam("src/test/resources/regressionLinear.fam")
       .linreg("sa.fam.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", useDosages = false, 1, 0.0)
 
@@ -320,7 +320,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesFam("src/test/resources/regressionLinear.fam",
         config = FamFileConfig(isQuantitative = true, missingValue = "0"))
       .linreg("sa.fam.qPheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", useDosages = false, 1, 0.0)
@@ -393,8 +393,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     interceptFatal("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
       vds.linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", useDosages = false, 1, 0.0)
@@ -409,8 +409,8 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(covariates, root = Some("sa.cov"))
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     interceptFatal("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
       vds.linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", useDosages = false, 1, 0.0)
@@ -423,7 +423,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     var vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
 
     val v1 = Variant("1", 1, "C", "T")
@@ -469,7 +469,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
-      .annotateSamplesTable(phenotypes, root = Some("sa.pheno"))
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     interceptFatal("Minumum alternate allele count must be a positive integer, got 0") {
       vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 0, 0.0)

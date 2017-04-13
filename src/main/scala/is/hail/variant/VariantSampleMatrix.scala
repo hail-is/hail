@@ -605,12 +605,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def annotateSamplesTable(kt: KeyTable, vdsKey: java.util.ArrayList[String],
     root: String, expr: String): VariantSampleMatrix[T] =
-    annotateSamplesTable(kt, Option(vdsKey).map(_.asScala), Option(root), Option(expr))
+    annotateSamplesTable(kt, Option(vdsKey).map(_.asScala).orNull, root, expr)
 
-  def annotateSamplesTable(kt: KeyTable, vdsKey: Option[Seq[String]] = None,
-    root: Option[String] = None, expr: Option[String] = None): VariantSampleMatrix[T] = {
+  def annotateSamplesTable(kt: KeyTable, vdsKey: Seq[String] = null,
+    root: String = null, expr: String = null): VariantSampleMatrix[T] = {
 
-    val (isExpr, annotationExpr) = (root, expr) match {
+    val (isExpr, annotationExpr) = (Option(root), Option(expr)) match {
       case (Some(r), None) => (false, r)
       case (None, Some(c)) => (true, c)
       case _ => fatal("method `annotateSamplesTable' requires one of `root' or 'expr', but not both")
@@ -628,7 +628,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val keyTypes = kt.keyFields.map(_.typ)
 
-    vdsKey match {
+    Option(vdsKey) match {
       case Some(keys) =>
         val vdsKeyEC = EvalContext(Map("s" -> (0, TString), "sa" -> (1, saSignature)))
 
@@ -738,12 +738,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def annotateVariantsTable(kt: KeyTable, vdsKey: java.util.ArrayList[String],
     root: String, expr: String): VariantSampleMatrix[T] =
-    annotateVariantsTable(kt, Option(vdsKey).map(_.asScala), Option(root), Option(expr))
+    annotateVariantsTable(kt, Option(vdsKey).map(_.asScala).orNull, root, expr)
 
-  def annotateVariantsTable(kt: KeyTable, vdsKey: Option[Seq[String]] = None,
-    root: Option[String] = None, expr: Option[String] = None): VariantSampleMatrix[T] = {
+  def annotateVariantsTable(kt: KeyTable, vdsKey: Seq[String] = null,
+    root: String = null, expr: String = null): VariantSampleMatrix[T] = {
 
-    val (isExpr, annotationExpr) = (root, expr) match {
+    val (isExpr, annotationExpr) = (Option(root), Option(expr)) match {
       case (Some(r), None) => (false, r)
       case (None, Some(c)) => (true, c)
       case _ => fatal("method `annotateVariantsTable' requires one of `root' or 'expr', but not both")
@@ -761,7 +761,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val keyTypes = kt.keyFields.map(_.typ)
 
-    vdsKey match {
+    Option(vdsKey) match {
       case Some(keys) =>
         val keyEC = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
 
@@ -1747,9 +1747,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
-    vaSignature match{
+    vaSignature match {
       case t: TStruct => copy(vaSignature = t.setFieldAttributes(path, kv))
-      case t => fatal(s"Cannot set va attributes to ${path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot set va attributes to ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -1758,9 +1758,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
-    vaSignature match{
+    vaSignature match {
       case t: TStruct => copy(vaSignature = t.deleteFieldAttribute(path, attribute))
-      case t => fatal(s"Cannot delete va attributes from ${path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot delete va attributes from ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 

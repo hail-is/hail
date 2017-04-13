@@ -376,7 +376,7 @@ class VSMSuite extends SparkSuite {
     forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.bar = va")
       val kt = vds2.variantsKT()
-      val resultVds = vds2.annotateVariantsTable(kt, expr = Some("va.foo = table.va.bar"))
+      val resultVds = vds2.annotateVariantsTable(kt, expr = "va.foo = table.va.bar")
       val result = resultVds.rdd.collect()
       val (_, getFoo) = resultVds.queryVA("va.foo")
       val (_, getBar) = resultVds.queryVA("va.bar")
@@ -394,7 +394,7 @@ class VSMSuite extends SparkSuite {
       val kt = KeyTable(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
         TStruct(("key", TBoolean), ("value", TInt)), Array("key"))
 
-      val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Some(Seq("va.key")), expr = Some("va.foo = table.value"))
+      val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key"), expr = "va.foo = table.value")
       val result = resultVds.rdd.collect()
       val (_, getKey) = resultVds.queryVA("va.key")
       val (_, getFoo) = resultVds.queryVA("va.foo")
@@ -431,8 +431,8 @@ class VSMSuite extends SparkSuite {
 
       val kt = KeyTable(hc, mapping, TStruct(("key1", TBoolean), ("key2", TBoolean), ("value", TInt)), Array("key1", "key2"))
 
-      val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Some(Seq("va.key1", "va.key2")),
-        expr = Some("va.foo = table.value"))
+      val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key1", "va.key2"),
+        expr = "va.foo = table.value")
       val result = resultVds.rdd.collect()
       val (_, getKey1) = resultVds.queryVA("va.key1")
       val (_, getKey2) = resultVds.queryVA("va.key2")
