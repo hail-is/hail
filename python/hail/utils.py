@@ -1,5 +1,5 @@
 from hail.java import Env, handle_py4j
-
+import io
 
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
@@ -54,151 +54,110 @@ class FunctionDocumentation(object):
 
 
 @handle_py4j
-def hdfs_read(path, buffer_size=1000):
-    """Open an iterable file handle. Supports distributed file systems like hdfs, gs, and s3.
+def hdfs_read(path, buffer_size=8192):
+    """Open a readable file through the hadoop file connector. Supports distributed file systems like hdfs, gs, and s3.
     
     .. doctest::
     :options: +SKIP
 
         >>> with hdfs_read('gs://my-bucket/notes.txt') as f:
         ...     for line in f:
-        ...         print(line)
+        ...         print(line.strip())
     
     .. caution::
     
-        These file handles are *much* slower than standard python file handles.
-        If you are reading a file larger than a few thousand lines, it may be 
-        faster to use :py:meth`.hdfs_copy` to copy the file locally, then read it
+        These file handles are slower than standard python file handles.
+        If you are reading a file larger than ~50M, it will be faster to 
+        use :py:meth`.hdfs_copy` to copy the file locally, then read it
         with standard Python I/O tools.
 
     
     :param str path: Source file.
     
-    :param int buffer_size: Size of internal line buffer.
+    :param int buffer_size: Size of internal buffer.
     
-    :return: Iterable file reader object.
-    :rtype: :class:`.HadoopReader`
+    :return: Iterable file reader.
+    :rtype: `io.BufferedReader <https://docs.python.org/2/library/io.html#io.BufferedReader>`_
     """
-    return HadoopReader(path, buffer_size=buffer_size)
-
+    if not isinstance(path, str) and not isinstance(path, unicode):
+        raise TypeError("expected parameter 'path' to be type str, but found %s" % type(path))
+    if not isinstance(buffer_size, int):
+        raise TypeError("expected parameter 'buffer_size' to be type int, but found %s" % type(buffer_size))
+    return io.BufferedReader(HadoopReader(path), buffer_size=buffer_size)
 
 @handle_py4j
-def hdfs_write(path):
-    """Open a writable file handle. Supports distributed file systems like hdfs, gs, and s3. 
+def hdfs_write(path, buffer_size=8192):
+    """Open a writable file through the hadoop file connector. Supports distributed file systems like hdfs, gs, and s3.
     
     .. doctest::
     :options: +SKIP
 
         >>> with hdfs_write('gs://my-bucket/notes.txt') as f:
-        ...     f.write('result1: %s' % result1)
-        ...     f.write('result2: %s' % result2)
+        ...     f.write('result1: %s\\n' % result1)
+        ...     f.write('result2: %s\\n' % result2)
     
     .. caution::
     
-        These file handles are *much* slower than standard python file handles.
-        It may be faster to write to a local file using standard Python I/O and 
-        use :py:meth`.hdfs_copy` to move your file to a distributed file system.
+        These file handles are slower than standard python file handles. If you
+        are writing a large file (larger than ~50M), it will be faster to write
+        to a local file using standard Python I/O and use :py:meth`.hdfs_copy` 
+        to move your file to a distributed file system.
     
     :param str path: Destination file.
     
     :return: File writer object.
-    :rtype: :class:`.HadoopWriter:
+    :rtype: `io.BufferedWriter <https://docs.python.org/2/library/io.html#io.BufferedWriter>`_
     """
-    return HadoopWriter(path)
+    if not isinstance(path, str) and not isinstance(path, unicode):
+        raise TypeError("expected parameter 'path' to be type str, but found %s" % type(path))
+    if not isinstance(buffer_size, int):
+        raise TypeError("expected parameter 'buffer_size' to be type int, but found %s" % type(buffer_size))
+    return io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size)
 
 
 @handle_py4j
 def hdfs_copy(src, dest):
     """Copy a file. Supports distributed file systems like hdfs, gs, and s3.
     
-    >>> hdfs_copy('gs://hail-common/LCR.interval_list', 'file:///user/me/LCR.interval_list') # doctest: +SKIP
+    >>> hdfs_copy('gs://hail-common/LCR.interval_list', 'file:///home/usr/LCR.interval_list') # doctest: +SKIP
     
     :param str src: Source file. 
     :param str dest: Destination file.
     """
     Env.jutils().copyFile(src, dest, Env.hc()._jhc)
 
-
-class HadoopReader(object):
-    def __init__(self, path, buffer_size):
-        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc, buffer_size)
-        self._line_buffer = []
-        self._i = 0
-
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        if self._i == len(self._line_buffer):
-            it = self._jfile.readChunk()
-            if it is None:
-                raise StopIteration
-            else:
-                self._line_buffer = it.split('\n')
-                self._i = 0
-                return self.next()
-        else:
-            r = self._line_buffer[self._i]
-            self._i += 1
-            return r
-
-    @handle_py4j
-    def read(self):
-        """Reads the file and returns a string with all contained text.
-        
-        :return: Full text of the file.
-        :rtype: str
-        """
-        return self._jfile.readFully()
-
-    @handle_py4j
-    def lines(self):
-        """Reads the file and returns the contents as a list of lines.
-        
-        :return: List of lines in the file.
-        :rtype: list of str
-        """
-        return self._jfile.readFully().split('\n')
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def __del__(self):
-        self.close()
+class HadoopReader(io.RawIOBase):
+    def __init__(self, path):
+        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc)
+        super(HadoopReader, self).__init__()
 
     def close(self):
         self._jfile.close()
 
+    def readable(self):
+        return True
 
+    def readinto(self, b):
+        b_from_java = self._jfile.read(len(b)).encode('iso-8859-1')
+        n_read = len(b_from_java)
 
-class HadoopWriter(object):
+        if n_read == 0:
+            return 0
+        else:
+            b[:n_read] = b_from_java
+        return n_read
+
+class HadoopWriter(io.RawIOBase):
     def __init__(self, path):
         self._jfile = Env.jutils().writeFile(path, Env.hc()._jhc)
+        super(HadoopWriter, self).__init__()
 
-    @handle_py4j
-    def write(self, text, newline=True):
-        """Write a string to the file.
-        
-        :param str text: Text to write to the file. 
-        :param bool newline: Write a newline character after the given text.
-        """
-        if newline:
-            self._jfile.writeLine(text)
-        else:
-            self._jfile.write(text)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def __del__(self):
-        self.close()
+    def writable(self):
+        return True
 
     def close(self):
         self._jfile.close()
+
+    def write(self, b):
+        self._jfile.write(b.tobytes())
+        return len(b)

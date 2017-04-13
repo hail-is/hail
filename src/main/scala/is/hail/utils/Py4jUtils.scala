@@ -56,8 +56,8 @@ trait Py4jUtils {
 
   def makeDouble(d: Double): Double = d
 
-  def readFile(path: String, hc: HailContext, buffer: Int): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
-    new HadoopPyReader(hc.hadoopConf.unsafeReader(path), buffer)
+  def readFile(path: String, hc: HailContext): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
+    new HadoopPyReader(hc.hadoopConf.unsafeReader(path))
   }
 
   def writeFile(path: String, hc: HailContext): HadoopPyWriter = {
@@ -69,22 +69,32 @@ trait Py4jUtils {
   }
 }
 
-class HadoopPyReader(in: InputStream, buffer: Int) {
-  private val lines = Source.fromInputStream(in).getLines()
+class HadoopPyReader(in: InputStream) {
+  var eof = false
+
+  def read(n: Int): String = {
+    if (eof)
+      new String(new Array[Byte](0), "ISO-8859-1")
+    else {
+      var i = 0
+      val b = new Array[Byte](n)
+      while (!eof && i < n) {
+        val bytesRead = in.read(b, i, b.length - i)
+        if (bytesRead < 0) {
+          eof = true
+        } else
+          i += bytesRead
+      }
+
+      if (eof)
+        new String(b.slice(0, i), "ISO-8859-1")
+      else
+        new String(b, "ISO-8859-1")
+    }
+  }
 
   def close() {
     in.close()
-  }
-
-  def readFully(): String = {
-    lines.mkString("\n")
-  }
-
-  def readChunk(): String = {
-    if (lines.isEmpty)
-      null
-    else
-      lines.take(buffer).mkString("\n")
   }
 }
 
@@ -92,11 +102,6 @@ class HadoopPyWriter(out: OutputStreamWriter) {
 
   def write(s: String) {
     out.write(s)
-  }
-
-  def writeLine(s: String) {
-    out.write(s)
-    out.write('\n')
   }
 
   def close() {
