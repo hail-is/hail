@@ -160,6 +160,11 @@ class KeyTableSuite extends SparkSuite {
 
     val outputFile = tmpDir.createTempFile("join", "tsv")
     ktLeftJoin.export(sc, outputFile, null)
+
+    val noNull = ktLeft.filter("isDefined(qPhen) && isDefined(Status)", keep = true).keyBy(List("Sample", "Status"))
+    assert(noNull.join(
+      noNull.rename(Map("qPhen" -> "qPhen_")), "outer"
+    ).rdd.forall { r => !r.toSeq.exists(_ == null)})
   }
 
   @Test def testJoinDiffKeyNames() = {
