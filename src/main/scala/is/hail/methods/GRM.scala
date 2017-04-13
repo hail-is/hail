@@ -28,7 +28,7 @@ object GRM {
     assert(nSamples == mat.numCols())
     val nVariants = mat.numRows() // mat cached
 
-    val bmat = mat.toBlockMatrix().cache()
+    val bmat = mat.toBlockMatrixDense().cache()
     val grm = bmat.transpose.multiply(bmat)
 
     assert(grm.numCols == nSamples
