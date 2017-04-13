@@ -247,8 +247,8 @@ object RegressionUtils {
 
   // constructs DenseVector of dosage genotypes (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
   def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {
-    val nSamples = y.length
-    val valsX = Array.ofDim[Double](nSamples)
+    val nMaskedSamples = y.length
+    val valsX = Array.ofDim[Double](nMaskedSamples)
     var sumX = 0d
     var sumXX = 0d
     var sumXY = 0d
@@ -277,7 +277,7 @@ object RegressionUtils {
       i += 1
     }
 
-    val nPresent = nSamples - nMissing
+    val nPresent = nMaskedSamples - nMissing
 
     if (sumX < minAC)
       None
@@ -301,7 +301,7 @@ object RegressionUtils {
 
   // constructs SparseVector of hard call genotypes (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
   def toLinregHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
-    val nSamples = y.length
+    val nMaskedSamples = y.length
     val lrb = new LinRegBuilder(y)
     val gts = gs.hardCallGenotypeIterator
 
@@ -313,12 +313,12 @@ object RegressionUtils {
       i += 1
     }
 
-    lrb.stats(y, nSamples, minAC)
+    lrb.stats(y, nMaskedSamples, minAC)
   }
 
   // constructs SparseVector of hard call genotypes (with missing values mean-imputed) in parallel with other summary statistics
   // if all genotypes are missing then all elements are NaN
-  def toLinMixedHardCallStats(gs: Iterable[Genotype], mask: Array[Boolean], nSamples: Int): SparseGtVectorAndStats = {
+  def toLinMixedHardCallStats(gs: Iterable[Genotype], mask: Array[Boolean], nMaskedSamples: Int): SparseGtVectorAndStats = {
     val sb = new SparseGtBuilder()
     val gts = gs.hardCallGenotypeIterator
 
@@ -330,7 +330,7 @@ object RegressionUtils {
       i += 1
     }
 
-    sb.stats(nSamples)
+    sb.stats(nMaskedSamples)
   }
 }
 
