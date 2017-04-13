@@ -11,6 +11,7 @@ If you'd like command line shortcuts to these scripts, add these lines to `~/.ba
 alias start-cluster=< local cloud-tools directory >/start_cluster.py
 alias submit-cluster=< local cloud-tools directory >/submit_cluster.py
 alias connect-cluster=< local cloud-tools directory >/connect_cluster.py
+alias stop-cluster=< local cloud-tools directory >/stop_cluster.py
 ```
 
 To use the scripts here, you'll also need the Google Cloud SDK -- see quickstart instructions for Mac OS X [here](https://cloud.google.com/sdk/docs/quickstart-mac-os-x).
