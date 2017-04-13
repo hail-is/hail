@@ -464,9 +464,9 @@ class HailContext(object):
             Using the **FILTER** field:
             
             The information in the FILTER field of a VCF is contained in the ``va.filters`` annotation.
-            This annotation is a ``Set``, and can be queried for filter membership with expressions 
-            like: ``va.filters.contains("VQSRTranche99.5...")``. A variant that was flagged as "PASS" 
-            will have no filters applied: for these variants, `va.filters.isEmpty()` is true. Thus, 
+            This annotation is a ``Set`` and can be queried for filter membership with expressions 
+            like ``va.filters.contains("VQSRTranche99.5...")``. Variant that are flagged as "PASS" 
+            will have no filters applied; for these variants, ``va.filters.isEmpty()`` is true. Thus, 
             filtering to PASS variants can be done with :py:meth:`.VariantDataset.filter_variants_expr`
             as follows:
             
@@ -474,12 +474,12 @@ class HailContext(object):
 
         **Annotations**
 
-        - **va.filters** (*Set[String]*) -- The set containing all filters applied to a variant. 
-        - **va.rsid** (*String*) -- The rsID of the variant, if it has one ("." otherwise).
-        - **va.qual** (*Double*) -- The floating-point number in the QUAL field.
+        - **va.filters** (*Set[String]*) -- Set containing all filters applied to a variant. 
+        - **va.rsid** (*String*) -- rsID of the variant.
+        - **va.qual** (*Double*) -- Floating-point number in the QUAL field.
         - **va.info** (*Struct*) -- All INFO fields defined in the VCF header can be found in the
-          struct ``va.info``. Data types match the type specified in the vcf header, and if 
-          the ``Number`` is not 1, the result will be stored as an array. 
+          struct ``va.info``. Data types match the type specified in the VCF header, and if 
+         the declared ``Number`` is not 1, the result will be stored as an array. 
 
 
         :param path: VCF file(s) to read.

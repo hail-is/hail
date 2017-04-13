@@ -36,7 +36,11 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
       else
         vc.getFilters.asScala.toSet
     }
-    val rsid = vc.getID
+    val vcID = vc.getID
+    val rsid = if (vcID == ".")
+      null
+    else
+      vcID
 
     val ref = vc.getReference.getBaseString
     val v = Variant(vc.getContig,
