@@ -364,16 +364,19 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val size1 = nFields
     val targetSize = newSignature.size
     val localNKeys = nKeys
+    val localLeftSize = valueSignature.size
 
     val merger = (k: Row, r1: Row, r2: Row) => {
       val result = Array.fill[Any](targetSize)(null)
 
-      (0 until localNKeys).foreach{i =>
+      (0 until localNKeys).foreach { i =>
         result(i) = k.get(i)
       }
 
       if (r1 != null) {
-        (localNKeys until r1.length).foreach { i => result(i) = r1.get(i - localNKeys) }
+        (localNKeys until localNKeys + localLeftSize).foreach { i =>
+          result(i) = r1.get(i - localNKeys)
+        }
       }
 
       if (r2 != null) {
