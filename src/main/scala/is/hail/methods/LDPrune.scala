@@ -190,7 +190,7 @@ object LDPrune {
 
     val r = stdDevRecX * stdDevRecY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
     val r2 = r * r
-    assert(D_>=(r2, 0d) && D_<=(r2, 1d), s"R2 must be between [0,1]. Found $r2.")
+    assert(D_>=(r2, 0d) && D_<=(r2, 1d), s"R2 must lie in [0,1]. Found $r2.")
     r2
   }
 
@@ -208,11 +208,11 @@ object LDPrune {
         val qit = queue.descendingIterator()
 
         while (!done && qit.hasNext) {
-          val (v2, bpv2) = qit.next()
-          if (v.contig != v2.contig || math.abs(v.start - v2.start) > windowSize)
+          val (vPrev, bpvPrev) = qit.next()
+          if (v.contig != vPrev.contig || v.start - vPrev.start > windowSize)
             done = true
           else {
-            val r2 = computeR2(bpv, bpv2)
+            val r2 = computeR2(bpv, bpvPrev)
             if (r2 >= r2Threshold) {
               keepVariant = false
               done = true
@@ -267,12 +267,12 @@ object LDPrune {
         var targetData = targetIterator.toArray
 
         prevPartitions.foreach { it =>
-          it.foreach { case (v2, bpv2) =>
+          it.foreach { case (vPrev, bpvPrev) =>
             targetData = targetData.filter { case (v, bpv) =>
-              if (v.contig != v2.contig || math.abs(v.start - v2.start) > windowSize)
+              if (v.contig != vPrev.contig || math.abs(v.start - vPrev.start) > windowSize)
                 true
               else {
-                computeR2(bpv, bpv2) < r2Threshold
+                computeR2(bpv, bpvPrev) < r2Threshold
               }
             }
           }
