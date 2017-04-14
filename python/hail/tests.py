@@ -188,7 +188,7 @@ class ContextTests(unittest.TestCase):
 
             self.assertEqual(dataset2.filter_variants_kt(
                 hc.import_keytable(test_resources + '/sample2_variants.tsv',
-                                   key_names='_0',
+                                   key='_0',
                                    config=TextTableConfig(impute=True, noheader=True)))
                              .count()['nVariants'], 21)
 

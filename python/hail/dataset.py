@@ -2138,7 +2138,7 @@ class VariantDataset(object):
         >>> vds.filter_variants_list([Variant('20:10626633:G:GC'), Variant('20:10019093:A:G')], keep=True)
 
         :param variants: List of variants to keep or remove.
-        :type: list of :py:class:`~hail.representation.Variant`
+        :type variants: list of :py:class:`~hail.representation.Variant`
 
         :param bool keep: If true, keep variants in ``variants``, otherwise remove them.
 
@@ -2159,11 +2159,11 @@ class VariantDataset(object):
 
         Filter variants of a VDS to those appearing in the Variant column of a TSV file:
 
-        >>> kt = hc.import_keytable('data/sample_variants.txt', key_names='Variant', config=TextTableConfig(impute=True))
-        >>> vds.filter_variants_kt(kt, keep=True)
+        >>> kt = hc.import_keytable('data/sample_variants.txt', key='Variant', config=TextTableConfig(impute=True))
+        >>> filtered_vds = vds.filter_variants_kt(kt, keep=True)
 
         :param kt: Keep or remove ``kt`` keys.
-        :type: :py:class:`.KeyTable`
+        :type kt: :py:class:`.KeyTable`
 
         :param bool keep: If true, keep variants which appear as keys
           in ``kt``, otherwise remove them.
@@ -4330,7 +4330,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
-    def make_keytable(self, variant_expr, genotype_expr, key_names=[], separator='.'):
+    def make_keytable(self, variant_expr, genotype_expr, key=[], separator='.'):
         """Make a KeyTable with one row per variant.
 
         Per sample field names in the result are formed by
@@ -4382,8 +4382,8 @@ class VariantDataset(object):
         :param genotype_expr: Genotype annotation expressions.
         :type genotype_expr: str or list of str
 
-        :param key_names: list of key columns
-        :type key_names: list of str
+        :param key: List of key columns.
+        :type key: str or list of str
 
         :param str separator: Seperator to use between sample IDs and genotype expression left hand side identifiers.
 
@@ -4395,7 +4395,13 @@ class VariantDataset(object):
             variant_expr = ','.join(variant_expr)
         if isinstance(genotype_expr, list):
             genotype_expr = ','.join(genotype_expr)
+        if not isinstance(key, list):
+            key = [key]
 
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
+<<<<<<< e11d4610648097bdcf76cce05310361efda036b6
                                 jarray(Env.jvm().java.lang.String, key_names), separator)
+=======
+                                jarray(Env.jvm().java.lang.String, key))
+>>>>>>> Addressed comments.
         return KeyTable(self.hc, jkt)

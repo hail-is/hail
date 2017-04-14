@@ -139,7 +139,7 @@ object HailContext {
     quiet: Boolean = false,
     append: Boolean = false,
     parquetCompression: String = "snappy",
-    blockSize: Long = 1L,
+    minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp"): HailContext = {
 
@@ -158,7 +158,7 @@ object HailContext {
     configureLogging(logFile, quiet, append)
 
     val sparkContext = if (sc == null)
-      configureAndCreateSparkContext(appName, master, local, parquetCompression, blockSize)
+      configureAndCreateSparkContext(appName, master, local, parquetCompression, minBlockSize)
     else {
       SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1024L * 1024L * 1024L * 1024L)
       checkSparkConfiguration(sc)

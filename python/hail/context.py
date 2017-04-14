@@ -256,7 +256,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_keytable(self, path, key_names=[], npartitions=None, config=TextTableConfig()):
+    def import_keytable(self, path, key=[], npartitions=None, config=TextTableConfig()):
         """Import delimited text file (text table) as key table.
 
         The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
@@ -265,8 +265,8 @@ class HailContext(object):
         :param path: files to import.
         :type path: str or list of str
 
-        :param key_names: List of columns to be used as keys.
-        :type key_names: str or list of str
+        :param key: List of key columns.
+        :type key: str or list of str
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None
@@ -278,14 +278,14 @@ class HailContext(object):
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(key_names, str):
-            key_names = [key_names]
+        if not isinstance(key, list):
+            key = [key]
 
         if not config:
             config = TextTableConfig()
 
         jkt = self._jhc.importKeyTable(jindexed_seq_args(path),
-                                       jarray(self._jvm.java.lang.String, key_names),
+                                       jarray(self._jvm.java.lang.String, key),
                                        joption(npartitions),
                                        config._to_java())
         return KeyTable(self, jkt)

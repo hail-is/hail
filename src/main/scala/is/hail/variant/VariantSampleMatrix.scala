@@ -1239,29 +1239,34 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     filterVariantsList(variants.asScala.toSet, keep)
 
   def filterVariantsList(variants: Set[Variant], keep: Boolean): VariantSampleMatrix[T] = {
-    val partitionVariants = variants
-      .groupBy(v => rdd.orderedPartitioner.getPartition(v))
-      .toArray
-      .sortBy(_._1)
+    if (keep) {
+      val partitionVariants = variants
+        .groupBy(v => rdd.orderedPartitioner.getPartition(v))
+        .toArray
+        .sortBy(_._1)
 
-    val adjRDD = new AdjustedPartitionsRDD[RowT](rdd,
-      partitionVariants.map { case (oldPart, variantsSet) =>
-        Array(Adjustment[RowT](oldPart,
-          _.filter { case (v, _) =>
-            Filter.keepThis(variantsSet.contains(v), keep)
-          }))
-      })
+      val adjRDD = new AdjustedPartitionsRDD[RowT](rdd,
+        partitionVariants.map { case (oldPart, variantsSet) =>
+          Array(Adjustment[RowT](oldPart,
+            _.filter { case (v, _) =>
+              variantsSet.contains(v)
+            }))
+        })
 
-    val adjRangeBounds =
-      if (partitionVariants.isEmpty)
-        Array.empty[Locus]
-      else
-        partitionVariants.init.map { case (oldPart, _) =>
-          rdd.orderedPartitioner.rangeBounds(oldPart)
-        }
+      val adjRangeBounds =
+        if (partitionVariants.isEmpty)
+          Array.empty[Locus]
+        else
+          partitionVariants.init.map { case (oldPart, _) =>
+            rdd.orderedPartitioner.rangeBounds(oldPart)
+          }
 
-    copy(rdd = OrderedRDD(adjRDD, OrderedPartitioner(adjRangeBounds, partitionVariants.length)(
-      rdd.kOk)))
+      copy(rdd = OrderedRDD(adjRDD, OrderedPartitioner(adjRangeBounds, partitionVariants.length)(
+        rdd.kOk)))
+    } else {
+      val variantsBc = hc.sc.broadcast(variants)
+      filterVariants { case (v, _, _) => !variantsBc.value.contains(v) }
+    }
   }
 
   def filterVariantsKT(kt: KeyTable, keep: Boolean): VariantSampleMatrix[T] = {
@@ -1269,12 +1274,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       fatal(
         s"""Filtering variants requires a key table with one Variant key.
            |  Got key table with key signature:
-           |${ kt.keySignature.toPrettyString() }
-        """.stripMargin)
+           |${ kt.keySignature.toPrettyString(indent = 2) }""".stripMargin)
+
+    val keyIndex = kt.signature.fieldIdx(kt.key.head)
 
     val ktVariantRDD = kt.rdd.map { r =>
-      (r.get(0).asInstanceOf[Variant], ())
-    }.toOrderedRDD
+      (r.get(keyIndex).asInstanceOf[Variant], ())
+    }.filter(_ != null)
+      .toOrderedRDD
 
     copy(rdd = rdd.orderedLeftJoinDistinct(ktVariantRDD)
       .mapPartitions(_.filter { case (_, (_, o)) =>
