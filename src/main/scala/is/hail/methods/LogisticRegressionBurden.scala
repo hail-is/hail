@@ -91,7 +91,7 @@ object LogisticRegressionBurden {
       }
     })
 
-    val logregKT = new KeyTable(sampleKT.hc, logregRDD, signature = logregSignature, keyNames = Array(keyName))
+    val logregKT = new KeyTable(sampleKT.hc, logregRDD, signature = logregSignature, key = Array(keyName))
 
     (logregKT, sampleKT)
   }

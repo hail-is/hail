@@ -187,8 +187,10 @@ class ContextTests(unittest.TestCase):
             (dataset.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
              .count())
 
-            self.assertEqual(dataset2.filter_variants_list(
-                test_resources + '/sample2_variants.tsv')
+            self.assertEqual(dataset2.filter_variants_kt(
+                hc.import_keytable(test_resources + '/sample2_variants.tsv',
+                                   key='_0',
+                                   config=TextTableConfig(impute=True, noheader=True)))
                              .count()['nVariants'], 21)
 
             m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
@@ -375,7 +377,7 @@ class ContextTests(unittest.TestCase):
 
         # Variables
         self.assertEqual(kt.num_columns, 3)
-        self.assertEqual(kt.key_names[0], "Sample")
+        self.assertEqual(kt.key[0], "Sample")
         self.assertEqual(kt.column_names[2], "qPhen")
         self.assertEqual(kt.count_rows(), 100)
         kt.schema

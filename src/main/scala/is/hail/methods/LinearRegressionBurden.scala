@@ -87,7 +87,7 @@ object LinearRegressionBurden {
     }
 
     val linregSignature = TStruct(keyName -> keyType).merge(LinearRegression.schema)._1
-    val linregKT = new KeyTable(sampleKT.hc, linregRDD, signature = linregSignature, keyNames = Array(keyName))
+    val linregKT = new KeyTable(sampleKT.hc, linregRDD, signature = linregSignature, key = Array(keyName))
 
     (linregKT, sampleKT)
   }

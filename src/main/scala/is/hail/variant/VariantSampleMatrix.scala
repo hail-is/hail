@@ -148,6 +148,8 @@ object VSMSubgen {
 class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {
 
+  type RowT = (Variant, (Annotation, Iterable[T]))
+
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
@@ -240,7 +242,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val signature = TStruct((keyName -> keyType) +: sampleIds.map(id => id -> resultType): _*)
 
-    new KeyTable(hc, ktRDD, signature, keyNames = Array(keyName))
+    new KeyTable(hc, ktRDD, signature, key = Array(keyName))
   }
 
   def aggregateBySample[U](zeroValue: U)(
@@ -1175,8 +1177,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       copy(rdd = rdd.filterIntervals(iList))
     else {
       val iListBc = sparkContext.broadcast(iList)
-      filterVariants { (v, va, gs) => !iListBc.value.contains(v.locus)
-      }
+      filterVariants { (v, va, gs) => !iListBc.value.contains(v.locus) }
     }
   }
 
@@ -1267,22 +1268,61 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     filterVariants(p)
   }
 
-  def filterVariantsList(input: String, keep: Boolean): VariantSampleMatrix[T] = {
-    copy(
-      rdd = rdd
-        .orderedLeftJoinDistinct(Variant.variantUnitRdd(sparkContext, input).toOrderedRDD)
-        .mapPartitions({ it =>
-          it.flatMap { case (v, ((va, gs), o)) =>
-            o match {
-              case Some(_) =>
-                if (keep) Some((v, (va, gs))) else None
-              case None =>
-                if (keep) None else Some((v, (va, gs)))
-            }
+  def filterVariantsList(variants: java.util.ArrayList[Variant], keep: Boolean): VariantSampleMatrix[T] =
+    filterVariantsList(variants.asScala.toSet, keep)
+
+  def filterVariantsList(variants: Set[Variant], keep: Boolean): VariantSampleMatrix[T] = {
+    if (keep) {
+      val partitionVariants = variants
+        .groupBy(v => rdd.orderedPartitioner.getPartition(v))
+        .toArray
+        .sortBy(_._1)
+
+      val adjRDD = new AdjustedPartitionsRDD[RowT](rdd,
+        partitionVariants.map { case (oldPart, variantsSet) =>
+          Array(Adjustment[RowT](oldPart,
+            _.filter { case (v, _) =>
+              variantsSet.contains(v)
+            }))
+        })
+
+      val adjRangeBounds =
+        if (partitionVariants.isEmpty)
+          Array.empty[Locus]
+        else
+          partitionVariants.init.map { case (oldPart, _) =>
+            rdd.orderedPartitioner.rangeBounds(oldPart)
           }
-        }, preservesPartitioning = true)
-        .asOrderedRDD
-    )
+
+      copy(rdd = OrderedRDD(adjRDD, OrderedPartitioner(adjRangeBounds, partitionVariants.length)(
+        rdd.kOk)))
+    } else {
+      val variantsBc = hc.sc.broadcast(variants)
+      filterVariants { case (v, _, _) => !variantsBc.value.contains(v) }
+    }
+  }
+
+  def filterVariantsKT(kt: KeyTable, keep: Boolean): VariantSampleMatrix[T] = {
+    if (kt.keyFields.length != 1 || kt.keyFields(0).typ != TVariant)
+      fatal(
+        s"""Filtering variants requires a key table with one Variant key.
+           |  Got key table with key signature:
+           |${ kt.keySignature.toPrettyString(indent = 2) }""".stripMargin)
+
+    val keyIndex = kt.signature.fieldIdx(kt.key.head)
+
+    val ktVariantRDD = kt.rdd.map { r =>
+      (r.get(keyIndex).asInstanceOf[Variant], ())
+    }.filter(_._1 != null)
+      .toOrderedRDD
+
+    copy(rdd = rdd.orderedLeftJoinDistinct(ktVariantRDD)
+      .mapPartitions(_.filter { case (_, (_, o)) =>
+        Filter.keepThis(o.isDefined, keep)
+      }.map { case (v, (vags, _)) =>
+        (v, vags)
+      }, preservesPartitioning = true)
+      .asOrderedRDD)
   }
 
   def sparkContext: SparkContext = hc.sc

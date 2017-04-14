@@ -31,7 +31,7 @@ class Type(object):
         return self._jtype.toString()
 
     def __str__(self):
-        return self._jtype.toPrettyString(False, False)
+        return self._jtype.toPrettyString(0, False, False)
 
     def __eq__(self, other):
         return self._jtype.equals(other._jtype)
