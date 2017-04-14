@@ -742,9 +742,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     * @param idFile write ID file to this path
     * @param nFile N file path, used with gcta-grm-bin only
     */
-  def grm(path: String, format: String, idFile: Option[String] = None, nFile: Option[String] = None) {
+  def grm(path: String, format: String, idFile: Option[String] = None, nFile: Option[String] = None): KinshipMatrix = {
     requireSplit("GRM")
-    GRM(vds, path, format, idFile, nFile)
+    GRM(vds)
   }
 
   def hardCalls(): VariantDataset = {

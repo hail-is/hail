@@ -2,6 +2,7 @@ package is.hail.methods
 
 import breeze.linalg.SparseVector
 import is.hail.HailContext
+import is.hail.variant.VariantDataset
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 
@@ -57,7 +58,6 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
     */
   private def prepareMatrixForExport(matToComplete: IndexedRowMatrix): IndexedRowMatrix = {
     val zeroVector = SparseVector.zeros[Double](sampleIds.length)
-
     new IndexedRowMatrix(matToComplete
       .rows
       .map(x => (x.index, x.vector))
