@@ -2599,6 +2599,154 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    def linreg_burden(self, key_name, variant_key_set, aggregate_with, genotype_expr, y, covariates=[], drop_samples=True):
+        r"""Test each group of variants for association using the linear regression model.
+
+        .. include:: requireTGenotype.rst
+
+        **Examples**
+
+        Annotate variants by gene set and run a linear regression burden test using the maximum genotype per gene:
+
+        >>> kt = (hc.read("data/example_burden.vds")
+        ...     .annotate_variants_intervals('data/genes.interval_list', 'va.genes', all=True)
+        ...     .linreg_burden(key_name='gene',
+        ...                    variant_key_set='va.genes',
+        ...                    aggregate_with='max()',
+        ...                    genotype_expr='g.gt',
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2'],
+        ...                    drop_samples=False))
+
+        To use a weighted sum (linear combination) of genotypes, with weights given by a variant annotation ``va.weight``, set ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * g.gt'``.
+
+        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, use ``aggregate_with='sum()'`` and ``genotype_expr='va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)'``, where ``va.qc.AF`` is the allele frequency over those samples with phenotype and sample covariates all non-missing.
+
+        **Notes**
+
+        This method extends linear regression by generalizing the covariate of interest. Namely, the genotype of a variant is replaced by a numeric score computed from a group of variants with a common key. The method proceeds as follows:
+
+        1) Filter to samples with all phenotype and covariates non-missing, and filter to variants with non-empty ``variant_key_set``.
+
+        2) Map each genotype to a numeric value using ``genotype_expr``. ``v``, ``va``, ``s``, ``sa``, and ``g`` are all visible.
+
+        3) For each key and sample, aggregate these values across all variants with this key in their ``variant_key_set`` using ``aggregate_with``.
+           The latter is any `method <https://hail.is/hail/types.html#aggregable>`_ on Aggregable[T] that returns a numeric type,
+           where ``T`` is the type of ``genotype_expr``.
+           This results in a key table with key column ``key_name`` and a column for each complete sample.
+           For each key (row), missing values are mean-imputed across all samples.
+
+        4) For each key, fit the linear regression model with phenotype and covariates as described in :py:meth:`.linreg`, with
+           sample genotype ``gt`` replaced by the aggregated value for that sample and key.
+
+        :py:meth:`.linreg_burden` returns a key table with the following columns:
+
+        - **key** (*String*) -- variant group
+        - **beta** (*Double*) -- fit coefficient, :math:`\hat\beta_1`
+        - **se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
+        - **tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+        - **pval** (*Double*) -- :math:`p`-value
+
+        If ``drop_samples=False``, the key table has an additional column for each sample included in the regression. The column name equals the sample ID and the value for each key is the result of the aggregation for that key and sample, which has a numeric type. If ``drop_samples=False``, sample names cannot coincide with ``key_name``, ``beta``, ``se``, ``tstat``, or ``pval``.
+
+        Let's walk through these steps in the ``max()`` toy example above.
+        There are six samples with the following annotations:
+
+        +--------+-------+------+------+
+        | Sample | pheno | cov1 | cov2 |
+        +========+=======+======+======+
+        |      A |     1 |    0 |   -1 |
+        +--------+-------+------+------+
+        |      B |     1 |    2 |    3 |
+        +--------+-------+------+------+
+        |      C |     2 |    1 |    5 |
+        +--------+-------+------+------+
+        |      D |     2 |   -2 |    0 |
+        +--------+-------+------+------+
+        |      E |     2 |   -2 |   -4 |
+        +--------+-------+------+------+
+        |      F |     2 |    4 |    3 |
+        +--------+-------+------+------+
+
+        There are three variants with the following ``gt`` values:
+
+        +---------+---+---+---+---+---+---+
+        |         | A | B | C | D | E | F |
+        +=========+===+===+===+===+===+===+
+        | 1:1:A:C | 0 | 1 | 0 | 0 | 0 | 1 |
+        +---------+---+---+---+---+---+---+
+        | 1:2:C:T | . | 2 | . | 2 | 0 | 0 |
+        +---------+---+---+---+---+---+---+
+        | 1:3:G:C | 0 | . | 1 | 1 | 1 | . |
+        +---------+---+---+---+---+---+---+
+
+        The columns of ``genes.interval_list`` correspond to chromosome, start, end, strand, and gene:
+
+        .. code-block:: text
+
+            1	1	2	+	geneA
+            1	2	2	-	geneB
+            1	1	3	+	geneC
+
+        So there are three overlapping genes: gene A contains two variants,
+        gene B contains one variant, and gene C contains all three variants.
+
+        +--------+---------+---------+---------+
+        |  gene  | 1:1:A:C | 1:2:C:T | 1:3:G:C |
+        +========+=========+=========+=========+
+        |  geneA |    X    |    X    |         |
+        +--------+---------+---------+---------+
+        |  geneB |         |    X    |         |
+        +--------+---------+---------+---------+
+        |  geneC |    X    |    X    |    X    |
+        +--------+---------+---------+---------+
+
+        Therefore :py:meth:`.annotate_variants_intervals` with ``all=True`` creates
+        a variant annotation of type Set(String) with values ``Set('geneA', 'geneB')``,
+        ``Set('geneB')``, and ``Set('geneA', 'geneB', 'geneC')``.
+
+        :py:meth:`.linear_burden` proceeds through the four steps above. Step (1) is vacuous in this case
+        since all samples are complete and every variant is in at least one gene. Step (2) maps each
+        genotype to the ``gt`` field shown in the variant table above. Step (3) finds the maximum value
+        for each gene and sample, resulting in columns A through F below. Step (4) runs linear regression
+        for each gene using these values for the covariate of interest, and the phenotype and sample covariates
+        in the table above. Since ``drop_samples=False``, the returned key table ``kt`` is then:
+
+        +-----+---+---+---+---+---+---+-------+------+-------+------+
+        | gene| A | B | C | D | E | F |  beta |   se | tstat | pval |
+        +=====+===+===+===+===+===+===+=======+======+=======+======+
+        |geneA|  0|  2|  0|  2|  0|  1| -0.084| 0.368| -0.227| 0.841|
+        +-----+---+---+---+---+---+---+-------+------+-------+------+
+        |geneB| NA|  2| NA|  2|  0|  0| -0.542| 0.335| -1.617| 0.247|
+        +-----+---+---+---+---+---+---+-------+------+-------+------+
+        |geneC|  0|  2|  1|  2|  1|  1|  0.075| 0.515|  0.145| 0.898|
+        +-----+---+---+---+---+---+---+-------+------+-------+------+
+
+        With ``drop_samples=True``, columns A through F would be dropped.
+
+        :param str key_name: Name to assign to key column of returned key table.
+
+        :param str variant_key_set: Set(String)-valued variant annotation path for the set of keys associated to each variant.
+
+        :param str aggregate_with: `Method <https://hail.is/hail/types.html#aggregable>`_ on Aggregable[T], where ``T`` is the type of ``genotype_expr``, that returns a numeric type.
+
+        :param str genotype_expr: Numeric-valued expression for the value per genotype.
+
+        :param str y: Response expression
+
+        :param covariates: list of covariate expressions
+        :type covariates: list of str
+
+        :param bool drop_samples: If true, only include resulting keytable
+
+        :return: Keytable with linear regression variant annotations.
+        :rtype: :py:class:`.KeyTable`
+        """
+
+        jvds = self._jvdf.linregBurden(key_name, variant_key_set, aggregate_with, genotype_expr, y, jarray(Env.jvm().java.lang.String, covariates), drop_samples)
+        return KeyTable(self.hc, jvds)
+
+    @handle_py4j
     @requireTGenotype
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
                run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0):
@@ -2883,7 +3031,7 @@ class VariantDataset(object):
 
         The following R code fits the (standard) logistic, Firth logistic, and linear regression models to this data, where ``x`` is genotype, ``y`` is phenotype, and ``logistf`` is from the logistf package:
 
-        .. code-block:: R
+        .. code:: R
 
             x <- c(rep(0,1000), rep(1,1000), rep(1,10)
             y <- c(rep(0,1000), rep(0,1000), rep(1,10))

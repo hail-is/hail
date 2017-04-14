@@ -9,7 +9,7 @@ import is.hail.variant._
 import net.sourceforge.jdistlib.T
 
 object LinearRegression {
-  val schema: Type = TStruct(
+  val schema = TStruct(
     ("beta", TDouble),
     ("se", TDouble),
     ("tstat", TDouble),
