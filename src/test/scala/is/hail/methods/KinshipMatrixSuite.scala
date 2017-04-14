@@ -13,7 +13,6 @@ import org.testng.annotations.Test
 class KinshipMatrixSuite extends SparkSuite {
 
   val data = Seq(
-    IndexedRow(0L, Vectors.dense(1, 2, 3, 4)),
     IndexedRow(1L, Vectors.dense(5, 6, 7, 8)),
     IndexedRow(2L, Vectors.dense(9, 10, 11, 12)),
     IndexedRow(3L, Vectors.dense(13, 14, 15, 16))
@@ -59,6 +58,9 @@ class KinshipMatrixSuite extends SparkSuite {
         .drop(1)
         .map(s => s.split("\t").map(_.toDouble)).toArray
     }
+
+    //Ensures that all 4 rows of data matrix got written out and read back in, even though row 0 is not explicity included in data.
+    assert(readInValues.length == irm.numRows())
 
     assert(km.matrix.toBlockMatrix().toLocalMatrix().rowIter.map(v => v.toArray).toArray.deep == readInValues.deep)
 
