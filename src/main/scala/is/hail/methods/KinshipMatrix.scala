@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import breeze.linalg.SparseVector
 import is.hail.HailContext
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -44,7 +45,27 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
     */
   def exportTSV(output: String) {
     require(output.endsWith(".tsv"), "Kinship matrix output must end in '.tsv'")
-    matrix.rows.sortBy(ir => ir.index).map(ir => ir.vector.toArray.mkString("\t"))
+    prepareMatrixForExport(matrix).rows.map(ir => ir.vector.toArray.mkString("\t"))
       .writeTable(output, hc.tmpDir, Some(sampleIds.mkString("\t")))
+  }
+
+  /**
+    * Creates an IndexedRowMatrix whose backing RDD is sorted by row index and has an entry for every row index.
+    *
+    * @param matToComplete The matrix to be completed.
+    * @return The completed matrix.
+    */
+  private def prepareMatrixForExport(matToComplete: IndexedRowMatrix): IndexedRowMatrix = {
+    val zeroVector = SparseVector.zeros[Double](sampleIds.length)
+
+    new IndexedRowMatrix(matToComplete
+      .rows
+      .map(x => (x.index, x.vector))
+      .rightOuterJoin(hc.sc.parallelize(0L until sampleIds.length).map(x => (x, ())))
+      .map {
+        case (idx, (Some(v), _)) => IndexedRow(idx, v)
+        case (idx, (None, _)) => IndexedRow(idx, zeroVector)
+      }
+      .sortBy(_.index))
   }
 }
