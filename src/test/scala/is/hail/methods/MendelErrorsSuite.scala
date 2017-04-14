@@ -7,7 +7,7 @@ import org.testng.annotations.Test
 class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
     val vds = hc.importVCF("src/test/resources/mendel.vcf")
-    val ped = Pedigree.fromFam("src/test/resources/mendel.fam", sc.hadoopConfiguration)
+    val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration)
     val men = MendelErrors(vds, ped.filterTo(vds.sampleIds.toSet).completeTrios)
 
     val nPerFam = men.nErrorPerNuclearFamily.collectAsMap()
@@ -58,7 +58,7 @@ class MendelErrorsSuite extends SparkSuite {
     men.writeMendelF(mendelBase + ".fmendel")
     men.writeMendelI(mendelBase + ".imendel")
 
-    val ped2 = Pedigree.fromFam("src/test/resources/mendelWithMissingSex.fam", sc.hadoopConfiguration)
+    val ped2 = Pedigree.read("src/test/resources/mendelWithMissingSex.fam", sc.hadoopConfiguration)
     val men2 = MendelErrors(vds, ped2.filterTo(vds.sampleIds.toSet).completeTrios)
 
     assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == "Dtr1").collect().toSet)

@@ -71,7 +71,7 @@ case class CompleteTrio(kid: String, fam: Option[String], knownDad: String, know
 
 object Pedigree {
 
-  def fromFam(filename: String, hConf: hadoop.conf.Configuration, delimiter: String = "\\s+"): Pedigree = {
+  def read(filename: String, hConf: hadoop.conf.Configuration, delimiter: String = "\\s+"): Pedigree = {
     hConf.readLines(filename) { lines =>
 
       val invalidSex = mutable.Set.empty[String]

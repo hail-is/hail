@@ -244,7 +244,7 @@ class Pedigree(object):
         :rtype: :class:`.Pedigree`
         """
 
-        jrep = scala_object(Env.hail().methods, 'Pedigree').fromFam(fam_path, Env.hc()._jhc.hadoopConf(), delimiter)
+        jrep = scala_object(Env.hail().methods, 'Pedigree').read(fam_path, Env.hc()._jhc.hadoopConf(), delimiter)
         return Pedigree._from_java(jrep)
 
     @property

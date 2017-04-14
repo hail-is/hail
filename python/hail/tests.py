@@ -353,11 +353,12 @@ class ContextTests(unittest.TestCase):
 
         vds_assoc.export_variants('/tmp/lmmreg.tsv', 'Variant = v, va.lmmreg.*')
 
-        sample_split.mendel_errors('/tmp/sample.mendel', test_resources + '/sample.fam')
+        ped = Pedigree.read(test_resources + '/sample.fam')
+        sample_split.mendel_errors('/tmp/sample.mendel', ped)
 
         sample_split.pca('sa.scores')
 
-        sample_split.tdt(test_resources + '/sample.fam')
+        sample_split.tdt(ped)
 
         sample2_split.variant_qc().variant_schema
 

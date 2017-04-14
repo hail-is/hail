@@ -111,7 +111,7 @@ object KeyTable {
 
     val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
 
-    val rows = data.map { case (id, values) => Row.fromSeq(id :+ values.toSeq)}.toArray
+    val rows = data.map { case (id, values) => Row.fromSeq(List(id) ++ values.toSeq)}.toArray
     val rdd = hc.sc.parallelize(rows)
 
     val newFields = List("ID" -> TString) ++ typ.fields.map(f => (f.name, f.typ))

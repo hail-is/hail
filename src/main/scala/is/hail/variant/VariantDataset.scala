@@ -233,7 +233,7 @@ object VariantDataset {
     kt.keyFields.map(_.typ) match {
       case Array(TVariant) =>
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
-        s"but found [ ${arr.mkString(", ")} ]")
+        s"but found [ ${ arr.mkString(", ") } ]")
     }
 
     val rdd = kt.keyedRDD()
@@ -758,7 +758,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
 
-
   def gqByDP(path: String) {
     val nBins = GQByDPBins.nBins
     val binStep = GQByDPBins.binStep
@@ -883,13 +882,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   /**
     *
     * @param pathBase output root filename
-    * @param famFile path to pedigree .fam file
+    * @param pedigree      pedigree object
     */
-  def mendelErrors(pathBase: String, famFile: String) {
+  def mendelErrors(pathBase: String, pedigree: Pedigree) {
     requireSplit("mendel errors")
 
-    val ped = Pedigree.fromFam(famFile, vds.hc.hadoopConf).filterTo(vds.sampleIds.toSet).completeTrios
-    val men = MendelErrors(vds, ped)
+    val men = MendelErrors(vds, pedigree.filterTo(vds.sampleIds.toSet).completeTrios)
 
     men.writeMendel(pathBase + ".mendel", vds.hc.tmpDir)
     men.writeMendelL(pathBase + ".lmendel", vds.hc.tmpDir)
@@ -935,7 +933,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def sampleQC(root: String = "sa.qc"): VariantDataset = SampleQC(vds, root)
 
-  def rrm(forceBlock : Boolean = false, forceGramian : Boolean = false): KinshipMatrix = {
+  def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     requireSplit("rrm")
     info(s"rrm: Computing Realized Relationship Matrix...")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
@@ -957,14 +955,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param famFile path to .fam file
-    * @param tdtRoot Annotation root, starting in 'va'
+    * @param pedigree Pedigree object
+    * @param tdtRoot  Annotation root, starting in 'va'
     */
-  def tdt(famFile: String, tdtRoot: String = "va.tdt"): VariantDataset = {
+  def tdt(pedigree: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
     requireSplit("TDT")
 
-    val trios = Pedigree.fromFam(famFile, vds.hc.hadoopConf).filterTo(vds.sampleIds.toSet).completeTrios
-    TDT(vds, trios,
+    TDT(vds, pedigree.filterTo(vds.sampleIds.toSet).completeTrios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 
@@ -987,7 +984,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
     val genotypeSignature = vds.genotypeSignature
-    require(genotypeSignature == TGenotype, s"Expecting a genotype signature of TGenotype, but found `${genotypeSignature.toPrettyString()}'")
+    require(genotypeSignature == TGenotype, s"Expecting a genotype signature of TGenotype, but found `${ genotypeSignature.toPrettyString() }'")
 
     vds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
       Serialization.write(vds.rdd.orderedPartitioner.toJSON, out)
