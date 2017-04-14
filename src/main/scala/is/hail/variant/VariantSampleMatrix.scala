@@ -149,6 +149,8 @@ object VSMSubgen {
 class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {
 
+  type RowT = (Variant, (Annotation, Iterable[T]))
+
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
@@ -303,8 +305,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * Aggregate over intervals and export.
     *
     * @param intervalList Input interval list file
-    * @param expr Export expression
-    * @param out Output file path
+    * @param expr         Export expression
+    * @param out          Output file path
     */
   def aggregateIntervals(intervalList: String, expr: String, out: String) {
 
@@ -420,12 +422,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Load text file into global annotations as Array[String] or
-    *   Set[String].
+    * Set[String].
     *
-    * @param path Input text file
-    * @param root Global annotation path to store text file
+    * @param path  Input text file
+    * @param root  Global annotation path to store text file
     * @param asSet If true, load text file as Set[String],
-    *   otherwise, load as Array[String]
+    *              otherwise, load as Array[String]
     */
   def annotateGlobalList(path: String, root: String, asSet: Boolean = false): VariantSampleMatrix[T] = {
     val textList = hc.hadoopConf.readFile(path) { in =>
@@ -459,10 +461,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Load delimited text file (text table) into global annotations as
-    *   Array[Struct].
+    * Array[Struct].
     *
-    * @param path Input text file
-    * @param root Global annotation path to store text table
+    * @param path   Input text file
+    * @param root   Global annotation path to store text table
     * @param config Configuration options for importing text files
     */
   def annotateGlobalTable(path: String, root: String,
@@ -556,8 +558,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   /**
     * Import PLINK .fam file into sample annotations.
     *
-    * @param path Path to .fam file
-    * @param root Sample annotation path at which to store .fam file
+    * @param path   Path to .fam file
+    * @param root   Sample annotation path at which to store .fam file
     * @param config .fam file configuration options
     */
   def annotateSamplesFam(path: String, root: String = "sa.fam",
@@ -822,7 +824,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (finalType, inserter) = buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v)}
+    val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v) }
 
     val thisRdd = rdd.map { case (v, (va, gs)) =>
       vdsKeyEc.setAll(v, va)
@@ -1142,8 +1144,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       copy(rdd = rdd.filterIntervals(iList))
     else {
       val iListBc = sparkContext.broadcast(iList)
-      filterVariants { (v, va, gs) => !iListBc.value.contains(v.locus)
-      }
+      filterVariants { (v, va, gs) => !iListBc.value.contains(v.locus) }
     }
   }
 
@@ -1170,7 +1171,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * Filter samples using the Hail expression language.
     *
     * @param filterExpr Filter expression involving `s' (sample) and `sa' (sample annotations)
-    * @param keep keep where filterExpr evaluates to true
+    * @param keep       keep where filterExpr evaluates to true
     */
   def filterSamplesExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
     val localGlobalAnnotation = globalAnnotation
@@ -1184,7 +1185,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
 
     val localKeep = keep
-//    val sampleIds = vsampleIds
+    //    val sampleIds = vsampleIds
     val p = (s: String, sa: Annotation) => {
       sampleAggregationOption.foreach(f => f.apply(s))
       ec.setAll(localGlobalAnnotation, s, sa)
@@ -1199,8 +1200,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Filter samples using a text file containing sample IDs
+    *
     * @param samples Set of samples to keep or remove
-    * @param keep Keep listed samples.
+    * @param keep    Keep listed samples.
     */
   def filterSamplesList(samples: Set[String], keep: Boolean = true): VariantSampleMatrix[T] = {
     val p = (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
@@ -1209,8 +1211,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Filter variants using the Hail expression language.
+    *
     * @param filterExpr filter expression
-    * @param keep keep variants where filterExpr evaluates to true
+    * @param keep       keep variants where filterExpr evaluates to true
     * @return
     */
   def filterVariantsExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
@@ -1232,22 +1235,61 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     filterVariants(p)
   }
 
-  def filterVariantsList(input: String, keep: Boolean): VariantSampleMatrix[T] = {
-    copy(
-      rdd = rdd
-        .orderedLeftJoinDistinct(Variant.variantUnitRdd(sparkContext, input).toOrderedRDD)
-        .mapPartitions({ it =>
-          it.flatMap { case (v, ((va, gs), o)) =>
-            o match {
-              case Some(_) =>
-                if (keep) Some((v, (va, gs))) else None
-              case None =>
-                if (keep) None else Some((v, (va, gs)))
-            }
+  def filterVariantsList(variants: java.util.ArrayList[Variant], keep: Boolean): VariantSampleMatrix[T] =
+    filterVariantsList(variants.asScala.toSet, keep)
+
+  def filterVariantsList(variants: Set[Variant], keep: Boolean): VariantSampleMatrix[T] = {
+    if (keep) {
+      val partitionVariants = variants
+        .groupBy(v => rdd.orderedPartitioner.getPartition(v))
+        .toArray
+        .sortBy(_._1)
+
+      val adjRDD = new AdjustedPartitionsRDD[RowT](rdd,
+        partitionVariants.map { case (oldPart, variantsSet) =>
+          Array(Adjustment[RowT](oldPart,
+            _.filter { case (v, _) =>
+              variantsSet.contains(v)
+            }))
+        })
+
+      val adjRangeBounds =
+        if (partitionVariants.isEmpty)
+          Array.empty[Locus]
+        else
+          partitionVariants.init.map { case (oldPart, _) =>
+            rdd.orderedPartitioner.rangeBounds(oldPart)
           }
-        }, preservesPartitioning = true)
-        .asOrderedRDD
-    )
+
+      copy(rdd = OrderedRDD(adjRDD, OrderedPartitioner(adjRangeBounds, partitionVariants.length)(
+        rdd.kOk)))
+    } else {
+      val variantsBc = hc.sc.broadcast(variants)
+      filterVariants { case (v, _, _) => !variantsBc.value.contains(v) }
+    }
+  }
+
+  def filterVariantsKT(kt: KeyTable, keep: Boolean): VariantSampleMatrix[T] = {
+    if (kt.keyFields.length != 1 || kt.keyFields(0).typ != TVariant)
+      fatal(
+        s"""Filtering variants requires a key table with one Variant key.
+           |  Got key table with key signature:
+           |${ kt.keySignature.toPrettyString(indent = 2) }""".stripMargin)
+
+    val keyIndex = kt.signature.fieldIdx(kt.key.head)
+
+    val ktVariantRDD = kt.rdd.map { r =>
+      (r.get(keyIndex).asInstanceOf[Variant], ())
+    }.filter(_._1 != null)
+      .toOrderedRDD
+
+    copy(rdd = rdd.orderedLeftJoinDistinct(ktVariantRDD)
+      .mapPartitions(_.filter { case (_, (_, o)) =>
+        Filter.keepThis(o.isDefined, keep)
+      }.map { case (v, (vags, _)) =>
+        (v, vags)
+      }, preservesPartitioning = true)
+      .asOrderedRDD)
   }
 
   def sparkContext: SparkContext = hc.sc
@@ -1840,9 +1882,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
-    vaSignature match{
+    vaSignature match {
       case t: TStruct => copy(vaSignature = t.setFieldAttributes(path, kv))
-      case t => fatal(s"Cannot set va attributes to ${path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot set va attributes to ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -1851,9 +1893,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
-    vaSignature match{
+    vaSignature match {
       case t: TStruct => copy(vaSignature = t.deleteFieldAttribute(path, attribute))
-      case t => fatal(s"Cannot delete va attributes from ${path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot delete va attributes from ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -1928,9 +1970,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     *
-    * @param config VEP configuration file
-    * @param root Variant annotation path to store VEP output
-    * @param csq Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
+    * @param config    VEP configuration file
+    * @param root      Variant annotation path to store VEP output
+    * @param csq       Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
     * @param blockSize Variants per VEP invocation
     */
   def vep(config: String, root: String = "va.vep", csq: Boolean = false,
