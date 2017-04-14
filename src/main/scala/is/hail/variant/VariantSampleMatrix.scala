@@ -1280,7 +1280,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val ktVariantRDD = kt.rdd.map { r =>
       (r.get(keyIndex).asInstanceOf[Variant], ())
-    }.filter(_ != null)
+    }.filter(_._1 != null)
       .toOrderedRDD
 
     copy(rdd = rdd.orderedLeftJoinDistinct(ktVariantRDD)
