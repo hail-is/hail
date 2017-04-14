@@ -294,6 +294,7 @@ object OrderedRDD {
             }
           }
       }
+
       if (imbalancedPartitions.nonEmpty) {
         // Re-sample imbalanced partitions with the desired sampling probability.
         val imbalanced = new PartitionPruningRDD(rdd, imbalancedPartitions.contains)
@@ -391,7 +392,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     (implicit ord: Ordering[(K, V)] = null): RDD[(K, V)] = {
     require(maxPartitions > 0, "cannot coalesce to nPartitions <= 0")
     val n = rdd.partitions.length
-    if (maxPartitions == n || n == 0 || !shuffle && (maxPartitions > n))
+    if (!shuffle && maxPartitions >= n)
       return this
     if (shuffle) {
       val shuffled = super.coalesce(maxPartitions, shuffle)

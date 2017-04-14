@@ -17,7 +17,7 @@ class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
   require(adjustments.forall(adj => adj.nonEmpty))
 
   override def getPartitions: Array[Partition] = {
-    val parentPartitions = prev.partitions
+    val parentPartitions = firstParent[T].partitions
     Array.tabulate(adjustments.length) { i =>
       AdjustedPartitionsRDDPartition(i, adjustments(i).map(a => InternalAdjustment(parentPartitions(a.index), a.f)))
     }
@@ -29,7 +29,7 @@ class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
       .adjustments
       .iterator
       .flatMap { adj =>
-        adj.f(parent.compute(adj.parentPartition, context))
+        adj.f(parent.iterator(adj.parentPartition, context))
       }
   }
 

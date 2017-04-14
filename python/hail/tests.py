@@ -358,6 +358,8 @@ class ContextTests(unittest.TestCase):
 
         gds.annotate_genotypes_expr('g = g.GT.toGenotype()').split_multi()
 
+        sample_split.ld_prune().export_variants("/tmp/testLDPrune.tsv", "v")
+
     def test_keytable(self):
         test_resources = 'src/test/resources'
 

@@ -2426,6 +2426,78 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
+    def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
+        """Prune variants in linkage disequilibrium (LD).
+
+        .. include:: requireTGenotype.rst
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True.
+
+        **Examples**
+
+        Export the set of common LD pruned variants to a file:
+
+        >>> vds_result = (vds.variant_qc()
+        ...                  .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
+        ...                  .ld_prune()
+        ...                  .export_variants("output/ldpruned.variants", "v"))
+
+        **Notes**
+
+        Variants are pruned in each contig from smallest to largest start position. The LD pruning algorithm is as follows:
+
+        .. code-block:: python
+
+            pruned_set = []
+            for v1 in contig:
+                keep = True
+                for v2 in pruned_set:
+                    if ((v1.position - v2.position) <= window and correlation(v1, v2) >= r2):
+                        keep = False
+                if keep:
+                    pruned_set.append(v1)
+
+        The parameter ``window`` defines the maximum distance in base pairs between two variants to check whether
+        the variants are independent (:math:`R^2` < ``r2``) where ``r2`` is the maximum :math:`R^2` allowed.
+        :math:`R^2` is defined as the square of `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`_
+        :math:`{\\rho}_{x,y}` between the two genotype vectors :math:`{\\mathbf{x}}` and :math:`{\\mathbf{y}}`.
+
+        .. math::
+
+            {\\rho}_{x,y} = \\frac{\\mathrm{Cov}(X,Y)}{\\sigma_X \\sigma_Y}
+
+
+        :py:meth:`.ld_prune` with default arguments is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``.
+        The list of pruned variants returned by Hail and PLINK will differ because Hail mean-imputes missing values and tests pairs of variants in a different order than PLINK.
+
+        Be sure to provide enough disk space per worker because :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ up to 3 copies of the data to both memory and disk.
+        The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``. The number of bytes stored in memory per variant is about ``nSamples / 4 + 50``.
+
+        .. warning::
+
+            The variants in the pruned set are not guaranteed to be identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
+            :py:meth:`.export_variants` for future use.
+
+
+        :param float r2: Maximum :math:`R^2` threshold between two variants in the pruned set within a given window.
+
+        :param int window: Width of window in base-pairs for computing pair-wise :math:`R^2` values.
+
+        :param float memory_per_core: Total amount of memory available for each core in MB. If unsure, use the default value.
+
+        :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
+
+        :return: Variant dataset filtered to those variants which remain after LD pruning.
+
+        :rtype: VariantDataset
+        """
+
+        memory_per_core = int(memory_per_core * 1024 * 1024)
+        jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @requireTGenotype
     def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association using linear regression.
 
