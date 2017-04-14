@@ -4,7 +4,8 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.expr.TStruct
+import is.hail.expr.{TLong, TStruct}
+import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
@@ -124,6 +125,31 @@ class ExportVcfSuite extends SparkSuite {
           assert(line.contains("Description="))
         }
     }
+  }
 
+  @Test def testCastLongToInt() {
+    val out = tmpDir.createTempFile("cast", ".vcf")
+    hc.importVCF("src/test/resources/sample2.vcf")
+      .annotateVariantsExpr("va.info.AC_pass = gs.filter(g => g.gq >= 20 && g.dp >= 10 && (!g.isHet() || ( (g.ad[1]/g.ad.sum()) >= 0.2 ) )).count()")
+      .exportVCF(out)
+
+    hadoopConf.readFile(out) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .filter(l => l.startsWith("##INFO") && l.matches("AC_pass"))
+        .foreach { line =>
+          assert(line.contains("Type=Integer"))
+        }
+    }
+
+    val out2 = tmpDir.createTempFile("cast2", ".vcf")
+    hc.importVCF("src/test/resources/sample2.vcf")
+      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat()")
+      .exportVCF(out2)
+
+    intercept[HailException] {
+      val sb = new StringBuilder()
+      ExportVCF.strVCF(sb, TLong, 3147483647L)
+    }
   }
 }
