@@ -36,7 +36,7 @@ object ExportVCF {
         case TLong =>
           val x = a.asInstanceOf[Long]
           if (x > Int.MaxValue || x < Int.MinValue)
-            fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue or less than Int.MinValue. Found $x.")
+            fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) or less than Int.MinValue (-2^31). Found $x.")
           sb.append(elementType.str(x))
         case _ => sb.append(elementType.str(a))
       }
