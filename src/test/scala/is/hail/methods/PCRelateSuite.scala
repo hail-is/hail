@@ -19,8 +19,8 @@ import is.hail.variant.VSMSubgen
 import is.hail.stats._
 import is.hail.utils.{TextTableConfiguration, TextTableReader, _}
 import scala.sys.process._
-import is.hail.methods.PCRelate.DistributedMatrix
-import is.hail.methods.PCRelate.DistributedMatrixImplicits._
+import is.hail.distributedmatrix.DistributedMatrix
+import is.hail.distributedmatrix.DistributedMatrix.implicits._
 
 class PCRelateSuite extends SparkSuite {
   private def toI(a: Any): Int =
