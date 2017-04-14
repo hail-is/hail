@@ -2135,7 +2135,7 @@ class VariantDataset(object):
 
         Filter VDS down to a list of variants:
 
-        >>> vds.filter_variants_list([Variant('20:10626633:G:GC'), Variant('20:10019093:A:G')], keep=True)
+        >>> vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), Variant.parse('20:10019093:A:G')], keep=True)
 
         :param variants: List of variants to keep or remove.
         :type variants: list of :py:class:`~hail.representation.Variant`
@@ -4399,9 +4399,5 @@ class VariantDataset(object):
             key = [key]
 
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
-<<<<<<< e11d4610648097bdcf76cce05310361efda036b6
-                                jarray(Env.jvm().java.lang.String, key_names), separator)
-=======
-                                jarray(Env.jvm().java.lang.String, key))
->>>>>>> Addressed comments.
+                                jarray(Env.jvm().java.lang.String, key), separator)
         return KeyTable(self.hc, jkt)
