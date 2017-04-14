@@ -2481,11 +2481,13 @@ class VariantDataset(object):
         of best fit from sample genotype and covariates to quantitative
         phenotype or case-control status. Hail only includes samples for which
         phenotype and all covariates are defined. For each variant, missing genotypes
-        as the mean of called genotypes. By default, genotypes values are given by hard call genotypes (``g.gt``).
+        as the mean of called genotypes.
+
+        By default, genotypes values are given by hard call genotypes (``g.gt``).
         If ``use_dosages=True``, then genotype values are given by dosage genotypes, defined by
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \mathrm{P}(\mathrm{HomVar})`,
-        where these probabilities are derived from a uniform prior and the PL likelihoods (converted from Phred-scale)
-        if :py:meth:`.is_dosage` on this variant dataset is ``False``.
+        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For any variant, if ``Variant.is_dosage``
+        is false, then :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
+        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         Assuming there are sample annotations ``sa.pheno.height``,
         ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the command:

@@ -9,6 +9,23 @@ import org.testng.annotations.Test
 
 class LogisticRegressionSuite extends SparkSuite {
 
+  // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+  val v1 = Variant("1", 1, "C", "T")
+  // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
+  val v2 = Variant("1", 2, "C", "T")
+  // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
+  val v3 = Variant("1", 3, "C", "T")
+  // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+  val v6 = Variant("1", 6, "C", "T")
+  // x = (1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+  val v7 = Variant("1", 7, "C", "T")
+  // x = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
+  val v8 = Variant("1", 8, "C", "T")
+  // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
+  val v9 = Variant("1", 9, "C", "T")
+  // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
+  val v10 = Variant("1", 10, "C", "T")
+
   @Test def waldTestWithTwoCov() {
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .splitMulti()
@@ -22,23 +39,6 @@ class LogisticRegressionSuite extends SparkSuite {
         config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
       .logreg("wald", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
-    val v1 = Variant("1", 1, "C", "T")
-    // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
-    val v2 = Variant("1", 2, "C", "T")
-    // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
-    val v3 = Variant("1", 3, "C", "T")
-    // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
-    val v6 = Variant("1", 6, "C", "T")
-    // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")
-    // x = (1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-    val v8 = Variant("1", 8, "C", "T")
-    // x = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
-    val v9 = Variant("1", 9, "C", "T")
-    // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v10 = Variant("1", 10, "C", "T")
-    // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
-
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2
     val qZstat = vds.queryVA("va.logreg.zstat")._2
@@ -46,9 +46,7 @@ class LogisticRegressionSuite extends SparkSuite {
     val qConverged = vds.queryVA("va.logreg.fit.converged")._2
     val qExploded = vds.queryVA("va.logreg.fit.exploded")._2
 
-    val annotationMap = vds.variantsAndAnnotations
-      .collect()
-      .toMap
+    val annotationMap = vds.variantsAndAnnotations.collect().toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
       assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
@@ -121,32 +119,13 @@ class LogisticRegressionSuite extends SparkSuite {
       .logreg("lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
 
-    val v1 = Variant("1", 1, "C", "T")
-    // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
-    val v2 = Variant("1", 2, "C", "T")
-    // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
-    val v3 = Variant("1", 3, "C", "T")
-    // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
-    val v6 = Variant("1", 6, "C", "T")
-    // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")
-    // x = (1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-    val v8 = Variant("1", 8, "C", "T")
-    // x = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
-    val v9 = Variant("1", 9, "C", "T")
-    // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v10 = Variant("1", 10, "C", "T")
-    // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
-
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qChi2 = vds.queryVA("va.logreg.chi2")._2
     val qPVal = vds.queryVA("va.logreg.pval")._2
     val qConverged = vds.queryVA("va.logreg.fit.converged")._2
     val qExploded = vds.queryVA("va.logreg.fit.exploded")._2
 
-    val annotationMap = vds.variantsAndAnnotations
-      .collect()
-      .toMap
+    val annotationMap = vds.variantsAndAnnotations.collect().toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
       assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
@@ -215,29 +194,10 @@ class LogisticRegressionSuite extends SparkSuite {
         config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
       .logreg("score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
-    val v1 = Variant("1", 1, "C", "T")
-    // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
-    val v2 = Variant("1", 2, "C", "T")
-    // x = (., 2, ., 2, 0, 0, 0, 0, 0, 0)
-    val v3 = Variant("1", 3, "C", "T")
-    // x = (0, ., 1, 1, 1, ., 0, 0, 0, 0)
-    val v6 = Variant("1", 6, "C", "T")
-    // x = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    val v7 = Variant("1", 7, "C", "T")
-    // x = (1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
-    val v8 = Variant("1", 8, "C", "T")
-    // x = (2, 2, 2, 2, 2, 2, 2, 2, 2, 2)
-    val v9 = Variant("1", 9, "C", "T")
-    // x = (., 1, 1, 1, 1, 1, 0, 0, 0, 0)
-    val v10 = Variant("1", 10, "C", "T")
-    // x = (., 2, 2, 2, 2, 2, 0, 0, 0, 0)
-
     val qChi2 = vds.queryVA("va.logreg.chi2")._2
     val qPVal = vds.queryVA("va.logreg.pval")._2
 
-    val annotationMap = vds.variantsAndAnnotations
-      .collect()
-      .toMap
+    val annotationMap = vds.variantsAndAnnotations.collect().toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double) =
       assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value))
@@ -317,9 +277,7 @@ class LogisticRegressionSuite extends SparkSuite {
     val qBetaFirth = vds.queryVA("va.firth.beta")._2
     val qPValFirth = vds.queryVA("va.firth.pval")._2
 
-    val annotationMap = vds.variantsAndAnnotations
-      .collect()
-      .toMap
+    val annotationMap = vds.variantsAndAnnotations.collect().toMap
 
     def assertDouble(q: Querier, v: Variant, value: Double, tol: Double = 1e-4) =
       assert(D_==(q(annotationMap(v)).asInstanceOf[Double], value, tol))

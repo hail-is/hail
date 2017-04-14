@@ -91,7 +91,7 @@ abstract class Genotype extends Serializable {
     else if (isDosage)
       (unboxedPX(1) + 2 * unboxedPX(2)) * Genotype.dosageNorm
     else
-      Genotype.phredToBiallelicDosageGenotype(unboxedPX)
+      Genotype.phredToBiallelicDosageGenotype(unboxedPX(0), unboxedPX(1), unboxedPX(2))
 
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
@@ -611,27 +611,30 @@ object Genotype {
 
   val dosageNorm: Double = 1 / 32768.0
 
-  val maxPhredInTable = 8192
-
   lazy val linearToPhredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
-
-  lazy val phredToLinearConversionTable: Array[Double] = (0 to maxPhredInTable).map { i => math.pow(10, i / -10.0) }.toArray
 
   def linearToPhred(a: Array[Int]): Array[Int] = {
     val x = a.map(linearToPhredConversionTable)
     x.map { d => (d - x.min + 0.5).toInt }
   }
 
+  val maxPhredInTable = 8192
+
+  lazy val phredToLinearConversionTable: Array[Double] = (0 to maxPhredInTable).map { i => math.pow(10, i / -10.0) }.toArray
+
+  def phredToLinear(i: Int): Double =
+    if (i < maxPhredInTable) phredToLinearConversionTable(i) else math.pow(10, i / -10.0)
+
   def phredToDosage(a: Array[Int]): Array[Double] = {
-    val lkhd = a.map(i => if (i < maxPhredInTable) phredToLinearConversionTable(i) else math.pow(10, i / -10.0))
+    val lkhd = a.map(i => phredToLinear(i))
     val s = lkhd.sum
     lkhd.map(_ / s)
   }
 
-  def phredToBiallelicDosageGenotype(a: Array[Int]): Double = {
-    val p0 = if (a(0) < maxPhredInTable) phredToLinearConversionTable(a(0)) else math.pow(10, a(0) / -10.0)
-    val p1 = if (a(1) < maxPhredInTable) phredToLinearConversionTable(a(1)) else math.pow(10, a(1) / -10.0)
-    val p2 = if (a(2) < maxPhredInTable) phredToLinearConversionTable(a(2)) else math.pow(10, a(2) / -10.0)
+  def phredToBiallelicDosageGenotype(px0: Int, px1: Int, px2: Int): Double = {
+    val p0 = phredToLinear(px0)
+    val p1 = phredToLinear(px1)
+    val p2 = phredToLinear(px2)
 
     (p1 + 2 * p2) / (p0 + p1 + p2)
   }
@@ -876,13 +879,8 @@ object Genotype {
 
         if (isDosage)
           (px1 + 2 * px2) * Genotype.dosageNorm
-        else {
-          val p0 = if (px0 < maxPhredInTable) phredToLinearConversionTable(px0) else math.pow(10, px0 / -10.0)
-          val p1 = if (px1 < maxPhredInTable) phredToLinearConversionTable(px1) else math.pow(10, px1 / -10.0)
-          val p2 = if (px2 < maxPhredInTable) phredToLinearConversionTable(px2) else math.pow(10, px2 / -10.0)
-
-          (p1 + 2 * p2) / (p0 + p1 + p2)
-        }
+        else
+          Genotype.phredToBiallelicDosageGenotype(px0, px1, px2)
       } else
         -1d
 
