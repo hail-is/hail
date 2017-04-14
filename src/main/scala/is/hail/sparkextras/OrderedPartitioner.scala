@@ -16,6 +16,7 @@ import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 import scala.util.hashing.{MurmurHash3, byteswap32}
 
+// rangeBounds is partition max
 case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int)
   (implicit val kOk: OrderedKey[PK, K])
   extends Partitioner {

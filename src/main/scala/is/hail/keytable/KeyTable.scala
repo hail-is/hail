@@ -35,12 +35,12 @@ case class SortColumn(field: String, sortOrder: SortOrder)
 object KeyTable {
   final val fileVersion: Int = 1
 
-  def fromDF(hc: HailContext, df: DataFrame, keyNames: Array[String]): KeyTable = {
+  def fromDF(hc: HailContext, df: DataFrame, key: Array[String]): KeyTable = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     KeyTable(hc, df.rdd.map { r =>
       SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
     },
-      signature, keyNames)
+      signature, key)
   }
 
   def read(hc: HailContext, path: String): KeyTable = {
@@ -58,7 +58,7 @@ object KeyTable {
       fatal(
         s"corrupt KeyTable: metadata file does not exist: $metadataFile")
 
-    val (signature, keyNames) = try {
+    val (signature, key) = try {
       val json = hc.hadoopConf.readFile(metadataFile)(in =>
         JsonMethods.parse(in))
 
@@ -77,12 +77,12 @@ object KeyTable {
           Parser.parseType(s).asInstanceOf[TStruct]
       }
 
-      val keyNames = (fields.get("key_names"): @unchecked) match {
+      val key = (fields.get("key_names"): @unchecked) match {
         case Some(JArray(a)) =>
           a.map { case JString(s) => s }.toArray[String]
       }
 
-      (signature, keyNames)
+      (signature, key)
     } catch {
       case e: Throwable =>
         fatal(
@@ -104,7 +104,7 @@ object KeyTable {
           r
       }
 
-    KeyTable(hc, rdd, signature, keyNames)
+    KeyTable(hc, rdd, signature, key)
   }
 
   def parallelize(hc: HailContext, rows: java.util.ArrayList[Row], signature: TStruct,
@@ -121,18 +121,18 @@ object KeyTable {
 }
 
 case class KeyTable(hc: HailContext, rdd: RDD[Row],
-  signature: TStruct, keyNames: Array[String] = Array.empty) {
+  signature: TStruct, key: Array[String] = Array.empty) {
 
   if (!fieldNames.areDistinct())
     fatal(s"Column names are not distinct: ${ fieldNames.duplicates().mkString(", ") }")
-  if (!keyNames.areDistinct())
-    fatal(s"Key names are not distinct: ${ keyNames.duplicates().mkString(", ") }")
-  if (!keyNames.forall(fieldNames.contains(_)))
-    fatal(s"Key names found that are not column names: ${ keyNames.filterNot(fieldNames.contains(_)).mkString(", ") }")
+  if (!key.areDistinct())
+    fatal(s"Key names are not distinct: ${ key.duplicates().mkString(", ") }")
+  if (!key.forall(fieldNames.contains(_)))
+    fatal(s"Key names found that are not column names: ${ key.filterNot(fieldNames.contains(_)).mkString(", ") }")
 
   def fields: Array[Field] = signature.fields.toArray
 
-  def keyFields: Array[Field] = keyNames.map(signature.fieldIdx).map(i => fields(i))
+  def keyFields: Array[Field] = key.map(signature.fieldIdx).map(i => fields(i))
 
   def fieldNames: Array[String] = fields.map(_.name)
 
@@ -140,15 +140,15 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
   def nFields: Int = fields.length
 
-  def nKeys: Int = keyNames.length
+  def nKeys: Int = key.length
 
   def keySignature: TStruct = {
-    val keySet = keyNames.toSet
+    val keySet = key.toSet
     TStruct(signature.fields.filter(f => keySet.contains(f.name)).map(f => (f.name, f.typ)): _*)
   }
 
   def valueSignature: TStruct = {
-    val keySet = keyNames.toSet
+    val keySet = key.toSet
     TStruct(signature.fields.filter(f => !keySet.contains(f.name)).map(f => (f.name, f.typ)): _*)
   }
 
@@ -183,11 +183,11 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
            | right: ${ other.signature.toPrettyString() }
            |""".stripMargin)
       false
-    } else if (keyNames.toSeq != other.keyNames.toSeq) {
+    } else if (key.toSeq != other.key.toSeq) {
       info(
         s"""different key names:
-           | left: ${ keyNames.mkString(", ") }
-           | right: ${ other.keyNames.mkString(", ") }
+           | left: ${ key.mkString(", ") }
+           | right: ${ other.key.mkString(", ") }
            |""".stripMargin)
       false
     } else {
@@ -278,7 +278,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         }
     }
 
-    KeyTable(hc, mapAnnotations(annotF), finalSignature, keyNames)
+    KeyTable(hc, mapAnnotations(annotF), finalSignature, key)
   }
 
   def filter(p: Annotation => Boolean): KeyTable = copy(rdd = rdd.filter(p))
@@ -309,13 +309,13 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
            |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
 
-    copy(keyNames = newKeys.toArray)
+    copy(key = newKeys.toArray)
   }
 
   def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {
-    val keyNamesNotInSelectedFields = newKeys.diff(fieldsSelect)
-    if (keyNamesNotInSelectedFields.nonEmpty)
-      fatal(s"Key columns `${ keyNamesNotInSelectedFields.mkString(", ") }' must be present in selected columns.")
+    val keyColumnsNotInSelectedFields = newKeys.diff(fieldsSelect)
+    if (keyColumnsNotInSelectedFields.nonEmpty)
+      fatal(s"Key columns `${ keyColumnsNotInSelectedFields.mkString(", ") }' must be present in selected columns.")
 
     val fieldsNotExist = fieldsSelect.diff(fieldNames)
     if (fieldsNotExist.nonEmpty)
@@ -338,7 +338,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def rename(fieldNameMap: Map[String, String]): KeyTable = {
     val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name)) })
     val newFieldNames = newSignature.fields.map(_.name)
-    val newKeyNames = keyNames.map(n => fieldNameMap.getOrElse(n, n))
+    val newKey = key.map(n => fieldNameMap.getOrElse(n, n))
     val duplicateFieldNames = newFieldNames.foldLeft(Map[String, Int]() withDefaultValue 0) { (m, x) => m + (x -> (m(x) + 1)) }.filter {
       _._2 > 1
     }
@@ -346,7 +346,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     if (duplicateFieldNames.nonEmpty)
       fatal(s"Found duplicate column names after renaming fields: `${ duplicateFieldNames.keys.mkString(", ") }'")
 
-    KeyTable(hc, rdd, newSignature, newKeyNames)
+    KeyTable(hc, rdd, newSignature, newKey)
   }
 
   def rename(newFieldNames: Array[String]): KeyTable = {
@@ -361,13 +361,13 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def rename(newFieldNames: java.util.ArrayList[String]): KeyTable = rename(newFieldNames.asScala.toArray)
 
   def join(other: KeyTable, joinType: String): KeyTable = {
-    if (keyNames.length != other.keyNames.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
+    if (key.length != other.key.length || !(keyFields.map(_.typ) sameElements other.keyFields.map(_.typ)))
       fatal(
         s"""Both key tables must have the same number of keys and the types of keys must be identical. Order matters.
            |  Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
            |  Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
 
-    val overlappingFields = fieldNames.toSet.intersect(other.fieldNames.toSet) -- keyNames -- other.keyNames
+    val overlappingFields = fieldNames.toSet.intersect(other.fieldNames.toSet) -- key -- other.key
     if (overlappingFields.nonEmpty)
       fatal(
         s"""Columns that are not keys cannot be present in both key tables.
@@ -421,7 +421,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
       case _ => fatal("Invalid join type specified. Choose one of `left', `right', `inner', `outer'")
     }
 
-    KeyTable(hc, joinedRDD, newSignature, keyNames)
+    KeyTable(hc, joinedRDD, newSignature, key)
   }
 
   def forall(code: String): Boolean = {
@@ -492,10 +492,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val (aggPaths, aggTypes, aggF) = Parser.parseAnnotationExprs(aggCond, ec, None)
 
-    val newKeyNames = keyPaths.map(_.head)
+    val newKey = keyPaths.map(_.head)
     val aggNames = aggPaths.map(_.head)
 
-    val keySignature = TStruct((newKeyNames, keyTypes).zipped.toSeq: _*)
+    val keySignature = TStruct((newKey, keyTypes).zipped.toSeq: _*)
     val aggSignature = TStruct((aggNames, aggTypes).zipped.toSeq: _*)
 
     val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Row](ec, {
@@ -518,7 +518,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
           Row.fromSeq(k.toSeq ++ aggF())
       }
 
-    KeyTable(hc, newRDD, keySignature.merge(aggSignature)._1, newKeyNames)
+    KeyTable(hc, newRDD, keySignature.merge(aggSignature)._1, newKey)
   }
 
   def expandTypes(): KeyTable = {
@@ -527,18 +527,18 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     KeyTable(hc, rdd.map { a => Annotation.expandAnnotation(a, localSignature).asInstanceOf[Row] },
       expandedSignature,
-      keyNames)
+      key)
   }
 
   def flatten(): KeyTable = {
     val localSignature = signature
     val keySignature = TStruct(keyFields)
     val flattenedSignature = Annotation.flattenType(localSignature).asInstanceOf[TStruct]
-    val flattenedKeyNames = Annotation.flattenType(keySignature).asInstanceOf[TStruct].fields.map(_.name).toArray
+    val flattenedKey = Annotation.flattenType(keySignature).asInstanceOf[TStruct].fields.map(_.name).toArray
 
     KeyTable(hc, rdd.map { a => Annotation.flattenAnnotation(a, localSignature).asInstanceOf[Row] },
       flattenedSignature,
-      flattenedKeyNames)
+      flattenedKey)
   }
 
   def toDF(sqlContext: SQLContext): DataFrame = {
@@ -579,7 +579,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         for (element <- row(index).asInstanceOf[Iterable[_]]) yield Row.fromSeq(row.updated(index, element))
     }
 
-    KeyTable(hc, explodedRDD, newSignature, keyNames)
+    KeyTable(hc, explodedRDD, newSignature, key)
   }
 
   def explode(columnNames: Array[String]): KeyTable = {
@@ -605,7 +605,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val json = JObject(
       ("version", JInt(KeyTable.fileVersion)),
-      ("key_names", JArray(keyNames.map(k => JString(k)).toList)),
+      ("key_names", JArray(key.map(k => JString(k)).toList)),
       ("schema", JString(schemaString)))
 
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(Serialization.writePretty(json, _))
