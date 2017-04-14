@@ -300,6 +300,7 @@ class HailContext private(val sc: SparkContext,
   }
 
   def importKeyTable(inputs: Seq[String],
+    keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
     config: TextTableConfiguration = TextTableConfiguration()): KeyTable = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
@@ -311,7 +312,7 @@ class HailContext private(val sc: SparkContext,
     val (struct, rdd) =
       TextTableReader.read(sc)(files, config, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    KeyTable(this, rdd.map(_.value), struct, Array.empty[String])
+    KeyTable(this, rdd.map(_.value), struct, keyNames)
   }
 
   def importPlink(bed: String, bim: String, fam: String,
