@@ -346,13 +346,13 @@ object HtsjdkRecordReader {
       case (null, _) => null
       case (".", _) => null
       case (s: String, TArray(TInt)) =>
-        s.split(",").map(_.toInt): IndexedSeq[Int]
+        s.split(",").map(x => (if (x == ".") null else x.toInt): java.lang.Integer): IndexedSeq[java.lang.Integer]
       case (s: String, TArray(TDouble)) =>
-        s.split(",").map(_.toDouble): IndexedSeq[Double]
+        s.split(",").map(x => (if (x == ".") null else x.toDouble): java.lang.Double): IndexedSeq[java.lang.Double]
       case (s: String, TArray(TString)) =>
-        s.split(","): IndexedSeq[String]
+        s.split(",").map(x => if (x == ".") null else x): IndexedSeq[String]
       case (s: String, TArray(TChar)) =>
-        s.split(","): IndexedSeq[String]
+        s.split(",").map(x => if (x == ".") null else x): IndexedSeq[String]
       case (s: String, TBoolean) => s.toBoolean
       case (b: Boolean, TBoolean) => b
       case (s: String, TString) => s
@@ -370,18 +370,21 @@ object HtsjdkRecordReader {
       case (d: Double, TFloat) => d.toFloat
 
       case (l: java.util.List[_], TArray(TInt)) =>
-        l.asScala.iterator.map {
+        l.asScala.iterator.map[java.lang.Integer] {
+          case "." => null
           case s: String => s.toInt
           case i: Int => i
-        }.toArray: IndexedSeq[Int]
+        }.toArray[java.lang.Integer]: IndexedSeq[java.lang.Integer]
       case (l: java.util.List[_], TArray(TDouble)) =>
-        l.asScala.iterator.map {
+        l.asScala.iterator.map[java.lang.Double] {
+          case "." => null
           case s: String => s.toDouble
           case i: Int => i.toDouble
           case d: Double => d
-        }.toArray: IndexedSeq[Double]
+        }.toArray[java.lang.Double]: IndexedSeq[java.lang.Double]
       case (l: java.util.List[_], TArray(TString)) =>
         l.asScala.iterator.map {
+          case "." => null
           case s: String => s
           case i: Int => i.toString
           case d: Double => d.toString

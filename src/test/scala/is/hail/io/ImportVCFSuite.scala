@@ -216,4 +216,19 @@ class ImportVCFSuite extends SparkSuite {
       getCall("""0\0""", 2) == Call(0)
     }
   }
+
+  @Test def testMissingInfo() {
+    val vds = hc.importVCF("src/test/resources/missingInfoArray.vcf")
+
+    val variants = vds.queryVariants("variants.collect()")._1.asInstanceOf[IndexedSeq[Variant]]
+    val foo = vds.queryVariants("variants.map(v => va.info.FOO).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
+    val bar = vds.queryVariants("variants.map(v => va.info.BAR).collect()")._1.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]]
+
+    val vMap = (variants, foo, bar).zipped.map { case (v, f, b) => (v, (f, b)) }.toMap
+
+    assert(vMap == Map(
+      Variant("X", 16050036, "A", "C") -> (IndexedSeq(1, null), IndexedSeq(2, null, null)),
+      Variant("X", 16061250, "T", Array("A", "C")) -> (IndexedSeq(null, 2, null), IndexedSeq(null, 1.0, null))
+    ))
+  }
 }
