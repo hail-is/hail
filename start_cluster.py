@@ -67,7 +67,7 @@ machine_mem = {
 # parse Spark and HDFS configuration parameters, combine into properties argument
 spark_properties = [
     'spark:spark.driver.memory={}g'.format(str(int(machine_mem[args.master_machine_type] * 0.8))),
-    'spark:spark.driver.maxresultSize=0',
+    'spark:spark.driver.maxResultSize=0',
     'spark:spark.task.maxFailures={}'.format(args.spark_task_max_failures),
     'spark:spark.kryoserializer.buffer.max={}'.format(args.spark_kryo_buffer_max),
     'spark:spark.driver.extraJavaOptions=-Xss4M',
