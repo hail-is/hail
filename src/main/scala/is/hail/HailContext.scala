@@ -139,7 +139,7 @@ object HailContext {
     quiet: Boolean = false,
     append: Boolean = false,
     parquetCompression: String = "snappy",
-    blockSize: Long = 1L,
+    minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp"): HailContext = {
 
@@ -158,7 +158,7 @@ object HailContext {
     configureLogging(logFile, quiet, append)
 
     val sparkContext = if (sc == null)
-      configureAndCreateSparkContext(appName, master, local, parquetCompression, blockSize)
+      configureAndCreateSparkContext(appName, master, local, parquetCompression, minBlockSize)
     else {
       SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1024L * 1024L * 1024L * 1024L)
       checkSparkConfiguration(sc)
@@ -300,6 +300,7 @@ class HailContext private(val sc: SparkContext,
   }
 
   def importKeyTable(inputs: Seq[String],
+    keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
     config: TextTableConfiguration = TextTableConfiguration()): KeyTable = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
@@ -311,7 +312,7 @@ class HailContext private(val sc: SparkContext,
     val (struct, rdd) =
       TextTableReader.read(sc)(files, config, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    KeyTable(this, rdd.map(_.value), struct, Array.empty[String])
+    KeyTable(this, rdd.map(_.value), struct, keyNames)
   }
 
   def importPlink(bed: String, bim: String, fam: String,

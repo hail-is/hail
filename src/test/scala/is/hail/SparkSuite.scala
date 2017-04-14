@@ -10,7 +10,8 @@ object SparkSuite {
   lazy val hc = HailContext(master = Option(System.getProperty("hail.master")),
     appName = "Hail.TestNG",
     local = "local[2]",
-    quiet = true)
+    quiet = true,
+    minBlockSize = 0)
 }
 
 class SparkSuite extends TestNGSuite {

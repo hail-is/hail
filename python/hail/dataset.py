@@ -2,7 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.expr import Type, TGenotype
+from hail.expr import Type, TGenotype, TVariant
 from hail.representation import Interval, IntervalTree
 from hail.utils import TextTableConfig
 from hail.kinshipMatrix import KinshipMatrix
@@ -2001,8 +2001,10 @@ class VariantDataset(object):
         >>> to_remove = [s.strip() for s in open('data/exclude_samples.txt')]
         >>> vds_result = vds.filter_samples_list(to_remove, keep=False)
     
-        :param input: List of samples to keep or remove.
-        :type input: list of str
+        :param samples: List of samples to keep or remove.
+        :type samples: list of str
+
+        :param bool keep: If true, keep samples in ``samples``, otherwise remove them.
     
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -2127,36 +2129,57 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def filter_variants_list(self, input, keep=True):
+    def filter_variants_list(self, variants, keep=True):
         """Filter variants with a list of variants.
 
         **Examples**
 
-        Keep all variants that occur in *data/variants.txt* (removing all other
-        variants):
+        Filter VDS down to a list of variants:
 
-        >>> vds_result = vds.filter_variants_list('data/variants.txt')
+        >>> vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), Variant.parse('20:10019093:A:G')], keep=True)
 
-        Remove all variants that occur in *data/variants.txt*:
+        :param variants: List of variants to keep or remove.
+        :type variants: list of :py:class:`~hail.representation.Variant`
 
-        >>> vds_result = vds.filter_variants_list('data/variants.txt', keep=False)
-
-        **File Format**
-
-        Hail expects the given file to contain a variant per line following
-        format: ``contig:pos:ref:alt1,alt2,...,altN``.
-
-        :param str input: Path to variant list file.
+        :param bool keep: If true, keep variants in ``variants``, otherwise remove them.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
+        
         """
 
-        jvds = self._jvds.filterVariantsList(input, keep)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(
+            self.hc, self._jvds.filterVariantsList(
+                [TVariant()._convert_to_j(v) for v in variants], keep))
+
+    @handle_py4j
+    def filter_variants_kt(self, kt, keep=True):
+        """Filter variants with a Variant keyed key table.
+
+        **Example**
+
+        Filter variants of a VDS to those appearing in the Variant column of a TSV file:
+
+        >>> kt = hc.import_keytable('data/sample_variants.txt', key='Variant', config=TextTableConfig(impute=True))
+        >>> filtered_vds = vds.filter_variants_kt(kt, keep=True)
+
+        :param kt: Keep or remove ``kt`` keys.
+        :type kt: :py:class:`.KeyTable`
+
+        :param bool keep: If true, keep variants which appear as keys
+          in ``kt``, otherwise remove them.
+
+        :return: Filtered variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+
+        """
+
+        return VariantDataset(
+            self.hc, self._jvds.filterVariantsKT(kt._jkt, keep))
 
     @property
     def globals(self):
+
         """Return global annotations as a Python object.
 
         :return: Dataset global annotations.
@@ -4762,8 +4785,7 @@ class VariantDataset(object):
 
         return KeyTable(self.hc, self._jvds.genotypeKT())
 
-    @handle_py4j
-    def make_keytable(self, variant_expr, genotype_expr, key_names=[], separator='.'):
+    def make_keytable(self, variant_expr, genotype_expr, key=[], separator='.'):
         """Make a KeyTable with one row per variant.
 
         Per sample field names in the result are formed by
@@ -4815,8 +4837,8 @@ class VariantDataset(object):
         :param genotype_expr: Genotype annotation expressions.
         :type genotype_expr: str or list of str
 
-        :param key_names: list of key columns
-        :type key_names: list of str
+        :param key: List of key columns.
+        :type key: str or list of str
 
         :param str separator: Seperator to use between sample IDs and genotype expression left hand side identifiers.
 
@@ -4828,7 +4850,9 @@ class VariantDataset(object):
             variant_expr = ','.join(variant_expr)
         if isinstance(genotype_expr, list):
             genotype_expr = ','.join(genotype_expr)
+        if not isinstance(key, list):
+            key = [key]
 
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
-                                jarray(Env.jvm().java.lang.String, key_names), separator)
+                                jarray(Env.jvm().java.lang.String, key), separator)
         return KeyTable(self.hc, jkt)
