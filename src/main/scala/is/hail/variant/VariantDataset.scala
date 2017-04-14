@@ -637,63 +637,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param address Cassandra contact point to connect to
-    * @param keySpace Cassandra keyspace
-    * @param table Cassandra table
-    * @param genotypeExpr comma-separated list of fields/computations to be exported
-    * @param variantExpr comma-separated list of fields/computations to be exported
-    * @param drop drop and re-create Cassandra table before exporting
-    * @param exportRef export HomRef calls
-    * @param exportMissing export missing genotypes
-    * @param blockSize size of exported batch
-    */
-  def exportVariantsCassandra(address: String, genotypeExpr: String, keySpace: String,
-    table: String, variantExpr: String, drop: Boolean = false, exportRef: Boolean = false,
-    exportMissing: Boolean = false, blockSize: Int = 100) {
-    requireSplit("export variants cassandra")
-
-    CassandraConnector.exportVariants(vds, address, keySpace, table, genotypeExpr,
-      variantExpr, drop, exportRef, exportMissing, blockSize)
-  }
-
-  /**
-    *
-    * @param variantExpr comma-separated list of fields/computations to be exported
-    * @param genotypeExpr comma-separated list of fields/computations to be exported
-    * @param collection SolrCloud collection
-    * @param url Solr instance (URL) to connect to
-    * @param zkHost Zookeeper host string to connect to
-    * @param exportMissing export missing genotypes
-    * @param exportRef export HomRef calls
-    * @param drop delete and re-create solr collection before exporting
-    * @param numShards number of shards to split the collection into
-    * @param blockSize Variants per SolrClient.add
-    */
-  def exportVariantsSolr(variantExpr: String,
-    genotypeExpr: String,
-    collection: String = null,
-    url: String = null,
-    zkHost: String = null,
-    exportMissing: Boolean = false,
-    exportRef: Boolean = false,
-    drop: Boolean = false,
-    numShards: Int = 1,
-    blockSize: Int = 100) {
-    requireSplit("export variants solr")
-
-    SolrConnector.exportVariants(vds, variantExpr, genotypeExpr, collection, url, zkHost, exportMissing,
-      exportRef, drop, numShards, blockSize)
-  }
-
-  /**
-    *
-    * @param filterExpr Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
-    * @param annotationExpr Annotation modifying expression involving v (new variant), va (old variant annotations),
-    *                       and aIndices (maps from new to old indices)
+    * @param filterExpr             Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+    * @param annotationExpr         Annotation modifying expression involving v (new variant), va (old variant annotations),
+    *                               and aIndices (maps from new to old indices)
     * @param filterAlteredGenotypes any call that contains a filtered allele is set to missing instead
-    * @param keep Keep variants matching condition
-    * @param subset subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
-    * @param maxShift Maximum possible position change during minimum representation calculation
+    * @param keep                   Keep variants matching condition
+    * @param subset                 subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
+    * @param maxShift               Maximum possible position change during minimum representation calculation
     */
   def filterAlleles(filterExpr: String, annotationExpr: String = "va = va", filterAlteredGenotypes: Boolean = false,
     keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {

@@ -2,8 +2,8 @@ package is.hail.keytable
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{TStruct, _}
-import is.hail.io.exportTypes
+import is.hail.expr._
+import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
 import org.apache.spark.SparkContext
@@ -121,7 +121,7 @@ object KeyTable {
 }
 
 case class KeyTable(hc: HailContext, rdd: RDD[Row],
-  signature: TStruct, keyNames: Array[String]) {
+  signature: TStruct, keyNames: Array[String] = Array.empty) {
 
   if (!fieldNames.areDistinct())
     fatal(s"Column names are not distinct: ${ fieldNames.duplicates().mkString(", ") }")
@@ -663,5 +663,14 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val act = implicitly[ClassTag[Annotation]]
     copy(rdd = rdd.sortBy(identity[Annotation], ascending = true)(ord, act))
+  }
+
+  def exportSolr(zkHost: String, collection: String, blockSize: Int = 100): Unit = {
+    SolrConnector.export(this, zkHost, collection, blockSize)
+  }
+
+  def exportCassandra(address: String, keyspace: String, table: String,
+    blockSize: Int = 100, rate: Int = 1000): Unit = {
+    CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
   }
 }

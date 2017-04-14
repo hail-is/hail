@@ -10,7 +10,6 @@ import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
 import is.hail.methods.DuplicateReport
-import is.hail.misc.SeqrServer
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{GenericDataset, Genotype, VSMSubgen, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
@@ -581,29 +580,6 @@ class HailContext private(val sc: SparkContext,
     val ec = EvalContext()
     val (t, f) = Parser.parseExpr(expr, ec)
     (f(), t)
-  }
-
-  /**
-    *
-    *
-    * @param collection SolrCloud collection
-    * @param url Solr instance (URL) to connect to
-    * @param zkHost Zookeeper host string to connect to
-    * @param jsonFields Comma-separated list of JSON-encoded fields
-    * @param solrOnly Return results directly queried from Solr
-    * @param address Cassandra contact point to connect to
-    * @param keyspace Cassandra keyspace
-    * @param table Cassandra table
-    */
-  def seqrServer(collection: String = null,
-    url: String = null,
-    zkHost: String = null,
-    jsonFields: String = null,
-    solrOnly: Boolean = false,
-    address: String = null,
-    keyspace: String = null,
-    table: String = null) {
-    SeqrServer.start(collection, url, zkHost, jsonFields, solrOnly, address, keyspace, table)
   }
 
   def report() {
