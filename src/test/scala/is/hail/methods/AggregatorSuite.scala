@@ -135,12 +135,12 @@ class AggregatorSuite extends SparkSuite {
     val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt))
       ++ IndexedSeq("s8" -> TLong, "s9" -> TFloat, "s10" -> TDouble): _*)
 
-    val ktMax = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
+    val ktMax = new KeyTable(hc, rdd, signature)
       .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.max()").mkString(","))
 
     assert(ktMax.collect() == IndexedSeq(Row("a", 1, -1, 2, -1, -1, 1, 1, null, 1l, 1f, 1d)))
 
-    val ktMin = new KeyTable(hc, rdd, signature, keyNames = Array[String]())
+    val ktMin = new KeyTable(hc, rdd, signature)
       .aggregate("group = group", (0 until 11).map(i => s"s$i = s$i.min()").mkString(","))
 
     assert(ktMin.collect() == IndexedSeq(Row("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))

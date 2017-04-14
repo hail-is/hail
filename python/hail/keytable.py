@@ -62,7 +62,7 @@ class KeyTable(object):
 
         self._schema = None
         self._num_columns = None
-        self._key_names = None
+        self._key = None
         self._column_names = None
 
     def __repr__(self):
@@ -119,18 +119,18 @@ class KeyTable(object):
         return self._schema
 
     @property
-    def key_names(self):
-        """Column names that are keys.
+    def key(self):
+        """List of key column names.
 
-        >>> kt1.key_names
+        >>> kt1.key
         [u'ID']
 
         :rtype: list of str
         """
 
-        if self._key_names is None:
-            self._key_names = list(self._jkt.keyNames())
-        return self._key_names
+        if self._key is None:
+            self._key = list(self._jkt.key())
+        return self._key
 
     @property
     def column_names(self):
@@ -422,7 +422,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.expandTypes())
 
     @handle_py4j
-    def key_by(self, key_names):
+    def key_by(self, key):
         """Change which columns are keys.
 
         **Examples**
@@ -440,24 +440,24 @@ class KeyTable(object):
 
         >>> kt_result = kt1.key_by([])
 
-        :param key_names: List of columns to be used as keys.
-        :type key_names: str or list of str
+        :param key: List of columns to be used as keys.
+        :type key: str or list of str
 
-        :return: Key table whose key columns are given by ``key_names``.
+        :return: Key table whose key columns are given by ``key``.
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(key_names, list):
-            for k in key_names:
+        if isinstance(key, list):
+            for k in key:
                 if not isinstance(k, str) and not isinstance(k, unicode):
-                    raise TypeError("expected str or unicode elements of 'key_names' list, but found %s" % type(k))
-        elif not isinstance(key_names, str) and not isinstance(key_names, unicode):
-            raise TypeError("expected str or list of str for parameter 'key_names', but found %s" % type(key_names))
+                    raise TypeError("expected str or unicode elements of 'key' list, but found %s" % type(k))
+        elif not isinstance(key, str) and not isinstance(key, unicode):
+            raise TypeError("expected str or list of str for parameter 'key', but found %s" % type(key))
 
-        if not isinstance(key_names, list):
-            key_names = [key_names]
+        if not isinstance(key, list):
+            key = [key]
 
-        return KeyTable(self.hc, self._jkt.keyBy(key_names))
+        return KeyTable(self.hc, self._jkt.keyBy(key))
 
     @handle_py4j
     def flatten(self):
@@ -537,8 +537,8 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
 
-        new_key_names = [k for k in self.key_names if k in column_names]
-        return KeyTable(self.hc, self._jkt.select(column_names, new_key_names))
+        new_key = [k for k in self.key if k in column_names]
+        return KeyTable(self.hc, self._jkt.select(column_names, new_key))
 
     @handle_py4j
     def to_dataframe(self, expand=True, flatten=True):

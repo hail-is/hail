@@ -42,8 +42,8 @@ class LogisticRegressionBurdenSuite extends SparkSuite {
 
     val sampleMap = keyTableBoxedDoubleToMap[String](sampleKT)
 
-    val logregWaldMap = keyTableBoxedDoubleToMap[String](logregWaldKT.select(logregWaldKT.fieldNames.dropRight(1), logregWaldKT.keyNames))
-    val logregLRTMap = keyTableBoxedDoubleToMap[String](logregLRTKT.select(logregLRTKT.fieldNames.dropRight(1), logregLRTKT.keyNames))
+    val logregWaldMap = keyTableBoxedDoubleToMap[String](logregWaldKT.select(logregWaldKT.fieldNames.dropRight(1), logregWaldKT.key))
+    val logregLRTMap = keyTableBoxedDoubleToMap[String](logregLRTKT.select(logregLRTKT.fieldNames.dropRight(1), logregLRTKT.key))
     val logregScoreMap = keyTableBoxedDoubleToMap[String](logregScoreKT)
 
     /*

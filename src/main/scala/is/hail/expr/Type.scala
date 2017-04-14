@@ -116,9 +116,9 @@ sealed abstract class Type {
       identity[Annotation]
   }
 
-  def toPrettyString(compact: Boolean = false, printAttrs: Boolean = false): String = {
+  def toPrettyString(indent: Int = 0, compact: Boolean = false, printAttrs: Boolean = false): String = {
     val sb = new StringBuilder
-    pretty(sb, compact = compact, printAttrs = printAttrs)
+    pretty(sb, indent, compact = compact, printAttrs = printAttrs)
     sb.result()
   }
 
