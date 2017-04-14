@@ -138,4 +138,24 @@ class GenotypeSuite extends TestNGSuite {
     }
     p.check()
   }
+
+  @Test def testUnboxedBiallelicDosageGenotype() {
+    val g0 = Genotype.apply(gt = Some(0), px = Some(Array(32648, 20, 100)), isDosage = true)
+    val g1 = Genotype.apply(gt = Some(1), px = Some(Array(20, 32648, 100)), isDosage = true)
+    val g2 = Genotype.apply(gt = Some(2), px = Some(Array(20, 100, 32648)), isDosage = true)
+
+    assert(D_==(g0.unboxedBiallelicDosageGenotype, (20 + 2 * 100) / 32768d))
+    assert(D_==(g1.unboxedBiallelicDosageGenotype, (32648 + 2 * 100) / 32768d))
+    assert(D_==(g2.unboxedBiallelicDosageGenotype, (100 + 2 * 32648) / 32768d))
+  }
+
+  @Test def phredToBiallelicDosageGenotype() {
+    val gt0 = Genotype.phredToBiallelicDosageGenotype(0, 20, 100)
+    val gt1 = Genotype.phredToBiallelicDosageGenotype(20, 0, 100)
+    val gt2 = Genotype.phredToBiallelicDosageGenotype(20, 100, 0)
+
+    assert(D_==(gt0, 0.009900990296049406))
+    assert(D_==(gt1, 0.9900990100009803))
+    assert(D_==(gt2, 1.980198019704931))
+  }
 }

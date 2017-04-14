@@ -160,7 +160,7 @@ object RegressionUtils {
     var nMissing = 0
     var gtSum = 0
     var gtSumSq = 0
-    val gts = gs.hardCallIterator
+    val gts = gs.hardCallGenotypeIterator
 
     var i = 0
     while (i < nSamples) {
@@ -206,7 +206,7 @@ object RegressionUtils {
     val gtVals = Array.ofDim[Double](nSamples)
     var nMissing = 0
     var gtSum = 0
-    val gts = gs.hardCallIterator
+    val gts = gs.hardCallGenotypeIterator
 
     var i = 0
     while (i < nSamples) {
@@ -245,10 +245,10 @@ object RegressionUtils {
     }
   }
 
-  // mean 0, norm sqrt(n), variance 1 (constant variants return None)
+  // constructs DenseVector of dosage genotypes (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
   def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {
-    val nSamples = y.length
-    val valsX = Array.ofDim[Double](nSamples)
+    val nMaskedSamples = y.length
+    val valsX = Array.ofDim[Double](nMaskedSamples)
     var sumX = 0d
     var sumXX = 0d
     var sumXY = 0d
@@ -256,7 +256,7 @@ object RegressionUtils {
     var nMissing = 0
     val missingRowIndices = new ArrayBuilder[Int]()
 
-    val gts = gs.dosageIterator
+    val gts = gs.biallelicDosageGenotypeIterator
     var i = 0
     var row = 0
     while (gts.hasNext) {
@@ -277,7 +277,7 @@ object RegressionUtils {
       i += 1
     }
 
-    val nPresent = nSamples - nMissing
+    val nPresent = nMaskedSamples - nMissing
 
     if (sumX < minAC)
       None
@@ -299,10 +299,11 @@ object RegressionUtils {
     }
   }
 
+  // constructs SparseVector of hard call genotypes (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
   def toLinregHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
-    val nSamples = y.length
+    val nMaskedSamples = y.length
     val lrb = new LinRegBuilder(y)
-    val gts = gs.hardCallIterator
+    val gts = gs.hardCallGenotypeIterator
 
     var i = 0
     while (i < mask.length) {
@@ -312,11 +313,27 @@ object RegressionUtils {
       i += 1
     }
 
-    lrb.stats(y, nSamples, minAC)
+    lrb.stats(y, nMaskedSamples, minAC)
+  }
+
+  // constructs SparseVector of hard call genotypes (with missing values mean-imputed) in parallel with other summary statistics
+  // if all genotypes are missing then all elements are NaN
+  def toLinMixedHardCallStats(gs: Iterable[Genotype], mask: Array[Boolean], nMaskedSamples: Int): SparseGtVectorAndStats = {
+    val sb = new SparseGtBuilder()
+    val gts = gs.hardCallGenotypeIterator
+
+    var i = 0
+    while (i < mask.length) {
+      val gt = gts.next()
+      if (mask(i))
+        sb.merge(gt)
+      i += 1
+    }
+
+    sb.stats(nMaskedSamples)
   }
 }
 
-// constructs SparseVector of genotype calls (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
 class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
   private val missingRowIndices = new ArrayBuilder[Int]()
   private val rowsX = new ArrayBuilder[Int]()
@@ -389,8 +406,6 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
   }
 }
 
-// constructs SparseVector of genotype calls with missing values mean-imputed
-// if all genotypes are missing then all elements are NaN
 class SparseGtBuilder extends Serializable {
   private val missingRowIndices = new ArrayBuilder[Int]()
   private val rowsX = new ArrayBuilder[Int]()
@@ -424,7 +439,7 @@ class SparseGtBuilder extends Serializable {
     this
   }
 
-  def toSparseGtVectorAndStats(nSamples: Int): SparseGtVectorAndStats = {
+  def stats(nSamples: Int): SparseGtVectorAndStats = {
     val missingRowIndicesArray = missingRowIndices.result()
     val nMissing = missingRowIndicesArray.size
     val nPresent = nSamples - nMissing

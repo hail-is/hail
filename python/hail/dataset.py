@@ -2444,8 +2444,13 @@ class VariantDataset(object):
         of best fit from sample genotype and covariates to quantitative
         phenotype or case-control status. Hail only includes samples for which
         phenotype and all covariates are defined. For each variant, missing genotypes
-        as the mean of called genotypes. Genotypes are  by hard calls (``g.gt``) by default
-        and by dosages if ``use_dosages=True``, namely :math:`\mathrm{P}(\mathrm{Het}) + 2 * \mathrm{P}(\mathrm{HomVar})`.
+        as the mean of called genotypes.
+
+        By default, genotypes values are given by hard call genotypes (``g.gt``).
+        If ``use_dosages=True``, then genotype values are given by dosage genotypes, defined by
+        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For any variant, if ``Variant.is_dosage``
+        is false, then :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
+        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         Assuming there are sample annotations ``sa.pheno.height``,
         ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the command:
@@ -2504,7 +2509,7 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param bool use_dosages: If true, use dosage genotypes rather that hard call genotypes.
+        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :param int min_ac: Minimum alternate allele count.
 
@@ -2548,7 +2553,7 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param bool use_dosages: If true, use dosage genotypes rather that hard call genotypes.
+        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :param int min_ac: Minimum alternate allele count.
 
