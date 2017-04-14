@@ -802,6 +802,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LinearRegression(vds, ySA, covSA, root, useDosages, minAC, minAF)
   }
 
+  def linregBurden(keyName: String, variantKeySetVA: String, aggregateExpr: String, ySA: String, covSA: Array[String], dropSamples: Boolean): KeyTable = {
+    requireSplit("linear burden regression")
+    LinearRegressionBurden(vds, keyName, variantKeySetVA, aggregateExpr, ySA, covSA, dropSamples)
+  }
+
   def linregMultiPheno(ysSA: Array[String], covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
     requireSplit("linear regression for multiple phenotypes")
     LinearRegressionMultiPheno(vds, ysSA, covSA, root, useDosages, minAC, minAF)
