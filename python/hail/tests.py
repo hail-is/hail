@@ -372,7 +372,7 @@ class ContextTests(unittest.TestCase):
 
         # Variables
         self.assertEqual(kt.num_columns, 3)
-        self.assertEqual(kt.key_names[0], "Sample")
+        self.assertEqual(kt.key[0], "Sample")
         self.assertEqual(kt.column_names[2], "qPhen")
         self.assertEqual(kt.count_rows(), 100)
         kt.schema
