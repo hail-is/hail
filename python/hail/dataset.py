@@ -2167,14 +2167,14 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def grm(self, output, format, id_file=None, n_file=None):
+    def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
         .. include:: requireTGenotype.rst
 
         **Examples**
         
-        >>> vds.grm('data/grm.rel', 'rel')
+        >>> km = vds.grm()
         
         **Notes**
         
@@ -2188,21 +2188,11 @@ class VariantDataset(object):
         
         .. math::
 
-          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
-        
-        The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_ as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`_ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
-
-        :param str output: Output file.
-
-        :param str format: Output format.  One of: 'rel', 'gcta-grm', 'gcta-grm-bin'.
-
-        :param str id_file: ID file.
-
-        :param str n_file: N file, for gcta-grm-bin only.
+          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}        
         """
 
-        jvds = self._jvdf.grm(output, format, joption(id_file), joption(n_file))
-        return VariantDataset(self.hc, jvds)
+        jkm = self._jvdf.grm()
+        return KinshipMatrix(jkm)
 
     @handle_py4j
     @requireTGenotype
