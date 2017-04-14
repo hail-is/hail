@@ -1,7 +1,7 @@
 package is.hail.io.vcf
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{Field, TArray, TBoolean, TCall, TChar, TDouble, TFloat, TGenotype, TInt, TIterable, TSet, TString, TStruct, Type}
+import is.hail.expr.{Field, TArray, TBoolean, TCall, TChar, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TSet, TString, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.{Call, GenericDataset, Genotype, Variant}
 import org.apache.spark.sql.Row
@@ -33,6 +33,11 @@ object ExportVCF {
             sb += '.'
           else
             sb.append(x.formatted("%.5e"))
+        case TLong =>
+          val x = a.asInstanceOf[Long]
+          if (x > Int.MaxValue || x < Int.MinValue)
+            fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue or less than Int.MinValue. Found $x.")
+          sb.append(elementType.str(x))
         case _ => sb.append(elementType.str(a))
       }
     }
@@ -85,7 +90,9 @@ object ExportVCF {
   def infoType(t: Type): String = t match {
     case TArray(elementType) => infoType(elementType)
     case TInt => "Integer"
+    case TLong => "Integer"
     case TDouble => "Float"
+    case TFloat => "Float"
     case TChar => "Character"
     case TString => "String"
     case TBoolean => "Flag"
@@ -96,7 +103,9 @@ object ExportVCF {
     case TArray(elementType) => formatType(elementType)
     case TSet(elementType) => formatType(elementType)
     case TInt => "Integer"
+    case TLong => "Integer"
     case TDouble => "Float"
+    case TFloat => "Float"
     case TChar => "Character"
     case TString => "String"
     case TCall => "String"
@@ -182,7 +191,9 @@ object ExportVCF {
       case TString => true
       case TChar => true
       case TDouble => true
+      case TFloat => true
       case TInt => true
+      case TLong => true
       case TCall => true
       case _ => false
     }
