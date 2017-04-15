@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import java.io.{InputStream, OutputStreamWriter}
+import java.io.{InputStream, OutputStream, OutputStreamWriter}
 import java.util
 
 import is.hail.HailContext
@@ -73,24 +73,14 @@ class HadoopPyReader(in: InputStream) {
   var eof = false
 
   def read(n: Int): String = {
-    if (eof)
+    val b = new Array[Byte](n)
+    val bytesRead = in.read(b, 0, n)
+    if (bytesRead < 0)
       new String(new Array[Byte](0), "ISO-8859-1")
-    else {
-      var i = 0
-      val b = new Array[Byte](n)
-      while (!eof && i < n) {
-        val bytesRead = in.read(b, i, b.length - i)
-        if (bytesRead < 0) {
-          eof = true
-        } else
-          i += bytesRead
-      }
-
-      if (eof)
-        new String(b.slice(0, i), "ISO-8859-1")
-      else
-        new String(b, "ISO-8859-1")
-    }
+    else if (bytesRead == n)
+      new String(b, "ISO-8859-1")
+    else
+      new String(b.slice(0, bytesRead), "ISO-8859-1")
   }
 
   def close() {
@@ -98,10 +88,10 @@ class HadoopPyReader(in: InputStream) {
   }
 }
 
-class HadoopPyWriter(out: OutputStreamWriter) {
+class HadoopPyWriter(out: OutputStream) {
 
-  def write(s: String) {
-    out.write(s)
+  def write(b: Array[Byte]) {
+    out.write(b)
   }
 
   def close() {

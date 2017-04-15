@@ -281,8 +281,5 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
   def unsafeReader(filename: String): InputStream = open(filename)
 
-  def unsafeWriter(filename: String): OutputStreamWriter = {
-    val oos = create(filename)
-    new OutputStreamWriter(oos)
-  }
+  def unsafeWriter(filename: String): OutputStream = create(filename)
 }

@@ -140,11 +140,7 @@ class HadoopReader(io.RawIOBase):
     def readinto(self, b):
         b_from_java = self._jfile.read(len(b)).encode('iso-8859-1')
         n_read = len(b_from_java)
-
-        if n_read == 0:
-            return 0
-        else:
-            b[:n_read] = b_from_java
+        b[:n_read] = b_from_java
         return n_read
 
 class HadoopWriter(io.RawIOBase):
@@ -159,5 +155,8 @@ class HadoopWriter(io.RawIOBase):
         self._jfile.close()
 
     def write(self, b):
-        self._jfile.write(b.tobytes())
+        self._jfile.write(bytearray(b))
         return len(b)
+
+    def flush(self):
+        self._jfile.flush()
