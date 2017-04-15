@@ -1,6 +1,9 @@
 from hail.java import Env, handle_py4j
 import io
 
+
+__all__ = ['hadoop_copy', 'hadoop_read', 'hadoop_write', 'FunctionDocumentation', 'TextTableConfig']
+
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
 
@@ -55,20 +58,30 @@ class FunctionDocumentation(object):
 
 @handle_py4j
 def hadoop_read(path, buffer_size=8192):
-    """Open a readable file through the Hadoop filesystem API. Supports distributed file systems like hdfs, gs, and s3.
+    """Open a readable file through the Hadoop filesystem API. 
+    Supports distributed file systems like hdfs, gs, and s3.
+    
+    **Example:**
     
     .. doctest::
-    :options: +SKIP
+        :options: +SKIP
 
         >>> with hadoop_read('gs://my-bucket/notes.txt') as f:
         ...     for line in f:
         ...         print(line.strip())
     
+    .. note::
+        
+        If Spark is running in cluster mode, both the source and destination 
+        file paths must be URIs (uniform resource identifiers). This means 
+        fully clarified paths, prefixed by scheme (``file://``, ``hdfs://``, ``gs://``,
+        ``s3://``, etc.)
+
     .. caution::
     
-        These file handles are slower than standard python file handles.
+        These file handles are slower than standard Python file handles.
         If you are reading a file larger than ~50M, it will be faster to 
-        use :py:meth`.hadoop_copy` to copy the file locally, then read it
+        use :py:meth:`~hail.hadoop_copy` to copy the file locally, then read it
         with standard Python I/O tools.
     
     :param str path: Source file URI.
@@ -86,20 +99,30 @@ def hadoop_read(path, buffer_size=8192):
 
 @handle_py4j
 def hadoop_write(path, buffer_size=8192):
-    """Open a writable file through the Hadoop filesystem API. Supports distributed file systems like hdfs, gs, and s3.
+    """Open a writable file through the Hadoop filesystem API. 
+    Supports distributed file systems like hdfs, gs, and s3.
+    
+    **Example:**
     
     .. doctest::
-    :options: +SKIP
+        :options: +SKIP
 
         >>> with hadoop_write('gs://my-bucket/notes.txt') as f:
         ...     f.write('result1: %s\\n' % result1)
         ...     f.write('result2: %s\\n' % result2)
     
+    .. note::
+        
+        If Spark is running in cluster mode, both the source and destination 
+        file paths must be URIs (uniform resource identifiers). This means 
+        fully clarified paths, prefixed by scheme (``file://``, ``hdfs://``, ``gs://``,
+        ``s3://``, etc.)
+
     .. caution::
     
-        These file handles are slower than standard python file handles. If you
+        These file handles are slower than standard Python file handles. If you
         are writing a large file (larger than ~50M), it will be faster to write
-        to a local file using standard Python I/O and use :py:meth`.hdfs_copy` 
+        to a local file using standard Python I/O and use :py:meth:`~hail.hadoop_copy` 
         to move your file to a distributed file system.
     
     :param str path: Destination file URI.
@@ -116,9 +139,20 @@ def hadoop_write(path, buffer_size=8192):
 
 @handle_py4j
 def hadoop_copy(src, dest):
-    """Copy a file through the Hadoop filesystem API. Supports distributed file systems like hdfs, gs, and s3.
+    """Copy a file through the Hadoop filesystem API.
+    Supports distributed file systems like hdfs, gs, and s3.
     
-    >>> hadoop_copy('gs://hail-common/LCR.interval_list', 'file:///home/usr/LCR.interval_list') # doctest: +SKIP
+    **Example:**
+    
+    >>> hadoop_copy('gs://hail-common/LCR.interval_list', 'file:///mnt/data/LCR.interval_list') # doctest: +SKIP
+    
+    .. note::
+        
+        If Spark is running in cluster mode, both the source and destination 
+        file paths must be URIs (uniform resource identifiers). This means 
+        fully clarified paths, prefixed by scheme (``file://``, ``hdfs://``, ``gs://``,
+        ``s3://``, etc.)
+    
     
     :param str src: Source file URI. 
     :param str dest: Destination file URI.
