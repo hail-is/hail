@@ -6,7 +6,7 @@ from hail.dataset import VariantDataset
 from hail.expr import Type
 from hail.keytable import KeyTable
 from hail.kinshipMatrix import KinshipMatrix
-from hail.utils import TextTableConfig, hdfs_read, hdfs_write, hdfs_copy
+from hail.utils import TextTableConfig, hadoop_read, hadoop_write, hadoop_copy
 
 __all__ = ['HailContext',
            'VariantDataset',
@@ -15,7 +15,7 @@ __all__ = ['HailContext',
            'IntervalTree',
            'expr',
            'representation',
-           'hdfs_read',
-           'hdfs_write',
-           'hdfs_copy',
+           'hadoop_read',
+           'hadoop_write',
+           'hadoop_copy',
            'KinshipMatrix']

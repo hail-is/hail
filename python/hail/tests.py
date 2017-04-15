@@ -804,40 +804,40 @@ class ContextTests(unittest.TestCase):
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
 
-        with hdfs_write('/tmp/test_out.txt') as f:
+        with hadoop_write('/tmp/test_out.txt') as f:
             for d in data:
                 f.write(d)
                 f.write('\n')
 
-        with hdfs_read('/tmp/test_out.txt') as f:
+        with hadoop_read('/tmp/test_out.txt') as f:
             data2 = [line.strip() for line in f]
 
         self.assertEqual(data, data2)
 
-        with hdfs_write('/tmp/test_out.txt.gz') as f:
+        with hadoop_write('/tmp/test_out.txt.gz') as f:
             for d in data:
                 f.write(d)
                 f.write('\n')
 
-        with hdfs_read('/tmp/test_out.txt.gz') as f:
+        with hadoop_read('/tmp/test_out.txt.gz') as f:
             data3 = [line.strip() for line in f]
 
         self.assertEqual(data, data3)
 
-        hdfs_copy('/tmp/test_out.txt.gz', '/tmp/test_out.copy.txt.gz')
+        hadoop_copy('/tmp/test_out.txt.gz', '/tmp/test_out.copy.txt.gz')
 
-        with hdfs_read('/tmp/test_out.copy.txt.gz') as f:
+        with hadoop_read('/tmp/test_out.copy.txt.gz') as f:
             data4 = [line.strip() for line in f]
 
         self.assertEqual(data, data4)
 
 
-        with hdfs_read('src/test/resources/randomBytes', buffer_size=100) as f:
-            with hdfs_write('/tmp/randomBytesOut', buffer_size=150) as out:
+        with hadoop_read('src/test/resources/randomBytes', buffer_size=100) as f:
+            with hadoop_write('/tmp/randomBytesOut', buffer_size=150) as out:
                 b = f.read()
                 out.write(b)
 
-        with hdfs_read('/tmp/randomBytesOut', buffer_size=199) as f:
+        with hadoop_read('/tmp/randomBytesOut', buffer_size=199) as f:
             b2 = f.read()
 
         self.assertEqual(b, b2)

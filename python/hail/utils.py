@@ -54,13 +54,13 @@ class FunctionDocumentation(object):
 
 
 @handle_py4j
-def hdfs_read(path, buffer_size=8192):
-    """Open a readable file through the hadoop file connector. Supports distributed file systems like hdfs, gs, and s3.
+def hadoop_read(path, buffer_size=8192):
+    """Open a readable file through the Hadoop filesystem API. Supports distributed file systems like hdfs, gs, and s3.
     
     .. doctest::
     :options: +SKIP
 
-        >>> with hdfs_read('gs://my-bucket/notes.txt') as f:
+        >>> with hadoop_read('gs://my-bucket/notes.txt') as f:
         ...     for line in f:
         ...         print(line.strip())
     
@@ -68,11 +68,10 @@ def hdfs_read(path, buffer_size=8192):
     
         These file handles are slower than standard python file handles.
         If you are reading a file larger than ~50M, it will be faster to 
-        use :py:meth`.hdfs_copy` to copy the file locally, then read it
+        use :py:meth`.hadoop_copy` to copy the file locally, then read it
         with standard Python I/O tools.
-
     
-    :param str path: Source file.
+    :param str path: Source file URI.
     
     :param int buffer_size: Size of internal buffer.
     
@@ -86,13 +85,13 @@ def hdfs_read(path, buffer_size=8192):
     return io.BufferedReader(HadoopReader(path), buffer_size=buffer_size)
 
 @handle_py4j
-def hdfs_write(path, buffer_size=8192):
-    """Open a writable file through the hadoop file connector. Supports distributed file systems like hdfs, gs, and s3.
+def hadoop_write(path, buffer_size=8192):
+    """Open a writable file through the Hadoop filesystem API. Supports distributed file systems like hdfs, gs, and s3.
     
     .. doctest::
     :options: +SKIP
 
-        >>> with hdfs_write('gs://my-bucket/notes.txt') as f:
+        >>> with hadoop_write('gs://my-bucket/notes.txt') as f:
         ...     f.write('result1: %s\\n' % result1)
         ...     f.write('result2: %s\\n' % result2)
     
@@ -103,7 +102,7 @@ def hdfs_write(path, buffer_size=8192):
         to a local file using standard Python I/O and use :py:meth`.hdfs_copy` 
         to move your file to a distributed file system.
     
-    :param str path: Destination file.
+    :param str path: Destination file URI.
     
     :return: File writer object.
     :rtype: `io.BufferedWriter <https://docs.python.org/2/library/io.html#io.BufferedWriter>`_
@@ -116,13 +115,13 @@ def hdfs_write(path, buffer_size=8192):
 
 
 @handle_py4j
-def hdfs_copy(src, dest):
-    """Copy a file. Supports distributed file systems like hdfs, gs, and s3.
+def hadoop_copy(src, dest):
+    """Copy a file through the Hadoop filesystem API. Supports distributed file systems like hdfs, gs, and s3.
     
-    >>> hdfs_copy('gs://hail-common/LCR.interval_list', 'file:///home/usr/LCR.interval_list') # doctest: +SKIP
+    >>> hadoop_copy('gs://hail-common/LCR.interval_list', 'file:///home/usr/LCR.interval_list') # doctest: +SKIP
     
-    :param str src: Source file. 
-    :param str dest: Destination file.
+    :param str src: Source file URI. 
+    :param str dest: Destination file URI.
     """
     Env.jutils().copyFile(src, dest, Env.hc()._jhc)
 
