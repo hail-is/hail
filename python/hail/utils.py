@@ -1,8 +1,8 @@
 from hail.java import Env, handle_py4j
 import io
 
-
 __all__ = ['hadoop_copy', 'hadoop_read', 'hadoop_write', 'FunctionDocumentation', 'TextTableConfig']
+
 
 class TextTableConfig(object):
     """Configuration for delimited (text table) files.
@@ -97,6 +97,7 @@ def hadoop_read(path, buffer_size=8192):
         raise TypeError("expected parameter 'buffer_size' to be type int, but found %s" % type(buffer_size))
     return io.BufferedReader(HadoopReader(path), buffer_size=buffer_size)
 
+
 @handle_py4j
 def hadoop_write(path, buffer_size=8192):
     """Open a writable file through the Hadoop filesystem API. 
@@ -159,6 +160,7 @@ def hadoop_copy(src, dest):
     """
     Env.jutils().copyFile(src, dest, Env.hc()._jhc)
 
+
 class HadoopReader(io.RawIOBase):
     def __init__(self, path):
         self._jfile = Env.jutils().readFile(path, Env.hc()._jhc)
@@ -176,6 +178,7 @@ class HadoopReader(io.RawIOBase):
         b[:n_read] = b_from_java
         return n_read
 
+
 class HadoopWriter(io.RawIOBase):
     def __init__(self, path):
         self._jfile = Env.jutils().writeFile(path, Env.hc()._jhc)
@@ -190,6 +193,3 @@ class HadoopWriter(io.RawIOBase):
     def write(self, b):
         self._jfile.write(bytearray(b))
         return len(b)
-
-    def flush(self):
-        self._jfile.flush()
