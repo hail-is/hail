@@ -72,9 +72,10 @@ def hadoop_read(path, buffer_size=8192):
     
     .. note::
         
-        If Spark is running in cluster mode, both the source and destination 
-        file paths must be URIs (uniform resource identifiers). This means 
-        fully clarified paths, prefixed by scheme (``file://``, ``hdfs://``, ``gs://``,
+        The provided source file path must be a URI (uniform resource 
+        identifiers). This means that if the  file is not found in the 
+        default scheme (usually ``hdfs://``) it must be denoted by a
+        full path prefixed by the scheme(``file://``, ``hdfs://``, ``gs://``,
         ``s3://``, etc.)
 
     .. caution::
@@ -114,9 +115,10 @@ def hadoop_write(path, buffer_size=8192):
     
     .. note::
         
-        If Spark is running in cluster mode, both the source and destination 
-        file paths must be URIs (uniform resource identifiers). This means 
-        fully clarified paths, prefixed by scheme (``file://``, ``hdfs://``, ``gs://``,
+        The provided destination file path must be a URI (uniform resource 
+        identifiers). This means that if the  destination is not found in the 
+        default scheme (usually ``hdfs://``) it must be denoted by a
+        full path prefixed by the scheme(``file://``, ``hdfs://``, ``gs://``,
         ``s3://``, etc.)
 
     .. caution::
@@ -189,6 +191,9 @@ class HadoopWriter(io.RawIOBase):
 
     def close(self):
         self._jfile.close()
+
+    def flush(self):
+        self._jfile.flush()
 
     def write(self, b):
         self._jfile.write(bytearray(b))

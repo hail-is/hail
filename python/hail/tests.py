@@ -800,7 +800,7 @@ class ContextTests(unittest.TestCase):
         glob, samples, variants = bn1.concordance(bn2)
         self.assertEqual(samples.sample_annotations[samples.sample_ids[0]].concordance, glob)
 
-    def test_hdfs_files(self):
+    def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
 

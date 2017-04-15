@@ -94,6 +94,10 @@ class HadoopPyWriter(out: OutputStream) {
     out.write(b)
   }
 
+  def flush() {
+    out.flush()
+  }
+
   def close() {
     out.close()
   }
