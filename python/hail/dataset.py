@@ -2720,7 +2720,7 @@ class VariantDataset(object):
 
         These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
 
-        If Step 5 is performed, :py:meth:`.lmmreg` also adds nine variant annotations.
+        If Step 5 is performed, :py:meth:`.lmmreg` also adds four linear regression variant annotations.
 
         +------------------------+--------+-------------------------------------------------------------------------+
         | Annotation             | Type   | Value                                                                   |
@@ -2732,16 +2732,6 @@ class VariantDataset(object):
         | ``va.lmmreg.chi2``     | Double | :math:`\chi^2` statistic of the likelihood ratio test                   |
         +------------------------+--------+-------------------------------------------------------------------------+
         | ``va.lmmreg.pval``     | Double | :math:`p`-value                                                         |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.AF``       | Double | minor allele frequency for included samples                             |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.nHomRef``  | Int    | count of HomRef genotypes for included samples                          |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.nHet``     | Int    | count of Het genotypes among for samples                                |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.nHomVar``  | Int    | count of HomVar genotypes for included samples                          |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.nMissing`` | Int    | count of missing genotypes for included samples                         |
         +------------------------+--------+-------------------------------------------------------------------------+
 
         Those variants that don't vary across the included samples (e.g., all genotypes are HomRef) will have missing annotations.
@@ -2837,19 +2827,19 @@ class VariantDataset(object):
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`_. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`_.
 
-        :param kinshipMatrix: Kinship matrix to be used
+        :param kinshipMatrix: Kinship matrix to be used.
         :type kinshipMatrix: :class:`KinshipMatrix`
 
         :param str y: Response sample annotation.
 
-        :param covariates: List of covariate sample annotations
+        :param covariates: List of covariate sample annotations.
         :type covariates: list of str
 
         :param str global_root: Global annotation root, a period-delimited path starting with `global`.
 
         :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
 
-        :param bool run_assoc: If True, run association testing in addition to fitting the global model
+        :param bool run_assoc: If True, run association testing in addition to fitting the global model.
 
         :param bool use_ml: Use ML instead of REML throughout.
 
@@ -2858,7 +2848,7 @@ class VariantDataset(object):
 
         :param float sparsity_threshold: AF threshold above which to use dense genotype vectors in rotation (advanced).
 
-        :return: Variant dataset with linear mixed regression annotations
+        :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
