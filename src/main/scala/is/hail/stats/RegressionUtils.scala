@@ -357,7 +357,7 @@ object RegressionUtils {
 
   // constructs SparseVector of hard call genotypes (with missing values mean-imputed) in parallel with other summary statistics
   // if all genotypes are missing then all elements are NaN
-  def toLinMixedHardCallStats(gs: Iterable[Genotype], mask: Array[Boolean], nMaskedSamples: Int): SparseGtVectorAndStats = {
+  def toSparseHardCallStats(gs: Iterable[Genotype], mask: Array[Boolean], nMaskedSamples: Int): Option[(SparseVector[Double], Double)] = {
     val sb = new SparseGtBuilder()
     val gts = gs.hardCallGenotypeIterator
 
@@ -464,12 +464,12 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
     this
   }
 
-  def stats(y: DenseVector[Double], n: Int, minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
+  def stats(y: DenseVector[Double], nSamples: Int, minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
     require(minAC > 0)
 
     val missingRowIndicesArray = missingRowIndices.result()
     val nMissing = missingRowIndicesArray.size
-    val nPresent = n - nMissing
+    val nPresent = nSamples - nMissing
 
     if (sumX < minAC || sumX == 2 * nPresent || sumX == nPresent && sumXX == nPresent)
       None
@@ -487,7 +487,7 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
       // variant is atomic => combOp merge not called => rowsXArray is sorted (as expected by SparseVector constructor)
       // assert(rowsXArray.isIncreasing)
 
-      val x = new SparseVector[Double](rowsXArray, valsXArray, n)
+      val x = new SparseVector[Double](rowsXArray, valsXArray, nSamples)
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * sumYMissing
 
@@ -502,22 +502,21 @@ class SparseGtBuilder extends Serializable {
   private val valsX = new ArrayBuilder[Double]()
   private var row = 0
   private var sparseLength = 0 // current length of rowsX and valsX, used to track missingRowIndices
-  private var nHet = 0
-  private var nHomVar = 0
+  private var sumX = 0
 
   def merge(gt: Int): SparseGtBuilder = {
     (gt: @unchecked) match {
       case 0 =>
       case 1 =>
-        nHet += 1
         rowsX += row
         valsX += 1d
         sparseLength += 1
+        sumX += 1
       case 2 =>
-        nHomVar += 1
         rowsX += row
         valsX += 2d
         sparseLength += 1
+        sumX += 2
       case -1 =>
         missingRowIndices += sparseLength
         rowsX += row
@@ -529,27 +528,26 @@ class SparseGtBuilder extends Serializable {
     this
   }
 
-  def stats(nSamples: Int): SparseGtVectorAndStats = {
-    val missingRowIndicesArray = missingRowIndices.result()
-    val nMissing = missingRowIndicesArray.size
-    val nPresent = nSamples - nMissing
-    val nHomRef = nSamples - nHet - nHomVar - nMissing
-    val sumX = nHet + 2 * nHomVar
+  def stats(nSamples: Int): Option[(SparseVector[Double], Double)] = {
     val rowsXArray = rowsX.result()
     val valsXArray = valsX.result()
+    val missingRowIndicesArray = missingRowIndices.result()
+    val nPresent = nSamples - missingRowIndicesArray.size
 
-    val isConstant = nHomRef == nPresent || nHomVar == nPresent || nHet == nPresent || nPresent == 0
+    if (sumX == 0 || sumX == 2 * nPresent || (sumX == nPresent && valsXArray.forall(_ == 1d)))
+      None
+    else {
+      val meanX = if (nPresent > 0) sumX.toDouble / nPresent else Double.NaN
 
-    val meanX = if (nPresent > 0) sumX.toDouble / nPresent else Double.NaN
+      var i = 0
+      while (i < missingRowIndicesArray.length) {
+        valsXArray(i) = meanX
+        i += 1
+      }
 
-    var i = 0
-    while (i < missingRowIndicesArray.length) {
-      valsXArray(i) = meanX
-      i += 1
+      val x = new SparseVector[Double](rowsXArray, valsXArray, nSamples)
+
+      Some(x, meanX / 2)
     }
-
-    SparseGtVectorAndStats(new SparseVector(rowsXArray, valsXArray, nSamples), isConstant, meanX / 2, nHomRef, nHet, nHomVar, nMissing)
   }
 }
-
-case class SparseGtVectorAndStats(x: SparseVector[Double], isConstant: Boolean, af: Double, nHomRef: Int, nHet: Int, nHomVar: Int, nMissing: Int)

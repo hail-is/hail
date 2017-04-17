@@ -123,11 +123,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
     val qChi2 = vds.queryVA("va.lmmreg.chi2")._2
     val qPval = vds.queryVA("va.lmmreg.pval")._2
-    val qAF = vds.queryVA("va.lmmreg.AF")._2
-    val qnHomRef = vds.queryVA("va.lmmreg.nHomRef")._2
-    val qnHet = vds.queryVA("va.lmmreg.nHet")._2
-    val qnHomVar = vds.queryVA("va.lmmreg.nHomVar")._2
-    val qnMissing = vds.queryVA("va.lmmreg.nMissing")._2
 
     val annotationMap = vds.variantsAndAnnotations.collect().toMap
 
@@ -145,11 +140,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
       assertDouble(qSg2, v, sg2)
       assertDouble(qChi2, v, chi2)
       assertDouble(qPval, v, pval)
-      assertDouble(qAF, v, af)
-      assertInt(qnHomRef, v, nHomRef)
-      assertInt(qnHet, v, nHet)
-      assertInt(qnHomVar, v, nHomVar)
-      assertInt(qnMissing, v, nMissing)
     }
   }
 
