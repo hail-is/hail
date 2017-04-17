@@ -18,12 +18,7 @@ object LinearMixedRegression {
     ("beta", TDouble),
     ("sigmaG2", TDouble),
     ("chi2", TDouble),
-    ("pval", TDouble),
-    ("AF", TDouble),
-    ("nHomRef", TInt),
-    ("nHet", TInt),
-    ("nHomVar", TInt),
-    ("nMissing", TInt))
+    ("pval", TDouble))
 
   def apply(
     assocVds: VariantDataset,
@@ -145,17 +140,13 @@ object LinearMixedRegression {
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       vds2.mapAnnotations { case (v, va, gs) =>
-        val SparseGtVectorAndStats(x0, isConstant, af, nHomRef, nHet, nHomVar, nMissing) =
-          RegressionUtils.toLinMixedHardCallStats(gs, sampleMaskBc.value, n)
+        val optStats = RegressionUtils.toSparseHardCallStats(gs, sampleMaskBc.value, n)
 
-        val lmmregAnnot =
-          if (!isConstant) {
-            val x: Vector[Double] = if (af <= sparsityThreshold) x0 else x0.toDenseVector
-            val (b, s2, chi2, p) = scalerLMMBc.value.likelihoodRatioTest(TBc.value * x)
+        val lmmregAnnot = optStats.map { case (x0, af) =>
+          val x: Vector[Double] = if (af <= sparsityThreshold) x0 else x0.toDenseVector
 
-            Annotation(b, s2, chi2, p, af, nHomRef, nHet, nHomVar, nMissing)
-          } else
-            null
+          scalerLMMBc.value.likelihoodRatioTest(TBc.value * x)
+        }.orNull
 
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
@@ -335,7 +326,7 @@ case class ScalerLMM(
   logNullS2: Double,
   useML: Boolean) {
 
-  def likelihoodRatioTest(x: Vector[Double]): (Double, Double, Double, Double) = {
+  def likelihoodRatioTest(x: Vector[Double]): Annotation = {
 
     val n = y.length
     val Qtx = Qt * x
@@ -347,6 +338,6 @@ case class ScalerLMM(
     val chi2 = n * (logNullS2 - math.log(s2))
     val p = chiSquaredTail(1, chi2)
 
-    (b, s2, chi2, p)
+    Annotation(b, s2, chi2, p)
   }
 }
