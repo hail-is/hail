@@ -57,8 +57,7 @@ object LinearRegression {
         else
           RegressionUtils.toLinregHardCallStats(gs, yBc.value, sampleMaskBc.value, combinedMinAC)
 
-      val linregAnnot = optStats.map { stats =>
-        val (x, xx, xy) = stats
+      val linregAnnot = optStats.map { case (x, xx, xy) =>
 
         val qtx = QtBc.value * x
         val qty = QtyBc.value
@@ -72,8 +71,7 @@ object LinearRegression {
         val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 
         Annotation(b, se, t, p)
-      }
-      .orNull
+      }.orNull
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))
