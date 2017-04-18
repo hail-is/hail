@@ -787,7 +787,7 @@ class VariantDataset(object):
         To import it:
 
         >>> annotations = (hc.import_keytable('data/samples3.tsv', no_header=True)
-        ...                   .annotate('sample = _1.split("_")[1]')
+        ...                   .annotate('sample = _0.split("_")[1]')
         ...                   .key_by('sample'))
         >>> vds_result = vds.annotate_samples_table(annotations,
         ...                             expr='sa.sex = table._1, sa.batch = table._0.split("_")[0]')

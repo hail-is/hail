@@ -328,7 +328,7 @@ class HailContext(object):
         To import:
 
         >>> annotations = (hc.import_keytable('data/samples3.tsv', no_header=True)
-        ...                   .annotate('sample = _1.split("_")[1]')
+        ...                   .annotate('sample = _0.split("_")[1]')
         ...                   .key_by('sample'))
         
         The ``impute`` parameter, if ``True``, tells Hail to scan the file an extra time to gather
@@ -350,7 +350,8 @@ class HailContext(object):
         
             The ``comment`` and ``missing`` parameters are **NOT** regexes.
 
-        The ``no_header`` option 
+        The ``no_header`` option indicates that the file has no header line. If this option is passed, 
+        then the column names will be ``_0``, ``_1``, ... ``_N`` (0-indexed). 
         
         :param paths: files to import.
         :type paths: str or list of str
