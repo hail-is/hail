@@ -53,10 +53,11 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
 
   def exportRel(output: String) {
     prepareMatrixForExport(matrix).rows
-      .map { (row: IndexedRow) =>
+    .mapPartitions(itr => {
+      val sb = new StringBuilder
+      itr.foreach{ (row: IndexedRow) =>
         val i = row.index
         val arr = row.vector.toArray
-        val sb = new StringBuilder
         var j = 0
         while (j <= i) {
           if (j > 0)
@@ -64,18 +65,20 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
           sb.append(arr(j))
           j += 1
         }
-        sb.toString()
+        sb += '\n'
       }
-      .writeTable(output, hc.tmpDir)
+      sb.lines
+    }).writeTable(output, hc.tmpDir)
   }
 
   def exportGctaGrm(output: String) {
     val nVars = numVariantsUsed //required to avoid serialization error.
     prepareMatrixForExport(matrix).rows
-      .map { (row: IndexedRow) =>
+    .mapPartitions((itr: Iterator[IndexedRow]) => {
+      val sb = new StringBuilder
+      itr.foreach{ (row: IndexedRow) =>
         val i = row.index
         val arr = row.vector.toArray
-        val sb = new StringBuilder
         var j = 0
         while (j <= i) {
           sb.append(s"${ i + 1 }\t${ j + 1 }\t$nVars\t${ arr(j) }")
@@ -84,9 +87,10 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
           }
           j += 1
         }
-        sb.toString()
+        sb += '\n'
       }
-      .writeTable(output, hc.tmpDir)
+      sb.lines
+    }).writeTable(output, hc.tmpDir)
   }
 
   def exportGctaGrmBin(output: String, nFile: Option[String] = None) {
@@ -105,8 +109,7 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
           j += 1
         }
         result
-      }
-      .saveFromByteArrays(output, hc.tmpDir)
+      }.saveFromByteArrays(output, hc.tmpDir)
 
     nFile.foreach { f =>
       hc.sc.hadoopConfiguration.writeDataFile(f) { s =>
@@ -150,7 +153,6 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
       .map {
         case (idx, (Some(v), _)) => IndexedRow(idx, v)
         case (idx, (None, _)) => IndexedRow(idx, zeroVector)
-      }
-      .sortBy(_.index))
+      }.sortBy(_.index))
   }
 }

@@ -7,6 +7,8 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.classTag
 
+import is.hail.utils._
+
 /**
   * Adds toBlockMatrixDense method to IndexedRowMatrix
   *
@@ -52,32 +54,32 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     val numColBlocks = (n / colsPerBlock + (if (n % colsPerBlock == 0) 0 else 1)).toInt
 
 
-    val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap({ ir =>
+    val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap{ ir =>
       val blockRow = ir.index / rowsPerBlock
       val rowInBlock = ir.index % rowsPerBlock
 
       ir.vector.toArray
         .grouped(colsPerBlock)
         .zipWithIndex
-        .map({ case (values, blockColumn) =>
+        .map{ case (values, blockColumn) =>
           ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
-        })
-    }).groupByKey(sneakyGridPartitioner(numRowBlocks, numColBlocks, indexedRowMatrix.rows.getNumPartitions)).map({
+        }
+    }.groupByKey(sneakyGridPartitioner(numRowBlocks, numColBlocks, indexedRowMatrix.rows.getNumPartitions)).mapValuesWithKey{
       case ((blockRow, blockColumn), itr) =>
         val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else rowsPerBlock
         val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else colsPerBlock
 
         val arraySize = actualNumRows * actualNumColumns
         val matrixAsArray = new Array[Double](arraySize)
-        itr.foreach({ case (rowWithinBlock, values) =>
+        itr.foreach{ case (rowWithinBlock, values) =>
           var i = 0
           while (i < values.length) {
             matrixAsArray.update(i * actualNumRows + rowWithinBlock, values(i))
             i += 1
           }
-        })
-        ((blockRow, blockColumn), new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray))
-    })
+        }
+        new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
+    }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock)
   }
 }
