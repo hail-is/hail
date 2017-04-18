@@ -4329,8 +4329,6 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store VEP output.
 
-        :param bool force: If true, force VEP annotation from scratch.
-
         :param bool csq: If true, annotates VCF CSQ field as a String.
             If False, annotates with the full nested struct schema
 
