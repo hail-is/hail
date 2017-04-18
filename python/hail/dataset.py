@@ -769,7 +769,7 @@ class VariantDataset(object):
           rather than the ``root`` parameter.
 
         >>> annotations = hc.import_keytable('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
-        >>> vds_result = vds.annotate_samples_table(annotations, code='sa.batch = table.Batch')
+        >>> vds_result = vds.annotate_samples_table(annotations, expr='sa.batch = table.Batch')
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. 
         Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
