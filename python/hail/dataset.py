@@ -1313,8 +1313,8 @@ class VariantDataset(object):
         >>> left_homref_right_homvar = summary[2][4]
         >>> left_het_right_missing = summary[3][1]
         >>> left_het_right_something_else = sum(summary[3][:]) - summary[3][3]
-        >>> total_concordant = x[2][2] + x[3][3] + x[4][4]]
-        >>> total_discordant = sum([sum(x[2:]) for x in summary[2:]]) - (x[2][2] + x[3][3] + x[4][4])
+        >>> total_concordant = summary[2][2] + summary[3][3] + summary[4][4]
+        >>> total_discordant = sum([sum(s[2:]) for s in summary[2:]]) - total_concordant
         
         **Using the key table results**
         
