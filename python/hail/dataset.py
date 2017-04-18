@@ -1285,56 +1285,82 @@ class VariantDataset(object):
 
         **Example**
 
-        >>> concordance_pair = vds.concordance(hc.read('data/example2.vds'))
+        >>> summary, samples, variants = vds.concordance(hc.read('data/example2.vds'))
 
         **Notes**
 
-        The `concordance` command computes the genotype call concordance between two bialellic variant datasets. The concordance
-        results are stored in a global annotation of type Array[Array[Long]], which is a 5x5 table of counts with the
-        following mapping:
+        The `concordance` command computes the genotype call concordance between two bialellic variant datasets. 
+        It performs an inner join on samples (only samples in both datasets will be considered), and an outer join
+        on variants. This method returns a tuple of three objects: a nested list of list of int with global concordance
+        summary statistics, a key table with sample concordance statistics, and a key table with variant concordance 
+        statistics.
+        
+        **Using the global summary result**
+        
+        The global summary is a list of list of int, where the indices have special meaning:
 
         0. No Data (missing variant)
         1. No Call (missing genotype call)
         2. Hom Ref
         3. Heterozygous
         4. Hom Var
-
-        The first index in array is the left dataset, the second is the right. For example, ``concordance[3][2]`` is the count of
-        genotypes which were heterozygous on the left and homozygous reference on the right. This command produces two new datasets
-        and returns them as a Python tuple. The first dataset contains the concordance statistics per variant. This dataset
-        **contains no genotypes** (sites-only). It contains a new variant annotation, ``va.concordance``. This is the concordance
-        table for each variant in the outer join of the two datasets -- if the variant is present in only one dataset, all
-        of the counts will lie in the axis ``va.concordance[0][:]`` (if it is missing on the left) or ``va.concordance.map(x => x[0])``
-        (if it is missing on the right). The variant annotations from the left and right datasets are included as ``va.left``
-        and ``va.right`` -- these will be missing on one side if a variant was only present in one dataset. This vds also contains
-        the global concordance statistics in ``global.concordance``, as well as the left and right global annotations in ``global.left``
-        and ``global.right``. The second dataset contains the concordance statistics per sample. This dataset **contains no variants**
-        (samples-only). It contains a new sample annotation, ``sa.concordance``. This is a concordance table whose sum is the total number
-        of variants in the outer join of the two datasets. The sum ``sa[0].sum`` is equal to the number of variants in the right dataset
-        but not the left, and the sum ``sa.concordance.map(x => x[0]).sum)`` is equal to the number of variants in the left dataset but
-        not the right. The sample annotations from the left and right datasets are included as ``sa.left`` and ``sa.right``. This dataset
-        also contains the global concordance statistics in ``global.concordance``, as well as the left and right global annotations in
-        ``global.left`` and ``global.right``.
-
-        **Notes**
-
-        Performs inner join on variants, outer join on samples.
-
+        
+        The first index is the state in the left dataset (the one on which concordance was called), and the second
+        index is the state in the right dataset (the argument to the concordance method call). Typical uses of 
+        the summary list are shown below.
+          
+        >>> summary, samples, variants = vds.concordance(hc.read('data/example2.vds'))
+        >>> left_homref_right_homvar = summary[2][4]
+        >>> left_het_right_missing = summary[3][1]
+        >>> left_het_right_something_else = sum(summary[3][:]) - summary[3][3]
+        >>> total_concordant = x[2][2] + x[3][3] + x[4][4]]
+        >>> total_discordant = sum([sum(x[2:]) for x in summary[2:]]) - (x[2][2] + x[3][3] + x[4][4])
+        
+        **Using the key table results**
+        
+        Columns of the sample key table:
+        
+           - **s** (*String*) -- Sample ID.
+           - **nDiscordant** (*Long*) -- Count of discordant calls (see below for full definition).
+           - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
+             matches the structure of the global summary defined above.
+             
+        Columns of the variant key table:
+        
+           - **v** (*Variant*) -- Genomic variant.
+           - **nDiscordant** (*Long*) -- Count of discordant calls (see below for full definition).
+           - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
+             matches the structure of the global summary defined above.
+             
+        The two key tables produced by the concordance method can be queried with :py:meth:`.KeyTable.query`, 
+        exported to text with :py:meth:`.KeyTable.export`, and used to annotate a variant dataset with
+        :py:meth:`.VariantDataset.annotate_variants_keytable`, among other things.
+        
+        In these tables, the column **nDiscordant** is provided as a convenience, because this is often one
+        of the most useful single statistics about variant or sample concordance. This value is the number of genotypes 
+        which were called ("Hom Ref", "Heterozygous", or "Hom Var") in both datasets, but where the call did not match
+        between the two.
+        
+        The column **concordance** matches the structure of the global summmary, which is detailed above. Once again,
+        the first index into this array is the state on the left, and the second index is the state on the right: 
+        for example, ``concordance[1][4]`` is the number of "No Call" genotypes on the left that were called "Hom 
+        Var" on the right. 
+        
         :param right: right hand variant dataset for concordance
         :type right: :class:`.VariantDataset`
 
-        :return: The global concordance stats, a variant dataset with sample concordance
-            statistics, and a variant dataset with variant concordance statistics.
-        :rtype: (list of list of int, :py:class:`.VariantDataset`, :py:class:`.VariantDataset`)
+        :return: The global concordance stats, a key table with sample concordance
+            statistics, and a key table with variant concordance statistics.
+        :rtype: (list of list of int, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
         r = self._jvdf.concordance(right._jvds)
         j_global_concordance = r._1()
-        sample_vds = VariantDataset(self.hc, r._2())
-        variant_vds = VariantDataset(self.hc, r._3())
+        sample_kt = KeyTable(self.hc, r._2())
+        variant_kt = KeyTable(self.hc, r._3())
         global_concordance = [[j_global_concordance.apply(j).apply(i) for i in xrange(5)] for j in xrange(5)]
 
-        return global_concordance, sample_vds, variant_vds
+        return global_concordance, sample_kt, variant_kt
 
     @handle_py4j
     def count(self, genotypes=False):
@@ -2635,7 +2661,9 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
+                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
+                                           min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3562,7 +3590,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def rrm(self, force_block = False, force_gramian = False):
+    def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
         **Examples**
