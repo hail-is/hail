@@ -529,7 +529,7 @@ class VariantDataset(object):
 
         :param str root: Global annotation path to store text file.
 
-        :param bool as_set: If True, load text file as Set[String],
+        :param bool as_set: If true, load text file as Set[String],
             otherwise, load as Array[String].
 
         :return: Annotated variant dataset with new global annotation given by the list.
@@ -668,7 +668,7 @@ class VariantDataset(object):
 
         :param str root: Sample annotation path to store .fam file.
 
-        :param bool quantpheno: If True, .fam phenotype is interpreted as quantitative.
+        :param bool quantpheno: If true, .fam phenotype is interpreted as quantitative.
 
         :param str delimiter: .fam file field delimiter regex.
 
@@ -1341,7 +1341,7 @@ class VariantDataset(object):
         """Returns number of samples, variants and genotypes in this vds as a dictionary with keys
         ``'nSamples'``, ``'nVariants'``, and ``'nGenotypes'``.
 
-        :param bool genotypes: If True, include number of called
+        :param bool genotypes: If true, include number of called
             genotypes and genotype call rate as keys ``'nCalled'`` and ``'callRate'``, respectively. If the genotype
             schema does not equal :py:class:`~hail.expr.TGenotype`, the definition of "called" is the genotype cell (``g``) is
             not missing.
@@ -1450,9 +1450,9 @@ class VariantDataset(object):
 
         :param bool types: Write types of exported columns to a file at (output + ".types")
 
-        :param bool export_ref: If True, export reference genotypes. Only applicable if the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        :param bool export_ref: If true, export reference genotypes. Only applicable if the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
-        :param bool export_missing: If True, export missing genotypes.
+        :param bool export_missing: If true, export missing genotypes.
         """
 
         if self._is_generic_genotype:
@@ -1690,9 +1690,9 @@ class VariantDataset(object):
         :param append_to_header: Path of file to append to VCF header.
         :type append_to_header: str or None
 
-        :param bool export_pp: If True, export linear-scaled probabilities (Hail's `pp` field on genotype) as the VCF PP FORMAT field.
+        :param bool export_pp: If true, export linear-scaled probabilities (Hail's `pp` field on genotype) as the VCF PP FORMAT field.
 
-        :param bool parallel: If True, return a set of VCF files (one per partition) rather than serially concatenating these files.
+        :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
         """
 
         self._jvdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
@@ -1710,9 +1710,9 @@ class VariantDataset(object):
 
         :param str output: Path of VDS file to write.
 
-        :param bool overwrite: If True, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
+        :param bool overwrite: If true, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
 
-        :param bool parquet_genotypes: If True, store genotypes as Parquet rather than Hail's serialization.  The resulting VDS will be larger and slower in Hail but the genotypes will be accessible from other tools that support Parquet.
+        :param bool parquet_genotypes: If true, store genotypes as Parquet rather than Hail's serialization.  The resulting VDS will be larger and slower in Hail but the genotypes will be accessible from other tools that support Parquet.
 
         """
 
@@ -2826,7 +2826,7 @@ class VariantDataset(object):
 
         :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
 
-        :param bool run_assoc: If True, run association testing in addition to fitting the global model
+        :param bool run_assoc: If true, run association testing in addition to fitting the global model
 
         :param bool use_ml: Use ML instead of REML throughout.
 
@@ -3552,7 +3552,7 @@ class VariantDataset(object):
 
         :param int num_partitions: Desired number of partitions, must be less than the current number if ``shuffle=False``
 
-        :param bool shuffle: If True, use full shuffle to repartition.
+        :param bool shuffle: If true, use full shuffle to repartition.
 
         :return: Variant dataset with the number of partitions equal to at most ``num_partitions``
         :rtype: :class:`.VariantDataset`
@@ -4329,9 +4329,9 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store VEP output.
 
-        :param bool force: If True, force VEP annotation from scratch.
+        :param bool force: If true, force VEP annotation from scratch.
 
-        :param bool csq: If True, annotates VCF CSQ field as a String.
+        :param bool csq: If true, annotates VCF CSQ field as a String.
             If False, annotates with the full nested struct schema
 
         :return: An annotated with variant annotations from VEP.
