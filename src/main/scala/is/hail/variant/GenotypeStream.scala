@@ -3,10 +3,10 @@ package is.hail.variant
 import java.nio.ByteBuffer
 
 import is.hail.expr.{TBinary, TInt, TStruct, Type}
-import is.hail.utils._
+import is.hail.utils.{ByteIterator, _}
 import net.jpountz.lz4.LZ4Factory
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.types.{StructType, _}
 
 import scala.collection.mutable
 
@@ -56,7 +56,7 @@ object LZ4Utils {
     compressed.take(compressedLen)
   }
 
-  def decompress(decompLen: Int, a: Array[Byte]): Array[Byte] = {
+  def decompress(decompLen: Int, a: Array[Byte]) = {
     val decomp = Array.ofDim[Byte](decompLen)
     val compLen = decompressor.decompress(a, 0, decomp, 0, decompLen)
     assert(compLen == a.length)
@@ -169,5 +169,8 @@ class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false)
     b.clear()
   }
 
-  override def result(): GenotypeStream = GenotypeStream(nAlleles, isDosage, None, b.result())
+  override def result(): GenotypeStream = {
+    val a = b.result()
+    GenotypeStream(nAlleles, isDosage, Some(a.length), LZ4Utils.compress(a))
+  }
 }
