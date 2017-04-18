@@ -192,8 +192,7 @@ class ContextTests(unittest.TestCase):
 
             self.assertEqual(dataset2.filter_variants_kt(
                 hc.import_keytable(test_resources + '/sample2_variants.tsv',
-                                   key='_0',
-                                   config=TextTableConfig(impute=True, noheader=True)))
+                                   key='_0', impute=True, no_header=True))
                              .count()['nVariants'], 21)
 
             m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
@@ -251,13 +250,13 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(dataset2.num_samples, 100)
             self.assertEqual(dataset2.count_variants(), 735)
 
-            dataset.annotate_variants_table(dataset.variants_keytable(), root = "va")
+            dataset.annotate_variants_table(dataset.variants_keytable(), root="va")
 
             kt = (dataset.variants_keytable()
                   .annotate("v2 = v")
                   .key_by(["v", "v2"]))
 
-            dataset.annotate_variants_table(kt, expr = "va.foo = table.va", vds_key = ["v", "v"])
+            dataset.annotate_variants_table(kt, expr="va.foo = table.va", vds_key=["v", "v"])
 
             self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
