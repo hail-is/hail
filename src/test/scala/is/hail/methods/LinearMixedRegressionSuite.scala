@@ -295,7 +295,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
   @Test def filterTest() {
 
     var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .filterMulti()
       .annotateSamplesTable("src/test/resources/regressionLinear.cov", "Sample", root = Some("sa.cov"), config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
       .annotateSamplesTable("src/test/resources/regressionLinear.pheno", "Sample", code = Some("sa.pheno.Pheno = table.Pheno"), config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
       .annotateSamplesExpr("""sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]""")

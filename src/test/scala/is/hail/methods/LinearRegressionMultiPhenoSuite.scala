@@ -13,7 +13,6 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
   // and that including the same phenotype a second time gives same result as well.
   @Test def testWithTwoCov() {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .splitMulti()
       .annotateSamplesTable("src/test/resources/regressionLinear.cov",
         "Sample",
         root = Some("sa.cov"),
@@ -112,7 +111,6 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
   // ensuring that result for one phenotype and dosages is the same as with linreg.
   @Test def testWithTwoCovPhred() {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .splitMulti()
       .annotateSamplesTable("src/test/resources/regressionLinear.cov",
         "Sample",
         root = Some("sa.cov"),

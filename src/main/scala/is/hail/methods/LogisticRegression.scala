@@ -8,11 +8,15 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 
-import scala.collection.mutable
-
 object LogisticRegression {
 
-  def apply(vds: VariantDataset, test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
+  def apply(vds: VariantDataset,
+    test: String,
+    ySA: String,
+    covSA: Array[String],
+    root: String,
+    useDosages: Boolean): VariantDataset = {
+
     require(vds.wasSplit)
 
     def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
@@ -61,8 +65,14 @@ object LogisticRegression {
     vds.copy(rdd = vds.rdd.mapPartitions( { it =>
       val X = XBc.value.copy
       it.map { case (v, (va, gs)) =>
+
         val logregAnnot =
-          if (RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator, sampleMaskBc.value))
+          if ((!useDosages &&
+            RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator,
+              sampleMaskBc.value, useHardCalls=true)) ||
+            (useDosages &&
+              RegressionUtils.setLastColumnToMaskedGts(X, gs.biallelicDosageGenotypeIterator,
+                sampleMaskBc.value, useHardCalls=false)))
             logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
           else
             null

@@ -821,9 +821,14 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       runAssoc, optDelta, sparsityThreshold)
   }
 
-  def logreg(test: String, ySA: String, covSA: Array[String] = Array.empty[String], root: String = "va.logreg"): VariantDataset = {
+  def logreg(test: String,
+    ySA: String,
+    covSA: Array[String] = Array.empty[String],
+    root: String = "va.logreg",
+    useDosages: Boolean = false): VariantDataset = {
+
     requireSplit("logistic regression")
-    LogisticRegression(vds, test, ySA, covSA, root)
+    LogisticRegression(vds, test, ySA, covSA, root, useDosages)
   }
 
   def makeSchemaForKudu(): StructType =
