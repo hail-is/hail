@@ -458,8 +458,7 @@ class ImportAnnotationsSuite extends SparkSuite {
       .annotate("loc = Locus(Chromosome, Position.toInt())")
       .keyBy("loc")
 
-    val byPosition = vds.annotateLociTable(kt,
-      expr = Some("va.stuff = select(table, Rand1, Rand2)"))
+    val byPosition = vds.annotateVariantsTable(kt, expr = "va.stuff = select(table, Rand1, Rand2)")
 
     val kt2 = hc.importKeyTable("src/test/resources/sample2_va_nomulti.tsv",
       types = Map("Rand1" -> TDouble, "Rand2" -> TDouble))

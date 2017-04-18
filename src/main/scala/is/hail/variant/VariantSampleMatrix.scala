@@ -791,50 +791,30 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         copy(rdd = newRdd, vaSignature = finalType)
 
       case None =>
-        if (keyTypes.length != 1 || keyTypes(0) != TVariant)
-          fatal(
-            s"""method `annotateVariantsTable' expects a key table with keys [ Variant ]
-               |  Found keys [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
+        keyTypes match {
+          case Array(TVariant) =>
+            val keyedRDD = kt.keyedRDD()
+              .map { case (k: Row, v) => (k(0).asInstanceOf[Variant], v: Annotation) }
+              .filter(_._1 != null)
+              .toOrderedRDD(rdd.orderedPartitioner)
 
-        val keyedRDD = kt.keyedRDD()
-          .map { case (k: Row, v) => (k(0).asInstanceOf[Variant], v: Annotation) }
-          .filter(_._1 != null)
-          .toOrderedRDD(rdd.orderedPartitioner)
+            annotateVariants(keyedRDD, finalType, inserter)
+          case Array(TLocus) =>
+            import LocusImplicits.orderedKey
+            val locusRDD = kt.keyedRDD()
+              .map { case (k, v) => (k.asInstanceOf[Row].get(0).asInstanceOf[Locus], v: Annotation) }
+              .filter(_._1 != null)
+              .toOrderedRDD(rdd.orderedPartitioner.mapMonotonic[Locus])
 
-        annotateVariants(keyedRDD, finalType, inserter)
+            annotateLoci(locusRDD, finalType, inserter)
+          case other =>
+            fatal(
+              s"""method `annotateVariantsTable' expects a key table keyed by one of the following:
+                 |  [ Variant ]
+                 |  [ Locus ]
+                 |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
+        }
     }
-  }
-
-  def annotateLociTable(kt: KeyTable, root: Option[String] = None, expr: Option[String] = None): VariantSampleMatrix[T] = {
-    val keyTypes = kt.keyFields.map(_.typ)
-    if (keyTypes.length != 1 || keyTypes(0) != TLocus)
-      fatal(
-        s"""method `annotateLociTable' expects a key table with keys [ Locus ]
-           |  Found keys [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
-
-    val (isExpr, annotationExpr) = (root, expr) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("`annotateLociTable' requires one of `root' or 'expr', but not both")
-    }
-
-    val ktSig = kt.valueSignature
-
-    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
-      if (isExpr) {
-        val ec = EvalContext(Map(
-          "va" -> (0, vaSignature),
-          "table" -> (1, ktSig)))
-        Annotation.buildInserter(annotationExpr, vaSignature, ec, Annotation.VARIANT_HEAD)
-      } else insertVA(ktSig, Parser.parseAnnotationRoot(annotationExpr, Annotation.VARIANT_HEAD))
-
-    import LocusImplicits.orderedKey
-    val locusRDD = kt.keyedRDD()
-      .map { case (k, v) => (k.asInstanceOf[Row].get(0).asInstanceOf[Locus], v: Annotation) }
-      .filter(_._1 != null)
-      .toOrderedRDD(rdd.orderedPartitioner.mapMonotonic[Locus])
-
-    annotateLoci(locusRDD, finalType, inserter)
   }
 
   def annotateLoci(lociRDD: OrderedRDD[Locus, Locus, Annotation], newSignature: Type, inserter: Inserter): VariantSampleMatrix[T] = {

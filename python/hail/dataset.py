@@ -1029,46 +1029,32 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_loci_table(self, table, root=None, expr=None):
-        """Annotate variants from an delimited text file (text table) indexed
-        by loci.
-
-        :param table: Locus-keyed key table.
-        :type table: :class:`.KeyTable`
-
-        :param str root: Variant annotation path to store annotation.
-
-        :param str expr: Annotation expression.
-
-        :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateLociTable(table._jkt, joption(root), joption(expr))
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
     def annotate_variants_table(self, table, root=None, expr=None, vds_key=None):
-        """Annotate variants with an annotation table.
+        """Annotate variants with an annotation table keyed by variants or loci.
 
         **Examples**
 
         Add annotations from a variant-keyed tab separated file:
 
-        >>> kt = hc.import_keytable('data/variant-lof.tsv', impute=True).key_by('v')
-        >>> vds_result = vds.annotate_variants_table(kt, expr='va.lof = table.lof')
+        >>> table = hc.import_keytable('data/variant-lof.tsv', impute=True).key_by('v')
+        >>> vds_result = vds.annotate_variants_table(table, expr='va.lof = table.lof')
+        
+        Add annotations from a locus-keyed TSV:
+        
+        >>> kt = hc.import_keytable('data/locus-table.tsv', impute=True).key_by('Locus')
+        >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
 
         Add annotations from a gene-and-type-keyed TSV:
     
-        >>> kt = hc.import_keytable('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
-        >>> vds_result = (vds.annotate_variants_table(kt,
+        >>> table = hc.import_keytable('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
+        >>> vds_result = (vds.annotate_variants_table(table,
         ...       expr='va.foo = table.foo',
         ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
 
         **Notes**
 
         If `vds_key` is None, the table's key must be exactly one column and
-        that column must have type *Variant*.
+        that column must have type *Variant* or type *Locus*.
 
         If `vds_key` is not None, it must be a list of Hail expressions whose types
         match, in order, the table's key types.

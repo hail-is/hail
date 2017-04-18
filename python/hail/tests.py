@@ -132,7 +132,7 @@ class ContextTests(unittest.TestCase):
 
             loci_tb = (hc.import_keytable(test_resources + '/sample2_loci.tsv')
                        .annotate('locus = Locus(chr, pos.toInt())').key_by('locus'))
-            (dataset.annotate_loci_table(loci_tb, root='va.locus_annot')
+            (dataset.annotate_variants_table(loci_tb, root='va.locus_annot')
              .count())
 
             variants_tb = (hc.import_keytable(test_resources + '/variantAnnotations.tsv')
@@ -155,7 +155,7 @@ class ContextTests(unittest.TestCase):
                         .annotate('locus = Locus(chr, pos.toInt())')
                         .key_by('locus'))
 
-            (dataset.annotate_loci_table(locus_tb, root='va.locus_annot').count())
+            (dataset.annotate_variants_table(locus_tb, root='va.locus_annot').count())
 
             tb = (hc.import_keytable(test_resources + '/variantAnnotations.tsv')
                   .annotate('variant = Variant(Chromosome, Position.toInt(), Ref, Alt)')
