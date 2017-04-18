@@ -5,9 +5,14 @@ import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Paths
 
+import breeze.linalg.{DenseMatrix => BDM}
+import is.hail.keytable._
+import is.hail.annotations.Annotation
+import is.hail.expr.{TStruct, _}
 import org.apache.spark.mllib.linalg.distributed._
 import is.hail.SparkSuite
 import org.apache.hadoop
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.mllib.linalg._
 import org.testng.annotations.Test
@@ -32,49 +37,67 @@ class PCRelateSuite extends SparkSuite {
   private def toS(a: Any): String =
     a.asInstanceOf[String]
 
+  def runPcRelateR(
+    vds: VariantDataset,
+    rFile: String = "src/test/resources/is/hail/methods/runPcRelate.R"): Map[(String, String), Double] = {
+
+    val tmpfile = tmpDir.createTempFile(prefix = "pcrelate")
+    val localTmpfile = tmpDir.createLocalTempFile(prefix = "pcrelate")
+    val pcRelateScript = tmpDir.createLocalTempFile(prefix = "pcrelateScript")
+
+    vds.exportPlink(tmpfile)
+
+    for (suffix <- Seq(".bed", ".bim", ".fam")) {
+      hadoopConf.copy(tmpfile + suffix, localTmpfile + suffix)
+    }
+
+    s"Rscript $rFile ${uriPath(localTmpfile)}" !
+
+    val genomeFormat = TextTableConfiguration(
+      types = Map(
+        ("ID1", TString), ("ID2", TString), ("nsnp", TInt), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble)),
+      separator = " +")
+
+    hadoopConf.copy(localTmpfile + ".out", tmpfile + ".out")
+
+    val (_, rdd) = TextTableReader.read(sc)(Array(tmpfile + ".out"), genomeFormat)
+    rdd.collect()
+      .map(_.value)
+      .map { ann =>
+      val row = ann.asInstanceOf[Row]
+      val id1 = toS(row(0))
+      val id2 = toS(row(1))
+      val nsnp = toI(row(2))
+      val kin = toD(row(3))
+      val k0 = toD(row(4))
+      val k1 = toD(row(5))
+      val k2 = toD(row(6))
+      ((id1, id2), kin)
+    }
+      .toMap
+  }
+
+  def runPcRelateToPairRDD(vds: VariantDataset, pcs: DenseMatrix): RDD[((String, String), Double)] = {
+    val indexToId: Map[Int, String] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
+
+    DistributedMatrix[BlockMatrix].toCoordinateMatrix(PCRelate[BlockMatrix](vds, pcs).phiHat).entries
+      .filter(me => me.i < me.j)
+      .map(me => ((indexToId(me.i.toInt), indexToId(me.j.toInt)), me.value))
+  }
+
+  def runPcRelateToKeyTable(vds: VariantDataset, pcs: DenseMatrix) = {
+    val result = runPcRelateToPairRDD(vds, pcs)
+      .map { case ((i, j), kin) => Annotation(i, j, kin) }
+
+    KeyTable(vds.hc, result, TStruct("i" -> TString, "j" -> TString, "kin" -> TDouble), Array("i", "j"))
+  }
+
   @Test def compareToPCRelateR() {
     val vds: VariantDataset = BaldingNicholsModel(hc, 3, 100, 10000, None, None, 0, None, UniformDist(0.4,0.6)).splitMulti()
 
     println("total samples, total variants, total genotypes: " + vds.count(true))
 
-    val truth: Map[(String, String), Double] = {
-      val tmpfile = tmpDir.createTempFile(prefix = "pcrelate")
-      val localTmpfile = tmpDir.createLocalTempFile(prefix = "pcrelate")
-      val pcRelateScript = tmpDir.createLocalTempFile(prefix = "pcrelateScript")
-
-      vds.exportPlink(tmpfile)
-
-      for (suffix <- Seq(".bed", ".bim", ".fam")) {
-        hadoopConf.copy(tmpfile + suffix, localTmpfile + suffix)
-      }
-
-      s"Rscript src/test/resources/is/hail/methods/runPcRelate.R ${uriPath(localTmpfile)}" !
-
-      val genomeFormat = TextTableConfiguration(
-        types = Map(
-          ("ID1", TString), ("ID2", TString), ("nsnp", TInt), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble)),
-        separator = " +")
-
-      hadoopConf.copy(localTmpfile + ".out", tmpfile + ".out")
-
-      val (_, rdd) = TextTableReader.read(sc)(Array(tmpfile + ".out"), genomeFormat)
-      rdd.collect()
-        .map(_.value)
-        .map { ann =>
-          val row = ann.asInstanceOf[Row]
-          val id1 = toS(row(0))
-          val id2 = toS(row(1))
-          val nsnp = toI(row(2))
-          val kin = toD(row(3))
-          val k0 = toD(row(4))
-          val k1 = toD(row(5))
-          val k2 = toD(row(6))
-          ((id1, id2), kin)
-        }
-        .toMap
-    }
-
-    val indexToId: Map[Int, String] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
+    val truth = runPcRelateR(vds)
 
     // val pcs = SamplePCA.justScores(vds, 2)
     // println("First two PCs for every sample:")
@@ -182,9 +205,8 @@ class PCRelateSuite extends SparkSuite {
       -0.11404581, -0.06913945,
       0.11787566, -0.04730442), true)
 
-    val hailPcRelate = DistributedMatrix[BlockMatrix].toCoordinateMatrix(PCRelate[BlockMatrix](vds, pcs).phiHat).entries.collect()
-      .filter(me => me.i < me.j)
-      .map(me => ((indexToId(me.i.toInt), indexToId(me.j.toInt)), me.value))
+    val hailPcRelate = runPcRelateToPairRDD(vds, pcs)
+      .collect()
       .toMap
 
     assert(mapSameElements(hailPcRelate, truth, (x: Double, y: Double) => D_==(x, y)))
@@ -192,23 +214,27 @@ class PCRelateSuite extends SparkSuite {
 
   @Test
   def foo() {
-    import is.hail.keytable._
-    import is.hail.annotations.Annotation
-    import is.hail.expr.{TStruct, _}
-
     println(s"started foo ${System.nanoTime()}")
 
     val vds: VariantDataset = hc.read("/Users/dking/projects/hail-data/profile-with-case.vds").splitMulti()
 
-    val indexToId: Map[Int, String] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
     val pcs = SamplePCA.justScores(vds, 2)
     println(s"one with pcs ${System.nanoTime()}")
 
-    val result = DistributedMatrix[BlockMatrix].toCoordinateMatrix(PCRelate[BlockMatrix](vds, pcs).phiHat).entries
-      .filter(me => me.i < me.j)
-      .map(me => Annotation(indexToId(me.i.toInt), indexToId(me.j.toInt), me.value))
-
-    KeyTable(vds.hc, result, TStruct("i" -> TString, "j" -> TString, "kin" -> TDouble), Array("i", "j"))
+    runPcRelateToKeyTable(vds, pcs)
       .write("/tmp/profile-with-case-hail-pc-relate.out")
+  }
+
+  @Test
+  def trivial() {
+    val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
+    val vds = vdsFromMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
+    val pcs = Array(0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
+    val us = runPcRelateToPairRDD(vds, new DenseMatrix(4,2,pcs))
+      .collect()
+      .toMap
+    println(us)
+    val truth = runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
+    assert(mapSameElements(us, truth, (x: Double, y: Double) => D_==(x, y)))
   }
 }

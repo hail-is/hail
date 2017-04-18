@@ -1,7 +1,5 @@
 package is.hail.methods
 
-import org.apache.spark.SparkContext
-import org.apache.spark.broadcast._
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import is.hail.keytable.KeyTable
@@ -10,12 +8,10 @@ import is.hail.distributedmatrix.DistributedMatrix
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
-import org.apache.spark.mllib.linalg.Matrix
 
 import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 object PCRelate {
   case class Result[M: DistributedMatrix](phiHat: M)
@@ -54,12 +50,12 @@ object PCRelate {
     *  result: (SNP x (D+1))
     */
   def fitBeta[M: DistributedMatrix](g: RDD[Array[Double]], pcs: DenseMatrix): M = {
-    val aa = rdd.sparkContext.broadcast(pcs.value.rowIter.map(_.toArray).toArray)
-    val rdd: RDD[(Double, Array[Double])] = g.map { row =>
+    val aa = g.sparkContext.broadcast(pcs.rowIter.map(_.toArray).toArray)
+    val rdd = g.map { row =>
       val ols = new OLSMultipleLinearRegression()
       ols.newSampleData(row, aa.value)
       ols.estimateRegressionParameters()
-    }.cache()
+    }
     DistributedMatrix[M].from(rdd)
   }
 
