@@ -51,7 +51,7 @@ class KinshipMatrix:
         
         :param output: The file path to output to.
         """
-        self._jkm.exportGctaGrm(self, output)
+        self._jkm.exportGctaGrm(output)
 
     def export_gcta_grm_bin(self, output, opt_n_file=None):
         """
@@ -61,7 +61,7 @@ class KinshipMatrix:
         
         :param opt_n_file: The file path to the N file. 
         """
-        self._jkm.exportGctaGrmBin(self, output, joption(opt_n_file))
+        self._jkm.exportGctaGrmBin(output, joption(opt_n_file))
 
     def export_id_file(self, output):
         """

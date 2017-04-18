@@ -737,6 +737,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def grm(): KinshipMatrix = {
     requireSplit("GRM")
+    info("Computing GRM...")
     GRM(vds)
   }
 
