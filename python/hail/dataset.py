@@ -2109,7 +2109,7 @@ class VariantDataset(object):
 
         Filter variants of a VDS to those appearing in the Variant column of a TSV file:
 
-        >>> kt = hc.import_keytable('data/sample_variants.txt', key='Variant', config=TextTableConfig(impute=True))
+        >>> kt = hc.import_keytable('data/sample_variants.txt', key='Variant', impute=True)
         >>> filtered_vds = vds.filter_variants_kt(kt, keep=True)
 
         :param kt: Keep or remove ``kt`` keys.
