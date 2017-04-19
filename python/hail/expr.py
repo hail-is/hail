@@ -86,7 +86,7 @@ class TInt(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#int>`_
+    - `expression language documentation <types.html#int>`__
     - in Python, these are represented natively as Python integers
 
     """
@@ -115,7 +115,7 @@ class TLong(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#long>`_
+    - `expression language documentation <types.html#long>`__
     - in Python, these are represented natively as Python integers
 
     """
@@ -144,7 +144,7 @@ class TFloat(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#float>`_
+    - `expression language documentation <types.html#float>`__
     - in Python, these are represented natively as Python floats
 
     """
@@ -176,7 +176,7 @@ class TDouble(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#double>`_
+    - `expression language documentation <types.html#double>`__
     - in Python, these are represented natively as Python floats
 
     """
@@ -205,7 +205,7 @@ class TString(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#string>`_
+    - `expression language documentation <types.html#string>`__
     - in Python, these are represented natively as Python unicode strings
 
     """
@@ -231,7 +231,7 @@ class TBoolean(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#boolean>`_
+    - `expression language documentation <types.html#boolean>`__
     - in Python, these are represented natively as Python booleans (i.e. ``True`` and ``False``)
 
     """
@@ -257,7 +257,7 @@ class TArray(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#array>`_
+    - `expression language documentation <types.html#array>`__
     - in Python, these are represented natively as Python sequences
 
     :param element_type: type of array elements
@@ -311,7 +311,7 @@ class TSet(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#set>`_
+    - `expression language documentation <types.html#set>`__
     - in Python, these are represented natively as Python mutable sets
 
     :param element_type: type of set elements
@@ -365,7 +365,7 @@ class TDict(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#dict>`_
+    - `expression language documentation <types.html#dict>`__
     - in Python, these are represented natively as Python dict
 
     :param key_type: type of dict keys
@@ -446,7 +446,7 @@ class TStruct(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#struct>`_
+    - `expression language documentation <types.html#struct>`__
     - in Python, values are instances of :class:`hail.representation.Struct`
 
     :param names: names of fields
@@ -518,7 +518,7 @@ class TVariant(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#variant>`_
+    - `expression language documentation <types.html#variant>`__
     - in Python, values are instances of :class:`hail.representation.Variant`
 
     """
@@ -551,7 +551,7 @@ class TAltAllele(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#altallele>`_
+    - `expression language documentation <types.html#altallele>`__
     - in Python, values are instances of :class:`hail.representation.AltAllele`
 
     """
@@ -584,7 +584,7 @@ class TGenotype(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#genotype>`_
+    - `expression language documentation <types.html#genotype>`__
     - in Python, values are instances of :class:`hail.representation.Genotype`
 
     """
@@ -617,7 +617,7 @@ class TCall(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#call>`_
+    - `expression language documentation <types.html#call>`__
     - in Python, values are instances of :class:`hail.representation.Call`
 
     """
@@ -650,7 +650,7 @@ class TLocus(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#locus>`_
+    - `expression language documentation <types.html#locus>`__
     - in Python, values are instances of :class:`hail.representation.Locus`
 
     """
@@ -683,7 +683,7 @@ class TInterval(Type):
 
     .. include:: hailType.rst
 
-    - `expression language documentation <types.html#interval>`_
+    - `expression language documentation <types.html#interval>`__
     - in Python, values are instances of :class:`hail.representation.Interval`
 
     """
