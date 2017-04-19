@@ -1,6 +1,5 @@
 package is.hail.asm4s
 
-import is.hail.expr.CM
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 
 import org.objectweb.asm.Opcodes._

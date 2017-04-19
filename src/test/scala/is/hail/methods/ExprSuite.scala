@@ -16,6 +16,8 @@ import org.scalatest.Matchers._
 import org.scalatest._
 import org.testng.annotations.Test
 
+import scala.reflect.ClassTag
+
 class ExprSuite extends SparkSuite {
 
   @Test def compileTest() {
@@ -145,7 +147,7 @@ class ExprSuite extends SparkSuite {
       .sortBy { case (name, (i, _)) => i }
       .map { case (name, (_, typ)) => (name, typ) }
       .zip(a)
-      .map { case ((name, typ), value) => (name, typ, value.asInstanceOf[AnyRef]) }
+      .map { case ((name, typ), value) => (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], value.asInstanceOf[AnyRef]) }
 
     def eval[T](s: String): Option[T] = {
       val compiledCode = Parser.parseToAST(s, ec).compile().run(bindings, ec)

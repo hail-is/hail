@@ -1,6 +1,6 @@
 package is.hail.expr
 
-import is.hail.asm4s.Code
+import is.hail.asm4s.{CM, Code}
 
 sealed trait Fun {
   def retType: Type

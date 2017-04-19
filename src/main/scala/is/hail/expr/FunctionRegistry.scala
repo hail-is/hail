@@ -128,7 +128,7 @@ object FunctionRegistry {
   }
 
   def call(name: String, args: Seq[AST], argTypes: Seq[Type]): CM[Code[AnyRef]] = {
-    import is.hail.expr.CM._
+    import is.hail.asm4s.CM._
 
     val m = FunctionRegistry.lookup(name, MethodType(argTypes: _*))
       .valueOr(x => fatal(x.message))
@@ -192,10 +192,10 @@ object FunctionRegistry {
             fb <- fb();
             bindings = (bodyST.toSeq
               .map { case (name, (i, typ)) =>
-              (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
+              (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            } :+ ((param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]]) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -225,10 +225,10 @@ object FunctionRegistry {
             fb <- fb();
             bindings = (bodyST.toSeq
               .map { case (name, (i, typ)) =>
-              (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
+              (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            } :+ ((param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]]) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -276,7 +276,7 @@ object FunctionRegistry {
           f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any]).asInstanceOf[AnyRef])
 
         for (
-          lamc <- createLambda(param, paramType, body.compile());
+          lamc <- createLambda(param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], body.compile());
           res <- AST.evalComposeCodeM(args(0)) { xs =>
             invokePrimitive2[AnyRef, AnyRef, AnyRef](g)(xs, lamc)
           }
@@ -295,7 +295,7 @@ object FunctionRegistry {
           f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any], y.asInstanceOf[v]).asInstanceOf[AnyRef])
 
         for (
-          lamc <- createLambda(param, paramType, body.compile());
+          lamc <- createLambda(param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], body.compile());
           res <- AST.evalComposeCodeM(args(0), args(2)) { (xs, y) =>
             invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(xs, lamc, y)
           }
@@ -346,7 +346,7 @@ object FunctionRegistry {
   }
 
   def callAggregatorTransformation(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): CMCodeCPS[AnyRef] = {
-    import is.hail.expr.CM._
+    import is.hail.asm4s.CM._
 
     require(typs.length == args.length)
 
@@ -369,13 +369,13 @@ object FunctionRegistry {
           fb <- fb();
 
           externalBindings = bodyST.toSeq.map { case (name, (i, typ)) =>
-            (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
           };
 
           g = { (_x: Code[AnyRef]) =>
             for (
               (stx, x) <- memoize(_x);
-              bindings = externalBindings :+ ((param, paramType, ret(x)));
+              bindings = externalBindings :+ ((param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(x)));
               cbody <- bindRepInRaw(bindings)(body.compile())
             ) yield Code(stx, cbody)
           } : (Code[AnyRef] => CM[Code[AnyRef]]);
@@ -2195,7 +2195,7 @@ object FunctionRegistry {
           Code.whileLoop(i < n,
             Code(stx, sty, b.update(i, z), i.store(i + 1))
           ),
-          CompilationHelp.arrayToWrappedArray(b)).asInstanceOf[Code[IndexedSeq[S]]],
+          CMHelp.arrayToWrappedArray(b)).asInstanceOf[Code[IndexedSeq[S]]],
         Code._throw(Code.newInstance[is.hail.utils.HailException, String, Option[String]](
           s"""Cannot apply operation $name to arrays of unequal length.""".stripMargin, Code.invokeStatic[scala.Option[String],scala.Option[String]]("empty"))))),
       null)
