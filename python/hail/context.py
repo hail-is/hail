@@ -477,10 +477,10 @@ class HailContext(object):
         - **va.filters** (*Set[String]*) -- Set containing all filters applied to a variant. 
         - **va.rsid** (*String*) -- rsID of the variant.
         - **va.qual** (*Double*) -- Floating-point number in the QUAL field.
-        - **va.info** (*Struct*) -- All INFO fields defined in the VCF header can be found in the
-          struct ``va.info``. Data types match the type specified in the VCF header, and if 
-         the declared ``Number`` is not 1, the result will be stored as an array. 
-
+        - **va.info** (*Struct*) -- All INFO fields defined in the VCF header
+          can be found in the struct ``va.info``. Data types match the type
+          specified in the VCF header, and if the declared ``Number`` is not
+          1, the result will be stored as an array.
 
         :param path: VCF file(s) to read.
         :type path: str or list of str
@@ -515,6 +515,7 @@ class HailContext(object):
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
+
         """
 
         if generic:
