@@ -788,9 +788,9 @@ class KeyTable(object):
 
         ***Examples***
 
-        Write variant annotations of a dataset as KT file:
-
         >>> kt1.write('output/kt1.kt')
+
+        .. note:: The write path must end in ".kt".       
 
         :param str output: Path of KT file to write.
 
