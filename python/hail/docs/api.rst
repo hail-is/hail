@@ -5,7 +5,7 @@ Python API
 ==========
 
 This is the API documentation for ``Hail``, and provides detailed information
-on the Python programming interface. See the :ref:`sec-tutorial` for an
+on the Python programming interface. See the :ref:`tutorial.ipynb` for an
 introduction to using this API to analyze genetic data.
 
 
