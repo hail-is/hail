@@ -46,6 +46,8 @@ object KeyTable {
   def read(hc: HailContext, path: String): KeyTable = {
     if (!hc.hadoopConf.exists(path))
       fatal(s"$path does not exist")
+    else if (!path.endsWith(".kt") && !path.endsWith(".kt/"))
+      fatal(s"key table files must end in '.kt', but found '$path'")
 
     val metadataFile = path + "/metadata.json.gz"
     val pqtSuccess = path + "/rdd.parquet/_SUCCESS"
@@ -591,6 +593,9 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def collect(): IndexedSeq[Annotation] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false) {
+    if (!path.endsWith(".kt") && !path.endsWith(".kt/"))
+      fatal(s"write path must end in '.kt', but found '$path'")
+
     if (overwrite)
       hc.hadoopConf.delete(path, recursive = true)
     else if (hc.hadoopConf.exists(path))
