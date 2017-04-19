@@ -3714,19 +3714,26 @@ class VariantDataset(object):
 
         The following attributes are read from the VCF header when importing a VCF and written
         to the VCF header when exporting a VCF:
+
         - INFO fields attributes (attached to (`va.info.*`)):
-            - 'Number': The arity of the field. Can take values
-            `0` (Boolean flag),
-            `1` (single value),
-            `R` (one value per allele, including the reference),
-            `A` (one value per non-reference allele),
-            `G` (one value per genotype), and
-            `.` (any number of values)
-                - When importing: The value in read from the VCF INFO field definition
-                - When exporting: The default value is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types
+
+          - 'Number': The arity of the field. Can take values
+
+            - `0` (Boolean flag),
+            - `1` (single value),
+            - `R` (one value per allele, including the reference),
+            - `A` (one value per non-reference allele),
+            - `G` (one value per genotype), and
+            - `.` (any number of values)
+
+              - When importing: The value in read from the VCF INFO field definition
+              - When exporting: The default value is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types
+
             - 'Description' (default is '')
-        - FILTER entries in the VCF header are generated based on the attributes of `va.filters`.
-        Each key/value pair in the attributes will generate a FILTER entry in the VCF with ID = key and Description = value.
+
+        - FILTER entries in the VCF header are generated based on the attributes
+          of `va.filters`.  Each key/value pair in the attributes will generate
+          a FILTER entry in the VCF with ID = key and Description = value.
 
         **Examples**
 
@@ -3769,6 +3776,7 @@ class VariantDataset(object):
 
         :return: Annotated dataset with the attribute added to the variant annotation.
         :rtype: :class:`.VariantDataset`
+
         """
 
         return VariantDataset(self.hc, self._jvds.setVaAttributes(ann_path, Env.jutils().javaMapToMap(attributes)))
