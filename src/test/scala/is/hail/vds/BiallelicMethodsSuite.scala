@@ -29,7 +29,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     catchError {
-      multi.grm("foo", "foo")
+      multi.grm()
     }
 
     catchError {

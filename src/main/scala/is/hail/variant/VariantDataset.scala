@@ -731,16 +731,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
   }
 
-  /**
-    *
-    * @param path output path
-    * @param format output format: one of rel, gcta-grm, gcta-grm-bin
-    * @param idFile write ID file to this path
-    * @param nFile N file path, used with gcta-grm-bin only
-    */
-  def grm(path: String, format: String, idFile: Option[String] = None, nFile: Option[String] = None) {
+  def grm(): KinshipMatrix = {
     requireSplit("GRM")
-    GRM(vds, path, format, idFile, nFile)
+    info("Computing GRM...")
+    GRM(vds)
   }
 
   def hardCalls(): VariantDataset = {
@@ -901,7 +895,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     info(s"rrm: Computing Realized Relationship Matrix...")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants.")
-    new KinshipMatrix(vds.hc, rrm, vds.sampleIds.toArray)
+    new KinshipMatrix(vds.hc, rrm, vds.sampleIds.toArray, m)
   }
 
 

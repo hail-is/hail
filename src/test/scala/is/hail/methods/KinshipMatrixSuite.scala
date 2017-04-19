@@ -8,7 +8,7 @@ import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.testng.annotations.Test
 
 /**
-  * Tests for KinshipMatrix.
+  * Tests for KinshipMatrix. See GRMSuite for tests relevant to other export methods.
   */
 class KinshipMatrixSuite extends SparkSuite {
 
@@ -33,7 +33,7 @@ class KinshipMatrixSuite extends SparkSuite {
     val irdd = sc.parallelize(data)
     val irm = new IndexedRowMatrix(irdd)
     val samples = (0 to 3).map(i => s"S$i")
-    val km = new KinshipMatrix(hc, irm, samples.toArray)
+    val km = new KinshipMatrix(hc, irm, samples.toArray, 10)
 
     val kmOneEntry = km.filterSamples(Set("S2").contains)
     assert(kmOneEntry.matrix.toBlockMatrix().toLocalMatrix()(0, 0) == 11)
@@ -46,7 +46,7 @@ class KinshipMatrixSuite extends SparkSuite {
     val irdd = sc.parallelize(data)
     val irm = new IndexedRowMatrix(irdd)
     val samples = (0 to 3).map(i => s"S$i")
-    val km = new KinshipMatrix(hc, irm, samples.toArray)
+    val km = new KinshipMatrix(hc, irm, samples.toArray, 10)
 
     val out = tmpDir.createTempFile("kinshipMatrixExportTSVTest", ".tsv")
 
