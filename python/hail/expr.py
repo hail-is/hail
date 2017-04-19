@@ -219,7 +219,6 @@ class TArray(Type):
     """
     Hail type corresponding to list
 
-    :param element_type: type of array elements
     :type element_type: :class:`.Type`
 
     :ivar element_type: type of array elements
@@ -268,7 +267,6 @@ class TSet(Type):
     """
     Hail type corresponding to set
 
-    :param element_type: type of set elements
     :type element_type: :class:`.Type`
 
     :ivar element_type: type of set elements
@@ -317,7 +315,6 @@ class TDict(Type):
     """
     Hail type corresponding to dict
 
-    :param key_type: type of dict keys
     :type key_type: :class:`.Type`
     :param value_type: type of dict values
     :type value_type: :class:`.Type`
@@ -393,7 +390,6 @@ class TStruct(Type):
     """
     Hail type corresponding to :class:`hail.representation.Struct`
 
-    :param names: names of fields
     :type names: list of str
     :param types: types of fields
     :type types: list of :class:`.Type`

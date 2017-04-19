@@ -21,7 +21,7 @@ class KinshipMatrix:
         Gets the matrix backing this kinship matrix.
 
         :return: Matrix of kinship values.
-        :rtype: `IndexedRowMatrix <https://spark.apache.org/docs/latest/api/python/pyspark.mllib.html#pyspark.mllib.linalg.distributed.IndexedRowMatrix>`_
+        :rtype: `IndexedRowMatrix <https://spark.apache.org/docs/latest/api/python/pyspark.mllib.html#pyspark.mllib.linalg.distributed.IndexedRowMatrix>`__
         """
         return IndexedRowMatrix(self._jkm.matrix())
 
