@@ -786,11 +786,11 @@ class KeyTable(object):
     def write(self, output, overwrite=False):
         """Write as KT file.
 
-        ***Examples***
-
-        Write variant annotations of a dataset as KT file:
+        ***Example***
 
         >>> kt1.write('output/kt1.kt')
+
+        .. note:: The write path must end in ".kt".       
 
         :param str output: Path of KT file to write.
 
