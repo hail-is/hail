@@ -13,7 +13,7 @@ import is.hail.utils._
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampleIds: Array[String], val numVariantsUsed: Long) {
+case class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampleIds: Array[String], val numVariantsUsed: Long) {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   /**
