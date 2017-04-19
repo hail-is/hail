@@ -1,5 +1,4 @@
 from hail.java import Env, handle_py4j
-import collections
 
 
 class TextTableConfig(object):
