@@ -101,19 +101,6 @@ object CM {
   def initialValueArray(): CM[Code[mutable.ArrayBuffer[AnyRef]]] = fb().map(_.arg2)
 
   def st(): CM[AnyRef] = CM { (e, s) => (s.st, s) }
-  // def currentSymbolTable(): CM[SymbolTable] = CM { (e, s) => (s.st, s) }
-  // def ecNewPosition(): CM[(Int, mutable.ArrayBuffer[Any])] = CM { (e, s) =>
-  //   val idx = s.ec.a.length
-  //   val localA = s.ec.a
-  //   localA += null
-  //   ((idx, localA), s)
-  // }
-  // returns a thunk that looks up the result of this aggregation
-  // def addAggregation(lhs: AST, agg: Aggregator): CM[() => Any] = CM { (e, s) =>
-  //   val b = RefBox(null)
-  //   s.ec.aggregations += ((b, lhs.runAggregator(s.ec), agg))
-  //   (() => b.v, s)
-  // }
 
   def newLocal[T](implicit tti: TypeInfo[T]): CM[LocalRef[T]] = fb().map(_.newLocal[T])
   def memoize[T](mc: CM[Code[T]])(implicit tti: TypeInfo[T]): CM[(Code[Unit], Code[T])] = for (
