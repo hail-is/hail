@@ -3738,11 +3738,16 @@ class VariantDataset(object):
         **Examples**
 
         Consider the following command which adds a filter and an annotation to the VDS (we're assuming a split VDS for simplicity):
-        1) an INFO field `AC_HC`, which stores the allele count of high confidence genotypes (DP >= 10, GQ >= 20) for each non-reference allele,
-        2) a filter `HardFilter` that filters all sites with the [GATK suggested hard filters]
-        (http://gatkforums.broadinstitute.org/gatk/discussion/2806/howto-apply-hard-filters-to-a-call-set):
-            - For SNVs: QD < 2.0 || FS < 60 || MQ < 40 || MQRankSum < -12.5 || ReadPosRankSum < -8.0
-            - For Indels (and other complex): QD < 2.0 || FS < 200.0 || ReadPosRankSum < 20.0
+
+        1) an INFO field `AC_HC`, which stores the allele count of high
+           confidence genotypes (DP >= 10, GQ >= 20) for each non-reference allele,
+
+        2) a filter `HardFilter` that filters all sites with the `GATK suggested hard filters <http://gatkforums.broadinstitute.org/gatk/discussion/2806/howto-apply-hard-filters-to-a-call-set>`__:
+
+           - For SNVs: QD < 2.0 || FS < 60 || MQ < 40 || MQRankSum < -12.5 || ReadPosRankSum < -8.0
+
+           - For Indels (and other complex): QD < 2.0 || FS < 200.0 || ReadPosRankSum < 20.0
+
         >>> annotated_vds = vds.annotate_variants_expr([
         ... 'va.info.AC_HC = gs.filter(g => g.dp >= 10 && g.gq >= 20).callStats(g => v).AC[1:]',
         ... 'va.filters = if((v.altAllele.isSNP && (va.info.QD < 2.0 || va.info.FS < 60 || va.info.MQ < 40 || ' +
