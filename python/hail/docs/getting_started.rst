@@ -244,7 +244,8 @@ different version, such as Spark 2.1.0, modify the above
 instructions as follows:
 
  - Set the Spark version in the gradle command
-  .. code-block:: text
+
+   .. code-block:: text
 
       $ ./gradlew -Dspark.version=2.1.0 shadowJar
 
