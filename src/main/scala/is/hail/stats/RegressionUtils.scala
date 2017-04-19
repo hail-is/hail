@@ -40,10 +40,10 @@ object RegressionUtils {
 
   def getPhenoCovCompleteSamples(
     vds: VariantDataset,
-    ySA: String,
-    covSA: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[String]) = {
+    yExpr: String,
+    covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[String]) = {
 
-    val nCovs = covSA.size + 1 // intercept
+    val nCovs = covExpr.size + 1 // intercept
 
     val symTab = Map(
       "s" -> (0, TString),
@@ -51,8 +51,8 @@ object RegressionUtils {
 
     val ec = EvalContext(symTab)
 
-    val yIS = getSampleAnnotation(vds, ySA, ec)
-    val covIS = getSampleAnnotations(vds, covSA, ec)
+    val yIS = getSampleAnnotation(vds, yExpr, ec)
+    val covIS = getSampleAnnotations(vds, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (yIS, covIS, vds.sampleIds)
@@ -79,11 +79,11 @@ object RegressionUtils {
 
   def getPhenosCovCompleteSamples(
     vds: VariantDataset,
-    ySA: Array[String],
-    covSA: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[String]) = {
+    yExpr: Array[String],
+    covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[String]) = {
 
-    val nPhenos = ySA.size
-    val nCovs = covSA.size + 1 // intercept
+    val nPhenos = yExpr.size
+    val nCovs = covExpr.size + 1 // intercept
 
     if (nPhenos == 0)
       fatal("No phenotypes present.")
@@ -94,8 +94,8 @@ object RegressionUtils {
 
     val ec = EvalContext(symTab)
 
-    val yIS = getSampleAnnotations(vds, ySA, ec)
-    val covIS = getSampleAnnotations(vds, covSA, ec)
+    val yIS = getSampleAnnotations(vds, yExpr, ec)
+    val covIS = getSampleAnnotations(vds, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (yIS, covIS, vds.sampleIds)

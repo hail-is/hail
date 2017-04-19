@@ -15,10 +15,10 @@ object LinearRegression {
     ("tstat", TDouble),
     ("pval", TDouble))
 
-  def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
+  def apply(vds: VariantDataset, yExpr: String, covExpr: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
     require(vds.wasSplit)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     val n = y.size

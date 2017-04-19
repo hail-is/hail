@@ -28,8 +28,8 @@ object LinearMixedRegression {
   def apply(
     assocVds: VariantDataset,
     kinshipMatrix: KinshipMatrix,
-    ySA: String,
-    covSA: Array[String],
+    yExpr: String,
+    covExpr: Array[String],
     useML: Boolean,
     rootGA: String,
     rootVA: String,
@@ -42,7 +42,7 @@ object LinearMixedRegression {
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
     val completeSamplesSet = completeSamples.toSet
     val sampleMask = assocVds.sampleIds.map(completeSamplesSet).toArray
 
@@ -51,7 +51,7 @@ object LinearMixedRegression {
       if (delta <= 0d)
         fatal(s"delta must be positive, got ${ delta }"))
 
-    val covNames = "intercept" +: covSA
+    val covNames = "intercept" +: covExpr
 
     val filteredKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet)
 

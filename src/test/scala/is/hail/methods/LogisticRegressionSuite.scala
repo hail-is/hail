@@ -37,7 +37,7 @@ class LogisticRegressionSuite extends SparkSuite {
         "Sample",
         root = Some("sa.pheno"),
         config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
-      .logreg("wald", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+      .logreg("wald", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2
@@ -116,7 +116,7 @@ class LogisticRegressionSuite extends SparkSuite {
         "Sample",
         root = Some("sa.pheno"),
         config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
-      .logreg("lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+      .logreg("lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
@@ -192,7 +192,7 @@ class LogisticRegressionSuite extends SparkSuite {
         "Sample",
         root = Some("sa.pheno"),
         config = TextTableConfiguration(types = Map("isCase" -> TBoolean), missing = "0"))
-      .logreg("score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+      .logreg("score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qChi2 = vds.queryVA("va.logreg.chi2")._2
     val qPVal = vds.queryVA("va.logreg.pval")._2

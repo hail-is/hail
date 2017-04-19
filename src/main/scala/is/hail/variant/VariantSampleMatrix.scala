@@ -2,8 +2,8 @@ package is.hail.variant
 
 import java.nio.ByteBuffer
 import java.util
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.{EvalContext, TAggregable, _}
@@ -11,6 +11,7 @@ import is.hail.io._
 import is.hail.io.annotators.{BedAnnotator, IntervalListAnnotator}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.keytable.KeyTable
+import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods.{Aggregators, DuplicateReport, Filter, VEP}
 import is.hail.sparkextras._
 import is.hail.utils._
@@ -65,18 +66,18 @@ object VariantSampleMatrix {
 
   def genGeneric(hc: HailContext): Gen[VariantSampleMatrix[Annotation]] =
     for (tSig <- Type.genArb.resize(3);
-      vsm <- VSMSubgen[Annotation](
-        sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
-        saSigGen = Type.genArb,
-        vaSigGen = Type.genArb,
-        globalSigGen = Type.genArb,
-        tSig = tSig,
-        saGen = (t: Type) => t.genValue,
-        vaGen = (t: Type) => t.genValue,
-        globalGen = (t: Type) => t.genValue,
-        vGen = Variant.gen,
-        tGen = (v: Variant) => tSig.genValue.resize(20),
-        isGenericGenotype = true).gen(hc)
+         vsm <- VSMSubgen[Annotation](
+           sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
+           saSigGen = Type.genArb,
+           vaSigGen = Type.genArb,
+           globalSigGen = Type.genArb,
+           tSig = tSig,
+           saGen = (t: Type) => t.genValue,
+           vaGen = (t: Type) => t.genValue,
+           globalGen = (t: Type) => t.genValue,
+           vGen = Variant.gen,
+           tGen = (v: Variant) => tSig.genValue.resize(20),
+           isGenericGenotype = true).gen(hc)
     ) yield vsm
 }
 
@@ -97,24 +98,24 @@ case class VSMSubgen[T](
 
   def gen(hc: HailContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (size <- Gen.size;
-      subsizes <- Gen.partitionSize(5).resize(size / 10);
-      vaSig <- vaSigGen.resize(subsizes(0));
-      saSig <- saSigGen.resize(subsizes(1));
-      globalSig <- globalSigGen.resize(subsizes(2));
-      global <- globalGen(globalSig).resize(subsizes(3));
-      nPartitions <- Gen.choose(1, 10);
+         subsizes <- Gen.partitionSize(5).resize(size / 10);
+         vaSig <- vaSigGen.resize(subsizes(0));
+         saSig <- saSigGen.resize(subsizes(1));
+         globalSig <- globalSigGen.resize(subsizes(2));
+         global <- globalGen(globalSig).resize(subsizes(3));
+         nPartitions <- Gen.choose(1, 10);
 
-      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9);
+         (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9);
 
-      sampleIds <- sampleIdGen.resize(w);
-      nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
-      rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
-        for (subsubsizes <- Gen.partitionSize(3);
-          v <- vGen.resize(subsubsizes(0));
-          va <- vaGen(vaSig).resize(subsubsizes(1));
-          ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
-          yield (v, (va, ts))).resize(l))
+         sampleIds <- sampleIdGen.resize(w);
+         nSamples = sampleIds.length;
+         saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
+         rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
+           for (subsubsizes <- Gen.partitionSize(3);
+                v <- vGen.resize(subsubsizes(0));
+                va <- vaGen(vaSig).resize(subsubsizes(1));
+                ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
+             yield (v, (va, ts))).resize(l))
       yield {
         VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isDosage = isDosage, isGenericGenotype = isGenericGenotype),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
@@ -211,82 +212,37 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
 
-  def aggregateBySamplePerVariantKey(keyName: String, variantKeySetVA: String, aggExpr: String): KeyTable = {
+  def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
 
-    val (variantKeysType, variantKeysQuerier) = queryVA(variantKeySetVA)
+    val (keysType, keysQuerier) = queryVA(variantKeysVA)
 
-    if (variantKeysType != TSet(TString))
-      fatal(s"Variant keys must be of type Set[String], got $variantKeysType") // FIXME: extend to Set[T] and Array[T]
-
-    val ec = sampleEC
-
-    val (typ, f) = Parser.parseExpr(aggExpr, ec)
-
-    if (!Array(TInt, TLong, TFloat, TDouble).contains(typ))
-      fatal(s"aggregate_expr type must be numeric, found $typ")
-
-    val aggregations = ec.aggregations
-    val nAggregations = aggregations.size
-
-    val localNSamples = nSamples
-    val localGlobalAnnotations = globalAnnotation
-    val localSamplesBc = sampleIdsBc
-    val localSampleAnnotationsBc = sampleAnnotationsBc
-
-    val baseArray = MultiArray2.fill[Aggregator](localNSamples, nAggregations)(null)
-    for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
-      baseArray.update(i, j, aggregations(j)._3.copy())
+    val keyType = keysType match {
+      case TArray(e) => e
+      case TSet(e) => e
+      case _ =>
+        if (singleKey)
+          keysType
+        else
+          fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
     }
 
-    val ktRDD = rdd
-      .flatMap { case (v, (va, gs)) => variantKeysQuerier(va).asInstanceOf[Set[String]].map(key => (key, (v, va, gs))) }
-      .aggregateByKey(baseArray) (
-        { case (arr, (v, va, gs)) =>
-          ec.set(0, localGlobalAnnotations)
-          ec.set(4, v)
-          ec.set(5, va)
+    val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions[T](this, aggExpr)
 
-          val gsIt = gs.iterator
-          var i = 0
-          // gsIt assume hasNext is always called before next
-          while (gsIt.hasNext) { // FIXME: always n?
-            ec.set(1, localSamplesBc.value(i))
-            ec.set(2, localSampleAnnotationsBc.value(i))
-            ec.set(3, gsIt.next)
+    val firstRDD =
+      if (singleKey)
+        rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map (key => (key, (v, va, gs))) }
+      else
+        rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va).asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map(key => (key, (v, va, gs))) }
 
-            var j = 0
-            while (j < nAggregations) {
-              aggregations(j)._2(arr(i, j).seqOp)
-              j += 1
-            }
-            i += 1
-          }
-          arr },
-        { case (arr1, arr2) =>
-          for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
-            val a1 = arr1(i, j)
-            a1.combOp(arr2(i, j).asInstanceOf[a1.type])
-          }
-          arr1 })
+    val ktRDD = firstRDD
+      .aggregateByKey(zero)(seqOp, combOp)
       .map { case (key, agg) =>
-        val results = new Array[Any](localNSamples + 1)
-
+        val results = resultOp(agg)
         results(0) = key
-
-        var i = 0
-        while (i < localNSamples) {
-          var j = 0
-          while (j < nAggregations) {
-            aggregations(j)._1.v = agg(i, j).result
-            j += 1
-          }
-          i += 1
-          results(i) = f()
-        }
         Row.fromSeq(results)
       }
 
-    val signature = TStruct((keyName -> TString) +: sampleIds.map(id => id -> typ): _*)
+    val signature = TStruct((keyName -> keyType) +: sampleIds.map(id => id -> resultType): _*)
 
     new KeyTable(hc, ktRDD, signature, keyNames = Array(keyName))
   }
@@ -384,8 +340,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * Aggregate over intervals and export.
     *
     * @param intervalList Input interval list file
-    * @param expr Export expression
-    * @param out Output file path
+    * @param expr         Export expression
+    * @param out          Output file path
     */
   def aggregateIntervals(intervalList: String, expr: String, out: String) {
 
@@ -501,12 +457,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Load text file into global annotations as Array[String] or
-    *   Set[String].
+    * Set[String].
     *
-    * @param path Input text file
-    * @param root Global annotation path to store text file
+    * @param path  Input text file
+    * @param root  Global annotation path to store text file
     * @param asSet If true, load text file as Set[String],
-    *   otherwise, load as Array[String]
+    *              otherwise, load as Array[String]
     */
   def annotateGlobalList(path: String, root: String, asSet: Boolean = false): VariantSampleMatrix[T] = {
     val textList = hc.hadoopConf.readFile(path) { in =>
@@ -540,10 +496,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Load delimited text file (text table) into global annotations as
-    *   Array[Struct].
+    * Array[Struct].
     *
-    * @param path Input text file
-    * @param root Global annotation path to store text table
+    * @param path   Input text file
+    * @param root   Global annotation path to store text table
     * @param config Configuration options for importing text files
     */
   def annotateGlobalTable(path: String, root: String,
@@ -637,8 +593,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   /**
     * Import PLINK .fam file into sample annotations.
     *
-    * @param path Path to .fam file
-    * @param root Sample annotation path at which to store .fam file
+    * @param path   Path to .fam file
+    * @param root   Sample annotation path at which to store .fam file
     * @param config .fam file configuration options
     */
   def annotateSamplesFam(path: String, root: String = "sa.fam",
@@ -903,7 +859,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (finalType, inserter) = buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v)}
+    val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v) }
 
     val thisRdd = rdd.map { case (v, (va, gs)) =>
       vdsKeyEc.setAll(v, va)
@@ -1251,7 +1207,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * Filter samples using the Hail expression language.
     *
     * @param filterExpr Filter expression involving `s' (sample) and `sa' (sample annotations)
-    * @param keep keep where filterExpr evaluates to true
+    * @param keep       keep where filterExpr evaluates to true
     */
   def filterSamplesExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
     val localGlobalAnnotation = globalAnnotation
@@ -1265,7 +1221,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
 
     val localKeep = keep
-//    val sampleIds = vsampleIds
+    //    val sampleIds = vsampleIds
     val p = (s: String, sa: Annotation) => {
       sampleAggregationOption.foreach(f => f.apply(s))
       ec.setAll(localGlobalAnnotation, s, sa)
@@ -1280,8 +1236,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Filter samples using a text file containing sample IDs
+    *
     * @param samples Set of samples to keep or remove
-    * @param keep Keep listed samples.
+    * @param keep    Keep listed samples.
     */
   def filterSamplesList(samples: Set[String], keep: Boolean = true): VariantSampleMatrix[T] = {
     val p = (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
@@ -1290,8 +1247,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Filter variants using the Hail expression language.
+    *
     * @param filterExpr filter expression
-    * @param keep keep variants where filterExpr evaluates to true
+    * @param keep       keep variants where filterExpr evaluates to true
     * @return
     */
   def filterVariantsExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
@@ -1921,9 +1879,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
-    vaSignature match{
+    vaSignature match {
       case t: TStruct => copy(vaSignature = t.setFieldAttributes(path, kv))
-      case t => fatal(s"Cannot set va attributes to ${path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot set va attributes to ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -1932,9 +1890,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
-    vaSignature match{
+    vaSignature match {
       case t: TStruct => copy(vaSignature = t.deleteFieldAttribute(path, attribute))
-      case t => fatal(s"Cannot delete va attributes from ${path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot delete va attributes from ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -2009,9 +1967,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     *
-    * @param config VEP configuration file
-    * @param root Variant annotation path to store VEP output
-    * @param csq Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
+    * @param config    VEP configuration file
+    * @param root      Variant annotation path to store VEP output
+    * @param csq       Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
     * @param blockSize Variants per VEP invocation
     */
   def vep(config: String, root: String = "va.vep", csq: Boolean = false,

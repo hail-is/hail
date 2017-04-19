@@ -2595,61 +2595,78 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def linreg_burden(self, key_name, variant_keyset_expr, aggregate_expr, y, covariates=[]):
+    def linreg_burden(self, key_name, variant_keys, agg_expr, y, covariates=[], single_key=False):
         r"""Test each group of variants for association using the linear regression model.
 
         .. include:: requireTGenotype.rst
 
         **Examples**
 
-        Annotate variants by gene and run a linear regression burden test using the maximum genotype per gene:
+        Run a gene burden test using linear regression on the maximum genotype per gene:
 
         >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
-        ...     .annotate_variants_intervals('data/genes.interval_list', 'va.genes', all=True)
         ...     .linreg_burden(key_name='gene',
-        ...                    variant_keyset_expr='va.genes',
-        ...                    aggregate_expr='gs.map(g => g.gt).max()',
+        ...                    variant_keys='va.genes',
+        ...                    agg_expr='gs.map(g => g.gt).max()',
         ...                    y='sa.burden.pheno',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
-        To use a weighted sum (linear combination) of genotypes, with weights given by a variant annotation ``va.weight``, set ``aggregate_expr='gs.map(g => va.weight * g.gt).sum()``.
+        Here ``va.genes`` is the set of genes containing the variant; see the extended example below for details.
 
-        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set ``aggregate_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'``, where ``va.qc.AF`` is the allele frequency over those samples that have no missing phenotype or covariates.
+        To use a weighted sum of genotypes, with weights given by a variant annotation
+        ``va.weight``, set ``agg_expr='gs.map(g => va.weight * g.gt).sum()``.
+
+        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
+        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
+        is the allele frequency over those samples that have no missing phenotype or covariates.
+
+        .. caution::
+
+          By default ``variant_keys`` expects a variant annotation of Set or Array type, in order to allow
+          each variant to have zero, one, or more keys (for example, the same variant may appear in multiple genes).
+          Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
+          variant will be counted twice in that key's group.
+
+          Set ``single_key=True`` to run a burden test keyed by an annotation whose value is itself the
+          key of interest, rather than a collection of keys. For example, if the annotation ``va.gene``
+          of type String specifies one gene (if present) or no gene (if missing) per variant, setting
+          ``variant_keys='va.gene'`` and ``single_key=True`` will group variants by gene as well.
 
         **Notes**
 
-        This method extends linear regression by generalizing the genotypic covariate of interest. Namely, for each key, the genotype of a variant is replaced by a numeric score computed from the genotypes of all variants with that key. Conceptually, the method proceeds as follows:
+        This method modifies :py:meth:`.linreg` by replacing the genotype covariate per variant with an aggregated
+        (i.e., collapsed) score per key. For each key and sample, this numeric score is computed from the sample's
+        genotypes and annotations over all variants with that key. Conceptually, the method proceeds as follows:
 
-        1) Filter to samples with all phenotype and covariates non-missing.
+        1) Filter to the set of samples for which all phenotype and covariates are defined.
 
-        2) For each key and sample, aggregate across genotypes to produce a numeric score.
-           ``aggregate_expr`` is in sample context so the following symbols are in scope:
+        2) For each key and sample, aggregate genotypes across variants with that key to produce a numeric score.
+           ``agg_expr`` must be of numeric type and has the following symbols are in scope:
 
-           - ``s`` (*Sample*): :ref:`sample`
+           - ``s`` (*Sample*): sample
            - ``sa``: sample annotations
            - ``global``: global annotations
            - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
            Note that ``v``, ``va``, and ``g`` are accessible through
-           `methods <https://hail.is/hail/types.html#aggregable>`_ on the aggregable ``gs``.
+           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on the ``gs``.
 
-           This results in a key table with key column ``key_name`` and a numeric column named by
-           the sample ID for each complete sample.
+           The resulting **sample key table** has key column ``key_name`` and a numeric column of scores for each sample
+           named by the sample ID.
 
-        3) For each key, fit the linear regression model with phenotype and covariates as described
-           in :py:meth:`.linreg`, with sample genotype ``gt`` replaced by the aggregated score for
-           that sample and key. For each key, missing values are mean-imputed across all samples.
+        3) For each key, fit the linear regression model using the supplied phenotype and covariates.
+           The model is that of :py:meth:`.linreg` with sample genotype ``gt`` replaced by the scores in the sample
+           key table. For each key, missing scores are mean-imputed across all samples.
 
-        :py:meth:`.linreg_burden` returns two key tables. The first key table is the linear regression key table
-        from (3) with the following columns:
+           The resulting **linear regression key table** has the following columns:
 
-        - **key** (*String*) -- key of variant group
-        - **beta** (*Double*) -- fit coefficient, :math:`\hat\beta_1`
-        - **se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
-        - **tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-        - **pval** (*Double*) -- :math:`p`-value
+           - **key** (*String*) -- key of variant group
+           - **beta** (*Double*) -- fit coefficient, :math:`\hat\beta_1`
+           - **se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
+           - **tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+           - **pval** (*Double*) -- :math:`p`-value
 
-        The second key table is the sample aggregation key table from (2).
+        :py:meth:`.linreg_burden` returns both the linear regression key table and the sample key table.
 
         **Extended example**
 
@@ -2675,7 +2692,7 @@ class VariantDataset(object):
         There are three variants with the following ``gt`` values:
 
         +---------+---+---+---+---+---+---+
-        |         | A | B | C | D | E | F |
+        | Variant | A | B | C | D | E | F |
         +=========+===+===+===+===+===+===+
         | 1:1:A:C | 0 | 1 | 0 | 0 | 0 | 1 |
         +---------+---+---+---+---+---+---+
@@ -2684,11 +2701,10 @@ class VariantDataset(object):
         | 1:3:G:C | 0 | . | 1 | 1 | 1 | . |
         +---------+---+---+---+---+---+---+
 
-        The columns of ``genes.interval_list`` correspond to chromosome, start, end, strand, and gene:
+        The ``va.genes`` annotation of type Set[String] on ``example_burden.vds`` was created
+        using :py:meth:`.annotate_variants_intervals` with ``all=True`` on the interval list:
 
-        .. literalinclude::
-
-            python/hail/docs/data/genes.interval_list
+        .. literalinclude:: data/genes.interval_list
 
         So there are three overlapping genes: gene A contains two variants,
         gene B contains one variant, and gene C contains all three variants.
@@ -2707,7 +2723,7 @@ class VariantDataset(object):
         a variant annotation of type Set[String] with values ``Set('geneA', 'geneB')``,
         ``Set('geneB')``, and ``Set('geneA', 'geneB', 'geneC')``.
 
-        The sample aggregation key table is:
+        So the sample aggregation key table is:
 
         +-----+---+---+---+---+---+---+
         | gene| A | B | C | D | E | F |
@@ -2719,7 +2735,7 @@ class VariantDataset(object):
         |geneC|  0|  2|  1|  2|  1|  1|
         +-----+---+---+---+---+---+---+
 
-        Linear regression is done for eacah row using the supplied phenotype and covariates.
+        Linear regression is done for each row using the supplied phenotype and covariates.
         The resulting linear regression key table is:
 
         +------+-------+------+-------+------+
@@ -2734,22 +2750,23 @@ class VariantDataset(object):
 
         :param str key_name: Name to assign to key column of returned key tables.
 
-        :param str variant_keyset_expr: Set[String]-valued variant annotation path for the set of keys associated to each variant.
+        :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
 
-        :param str aggregate_expr:
+        :param str agg_expr: Sample aggregation expression (per key).
 
-        :param str genotype_expr: Numeric-valued expression for the value per genotype.
+        :param str y: Response expression.
 
-        :param str y: Response expression
-
-        :param covariates: list of covariate expressions
+        :param covariates: list of covariate expressions.
         :type covariates: list of str
+
+        :param bool single_key: if true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
+                                rather than as a collection of keys.
 
         :return: Tuple of linear regression key table and sample aggregation key table.
         :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        r = self._jvdf.linregBurden(key_name, variant_keyset_expr, aggregate_expr, y, jarray(Env.jvm().java.lang.String, covariates))
+        r = self._jvdf.linregBurden(key_name, variant_keys, agg_expr, y, jarray(Env.jvm().java.lang.String, covariates), single_key)
         linreg_kt = KeyTable(self.hc, r._1())
         sample_kt = KeyTable(self.hc, r._2())
 

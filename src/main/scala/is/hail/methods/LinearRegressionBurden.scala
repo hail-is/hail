@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg._
-import is.hail.annotations.{Annotation, Inserter}
+import is.hail.annotations.Annotation
 import is.hail.keytable.KeyTable
 import is.hail.stats._
 import is.hail.utils._
@@ -14,12 +14,13 @@ object LinearRegressionBurden {
 
   def apply(vds: VariantDataset,
     keyName: String,
-    variantKeySetVA: String,
-    aggregateExpr: String,
-    ySA: String,
-    covSA: Array[String]): (KeyTable, KeyTable) = {
+    variantKeys: String,
+    aggExpr: String,
+    yExpr: String,
+    covExpr: Array[String],
+    singleKey: Boolean): (KeyTable, KeyTable) = {
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
     val n = y.size
     val k = cov.cols
@@ -36,7 +37,15 @@ object LinearRegressionBurden {
       fatal(s"Sample name conflicts with the key name $keyName")
 
     def sampleKT = vds.filterSamples((s, sa) => completeSamplesSet(s))
-      .aggregateBySamplePerVariantKey(keyName, variantKeySetVA, aggregateExpr)
+      .aggregateBySamplePerVariantKey(keyName, variantKeys, aggExpr, singleKey)
+
+    val keyType = sampleKT.fields(0).typ
+
+    // d > 0 implies at least 1 sample
+    val numericType = sampleKT.fields(1).typ
+
+    if (!numericType.isInstanceOf[TNumeric])
+      fatal(s"aggregate_expr type must be numeric, found $numericType")
 
     val emptyStats = Annotation.emptyIndexedSeq(LinearRegression.schema.fields.size)
 
@@ -50,7 +59,7 @@ object LinearRegressionBurden {
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
 
     val linregRDD = sampleKT.mapAnnotations { keyedRow =>
-      val key = keyedRow.get(0).asInstanceOf[String]
+      val key = keyedRow.get(0)
 
       RegressionUtils.denseStats(keyedRow, y) match {
         case Some((x, xx, xy)) =>
@@ -71,7 +80,7 @@ object LinearRegressionBurden {
       }
     }
 
-    def linregSignature = TStruct(keyName -> TString).merge(LinearRegression.schema)._1
+    def linregSignature = TStruct(keyName -> keyType).merge(LinearRegression.schema)._1
 
     val linregKT = new KeyTable(sampleKT.hc, linregRDD, signature = linregSignature, keyNames = Array(keyName))
 

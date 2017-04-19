@@ -16,10 +16,10 @@ object LinearRegressionMultiPheno {
     ("tstat", TArray(TDouble)),
     ("pval", TArray(TDouble)))
 
-  def apply(vds: VariantDataset, ysSA: Array[String], covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
+  def apply(vds: VariantDataset, ysExpr: Array[String], covExpr: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
     require(vds.wasSplit)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenosCovCompleteSamples(vds, ysSA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenosCovCompleteSamples(vds, ysExpr, covExpr)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     val n = y.rows
