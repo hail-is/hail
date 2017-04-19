@@ -121,7 +121,7 @@ class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampl
 
   def exportIdFile(idFile: String) {
     hc.sc.hadoopConfiguration.writeTextFile(idFile) { s =>
-      for (id <- this.sampleIds) {
+      for (id <- sampleIds) {
         s.write(id)
         s.write("\t")
         s.write(id)

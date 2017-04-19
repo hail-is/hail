@@ -2188,7 +2188,10 @@ class VariantDataset(object):
         
         .. math::
 
-          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}        
+          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}  
+                
+        :return: Genetic Relatedness Matrix for all samples.
+        :rtype: :py:class:`KinshipMatrix`
         """
 
         jkm = self._jvdf.grm()
