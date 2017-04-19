@@ -3636,7 +3636,7 @@ class VariantDataset(object):
 
         :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the 
         genotype data and stores the results as sample annotations that can be accessed with
-         ``sa.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
+        ``sa.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
         +---------------------------+--------+----------------------------------------------------------+
         | Name                      | Type   | Description                                              |
