@@ -139,7 +139,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The data in a variant dataset is divided into chunks called partitions, which may be stored together or across a network, so that each partition may be read and processed in parallel by available cores. Partitions are a core concept of distributed computation in Spark, see `here <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`_ for details.
+        The data in a variant dataset is divided into chunks called partitions, which may be stored together or across a network, so that each partition may be read and processed in parallel by available cores. Partitions are a core concept of distributed computation in Spark, see `here <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__ for details.
 
         :rtype: int
         """
@@ -394,12 +394,12 @@ class VariantDataset(object):
           - ``g``: genotype annotation
           - ``v`` (*Variant*): :ref:`variant`
           - ``va``: variant annotations
-          - ``s`` (*Sample*): :ref:`sample`
+          - ``s`` (*Sample*): sample
           - ``sa``: sample annotations
           - ``global``: global annotations
 
-        For more information, see the documentation on writing `expressions <overview.html#expressions>`_
-        and using the `Hail Expression Language <exprlang.html>`_.
+        For more information, see the documentation on writing `expressions <overview.html#expressions>`__
+        and using the `Hail Expression Language <exprlang.html>`__.
 
         .. warning::
 
@@ -614,7 +614,7 @@ class VariantDataset(object):
 
         ``expr`` is in sample context so the following symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
@@ -639,7 +639,7 @@ class VariantDataset(object):
         **Examples**
 
         Import case-control phenotype data from a tab-separated `PLINK .fam
-        <https://www.cog-genomics.org/plink2/formats#fam>`_ file into sample
+        <https://www.cog-genomics.org/plink2/formats#fam>`__ file into sample
         annotations:
 
         >>> vds_result = vds.annotate_samples_fam("data/myStudy.fam")
@@ -793,7 +793,7 @@ class VariantDataset(object):
 
         **Using the** ``sample_expr`` **argument**
 
-        This argument tells Hail how to get a sample ID out of your table. Each column in the table is exposed to the Hail expr language. Possibilities include ``Sample`` (if your sample id is in a column called 'Sample'), ``_2`` (if your sample ID is the 3rd column of a table with no header), or something more complicated like ``'if ("PGC" ~ ID1) ID1 else ID2'``.  All that matters is that this expr results in a string.  If the expr evaluates to missing, it will not be mapped to any VDS samples.
+        This argument tells Hail how to get a sample ID out of your table. Each column in the table is exposed to the Hail expr language. Possibilities include ``Sample`` (if your sample id is in a column called 'Sample'), ``__2`` (if your sample ID is the 3rd column of a table with no header), or something more complicated like ``'if ("PGC" ~ ID1) ID1 else ID2'``.  All that matters is that this expr results in a string.  If the expr evaluates to missing, it will not be mapped to any VDS samples.
 
         **Using the** ``root`` **and** ``code`` **arguments**
 
@@ -897,7 +897,7 @@ class VariantDataset(object):
         each expression in the list ``vds_key`` has the following symbols in
         scope:
 
-          - ``s`` (*Sample*): :ref:`sample`
+          - ``s`` (*Sample*): sample
           - ``sa``: sample annotations
 
         :param keytable: Key table with which to annotate samples.
@@ -956,11 +956,11 @@ class VariantDataset(object):
 
         **Notes**
 
-        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (``chrom``, ``chromStart``, and ``chromEnd``).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a Boolean annotation, true if and only if the variant lies in the union of the intervals. Hail ignores header lines in BED files.
+        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`__ can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (``chrom``, ``chromStart``, and ``chromEnd``).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a Boolean annotation, true if and only if the variant lies in the union of the intervals. Hail ignores header lines in BED files.
 
         If the ``all`` parameter is set to ``True`` and a fourth column is present, the annotation will be the set (possibly empty) of fourth column strings as a ``Set[String]`` for all intervals that overlap the given variant.
 
-        .. caution:: UCSC BED files are end-exclusive but 0-indexed, so the line "5  100  105" is interpreted in Hail as loci `5:101, 5:102, 5:103, 5:104. 5:105`. Details `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`_.
+        .. caution:: UCSC BED files are end-exclusive but 0-indexed, so the line "5  100  105" is interpreted in Hail as loci `5:101, 5:102, 5:103, 5:104. 5:105`. Details `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
 
         :param str input: Path to .bed file.
 
@@ -1002,8 +1002,8 @@ class VariantDataset(object):
           - ``global``: global annotations
           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
 
-        For more information, see the documentation on writing `expressions <overview.html#expressions>`_
-        and using the `Hail Expression Language <exprlang.html>`_.
+        For more information, see the documentation on writing `expressions <overview.html#expressions>`__
+        and using the `Hail Expression Language <exprlang.html>`__.
 
         :param expr: Annotation expression or list of annotation expressions.
         :type expr: str or list of str
@@ -1391,7 +1391,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        Writes out the internal VDS to a GEN and SAMPLE fileset in the `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`_.
+        Writes out the internal VDS to a GEN and SAMPLE fileset in the `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
 
         The first 6 columns of the resulting GEN file are the following:
 
@@ -1463,7 +1463,7 @@ class VariantDataset(object):
     @handle_py4j
     @requireTGenotype
     def export_plink(self, output, fam_expr='id = s'):
-        """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`_ BED, BIM and FAM.
+        """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
         .. include:: requireTGenotype.rst
 
@@ -1493,7 +1493,7 @@ class VariantDataset(object):
         ``fam_expr`` is in sample context only and the following
         symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
 
@@ -1544,7 +1544,7 @@ class VariantDataset(object):
 
         One line per sample will be exported.  As :py:meth:`~hail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
@@ -1653,9 +1653,9 @@ class VariantDataset(object):
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.export_vcf` writes the VDS to disk in VCF format as described in the `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
+        :py:meth:`~hail.VariantDataset.export_vcf` writes the VDS to disk in VCF format as described in the `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
 
-        Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name for `blocked GZIP <http://www.htslib.org/doc/tabix.html>`_ compression.
+        Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name for `blocked GZIP <http://www.htslib.org/doc/tabix.html>`__ compression.
 
         .. note::
 
@@ -1886,14 +1886,14 @@ class VariantDataset(object):
 
         ``condition`` is in genotype context so the following symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``v`` (*Variant*): :ref:`variant`
         - ``sa``: sample annotations
         - ``va``: variant annotations
         - ``global``: global annotations
 
-        For more information, see the documentation on `data representation, annotations <overview.html#>`_, and
-        the `expression language <exprlang.html>`_.
+        For more information, see the documentation on `data representation, annotations <overview.html#>`__, and
+        the `expression language <exprlang.html>`__.
 
         .. caution::
             When ``condition`` evaluates to missing, the genotype will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -1964,13 +1964,13 @@ class VariantDataset(object):
 
         ``condition`` is in sample context so the following symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
-        For more information, see the documentation on `data representation, annotations <overview.html#>`_, and
-        the `expression language <exprlang.html>`_.
+        For more information, see the documentation on `data representation, annotations <overview.html#>`__, and
+        the `expression language <exprlang.html>`__.
 
         .. caution::
             When ``condition`` evaluates to missing, the sample will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -2060,7 +2060,7 @@ class VariantDataset(object):
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for variant ``v``
 
-        For more information, see the `Overview <overview.html#>`_ and the `Expression Language <exprlang.html>`_.
+        For more information, see the `Overview <overview.html#>`__ and the `Expression Language <exprlang.html>`__.
 
         .. caution::
            When ``condition`` evaluates to missing, the variant will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -2184,13 +2184,13 @@ class VariantDataset(object):
 
           M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
 
-        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes genotype variances to a common value :math:`1/m` for variants in Hardy-Weinberg equilibrium and is further motivated in the paper `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`_. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)  The factor :math:`1/m` gives each sample row approximately unit total variance (assuming linkage equilibrium) so that the diagonal entries of the GRM are approximately 1. Equivalently,
+        with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype imputation). This scaling normalizes genotype variances to a common value :math:`1/m` for variants in Hardy-Weinberg equilibrium and is further motivated in the paper `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`__. (The resulting amplification of signal from the low end of the allele frequency spectrum will also introduce noise for rare variants; common practice is to filter out variants with minor allele frequency below some cutoff.)  The factor :math:`1/m` gives each sample row approximately unit total variance (assuming linkage equilibrium) so that the diagonal entries of the GRM are approximately 1. Equivalently,
         
         .. math::
 
           G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
         
-        The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_ as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`_ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`_.
+        The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>`__ as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`__ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`__.
 
         :param str output: Output file.
 
@@ -2246,7 +2246,7 @@ class VariantDataset(object):
         **Notes**
 
         The implementation is based on the IBD algorithm described in the `PLINK
-        paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`_.
+        paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
 
         :py:meth:`~hail.VariantDataset.ibd` requires the dataset to be
         bi-allelic (otherwise run :py:meth:`~hail.VariantDataset.split_multi` or otherwise run :py:meth:`~hail.VariantDataset.filter_multi`)
@@ -2321,7 +2321,7 @@ class VariantDataset(object):
         - ``s2``: The second sample id. 
         - ``sa2``: The annotations associated with s2. 
         
-        The tiebreaking_expr returns an integer expressing the preference for one sample over the other. Any negative integer expresses a preference for keeping ``s1``. Any positive integer expresses a preference for keeping ``s2``. A zero expresses no preference. This function must induce a `preorder <https://en.wikipedia.org/wiki/Preorder>`_ on the samples, in particular:
+        The tiebreaking_expr returns an integer expressing the preference for one sample over the other. Any negative integer expresses a preference for keeping ``s1``. Any positive integer expresses a preference for keeping ``s2``. A zero expresses no preference. This function must induce a `preorder <https://en.wikipedia.org/wiki/Preorder>`__ on the samples, in particular:
 
         - ``tiebreaking_expr(sample1, sample2)`` must equal ``-1 * tie breaking_expr(sample2, sample1)``, which evokes the common sense understanding that if ``x < y`` then `y > x``.
         - ``tiebreaking_expr(sample1, sample1)`` must equal 0, i.e. ``x = x``
@@ -2360,7 +2360,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        We have used the same implementation as `PLINK v1.7 <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`_.
+        We have used the same implementation as `PLINK v1.7 <http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#sexcheck>`__.
 
         1. X chromosome variants are selected from the VDS: ``v.contig == "X" || v.contig == "23"``
         2. Variants with a minor allele frequency less than the threshold given by ``maf-threshold`` are removed
@@ -2459,7 +2459,7 @@ class VariantDataset(object):
 
         The parameter ``window`` defines the maximum distance in base pairs between two variants to check whether
         the variants are independent (:math:`R^2` < ``r2``) where ``r2`` is the maximum :math:`R^2` allowed.
-        :math:`R^2` is defined as the square of `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`_
+        :math:`R^2` is defined as the square of `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
         :math:`{\\rho}_{x,y}` between the two genotype vectors :math:`{\\mathbf{x}}` and :math:`{\\mathbf{y}}`.
 
         .. math::
@@ -2470,7 +2470,7 @@ class VariantDataset(object):
         :py:meth:`.ld_prune` with default arguments is equivalent to ``plink --indep-pairwise 1000kb 1 0.2``.
         The list of pruned variants returned by Hail and PLINK will differ because Hail mean-imputes missing values and tests pairs of variants in a different order than PLINK.
 
-        Be sure to provide enough disk space per worker because :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ up to 3 copies of the data to both memory and disk.
+        Be sure to provide enough disk space per worker because :py:meth:`.ld_prune` `persists <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__ up to 3 copies of the data to both memory and disk.
         The amount of disk space required will depend on the size and minor allele frequency of the input data and the prune parameters ``r2`` and ``window``. The number of bytes stored in memory per variant is about ``nSamples / 4 + 50``.
 
         .. warning::
@@ -2551,7 +2551,7 @@ class VariantDataset(object):
         stringent of the two, as AF equals AC over twice the number of included
         samples.
 
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`_ without identifiers, such as:
+        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`__ without identifiers, such as:
 
         >>> vds_result = vds.linreg('if (sa.pheno.isFemale) sa.pheno.age else (2 * sa.pheno.age + 10)', covariates=[])
 
@@ -2559,7 +2559,7 @@ class VariantDataset(object):
 
         The standard least-squares linear regression model is derived in Section
         3.2 of `The Elements of Statistical Learning, 2nd Edition
-        <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`_. See
+        <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__. See
         equation 3.12 for the t-statistic which follows the t-distribution with
         :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
         effect, with :math:`n` samples and :math:`k` covariates in addition to
@@ -2658,7 +2658,7 @@ class VariantDataset(object):
 
         1) filter to samples in given kinship matrix to those for which ``sa.pheno``, ``sa.cov``, and ``sa.cov2`` are all defined
         2) compute the eigendecomposition :math:`K = USU^T` of the kinship matrix
-        3) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`_), storing results in global annotations under ``global.lmmreg``
+        3) fit covariate coefficients and variance parameters in the sample-covariates-only (global) model using restricted maximum likelihood (`REML <https://en.wikipedia.org/wiki/Restricted_maximum_likelihood>`__), storing results in global annotations under ``global.lmmreg``
         4) test each variant for association, storing results under ``va.lmmreg`` in variant annotations
 
         This plan can be modified as follows:
@@ -2730,9 +2730,9 @@ class VariantDataset(object):
 
         **Performance**
 
-        Hail's initial version of :py:meth:`.lmmreg` scales to well beyond 10k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. The first analysts to apply :py:meth:`.lmmreg` in research computed kinship from 262k common variants and tested 25 million non-rare variants on 8185 whole genomes in 32 minutes. As another example, starting from a VDS of the 1000 Genomes Project (consisting of 2535 whole genomes), :py:meth:`.lmmreg` computes a kinship matrix based on 100k common variants, fits coefficients and variance components in the sample-covariates-only model, runs a linear-mixed-model likelihood ratio test for all 15 million high-quality non-rare variants, and exports the results in 3m42s minutes. Here we used 42 preemptible workers (~680 cores) on 2k partitions at a compute cost of about 50 cents on Google cloud (see `Using Hail on the Google Cloud Platform <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_).
+        Hail's initial version of :py:meth:`.lmmreg` scales to well beyond 10k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays. The first analysts to apply :py:meth:`.lmmreg` in research computed kinship from 262k common variants and tested 25 million non-rare variants on 8185 whole genomes in 32 minutes. As another example, starting from a VDS of the 1000 Genomes Project (consisting of 2535 whole genomes), :py:meth:`.lmmreg` computes a kinship matrix based on 100k common variants, fits coefficients and variance components in the sample-covariates-only model, runs a linear-mixed-model likelihood ratio test for all 15 million high-quality non-rare variants, and exports the results in 3m42s minutes. Here we used 42 preemptible workers (~680 cores) on 2k partitions at a compute cost of about 50 cents on Google cloud (see `Using Hail on the Google Cloud Platform <http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__).
 
-        While :py:meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`_ (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`_, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`_. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
+        While :py:meth:`.lmmreg` computes the kinship matrix :math:`K` using distributed matrix multiplication (Step 2), the full `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`__ (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`__, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`__. On Google cloud, eigendecomposition takes about 2 seconds for 2535 sampes and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
 
         Given the eigendecomposition, fitting the global model (Step 4) takes on the order of a few seconds on master. Association testing (Step 5) is fully distributed by variant with per-variant time complexity that is completely independent of the number of sample covariates and dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
 
@@ -2752,7 +2752,7 @@ class VariantDataset(object):
         - :math:`\delta = \\frac{\sigma_e^2}{\sigma_g^2} =` ratio of environmental and genetic variance component coefficients
         - :math:`h^2 = \\frac{\sigma_g^2}{\sigma_g^2 + \sigma_e^2} = \\frac{1}{1 + \delta} =` genetic proportion of residual phenotypic variance
 
-        Under a linear mixed model, :math:`y` is sampled from the :math:`n`-dimensional `multivariate normal distribution <https://en.wikipedia.org/wiki/Multivariate_normal_distribution>`_ with mean :math:`X \\beta` and variance components that are scalar multiples of :math:`K` and :math:`I`:
+        Under a linear mixed model, :math:`y` is sampled from the :math:`n`-dimensional `multivariate normal distribution <https://en.wikipedia.org/wiki/Multivariate_normal_distribution>`__ with mean :math:`X \\beta` and variance components that are scalar multiples of :math:`K` and :math:`I`:
 
         .. math::
 
@@ -2760,11 +2760,11 @@ class VariantDataset(object):
 
         Thus the model posits that the residuals :math:`y_i - X_{i,:}\\beta` and :math:`y_j - X_{j,:}\\beta` have covariance :math:`\sigma_g^2 K_{ij}` and approximate correlation :math:`h^2 K_{ij}`. Informally: phenotype residuals are correlated as the product of overall heritability and pairwise kinship. By contrast, standard (unmixed) linear regression is equivalent to fixing :math:`\sigma_2` (equivalently, :math:`h^2`) at 0 above, so that all phenotype residuals are independent.
 
-        **Caution:** while it is tempting to interpret :math:`h^2` as the `narrow-sense heritability <https://en.wikipedia.org/wiki/Heritability#Definition>`_ of the phenotype alone, note that its value depends not only the phenotype and genetic data, but also on the choice of sample covariates.
+        **Caution:** while it is tempting to interpret :math:`h^2` as the `narrow-sense heritability <https://en.wikipedia.org/wiki/Heritability#Definition>`__ of the phenotype alone, note that its value depends not only the phenotype and genetic data, but also on the choice of sample covariates.
 
         **Fitting the global model**
 
-        The core algorithm is essentially a distributed implementation of the spectral approach taken in `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_. Let :math:`K = USU^T` be the `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix#Real_symmetric_matrices>`_ of the real symmetric matrix :math:`K`. That is:
+        The core algorithm is essentially a distributed implementation of the spectral approach taken in `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__. Let :math:`K = USU^T` be the `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix#Real_symmetric_matrices>`__ of the real symmetric matrix :math:`K`. That is:
 
         - :math:`U = n \\times n` orthonormal matrix whose columns are the eigenvectors of :math:`K`
         - :math:`S = n \\times n` diagonal matrix of eigenvalues of :math:`K` in descending order. :math:`S_{ii}` is the eigenvalue of eigenvector :math:`U_{:,i}`
@@ -2780,7 +2780,7 @@ class VariantDataset(object):
 
         We first compute the maximum log likelihood on a :math:`\delta`-grid that is uniform on the log scale, with :math:`\\mathit{ln}(\delta)` running from -10 to 10 by 0.01, corresponding to :math:`h^2` decreasing from 0.999999998 to 0.000000002. If :math:`h^2` is maximized at the lower boundary then standard linear regression would be more appropriate and Hail will exit; more generally, consider using standard linear regression when :math:`\\hat{h}^2` is very small. A maximum at the upper boundary is highly suspicious and will also cause Hail to exit, with the ``hail.log`` recording all values over the grid for further inspection.
 
-        If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`_ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathit{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than .01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid. Note that :math:`h^2` is related to :math:`\\mathit{ln}(\delta)` through the `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`_. Hence one can change variables to extract a high-resolution discretization of the likelihood function of :math:`h^2` over :math:`[0,1]` at the corresponding REML estimators for :math:`\\beta` and :math:`\sigma_g^2`.
+        If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`__ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathit{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than .01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid. Note that :math:`h^2` is related to :math:`\\mathit{ln}(\delta)` through the `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`__. Hence one can change variables to extract a high-resolution discretization of the likelihood function of :math:`h^2` over :math:`[0,1]` at the corresponding REML estimators for :math:`\\beta` and :math:`\sigma_g^2`.
 
         **Testing each variant for association**
 
@@ -2812,7 +2812,7 @@ class VariantDataset(object):
 
         **Further background**
 
-        For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`_, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`_. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`_.
+        For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
 
         :param kinshipMatrix: Kinship matrix to be used
         :type kinshipMatrix: :class:`KinshipMatrix`
@@ -2875,7 +2875,7 @@ class VariantDataset(object):
           \mathrm{Prob}(\mathrm{isCase}) = \mathrm{sigmoid}(\\beta_0 + \\beta_1 \, \mathrm{gt} + \\beta_2 \, \mathrm{age} + \\beta_3 \, \mathrm{isFemale} + \\varepsilon), \quad \\varepsilon \sim \mathrm{N}(0, \sigma^2)
 
         where :math:`\mathrm{sigmoid}` is the `sigmoid
-        function <https://en.wikipedia.org/wiki/Sigmoid_function>`_, the
+        function <https://en.wikipedia.org/wiki/Sigmoid_function>`__, the
         genotype :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for
         Het, and 2 for HomVar, and the Boolean covariate
         :math:`\mathrm{isFemale}` is coded as 1 for true (female) and
@@ -2908,7 +2908,7 @@ class VariantDataset(object):
         Wald, LRT, Firth ``va.logreg.fit.exploded``  Boolean true if iteration exploded
         ================ =========================== ======= =====
 
-        We consider iteration to have converged when every coordinate of :math:`\\beta` changes by less than :math:`10^{-6}`. For Wald and LRT, up to 25 iterations are attempted; in testing we find 4 or 5 iterations nearly always suffice. Convergence may also fail due to explosion, which refers to low-level numerical linear algebra exceptions caused by manipulating ill-conditioned matrices. Explosion may result from (nearly) linearly dependent covariates or complete `separation <https://en.wikipedia.org/wiki/Separation_(statistics)>`_.
+        We consider iteration to have converged when every coordinate of :math:`\\beta` changes by less than :math:`10^{-6}`. For Wald and LRT, up to 25 iterations are attempted; in testing we find 4 or 5 iterations nearly always suffice. Convergence may also fail due to explosion, which refers to low-level numerical linear algebra exceptions caused by manipulating ill-conditioned matrices. Explosion may result from (nearly) linearly dependent covariates or complete `separation <https://en.wikipedia.org/wiki/Separation_(statistics)>`__.
 
         A more common situation in genetics is quasi-complete seperation, e.g. variants that are observed only in cases (or controls). Such variants inevitably arise when testing millions of variants with very low minor allele count. The maximum likelihood estimate of :math:`\\beta` under logistic regression is then undefined but convergence may still occur after a large number of iterations due to a very flat likelihood surface. In testing, we find that such variants produce a secondary bump from 10 to 15 iterations in the histogram of number of iterations per variant. We also find that this faux convergence produces large standard errors and large (insignificant) p-values. To not miss such variants, consider using Firth logistic regression, linear regression, or group-based tests.
 
@@ -2933,11 +2933,11 @@ class VariantDataset(object):
 
         The resulting p-values for the genotype coefficient are 0.991, 0.00085, and 0.0016, respectively. The erroneous value 0.991 is due to quasi-complete separation. Moving one of the 10 hets from case to control eliminates this quasi-complete separation; the p-values from R are then 0.0373, 0.0111, and 0.0116, respectively, as expected for a less significant association.
 
-        The Firth test reduces bias from small counts and resolves the issue of separation by penalizing maximum likelihood estimation by the `Jeffrey's invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`_. This test is slower, as both the null and full model must be fit per variant, and convergence of the modified Newton method is linear rather than quadratic. For Firth, 100 iterations are attempted for the null model and, if that is successful, for the full model as well. In testing we find 20 iterations nearly always suffices. If the null model fails to converge, then the ``sa.lmmreg.fit`` annotations reflect the null model; otherwise, they reflect the full model.
+        The Firth test reduces bias from small counts and resolves the issue of separation by penalizing maximum likelihood estimation by the `Jeffrey's invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This test is slower, as both the null and full model must be fit per variant, and convergence of the modified Newton method is linear rather than quadratic. For Firth, 100 iterations are attempted for the null model and, if that is successful, for the full model as well. In testing we find 20 iterations nearly always suffices. If the null model fails to converge, then the ``sa.lmmreg.fit`` annotations reflect the null model; otherwise, they reflect the full model.
 
-        See `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`_ for an empirical comparison of the logistic Wald, LRT, score, and Firth tests. The theoretical foundations of the Wald, likelihood ratio, and score tests may be found in Chapter 3 of Gesine Reinert's notes `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`_.  Firth introduced his approach in `Bias reduction of maximum likelihood estimates, 1993 <http://www2.stat.duke.edu/~scs/Courses/Stat376/Papers/GibbsFieldEst/BiasReductionMLE.pdf>`_. Heinze and Schemper further analyze Firth's approach in `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`_.
+        See `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__ for an empirical comparison of the logistic Wald, LRT, score, and Firth tests. The theoretical foundations of the Wald, likelihood ratio, and score tests may be found in Chapter 3 of Gesine Reinert's notes `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`__.  Firth introduced his approach in `Bias reduction of maximum likelihood estimates, 1993 <http://www2.stat.duke.edu/~scs/Courses/Stat376/Papers/GibbsFieldEst/BiasReductionMLE.pdf>`__. Heinze and Schemper further analyze Firth's approach in `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
 
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`_ without identifiers, such as:
+        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`__ without identifiers, such as:
 
         .. code-block:: text
 
@@ -2945,7 +2945,7 @@ class VariantDataset(object):
 
         For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
 
-        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`_. For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
+        Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``, and ``b.score`` tests in `EPACTS <http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests>`__. For each variant, Hail imputes missing genotypes as the mean of called genotypes, whereas EPACTS subsets to those samples with called genotypes. Hence, Hail and EPACTS results will currently only agree for variants with no missing genotypes.
 
         :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
 
@@ -2982,7 +2982,7 @@ class VariantDataset(object):
         **Notes**
 
         The code above outputs four TSV files according to the `PLINK mendel
-        formats <https://www.cog-genomics.org/plink2/formats#mendel>`_:
+        formats <https://www.cog-genomics.org/plink2/formats#mendel>`__:
 
         - ``mydata.mendel`` -- all mendel errors: FID KID CHR SNP CODE ERROR
         - ``mydata.fmendel`` -- error count per nuclear family: FID PAT MAT CHLD N NSNP
@@ -3001,12 +3001,12 @@ class VariantDataset(object):
 
         The CODE of each Mendel error is determined by the table below,
         extending the `Plink
-        classification <https://www.cog-genomics.org/plink2/basic_stats#mendel>`_.
+        classification <https://www.cog-genomics.org/plink2/basic_stats#mendel>`__.
 
         Those individuals implicated by each code are in bold.
 
         The copy state of a locus with respect to a trio is defined as follows,
-        where PAR is the `pseudoautosomal region <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`_ (PAR).
+        where PAR is the `pseudoautosomal region <https://en.wikipedia.org/wiki/Pseudoautosomal_region>`__ (PAR).
 
         - HemiX -- in non-PAR of X, male child
         - HemiY -- in non-PAR of Y, male child
@@ -3045,7 +3045,7 @@ class VariantDataset(object):
         This method only considers children with two parents and a defined sex.
 
         PAR is currently defined with respect to reference
-        `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
+        `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`__:
 
         - X: 60001 - 2699520, 154931044 - 155260560
         - Y: 10001 - 2649520, 59034050 - 59363566
@@ -3103,7 +3103,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`_. This method expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
+        Hail supports principal component analysis (PCA) of genotype data, a now-standard procedure `Patterson, Price and Reich, 2006 <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.0020190>`__. This method expects a variant dataset with biallelic autosomal variants. Scores are computed and stored as sample annotations of type Struct by default; variant loadings and eigenvalues can optionally be computed and stored in variant and global annotations, respectively.
 
         PCA is based on the singular value decomposition (SVD) of a standardized genotype matrix :math:`M`, computed as follows. An :math:`n \\times m` matrix :math:`C` records raw genotypes, with rows indexed by :math:`n` samples and columns indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the number of alternate alleles of variant :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For each variant :math:`j`, the sample alternate allele frequency :math:`p_j` is computed as half the mean of the non-missing entries of column :math:`j`. Entries of :math:`M` are then mean-centered and variance-normalized as
 
@@ -3196,7 +3196,7 @@ class VariantDataset(object):
 
         :py:meth:`~hail.VariantDataset.cache` is an alias for 
         :func:`persist("MEMORY_ONLY") <hail.VariantDataset.persist>`.  Most users will want "MEMORY_AND_DISK".
-        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ 
+        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__ 
         for a more in-depth discussion of persisting data.
         
         .. warning ::
@@ -3205,7 +3205,7 @@ class VariantDataset(object):
             Its output must be captured. This is wrong:
             
             >>> vds = vds.linreg('sa.phenotype') # doctest: +SKIP
-            >>> vds.persist() # doctest: SKIP
+            >>> vds.persist() # doctest: +SKIP
             
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
             The proper usage is this:
@@ -3324,7 +3324,7 @@ class VariantDataset(object):
         The namespace of the expressions includes:
 
         - ``global``: global annotations
-        - ``samples`` (*Aggregable[Sample]*): aggregable of :ref:`sample`
+        - ``samples`` (*Aggregable[Sample]*): aggregable of sample
 
         Map and filter expressions on this aggregable have the additional
         namespace:
@@ -3548,7 +3548,7 @@ class VariantDataset(object):
 
         The data in a variant dataset is divided into chunks called partitions, which may be stored together or across a network, so that each partition may be read and processed in parallel by available cores. When a variant dataset with :math:`M` variants is first imported, each of the :math:`k` partition will contain about :math:`M/k` of the variants. Since each partition has some computational overhead, decreasing the number of partitions can improve performance after significant filtering. Since it's recommended to have at least 2 - 4 partitions per core, increasing the number of partitions can allow one to take advantage of more cores.
 
-        Partitions are a core concept of distributed computation in Spark, see `here <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`_ for details. With ``shuffle=True``, Hail does a full shuffle of the data and creates equal sized partitions. With ``shuffle=False``, Hail combines existing partitions to avoid a full shuffle. These algorithms correspond to the ``repartition`` and ``coalesce`` commands in Spark, respectively. In particular, when ``shuffle=False``, ``num_partitions`` cannot exceed current number of partitions.
+        Partitions are a core concept of distributed computation in Spark, see `here <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__ for details. With ``shuffle=True``, Hail does a full shuffle of the data and creates equal sized partitions. With ``shuffle=False``, Hail combines existing partitions to avoid a full shuffle. These algorithms correspond to the ``repartition`` and ``coalesce`` commands in Spark, respectively. In particular, when ``shuffle=False``, ``num_partitions`` cannot exceed current number of partitions.
 
         :param int num_partitions: Desired number of partitions, must be less than the current number if ``shuffle=False``
 
@@ -3636,7 +3636,7 @@ class VariantDataset(object):
 
         :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the 
         genotype data and stores the results as sample annotations that can be accessed with
-         ``sa.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
+        ``sa.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
         +---------------------------+--------+----------------------------------------------------------+
         | Name                      | Type   | Description                                              |
@@ -3700,7 +3700,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ for details on persistence levels.
+        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__ for details on persistence levels.
 
         :rtype: str
         """
@@ -3714,28 +3714,40 @@ class VariantDataset(object):
 
         The following attributes are read from the VCF header when importing a VCF and written
         to the VCF header when exporting a VCF:
+
         - INFO fields attributes (attached to (`va.info.*`)):
-            - 'Number': The arity of the field. Can take values
-            `0` (Boolean flag),
-            `1` (single value),
-            `R` (one value per allele, including the reference),
-            `A` (one value per non-reference allele),
-            `G` (one value per genotype), and
-            `.` (any number of values)
-                - When importing: The value in read from the VCF INFO field definition
-                - When exporting: The default value is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types
+
+          - 'Number': The arity of the field. Can take values
+
+            - `0` (Boolean flag),
+            - `1` (single value),
+            - `R` (one value per allele, including the reference),
+            - `A` (one value per non-reference allele),
+            - `G` (one value per genotype), and
+            - `.` (any number of values)
+
+              - When importing: The value in read from the VCF INFO field definition
+              - When exporting: The default value is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types
+
             - 'Description' (default is '')
-        - FILTER entries in the VCF header are generated based on the attributes of `va.filters`.
-        Each key/value pair in the attributes will generate a FILTER entry in the VCF with ID = key and Description = value.
+
+        - FILTER entries in the VCF header are generated based on the attributes
+          of `va.filters`.  Each key/value pair in the attributes will generate
+          a FILTER entry in the VCF with ID = key and Description = value.
 
         **Examples**
 
         Consider the following command which adds a filter and an annotation to the VDS (we're assuming a split VDS for simplicity):
-        1) an INFO field `AC_HC`, which stores the allele count of high confidence genotypes (DP >= 10, GQ >= 20) for each non-reference allele,
-        2) a filter `HardFilter` that filters all sites with the [GATK suggested hard filters]
-        (http://gatkforums.broadinstitute.org/gatk/discussion/2806/howto-apply-hard-filters-to-a-call-set):
-            - For SNVs: QD < 2.0 || FS < 60 || MQ < 40 || MQRankSum < -12.5 || ReadPosRankSum < -8.0
-            - For Indels (and other complex): QD < 2.0 || FS < 200.0 || ReadPosRankSum < 20.0
+
+        1) an INFO field `AC_HC`, which stores the allele count of high
+           confidence genotypes (DP >= 10, GQ >= 20) for each non-reference allele,
+
+        2) a filter `HardFilter` that filters all sites with the `GATK suggested hard filters <http://gatkforums.broadinstitute.org/gatk/discussion/2806/howto-apply-hard-filters-to-a-call-set>`__:
+
+           - For SNVs: QD < 2.0 || FS < 60 || MQ < 40 || MQRankSum < -12.5 || ReadPosRankSum < -8.0
+
+           - For Indels (and other complex): QD < 2.0 || FS < 200.0 || ReadPosRankSum < 20.0
+
         >>> annotated_vds = vds.annotate_variants_expr([
         ... 'va.info.AC_HC = gs.filter(g => g.dp >= 10 && g.gq >= 20).callStats(g => v).AC[1:]',
         ... 'va.filters = if((v.altAllele.isSNP && (va.info.QD < 2.0 || va.info.FS < 60 || va.info.MQ < 40 || ' +
@@ -3769,6 +3781,7 @@ class VariantDataset(object):
 
         :return: Annotated dataset with the attribute added to the variant annotation.
         :rtype: :class:`.VariantDataset`
+
         """
 
         return VariantDataset(self.hc, self._jvds.setVaAttributes(ann_path, Env.jutils().javaMapToMap(attributes)))
@@ -3780,19 +3793,26 @@ class VariantDataset(object):
 
         The following attributes are read from the VCF header when importing a VCF and written
         to the VCF header when exporting a VCF:
+
         - INFO fields attributes (attached to (`va.info.*`)):
-            - 'Number': The arity of the field. Can take values
-            `0` (Boolean flag),
-            `1` (single value),
-            `R` (one value per allele, including the reference),
-            `A` (one value per non-reference allele),
-            `G` (one value per genotype), and
-            `.` (any number of values)
-                - When importing: The value in read from the VCF INFO field definition
-                - When exporting: The default value is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types
+
+          - 'Number': The arity of the field. Can take values
+
+            - `0` (Boolean flag),
+            - `1` (single value),
+            - `R` (one value per allele, including the reference),
+            - `A` (one value per non-reference allele),
+            - `G` (one value per genotype), and
+            - `.` (any number of values)
+
+              - When importing: The value in read from the VCF INFO field definition
+              - When exporting: The default value is `0` for **Boolean**, `.` for **Arrays** and 1 for all other types
+
             - 'Description' (default is '')
-        - FILTER entries in the VCF header are generated based on the attributes of `va.filters`.
-        Each key/value pair in the attributes will generate a FILTER entry in the VCF with ID = key and Description = value.
+
+        - FILTER entries in the VCF header are generated based on the attributes
+          of `va.filters`. Each key/value pair in the attributes will generate a
+          FILTER entry in the VCF with ID = key and Description = value.
 
         :param str ann_path: Variant annotation path starting with 'va', period-delimited.
 
@@ -3800,6 +3820,7 @@ class VariantDataset(object):
 
         :return: Annotated dataset with the updated variant annotation without the attribute.
         :rtype: :class:`.VariantDataset`
+
         """
 
         return VariantDataset(self.hc, self._jvds.deleteVaAttribute(ann_path, attribute))
@@ -4006,7 +4027,7 @@ class VariantDataset(object):
 
         :py:meth:`~hail.VariantDataset.tdt` only considers complete trios (two parents and a proband) with defined sex.
 
-        PAR is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`_:
+        PAR is currently defined with respect to reference `GRCh37 <http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/>`__:
 
         - X: 60001-2699520
         - X: 154931044-155260560
@@ -4123,8 +4144,8 @@ class VariantDataset(object):
     def vep(self, config, block_size=1000, root='va.vep', csq=False):
         """Annotate variants with VEP.
 
-        :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`_ with
-        the `LOFTEE plugin <https://github.com/konradjk/loftee>`_
+        :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
+        the `LOFTEE plugin <https://github.com/konradjk/loftee>`__
         on the current variant dataset and adds the result as a variant annotation.
 
         If the variant annotation path defined by ``root`` already exists and its schema matches the VEP schema, then
@@ -4139,7 +4160,7 @@ class VariantDataset(object):
         **Configuration**
 
         :py:meth:`~hail.VariantDataset.vep` needs a configuration file to tell it how to run
-        VEP. The format is a `.properties file <https://en.wikipedia.org/wiki/.properties>`_.
+        VEP. The format is a `.properties file <https://en.wikipedia.org/wiki/.properties>`__.
         Roughly, each line defines a property as a key-value pair of the form `key = value`. `vep` supports the following properties:
 
         - **hail.vep.perl** -- Location of Perl. Optional, default: perl.

@@ -122,7 +122,7 @@ class HailContext(object):
 
         **Background**
 
-        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`_.
+        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`__.
 
         :param str regex: The regular expression to match.
 
@@ -147,7 +147,7 @@ class HailContext(object):
         **Notes**
 
         Hail supports importing data in the BGEN file format. For more information on the BGEN file format,
-        see `here <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.1.html>`_. Note that only v1.1 BGEN files
+        see `here <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.1.html>`__. Note that only v1.1 BGEN files
         are supported at this time.
 
         Before importing, ensure that:
@@ -214,7 +214,7 @@ class HailContext(object):
 
         **Notes**
 
-        For more information on the .gen file format, see `here <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300>`_.
+        For more information on the .gen file format, see `here <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300>`__.
 
         To ensure that the .gen file(s) and .sample file are correctly prepared for import:
 
@@ -404,7 +404,7 @@ class HailContext(object):
 
         **Notes**
 
-        Hail is designed to be maximally compatible with files in the `VCF v4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`_.
+        Hail is designed to be maximally compatible with files in the `VCF v4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
 
         :py:meth:`~hail.HailContext.import_vcf` takes a list of VCF files to load. All files must have the same header and the same set of samples in the same order
         (e.g., a variant dataset split by chromosome). Files can be specified as :ref:`Hadoop glob patterns <sec-hadoop-glob>`.
@@ -477,10 +477,10 @@ class HailContext(object):
         - **va.filters** (*Set[String]*) -- Set containing all filters applied to a variant. 
         - **va.rsid** (*String*) -- rsID of the variant.
         - **va.qual** (*Double*) -- Floating-point number in the QUAL field.
-        - **va.info** (*Struct*) -- All INFO fields defined in the VCF header can be found in the
-          struct ``va.info``. Data types match the type specified in the VCF header, and if 
-         the declared ``Number`` is not 1, the result will be stored as an array. 
-
+        - **va.info** (*Struct*) -- All INFO fields defined in the VCF header
+          can be found in the struct ``va.info``. Data types match the type
+          specified in the VCF header, and if the declared ``Number`` is not
+          1, the result will be stored as an array.
 
         :param path: VCF file(s) to read.
         :type path: str or list of str
@@ -515,6 +515,7 @@ class HailContext(object):
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
+
         """
 
         if generic:
@@ -587,7 +588,7 @@ class HailContext(object):
         linkage equilibrium. The relative sizes of the subpopulations are given by a probability vector :math:`\pi`; the ancestral allele frequencies are
         drawn independently from a frequency spectrum :math:`P_0`; the subpopulations have diverged with possibly different :math:`F_{ST}` parameters :math:`F_k`
         (here and below, lowercase indices run over a range bounded by the corresponding uppercase parameter, e.g. :math:`k = 1, \ldots, K`).
-        For each variant, the subpopulation allele frequencies are drawn a `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`_, a useful continuous approximation of
+        For each variant, the subpopulation allele frequencies are drawn a `beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>`__, a useful continuous approximation of
         the effect of genetic drift. We denote the individual subpopulation memberships by :math:`k_n`, the ancestral allele frequences by :math:`p_{0, m}`,
         the subpopulation allele frequencies by :math:`p_{k, m}`, and the genotypes by :math:`g_{n, m}`. The generative model in then given by:
 

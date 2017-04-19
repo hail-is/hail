@@ -40,7 +40,8 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
-    'nbsphinx'
+    'nbsphinx',
+    'IPython.sphinxext.ipython_console_highlighting' # https://github.com/spatialaudio/nbsphinx/issues/24#issuecomment-187172022 and https://github.com/ContinuumIO/anaconda-issues/issues/1430
 ]
 
 nbsphinx_timeout = 300
@@ -205,7 +206,7 @@ html_title = u'Hail'
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
 #
-html_favicon = "hail_logo_sq.png"
+html_favicon = "hail_logo_sq.ico"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -217,7 +218,7 @@ html_static_path = ['_static']
 # directly to the root of the documentation.
 #
 html_extra_path = ['../../../www/hail-logo-cropped.png',
-                   '../../../www/navbar.css', '../../../www/hail_logo_sq.png']
+                   '../../../www/navbar.css']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
 # bottom, using the given strftime format.

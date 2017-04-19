@@ -211,8 +211,8 @@ class KeyTable(object):
 
         The scope for ``condition`` is all column names in the input :class:`KeyTable`.
 
-        For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
-        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
+        For more information, see the documentation on writing `expressions <../overview.html#expressions>`__
+        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`__.
 
         .. caution::
            When ``condition`` evaluates to missing, the row will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -242,8 +242,8 @@ class KeyTable(object):
 
         The scope for ``expr`` is all column names in the input :class:`KeyTable`.
 
-        For more information, see the documentation on writing `expressions <../overview.html#expressions>`_
-        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`_.
+        For more information, see the documentation on writing `expressions <../overview.html#expressions>`__
+        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`__.
 
         :param expr: Annotation expression or multiple annotation expressions.
         :type expr: str or list of str
@@ -318,7 +318,7 @@ class KeyTable(object):
         The scope for both ``key_expr`` and ``agg_expr`` is all column names in the input :class:`KeyTable`.
 
         For more information, see the documentation on writing :ref:`expressions <overview-expressions>`
-        and using the `Hail Expression Language <https://hail.is/expr_lang.html>`_
+        and using the `Hail Expression Language <https://hail.is/expr_lang.html>`__
 
         :param key_expr: Named expression(s) for how to compute the keys of the new key table.
         :type key_expr: str or list of str
@@ -828,7 +828,7 @@ class KeyTable(object):
 
         :py:meth:`~hail.KeyTable.cache` is an alias for 
         :func:`persist("MEMORY_ONLY") <hail.KeyTable.persist>`.  Most users will want "MEMORY_AND_DISK".
-        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`_ 
+        See the `Spark documentation <http://spark.apache.org/docs/latest/programming-guide.html#rdd-persistence>`__ 
         for a more in-depth discussion of persisting data.
 
         :param storage_level: Storage level.  One of: NONE, DISK_ONLY,

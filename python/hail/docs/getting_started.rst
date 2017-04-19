@@ -105,7 +105,7 @@ To :func:`count <hail.VariantDataset.count>` the number of samples, variants, an
 
     >>> vds.count(genotypes=True)
 
-Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <../reference.html#Annotations>`_, and `expression language <../reference.html#HailExpressionLanguage>`_. To print the current annotation schema and use these annotations to filter variants, samples, and genotypes, run:
+Now let's get a feel for Hail's powerful objects, annotation system, and `expression language <exprlang>`_. To print the current annotation schema and use these annotations to filter variants, samples, and genotypes, run:
 
 .. doctest::
 
@@ -244,7 +244,8 @@ different version, such as Spark 2.1.0, modify the above
 instructions as follows:
 
  - Set the Spark version in the gradle command
-  .. code-block:: text
+
+   .. code-block:: text
 
       $ ./gradlew -Dspark.version=2.1.0 shadowJar
 
