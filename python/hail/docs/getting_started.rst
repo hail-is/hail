@@ -105,7 +105,7 @@ To :func:`count <hail.VariantDataset.count>` the number of samples, variants, an
 
     >>> vds.count(genotypes=True)
 
-Now let's get a feel for Hail's powerful :ref:`objects <sec-objects>`, `annotation system <../reference.html#Annotations>`_, and `expression language <../reference.html#HailExpressionLanguage>`_. To print the current annotation schema and use these annotations to filter variants, samples, and genotypes, run:
+Now let's get a feel for Hail's powerful :ref:`objects <tutorial.ipynb>`, annotation system, and `expression language <exprlang>`_. To print the current annotation schema and use these annotations to filter variants, samples, and genotypes, run:
 
 .. doctest::
 
