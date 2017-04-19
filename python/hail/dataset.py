@@ -614,7 +614,7 @@ class VariantDataset(object):
 
         ``expr`` is in sample context so the following symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
@@ -897,7 +897,7 @@ class VariantDataset(object):
         each expression in the list ``vds_key`` has the following symbols in
         scope:
 
-          - ``s`` (*Sample*): :ref:`sample`
+          - ``s`` (*Sample*): sample
           - ``sa``: sample annotations
 
         :param keytable: Key table with which to annotate samples.
@@ -1493,7 +1493,7 @@ class VariantDataset(object):
         ``fam_expr`` is in sample context only and the following
         symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
 
@@ -1544,7 +1544,7 @@ class VariantDataset(object):
 
         One line per sample will be exported.  As :py:meth:`~hail.VariantDataset.export_samples` runs in sample context, the following symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
@@ -1886,7 +1886,7 @@ class VariantDataset(object):
 
         ``condition`` is in genotype context so the following symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``v`` (*Variant*): :ref:`variant`
         - ``sa``: sample annotations
         - ``va``: variant annotations
@@ -1964,7 +1964,7 @@ class VariantDataset(object):
 
         ``condition`` is in sample context so the following symbols are in scope:
 
-        - ``s`` (*Sample*): :ref:`sample`
+        - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
@@ -3324,7 +3324,7 @@ class VariantDataset(object):
         The namespace of the expressions includes:
 
         - ``global``: global annotations
-        - ``samples`` (*Aggregable[Sample]*): aggregable of :ref:`sample`
+        - ``samples`` (*Aggregable[Sample]*): aggregable of sample
 
         Map and filter expressions on this aggregable have the additional
         namespace:
