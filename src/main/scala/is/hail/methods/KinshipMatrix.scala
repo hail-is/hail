@@ -53,7 +53,7 @@ case class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val 
 
   def exportRel(output: String) {
     prepareMatrixForExport(matrix).rows
-    .mapPartitions(itr => {
+    .mapPartitions{ itr =>
       val sb = new StringBuilder
       itr.foreach{ (row: IndexedRow) =>
         val i = row.index
@@ -68,13 +68,13 @@ case class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val 
         sb += '\n'
       }
       sb.lines
-    }).writeTable(output, hc.tmpDir)
+    }.writeTable(output, hc.tmpDir)
   }
 
   def exportGctaGrm(output: String) {
     val nVars = numVariantsUsed //required to avoid serialization error.
     prepareMatrixForExport(matrix).rows
-    .mapPartitions((itr: Iterator[IndexedRow]) => {
+    .mapPartitions{ (itr: Iterator[IndexedRow]) =>
       val sb = new StringBuilder
       itr.foreach{ (row: IndexedRow) =>
         val i = row.index
@@ -90,7 +90,7 @@ case class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val 
         sb += '\n'
       }
       sb.lines
-    }).writeTable(output, hc.tmpDir)
+    }.writeTable(output, hc.tmpDir)
   }
 
   def exportGctaGrmBin(output: String, nFile: Option[String] = None) {
