@@ -24,7 +24,7 @@ class KeyTable(object):
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
-    >>> kt1 = hc.import_keytable('data/kt_example1.tsv', config=TextTableConfig(impute=True))
+    >>> kt1 = hc.import_keytable('data/kt_example1.tsv', impute=True)
 
     +--+---+---+-+-+----+----+----+
     |ID|HT |SEX|X|Z| C1 | C2 | C3 |
@@ -38,7 +38,7 @@ class KeyTable(object):
     |4 |60 |F  |8|2|11	|90  |-10 |
     +--+---+---+-+-+----+----+----+
 
-    >>> kt2 = hc.import_keytable('data/kt_example2.tsv', config=TextTableConfig(impute=True))
+    >>> kt2 = hc.import_keytable('data/kt_example2.tsv', impute=True)
 
     +---+---+------+
     |ID	|A  |B     |
@@ -627,8 +627,8 @@ class KeyTable(object):
         Assume ``kt3`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
         c3.
 
-        >>> kt3 = hc.import_keytable('data/kt_example3.tsv',
-        ...   config=TextTableConfig(impute=True, types='c1:String,c2:Array[Int],c3:Array[Array[Int]]'))
+        >>> kt3 = hc.import_keytable('data/kt_example3.tsv', impute=True,
+        ...                          types={'c1': TString(), 'c2': TArray(TInt()), 'c3': TArray(TArray(TInt()))})
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
         c1 cannot be exploded because its type is not an ``Array`` or ``Set``.
