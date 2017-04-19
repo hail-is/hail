@@ -976,6 +976,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateVariants(other.variantsAndAnnotations, finalType, inserter)
   }
 
+  def count(): (Long, Long) = (nSamples, variants.count())
+
   def countVariants(): Long = variants.count()
 
   def variants: RDD[Variant] = rdd.keys
@@ -1001,8 +1003,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
 
-  def downsampleVariants(keep: Long): VariantSampleMatrix[T] = {
-    sampleVariants(keep.toDouble / countVariants())
+  def downsampleVariants(keep: Double): VariantSampleMatrix[T] = {
+    require(keep > 0 && keep < 1, s"the 'keep' parameter must fall between 0 and 1, found $keep")
+    sampleVariants(keep)
   }
 
   def dropSamples(): VariantSampleMatrix[T] =

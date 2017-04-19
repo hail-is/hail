@@ -95,7 +95,9 @@ class ContextTests(unittest.TestCase):
 
             dataset.write('/tmp/sample.vds', overwrite=True)
 
-            dataset.count(genotypes=True)
+            dataset.count()
+
+            dataset.summarize()
 
             dataset.aggregate_intervals(test_resources + '/annotinterall.interval_list',
                                         'N = variants.count()',
@@ -158,12 +160,12 @@ class ContextTests(unittest.TestCase):
             with open(test_resources + '/sample2.sample_list') as f:
                 samples = [s.strip() for s in f]
             (dataset.filter_samples_list(samples)
-             .count()['nSamples'] == 56)
+             .count()[0] == 56)
 
             dataset.export_vcf('/tmp/sample2.vcf.bgz')
 
-            self.assertEqual(dataset.drop_samples().count()['nSamples'], 0)
-            self.assertEqual(dataset.drop_variants().count()['nVariants'], 0)
+            self.assertEqual(dataset.drop_samples().count()[0], 0)
+            self.assertEqual(dataset.drop_variants().count()[1], 0)
 
             dataset_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
                                         test_resources + '/sample2.vcf'])
@@ -190,13 +192,13 @@ class ContextTests(unittest.TestCase):
                 hc.import_keytable(test_resources + '/sample2_variants.tsv',
                                    key='_0',
                                    config=TextTableConfig(impute=True, noheader=True)))
-                             .count()['nVariants'], 21)
+                             .count()[1], 21)
 
             m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
                                                          config=TextTableConfig(noheader=True))
                 .collect()}
             self.assertEqual(dataset2.join(dataset2.rename_samples(m2))
-                             .count()['nSamples'], 200)
+                             .count()[0], 200)
 
             dataset._typecheck()
 
