@@ -17,9 +17,12 @@ Variant Dataset (VDS)
 
 .. image:: ../../../www/hail-vds-rep.png
 
-Hail represents a genetic dataset as a matrix where the rows are keyed by :ref:`variant`s, the columns are keyed by **Samples**, and each cell is a :ref:`genotype`s.
-:ref:`variant`s and :ref:`genotype`s each have methods to access attributes such as chromosome name and genotype call.
-Although this representation is similar to the VCF format, Hail uses a fast and storage-efficient internal representation called a Variant Dataset (**VDS**).
+Hail represents a genetic data set as a matrix where the rows are keyed by
+:ref:`variant` objects, the columns are keyed by samples, and each cell is a
+:ref:`genotype` object. :ref:`variant` objects and :ref:`genotype` objects each
+have methods to access attributes such as chromosome name and genotype call.
+Although this representation is similar to the VCF format, Hail uses a fast and
+storage-efficient internal representation called a Variant Dataset (**VDS**).
 
 In addition to information about Samples, Variants, and Genotypes, Hail stores meta-data as annotations that can be attached to each variant (**variant annotations**),
 each sample (**sample annotations**), and global to the dataset (**global annotations**).
