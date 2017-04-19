@@ -4,11 +4,11 @@ import java.io.DataOutputStream
 
 import breeze.linalg.SparseVector
 import is.hail.HailContext
+import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 
 import scala.collection.Searching._
-import is.hail.utils._
 
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
