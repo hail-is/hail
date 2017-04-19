@@ -22,7 +22,7 @@ parser.add_argument('--num-worker-local-ssds', default='0', type=str, help='Numb
 parser.add_argument('--num-workers', '--n-workers', '-nw', default='2', type=str, help='Number of worker machines.')
 parser.add_argument('--preemptible-worker-boot-disk-size', default='40GB', type=str, help='Disk size of preemptible machines.')
 parser.add_argument('--worker-boot-disk-size', default='40GB', type=str, help='Disk size of worker machines.')
-parser.add_argument('--worker-machine-type', '--worker', '-w', default='n1-standard-4', type=str, help='Worker machine type.')
+parser.add_argument('--worker-machine-type', '--worker', '-w', default='n1-standard-8', type=str, help='Worker machine type.')
 parser.add_argument('--zone', default='us-central1-b', type=str, help='Compute zone for the cluster.')
 
 # initialization action flags
