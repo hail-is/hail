@@ -2,7 +2,6 @@ package is.hail.utils
 
 import breeze.linalg.Matrix
 import is.hail.SparkSuite
-import is.hail.utils.richUtils.RichIndexedRowMatrix._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD

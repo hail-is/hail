@@ -3,7 +3,6 @@ package is.hail.stats
 
 import breeze.linalg.DenseMatrix
 import is.hail.utils._
-import is.hail.utils.richUtils.RichIndexedRowMatrix._
 
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.SparkContext

@@ -146,13 +146,16 @@ class GRMSuite extends SparkSuite {
 
         vds.exportPlink(bFile)
 
+        val grm = vds.grm()
+        grm.exportIdFile(relIDFile)
+
         format match {
           case "rel" =>
             s"plink --bfile ${ uriPath(bFile) } --make-rel --out ${ uriPath(bFile) }" !
 
             assert(loadIDFile(bFile + ".rel.id").toIndexedSeq == vds.sampleIds)
 
-            vds.grm(relFile, format = "rel", idFile = Some(relIDFile))
+            grm.exportRel(relFile)
 
             assert(loadIDFile(relIDFile).toIndexedSeq == vds.sampleIds)
 
@@ -164,7 +167,7 @@ class GRMSuite extends SparkSuite {
 
             assert(loadIDFile(bFile + ".grm.id").toIndexedSeq == vds.sampleIds)
 
-            vds.grm(grmFile, format = "gcta-grm")
+            grm.exportGctaGrm(grmFile)
 
             compare(loadGRM(nSamples, nVariants, bFile + ".grm.gz"),
               loadGRM(nSamples, nVariants, grmFile))
@@ -174,7 +177,7 @@ class GRMSuite extends SparkSuite {
 
             assert(loadIDFile(bFile + ".grm.id").toIndexedSeq == vds.sampleIds)
 
-            vds.grm(grmBinFile, format = "gcta-grm-bin", nFile = Some(grmNBinFile))
+            grm.exportGctaGrmBin(grmBinFile, Some(grmNBinFile))
 
             (compare(loadBin(nSamples, bFile + ".grm.bin"),
               loadBin(nSamples, grmBinFile))
