@@ -3205,7 +3205,7 @@ class VariantDataset(object):
             Its output must be captured. This is wrong:
             
             >>> vds = vds.linreg('sa.phenotype') # doctest: +SKIP
-            >>> vds.persist() # doctest: SKIP
+            >>> vds.persist() # doctest: +SKIP
             
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
             The proper usage is this:
