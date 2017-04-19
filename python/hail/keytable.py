@@ -786,7 +786,7 @@ class KeyTable(object):
     def write(self, output, overwrite=False):
         """Write as KT file.
 
-        ***Example***
+        ***Examples***
 
         >>> kt1.write('output/kt1.kt')
 
