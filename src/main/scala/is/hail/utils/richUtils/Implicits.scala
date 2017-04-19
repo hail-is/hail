@@ -5,7 +5,7 @@ import is.hail.utils.{ArrayBuilder, JSONWriter, MultiArray2, Truncatable}
 import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.distributed.IndexedRow
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
@@ -33,6 +33,8 @@ trait Implicits {
     new RichHadoopConfiguration(hConf)
 
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow = new RichIndexedRow(r)
+
+  implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
