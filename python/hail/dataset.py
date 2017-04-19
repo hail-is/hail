@@ -394,7 +394,7 @@ class VariantDataset(object):
           - ``g``: genotype annotation
           - ``v`` (*Variant*): :ref:`variant`
           - ``va``: variant annotations
-          - ``s`` (*Sample*): :ref:`sample`
+          - ``s`` (*Sample*): sample
           - ``sa``: sample annotations
           - ``global``: global annotations
 
