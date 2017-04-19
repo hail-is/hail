@@ -2457,7 +2457,7 @@ object FunctionRegistry {
   registerMethod("[]", (a: String, i: Int) => (if (i >= 0) a(i) else a(a.length + i)).toString,
     """
     Returns the i*th* element (0-indexed) of the string, or throws an exception if ``i`` is an invalid index.
- |
+
     .. code-block:: text
         :emphasize-lines: 2
 
