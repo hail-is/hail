@@ -67,7 +67,7 @@ The abbreviations for the VDS elements in expressions are as follows:
     * - ``v``
       - :ref:`variant`
     * - ``s``
-      - :ref:`sample`
+      - sample
     * - ``va``
       - Variant Annotations
     * - ``sa``
