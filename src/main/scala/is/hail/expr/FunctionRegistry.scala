@@ -18,6 +18,8 @@ import scala.collection.mutable
 import scala.language.higherKinds
 import scala.reflect.ClassTag
 
+import org.apache.commons.math3.stat.inference.ChiSquareTest
+
 case class MetaData(docstring: Option[String], args: Seq[(String, String)] = Seq.empty[(String, String)])
 
 
@@ -44,6 +46,8 @@ object FunctionRegistry {
   private val conversions = new mutable.HashMap[(Type, Type), (Int, Transformation[Any, Any])]
 
   private def lookupConversion(from: Type, to: Type): Option[(Int, Transformation[Any, Any])] = conversions.get(from -> to)
+
+  private val chisq = new ChiSquareTest()
 
   private def registerConversion[T, U](how: T => U, codeHow: Code[T] => CM[Code[U]], priority: Int = 1)(implicit hrt: HailRep[T], hru: HailRep[U]) {
     val from = hrt.typ
@@ -315,6 +319,8 @@ object FunctionRegistry {
       }
       case f: Arity4Fun[_, _, _, _, _] =>
         AST.evalComposeCodeM(args(0), args(1), args(2), args(3))(invokePrimitive4(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
+      case f: Arity5Fun[_, _, _, _, _,_] =>
+        AST.evalComposeCodeM(args(0), args(1), args(2), args(3), args(4) )(invokePrimitive5(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
       case f: UnaryFunCode[t, u] =>
         AST.evalComposeCodeM[t](args(0))(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
       case f: BinaryFunCode[t, u, v] =>
@@ -525,6 +531,11 @@ object FunctionRegistry {
     bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ, hry.typ), Arity6Special[T, U, V, W, X, Y, Z](hrz.typ, impl), MetaData(Option(docstring), argNames))
   }
 
+  def register[T, U, V, W, X, Y](name: String, impl: (T, U, V, W, X) => Y, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X], hry: HailRep[Y]) = {
+    bind(name, FunType(hrt.typ, hru.typ, hrv.typ, hrw.typ, hrx.typ), Arity5Fun[T, U, V, W, X, Y](hry.typ, impl), MetaData(Option(docstring), argNames))
+  }
+
   def registerAnn[T](name: String, t: TStruct, impl: T => Annotation, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T]) = {
     register(name, impl, docstring, argNames: _*)(hrt, new HailRep[Annotation] {
@@ -549,6 +560,13 @@ object FunctionRegistry {
   def registerAnn[T, U, V, W](name: String, t: TStruct, impl: (T, U, V, W) => Annotation, docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W]) = {
     register(name, impl, docstring, argNames: _*)(hrt, hru, hrv, hrw, new HailRep[Annotation] {
+      def typ = t
+    })
+  }
+
+  def registerAnn[T, U, V, W, X](name: String, t: TStruct, impl: (T, U, V, W, X) => Annotation, docstring: String, argNames: (String, String)*)
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]  ) = {
+    register(name, impl, docstring, argNames: _*)(hrt, hru, hrv, hrw, hrx ,new HailRep[Annotation] {
       def typ = t
     })
   }
@@ -1073,8 +1091,59 @@ object FunctionRegistry {
     "nHomVar" -> "Number of samples that are homozygous for the alternate allele."
   )
 
+
+  def chisqTest(c1: Int, c2: Int, c3: Int, c4: Int): ( Option[Double], Option[Double]) = {
+
+    var or:Option[Double] = None
+    var chisqp: Option[Double] = None
+
+    if (  Array( c1,c2,c3,c4).sum > 0  ) {
+      if ( c1>0 && c3==0 )
+        or = Option(Double.PositiveInfinity)
+      else if ( c3>0 && c1==0 )
+        or = Option(Double.NegativeInfinity)
+      else if (  (c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0)  )
+        or = Option( (c1 * c4) / (c2 * c3).toDouble)
+        chisqp = Option(chisq.chiSquareTest( Array( Array(c1, c2), Array(c3, c4) ) ))
+    }
+
+    ( chisqp, or)
+  }
+
+
+  val chisqStruct = TStruct(Array(("pValue", TDouble, "p-value"), ("oddsRatio", TDouble, "odds ratio")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  registerAnn("chisq", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
+    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
+      fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
+
+    val res = chisqTest(c1,c2, c3,c4)
+    Annotation( res._1.orNull, res._2.orNull)
+  },
+    """ Calculates p-value (Chi-square approximation) and odds ratio for 2x2 table """,
+    "c1" -> "value for cell 1", "c2" -> "value for cell 2", "c3" -> "value for cell 3", "c4" -> "value for cell 4"
+  )
+
+  registerAnn("ctTest", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int, minCellCount:Int) =>
+    if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
+      fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
+
+    if (  Vector(c1, c2, c3, c4 ).exists( _ < minCellCount )  ) {
+      val fet = FisherExactTest(c1, c2, c3, c4)
+      Annotation(fet(0).orNull, fet(1).orNull)
+    }
+    else {
+      val res = chisqTest(c1,c2, c3,c4)
+      Annotation(res._1.orNull,res._2.orNull)
+    }
+
+  },
+    """ Calculates p-value and odds ratio for 2x2 table. If any cell is lower than `minCellCount` Fishers exact test is used, otherwise faster chi-squared approximation is used.  """,
+    "c1" -> "value for cell 1", "c2" -> "value for cell 2", "c3" -> "value for cell 3", "c4" -> "value for cell 4", "minCellCount" -> "Minimum cell count for using chi-squared approximation"
+  )
+
   val fetStruct = TStruct(Array(("pValue", TDouble, "p-value"), ("oddsRatio", TDouble, "odds ratio"),
     ("ci95Lower", TDouble, "lower bound for 95% confidence interval"), ("ci95Upper", TDouble, "upper bound for 95% confidence interval")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+
 
   registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
