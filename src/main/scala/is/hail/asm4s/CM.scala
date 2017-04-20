@@ -1,13 +1,14 @@
 package is.hail.asm4s
 
+import scala.language.existentials
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object preCM {
-  case class E(m: Map[String, (ClassTag[AnyRef], Code[AnyRef])], fb: Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef])
+  case class E(m: Map[String, (ClassTag[T], Code[T]) forSome { type T <: AnyRef }], fb: Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef])
   case class S(fa: Array[AnyRef], st: AnyRef)
 
-  def emptyE = E(Map[String, (ClassTag[AnyRef], Code[AnyRef])](), new Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]())
+  def emptyE = E(Map[String, (ClassTag[T], Code[T]) forSome { type T <: AnyRef }](), new Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]())
   def emptyS(ec: AnyRef) = S(Array[AnyRef](), ec)
 }
 
@@ -47,19 +48,21 @@ case class CM[+T](mt: (E, S) => (T, S)) {
       }
     }
   }
-  def run(bindings: Seq[(String, ClassTag[AnyRef], AnyRef)], s0: AnyRef)(implicit ev: T <:< Code[AnyRef]): () => AnyRef = {
+  def run(bindings: Seq[(String, ClassTag[T], T) forSome { type T <: AnyRef }], s0: AnyRef)(implicit ev: T <:< Code[AnyRef]): () => AnyRef = {
     val typedNames = bindings.map { case (name, ct, _) => (name, ct) }
     val values: mutable.ArrayBuffer[AnyRef] = bindings.map(_._3).to[mutable.ArrayBuffer]
     val f: mutable.ArrayBuffer[AnyRef] => AnyRef = runWithDelayedValues(typedNames, s0)
 
     () => f(values)
   }
-  def runWithDelayedValues(typedNames: Seq[(String, ClassTag[AnyRef])], s0: AnyRef)(implicit ev: T <:< Code[AnyRef]): mutable.ArrayBuffer[AnyRef] => AnyRef = {
+  def runWithDelayedValues(typedNames: Seq[(String, ClassTag[_ <: AnyRef])], s0: AnyRef)(implicit ev: T <:< Code[AnyRef]): mutable.ArrayBuffer[AnyRef] => AnyRef = {
     val e = emptyE
-    val codeBindings = typedNames.zipWithIndex.map { case ((name, ct), i) =>
-      (name, (ct, Code.checkcast(e.fb.arg2.invoke[Int, AnyRef]("apply", i))(ct)))
-    }
-    val e2 = e.copy(m = codeBindings.toMap)
+    def createBinding[T <: AnyRef](name: String, ct: ClassTag[T], i: Int): (String, (ClassTag[U], Code[U]) forSome { type U <: AnyRef }) =
+      (name, (ct, Code.checkcast[T](e.fb.arg2.invoke[Int, AnyRef]("apply", i))(ct)))
+
+    val codeBindings = typedNames.zipWithIndex.map { case ((name, ct), i) => createBinding(name, ct, i) }
+    // val e2 = e.copy(m = codeBindings.toMap)
+    val e2 = E(codeBindings.toMap, e.fb)
 
     val (code, s2) = mt(e2,emptyS(s0))
     val primitiveFunctionArray = s2.fa.reverse
@@ -85,7 +88,7 @@ object CM {
   def ret[T](t: T): CM[T] = CM((e,a) => (t, a))
 
   def fb(): CM[Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]] = CM { (e, s) => (e.fb, s) }
-  def availableBindings(): CM[Map[String, (ClassTag[AnyRef], Code[AnyRef])]] = CM { case (e, s) => (e.m, s) }
+  def availableBindings(): CM[Map[String, (ClassTag[T], Code[T]) forSome { type T }]] = CM { case (e, s) => (e.m, s) }
 
   def addForeignFun(f: AnyRef): CM[Int] = CM { (e, s) => (s.fa.length, s.copy(fa = f +: s.fa)) }
   def foreignFunArray(): CM[Code[Array[AnyRef]]] = fb().map(_.arg1)
@@ -125,7 +128,7 @@ object CM {
     case Seq((name, ct, cmc), rest @ _*) =>
       cmc.flatMap(c => bindIn(name, ct, c)(bindRepIn(rest)(body)))
   }
-  def lookup(name: String): CM[Code[AnyRef]] = CM { case (e, s) =>
+  def lookup(name: String): CM[Code[_ <: AnyRef]] = CM { case (e, s) =>
     (e.m(name)._2, s)
   }
 
@@ -157,7 +160,7 @@ object CM {
     ) yield result)
     for (
       bindings <- availableBindings();
-      cvalues = CMHelp.arrayOf(bindings.map { case (_, (_, code)) => code }.toIndexedSeq);
+      cvalues = CMHelp.arrayOf[AnyRef](bindings.map { case (_, (_, code)) => code }.toIndexedSeq);
       st <- st();
       compiledCode = cc.runWithDelayedValues((name, ct) +: bindings.map { case (name, (ct, _)) => (name, ct) }.toSeq, st);
       f <- invokePrimitive1(((vs: Array[AnyRef]) => (x: AnyRef) => compiledCode((x +: vs).to[mutable.ArrayBuffer])).asInstanceOf[AnyRef => AnyRef])(cvalues)
