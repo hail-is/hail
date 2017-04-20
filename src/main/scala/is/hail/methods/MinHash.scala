@@ -3,6 +3,7 @@ package is.hail.methods
 import breeze.linalg.{DenseMatrix, DenseVector, min}
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import is.hail.annotations.Annotation
+import scala.collection.mutable.HashSet
 import scala.util.hashing.{MurmurHash3 => MH3}
 
 object MinHash {
@@ -37,7 +38,7 @@ object MinHash {
         val hashes = hashChain(k, v.hashCode)
         var i = 0
         while(i < n) {
-          //TOTO: Write a min UFunc that modifies the left arg in place
+          //TODO: Write a min UFunc that modifies the left arg in place
           if (gsItr.next() > 0) l(::,i) := min(l(::,i), hashes)
           i += 1
         }
@@ -52,6 +53,23 @@ object MinHash {
       .aggregate(Array.fill[Int](vds.nSamples)(Int.MaxValue))({ case (a, (hash, calls)) =>
         calls.zip(a).map { case (b, i) => if (b) math.min(hash, i) else i }.toArray },
         (l, r) => (l, r).zipped.map(math.min))
+  }
+
+  //mat is a k-by-n matrix, which will be split into r-by-n submatrices for Min-LSH
+  def findSimilarPairs(mat: DenseMatrix[Int], r: Int): Set[(Int, Int)] = {
+    val k = mat.rows
+    val n = mat.cols
+    val l = k / r
+    val simPairs = HashSet[(Int, Int)]()
+    for {
+      i <- 0 until l
+      matches = Range(0,n).groupBy(j => MH3.orderedHash(mat(i*r until (i+1)*r, j).valuesIterator))
+      hash <- matches.keys
+      a <- matches(hash)
+      b <- matches(hash)
+      if a < b
+    } simPairs += ((a,b))
+    simPairs.toSet
   }
 
   def approxJacaardDist(mat: DenseMatrix[Int]): DenseMatrix[Double] = {
