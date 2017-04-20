@@ -350,8 +350,8 @@ class AggregatorSuite extends SparkSuite {
       .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
       .sample()
 
-    TestUtils.interceptFatal("blah")(
-      vds.annotateVariantsExpr("va.foobar = gs.groupBy(g => sa.pop, newGs => newGs.count())")
+    TestUtils.interceptFatal("key not found: gs")(
+      vds.annotateVariantsExpr("va.foobar = gs.groupBy(g => sa.pop, newGs => gs.count())")
     )
   }
 
