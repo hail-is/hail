@@ -14,6 +14,7 @@ package object asm4s {
 
   trait TypeInfo[T] {
     val name: String
+    val iname: String = name // override if T <: AnyRef
     val loadOp: Int
     val storeOp: Int
     val aloadOp: Int

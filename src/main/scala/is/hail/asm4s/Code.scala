@@ -145,9 +145,10 @@ object Code {
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T]): Code[U] = Code(cerr, new InsnNode(ATHROW))
 
-  def checkcast[T](v: Code[AnyRef])(implicit tct: ClassTag[T]): Code[T] = Code(
+
+  def checkcast[T](v: Code[AnyRef])(implicit tti: TypeInfo[T]): Code[T] = Code(
     v,
-    new TypeInsnNode(CHECKCAST, Type.getInternalName(tct.runtimeClass)))
+    new TypeInsnNode(CHECKCAST, tti.iname))
 
   def boxBoolean(cb: Code[Boolean]): Code[java.lang.Boolean] = Code.newInstance[java.lang.Boolean, Boolean](cb)
   def boxInt(ci: Code[Int]): Code[java.lang.Integer] = Code.newInstance[java.lang.Integer, Int](ci)

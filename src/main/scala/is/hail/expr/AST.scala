@@ -236,7 +236,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   def runAggregator(ec: EvalContext): CPS[Any] = {
     val typedNames = ec.st.toSeq
       .sortBy { case (_, (i, _)) => i }
-      .map { case (name, (_, typ)) => (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]]) }
+      .map { case (name, (_, typ)) => (name, typ.scalaClassTag) }
     val values = ec.a.asInstanceOf[mutable.ArrayBuffer[AnyRef]]
 
     val idx = ec.a.length
@@ -644,8 +644,10 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
+  private def trustme[T](name: String, tct: ClassTag[T], ast: AST) = (name, tct, ast.compile().asInstanceOf[CM[Code[T]]])
+
   def compile() =
-    CM.bindRepIn(bindings.map { case (name, expr) => (name, expr.`type`.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], expr.compile()) })(body.compile())
+    CM.bindRepIn(bindings.map { case (name, expr) => trustme(name, expr.`type`.scalaClassTag, expr) })(body.compile())
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {

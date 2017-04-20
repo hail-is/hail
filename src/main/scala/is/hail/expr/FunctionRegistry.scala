@@ -192,10 +192,10 @@ object FunctionRegistry {
             fb <- fb();
             bindings = (bodyST.toSeq
               .map { case (name, (i, typ)) =>
-              (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
+              (name, typ.scalaClassTag, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            } :+ ((param, paramType.scalaClassTag, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]]) }, ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.scalaClassTag) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -225,10 +225,10 @@ object FunctionRegistry {
             fb <- fb();
             bindings = (bodyST.toSeq
               .map { case (name, (i, typ)) =>
-              (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
+              (name, typ.scalaClassTag, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            } :+ ((param, paramType.scalaClassTag, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]]) }, ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.scalaClassTag) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -276,7 +276,7 @@ object FunctionRegistry {
           f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any]).asInstanceOf[AnyRef])
 
         for (
-          lamc <- createLambda(param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], body.compile());
+          lamc <- createLambda(param, paramType.scalaClassTag, body.compile());
           res <- AST.evalComposeCodeM(args(0)) { xs =>
             invokePrimitive2[AnyRef, AnyRef, AnyRef](g)(xs, lamc)
           }
@@ -295,7 +295,7 @@ object FunctionRegistry {
           f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any], y.asInstanceOf[v]).asInstanceOf[AnyRef])
 
         for (
-          lamc <- createLambda(param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], body.compile());
+          lamc <- createLambda(param, paramType.scalaClassTag, body.compile());
           res <- AST.evalComposeCodeM(args(0), args(2)) { (xs, y) =>
             invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(xs, lamc, y)
           }

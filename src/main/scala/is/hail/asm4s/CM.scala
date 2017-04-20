@@ -61,8 +61,7 @@ case class CM[+T](mt: (E, S) => (T, S)) {
       (name, (ct, Code.checkcast[T](e.fb.arg2.invoke[Int, AnyRef]("apply", i))(ct)))
 
     val codeBindings = typedNames.zipWithIndex.map { case ((name, ct), i) => createBinding(name, ct, i) }
-    // val e2 = e.copy(m = codeBindings.toMap)
-    val e2 = E(codeBindings.toMap, e.fb)
+    val e2 = e.copy(m = codeBindings.toMap)
 
     val (code, s2) = mt(e2,emptyS(s0))
     val primitiveFunctionArray = s2.fa.reverse
@@ -111,19 +110,19 @@ object CM {
   ) yield (x.store(c), x.load().asInstanceOf[Code[T]])
 
   // references to its argument will be duplicated
-  def bindInRaw[T](name: String, typ: ClassTag[AnyRef], c: Code[AnyRef])(body: CM[Code[T]]): CM[Code[T]] = CM { case (e, s) =>
+  def bindInRaw[U <: AnyRef, T](name: String, typ: TypeInfo[U], c: Code[U])(body: CM[Code[T]]): CM[Code[T]] = CM { case (e, s) =>
     body.mt(e.copy(m = e.m + ((name, (typ, c)))), s)
   }
-  def bindRepInRaw[T](bindings: Seq[(String, ClassTag[AnyRef], CM[Code[AnyRef]])])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
+  def bindRepInRaw[T](bindings: Seq[(String, TypeInfo[U], CM[Code[U]]) forSome { type U }])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
     case Seq() => body
     case Seq((name, typ, cmc), rest @ _*) =>
       cmc.flatMap(c => bindInRaw(name, typ, c)(bindRepInRaw(rest)(body)))
   }
   // its argument is stored in a local variable, only refernece to the variable
   // are dupliacted
-  def bindIn[T](name: String, ct: ClassTag[AnyRef], c: Code[AnyRef])(body: CM[Code[T]]): CM[Code[T]] =
+  def bindIn[U <: AnyRef, T](name: String, ct: TypeInfo[U], c: Code[U])(body: CM[Code[T]]): CM[Code[T]] =
     memoize(c).flatMap { case (st, v) => bindInRaw(name, ct, v)(body.map(x => Code(st, x))) }
-  def bindRepIn[T](bindings: Seq[(String, ClassTag[AnyRef], CM[Code[AnyRef]])])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
+  def bindRepIn[T](bindings: Seq[(String, TypeInfo[U], CM[Code[U]]) forSome { type U }])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
     case Seq() => body
     case Seq((name, ct, cmc), rest @ _*) =>
       cmc.flatMap(c => bindIn(name, ct, c)(bindRepIn(rest)(body)))
@@ -153,7 +152,7 @@ object CM {
   def invokePrimitive6[A,B,C,D,E,F,R](fn: (A, B, C, D, E, F) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E], f: Code[F])
     (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], ect: ClassTag[E], fct: ClassTag[F], rct: ClassTag[R]) : CM[Code[R]] =
     foreignFun(fn).map(_.invoke[R]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass, ect.runtimeClass, fct.runtimeClass), Array(a, b, c, d, e, f)))
-  def createLambda[T <: AnyRef](name: String, ct: ClassTag[AnyRef], body: CM[Code[T]])(implicit tti: TypeInfo[T]): CM[Code[(AnyRef) => T]] = {
+  def createLambda[T <: AnyRef](name: String, ct: ClassTag[_ <: AnyRef], body: CM[Code[T]])(implicit tti: TypeInfo[T]): CM[Code[(AnyRef) => T]] = {
     val cc = (for (
       v <- initialValueArray();
       result <- bindInRaw(name, ct, Code.checkcast(v.invoke[Int, AnyRef]("apply", 0))(ct))(body)
