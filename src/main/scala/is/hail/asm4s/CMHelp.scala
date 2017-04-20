@@ -8,7 +8,7 @@ import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-// Without this, we can't use invokeStatic with CompilationHelp as a type.
+// Without this, we can't use invokeStatic with CMHelp as a type.
 case class CMHelp() {}
 
 object CMHelp {
