@@ -212,7 +212,7 @@ class KeyTable(object):
         The scope for ``condition`` is all column names in the input :class:`KeyTable`.
 
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`__
-        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`__.
+        and using the `Hail Expression Language <exprlang.html>`__.
 
         .. caution::
            When ``condition`` evaluates to missing, the row will be removed regardless of whether ``keep=True`` or ``keep=False``.
@@ -243,7 +243,7 @@ class KeyTable(object):
         The scope for ``expr`` is all column names in the input :class:`KeyTable`.
 
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`__
-        and using the `Hail Expression Language <../reference.html#HailExpressionLanguage>`__.
+        and using the `Hail Expression Language <exprlang.html>`__.
 
         :param expr: Annotation expression or multiple annotation expressions.
         :type expr: str or list of str
