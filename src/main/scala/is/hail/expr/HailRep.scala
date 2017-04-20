@@ -4,7 +4,7 @@ import is.hail.utils.Interval
 import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
 import scala.collection.mutable
 
-trait HailRep[T] { self =>
+trait HailRep[-T] { self =>
   def typ: Type
 }
 
@@ -83,10 +83,6 @@ trait HailRepFunctions {
   }
 
   implicit def arrayHr[T](implicit hrt: HailRep[T]) = new HailRep[IndexedSeq[T]] {
-    def typ = TArray(hrt.typ)
-  }
-
-  implicit def wrappedArrayHr[T](implicit hrt: HailRep[T]) = new HailRep[mutable.WrappedArray[T]] {
     def typ = TArray(hrt.typ)
   }
 
