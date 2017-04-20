@@ -12,7 +12,7 @@ import scala.reflect.ClassTag
 case class CompilationHelp() {}
 
 object CompilationHelp {
-  def arrayToWrappedArray[T](a: Code[Array[T]])(implicit tct: ClassTag[T]): Code[mutable.WrappedArray[T]] =
+  def arrayToWrappedArray[T](a: Code[Array[T]])(implicit tct: ClassTag[T]): Code[IndexedSeq[T]] =
     Code.invokeStatic[CompilationHelp, Array[T], mutable.WrappedArray[T]]("__arrayToWrappedArray", a)
 
   def __arrayToWrappedArray(a: Array[Double]): mutable.WrappedArray[Double] = a
