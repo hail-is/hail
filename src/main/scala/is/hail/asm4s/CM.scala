@@ -13,10 +13,6 @@ object preCM {
 
 import preCM._
 
-
-/**
-  * Created by dking on 4/19/17.
-  */
 case class CM[+T](mt: (E, S) => (T, S)) {
   def map[U](f: (T) => U): CM[U] = CM { (e, s1) =>
     val (t,s2) = mt(e,s1)
