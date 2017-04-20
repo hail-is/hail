@@ -389,7 +389,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey() {
     forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.annotateVariantsExpr("va.key = pcoin(0.5)")
+      val vds2 = vds.annotateVariantsExpr("va.key = v.start % 2 == 0")
 
       val kt = KeyTable(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
         TStruct(("key", TBoolean), ("value", TInt)), Array("key"))
@@ -413,7 +413,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey2() {
     forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.annotateVariantsExpr("va.key1 = pcoin(0.5), va.key2 = pcoin(0.5)")
+      val vds2 = vds.annotateVariantsExpr("va.key1 =  v.start % 2 == 0, va.key2 = v.contig.length() % 2 == 0")
 
       def f(a: Boolean, b: Boolean): Int =
         if (a)

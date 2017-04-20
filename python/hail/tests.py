@@ -140,7 +140,7 @@ class ContextTests(unittest.TestCase):
             (dataset.annotate_variants_table(variants_tb, root='va.table')
              .count())
 
-            (dataset.annotate_variants_vds(dataset, code='va.good = va.info.AF == vds.info.AF')
+            (dataset.annotate_variants_vds(dataset, expr='va.good = va.info.AF == vds.info.AF')
              .count())
 
             downsampled = dataset.downsample_variants(20)
@@ -162,7 +162,7 @@ class ContextTests(unittest.TestCase):
                   .key_by('variant'))
             (dataset.annotate_variants_table(tb, root='va.table').count())
 
-            (dataset.annotate_variants_vds(dataset, code='va.good = va.info.AF == vds.info.AF').count())
+            (dataset.annotate_variants_vds(dataset, expr='va.good = va.info.AF == vds.info.AF').count())
 
             dataset.export_vcf('/tmp/sample2.vcf.bgz')
 

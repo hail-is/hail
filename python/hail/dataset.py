@@ -714,7 +714,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_samples_table(self, table, root=None, expr=None, vds_key=None):
+    def annotate_samples_table(self, table, root=None, expr=None, vds_key=None, product=False):
         """Annotate samples with a key table.
 
         **Examples**
@@ -792,6 +792,8 @@ class VariantDataset(object):
         >>> vds_result = vds.annotate_samples_table(annotations,
         ...                             expr='sa.sex = table._1, sa.batch = table._0.split("_")[0]')
 
+        **Notes** 
+        
         If `vds_key` is None, the table's key must be exactly one column and
         that column must have type *Variant*.
 
@@ -811,7 +813,7 @@ class VariantDataset(object):
         ``expr`` has the following symbols in scope:
 
           - ``sa``: sample annotations
-          - ``table``: :py:class:`.KeyTable` value
+          - ``table``: :py:class:`.KeyTable` value, or array of value if ``product`` is true
 
         each expression in the list ``vds_key`` has the following symbols in
         scope:
@@ -858,12 +860,14 @@ class VariantDataset(object):
 
         :param expr: Annotation expression.
         :type expr: str or None
+        
+        :param bool product: Annotate samples with an array containing all matches.
 
         :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.annotateSamplesTable(table._jkt, vds_key, root, expr))
+        return VariantDataset(self.hc, self._jvds.annotateSamplesTable(table._jkt, vds_key, root, expr, product))
 
     @handle_py4j
     def annotate_variants_bed(self, input, root, all=False):
@@ -1029,7 +1033,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_variants_table(self, table, root=None, expr=None, vds_key=None):
+    def annotate_variants_table(self, table, root=None, expr=None, vds_key=None, product=False):
         """Annotate variants with an annotation table keyed by variants or loci.
 
         **Examples**
@@ -1059,7 +1063,6 @@ class VariantDataset(object):
         If `vds_key` is not None, it must be a list of Hail expressions whose types
         match, in order, the table's key types.
         
-        
         .. note::
         
             One of ``root`` or ``expr`` is required, but not both. 
@@ -1068,12 +1071,12 @@ class VariantDataset(object):
         variant annotations in the dataset) and ``table`` (a struct containing the columns in 
         the table), like ``va.col1 = table.col1, va.col2 = table.col2`` or ``va = merge(va, table)``.
         The ``root`` parameter expects an annotation path beginning in ``va``, like ``va.annotations``.
-         Passing ``root='va.annotations'`` is exactly the same as passing ``expr='va.annotations = table'``.
+        Passing ``root='va.annotations'`` is the same as passing ``expr='va.annotations = table'``.
 
         ``expr`` has the following symbols in scope:
 
           - ``va``: variant annotations
-          - ``table``: :py:class:`.KeyTable` value
+          - ``table``: :py:class:`.KeyTable` value, or array of values if the ``product`` argument is passed
 
         each expression in the list ``vds_key`` has the following symbols in
         scope:
@@ -1120,16 +1123,18 @@ class VariantDataset(object):
 
         :param expr: Annotation expression.
         :type expr: str or None
+        
+        :param bool product: Annotate variants with an array containing all matches.
 
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.annotateVariantsTable(table._jkt, vds_key, root, expr)
+        jvds = self._jvds.annotateVariantsTable(table._jkt, vds_key, root, expr, product)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_variants_vds(self, other, code=None, root=None):
+    def annotate_variants_vds(self, other, expr=None, root=None):
         '''Annotate variants with variant annotations from .vds file.
 
         **Examples**
@@ -1142,33 +1147,33 @@ class VariantDataset(object):
 
         Copy the ``anno1`` annotation from ``other`` to ``va.annot``:
 
-        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annot = vds.anno1')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, expr='va.annot = vds.anno1')
 
         Merge the variant annotations from the two vds together and places them
         at ``va``:
 
-        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va = merge(va, vds)')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, expr='va = merge(va, vds)')
 
         Select a subset of the annotations from ``other``:
 
-        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annotations = select(vds, toKeep1, toKeep2, toKeep3)')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, expr='va.annotations = select(vds, toKeep1, toKeep2, toKeep3)')
 
         The previous expression is equivalent to:
 
-        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annotations.toKeep1 = vds.toKeep1, ' +
+        >>> vds_result = vds1.annotate_variants_vds(vds2, expr='va.annotations.toKeep1 = vds.toKeep1, ' +
         ...                                       'va.annotations.toKeep2 = vds.toKeep2, ' +
         ...                                       'va.annotations.toKeep3 = vds.toKeep3')
 
         **Notes**
 
-        Using this method requires one of the two optional arguments: ``code``
+        Using this method requires one of the two optional arguments: ``expr``
         and ``root``. They specify how to insert the annotations from ``other``
         into the this vds's variant annotations.
 
         The ``root`` argument copies all the variant annotations from ``other``
         to the specified annotation path.
 
-        The ``code`` argument expects an annotation expression whose scope
+        The ``expr`` argument expects an annotation expression whose scope
         includes, ``va``, the variant annotations in the current VDS, and ``vds``,
         the variant annotations in ``other``.
 
@@ -1191,13 +1196,13 @@ class VariantDataset(object):
 
         :param str root: Sample annotation path to add variant annotations.
 
-        :param str code: Annotation expression.
+        :param str expr: Annotation expression.
 
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         '''
 
-        jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(code))
+        jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(expr))
 
         return VariantDataset(self.hc, jvds)
 
