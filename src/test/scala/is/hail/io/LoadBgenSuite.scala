@@ -24,11 +24,11 @@ class LoadBgenSuite extends SparkSuite {
   }
 
   @Test def testGavinExample() {
-    val gen = "src/test/resources/bgen/example.gen"
-    val sampleFile = "src/test/resources/bgen/example.sample"
+    val gen = "src/test/resources/example.gen"
+    val sampleFile = "src/test/resources/example.sample"
     val inputs = Array(
-      ("src/test/resources/bgen/example.v11.bgen", 1e-6),
-      ("src/test/resources/bgen/example.10bits.bgen", 1d / (math.pow(2, 10) - 1))
+      ("src/test/resources/example.v11.bgen", 1e-6),
+      ("src/test/resources/example.10bits.bgen", 1d / (math.pow(2, 10) - 1))
     )
 
     def testBgen(bgen: String, tolerance: Double = 1e-6): Unit = {
