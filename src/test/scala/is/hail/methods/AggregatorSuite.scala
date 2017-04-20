@@ -345,4 +345,14 @@ class AggregatorSuite extends SparkSuite {
       .exportVariants("/tmp/test.out", "v, va.byFoo")
   }
 
+  @Test def groupByBinding() {
+    val vds = VariantSampleMatrix.gen(hc, VSMSubgen.random)
+      .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
+      .sample()
+
+    TestUtils.interceptFatal("blah")(
+      vds.annotateVariantsExpr("va.foobar = gs.groupBy(g => sa.pop, newGs => newGs.count())")
+    )
+  }
+
 }
