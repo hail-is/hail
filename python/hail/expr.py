@@ -83,6 +83,12 @@ class SingletonType(Singleton, abc.ABCMeta):
 class TInt(Type):
     """
     Hail type corresponding to 32-bit integers
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#int>`__
+    - in Python, these are represented natively as Python integers
+
     """
     __metaclass__ = SingletonType
 
@@ -106,6 +112,12 @@ class TInt(Type):
 class TLong(Type):
     """
     Hail type corresponding to 64-bit integers
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#long>`__
+    - in Python, these are represented natively as Python integers
+
     """
     __metaclass__ = SingletonType
 
@@ -129,6 +141,12 @@ class TLong(Type):
 class TFloat(Type):
     """
     Hail type corresponding to 32-bit floating point numbers
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#float>`__
+    - in Python, these are represented natively as Python floats
+
     """
     __metaclass__ = SingletonType
 
@@ -155,6 +173,12 @@ class TFloat(Type):
 class TDouble(Type):
     """
     Hail type corresponding to 64-bit floating point numbers (python default)
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#double>`__
+    - in Python, these are represented natively as Python floats
+
     """
     __metaclass__ = SingletonType
 
@@ -178,6 +202,12 @@ class TDouble(Type):
 class TString(Type):
     """
     Hail type corresponding to str
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#string>`__
+    - in Python, these are represented natively as Python unicode strings
+
     """
     __metaclass__ = SingletonType
 
@@ -198,6 +228,12 @@ class TString(Type):
 class TBoolean(Type):
     """
     Hail type corresponding to bool
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#boolean>`__
+    - in Python, these are represented natively as Python booleans (i.e. ``True`` and ``False``)
+
     """
     __metaclass__ = SingletonType
 
@@ -219,6 +255,12 @@ class TArray(Type):
     """
     Hail type corresponding to list
 
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#array>`__
+    - in Python, these are represented natively as Python sequences
+
+    :param element_type: type of array elements
     :type element_type: :class:`.Type`
 
     :ivar element_type: type of array elements
@@ -267,6 +309,12 @@ class TSet(Type):
     """
     Hail type corresponding to set
 
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#set>`__
+    - in Python, these are represented natively as Python mutable sets
+
+    :param element_type: type of set elements
     :type element_type: :class:`.Type`
 
     :ivar element_type: type of set elements
@@ -315,6 +363,12 @@ class TDict(Type):
     """
     Hail type corresponding to dict
 
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#dict>`__
+    - in Python, these are represented natively as Python dict
+
+    :param key_type: type of dict keys
     :type key_type: :class:`.Type`
     :param value_type: type of dict values
     :type value_type: :class:`.Type`
@@ -390,6 +444,12 @@ class TStruct(Type):
     """
     Hail type corresponding to :class:`hail.representation.Struct`
 
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#struct>`__
+    - in Python, values are instances of :class:`hail.representation.Struct`
+
+    :param names: names of fields
     :type names: list of str
     :param types: types of fields
     :type types: list of :class:`.Type`
@@ -455,6 +515,12 @@ class TStruct(Type):
 class TVariant(Type):
     """
     Hail type corresponding to :class:`hail.representation.Variant`
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#variant>`__
+    - in Python, values are instances of :class:`hail.representation.Variant`
+
     """
     __metaclass__ = SingletonType
 
@@ -482,6 +548,12 @@ class TVariant(Type):
 class TAltAllele(Type):
     """
     Hail type corresponding to :class:`hail.representation.AltAllele`
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#altallele>`__
+    - in Python, values are instances of :class:`hail.representation.AltAllele`
+
     """
     __metaclass__ = SingletonType
 
@@ -509,6 +581,12 @@ class TAltAllele(Type):
 class TGenotype(Type):
     """
     Hail type corresponding to :class:`hail.representation.Genotype`
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#genotype>`__
+    - in Python, values are instances of :class:`hail.representation.Genotype`
+
     """
     __metaclass__ = SingletonType
 
@@ -536,6 +614,12 @@ class TGenotype(Type):
 class TCall(Type):
     """
     Hail type corresponding to :class:`hail.representation.Call`
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#call>`__
+    - in Python, values are instances of :class:`hail.representation.Call`
+
     """
     __metaclass__ = SingletonType
 
@@ -563,6 +647,12 @@ class TCall(Type):
 class TLocus(Type):
     """
     Hail type corresponding to :class:`hail.representation.Locus`
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#locus>`__
+    - in Python, values are instances of :class:`hail.representation.Locus`
+
     """
     __metaclass__ = SingletonType
 
@@ -590,6 +680,12 @@ class TLocus(Type):
 class TInterval(Type):
     """
     Hail type corresponding to :class:`hail.representation.Interval`
+
+    .. include:: hailType.rst
+
+    - `expression language documentation <types.html#interval>`__
+    - in Python, values are instances of :class:`hail.representation.Interval`
+
     """
     __metaclass__ = SingletonType
 
