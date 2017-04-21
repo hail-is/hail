@@ -128,6 +128,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     assert(nBitsPerProb >= 1 && nBitsPerProb <= 32, s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
 
     val nGenotypes = triangle(nAlleles)
+
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
@@ -135,7 +136,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
 
     val sampleProbs = ArrayUInt(nGenotypes)
 
-    val totalProbInt = ((1L << nBitsPerProb) - 1).toUInt
+    val totalProbInt = UInt((1L << nBitsPerProb) - 1)
     val noCall = new DosageGenotype(-1, null)
 
     new Iterable[Genotype] {
@@ -148,6 +149,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
         def next(): Genotype = {
           var i = 0
           var sumProbInt = UInt(0)
+
           while (i < nGenotypes - 1) {
             assert(probabilityIterator.hasNext, "Did not decode bytes correctly. Ran out of probabilities.")
             val p = probabilityIterator.next()

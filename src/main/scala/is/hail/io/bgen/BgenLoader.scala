@@ -217,11 +217,11 @@ object BgenLoader {
 
     val isCompressed = compressType != 0
 
-    val version = flags >> 2 & 0xf
+    val version = flags >>> 2 & 0xf
     if (version != 1 && version != 2)
       fatal(s"Hail supports BGEN version 1.1 and 1.2, got version 1.$version")
 
-    val hasIds = (flags >> 31 & 1) != 0
+    val hasIds = (flags >>> 31 & 1) != 0
     BgenHeader(isCompressed, nSamples, nVariants, headerLength, dataStart, hasIds, version)
   }
 }

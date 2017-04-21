@@ -292,6 +292,7 @@ class ContextTests(unittest.TestCase):
         concordance1.write('/tmp/foo.kt', overwrite=True)
         concordance2.write('/tmp/foo.kt', overwrite=True)
 
+        sample2_split.export_bgen('/tmp/sample2.bgen')
         sample2_split.export_gen('/tmp/sample2.gen', 5)
         sample2_split.export_plink('/tmp/sample2')
 
