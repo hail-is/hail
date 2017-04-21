@@ -98,7 +98,7 @@ case class AltAllele(ref: String,
 
   def isInsertion: Boolean = ref.length < alt.length && ref(0) == alt(0) && alt.endsWith(ref.substring(1))
 
-  def isDeletion: Boolean = alt.length < ref.length && ref.startsWith(alt)
+  def isDeletion: Boolean = alt.length < ref.length && ref(0) == alt(0) && ref.endsWith(alt.substring(1))
 
   def isIndel: Boolean = isInsertion || isDeletion
 

@@ -15,9 +15,10 @@ class AltAlleleSuite extends TestNGSuite {
     val insertion = AltAllele("A", "ATGC")
     val insertion2 = AltAllele("ATT", "ATGCTT")
     val deletion = AltAllele("ATGC", "A")
+    val deletion2 = AltAllele("GTGTA", "GTA")
     val complex1 = AltAllele("CTA", "ATTT")
     val complex2 = AltAllele("A", "TATGC")
-    val star = AltAllele("A","*")
+    val star = AltAllele("A", "*")
 
     assert(ti.nMismatch == 1 &&
       snp1.nMismatch == 1 &&
@@ -35,26 +36,28 @@ class AltAlleleSuite extends TestNGSuite {
     assert(ti.isSNP && tv.isSNP && snp1.isSNP && snp2.isSNP)
     assert(!mnp1.isSNP && !mnp2.isSNP &&
       !insertion.isSNP && !insertion2.isSNP &&
-      !deletion.isSNP && !complex1.isSNP &&
-      !complex2.isSNP && !star.isSNP)
+      !deletion.isSNP && !deletion2.isSNP &&
+      !complex1.isSNP && !complex2.isSNP &&
+      !star.isSNP)
 
     assert(mnp1.isMNP && mnp2.isMNP)
     assert(!snp1.isMNP && !snp2.isMNP &&
       !insertion.isMNP && !insertion2.isMNP
-      && !deletion.isMNP && !complex1.isMNP &&
-      !complex2.isMNP && !star.isMNP)
+      && !deletion.isMNP && !deletion2.isMNP &&
+      !complex1.isMNP && !complex2.isMNP &&
+      !star.isMNP)
 
     assert(insertion.isInsertion && insertion2.isInsertion &&
-      deletion.isDeletion)
+      deletion.isDeletion && deletion2.isDeletion)
     assert(!snp1.isInsertion && !snp2.isDeletion &&
       !mnp1.isInsertion && !mnp2.isDeletion &&
       !insertion.isDeletion && !insertion2.isDeletion &&
-      !deletion.isInsertion && !complex1.isInsertion &&
-      !complex2.isDeletion && !star.isInsertion &&
-      !star.isInsertion)
+      !deletion.isInsertion && !deletion2.isInsertion &&
+      !complex1.isInsertion && !complex2.isDeletion &&
+      !star.isInsertion && !star.isInsertion)
 
     assert(insertion.isIndel && insertion2.isIndel &&
-      deletion.isIndel)
+      deletion.isIndel && deletion2.isIndel)
     assert(!snp1.isIndel && !snp2.isIndel &&
       !mnp1.isIndel && !mnp2.isIndel &&
       !complex1.isIndel && !complex2.isIndel &&
@@ -64,19 +67,20 @@ class AltAlleleSuite extends TestNGSuite {
     assert(!snp1.isComplex && !snp2.isComplex &&
       !mnp1.isComplex && !mnp2.isComplex &&
       !insertion.isComplex && !insertion2.isComplex &&
-      !deletion.isComplex && !star.isComplex)
+      !deletion.isComplex && !deletion2.isComplex &&
+      !star.isComplex)
 
     assert(star.isStar)
     assert(!snp1.isStar && !snp2.isStar &&
       !mnp1.isStar && !mnp2.isStar &&
       !insertion.isStar && !insertion2.isStar &&
-      !deletion.isStar && !complex1.isStar &&
-      !complex2.isStar)
+      !deletion.isStar && !deletion2.isStar &&
+      !complex1.isStar && !complex2.isStar)
 
     import AltAlleleType._
 
     val altAlleles = Array(ti, tv, snp1, snp2, mnp1, mnp2,
-      insertion, insertion2, deletion, complex1, complex2, star)
+      insertion, insertion2, deletion, deletion2, complex1, complex2, star)
 
     // FIXME: use ScalaCheck
     for (a <- altAlleles) {

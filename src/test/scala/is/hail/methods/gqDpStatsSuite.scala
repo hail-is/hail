@@ -21,7 +21,7 @@ class gqDpStatsSuite extends SparkSuite {
     // DP test first
     val dpVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray=Some(arr), gqArray=None)
     val dpVariantR = VariantQC.results(dpVds)
-    val dpSampleR = SampleQC.results(dpVds)
+    val dpSampleR = SampleQC.results(dpVds, keepStar = true)
 
     val samplePositionMap = dpVds.sampleIds.zipWithIndex.toMap
 
@@ -47,7 +47,7 @@ class gqDpStatsSuite extends SparkSuite {
     // now test GQ
     val gqVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray=None, gqArray=Some(arr))
     val gqVariantR = VariantQC.results(gqVds)
-    val gqSampleR = SampleQC.results(gqVds)
+    val gqSampleR = SampleQC.results(gqVds, keepStar = true)
 
     gqVariantR.collect().foreach {
       case (v, a) =>
