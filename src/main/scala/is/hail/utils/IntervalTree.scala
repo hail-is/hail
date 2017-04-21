@@ -56,8 +56,8 @@ case class IntervalTree[T: Ordering](root: Option[IntervalTreeNode[T]]) extends 
 
   def overlaps(interval: Interval[T]): Boolean = root.exists(_.overlaps(interval))
 
-  def query(position: T): Set[Interval[T]] = {
-    val b = Set.newBuilder[Interval[T]]
+  def query(position: T): Iterable[Interval[T]] = {
+    val b = Iterable.newBuilder[Interval[T]]
     root.foreach(_.query(b, position))
     b.result()
   }
