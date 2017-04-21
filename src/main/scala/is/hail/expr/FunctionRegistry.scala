@@ -271,7 +271,6 @@ object FunctionRegistry {
 
           downstreamParamTypeFixed = {
             val x = downstreamParamType.asInstanceOf[TAggregable].copy();
-            // FIXME filter out old bindings
             x.symTab = downstreamParamType.asInstanceOf[TAggregable].symTab + ((downstreamParam, (downstreamParamId, downstreamParamType.asInstanceOf[TAggregable].elementType)))
             x
           };

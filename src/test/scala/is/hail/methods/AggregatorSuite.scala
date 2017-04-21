@@ -4,6 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
+import is.hail.variant.Genotype
 import is.hail.utils._
 import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
@@ -350,9 +351,73 @@ class AggregatorSuite extends SparkSuite {
       .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
       .sample()
 
-    TestUtils.interceptFatal("key not found: gs")(
+    TestUtils.interceptFatal("symbol `gs' not found")(
       vds.annotateVariantsExpr("va.foobar = gs.groupBy(g => sa.pop, newGs => gs.count())")
     )
+  }
+
+  @Test def groupByDownstreamLambdaDoesNotHaveSABinding() {
+    val vds = VariantSampleMatrix.gen(hc, VSMSubgen.random)
+      .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
+      .sample()
+
+    TestUtils.interceptFatal("symbol `sa' not found")(
+      vds.queryGenotypes("gs.groupBy(g => sa.pop, newGs => sa.pop)")._1.asInstanceOf[Map[String, Int]]
+    )
+  }
+
+  @Test def groupByDownstreamLambdaDoesNotHaveSBinding() {
+    val vds = VariantSampleMatrix.gen(hc, VSMSubgen.random)
+      .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
+      .sample()
+
+    TestUtils.interceptFatal("symbol `s' not found")(
+      vds.queryGenotypes("gs.groupBy(g => sa.pop, newGs => s)")._1.asInstanceOf[Map[String, Int]]
+    )
+  }
+
+  @Test def groupByAnnotateVariantsDownstreamLambdaDoesHaveVaBinding() {
+    val vds = VariantSampleMatrix.gen(hc, VSMSubgen.random)
+      .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
+      .map(vds => vds.annotateVariantsExpr("va.nonce = 42"))
+      .sample()
+
+    val vds2 = vds.annotateVariantsExpr("va.groupedNonces = gs.groupBy(g => sa.pop, newGs => newGs.map(x => va.nonce).take(1))")
+
+    val (_, querier) = vds2.queryVA("va.groupedNonces")
+    val groupedNonces = vds2.rdd.rdd.map { case (v, (va, gs)) =>
+      querier(va).asInstanceOf[Map[String, Int]]
+    }.collect()
+
+    groupedNonces.forall(m => m == Map("EUR" -> 42, "EAS" -> 42))
+  }
+
+  @Test def groupByAnnotateVariantsDownstreamLambdaDoesHaveVBinding() {
+    val vds = VariantSampleMatrix.gen(hc, VSMSubgen.random)
+      .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
+      .sample()
+
+    val vds2 = vds.annotateVariantsExpr("va.groupedNonces = gs.groupBy(g => sa.pop, newGs => newGs.map(x => v).take(1))")
+
+    val (_, querier) = vds2.queryVA("va.groupedNonces")
+    val groupedNonces = vds2.rdd.rdd.map { case (v, (va, gs)) =>
+      (v, querier(va).asInstanceOf[Map[String, Int]])
+    }.collect()
+
+    groupedNonces.forall { case (v, m) => m == Map("EUR" -> v, "EAS" -> v) }
+  }
+
+  @Test def groupByDownstreamAggregatorHasNoGBinding() {
+    val vds = VariantSampleMatrix.gen(hc, VSMSubgen.random)
+      .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
+      .sample()
+
+    val actualResult =
+      vds.queryGenotypes("gs.groupBy(g => sa.pop, newGs => newGs.map(x => g).take(1))")._1.asInstanceOf[Map[String, _]]
+
+    actualResult.keySet == Set("EUR", "EAS") &&
+      actualResult.values.toSet.size == 2 &&
+      actualResult.forall { case (name, g) => g.isInstanceOf[Genotype] }
   }
 
 }

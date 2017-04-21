@@ -591,7 +591,7 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
       case (it: TAggregable, "groupBy", Array(Lambda(_, param1, body1), Lambda(_, param2, body2), rest@_*)) =>
         rest.foreach(_.typecheck(ec.copy(st = emptySymTab)))
         body1.typecheck(ec.copy(st = it.symTab + ((param1, (-1, it.elementType)))))
-        body2.typecheck(ec.copy(st = ec.st + ((param2, (it.symTab.find { case (_, (_, t)) => t == it.elementType }.get._2._1, it)))))
+        body2.typecheck(ec.copy(st = ec.st.filter { case (name, (idx, typ)) => !typ.isInstanceOf[TAggregable] } + ((param2, (it.symTab.find { case (_, (_, t)) => t == it.elementType }.get._2._1, it)))))
         val funType1 = TFunction(Array(it.elementType), body1.`type`)
         val funType2 = TFunction(Array(it), body2.`type`)
         `type` = FunctionRegistry.lookupMethodReturnType(it, funType1 +: funType2 +: rest.map(_.`type`), method)
