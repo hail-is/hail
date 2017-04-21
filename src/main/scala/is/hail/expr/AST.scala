@@ -204,14 +204,14 @@ object AST extends Positional {
     (stb, bc) <- CM.memoize(b.compile());
     (stc, cc) <- CM.memoize(c.compile());
     (std, dc) <- CM.memoize(d.compile());
-    (ste, ec) <- CM.memoize(d.compile());
+    (ste, ec) <- CM.memoize(e.compile());
     gc <- g(ac.asInstanceOf[Code[T]], bc.asInstanceOf[Code[U]], cc.asInstanceOf[Code[V]], dc.asInstanceOf[Code[W]], ec.asInstanceOf[Code[X]])
   ) yield
     Code(sta, ac.ifNull(Code._null,
       Code(stb, bc.ifNull(Code._null,
         Code(stc, cc.ifNull(Code._null,
           Code(std, dc.ifNull(Code._null,
-            Code(std, dc.ifNull(Code._null,gc)
+            Code(ste, ec.ifNull(Code._null,gc)
         )))))))))
 }
 
