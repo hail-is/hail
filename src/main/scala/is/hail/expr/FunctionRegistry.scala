@@ -1137,18 +1137,18 @@ object FunctionRegistry {
 
   register("pcoin", { (p: Double) => math.random < p },
     """
-    Returns true with probability ``p``.
+    Returns true with probability ``p``. This function is non-deterministic.
     """,
     "p" -> "Probability. Should be between 0.0 and 1.0.")
   register("runif", { (min: Double, max: Double) => min + (max - min) * math.random },
     """
-    Returns a random draw from a uniform distribution on [``min``, ``max``). ``min`` should be less than or equal to ``max``.
+    Returns a random draw from a uniform distribution on [``min``, ``max``). ``min`` should be less than or equal to ``max``. This function is non-deterministic.
     """,
     "min" -> "Minimum value of interval.",
     "max" -> "Maximum value of interval, non-inclusive.")
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() },
     """
-    Returns a random draw from a normal distribution with mean ``mean`` and standard deviation ``sd``. ``sd`` should be non-negative.
+    Returns a random draw from a normal distribution with mean ``mean`` and standard deviation ``sd``. ``sd`` should be non-negative. This function is non-deterministic.
     """,
     "mean" -> "Mean value of normal distribution.",
     "sd" -> "Standard deviation of normal distribution.")
