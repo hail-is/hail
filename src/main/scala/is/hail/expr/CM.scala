@@ -162,9 +162,9 @@ object CM {
   def invokePrimitive4[A,B,C,D,R](f: (A, B, C, D) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D])
     (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], rct: ClassTag[R]) : CM[Code[R]] =
     foreignFun(f).map(_.invoke[R]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass), Array(a, b, c, d)))
-  def invokePrimitive5[A,B,C,D,R,O](f: (A, B, C, D, R) => O)(a: Code[A], b: Code[B], c: Code[C], d: Code[D], r:Code[R])
-    (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], rct: ClassTag[R], oct: ClassTag[O]) : CM[Code[O]] =
-    foreignFun(f).map(_.invoke[O]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass, rct.runtimeClass ), Array(a, b, c, d, r )))
+  def invokePrimitive5[A,B,C,D,E,R](f: (A, B, C, D, E) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D], e:Code[E])
+    (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], ect: ClassTag[E], rct: ClassTag[R]) : CM[Code[R]] =
+    foreignFun(f).map(_.invoke[R]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass, ect.runtimeClass ), Array(a, b, c, d, e )))
   def invokePrimitive6[A,B,C,D,E,F,R](fn: (A, B, C, D, E, F) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E], f: Code[F])
     (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], ect: ClassTag[E], fct: ClassTag[F], rct: ClassTag[R]) : CM[Code[R]] =
     foreignFun(fn).map(_.invoke[R]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass, ect.runtimeClass, fct.runtimeClass), Array(a, b, c, d, e, f)))
