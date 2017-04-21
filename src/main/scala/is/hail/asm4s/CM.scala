@@ -5,10 +5,10 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object preCM {
-  case class E(m: Map[String, (ClassTag[T], Code[T]) forSome { type T <: AnyRef }], fb: Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef])
+  case class E(m: Map[String, (TypeInfo[T], Code[T]) forSome { type T <: AnyRef }], fb: Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef])
   case class S(fa: Array[AnyRef], st: AnyRef)
 
-  def emptyE = E(Map[String, (ClassTag[T], Code[T]) forSome { type T <: AnyRef }](), new Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]())
+  def emptyE = E(Map[String, (TypeInfo[T], Code[T]) forSome { type T <: AnyRef }](), new Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]())
   def emptyS(ec: AnyRef) = S(Array[AnyRef](), ec)
 }
 
@@ -48,16 +48,16 @@ case class CM[+T](mt: (E, S) => (T, S)) {
       }
     }
   }
-  def run(bindings: Seq[(String, ClassTag[T], T) forSome { type T <: AnyRef }], s0: AnyRef)(implicit ev: T <:< Code[AnyRef]): () => AnyRef = {
-    val typedNames = bindings.map { case (name, ct, _) => (name, ct) }
-    val values: mutable.ArrayBuffer[AnyRef] = bindings.map(_._3).to[mutable.ArrayBuffer]
+  def run(bindings: Seq[(String, (TypeInfo[T], T) forSome { type T <: AnyRef })], s0: AnyRef)(implicit ev: T <:< Code[AnyRef]): () => AnyRef = {
+    val typedNames = bindings.map { case (name, (ti, _)) => (name, ti) }
+    val values: mutable.ArrayBuffer[AnyRef] = bindings.map { case (_, (_, v)) => v } .to[mutable.ArrayBuffer]
     val f: mutable.ArrayBuffer[AnyRef] => AnyRef = runWithDelayedValues(typedNames, s0)
 
     () => f(values)
   }
-  def runWithDelayedValues(typedNames: Seq[(String, ClassTag[_ <: AnyRef])], s0: AnyRef)(implicit ev: T <:< Code[AnyRef]): mutable.ArrayBuffer[AnyRef] => AnyRef = {
+  def runWithDelayedValues(typedNames: Seq[(String, TypeInfo[_ <: AnyRef])], s0: AnyRef)(implicit ev: T <:< Code[AnyRef]): mutable.ArrayBuffer[AnyRef] => AnyRef = {
     val e = emptyE
-    def createBinding[T <: AnyRef](name: String, ct: ClassTag[T], i: Int): (String, (ClassTag[U], Code[U]) forSome { type U <: AnyRef }) =
+    def createBinding[T <: AnyRef](name: String, ct: TypeInfo[T], i: Int): (String, (TypeInfo[U], Code[U]) forSome { type U <: AnyRef }) =
       (name, (ct, Code.checkcast[T](e.fb.arg2.invoke[Int, AnyRef]("apply", i))(ct)))
 
     val codeBindings = typedNames.zipWithIndex.map { case ((name, ct), i) => createBinding(name, ct, i) }
@@ -87,7 +87,7 @@ object CM {
   def ret[T](t: T): CM[T] = CM((e,a) => (t, a))
 
   def fb(): CM[Function2Builder[Array[AnyRef],mutable.ArrayBuffer[AnyRef],AnyRef]] = CM { (e, s) => (e.fb, s) }
-  def availableBindings(): CM[Map[String, (ClassTag[T], Code[T]) forSome { type T }]] = CM { case (e, s) => (e.m, s) }
+  def availableBindings(): CM[Map[String, (TypeInfo[T], Code[T]) forSome { type T }]] = CM { case (e, s) => (e.m, s) }
 
   def addForeignFun(f: AnyRef): CM[Int] = CM { (e, s) => (s.fa.length, s.copy(fa = f +: s.fa)) }
   def foreignFunArray(): CM[Code[Array[AnyRef]]] = fb().map(_.arg1)
@@ -113,19 +113,19 @@ object CM {
   def bindInRaw[U <: AnyRef, T](name: String, typ: TypeInfo[U], c: Code[U])(body: CM[Code[T]]): CM[Code[T]] = CM { case (e, s) =>
     body.mt(e.copy(m = e.m + ((name, (typ, c)))), s)
   }
-  def bindRepInRaw[T](bindings: Seq[(String, TypeInfo[U], CM[Code[U]]) forSome { type U }])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
+  def bindRepInRaw[T](bindings: Seq[(String, (TypeInfo[U], CM[Code[U]]) forSome { type U <: AnyRef })])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
     case Seq() => body
-    case Seq((name, typ, cmc), rest @ _*) =>
+    case Seq((name, (typ, cmc)), rest @ _*) =>
       cmc.flatMap(c => bindInRaw(name, typ, c)(bindRepInRaw(rest)(body)))
   }
   // its argument is stored in a local variable, only refernece to the variable
   // are dupliacted
-  def bindIn[U <: AnyRef, T](name: String, ct: TypeInfo[U], c: Code[U])(body: CM[Code[T]]): CM[Code[T]] =
-    memoize(c).flatMap { case (st, v) => bindInRaw(name, ct, v)(body.map(x => Code(st, x))) }
-  def bindRepIn[T](bindings: Seq[(String, TypeInfo[U], CM[Code[U]]) forSome { type U }])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
+  def bindIn[U <: AnyRef, T](name: String, ti: TypeInfo[U], c: Code[U])(body: CM[Code[T]]): CM[Code[T]] =
+    memoize(c)(ti).flatMap { case (st, v) => bindInRaw(name, ti, v)(body.map(x => Code(st, x))) }
+  def bindRepIn[T](bindings: Seq[(String, (TypeInfo[U], CM[Code[U]]) forSome { type U <: AnyRef })])(body: CM[Code[T]]): CM[Code[T]] = bindings match {
     case Seq() => body
-    case Seq((name, ct, cmc), rest @ _*) =>
-      cmc.flatMap(c => bindIn(name, ct, c)(bindRepIn(rest)(body)))
+    case Seq((name, (ti, cmc)), rest @ _*) =>
+      cmc.flatMap(c => bindIn(name, ti, c)(bindRepIn(rest)(body)))
   }
   def lookup(name: String): CM[Code[_ <: AnyRef]] = CM { case (e, s) =>
     (e.m(name)._2, s)
@@ -152,27 +152,32 @@ object CM {
   def invokePrimitive6[A,B,C,D,E,F,R](fn: (A, B, C, D, E, F) => R)(a: Code[A], b: Code[B], c: Code[C], d: Code[D], e: Code[E], f: Code[F])
     (implicit act: ClassTag[A], bct: ClassTag[B], cct: ClassTag[C], dct: ClassTag[D], ect: ClassTag[E], fct: ClassTag[F], rct: ClassTag[R]) : CM[Code[R]] =
     foreignFun(fn).map(_.invoke[R]("apply", Array[Class[_]](act.runtimeClass, bct.runtimeClass, cct.runtimeClass, dct.runtimeClass, ect.runtimeClass, fct.runtimeClass), Array(a, b, c, d, e, f)))
-  def createLambda[T <: AnyRef](name: String, ct: ClassTag[_ <: AnyRef], body: CM[Code[T]])(implicit tti: TypeInfo[T]): CM[Code[(AnyRef) => T]] = {
+  def createLambda[T <: AnyRef](name: String, ti: TypeInfo[_ <: AnyRef], body: CM[Code[T]])(implicit tti: TypeInfo[T]): CM[Code[(AnyRef) => T]] = {
+    def typeAndCastedCode[T <: AnyRef](ti: TypeInfo[T], c: Code[_ <: AnyRef]): (TypeInfo[U], Code[U]) forSome { type U <: AnyRef } =
+      (ti, Code.checkcast(c)(ti))
+
     val cc = (for (
       v <- initialValueArray();
-      result <- bindInRaw(name, ct, Code.checkcast(v.invoke[Int, AnyRef]("apply", 0))(ct))(body)
+      // this is purely to convince the compiler of the types
+      (ti2, c) = typeAndCastedCode(ti, v.invoke[Int, AnyRef]("apply", 0));
+      result <- bindInRaw(name, ti2, c)(body)
     ) yield result)
     for (
       bindings <- availableBindings();
       cvalues = CMHelp.arrayOf[AnyRef](bindings.map { case (_, (_, code)) => code }.toIndexedSeq);
       st <- st();
-      compiledCode = cc.runWithDelayedValues((name, ct) +: bindings.map { case (name, (ct, _)) => (name, ct) }.toSeq, st);
+      compiledCode = cc.runWithDelayedValues((name, ti) +: bindings.map { case (name, (ti, _)) => (name, ti) }.toSeq, st);
       f <- invokePrimitive1(((vs: Array[AnyRef]) => (x: AnyRef) => compiledCode((x +: vs).to[mutable.ArrayBuffer])).asInstanceOf[AnyRef => AnyRef])(cvalues)
     ) yield f.asInstanceOf[Code[AnyRef => T]]
   }
 
-  def oOrNull[T >: Null](x: Code[Option[T]])(implicit tct: ClassTag[T]): CM[Code[T]] =
+  def oOrNull[T >: Null](x: Code[Option[T]])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CM[Code[T]] =
     CM.memoize(x).map { case (st, opt) => Code(st, opt.invoke[Boolean]("isEmpty").mux(Code._null[T], opt.invoke[T]("get"))) }
 
-  def mapO[T, U >: Null](x: Code[Option[T]], f: Code[T] => Code[U])(implicit tct: ClassTag[T]): CM[Code[U]] =
+  def mapO[T, U >: Null](x: Code[Option[T]], f: Code[T] => Code[U])(implicit tti: TypeInfo[T], tct: ClassTag[T]): CM[Code[U]] =
     CM.memoize(x).map { case (st, opt) => Code(st, opt.invoke[Boolean]("isEmpty").mux(Code._null[U], f(opt.invoke[T]("get")))) }
 
-  def mapOM[T, U >: Null](x: Code[Option[T]], f: Code[T] => CM[Code[U]])(implicit tct: ClassTag[T], uti: TypeInfo[U]): CM[Code[U]] = for (
+  def mapOM[T, U >: Null](x: Code[Option[T]], f: Code[T] => CM[Code[U]])(implicit tti: TypeInfo[T], uti: TypeInfo[U], tct: ClassTag[T]): CM[Code[U]] = for (
     (st, opt) <- CM.memoize(x);
     out <- f(opt.invoke[T]("get"))
   ) yield

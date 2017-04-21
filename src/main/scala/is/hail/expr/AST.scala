@@ -236,7 +236,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   def runAggregator(ec: EvalContext): CPS[Any] = {
     val typedNames = ec.st.toSeq
       .sortBy { case (_, (i, _)) => i }
-      .map { case (name, (_, typ)) => (name, typ.scalaClassTag) }
+      .map { case (name, (_, typ)) => (name, typ.typeInfo) }
     val values = ec.a.asInstanceOf[mutable.ArrayBuffer[AnyRef]]
 
     val idx = ec.a.length
@@ -308,7 +308,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case t: TStruct =>
       val Some(f) = t.selfField(rhs)
       val i = f.index
-      AST.evalComposeCode[Row](lhs) { r: Code[Row] => Code.checkcast(r.invoke[Int, AnyRef]("get", i))(f.typ.scalaClassTag) }
+      AST.evalComposeCode[Row](lhs) { r: Code[Row] => Code.checkcast(r.invoke[Int, AnyRef]("get", i))(f.typ.typeInfo) }
 
     case t =>
       val localPos = posn
@@ -644,10 +644,10 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
-  private def trustme[T](name: String, tct: ClassTag[T], ast: AST) = (name, tct, ast.compile().asInstanceOf[CM[Code[T]]])
-
+  // the compilation process ensures that types are respected
+  // FIXME: return the correct type with the compilation process
   def compile() =
-    CM.bindRepIn(bindings.map { case (name, expr) => trustme(name, expr.`type`.scalaClassTag, expr) })(body.compile())
+    CM.bindRepIn(bindings.map { case (name, expr) => (name, unsafeCastCode(expr.`type`.typeInfo, expr.compile())) })(body.compile())
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {

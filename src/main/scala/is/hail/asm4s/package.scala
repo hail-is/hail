@@ -122,7 +122,7 @@ package object asm4s {
   implicit def classInfo[C <: AnyRef](implicit cct: ClassTag[C]): TypeInfo[C] = {
     new TypeInfo[C] {
       val name = Type.getDescriptor(cct.runtimeClass)
-      val iname = Type.getInternalName(cct.runtimeClass)
+      override val iname = Type.getInternalName(cct.runtimeClass)
       val loadOp = ALOAD
       val storeOp = ASTORE
       val aloadOp = AALOAD
@@ -136,7 +136,7 @@ package object asm4s {
   implicit def arrayInfo[T](implicit tct: ClassTag[Array[T]]): TypeInfo[Array[T]] = {
     new TypeInfo[Array[T]] {
       val name = Type.getDescriptor(tct.runtimeClass)
-      val iname = Type.getInternalName(tct.runtimeClass)
+      override val iname = Type.getInternalName(tct.runtimeClass)
       val loadOp = ALOAD
       val storeOp = ASTORE
       val aloadOp = AALOAD

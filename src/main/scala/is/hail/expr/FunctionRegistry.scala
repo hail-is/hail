@@ -123,7 +123,7 @@ object FunctionRegistry {
           AST.evalComposeCodeM[t](lhs)(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
         case fn =>
           throw new RuntimeException(s"Internal hail error, bad binding in function registry for `$name' with argument types $typ, $typs: $fn")
-      }).map(Code.checkcast(_)(f.retType.scalaClassTag))
+      }).map(Code.checkcast(_)(f.retType.typeInfo))
     }
   }
 
@@ -192,10 +192,10 @@ object FunctionRegistry {
             fb <- fb();
             bindings = (bodyST.toSeq
               .map { case (name, (i, typ)) =>
-              (name, typ.scalaClassTag, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType.scalaClassTag, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
+              (name, castCode(typ.typeInfo, ret(fb.arg2.invoke[Int, AnyRef]("apply", i))))
+            } :+ ((param, castCode(paramType.typeInfo, ret(fb.arg2.invoke[Int, AnyRef]("apply", idx))))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.scalaClassTag) }, ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.typeInfo) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -225,10 +225,10 @@ object FunctionRegistry {
             fb <- fb();
             bindings = (bodyST.toSeq
               .map { case (name, (i, typ)) =>
-              (name, typ.scalaClassTag, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType.scalaClassTag, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
+              (name, castCode(typ.typeInfo, ret(fb.arg2.invoke[Int, AnyRef]("apply", i))))
+            } :+ ((param, castCode(paramType.typeInfo, ret(fb.arg2.invoke[Int, AnyRef]("apply", idx))))));
             res <- bindRepInRaw(bindings)(body.compile())
-          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.scalaClassTag) }, ec);
+          ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ.typeInfo) }, ec);
 
           g = (x: Any) => {
             localA(idx) = x
@@ -276,7 +276,7 @@ object FunctionRegistry {
           f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any]).asInstanceOf[AnyRef])
 
         for (
-          lamc <- createLambda(param, paramType.scalaClassTag, body.compile());
+          lamc <- createLambda(param, paramType.typeInfo, body.compile());
           res <- AST.evalComposeCodeM(args(0)) { xs =>
             invokePrimitive2[AnyRef, AnyRef, AnyRef](g)(xs, lamc)
           }
@@ -295,7 +295,7 @@ object FunctionRegistry {
           f(xs.asInstanceOf[t], lam.asInstanceOf[Any => Any], y.asInstanceOf[v]).asInstanceOf[AnyRef])
 
         for (
-          lamc <- createLambda(param, paramType.scalaClassTag, body.compile());
+          lamc <- createLambda(param, paramType.typeInfo, body.compile());
           res <- AST.evalComposeCodeM(args(0), args(2)) { (xs, y) =>
             invokePrimitive3[AnyRef, AnyRef, AnyRef, AnyRef](g)(xs, lamc, y)
           }
@@ -342,7 +342,7 @@ object FunctionRegistry {
       }
       case x =>
         throw new RuntimeException(s"Internal hail error, unexpected Fun type: ${x.getClass} $x")
-    }).map(Code.checkcast(_)(m.retType.scalaClassTag))
+    }).map(Code.checkcast(_)(m.retType.typeInfo))
   }
 
   def callAggregatorTransformation(typ: Type, typs: Seq[Type], name: String)(lhs: AST, args: Seq[AST]): CMCodeCPS[AnyRef] = {
@@ -369,13 +369,14 @@ object FunctionRegistry {
           fb <- fb();
 
           externalBindings = bodyST.toSeq.map { case (name, (i, typ)) =>
-            (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+            (name, castCode(typ.typeInfo, ret(fb.arg2.invoke[Int, AnyRef]("apply", i))))
           };
 
           g = { (_x: Code[AnyRef]) =>
             for (
               (stx, x) <- memoize(_x);
-              bindings = externalBindings :+ ((param, paramType.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], ret(x)));
+              // the following is safe because the compilation process fails if the paramType doesn't match
+              bindings = externalBindings :+ ((param, unsafeCastCode(paramType.typeInfo, ret(x))));
               cbody <- bindRepInRaw(bindings)(body.compile())
             ) yield Code(stx, cbody)
           } : (Code[AnyRef] => CM[Code[AnyRef]]);

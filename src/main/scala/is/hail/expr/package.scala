@@ -2,7 +2,7 @@ package is.hail
 
 import scala.collection.mutable
 import scala.language.implicitConversions
-import is.hail.asm4s.{CM, Code}
+import is.hail.asm4s.{CM, Code, TypeInfo}
 
 package object expr extends HailRepFunctions {
   type SymbolTable = Map[String, (Int, Type)]
@@ -48,5 +48,10 @@ package object expr extends HailRepFunctions {
     ec.aggregations += ((b, lhs.runAggregator(ec), agg))
     () => b.v
   }
+
+  def castCode[T](ti: TypeInfo[T], c: CM[Code[AnyRef]]): (TypeInfo[T], CM[Code[T]]) =
+    (ti, c.map(Code.checkcast(_)(ti)))
+
+  def unsafeCastCode[T](ti: TypeInfo[T], c: CM[Code[AnyRef]]) = (ti, c.asInstanceOf[CM[Code[T]]])
 
 }

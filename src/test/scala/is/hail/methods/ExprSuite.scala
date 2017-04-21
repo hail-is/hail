@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.asm4s
 import is.hail.TestUtils._
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
@@ -147,7 +148,7 @@ class ExprSuite extends SparkSuite {
       .sortBy { case (name, (i, _)) => i }
       .map { case (name, (_, typ)) => (name, typ) }
       .zip(a)
-      .map { case ((name, typ), value) => (name, typ.scalaClassTag.asInstanceOf[ClassTag[AnyRef]], value.asInstanceOf[AnyRef]) }
+      .map { case ((name, typ), value) => (name, (typ.typeInfo.asInstanceOf[asm4s.TypeInfo[AnyRef]], value.asInstanceOf[AnyRef])) }
 
     def eval[T](s: String): Option[T] = {
       val compiledCode = Parser.parseToAST(s, ec).compile().run(bindings, ec)
