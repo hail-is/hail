@@ -407,7 +407,7 @@ class AggregatorSuite extends SparkSuite {
     groupedNonces.forall { case (v, m) => m == Map("EUR" -> v, "EAS" -> v) }
   }
 
-  @Test def groupByDownstreamAggregatorHasNoGBinding() {
+  @Test def groupByDownstreamAggregatorHasGBinding() {
     val vds = VariantSampleMatrix.gen(hc, VSMSubgen.random)
       .map(vds => vds.annotateSamplesExpr("sa.pop = if (pcoin(0.5)) \"EUR\" else \"EAS\""))
       .sample()
