@@ -4,7 +4,7 @@ import breeze.linalg.DenseVector
 import is.hail.annotations.Annotation
 import is.hail.asm4s.Code._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.CompilationHelp.arrayToWrappedArray
+import is.hail.asm4s.CMHelp.arrayToWrappedArray
 import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
