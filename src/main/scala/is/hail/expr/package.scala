@@ -52,6 +52,7 @@ package object expr extends HailRepFunctions {
   def castCode[T](ti: TypeInfo[T], c: CM[Code[AnyRef]]): (TypeInfo[T], CM[Code[T]]) =
     (ti, c.map(Code.checkcast(_)(ti)))
 
-  def unsafeCastCode[T](ti: TypeInfo[T], c: CM[Code[AnyRef]]) = (ti, c.asInstanceOf[CM[Code[T]]])
+  def unsafeCastCode[T](ti: TypeInfo[T], c: CM[Code[AnyRef]]): (TypeInfo[T], CM[Code[T]]) =
+    (ti, c.asInstanceOf[CM[Code[T]]])
 
 }
