@@ -120,11 +120,11 @@ object RegressionUtils {
   def setLastColumnToMaskedGts(X: DenseMatrix[Double], gts: HailIterator[Double], mask: Array[Boolean], useHardCalls: Boolean): Boolean = {
     require(X.offset == 0 && X.majorStride == X.rows && !X.isTranspose)
 
-    val nSamples = X.rows
+    val nMaskedSamples = X.rows
     val k = X.cols - 1
     var missingIndices = new ArrayBuilder[Int]()
     var i = 0
-    var j = k * nSamples
+    var j = k * nMaskedSamples
     var gtSum = 0d
     while (i < mask.length) {
       val gt = gts.next()
@@ -140,7 +140,7 @@ object RegressionUtils {
     }
 
     val missingIndicesArray = missingIndices.result()
-    val nPresent = nSamples - missingIndicesArray.size
+    val nPresent = nMaskedSamples - missingIndicesArray.size
 
     if (nPresent > 0) {
       val gtMean = gtSum / nPresent
@@ -153,7 +153,7 @@ object RegressionUtils {
     }
 
     (useHardCalls &&
-      !(gtSum == 0 || gtSum == 2 * nPresent || (gtSum == nPresent && X.data.drop(nSamples * k).forall(_ == 1d)))) ||
+      !(gtSum == 0 || gtSum == 2 * nPresent || (gtSum == nPresent && X.data.drop(nMaskedSamples * k).forall(_ == 1d)))) ||
       (!useHardCalls && nPresent > 0)
   }
 
