@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import breeze.linalg.{DenseMatrix, DenseVector, min}
+import breeze.linalg._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import is.hail.annotations.Annotation
 import scala.collection.mutable.HashSet
@@ -9,7 +9,7 @@ import scala.util.Random
 
 object MinHash {
   // returns a k by vds.nSamples matrix
-  def kMinHash(vds: VariantDataset, k: Int): DenseMatrix[Int] = {
+  def MinHash(vds: VariantDataset, k: Int): DenseMatrix[Int] = {
     val n = vds.nSamples
     def seqOp(l: DenseMatrix[Int], r: (Variant, (Annotation, Iterable[Genotype]))): DenseMatrix[Int] = r match {
       case (_, (_, gs)) =>
@@ -28,37 +28,60 @@ object MinHash {
   }
 
   //mat is a k-by-n matrix, which will be split into r-by-n submatrices for Min-LSH
-  def findSimilarPairs(mat: DenseMatrix[Int], r: Int): Set[(Int, Int)] =
-    findSimilarPairs(mat, r, mat.rows / r)
+  def findSimilarPairs(mat: DenseMatrix[Int], blockSize: Int): Set[(Int, Int)] =
+    findSimilarPairs(mat, blockSize, mat.rows / blockSize)
 
   // specifying l might be helpful for trying different parameters without recomputing minHash
-  def findSimilarPairs(mat: DenseMatrix[Int], r: Int, l: Int): Set[(Int, Int)] = {
-    require(r*l <= mat.rows)
+  def findSimilarPairs(mat: DenseMatrix[Int], blockSize: Int, numBlocks: Int): Set[(Int, Int)] = {
+    require(blockSize * numBlocks <= mat.rows)
     val n = mat.cols
     val simPairs = HashSet[(Int, Int)]()
     for {
-      i <- 0 until l
-      matches = Range(0,n).groupBy(j => MH3.orderedHash(mat(i*r until (i+1)*r, j).valuesIterator))
+      i <- 0 until numBlocks
+      matches = Range(0, n).groupBy(j =>
+        MH3.orderedHash( mat(i * blockSize until (i + 1) * blockSize, j).valuesIterator )
+      )
       hash <- matches.keys
       a <- matches(hash)
       b <- matches(hash)
       if a < b
-    } simPairs += ((a,b))
+    } simPairs += ((a, b))
     simPairs.toSet
   }
 
-  def approxJacaardDist(mat: DenseMatrix[Int]): DenseMatrix[Double] = {
+  // takes k-by-n matrix, returns n-by-n symmetric similarity matrix
+  def approxJacaardDistance(mat: DenseMatrix[Int]): DenseMatrix[Double] = {
     val k = mat.rows
     val n = mat.cols
-    val dist = DenseMatrix.zeros[Double](n,n)
-    val inc = 1.0/k
+    val dist = DenseMatrix.zeros[Double](n, n)
+    val inc = 1.0 / k
     for {
       i <- 0 until k
-      matches = Range(0,n).groupBy(mat(i,_))
+      matches = Range(0,n).groupBy(mat(i, _))
       hash <- matches.keys
       a <- matches(hash)
       b <- matches(hash)
-    } dist(a,b) += inc
+    } dist(a, b) += inc
     dist
+  }
+
+  // takes a binary n-by-m matrix, returns an n-by-n symmetric similarity matrix
+  def trueJacaardDistance(mat: DenseMatrix[Int]): DenseMatrix[Double] = {
+    val n = mat.rows
+    val m = mat.cols
+
+    val counts = sum(mat(*, ::))
+    val intersections = DenseMatrix.zeros[Double](n,n)
+    for {
+      j <- 0 until m
+      occurrences = Range(0, n).filter(mat(_, j) == 1)
+      a <- occurrences
+      b <- occurrences
+    } intersections(a, b) += 1
+
+    for (i <- 0 until n; j <- 0 until n; if intersections(i, j) != 0)
+      intersections(i, j) /= counts(i) + counts(j) - intersections(i, j)
+
+    intersections
   }
 }
