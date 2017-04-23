@@ -6,10 +6,11 @@ import is.hail.annotations.Annotation
 import scala.collection.mutable.HashSet
 import scala.util.hashing.{MurmurHash3 => MH3}
 import scala.util.Random
+import scala.collection.immutable.SortedMap
 
 object MinHash {
   // returns a k by vds.nSamples matrix
-  def MinHash(vds: VariantDataset, k: Int): DenseMatrix[Int] = {
+  def apply(vds: VariantDataset, k: Int): DenseMatrix[Int] = {
     val n = vds.nSamples
     def seqOp(l: DenseMatrix[Int], r: (Variant, (Annotation, Iterable[Genotype]))): DenseMatrix[Int] = r match {
       case (_, (_, gs)) =>
@@ -83,5 +84,38 @@ object MinHash {
       intersections(i, j) /= counts(i) + counts(j) - intersections(i, j)
 
     intersections
+  }
+
+  def hitProb(sim: Double, numBlocks: Int, blockSize: Int): Double =
+    1 - math.pow(1 - math.pow(sim, blockSize), numBlocks)
+
+  def falseNegRate(blockSize: Int, numBlocks: Int, simThresh: Double, simDist: SortedMap[Double, Double]): Double =
+    simDist.from(simThresh).map{case (sim, rate) => rate * (1 - hitProb(sim, numBlocks, blockSize))}.sum
+
+  def falsePosRate(blockSize: Int, numBlocks: Int, simThresh: Double, simDist: SortedMap[Double, Double]): Double =
+    simDist.until(simThresh).map{case (sim, rate) => rate * hitProb(sim, numBlocks, blockSize)}.sum
+
+  def optimizeNumBlocks(blockSize: Int, falseNegThresh: Double,
+                        simThresh: Double, simDist: SortedMap[Double, Double]): Int = {
+
+    // maintain falseNegRate(numBlocksBot, blockSize) > falseNegThresh,
+    // falseNegRate(numBlocksTop, blockSize) <= falseNegThresh
+    def binarySearch(numBlocksBot: Int, numBlocksTop: Int, blockSize: Int): Int = {
+      if (numBlocksTop - numBlocksBot <= 1)
+        numBlocksBot
+      else {
+        val mid = (numBlocksBot + numBlocksTop) / 2
+        if (falseNegRate(blockSize, mid, simThresh, simDist) <= falseNegThresh)
+          binarySearch(numBlocksBot, mid, blockSize)
+        else
+          binarySearch(mid, numBlocksTop, blockSize)
+      }
+    }
+
+    val start = ((math.pow(simThresh, blockSize) + blockSize - 1) /
+                 (blockSize * math.pow(simThresh, blockSize))).toInt
+    var i = 1
+    while (falseNegRate(blockSize, i * start, simThresh, simDist) > falseNegThresh) i *= 2
+    binarySearch((i / 2) * start, i * start, blockSize)
   }
 }

@@ -17,11 +17,11 @@ class MinHashSuite extends SparkSuite {
 
     val vds = stats.vdsFromMatrix(hc)(genotypes)
 
-    val m = MinHash.MinHash(vds,k)
-    for (i <- 0 until k) assert(m(i,3) == math.min(m(i,0),m(i,1)))
-    for (i <- 0 until k) assert(m(i,4) == math.min(m(i,0),m(i,2)))
-    for (i <- 0 until k) assert(m(i,5) == math.min(m(i,1),m(i,2)))
-    for (i <- 0 until k) assert(m(i,6) == math.min(m(i,0),math.min(m(i,1),m(i,2))))
+    val m = MinHash.apply(vds,k)
+    for (i <- 0 until k) assert(m(i,3) == math.min(m(i,0), m(i,1)))
+    for (i <- 0 until k) assert(m(i,4) == math.min(m(i,0), m(i,2)))
+    for (i <- 0 until k) assert(m(i,5) == math.min(m(i,1), m(i,2)))
+    for (i <- 0 until k) assert(m(i,6) == math.min(m(i,0), math.min(m(i,1), m(i,2))))
     for (i <- 0 until k) assert(m(i,7) == Int.MaxValue)
   }
 
@@ -52,7 +52,7 @@ class MinHashSuite extends SparkSuite {
       (-1175354349,  1291508146,  1728036926, -1175354349, -1175354349,  1291508146, -1175354349)
     )
     val simPairs = Set((0,3), (0,4), (0,6), (1,3), (2,4), (3,4), (3,6), (4,6), (5,6))
-    assert(MinHash.findSimilarPairs(minHash,2) == simPairs)
+    assert(MinHash.findSimilarPairs(minHash, 2) == simPairs)
   }
 
   @Test def trueJacaardTest() = {
@@ -71,6 +71,21 @@ class MinHashSuite extends SparkSuite {
       (  0.0,   0.0,   0.0,   0.0,   0.0,   0.0,   0.0, 0.0)
     )
 
-    assert(MinHash.trueJacaardDistance(genotypes.map(v => if (v>0) 1 else 0)) == jacaardDist)
+    assert(MinHash.trueJacaardDistance(genotypes.map(v => if (v > 0) 1 else 0)) == jacaardDist)
+  }
+
+  @Test def optimizeParamsTest() = {
+    val simDist = scala.collection.immutable.SortedMap[Double, Double](0.01 -> 0.5, 0.1 -> 0.3, 0.25 -> 0.1, 0.5 -> 0.1)
+    val simThresh = 0.3
+    val falseNegThresh = 0.01
+    var blockSize = 2
+    var numBlocks = MinHash.optimizeNumBlocks(blockSize, falseNegThresh, simThresh, simDist)
+    println(s"r = $blockSize, l = $numBlocks, rl = ${blockSize * numBlocks}," +
+      s" false pos = ${MinHash.falsePosRate(blockSize, numBlocks, simThresh, simDist)}")
+
+    blockSize = 5
+    numBlocks = MinHash.optimizeNumBlocks(blockSize, falseNegThresh, simThresh, simDist)
+    println(s"r = $blockSize, l = $numBlocks, rl = ${blockSize * numBlocks}," +
+      s" false pos = ${MinHash.falsePosRate(blockSize, numBlocks, simThresh, simDist)}")
   }
 }
