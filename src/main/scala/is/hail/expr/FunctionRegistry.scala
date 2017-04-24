@@ -194,8 +194,8 @@ object FunctionRegistry {
             fb <- fb();
             bindings = (bodyST.toSeq
               .map { case (name, (i, typ)) =>
-              (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
+                (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+              } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
           ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
 
@@ -227,8 +227,8 @@ object FunctionRegistry {
             fb <- fb();
             bindings = (bodyST.toSeq
               .map { case (name, (i, typ)) =>
-              (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
-            } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
+                (name, typ, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", i))(typ.scalaClassTag)))
+              } :+ ((param, paramType, ret(Code.checkcast(fb.arg2.invoke[Int, AnyRef]("apply", idx))(paramType.scalaClassTag)))));
             res <- bindRepInRaw(bindings)(body.compile())
           ) yield res).runWithDelayedValues(bodyST.toSeq.map { case (name, (_, typ)) => (name, typ) }, ec);
 
@@ -317,19 +317,19 @@ object FunctionRegistry {
       }
       case f: Arity4Fun[_, _, _, _, _] =>
         AST.evalComposeCodeM(args(0), args(1), args(2), args(3))(invokePrimitive4(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
-      case f: Arity5Fun[_, _, _, _, _,_] =>
-        AST.evalComposeCodeM(args(0), args(1), args(2), args(3), args(4) )(invokePrimitive5(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
+      case f: Arity5Fun[_, _, _, _, _, _] =>
+        AST.evalComposeCodeM(args(0), args(1), args(2), args(3), args(4))(invokePrimitive5(f.asInstanceOf[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef) => AnyRef]))
       case f: UnaryFunCode[t, u] =>
         AST.evalComposeCodeM[t](args(0))(f.asInstanceOf[Code[t] => CM[Code[AnyRef]]])
       case f: BinaryFunCode[t, u, v] =>
-        AST.evalComposeCodeM[t,u](args(0), args(1))(f.asInstanceOf[(Code[t], Code[u]) => CM[Code[AnyRef]]])
-      case f: BinarySpecialCode[t, u, v] => for(
+        AST.evalComposeCodeM[t, u](args(0), args(1))(f.asInstanceOf[(Code[t], Code[u]) => CM[Code[AnyRef]]])
+      case f: BinarySpecialCode[t, u, v] => for (
         a0 <- args(0).compile();
         a1 <- args(1).compile();
         result <- f(a0.asInstanceOf[Code[t]], a1.asInstanceOf[Code[u]]))
         yield result.asInstanceOf[Code[AnyRef]]
       case f: BinaryLambdaAggregatorTransformer[t, _, _] =>
-        throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : ${argTypes.mkString(",")}) in non-aggregator position")
+        throw new RuntimeException(s"Internal hail error, aggregator transformation ($name : ${ argTypes.mkString(",") }) in non-aggregator position")
       case f: Arity6Special[_, _, _, _, _, _, _] => {
         val g = ((t: AnyRef, u: AnyRef, v: AnyRef, w: AnyRef, x: AnyRef, y: AnyRef) =>
           f.asInstanceOf[(() => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef, () => AnyRef) => AnyRef](() => t, () => u, () => v, () => w, () => x, () => y))
@@ -345,7 +345,7 @@ object FunctionRegistry {
           yield result
       }
       case x =>
-        throw new RuntimeException(s"Internal hail error, unexpected Fun type: ${x.getClass} $x")
+        throw new RuntimeException(s"Internal hail error, unexpected Fun type: ${ x.getClass } $x")
     }).map(Code.checkcast(_)(m.retType.scalaClassTag))
   }
 
@@ -362,7 +362,8 @@ object FunctionRegistry {
         val Lambda(_, param, body) = args(0)
         val TFunction(Seq(paramType), _) = typs(0)
 
-        { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
+      { (k: Code[AnyRef] => CM[Code[Unit]]) =>
+        for (
           st <- currentSymbolTable();
 
           bodyST = lhs.`type` match {
@@ -382,12 +383,13 @@ object FunctionRegistry {
               bindings = externalBindings :+ ((param, paramType, ret(x)));
               cbody <- bindRepInRaw(bindings)(body.compile())
             ) yield Code(stx, cbody)
-          } : (Code[AnyRef] => CM[Code[AnyRef]]);
+          }: (Code[AnyRef] => CM[Code[AnyRef]]);
 
           res <- lhs.compileAggregator() { (t: Code[AnyRef]) =>
             f.fcode(t, g)(k)
           }
-        ) yield res }
+        ) yield res
+      }
       case _ =>
         throw new RuntimeException(s"Internal hail error, non-aggregator transformation, `$name' with argument types $typ, $typs, found in aggregator position")
     }
@@ -447,8 +449,8 @@ object FunctionRegistry {
   }
 
   def registerLambdaAggregatorTransformer[T, U, V](name: String, impl: (CPS[Any], (Any) => Any) => CPS[V],
-    codeImpl: (Code[AnyRef], Code[AnyRef] => CM[Code[AnyRef]]) => CMCodeCPS[AnyRef],
-    docstring: String, argNames: (String, String)*)
+      codeImpl: (Code[AnyRef], Code[AnyRef] => CM[Code[AnyRef]]) => CMCodeCPS[AnyRef],
+      docstring: String, argNames: (String, String)*)
     (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V]) = {
     val m = BinaryLambdaAggregatorTransformer[T, U, V](hrv.typ, impl, codeImpl)
     bind(name, MethodType(hrt.typ, hru.typ), m, MetaData(Option(docstring), argNames))
@@ -558,8 +560,8 @@ object FunctionRegistry {
   }
 
   def registerAnn[T, U, V, W, X](name: String, t: TStruct, impl: (T, U, V, W, X) => Annotation, docstring: String, argNames: (String, String)*)
-    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]  ) = {
-    register(name, impl, docstring, argNames: _*)(hrt, hru, hrv, hrw, hrx ,new HailRep[Annotation] {
+    (implicit hrt: HailRep[T], hru: HailRep[U], hrv: HailRep[V], hrw: HailRep[W], hrx: HailRep[X]) = {
+    register(name, impl, docstring, argNames: _*)(hrt, hru, hrv, hrw, hrx, new HailRep[Annotation] {
       def typ = t
     })
   }
@@ -609,10 +611,11 @@ object FunctionRegistry {
   }
 
   import is.hail.variant.Call._
-  registerField("gt", { (c: Call) => c}, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedintHr)
+
+  registerField("gt", { (c: Call) => c }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(callHr, boxedintHr)
   registerMethodSpecial("gtj", { (c: () => Any) => gtj(c().asInstanceOf[Call]) }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedintHr)
   registerMethodSpecial("gtk", { (c: () => Any) => gtk(c().asInstanceOf[Call]) }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")(callHr, boxedintHr)
-  registerMethodSpecial("isHomRef", { (c: () => Any) => isHomRef(c().asInstanceOf[Call])}, "True if this call is ``0/0``.")(callHr, boolHr)
+  registerMethodSpecial("isHomRef", { (c: () => Any) => isHomRef(c().asInstanceOf[Call]) }, "True if this call is ``0/0``.")(callHr, boolHr)
   registerMethodSpecial("isHet", { (c: () => Any) => isHet(c().asInstanceOf[Call]) }, "True if this call is heterozygous.")(callHr, boolHr)
   registerMethodSpecial("isHomVar", { (c: () => Any) => isHomVar(c().asInstanceOf[Call]) }, "True if this call is ``j/j`` with ``j>0``.")(callHr, boolHr)
   registerMethodSpecial("isCalledNonRef", { (c: () => Any) => isCalledNonRef(c().asInstanceOf[Call]) }, "True if either ``isHet`` or ``isHomVar`` is true.")(callHr, boolHr)
@@ -628,7 +631,8 @@ object FunctionRegistry {
     if (call != null && variant != null)
       oneHotAlleles(call, variant)
     else
-      null },
+      null
+  },
     """
     Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
     """,
@@ -639,7 +643,8 @@ object FunctionRegistry {
     if (call != null && variant != null)
       oneHotGenotype(call, variant)
     else
-      null },
+      null
+  },
     """
     Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
     """,
@@ -823,7 +828,7 @@ object FunctionRegistry {
     "start" -> "Starting number of the sequence.",
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
-  
+
   registerSpecial("Genotype", { (vF: () => Any, dosF: () => Any) =>
     val v = vF()
     val dos = dosF()
@@ -831,7 +836,8 @@ object FunctionRegistry {
     if (v == null)
       throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
 
-    Genotype(v.asInstanceOf[Variant].nAlleles, if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray) },
+    Genotype(v.asInstanceOf[Variant].nAlleles, if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray)
+  },
     """
     Construct a :ref:`genotype` object from a variant and an array of genotype probabilities.
 
@@ -850,7 +856,8 @@ object FunctionRegistry {
     if (v == null)
       throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
 
-    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer], if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray) },
+    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer], if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray)
+  },
     """
     Construct a :ref:`genotype` object from a variant, a genotype call, and an array of genotype probabilities.
 
@@ -872,7 +879,8 @@ object FunctionRegistry {
 
     Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer],
       if (ad == null) null else ad.asInstanceOf[IndexedSeq[Int]].toArray, dpF().asInstanceOf[java.lang.Integer],
-      gqF().asInstanceOf[java.lang.Integer], if (pl == null) null else pl.asInstanceOf[IndexedSeq[Int]].toArray) },
+      gqF().asInstanceOf[java.lang.Integer], if (pl == null) null else pl.asInstanceOf[IndexedSeq[Int]].toArray)
+  },
     """
     Construct a :ref:`genotype` object by specifying the variant, call, allelic depths, depth, genotype quality, and phred-scaled likelihoods.
 
@@ -886,7 +894,7 @@ object FunctionRegistry {
     """,
     "v" -> "Variant", "c" -> "Call", "ad" -> "Allelic depths", "dp" -> "Depth", "gq" -> "Genotype quality", "pl" -> "Phred-scaled likelihoods"
   )(variantHr, boxedintHr, arrayHr[Int], boxedintHr, boxedintHr, arrayHr[Int], genotypeHr)
-  
+
   register("Variant", { (x: String) => Variant.parse(x) },
     """
     Construct a :ref:`variant` object.
@@ -931,7 +939,7 @@ object FunctionRegistry {
   val combineVariantsStruct = TStruct(Array(("variant", TVariant, "Resulting combined variant."),
     ("laIndices", TDict(TInt, TInt), "Mapping from new to old allele index for the left variant."),
     ("raIndices", TDict(TInt, TInt), "Mapping from new to old allele index for the right variant.")
-    ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 
   registerAnn("combineVariants",
     combineVariantsStruct, { (left: Variant, right: Variant) =>
@@ -951,7 +959,7 @@ object FunctionRegistry {
       (0 until shorter.nAltAlleles).foreach({
         i =>
           val alt = shorter.altAlleles(i).alt + ref_diff
-          long_alleles_index.get(alt) match{
+          long_alleles_index.get(alt) match {
             case Some(ai) => short_alleles_index(ai + 1) = i + 1
             case None => short_alleles += AltAllele(longer.ref, alt)
               short_alleles_index(longer.nAltAlleles + short_alleles.length) = i + 1
@@ -1050,22 +1058,22 @@ object FunctionRegistry {
   )
 
 
-  def chisqTest(c1: Int, c2: Int, c3: Int, c4: Int): ( Option[Double], Option[Double]) = {
+  def chisqTest(c1: Int, c2: Int, c3: Int, c4: Int): (Option[Double], Option[Double]) = {
 
-    var or:Option[Double] = None
+    var or: Option[Double] = None
     var chisqp: Option[Double] = None
 
-    if (  Array( c1,c2,c3,c4).sum > 0  ) {
-      if ( c1>0 && c3==0 )
+    if (Array(c1, c2, c3, c4).sum > 0) {
+      if (c1 > 0 && c3 == 0)
         or = Option(Double.PositiveInfinity)
-      else if ( c3>0 && c1==0 )
+      else if (c3 > 0 && c1 == 0)
         or = Option(Double.NegativeInfinity)
-      else if (  (c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0)  )
-        or = Option( (c1 * c4) / (c2 * c3).toDouble)
-        chisqp = Option(chisq.chiSquareTest( Array( Array(c1, c2), Array(c3, c4) ) ))
+      else if ((c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0))
+        or = Option((c1 * c4) / (c2 * c3).toDouble)
+        chisqp = Option(chisq.chiSquareTest(Array(Array(c1, c2), Array(c3, c4))))
     }
 
-    ( chisqp, or)
+    (chisqp, or)
   }
 
 
@@ -1074,28 +1082,27 @@ object FunctionRegistry {
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
 
-    val res = chisqTest(c1,c2, c3,c4)
-    Annotation( res._1.orNull, res._2.orNull)
+    val res = chisqTest(c1, c2, c3, c4)
+    Annotation(res._1.orNull, res._2.orNull)
   },
     """ Calculates p-value (Chi-square approximation) and odds ratio for 2x2 table """,
     "c1" -> "value for cell 1", "c2" -> "value for cell 2", "c3" -> "value for cell 3", "c4" -> "value for cell 4"
   )
 
-  registerAnn("ctTest", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int, minCellCount:Int) =>
+  registerAnn("ctTest", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int, minCellCount: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
 
-    if (  Vector(c1, c2, c3, c4 ).exists( _ < minCellCount )  ) {
+    if (Vector(c1, c2, c3, c4).exists(_ < minCellCount)) {
       val fet = FisherExactTest(c1, c2, c3, c4)
       Annotation(fet(0).orNull, fet(1).orNull)
-    }
-    else {
-      val res = chisqTest(c1,c2, c3,c4)
-      Annotation(res._1.orNull,res._2.orNull)
+    } else {
+      val res = chisqTest(c1, c2, c3, c4)
+      Annotation(res._1.orNull, res._2.orNull)
     }
 
   },
-    """ Calculates p-value and odds ratio for 2x2 table. If any cell is lower than `minCellCount` Fishers exact test is used, otherwise faster chi-squared approximation is used.  """,
+    """ Calculates p-value and odds ratio for 2x2 table. If any cell is lower than `minCellCount` Fishers exact test is used, otherwise faster chi-squared approximation is used. """,
     "c1" -> "value for cell 1", "c2" -> "value for cell 2", "c3" -> "value for cell 3", "c4" -> "value for cell 4", "minCellCount" -> "Minimum cell count for using chi-squared approximation"
   )
 
@@ -1206,17 +1213,20 @@ object FunctionRegistry {
 
   def iToD(x: Code[java.lang.Integer]): Code[java.lang.Double] =
     Code.boxDouble(Code.intValue(x).toD)
+
   def lToD(x: Code[java.lang.Long]): Code[java.lang.Double] =
     Code.boxDouble(Code.longValue(x).toD)
+
   def iToL(x: Code[java.lang.Integer]): Code[java.lang.Long] =
     Code.boxLong(Code.intValue(x).toL)
+
   def fToD(x: Code[java.lang.Float]): Code[java.lang.Double] =
     Code.boxDouble(Code.floatValue(x).toD)
 
-  registerConversion((x: java.lang.Integer) => x.toDouble : java.lang.Double, (iToD _).andThen(CM.ret _), priority = 2)
-  registerConversion((x: java.lang.Long) => x.toDouble : java.lang.Double, (lToD _).andThen(CM.ret _))
-  registerConversion((x: java.lang.Integer) => x.toLong : java.lang.Long, (iToL _).andThen(CM.ret _))
-  registerConversion((x: java.lang.Float) => x.toDouble : java.lang.Double, (fToD _).andThen(CM.ret _))
+  registerConversion((x: java.lang.Integer) => x.toDouble: java.lang.Double, (iToD _).andThen(CM.ret _), priority = 2)
+  registerConversion((x: java.lang.Long) => x.toDouble: java.lang.Double, (lToD _).andThen(CM.ret _))
+  registerConversion((x: java.lang.Integer) => x.toLong: java.lang.Long, (iToL _).andThen(CM.ret _))
+  registerConversion((x: java.lang.Float) => x.toDouble: java.lang.Double, (fToD _).andThen(CM.ret _))
 
   registerConversion((x: IndexedSeq[java.lang.Integer]) => x.map { xi =>
     if (xi == null)
@@ -1295,7 +1305,7 @@ object FunctionRegistry {
   }, { (x: Code[java.lang.Integer]) => x.mapNull(iToL _)
   })(aggregableHr(boxedintHr), aggregableHr(boxedlongHr))
 
-  registerConversion( { (x: java.lang.Float) =>
+  registerConversion({ (x: java.lang.Float) =>
     if (x != null)
       box(x.toDouble)
     else
@@ -1315,7 +1325,7 @@ object FunctionRegistry {
     """,
     "delim" -> "Regular expression delimiter.")
 
-  registerMethod("split", (s: String, p: String, n:Int) => s.split(p, n): IndexedSeq[String],
+  registerMethod("split", (s: String, p: String, n: Int) => s.split(p, n): IndexedSeq[String],
     """
     Returns an array of strings, split on the given regular expression delimiter with the pattern applied ``n`` times. See the documentation on `regular expression syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_ delimiter. If you need to split on special characters, escape them with double backslash (\\\\).
 
@@ -2078,17 +2088,18 @@ object FunctionRegistry {
 
   val aggST = Box[SymbolTable]()
 
-  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
-    { (k: Any => Unit) => a { x =>
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Unit) =>
+    a { x =>
       val r = f(x).asInstanceOf[IndexedSeq[Any]]
       var i = 0
       while (i < r.size) {
         k(r(i))
         i += 1
       }
-    } }
-  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
-    { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
+    }
+  }
+  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) =>
+    for (
       is <- f(x);
       (str, r) <- CM.memoize(Code.checkcast[IndexedSeq[AnyRef]](is));
       (stn, n) <- CM.memoize(r.invoke[Int]("size"));
@@ -2102,7 +2113,8 @@ object FunctionRegistry {
       Code.whileLoop(i < n,
         Code(invokek, i.store(i + 1))
       )
-    ) }
+    )
+  }
   },
     """
     Returns a new aggregable by applying a function ``f`` to each element and concatenating the resulting arrays.
@@ -2115,16 +2127,16 @@ object FunctionRegistry {
     """
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, arrayHr(TUHr)), aggregableHr(TUHr, aggST))
 
-  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) =>
-    { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
-  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
-    { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
+  registerLambdaAggregatorTransformer("flatMap", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => f(x).asInstanceOf[Set[Any]].foreach(k) } }
+  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) =>
+    for (
       fx <- f(x);
       (stit, it) <- CM.memoize(Code.checkcast[Set[AnyRef]](fx).invoke[Iterator[AnyRef]]("iterator"));
       hasNext = it.invoke[Boolean]("hasNext");
       next = it.invoke[AnyRef]("next");
       invokek <- k(next)
-    ) yield Code(stit, Code.whileLoop(hasNext, invokek)) }
+    ) yield Code(stit, Code.whileLoop(hasNext, invokek))
+  }
   },
     """
     Returns a new aggregable by applying a function ``f`` to each element and concatenating the resulting sets.
@@ -2140,9 +2152,10 @@ object FunctionRegistry {
       val r = f(x)
       if (r != null && r.asInstanceOf[Boolean])
         k(x)
-    } }
-  }, { (_x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
-    { (k: Code[AnyRef] => CM[Code[Unit]]) => for (
+    }
+  }
+  }, { (_x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) =>
+    for (
       (stx, x) <- CM.memoize(_x);
       (str, r) <- CM.memoize(f(x));
       invokek <- k(x)
@@ -2152,7 +2165,8 @@ object FunctionRegistry {
         Code.booleanValue(Code.checkcast[java.lang.Boolean](r)).mux(
           invokek,
           Code._empty[Unit]))
-    ) }
+    )
+  }
   },
     """
     Subsets an aggregable by evaluating ``f`` for each element and keeping those elements that evaluate to true.
@@ -2165,10 +2179,8 @@ object FunctionRegistry {
     """, "f" -> "Boolean lambda expression."
   )(aggregableHr(TTHr, aggST), unaryHr(TTHr, boolHr), aggregableHr(TTHr, aggST))
 
-  registerLambdaAggregatorTransformer("map", { (a: CPS[Any], f: (Any) => Any) =>
-    { (k: Any => Any) => a { x => k(f(x)) } }
-  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) =>
-    { (k: Code[AnyRef] => CM[Code[Unit]]) => f(x).flatMap(k) }
+  registerLambdaAggregatorTransformer("map", { (a: CPS[Any], f: (Any) => Any) => { (k: Any => Any) => a { x => k(f(x)) } }
+  }, { (x: Code[AnyRef], f: Code[AnyRef] => CM[Code[AnyRef]]) => { (k: Code[AnyRef] => CM[Code[Unit]]) => f(x).flatMap(k) }
   },
     """
     Change the type of an aggregable by evaluating ``f`` for each element.
@@ -2199,7 +2211,7 @@ object FunctionRegistry {
 
     registerCode(name, (x: Code[T], ys: Code[IndexedSeq[T]]) =>
       CM.mapIS(ys, (yOpt: Code[T]) =>
-          yOpt.mapNull((y: Code[T]) => f(x, y))),
+        yOpt.mapNull((y: Code[T]) => f(x, y))),
       null)(hrt, arrayHr(hrboxedt), arrayHr(hrboxeds))
 
     registerCode(name, (xs: Code[IndexedSeq[T]], ys: Code[IndexedSeq[T]]) => for (
@@ -2224,7 +2236,7 @@ object FunctionRegistry {
           ),
           CompilationHelp.arrayToWrappedArray(b)).asInstanceOf[Code[IndexedSeq[S]]],
         Code._throw(Code.newInstance[is.hail.utils.HailException, String, Option[String]](
-          s"""Cannot apply operation $name to arrays of unequal length.""".stripMargin, Code.invokeStatic[scala.Option[String],scala.Option[String]]("empty"))))),
+          s"""Cannot apply operation $name to arrays of unequal length.""".stripMargin, Code.invokeStatic[scala.Option[String], scala.Option[String]]("empty"))))),
       null)
   }
 
@@ -2466,9 +2478,9 @@ object FunctionRegistry {
   }
 
   registerSpecialCode("||", (a: Code[java.lang.Boolean], b: Code[java.lang.Boolean]) =>
-    CM.ret(nullableBooleanCode(true)(a,b)), null)
+    CM.ret(nullableBooleanCode(true)(a, b)), null)
   registerSpecialCode("&&", (a: Code[java.lang.Boolean], b: Code[java.lang.Boolean]) =>
-    CM.ret(nullableBooleanCode(false)(a,b)), null)
+    CM.ret(nullableBooleanCode(false)(a, b)), null)
 
   registerSpecial("orElse", { (f1: () => Any, f2: () => Any) =>
     val v = f1()
@@ -2492,7 +2504,7 @@ object FunctionRegistry {
   )(TTHr, TTHr, TTHr)
 
   register("orMissing", { (predicate: Boolean, value: Any) =>
-    if(predicate)
+    if (predicate)
       value
     else
       null
@@ -2500,7 +2512,7 @@ object FunctionRegistry {
     """
     If ``predicate`` evaluates to true, returns ``value``. Otherwise, returns NA.
     """
-  )(boolHr,TTHr,TTHr)
+  )(boolHr, TTHr, TTHr)
 
   registerMethodCode("[]", (a: Code[IndexedSeq[AnyRef]], i: Code[java.lang.Integer]) => for (
     (storei, refi) <- CM.memoize(Code.intValue(i));
