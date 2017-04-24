@@ -95,7 +95,7 @@ object TextTableReader {
       header.split(separator, -1)
         .zipWithIndex
         .map {
-          case (_, i) => s"_$i"
+          case (_, i) => s"f$i"
         }
     } else header.split(separator, -1).map(unescapeString)
 

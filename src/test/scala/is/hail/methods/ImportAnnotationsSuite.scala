@@ -5,6 +5,7 @@ import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.check.Prop
 import is.hail.expr.{TDouble, TInt, TString, TStruct}
+import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.utils._
 import is.hail.variant._
@@ -217,9 +218,9 @@ class ImportAnnotationsSuite extends SparkSuite {
       .cache()
       .splitMulti()
 
-    val bed1r = vds.annotateVariantsBED("src/test/resources/example1.bed", "va.test")
-    val bed2r = vds.annotateVariantsBED("src/test/resources/example2.bed", "va.test")
-    val bed3r = vds.annotateVariantsBED("src/test/resources/example3.bed", "va.test")
+    val bed1r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example1.bed"), root = "va.test")
+    val bed2r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example2.bed"), root = "va.test")
+    val bed3r = vds.annotateVariantsTable(BedAnnotator(hc, "src/test/resources/example3.bed"), root = "va.test")
 
     val q1 = bed1r.queryVA("va.test")._2
     val q2 = bed2r.queryVA("va.test")._2
@@ -245,8 +246,12 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     assert(bed3r.same(bed2r))
 
-    val int1r = vds.annotateVariantsIntervals("src/test/resources/exampleAnnotation1.interval_list", "va.test")
-    val int2r = vds.annotateVariantsIntervals("src/test/resources/exampleAnnotation2.interval_list", "va.test")
+    val int1r = vds.annotateVariantsTable(IntervalList.read(hc,
+      "src/test/resources/exampleAnnotation1.interval_list"),
+      root = "va.test")
+    val int2r = vds.annotateVariantsTable(
+      IntervalList.read(hc, "src/test/resources/exampleAnnotation2.interval_list"),
+      root = "va.test")
 
     assert(int1r.same(bed1r))
     assert(int2r.same(bed2r))

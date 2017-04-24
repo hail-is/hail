@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.{Annotation, _}
 import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
 import is.hail.io._
-import is.hail.io.annotators.IntervalListAnnotator
+import is.hail.io.annotators.IntervalList
 import is.hail.io.plink.ExportBedBimFam
 import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable

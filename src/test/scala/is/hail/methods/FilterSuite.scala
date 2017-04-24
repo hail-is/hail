@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.expr._
+import is.hail.io.annotators.IntervalList
 import is.hail.utils._
 import is.hail.utils.TestRDDBuilder
 import is.hail.{SparkSuite, TestUtils}
@@ -107,9 +108,11 @@ class FilterSuite extends SparkSuite {
 
     assert(vds.filterSamplesList(sampleList, keep = false).nSamples == 5)
 
-    assert(vds.filterIntervals("src/test/resources/filter.interval_list", keep = true).countVariants() == 6)
+    assert(vds.filterVariantsTable(IntervalList.read(hc, "src/test/resources/filter.interval_list"), keep = true)
+      .countVariants() == 6)
 
-    assert(vds.filterIntervals("src/test/resources/filter.interval_list", keep = false).countVariants() == 2)
+    assert(vds.filterVariantsTable(IntervalList.read(hc, "src/test/resources/filter.interval_list"), keep = false)
+      .countVariants() == 2)
   }
 
   @Test def filterRegexTest() {

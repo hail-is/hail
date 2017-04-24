@@ -254,8 +254,8 @@ class HailContext(object):
                                     tolerance)
         return VariantDataset(self, jvds)
 
-    def import_keytable(self, paths, key=[], npartitions=None, impute=False, no_header=False,
-                        comment=None, delimiter="\t", missing="NA", types={}):
+    def import_table(self, paths, key=[], min_partitions=None, impute=False, no_header=False,
+                     comment=None, delimiter="\t", missing="NA", types={}):
         """Import delimited text file (text table) as key table.
 
         The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
@@ -279,13 +279,13 @@ class HailContext(object):
         the file, or pass them ourselves:
         
         Pass the types ourselves:
-        >>> table = hc.import_keytable('data/samples1.tsv', types={'Height': TDouble(), 'Age': TInt()})
+        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TDouble(), 'Age': TInt()})
         
         Note that string columns like ``Sample`` and ``Status`` do not need to be typed, because ``String``
         is the default type.
         
         Use type imputation (a bit easier, but requires reading the file twice):
-        >>> table = hc.import_keytable('data/samples1.tsv', impute=True)
+        >>> table = hc.import_table('data/samples1.tsv', impute=True)
 
         **Detailed examples**
 
@@ -310,7 +310,7 @@ class HailContext(object):
 
         - Pass the non-default missing value ``.``
 
-        >>> table = hc.import_keytable('data/samples2.tsv', delimiter=',', missing='.')
+        >>> table = hc.import_table('data/samples2.tsv', delimiter=',', missing='.')
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. 
         Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
@@ -327,20 +327,22 @@ class HailContext(object):
 
         To import:
 
-        >>> annotations = (hc.import_keytable('data/samples3.tsv', no_header=True)
-        ...                   .annotate('sample = _0.split("_")[1]')
+        >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
+        ...                   .annotate('sample = f0.split("_")[1]')
         ...                   .key_by('sample'))
         
-        The ``impute`` parameter, if ``True``, tells Hail to scan the file an extra time to gather
-        information about possible field types. While this is a bit slower for large files, it is
-        often worth the convenience.
+        **Notes**
+        
+        The ``impute`` option tells Hail to scan the file an extra time to gather
+        information about possible field types. While this is a bit slower for large files, (the 
+        file is parsed twice), the convenience is often worth this cost.
         
         The ``delimiter`` parameter is a field separator regex. This regex follows the 
          `Java regex standard <http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html>`_.
         
         .. note::
         
-            It is possible to use ``delimiter='\\s+'`` to specify whitespace delimited files.
+            Use ``delimiter='\\s+'`` to specify whitespace delimited files.
             
         The ``comment`` is an optional parameter which causes Hail to skip any line that starts in the
         given pattern. Passing ``comment='#'`` will skip any line beginning in a pound sign, for example.
@@ -351,7 +353,18 @@ class HailContext(object):
             The ``comment`` and ``missing`` parameters are **NOT** regexes.
 
         The ``no_header`` option indicates that the file has no header line. If this option is passed, 
-        then the column names will be ``_0``, ``_1``, ... ``_N`` (0-indexed). 
+        then the column names will be ``f0``, ``f1``, ... ``fN`` (0-indexed). 
+        
+        The ``types`` option allows the user to pass the types of columns in the table. This is a 
+        dict keyed by ``str``, with :py:class:`~hail.expr.Type` values. See the examples above for
+        a standard usage. Additionally, this option can be used to override type imputation. For example,
+        if a column in a file refers to chromosome and does not contain any sex chromosomes, it will be
+        imputed as an integer, while most Hail methods expect chromosome to be passed as a string. Using
+        the ``impute=True`` mode and passing ``types={'Chromosome': TString()}`` will solve this problem.
+        
+        The ``min_partitions`` option can be used to increase the number of partitions (level of sharding)
+        of an imported table. The default partition size depends on file system and a number of other 
+        factors (including the ``min_block_size`` of the hail context), but usually is between 32M and 128M.
         
         :param paths: files to import.
         :type paths: str or list of str
@@ -359,8 +372,8 @@ class HailContext(object):
         :param key: List of key columns.
         :type key: str or list of str
 
-        :param npartitions: Number of partitions.
-        :type npartitions: int or None
+        :param min_partitions: Minimum number of partitions.
+        :type min_partitions: int or None
 
         :param bool no_header: File has no header and the N columns are named ``_0``, ``_1``, ... ``_N`` (0-indexed)
         
@@ -384,9 +397,9 @@ class HailContext(object):
             for p in paths:
                 if not isinstance(p, str) and not isinstance(p, unicode):
                     raise TypeError(
-                        "method 'import_keytable' expected elements of param 'paths' to be str, but found %s" % type(p))
+                        "method 'import_table' expected elements of param 'paths' to be str, but found %s" % type(p))
         elif not isinstance(paths, str) and not isinstance(paths, unicode):
-            raise TypeError("method 'import_keytable' expected param 'paths' to be str, but found %s" % type(paths))
+            raise TypeError("method 'import_table' expected param 'paths' to be str, but found %s" % type(paths))
         else:
             paths = [paths]
 
@@ -394,43 +407,43 @@ class HailContext(object):
             for k in key:
                 if not isinstance(k, str) and not isinstance(k, unicode):
                     raise TypeError(
-                        "method 'import_keytable' expected elements of param 'key' to be str, but found %s" % type(k))
+                        "method 'import_table' expected elements of param 'key' to be str, but found %s" % type(k))
         elif not isinstance(key, str) and not isinstance(key, unicode):
-            raise TypeError("method 'import_keytable' expected param 'key' to be str, but found %s" % type(paths))
+            raise TypeError("method 'import_table' expected param 'key' to be str, but found %s" % type(paths))
         else:
             key = [key]
 
-        if npartitions is not None and not isinstance(npartitions, int):
+        if min_partitions is not None and not isinstance(min_partitions, int):
             raise TypeError(
-                "method 'import_keytable' expected param 'npartitions' to be None or int, but found %s" %
-                type(npartitions))
+                "method 'import_table' expected param 'min_partitions' to be None or int, but found %s" %
+                type(min_partitions))
         if not isinstance(impute, bool):
-            raise TypeError("method 'import_keytable' expected param 'impute' to be bool, but found %s" % type(impute))
+            raise TypeError("method 'import_table' expected param 'impute' to be bool, but found %s" % type(impute))
         if not isinstance(no_header, bool):
             raise TypeError(
-                "method 'import_keytable' expected param 'no_header' to be bool, but found %s" % type(no_header))
+                "method 'import_table' expected param 'no_header' to be bool, but found %s" % type(no_header))
         if comment is not None and not isinstance(comment, str) and not isinstance(comment, unicode):
             raise TypeError(
-                "method 'import_keytable' expected param 'comment' to be None or str, but found %s" % type(comment))
+                "method 'import_table' expected param 'comment' to be None or str, but found %s" % type(comment))
         if not isinstance(delimiter, str) and not isinstance(delimiter, unicode):
             raise TypeError(
-                "method 'import_keytable' expected param 'delimiter' to be None or str, but found %s" % type(delimiter))
+                "method 'import_table' expected param 'delimiter' to be None or str, but found %s" % type(delimiter))
         if not isinstance(missing, str) and not isinstance(missing, unicode):
             raise TypeError(
-                "method 'import_keytable' expected param 'missing' to be None or str, but found %s" % type(missing))
+                "method 'import_table' expected param 'missing' to be None or str, but found %s" % type(missing))
         if not isinstance(types, dict):
-            raise TypeError("method 'import_keytable' expected param 'types' to be dict, but found %s" % type(types))
+            raise TypeError("method 'import_table' expected param 'types' to be dict, but found %s" % type(types))
         for k, v in types.items():
             if not isinstance(k, str) and not isinstance(k, unicode):
                 raise TypeError(
-                    "method 'import_keytable' expected keys of param 'types' to be str, but found %s" % type(k))
+                    "method 'import_table' expected keys of param 'types' to be str, but found %s" % type(k))
             if not isinstance(v, Type):
                 raise TypeError(
-                    "method 'import_keytable' expected values of param 'types' to be Type, but found %s" % type(k))
+                    "method 'import_table' expected values of param 'types' to be Type, but found %s" % type(k))
 
         jtypes = {k: v._jtype for k, v in types.items()}
 
-        jkt = self._jhc.importKeyTable(paths, key, joption(npartitions), jtypes, comment, delimiter, missing,
+        jkt = self._jhc.importKeyTable(paths, key, joption(min_partitions), jtypes, comment, delimiter, missing,
                                        no_header, impute)
         return KeyTable(self, jkt)
 
@@ -809,36 +822,6 @@ class HailContext(object):
                                              af_dist._jrep(),
                                              seed)
         return VariantDataset(self, jvds)
-
-    @handle_py4j
-    def dataframe_to_keytable(self, df, keys=[]):
-        """Convert Spark SQL DataFrame to key table.
-
-        Spark SQL data types are converted to Hail types in the obvious way as follows:
-
-        .. code-block:: text
-
-          BooleanType => Boolean
-          IntegerType => Int
-          LongType => Long
-          FloatType => Float
-          DoubleType => Double
-          StringType => String
-          BinaryType => Binary
-          ArrayType => Array
-          StructType => Struct
-
-        Unlisted Spark SQL data types are currently unsupported.
-
-        :param keys: List of key column names.
-        :type keys: list of string
-
-        :return: Key table constructed from the Spark SQL DataFrame.
-        :rtype: :class:`.KeyTable`
-        """
-
-        jkeys = jarray(self._jvm.java.lang.String, keys)
-        return KeyTable(self, self._hail.keytable.KeyTable.fromDF(self._jhc, df._jdf, jkeys))
 
     @handle_py4j
     def eval_expr_typed(self, expr):

@@ -465,7 +465,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     }
   }
 
-  def filterIntervals(intervals: IntervalTree[PK]): OrderedRDD[PK, K, V] = {
+  def filterIntervals(intervals: IntervalTree[PK, _]): OrderedRDD[PK, K, V] = {
 
     import kOk.pkOrd
     import kOk._

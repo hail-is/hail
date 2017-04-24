@@ -602,9 +602,6 @@ class HailContext private(val sc: SparkContext,
     seed: Int = 0): VariantDataset =
     BaldingNicholsModel(this, populations, samples, variants, popDist, fst, seed, nPartitions, afDist)
 
-  def dataframeToKeytable(df: DataFrame, keys: Array[String] = Array.empty[String]): KeyTable =
-    KeyTable.fromDF(this, df, keys)
-
   def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
 
   def eval(expr: String): (Annotation, Type) = {

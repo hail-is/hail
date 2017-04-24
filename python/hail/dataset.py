@@ -3,7 +3,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype, TVariant
-from hail.representation import Interval, IntervalTree
+from hail.representation import Interval
 from hail.kinshipMatrix import KinshipMatrix
 from decorator import decorator
 
@@ -551,7 +551,7 @@ class VariantDataset(object):
           Gene1   0.12312 2
           ...
 
-        >>> tb = hc.import_keytable('data/genes_pli_exac.txt', types={'PLI': TDouble(), 'EXAC_LOF_COUNTS': TInt()})
+        >>> tb = hc.import_table('data/genes_pli_exac.txt', types={'PLI': TDouble(), 'EXAC_LOF_COUNTS': TInt()})
         >>> vds_result = vds.annotate_global_table(tb, 'global.genes')
 
         creates a new global annotation ``global.genes`` with type:
@@ -596,7 +596,7 @@ class VariantDataset(object):
 
         Compute the list of genes with a singleton LOF per sample:
 
-        >>> variant_annotations_table = hc.import_keytable('data/consequence.tsv', impute=True).key_by('Variant')
+        >>> variant_annotations_table = hc.import_table('data/consequence.tsv', impute=True).key_by('Variant')
         >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, expr='va.consequence = table.Consequence')
         ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles()).sum() == 1')
         ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
@@ -721,7 +721,7 @@ class VariantDataset(object):
 
         To annotates samples using `samples1.tsv` with type imputation::
 
-        >>> table = hc.import_keytable('data/samples1.tsv', impute=True).key_by('Sample')
+        >>> table = hc.import_table('data/samples1.tsv', impute=True).key_by('Sample')
         >>> vds_result = vds.annotate_samples_table(table, root='sa.pheno')
 
         Given this file
@@ -739,7 +739,7 @@ class VariantDataset(object):
 
         To annotate without type imputation, resulting in all String types:
 
-        >>> annotations = hc.import_keytable('data/samples1.tsv').key_by('Sample')
+        >>> annotations = hc.import_table('data/samples1.tsv').key_by('Sample')
         >>> vds_result = vds.annotate_samples_table(annotations, root='sa.phenotypes')
 
         **Detailed examples**
@@ -768,7 +768,7 @@ class VariantDataset(object):
         - In ``annotate_samples_table``, add the only useful column using ``expr`` 
           rather than the ``root`` parameter.
 
-        >>> annotations = hc.import_keytable('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
+        >>> annotations = hc.import_table('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
         >>> vds_result = vds.annotate_samples_table(annotations, expr='sa.batch = table.Batch')
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. 
@@ -786,7 +786,7 @@ class VariantDataset(object):
 
         To import it:
 
-        >>> annotations = (hc.import_keytable('data/samples3.tsv', no_header=True)
+        >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
         ...                   .annotate('sample = _0.split("_")[1]')
         ...                   .key_by('sample'))
         >>> vds_result = vds.annotate_samples_table(annotations,
@@ -1040,17 +1040,17 @@ class VariantDataset(object):
 
         Add annotations from a variant-keyed tab separated file:
 
-        >>> table = hc.import_keytable('data/variant-lof.tsv', impute=True).key_by('v')
+        >>> table = hc.import_table('data/variant-lof.tsv', impute=True).key_by('v')
         >>> vds_result = vds.annotate_variants_table(table, expr='va.lof = table.lof')
         
         Add annotations from a locus-keyed TSV:
         
-        >>> kt = hc.import_keytable('data/locus-table.tsv', impute=True).key_by('Locus')
+        >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
         >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
 
         Add annotations from a gene-and-type-keyed TSV:
     
-        >>> table = hc.import_keytable('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
+        >>> table = hc.import_table('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
         >>> vds_result = (vds.annotate_variants_table(table,
         ...       expr='va.foo = table.foo',
         ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
@@ -2019,51 +2019,62 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def filter_variants_intervals(self, intervals, keep=True):
-        """Filter variants with an interval or interval tree.
+    def filter_intervals(self, intervals, keep=True):
+        """Filter variants with an interval or list of intervals.
 
         **Examples**
 
-        >>> from hail.representation import *
-        >>> vds_result = vds.filter_variants_intervals(IntervalTree.read('data/intervals.txt'))
-        >>> vds_result = vds.filter_variants_intervals(IntervalTree.parse_all(['1:50M-75M', '2:START-400000','3-22']))
-        >>> vds_result = vds.filter_variants_intervals(Interval(Locus('17', 38449840), Locus('17', 38530994)))
-        >>> vds_result = vds.filter_variants_intervals(Interval.parse('17:38449840-38530994'))
-
-        This method takes an argument either of :class:`.Interval` or :class:`.IntervalTree`.
+        Filter to one interval:
+        
+        >>> vds_result = vds.filter_intervals(Interval.parse('17:38449840-38530994'))
+        
+        Another way of writing this same query:
+        
+        >>> vds_result = vds.filter_intervals(Interval(Locus('17', 38449840), Locus('17', 38530994)))
+        
+        Two identical ways of filtering to a few defined intervals:
+        
+        >>> vds_result = vds.filter_intervals(map(Interval.parse, ['1:50M-75M', '2:START-400000', '3-22']))
+        
+        >>> vds_result = vds.filter_intervals([Interval.parse(x) for x in ['1:50M-75M', '2:START-400000', '3-22']])
+        
+        **Notes**
+        
+        This method takes an argument of :class:`.Interval` or list of :class:`.Interval`.
 
         Based on the ``keep`` argument, this method will either restrict to variants in the
-        supplied interval range, or remove all variants in that range.  Note that intervals
+        supplied interval ranges, or remove all variants in those ranges.  Note that intervals
         are left-inclusive, and right-exclusive.  The below interval includes the locus
         ``15:100000`` but not ``15:101000``.
 
         >>> interval = Interval.parse('15:100000-101000')
 
-        To supply a file containing intervals, use :py:meth:`.IntervalTree.read`:
-
-        >>> vds_result = vds.filter_variants_intervals(IntervalTree.read('data/intervals.txt'))
-
-        This method performs predicate pushdown when ``keep`` is ``True``, meaning that data shards
+        This method performs predicate pushdown when ``keep=True``, meaning that data shards
         that don't overlap any supplied interval will not be loaded at all.  This property
-        enables ``filter_variants_intervals`` to be used for reasonably low-latency queries of one
-        or more variants, even on large variant datasets:
+        enables ``filter_intervals`` to be used for reasonably low-latency queries of one
+        or more variants, even on large datasets:
 
-        >>>  # We are interested in the variant 15:100203:A:T
-        >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start == 100203')  # slow
-        >>> vds_filtered = vds.filter_variants_intervals(Interval.parse('15:100203-100204'))  # very fast
+        >>> # We are interested in the interval  15:100000-200000
+        >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start >= 100000 && v.start < 200000')  # slow
+        >>> vds_filtered = vds.filter_intervals(Interval.parse('15:100000-200000'))  # very fast
 
-        :param intervals: interval or interval tree object
-        :type intervals: s:class:`.Interval` or :class:`.IntervalTree`
+        :param intervals: interval or list of intervals
+        :type intervals: :class:`.Interval` or list of :class:`.Interval`
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
         if isinstance(intervals, Interval):
-            intervals = IntervalTree([intervals])
-        elif not isinstance(intervals, IntervalTree):
-            raise TypeError("argument 'intervals' must be of type Interval or IntervalTree, but found '%s'" %
-                            type(intervals))
+            intervals = [intervals]
+        else:
+            if not isinstance(intervals, list):
+                raise TypeError("argument 'intervals' must be of type Interval or list of Interval, but found '%s'" %
+                                type(intervals))
+            for i in intervals:
+                if not isinstance(i, Interval):
+                    raise TypeError("expected elements of argument 'intervals' to be type Interval, but found '%s'" %
+                                    type(i))
 
         jvds = self._jvds.filterIntervals(intervals._jrep, keep)
         return VariantDataset(self.hc, jvds)
@@ -2076,7 +2087,15 @@ class VariantDataset(object):
 
         Filter VDS down to a list of variants:
 
-        >>> vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), Variant.parse('20:10019093:A:G')], keep=True)
+        This method performs predicate pushdown when ``keep=True``, meaning that data shards
+        that don't overlap with any supplied variant will not be loaded at all.  This property
+        enables ``filter_variants_list`` to be used for reasonably low-latency queries of one
+        or more variants, even on large datasets:
+
+        >>>  # We are interested in the variants 20:10626633:G:GC and 20:10019093:A:G
+        >>> vds_filtered = vds.filter_variants_list('v.contig == "20" && v.start == 10626633')  # slow
+        >>> vds_filtered = vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), 
+        ...                                          Variant.parse('20:10019093:A:G')], keep=True)  # fast
 
         :param variants: List of variants to keep or remove.
         :type variants: list of :py:class:`~hail.representation.Variant`
@@ -2085,7 +2104,6 @@ class VariantDataset(object):
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
-        
         """
 
         return VariantDataset(
@@ -2093,21 +2111,25 @@ class VariantDataset(object):
                 [TVariant()._convert_to_j(v) for v in variants], keep))
 
     @handle_py4j
-    def filter_variants_kt(self, kt, keep=True):
+    def filter_variants_table(self, table, keep=True):
         """Filter variants with a Variant keyed key table.
 
         **Example**
 
-        Filter variants of a VDS to those appearing in the Variant column of a TSV file:
+        Filter variants of a VDS to those appearing in the variant column of a TSV file:
 
-        >>> kt = hc.import_keytable('data/sample_variants.txt', key='Variant', impute=True)
-        >>> filtered_vds = vds.filter_variants_kt(kt, keep=True)
+        >>> kt = hc.import_table('data/sample_variants.txt', key='Variant', impute=True)
+        >>> filtered_vds = vds.filter_variants_table(kt, keep=True)
+        
+        Keep all variants whose chromosome and position (locus) appear in a file of loci:
+        
+        >>> kt = hc.import_table()
+        FIXME ADD interval, locus examples + docs
 
-        :param kt: Keep or remove ``kt`` keys.
-        :type kt: :py:class:`.KeyTable`
+        :param table: Key table object, whose keys will be filtered out or filtered to.
+        :type table: :py:class:`.KeyTable`
 
-        :param bool keep: If true, keep variants which appear as keys
-          in ``kt``, otherwise remove them.
+        :param bool keep: If true, keep keys in ``table``, otherwise remove them.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -2115,7 +2137,7 @@ class VariantDataset(object):
         """
 
         return VariantDataset(
-            self.hc, self._jvds.filterVariantsKT(kt._jkt, keep))
+            self.hc, self._jvds.filterVariantsKT(table._jkt, keep))
 
     @property
     def globals(self):
@@ -2599,7 +2621,9 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
+                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
+                                           min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3516,7 +3540,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def rrm(self, force_block = False, force_gramian = False):
+    def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
         **Examples**

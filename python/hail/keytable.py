@@ -24,7 +24,7 @@ class KeyTable(object):
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
-    >>> kt1 = hc.import_keytable('data/kt_example1.tsv', impute=True)
+    >>> kt1 = hc.import_table('data/kt_example1.tsv', impute=True)
 
     +--+---+---+-+-+----+----+----+
     |ID|HT |SEX|X|Z| C1 | C2 | C3 |
@@ -38,7 +38,7 @@ class KeyTable(object):
     |4 |60 |F  |8|2|11	|90  |-10 |
     +--+---+---+-+-+----+----+----+
 
-    >>> kt2 = hc.import_keytable('data/kt_example2.tsv', impute=True)
+    >>> kt2 = hc.import_table('data/kt_example2.tsv', impute=True)
 
     +---+---+------+
     |ID	|A  |B     |
@@ -627,7 +627,7 @@ class KeyTable(object):
         Assume ``kt3`` is a :py:class:`.KeyTable` with three columns: c1, c2 and
         c3.
 
-        >>> kt3 = hc.import_keytable('data/kt_example3.tsv', impute=True,
+        >>> kt3 = hc.import_table('data/kt_example3.tsv', impute=True,
         ...                          types={'c1': TString(), 'c2': TArray(TInt()), 'c3': TArray(TArray(TInt()))})
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
@@ -854,3 +854,154 @@ class KeyTable(object):
         jsort_columns = [asc(col) if isinstance(col, str) else col for col in cols]
         return KeyTable(self.hc,
                         self._jkt.orderBy(jarray(Env.hail().keytable.SortColumn, jsort_columns)))
+
+    def num_partitions(self):
+        """Returns the number of partitions in the key table.
+        
+        :rtype: int
+        """
+        return self._jkt.nPartitions()
+
+    @staticmethod
+    @handle_py4j
+    def import_interval_list(path):
+        """Import an interval list file in the GATK standard format.
+        
+        >>> intervals = KeyTable.import_interval_list('data/capture_intervals.txt')
+        
+        **The File Format**
+
+        Hail expects an interval file to contain either three or five fields per
+        line in the following formats:
+
+        - ``contig:start-end``
+        - ``contig  start  end`` (tab-separated)
+        - ``contig  start  end  direction  target`` (tab-separated)
+
+        A file in either of the first two formats produces a key table with this schema:
+        
+         - **interval** (*Interval*), key column
+         
+        A file in the third format (with a "target" column) produces a key table with this schema:
+        
+         - **interval** (*Interval*), key column
+         - **target** (*String*)
+         
+        .. note::
+
+            ``start`` and ``end`` match positions inclusively, e.g. ``start <= position <= end``.
+            :py:meth:`~hail.representation.Interval.parse` is exclusive of the end position.
+
+        .. note::
+
+            Hail uses the following ordering for contigs: 1-22 sorted numerically, then X, Y, MT,
+            then alphabetically for any contig not matching the standard human chromosomes.
+
+        .. caution::
+
+            The interval parser for these files does not support the full range of formats supported
+            by the python parser :py:meth:`~hail.representation.Interval.parse`.  'k', 'm', 'start', and 'end' are all
+            invalid motifs in the ``contig:start-end`` format here.
+
+        
+        :param str filename: Path to file.
+        
+        :return: Interval-keyed table.
+        :rtype: :class:`.KeyTable`
+        """
+        jkt = Env.hail().keytable.KeyTable.importIntervalList(Env.hc()._jhc, path)
+        return KeyTable(Env.hc(), jkt)
+
+    @staticmethod
+    @handle_py4j
+    def import_bed(path):
+        """Import a UCSC .bed file as a key table.
+
+        **Examples**
+
+        Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one 
+        interval of the three-column BED file `file1.bed`:
+
+        >>> bed = KeyTable.import_bed('data/file1.bed')
+        >>> vds_result = vds.annotate_variants_table(bed, root='va.cnvRegion')
+
+        Add a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`:
+        
+        >>> bed = KeyTable.import_bed('data/file2.bed')
+        >>> vds_result = vds.annotate_variants_table(bed, root='va.cnvID')
+
+        The file formats are
+
+        .. code-block:: text
+
+            $ cat data/file1.bed
+            track name="BedTest"
+            20    1          14000000
+            20    17000000   18000000
+            ...
+
+            $ cat file2.bed
+            track name="BedTest"
+            20    1          14000000  cnv1
+            20    17000000   18000000  cnv2
+            ...
+
+
+        **Notes**
+        
+        The key table produced by this method has one of two possible structures. If the .bed file has only
+        three fields (``chrom``, ``chromStart``, and ``chromEnd``), then the produced key table has only one
+        column:
+        
+         - **interval** (*Interval*) - Genomic interval.
+         
+        If the .bed file has four or more columns, then Hail will store the fourth column as another key 
+        table column:
+         
+         - **interval** (*Interval*) - Genomic interval.
+         - **target** (*String*) - Fourth column of .bed file.
+         
+
+        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, 
+        but Hail will only ever look at the first four. Hail ignores header lines in BED files.
+
+        .. caution:: UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105" will contain
+        locus ``5:105`` but not ``5:100``. Details `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`_.
+
+        :param str path: Path to .bed file.
+
+        :rtype: :class:`.KeyTable`
+        """
+
+        jkt = Env.hail().keytable.KeyTable.importBED(Env.hc()._jhc, path)
+        return KeyTable(Env.hc(), jkt)
+
+    @staticmethod
+    @handle_py4j
+    def from_dataframe(df):
+        """Convert Spark SQL DataFrame to key table.
+
+        Spark SQL data types are converted to Hail types in the obvious way as follows:
+
+        .. code-block:: text
+
+          BooleanType => Boolean
+          IntegerType => Int
+          LongType => Long
+          FloatType => Float
+          DoubleType => Double
+          StringType => String
+          BinaryType => Binary
+          ArrayType => Array
+          StructType => Struct
+
+        Unlisted Spark SQL data types are currently unsupported.
+        
+        The resulting table will have no defined key. Use :py:meth:`.KeyTable.key_by` to 
+        set a desired key.
+
+        :return: Key table constructed from the Spark SQL DataFrame.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc(), df._jdf))

@@ -180,17 +180,17 @@ class ContextTests(unittest.TestCase):
             (dataset.filter_variants_expr('pcoin(0.5)')
              .export_variants('/tmp/sample2.variant_list', 'v'))
 
-            (dataset.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
+            (dataset.filter_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
              .count())
 
-            dataset.filter_variants_intervals(Interval.parse('1:100-end')).count()
-            dataset.filter_variants_intervals(IntervalTree.parse_all(['1:100-end', '3-22'])).count()
-            dataset.filter_variants_intervals(IntervalTree([Interval.parse('1:100-end')])).count()
+            dataset.filter_intervals(Interval.parse('1:100-end')).count()
+            dataset.filter_intervals(IntervalTree.parse_all(['1:100-end', '3-22'])).count()
+            dataset.filter_intervals(IntervalTree([Interval.parse('1:100-end')])).count()
 
-            (dataset.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
+            (dataset.filter_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
              .count())
 
-            self.assertEqual(dataset2.filter_variants_kt(
+            self.assertEqual(dataset2.filter_variants_table(
                 hc.import_keytable(test_resources + '/sample2_variants.tsv',
                                    key='_0', impute=True, no_header=True))
                              .count()['nVariants'], 21)

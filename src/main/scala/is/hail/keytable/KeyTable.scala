@@ -3,6 +3,7 @@ package is.hail.keytable
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
@@ -35,12 +36,12 @@ case class SortColumn(field: String, sortOrder: SortOrder)
 object KeyTable {
   final val fileVersion: Int = 1
 
-  def fromDF(hc: HailContext, df: DataFrame, key: Array[String]): KeyTable = {
+  def fromDF(hc: HailContext, df: DataFrame): KeyTable = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     KeyTable(hc, df.rdd.map { r =>
       SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
     },
-      signature, key)
+      signature, Array())
   }
 
   def read(hc: HailContext, path: String): KeyTable = {
@@ -118,6 +119,14 @@ object KeyTable {
           sc.parallelize(rows.asScala)
       }, signature, keyNames.asScala.toArray)
   }
+
+  def importIntervalList(hc: HailContext, filename: String): KeyTable = {
+    IntervalList.read(hc, filename)
+  }
+
+  def importBED(hc: HailContext, filename: String): KeyTable = {
+    BedAnnotator.apply(hc, filename)
+  }
 }
 
 case class KeyTable(hc: HailContext, rdd: RDD[Row],
@@ -141,6 +150,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def nFields: Int = fields.length
 
   def nKeys: Int = key.length
+
+  def nPartitions: Int = rdd.partitions.length
 
   def keySignature: TStruct = {
     val keySet = key.toSet
