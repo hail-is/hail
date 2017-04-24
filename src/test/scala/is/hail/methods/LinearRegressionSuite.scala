@@ -36,9 +36,9 @@ class LinearRegressionSuite extends SparkSuite {
   val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
   val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
   @Test def testWithTwoCov() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
@@ -99,9 +99,9 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithTwoCovPhred() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
@@ -159,9 +159,9 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithTwoCovDosage() {
     // .gen and .sample files created from regressionLinear.vcf
     // dosages are derived from PLs so results should agree with testWithTwoCovPhred
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
@@ -221,7 +221,7 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithNoCov() {
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
@@ -268,7 +268,7 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithImportFamBoolean() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
@@ -319,7 +319,7 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithImportFam() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
@@ -371,9 +371,9 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testNonNumericPheno() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TString), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
@@ -387,9 +387,9 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testNonNumericCov() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TString)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
@@ -403,7 +403,7 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testFilters() {
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     var vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
@@ -441,7 +441,7 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testFiltersFatals() {
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")

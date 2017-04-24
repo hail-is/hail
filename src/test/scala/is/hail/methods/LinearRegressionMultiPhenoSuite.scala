@@ -12,9 +12,9 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
   // ensuring that result for one phenotype and hard calls is the same as with linreg
   // and that including the same phenotype a second time gives same result as well.
   @Test def testWithTwoCov() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
@@ -111,9 +111,9 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
   // ensuring that result for one phenotype and dosages is the same as with linreg.
   @Test def testWithTwoCovPhred() {
 
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()

@@ -457,8 +457,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     }
   }
 
-  def export(sc: SparkContext, output: String, typesFile: String) {
-    val hConf = sc.hadoopConfiguration
+  def export(output: String, typesFile: String = null, header: Boolean = true) {
+    val hConf = hc.hadoopConf
     hConf.delete(output, recursive = true)
 
     Option(typesFile).foreach { file =>
@@ -479,7 +479,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
         sb.result()
       }
-    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")))
+    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header))
   }
 
   def aggregate(keyCond: String, aggCond: String): KeyTable = {

@@ -100,7 +100,7 @@ class TextTableSuite extends SparkSuite {
 
       val types = Type.parseMap(hadoopConf.readFile(outPath + ".types")(Source.fromInputStream(_).mkString))
 
-      val kt = hc.importKeyTable(outPath, types = types).keyBy("v")
+      val kt = hc.importTable(outPath, types = types).keyBy("v")
       vds.annotateVariantsTable(kt, expr = "va = table.va").same(vds)
     }
 

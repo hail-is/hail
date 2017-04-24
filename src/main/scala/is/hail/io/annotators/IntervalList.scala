@@ -33,9 +33,9 @@ object IntervalList {
     }
 
     val schema = if (hasValue)
-      TStruct("interval" -> TInterval)
-    else
       TStruct("interval" -> TInterval, "target" -> TString)
+    else
+      TStruct("interval" -> TInterval)
 
     val rdd = hc.sc.textFileLines(filename)
       .filter(l => !l.value.isEmpty && l.value(0) != '@')

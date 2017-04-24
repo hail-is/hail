@@ -311,7 +311,7 @@ class HailContext private(val sc: SparkContext,
     impute: Boolean): KeyTable = importKeyTables(inputs.asScala, keyNames.asScala.toArray, nPartitions,
     types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute)
 
-  def importKeyTable(input: String,
+  def importTable(input: String,
     keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],

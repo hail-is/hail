@@ -27,9 +27,9 @@ class LogisticRegressionSuite extends SparkSuite {
   val v10 = Variant("1", 10, "C", "T")
 
   @Test def waldTestWithTwoCov() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLogistic.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLogistic.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLogisticBoolean.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLogisticBoolean.pheno",
       types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
@@ -105,9 +105,9 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   @Test def lrTestWithTwoCov() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLogistic.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLogistic.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLogisticBoolean.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLogisticBoolean.pheno",
       types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
@@ -180,9 +180,9 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   @Test def scoreTestWithTwoCov() {
-    val covariates = hc.importKeyTable("src/test/resources/regressionLogistic.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLogistic.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLogisticBoolean.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLogisticBoolean.pheno",
       types = Map("isCase" -> TBoolean), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
@@ -243,7 +243,7 @@ class LogisticRegressionSuite extends SparkSuite {
 
   @Test def waldEpactsTest() {
 
-    val covariates = hc.importKeyTable("src/test/resources/regressionLogisticEpacts.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLogisticEpacts.cov",
       types = Map("PC1" -> TDouble, "PC2" -> TDouble), missing = "0").keyBy("IND_ID")
 
     val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")

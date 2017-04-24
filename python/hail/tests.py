@@ -106,7 +106,7 @@ class ContextTests(unittest.TestCase):
 
             dataset.annotate_global_list(test_resources + '/global_list.txt', 'global.genes', as_set=True).globals
 
-            (dataset.annotate_global_table(hc.import_keytable(test_resources + '/global_table.tsv'), 'global.genes')
+            (dataset.annotate_global_table(hc.import_table(test_resources + '/global_table.tsv'), 'global.genes')
              .globals)
 
             (dataset.annotate_samples_expr('sa.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
@@ -118,24 +118,19 @@ class ContextTests(unittest.TestCase):
             dataset.annotate_global_expr('global.foo = 5')
             dataset.annotate_global_expr(['global.foo = 5', 'global.bar = 6'])
 
-            dataset = dataset.annotate_samples_table(hc.import_keytable(test_resources + '/sampleAnnotations.tsv')
+            dataset = dataset.annotate_samples_table(hc.import_table(test_resources + '/sampleAnnotations.tsv')
                                                      .key_by('Sample'),
                                                      expr='sa.isCase = table.Status == "CASE", sa.qPhen = table.qPhen')
 
             (dataset.annotate_variants_expr('va.nCalled = gs.filter(g => {0}.isCalled()).count()'.format(gt))
              .count())
 
-            (dataset.annotate_variants_intervals(test_resources + '/annotinterall.interval_list',
-                                                 'va.included',
-                                                 all=True)
-             .count())
-
-            loci_tb = (hc.import_keytable(test_resources + '/sample2_loci.tsv')
+            loci_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
                        .annotate('locus = Locus(chr, pos.toInt())').key_by('locus'))
             (dataset.annotate_variants_table(loci_tb, root='va.locus_annot')
              .count())
 
-            variants_tb = (hc.import_keytable(test_resources + '/variantAnnotations.tsv')
+            variants_tb = (hc.import_table(test_resources + '/variantAnnotations.tsv')
                            .annotate('variant = Variant(Chromosome, Position.toInt(), Ref, Alt)').key_by('variant'))
             (dataset.annotate_variants_table(variants_tb, root='va.table')
              .count())
@@ -151,13 +146,13 @@ class ContextTests(unittest.TestCase):
                 samples = [s.strip() for s in f]
             dataset.filter_samples_list(samples).count()['nSamples']
 
-            locus_tb = (hc.import_keytable(test_resources + '/sample2_loci.tsv')
+            locus_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
                         .annotate('locus = Locus(chr, pos.toInt())')
                         .key_by('locus'))
 
             (dataset.annotate_variants_table(locus_tb, root='va.locus_annot').count())
 
-            tb = (hc.import_keytable(test_resources + '/variantAnnotations.tsv')
+            tb = (hc.import_table(test_resources + '/variantAnnotations.tsv')
                   .annotate('variant = Variant(Chromosome, Position.toInt(), Ref, Alt)')
                   .key_by('variant'))
             (dataset.annotate_variants_table(tb, root='va.table').count())
@@ -180,22 +175,21 @@ class ContextTests(unittest.TestCase):
             (dataset.filter_variants_expr('pcoin(0.5)')
              .export_variants('/tmp/sample2.variant_list', 'v'))
 
-            (dataset.filter_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
+            (dataset.filter_variants_table(KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
              .count())
 
             dataset.filter_intervals(Interval.parse('1:100-end')).count()
-            dataset.filter_intervals(IntervalTree.parse_all(['1:100-end', '3-22'])).count()
-            dataset.filter_intervals(IntervalTree([Interval.parse('1:100-end')])).count()
+            dataset.filter_intervals(map(Interval.parse, ['1:100-end', '3-22'])).count()
 
-            (dataset.filter_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
+            (dataset.filter_variants_table(KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
              .count())
 
             self.assertEqual(dataset2.filter_variants_table(
-                hc.import_keytable(test_resources + '/sample2_variants.tsv',
-                                   key='_0', impute=True, no_header=True))
+                hc.import_table(test_resources + '/sample2_variants.tsv',
+                                   key='f0', impute=True, no_header=True))
                              .count()['nVariants'], 21)
 
-            m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
+            m2 = {r.f0: r.f1 for r in hc.import_table(test_resources + '/sample2_rename.tsv',
                                                          no_header=True).collect()}
             self.assertEqual(dataset2.join(dataset2.rename_samples(m2))
                              .count()['nSamples'], 200)
@@ -205,12 +199,12 @@ class ContextTests(unittest.TestCase):
             dataset.export_variants('/tmp/variants.tsv', 'v = v, va = va')
             self.assertTrue((dataset.variants_keytable()
                              .annotate('va = json(va)'))
-                            .same(hc.import_keytable('/tmp/variants.tsv', impute=True).key_by('v')))
+                            .same(hc.import_table('/tmp/variants.tsv', impute=True).key_by('v')))
 
             dataset.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
             self.assertTrue((dataset.samples_keytable()
                              .annotate('s = s, sa = json(sa)'))
-                            .same(hc.import_keytable('/tmp/samples.tsv', impute=True).key_by('s')))
+                            .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
 
             if dataset._is_generic_genotype:
                 gt_string = 'gt = g.GT, gq = g.GQ'
@@ -229,7 +223,7 @@ class ContextTests(unittest.TestCase):
 
             ((dataset
               .make_keytable('v = v, info = va.info', gt_string, ['v']))
-             .same(hc.import_keytable('/tmp/sample_kt.tsv').key_by('v')))
+             .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
 
             dataset.annotate_variants_expr("va.nHet = gs.filter(g => {0}.isHet()).count()".format(gt))
 
@@ -256,7 +250,7 @@ class ContextTests(unittest.TestCase):
                   .annotate("v2 = v")
                   .key_by(["v", "v2"]))
 
-            dataset.annotate_variants_table(kt, expr="va.foo = table.va", vds_key=["v", "v"])
+            dataset.annotate_variants_table(kt, root='va.foo', vds_key=["v", "v"])
 
             self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
@@ -316,25 +310,25 @@ class ContextTests(unittest.TestCase):
 
         self.assertTrue(isinstance(sample2.genotype_schema, TGenotype))
 
-        m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv', no_header=True,
+        m2 = {r.f0: r.f1 for r in hc.import_table(test_resources + '/sample2_rename.tsv', no_header=True,
                                                      impute=True)
             .collect()}
         self.assertEqual(sample2.join(sample2.rename_samples(m2))
                          .count()['nSamples'], 200)
 
-        cov = hc.import_keytable(test_resources + '/regressionLinear.cov',
+        cov = hc.import_table(test_resources + '/regressionLinear.cov',
                                  types={'Cov1': TDouble(), 'Cov2': TDouble()}).key_by('Sample')
 
-        phen1 = hc.import_keytable(test_resources + '/regressionLinear.pheno', missing='0',
+        phen1 = hc.import_table(test_resources + '/regressionLinear.pheno', missing='0',
                                    types={'Pheno': TDouble()}).key_by('Sample')
-        phen2 = hc.import_keytable(test_resources + '/regressionLogisticBoolean.pheno', missing='0',
+        phen2 = hc.import_table(test_resources + '/regressionLogisticBoolean.pheno', missing='0',
                                    types={'isCase': TBoolean()}).key_by('Sample')
 
         regression = (hc.import_vcf(test_resources + '/regressionLinear.vcf')
                       .split_multi()
                       .annotate_samples_table(cov, root='sa.cov')
-                      .annotate_samples_table(phen1, expr='sa.pheno.Pheno = table.Pheno')
-                      .annotate_samples_table(phen2, expr='sa.pheno.isCase = table.isCase'))
+                      .annotate_samples_table(phen1, root='sa.pheno.Pheno')
+                      .annotate_samples_table(phen2, root='sa.pheno.isCase'))
 
         (regression.linreg('sa.pheno.Pheno', covariates=['sa.cov.Cov1', 'sa.cov.Cov2 + 1 - 1'])
          .count())
@@ -365,12 +359,12 @@ class ContextTests(unittest.TestCase):
         sample2.export_variants('/tmp/variants.tsv', 'v = v, va = va')
         self.assertTrue((sample2.variants_keytable()
                          .annotate('va = json(va)'))
-                        .same(hc.import_keytable('/tmp/variants.tsv', impute=True).key_by('v')))
+                        .same(hc.import_table('/tmp/variants.tsv', impute=True).key_by('v')))
 
         sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
         self.assertTrue((sample2.samples_keytable()
                          .annotate('s = s, sa = json(sa)'))
-                        .same(hc.import_keytable('/tmp/samples.tsv', impute=True).key_by('s')))
+                        .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
 
         cols = ['v = v, info = va.info']
         for s in sample2.sample_ids:
@@ -382,7 +376,7 @@ class ContextTests(unittest.TestCase):
 
         ((sample2
           .make_keytable('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
-         .same(hc.import_keytable('/tmp/sample_kt.tsv').key_by('v')))
+         .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
 
@@ -407,7 +401,7 @@ class ContextTests(unittest.TestCase):
         kt = (sample2.variants_keytable()
               .annotate("v2 = v")
               .key_by(["v", "v2"]))
-        sample2.annotate_variants_table(kt, expr="va.foo = table.va", vds_key=["v", "v"])
+        sample2.annotate_variants_table(kt, root="va.foo", vds_key=["v", "v"])
 
         self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
@@ -421,8 +415,8 @@ class ContextTests(unittest.TestCase):
 
         # Import
         # columns: Sample Status qPhen
-        kt = hc.import_keytable(test_resources + '/sampleAnnotations.tsv', impute=True).key_by('Sample')
-        kt2 = hc.import_keytable(test_resources + '/sampleAnnotations2.tsv', impute=True).key_by('Sample')
+        kt = hc.import_table(test_resources + '/sampleAnnotations.tsv', impute=True).key_by('Sample')
+        kt2 = hc.import_table(test_resources + '/sampleAnnotations2.tsv', impute=True).key_by('Sample')
 
         # Variables
         self.assertEqual(kt.num_columns, 3)
@@ -476,8 +470,7 @@ class ContextTests(unittest.TestCase):
                            .annotate('v = str(v), va.filters = va.filters.toArray()')
                            .flatten())
 
-        sample_variants2 = hc.dataframe_to_keytable(
-            sample_variants.to_dataframe(), ['v'])
+        sample_variants2 = KeyTable.from_dataframe(sample_variants.to_dataframe()).key_by('v')
         self.assertTrue(sample_variants.same(sample_variants2))
 
         # cseed: calculated by hand using sort -n -k 3,3 and inspection

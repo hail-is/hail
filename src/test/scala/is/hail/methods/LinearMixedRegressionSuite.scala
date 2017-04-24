@@ -276,9 +276,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
     https://github.com/MicrosoftGenomics/FaST-LMM/blob/master/doc/ipynb/FaST-LMM.ipynb
     */
 
-    val covariates = hc.importKeyTable("src/test/resources/fastlmmCov.txt",
+    val covariates = hc.importTable("src/test/resources/fastlmmCov.txt",
       noHeader = true, impute = true).keyBy("_1")
-    val phenotypes = hc.importKeyTable("src/test/resources/fastlmmPheno.txt",
+    val phenotypes = hc.importTable("src/test/resources/fastlmmPheno.txt",
       noHeader = true, impute = true, separator = " ").keyBy("_1")
 
     val vds = hc.importPlink(bed = "src/test/resources/fastlmmTest.bed",
@@ -301,9 +301,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
   // this test parallels the lmmreg Python test, and is a regression test related to filtering samples first
   @Test def filterTest() {
 
-    val covariates = hc.importKeyTable("src/test/resources/regressionLinear.cov",
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
       types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
-    val phenotypes = hc.importKeyTable("src/test/resources/regressionLinear.pheno",
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")

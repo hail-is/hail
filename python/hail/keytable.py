@@ -1004,4 +1004,4 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc(), df._jdf))
+        return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc()._jhc, df._jdf))

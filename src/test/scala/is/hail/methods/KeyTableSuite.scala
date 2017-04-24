@@ -40,14 +40,14 @@ class KeyTableSuite extends SparkSuite {
   @Test def testImportExport() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
-    val kt = hc.importKeyTable(inputFile).keyBy("Sample", "Status")
-    kt.export(sc, outputFile, null)
+    val kt = hc.importTable(inputFile).keyBy("Sample", "Status")
+    kt.export(outputFile)
 
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
     intercept[HailException] {
-      hc.importKeyTable(inputFile).keyBy(List("Sample", "Status", "BadKeyName"))
+      hc.importTable(inputFile).keyBy(List("Sample", "Status", "BadKeyName"))
     }
 
     assert(importedData == exportedData)
@@ -55,7 +55,7 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val kt1 = hc.importKeyTable(inputFile, impute = true).keyBy("Sample")
+    val kt1 = hc.importTable(inputFile, impute = true).keyBy("Sample")
     val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
     val kt3 = kt2.annotate("")
     val kt4 = kt3.select(kt3.fieldNames, Array("qPhen", "NotStatus"))
@@ -85,7 +85,7 @@ class KeyTableSuite extends SparkSuite {
     )
 
     val outputFile = tmpDir.createTempFile("annotate", "tsv")
-    kt2.export(sc, outputFile, null)
+    kt2.export(outputFile)
   }
 
   @Test def testFilter() = {
@@ -103,15 +103,15 @@ class KeyTableSuite extends SparkSuite {
     assert(kt1.nRows == 3 && kt2.nRows == 2 && kt3.nRows == 1 && kt4.nRows == 2 && kt5.nRows == 0)
 
     val outputFile = tmpDir.createTempFile("filter", "tsv")
-    kt5.export(sc, outputFile, null)
+    kt5.export(outputFile)
   }
 
   @Test def testJoin() = {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    val ktLeft = hc.importKeyTable(inputFile1, impute = true).keyBy("Sample")
-    val ktRight = hc.importKeyTable(inputFile2, impute = true).keyBy("Sample")
+    val ktLeft = hc.importTable(inputFile1, impute = true).keyBy("Sample")
+    val ktRight = hc.importTable(inputFile2, impute = true).keyBy("Sample")
 
     val ktLeftJoin = ktLeft.join(ktRight, "left")
     val ktRightJoin = ktLeft.join(ktRight, "right")
@@ -158,7 +158,7 @@ class KeyTableSuite extends SparkSuite {
       ktInnerJoin.nFields == nExpectedFields)
 
     val outputFile = tmpDir.createTempFile("join", "tsv")
-    ktLeftJoin.export(sc, outputFile, null)
+    ktLeftJoin.export(outputFile)
 
     val noNull = ktLeft.filter("isDefined(qPhen) && isDefined(Status)", keep = true).keyBy(List("Sample", "Status"))
     assert(noNull.join(
@@ -170,8 +170,8 @@ class KeyTableSuite extends SparkSuite {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    val ktLeft = hc.importKeyTable(inputFile1, impute = true).keyBy("Sample")
-    val ktRight = hc.importKeyTable(inputFile2, impute = true)
+    val ktLeft = hc.importTable(inputFile1, impute = true).keyBy("Sample")
+    val ktRight = hc.importTable(inputFile2, impute = true)
       .keyBy("Sample")
       .rename(Map("Sample" -> "sample"))
     val ktBad = ktRight.select(ktRight.fieldNames, Array("qPhen2"))
@@ -200,7 +200,7 @@ class KeyTableSuite extends SparkSuite {
         "E = field2.filter(f => field2 == 3).count()"
     )
 
-    kt2.export(sc, "test.tsv", null)
+    kt2.export("test.tsv")
     val result = Array(Array("Case", 12, 12, 16, 2L, 1L), Array("Control", 3, 3, 11, 2L, 0L))
     val resRDD = sc.parallelize(result.map(Row.fromSeq(_)))
     val resSignature = TStruct(("Status", TString), ("A", TInt), ("B", TInt), ("C", TInt), ("D", TLong), ("E", TLong))
@@ -209,7 +209,7 @@ class KeyTableSuite extends SparkSuite {
     assert(kt2 same ktResult)
 
     val outputFile = tmpDir.createTempFile("aggregate", "tsv")
-    kt2.export(sc, outputFile, null)
+    kt2.export(outputFile)
   }
 
   @Test def testForallExists() {
@@ -246,7 +246,7 @@ class KeyTableSuite extends SparkSuite {
     intercept[HailException](kt.rename(Map("Sample" -> "field2", "field1" -> "field2")))
 
     val outputFile = tmpDir.createTempFile("rename", "tsv")
-    rename2.export(sc, outputFile, null)
+    rename2.export(outputFile)
   }
 
   @Test def testSelect() {
@@ -274,16 +274,16 @@ class KeyTableSuite extends SparkSuite {
     intercept[HailException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
 
     val outputFile1 = tmpDir.createTempFile("select1", "tsv")
-    select1.export(sc, outputFile1, null)
+    select1.export(outputFile1)
 
     val outputFile2 = tmpDir.createTempFile("select2", "tsv")
-    select2.export(sc, outputFile2, null)
+    select2.export(outputFile2)
 
     val outputFile3 = tmpDir.createTempFile("select3", "tsv")
-    select3.export(sc, outputFile3, null)
+    select3.export(outputFile3)
 
     val outputFile4 = tmpDir.createTempFile("select4", "tsv")
-    select4.export(sc, outputFile4, null)
+    select4.export(outputFile4)
   }
 
   @Test def testExplode() {
@@ -306,7 +306,7 @@ class KeyTableSuite extends SparkSuite {
     assert(ktResult3.same(kt3.explode(Array("field1", "field2", "field1"))))
 
     val outputFile = tmpDir.createTempFile("explode", "tsv")
-    kt2.explode(Array("field1")).export(sc, outputFile, null)
+    kt2.explode(Array("field1")).export(outputFile)
   }
 
   @Test def testKeyTableToDF() {
@@ -324,7 +324,7 @@ class KeyTableSuite extends SparkSuite {
   }
 
   @Test def testQuery() {
-    val kt = hc.importKeyTable("src/test/resources/sampleAnnotations.tsv", impute = true)
+    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true)
 
     case class LineData(sample: String, status: String, qPhen: Option[Int])
 
