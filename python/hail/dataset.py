@@ -2595,7 +2595,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def linreg_burden(self, key_name, variant_keys, agg_expr, y, covariates=[], single_key=False):
+    def linreg_burden(self, key_name, variant_keys, single_key, agg_expr, y, covariates=[]):
         r"""Test each group of variants for association using the linear regression model.
 
         .. include:: requireTGenotype.rst
@@ -2607,6 +2607,7 @@ class VariantDataset(object):
         >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
         ...     .linreg_burden(key_name='gene',
         ...                    variant_keys='va.genes',
+        ...                    single_key='false',
         ...                    agg_expr='gs.map(g => g.gt).max()',
         ...                    y='sa.burden.pheno',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
@@ -2622,12 +2623,12 @@ class VariantDataset(object):
 
         .. caution::
 
-          By default ``variant_keys`` expects a variant annotation of Set or Array type, in order to allow
-          each variant to have zero, one, or more keys (for example, the same variant may appear in multiple genes).
-          Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
+          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
+          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
+          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
           variant will be counted twice in that key's group.
 
-          Set ``single_key=True`` to run a burden test keyed by an annotation whose value is itself the
+          With ``single_key=True``, ``variant_keys`` expects a variant annotation whose value is itself the
           key of interest, rather than a collection of keys. For example, if the annotation ``va.gene``
           of type String specifies one gene (if present) or no gene (if missing) per variant, setting
           ``variant_keys='va.gene'`` and ``single_key=True`` will group variants by gene as well.
@@ -2752,6 +2753,9 @@ class VariantDataset(object):
 
         :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
 
+        :param bool single_key: if true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
+                                rather than as a collection of keys.
+
         :param str agg_expr: Sample aggregation expression (per key).
 
         :param str y: Response expression.
@@ -2759,14 +2763,11 @@ class VariantDataset(object):
         :param covariates: list of covariate expressions.
         :type covariates: list of str
 
-        :param bool single_key: if true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
-                                rather than as a collection of keys.
-
         :return: Tuple of linear regression key table and sample aggregation key table.
         :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        r = self._jvdf.linregBurden(key_name, variant_keys, agg_expr, y, jarray(Env.jvm().java.lang.String, covariates), single_key)
+        r = self._jvdf.linregBurden(key_name, variant_keys, single_key, agg_expr, y, jarray(Env.jvm().java.lang.String, covariates))
         linreg_kt = KeyTable(self.hc, r._1())
         sample_kt = KeyTable(self.hc, r._2())
 
@@ -3101,7 +3102,7 @@ class VariantDataset(object):
 
         The following R code fits the (standard) logistic, Firth logistic, and linear regression models to this data, where ``x`` is genotype, ``y`` is phenotype, and ``logistf`` is from the logistf package:
 
-        .. code:: R
+        .. code-block:: R
 
             x <- c(rep(0,1000), rep(1,1000), rep(1,10)
             y <- c(rep(0,1000), rep(0,1000), rep(1,10))

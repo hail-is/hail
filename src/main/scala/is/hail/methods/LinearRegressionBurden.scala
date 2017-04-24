@@ -15,10 +15,10 @@ object LinearRegressionBurden {
   def apply(vds: VariantDataset,
     keyName: String,
     variantKeys: String,
+    singleKey: Boolean,
     aggExpr: String,
     yExpr: String,
-    covExpr: Array[String],
-    singleKey: Boolean): (KeyTable, KeyTable) = {
+    covExpr: Array[String]): (KeyTable, KeyTable) = {
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 

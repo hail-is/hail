@@ -216,25 +216,22 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (keysType, keysQuerier) = queryVA(variantKeysVA)
 
-    val keyType = keysType match {
-      case TArray(e) => e
-      case TSet(e) => e
-      case _ =>
-        if (singleKey)
-          keysType
-        else
-          fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
-    }
+    val (keyType, keyedRdd) =
+      if (singleKey) {
+        (keysType, rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map (key => (key, (v, va, gs))) })
+      } else {
+        val keyType = keysType match {
+          case TArray(e) => e
+          case TSet(e) => e
+          case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
+        }
+        (keyType, rdd.flatMap { case (v, (va, gs)) =>
+          Option(keysQuerier(va).asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map(key => (key, (v, va, gs))) })
+      }
 
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions[T](this, aggExpr)
 
-    val firstRDD =
-      if (singleKey)
-        rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map (key => (key, (v, va, gs))) }
-      else
-        rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va).asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map(key => (key, (v, va, gs))) }
-
-    val ktRDD = firstRDD
+    val ktRDD = keyedRdd
       .aggregateByKey(zero)(seqOp, combOp)
       .map { case (key, agg) =>
         val results = resultOp(agg)

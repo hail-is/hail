@@ -807,9 +807,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LinearRegression(vds, y, covariates, root, useDosages, minAC, minAF)
   }
 
-  def linregBurden(keyName: String, variantKeys: String, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String], singleKey: Boolean = false): (KeyTable, KeyTable) = {
+  def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
     requireSplit("linear burden regression")
-    LinearRegressionBurden(vds, keyName, variantKeys, aggExpr, y, covariates, singleKey)
+    LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
   }
 
   def linregMultiPheno(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
