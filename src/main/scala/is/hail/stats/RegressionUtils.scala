@@ -246,7 +246,7 @@ object RegressionUtils {
   }
 
   // mean 0, norm sqrt(n), variance 1 (constant variants return None)
-  def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {
+  def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double, Double)] = {
     val nSamples = y.length
     val valsX = Array.ofDim[Double](nSamples)
     var sumX = 0d
@@ -295,11 +295,77 @@ object RegressionUtils {
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * sumYMissing
 
-      Some(x, xx, xy)
+      Some(x, xx, xy, meanX)
     }
   }
 
-  def toLinregHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
+  def toLinregDominanceHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double, Double)] = {
+    val nSamples = y.length
+    // Here's the array of values - this is what I want to fill with the dominance encoding.
+    val valsX = Array.ofDim[Double](nSamples)
+    var sumX = 0d
+    var sumHet = 0d
+    var sumHomVar = 0d
+    var sumXX = 0d
+    var sumXY = 0d
+    var nMissing = 0
+
+    val gts = gs.hardCallIterator
+    var i = 0
+    var row = 0
+
+    while (i < mask.length) {
+      val gt = gts.next()
+      if (mask(i)) {
+        (gt: @unchecked) match {
+          case 0 =>
+            valsX(row) = 0
+          case 1 =>
+            valsX(row) = 1
+            sumX += 1
+            sumHet += 1
+          case 2 =>
+            valsX(row) = 2
+            sumX += 2
+            sumHomVar += 1
+          case -1 =>
+            // Missing guy - index a 3 here.
+            valsX(row) = 3
+            nMissing += 1
+        }
+        row += 1
+      }
+      i += 1
+    }
+
+    val nPresent = nSamples - nMissing
+
+    if (sumX < minAC || sumHet == nPresent || sumHomVar == nPresent || sumX == nPresent)
+      None
+    else {
+      val meanX = sumX / nPresent
+      val p = meanX / 2
+      val q = 1 - p
+      val meanDomX = ((nPresent - sumHet - sumHomVar) * (-p / q) + sumHet * 1 + sumHomVar * (-q / p)) / nPresent
+      val DomX: Vector[Double] = Vector(-p / q, 1, -q / p, meanDomX)
+
+      for (i <- 0 to (nSamples - 1)) {
+        // Loop and plug in the dominance encoding.
+        valsX(i) = DomX(valsX(i).toInt)
+        sumXX += valsX(i) * valsX(i)
+        sumXY += valsX(i) * y(i)
+      }
+
+      val x = DenseVector(valsX)
+      val xx = sumXX
+      val xy = sumXY
+
+      Some(x, xx, xy, meanDomX)
+    }
+  }
+
+
+  def toLinregHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(SparseVector[Double], Double, Double, Double)] = {
     val nSamples = y.length
     val lrb = new LinRegBuilder(y)
     val gts = gs.hardCallIterator
@@ -357,7 +423,7 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
     this
   }
 
-  def stats(y: DenseVector[Double], n: Int, minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
+  def stats(y: DenseVector[Double], n: Int, minAC: Int): Option[(SparseVector[Double], Double, Double, Double)] = {
     require(minAC > 0)
 
     val missingRowIndicesArray = missingRowIndices.result()
@@ -384,7 +450,7 @@ class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
       val xx = sumXX + meanX * meanX * nMissing
       val xy = sumXY + meanX * sumYMissing
 
-      Some((x, xx, xy))
+      Some((x, xx, xy, meanX))
     }
   }
 }

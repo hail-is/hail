@@ -847,9 +847,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.annotateSamples(result, signature, "sa.imputesex")
   }
 
-  def linreg(ySA: String, covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
+  def linreg(ySA: String, covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, useDominance: Boolean = false, useNormalise: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
     requireSplit("linear regression")
-    LinearRegression(vds, ySA, covSA, root, useDosages, minAC, minAF)
+    LinearRegression(vds, ySA, covSA, root, useDosages, useDominance, useNormalise, minAC, minAF)
   }
 
   def linregMultiPheno(ysSA: Array[String], covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {

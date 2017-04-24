@@ -15,7 +15,7 @@ object LinearRegression {
     ("tstat", TDouble),
     ("pval", TDouble))
 
-  def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
+  def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, useDosages: Boolean, useDominance: Boolean, useNormalise: Boolean, minAC: Int, minAF: Double): VariantDataset = {
     require(vds.wasSplit)
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
@@ -45,20 +45,24 @@ object LinearRegression {
     val QtBc = sc.broadcast(Qt)
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
+    val yy = y dot y
+    val ymean = sum(y) / n
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
 
     vds.mapAnnotations { case (v, va, gs) =>
 
-      val optStats: Option[(Vector[Double], Double, Double)] =
+      val optStats: Option[(Vector[Double], Double, Double, Double)] =
         if (useDosages)
           RegressionUtils.toLinregDosageStats(gs, yBc.value, sampleMaskBc.value, combinedMinAC)
+        else if (useDominance)
+          RegressionUtils.toLinregDominanceHardCallStats(gs, yBc.value, sampleMaskBc.value, combinedMinAC)
         else
           RegressionUtils.toLinregHardCallStats(gs, yBc.value, sampleMaskBc.value, combinedMinAC)
 
       val linregAnnot = optStats.map { stats =>
-        val (x, xx, xy) = stats
+        val (x, xx, xy, xmean) = stats
 
         val qtx = QtBc.value * x
         val qty = QtyBc.value
@@ -66,8 +70,17 @@ object LinearRegression {
         val xyp: Double = xy - (qtx dot qty)
         val yyp: Double = yypBc.value
 
-        val b = xyp / xxp
-        val se = math.sqrt((yyp / xxp - b * b) / d)
+        val scale = if (useNormalise) {
+          val xscale: Double = math.sqrt(xx - xmean * xmean * n)
+          val yscale: Double = math.sqrt(yy - ymean * ymean * n)
+          xscale / yscale
+        } else {
+          1
+        }
+
+        val b_unscaled = xyp / xxp
+        val b = scale * b_unscaled
+        val se = scale * math.sqrt((yyp / xxp - b_unscaled * b_unscaled) / d)
         val t = b / se
         val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 

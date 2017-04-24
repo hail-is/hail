@@ -55,14 +55,14 @@ object LinearRegressionMultiPheno {
 
     vds.mapAnnotations { case (v, va, gs) =>
 
-      val optStats: Option[(Vector[Double], Double, Double)] =
+      val optStats: Option[(Vector[Double], Double, Double, Double)] =
         if (useDosages)
           RegressionUtils.toLinregDosageStats(gs, yDummyBc.value, sampleMaskBc.value, combinedMinAC)
         else
           RegressionUtils.toLinregHardCallStats(gs, yDummyBc.value, sampleMaskBc.value, combinedMinAC)
 
       val linregAnnot = optStats.map { stats =>
-        val (x, xx, _) = stats
+        val (x, xx, _, _) = stats
 
         val qtx: DenseVector[Double] = QtBc.value * x
         val qty: DenseMatrix[Double] = QtyBc.value
