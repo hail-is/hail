@@ -88,4 +88,14 @@ class MinHashSuite extends SparkSuite {
     println(s"r = $blockSize, l = $numBlocks, rl = ${blockSize * numBlocks}," +
       s" false pos = ${MinHash.falsePosRate(blockSize, numBlocks, simThresh, simDist)}")
   }
+
+  @Test def scratch() {
+    val vds = hc.read("profile225.vds")
+      .variantQC()
+      .sampleQC()
+      .write("profile225_qc.vds")
+
+    val vds2 = hc.read("profile225_qc.vds")
+      .filterVariantsExpr("va.qc.AF < .05 && va.qc.AF > .95")
+  }
 }
