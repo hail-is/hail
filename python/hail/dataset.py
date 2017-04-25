@@ -2596,7 +2596,8 @@ class VariantDataset(object):
 
     @handle_py4j
     def linreg_burden(self, key_name, variant_keys, single_key, agg_expr, y, covariates=[]):
-        r"""Test each group of variants for association using the linear regression model.
+        r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
+        linear regression model.
 
         .. include:: requireTGenotype.rst
 
