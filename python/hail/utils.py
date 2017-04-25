@@ -80,8 +80,8 @@ class Summary(object):
         summary.call_rate = jrep.callRate().getOrElse(None)
         summary.contigs = [str(x) for x in jiterable_to_list(jrep.contigs())]
         summary.multiallelics = jrep.multiallelics()
-        summary.snps = jrep.snps(),
-        summary.mnps = jrep.mnps(),
+        summary.snps = jrep.snps()
+        summary.mnps = jrep.mnps()
         summary.insertions = jrep.insertions()
         summary.deletions = jrep.deletions()
         summary.complex = jrep.complex()
@@ -105,7 +105,7 @@ class Summary(object):
         print('')  # clear out pesky progress bar if necessary
         print('%16s: %d' % ('Samples', self.samples))
         print('%16s: %d' % ('Variants', self.variants))
-        print('%16s: %f' % ('Call rate', self.call_rate))
+        print('%16s: %f' % ('Call Rate', self.call_rate))
         print('%16s: %s' % ('Contigs', self.contigs))
         print('%16s: %d' % ('Multiallelics', self.multiallelics))
         print('%16s: %d' % ('SNPs', self.snps))
@@ -114,7 +114,7 @@ class Summary(object):
         print('%16s: %d' % ('Deletions', self.deletions))
         print('%16s: %d' % ('Complex Alleles', self.complex))
         print('%16s: %d' % ('Star Alleles', self.star))
-        print('%16s: %d' % ('Most alleles', self.max_alleles))
+        print('%16s: %d' % ('Max Alleles', self.max_alleles))
 
 
 class FunctionDocumentation(object):
