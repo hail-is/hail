@@ -66,18 +66,18 @@ object VariantSampleMatrix {
 
   def genGeneric(hc: HailContext): Gen[VariantSampleMatrix[Annotation]] =
     for (tSig <- Type.genArb.resize(3);
-         vsm <- VSMSubgen[Annotation](
-           sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
-           saSigGen = Type.genArb,
-           vaSigGen = Type.genArb,
-           globalSigGen = Type.genArb,
-           tSig = tSig,
-           saGen = (t: Type) => t.genValue,
-           vaGen = (t: Type) => t.genValue,
-           globalGen = (t: Type) => t.genValue,
-           vGen = Variant.gen,
-           tGen = (v: Variant) => tSig.genValue.resize(20),
-           isGenericGenotype = true).gen(hc)
+      vsm <- VSMSubgen[Annotation](
+        sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
+        saSigGen = Type.genArb,
+        vaSigGen = Type.genArb,
+        globalSigGen = Type.genArb,
+        tSig = tSig,
+        saGen = (t: Type) => t.genValue,
+        vaGen = (t: Type) => t.genValue,
+        globalGen = (t: Type) => t.genValue,
+        vGen = Variant.gen,
+        tGen = (v: Variant) => tSig.genValue.resize(20),
+        isGenericGenotype = true).gen(hc)
     ) yield vsm
 }
 
@@ -98,24 +98,24 @@ case class VSMSubgen[T](
 
   def gen(hc: HailContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[T]] =
     for (size <- Gen.size;
-         subsizes <- Gen.partitionSize(5).resize(size / 10);
-         vaSig <- vaSigGen.resize(subsizes(0));
-         saSig <- saSigGen.resize(subsizes(1));
-         globalSig <- globalSigGen.resize(subsizes(2));
-         global <- globalGen(globalSig).resize(subsizes(3));
-         nPartitions <- Gen.choose(1, 10);
+      subsizes <- Gen.partitionSize(5).resize(size / 10);
+      vaSig <- vaSigGen.resize(subsizes(0));
+      saSig <- saSigGen.resize(subsizes(1));
+      globalSig <- globalSigGen.resize(subsizes(2));
+      global <- globalGen(globalSig).resize(subsizes(3));
+      nPartitions <- Gen.choose(1, 10);
 
-         (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9);
+      (l, w) <- Gen.squareOfAreaAtMostSize.resize((size / 10) * 9);
 
-         sampleIds <- sampleIdGen.resize(w);
-         nSamples = sampleIds.length;
-         saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
-         rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
-           for (subsubsizes <- Gen.partitionSize(3);
-                v <- vGen.resize(subsubsizes(0));
-                va <- vaGen(vaSig).resize(subsubsizes(1));
-                ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
-             yield (v, (va, ts))).resize(l))
+      sampleIds <- sampleIdGen.resize(w);
+      nSamples = sampleIds.length;
+      saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
+      rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
+        for (subsubsizes <- Gen.partitionSize(3);
+          v <- vGen.resize(subsubsizes(0));
+          va <- vaGen(vaSig).resize(subsubsizes(1));
+          ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
+          yield (v, (va, ts))).resize(l))
       yield {
         VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isDosage = isDosage, isGenericGenotype = isGenericGenotype),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
@@ -218,7 +218,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (keyType, keyedRdd) =
       if (singleKey) {
-        (keysType, rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map (key => (key, (v, va, gs))) })
+        (keysType, rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map(key => (key, (v, va, gs))) })
       } else {
         val keyType = keysType match {
           case TArray(e) => e
@@ -226,7 +226,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
         }
         (keyType, rdd.flatMap { case (v, (va, gs)) =>
-          Option(keysQuerier(va).asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map(key => (key, (v, va, gs))) })
+          Option(keysQuerier(va).asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map(key => (key, (v, va, gs)))
+        })
       }
 
     val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions[T](this, aggExpr)
