@@ -65,7 +65,8 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localGlobalAnnotation = vsm.globalAnnotation
+    val localNSamples = vsm.nSamples
+    val localGlobalAnnotations = vsm.globalAnnotation
     val localSamplesBc = vsm.sampleIdsBc
     val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
 
@@ -79,14 +80,13 @@ object Aggregators {
     }
 
     val result = vsm.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
-      localA(0) = localGlobalAnnotation
+      localA(0) = localGlobalAnnotations
       localA(4) = v
       localA(5) = va
 
       val gsIt = gs.iterator
       var i = 0
-      // gsIt assume hasNext is always called before next
-      while (gsIt.hasNext) {
+      while (i < localNSamples) {
         localA(1) = localSamplesBc.value(i)
         localA(2) = localSampleAnnotationsBc.value(i)
         localA(3) = gsIt.next
@@ -116,7 +116,87 @@ object Aggregators {
     })
   }
 
-  def makeFunctions[T](ec: EvalContext, setEC: (EvalContext, T) => Unit): (Array[Aggregator],
+  def makeSampleFunctions[T](vsm: VariantSampleMatrix[T], aggExpr: String): SampleFunctions[T] = {
+    val ec = vsm.sampleEC
+
+    val (resultType, aggF) = Parser.parseExpr(aggExpr, ec)
+
+    val localNSamples = vsm.nSamples
+    val localGlobalAnnotations = vsm.globalAnnotation
+    val localSamplesBc = vsm.sampleIdsBc
+    val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
+
+    val aggregations = ec.aggregations
+    val nAggregations = aggregations.size
+
+    val zVal = MultiArray2.fill[Aggregator](localNSamples, nAggregations)(null)
+    for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
+      zVal.update(i, j, aggregations(j)._3.copy())
+    }
+
+    val seqOp = (ma: MultiArray2[Aggregator], tup: (Variant, Annotation, Iterable[T])) => {
+      val (v, va, gs) = tup
+
+      ec.set(0, localGlobalAnnotations)
+      ec.set(4, v)
+      ec.set(5, va)
+
+      val gsIt = gs.iterator
+      var i = 0
+      while (i < localNSamples) {
+        ec.set(1, localSamplesBc.value(i))
+        ec.set(2, localSampleAnnotationsBc.value(i))
+        ec.set(3, gsIt.next)
+
+        var j = 0
+        while (j < nAggregations) {
+          aggregations(j)._2(ma(i, j).seqOp)
+          j += 1
+        }
+        i += 1
+      }
+      ma
+    }
+
+    val combOp = (ma1: MultiArray2[Aggregator], ma2: MultiArray2[Aggregator]) => {
+      for (i <- 0 until localNSamples; j <- 0 until nAggregations) {
+        val a1 = ma1(i, j)
+        a1.combOp(ma2(i, j).asInstanceOf[a1.type])
+      }
+      ma1
+    }
+
+    val resultOp = (ma: MultiArray2[Aggregator]) => {
+      val results = Array.ofDim[Any](localNSamples + 1)
+
+      ec.set(0, localGlobalAnnotations)
+
+      var i = 0
+      while (i < localNSamples) {
+        ec.set(1, localSamplesBc.value(i))
+        ec.set(2, localSampleAnnotationsBc.value(i))
+        var j = 0
+        while (j < nAggregations) {
+          aggregations(j)._1.v = ma(i, j).result
+          j += 1
+        }
+        i += 1
+        results(i) = aggF()
+      }
+      results
+    }
+
+    SampleFunctions(zVal, seqOp, combOp, resultOp, resultType)
+  }
+
+case class SampleFunctions[T](
+  zero: MultiArray2[Aggregator],
+  seqOp: (MultiArray2[Aggregator], (Variant, Annotation, Iterable[T])) => MultiArray2[Aggregator],
+  combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
+  resultOp: (MultiArray2[Aggregator] => Array[Annotation]),
+  resultType: Type)
+
+def makeFunctions[T](ec: EvalContext, setEC: (EvalContext, T) => Unit): (Array[Aggregator],
     (Array[Aggregator], T) => Array[Aggregator],
     (Array[Aggregator], Array[Aggregator]) => Array[Aggregator],
     (Array[Aggregator] => Unit)) = {

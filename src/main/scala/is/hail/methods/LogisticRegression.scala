@@ -8,18 +8,16 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 
-import scala.collection.mutable
-
 object LogisticRegression {
 
-  def apply(vds: VariantDataset, test: String, ySA: String, covSA: Array[String], root: String): VariantDataset = {
+  def apply(vds: VariantDataset, test: String, yExpr: String, covExpr: Array[String], root: String): VariantDataset = {
     require(vds.wasSplit)
 
     def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
 
     val logRegTest = tests(test)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     if (!y.forall(yi => yi == 0d || yi == 1d))

@@ -9,16 +9,16 @@ import is.hail.variant._
 import net.sourceforge.jdistlib.T
 
 object LinearRegression {
-  val schema: Type = TStruct(
+  val schema = TStruct(
     ("beta", TDouble),
     ("se", TDouble),
     ("tstat", TDouble),
     ("pval", TDouble))
 
-  def apply(vds: VariantDataset, ySA: String, covSA: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
+  def apply(vds: VariantDataset, yExpr: String, covExpr: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
     require(vds.wasSplit)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, ySA, covSA)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     val n = y.size

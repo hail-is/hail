@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable

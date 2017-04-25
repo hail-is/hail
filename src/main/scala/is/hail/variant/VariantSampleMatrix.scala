@@ -2,8 +2,8 @@ package is.hail.variant
 
 import java.nio.ByteBuffer
 import java.util
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.{EvalContext, TAggregable, _}
@@ -11,6 +11,7 @@ import is.hail.io._
 import is.hail.io.annotators.{BedAnnotator, IntervalListAnnotator}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.keytable.KeyTable
+import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods.{Aggregators, DuplicateReport, Filter, VEP}
 import is.hail.sparkextras._
 import is.hail.utils._
@@ -210,6 +211,40 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     KeyTable(hc, ktRDD, signature, keyNames)
   }
 
+
+  def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
+
+    val (keysType, keysQuerier) = queryVA(variantKeysVA)
+
+    val (keyType, keyedRdd) =
+      if (singleKey) {
+        (keysType, rdd.flatMap { case (v, (va, gs)) => Option(keysQuerier(va)).map(key => (key, (v, va, gs))) })
+      } else {
+        val keyType = keysType match {
+          case TArray(e) => e
+          case TSet(e) => e
+          case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
+        }
+        (keyType, rdd.flatMap { case (v, (va, gs)) =>
+          Option(keysQuerier(va).asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty).map(key => (key, (v, va, gs)))
+        })
+      }
+
+    val SampleFunctions(zero, seqOp, combOp, resultOp, resultType) = Aggregators.makeSampleFunctions[T](this, aggExpr)
+
+    val ktRDD = keyedRdd
+      .aggregateByKey(zero)(seqOp, combOp)
+      .map { case (key, agg) =>
+        val results = resultOp(agg)
+        results(0) = key
+        Row.fromSeq(results)
+      }
+
+    val signature = TStruct((keyName -> keyType) +: sampleIds.map(id => id -> resultType): _*)
+
+    new KeyTable(hc, ktRDD, signature, keyNames = Array(keyName))
+  }
+
   def aggregateBySample[U](zeroValue: U)(
     seqOp: (U, T) => U,
     combOp: (U, U) => U)(implicit uct: ClassTag[U]): RDD[(String, U)] =
@@ -303,8 +338,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * Aggregate over intervals and export.
     *
     * @param intervalList Input interval list file
-    * @param expr Export expression
-    * @param out Output file path
+    * @param expr         Export expression
+    * @param out          Output file path
     */
   def aggregateIntervals(intervalList: String, expr: String, out: String) {
 
@@ -420,12 +455,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Load text file into global annotations as Array[String] or
-    *   Set[String].
+    * Set[String].
     *
-    * @param path Input text file
-    * @param root Global annotation path to store text file
+    * @param path  Input text file
+    * @param root  Global annotation path to store text file
     * @param asSet If true, load text file as Set[String],
-    *   otherwise, load as Array[String]
+    *              otherwise, load as Array[String]
     */
   def annotateGlobalList(path: String, root: String, asSet: Boolean = false): VariantSampleMatrix[T] = {
     val textList = hc.hadoopConf.readFile(path) { in =>
@@ -459,10 +494,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Load delimited text file (text table) into global annotations as
-    *   Array[Struct].
+    * Array[Struct].
     *
-    * @param path Input text file
-    * @param root Global annotation path to store text table
+    * @param path   Input text file
+    * @param root   Global annotation path to store text table
     * @param config Configuration options for importing text files
     */
   def annotateGlobalTable(path: String, root: String,
@@ -556,8 +591,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   /**
     * Import PLINK .fam file into sample annotations.
     *
-    * @param path Path to .fam file
-    * @param root Sample annotation path at which to store .fam file
+    * @param path   Path to .fam file
+    * @param root   Sample annotation path at which to store .fam file
     * @param config .fam file configuration options
     */
   def annotateSamplesFam(path: String, root: String = "sa.fam",
@@ -822,7 +857,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val (finalType, inserter) = buildInserter(code, vaSignature, inserterEc, Annotation.VARIANT_HEAD)
 
-    val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v)}
+    val ktRdd = kt.keyedRDD().map { case (k, v) => (k: Annotation, v) }
 
     val thisRdd = rdd.map { case (v, (va, gs)) =>
       vdsKeyEc.setAll(v, va)
@@ -1170,7 +1205,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * Filter samples using the Hail expression language.
     *
     * @param filterExpr Filter expression involving `s' (sample) and `sa' (sample annotations)
-    * @param keep keep where filterExpr evaluates to true
+    * @param keep       keep where filterExpr evaluates to true
     */
   def filterSamplesExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
     val localGlobalAnnotation = globalAnnotation
@@ -1184,7 +1219,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
 
     val localKeep = keep
-//    val sampleIds = vsampleIds
+    //    val sampleIds = vsampleIds
     val p = (s: String, sa: Annotation) => {
       sampleAggregationOption.foreach(f => f.apply(s))
       ec.setAll(localGlobalAnnotation, s, sa)
@@ -1199,8 +1234,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Filter samples using a text file containing sample IDs
+    *
     * @param samples Set of samples to keep or remove
-    * @param keep Keep listed samples.
+    * @param keep    Keep listed samples.
     */
   def filterSamplesList(samples: Set[String], keep: Boolean = true): VariantSampleMatrix[T] = {
     val p = (s: String, sa: Annotation) => Filter.keepThis(samples.contains(s), keep)
@@ -1209,8 +1245,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     * Filter variants using the Hail expression language.
+    *
     * @param filterExpr filter expression
-    * @param keep keep variants where filterExpr evaluates to true
+    * @param keep       keep variants where filterExpr evaluates to true
     * @return
     */
   def filterVariantsExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
@@ -1840,9 +1877,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
-    vaSignature match{
+    vaSignature match {
       case t: TStruct => copy(vaSignature = t.setFieldAttributes(path, kv))
-      case t => fatal(s"Cannot set va attributes to ${path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot set va attributes to ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -1851,9 +1888,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
-    vaSignature match{
+    vaSignature match {
       case t: TStruct => copy(vaSignature = t.deleteFieldAttribute(path, attribute))
-      case t => fatal(s"Cannot delete va attributes from ${path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot delete va attributes from ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -1928,9 +1965,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   /**
     *
-    * @param config VEP configuration file
-    * @param root Variant annotation path to store VEP output
-    * @param csq Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
+    * @param config    VEP configuration file
+    * @param root      Variant annotation path to store VEP output
+    * @param csq       Annotates with the VCF CSQ field as a string, rather than the full nested struct schema
     * @param blockSize Variants per VEP invocation
     */
   def vep(config: String, root: String = "va.vep", csq: Boolean = false,

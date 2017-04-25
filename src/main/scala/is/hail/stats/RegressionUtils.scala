@@ -4,6 +4,7 @@ import breeze.linalg.{DenseMatrix, DenseVector, SparseVector}
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Genotype, VariantDataset}
+import org.apache.spark.sql.Row
 
 object RegressionUtils {
   def toDouble(t: Type, code: String): Any => Double = t match {
@@ -39,10 +40,10 @@ object RegressionUtils {
 
   def getPhenoCovCompleteSamples(
     vds: VariantDataset,
-    ySA: String,
-    covSA: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[String]) = {
+    yExpr: String,
+    covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[String]) = {
 
-    val nCovs = covSA.size + 1 // intercept
+    val nCovs = covExpr.size + 1 // intercept
 
     val symTab = Map(
       "s" -> (0, TString),
@@ -50,8 +51,8 @@ object RegressionUtils {
 
     val ec = EvalContext(symTab)
 
-    val yIS = getSampleAnnotation(vds, ySA, ec)
-    val covIS = getSampleAnnotations(vds, covSA, ec)
+    val yIS = getSampleAnnotation(vds, yExpr, ec)
+    val covIS = getSampleAnnotations(vds, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (yIS, covIS, vds.sampleIds)
@@ -78,11 +79,11 @@ object RegressionUtils {
 
   def getPhenosCovCompleteSamples(
     vds: VariantDataset,
-    ySA: Array[String],
-    covSA: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[String]) = {
+    yExpr: Array[String],
+    covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[String]) = {
 
-    val nPhenos = ySA.size
-    val nCovs = covSA.size + 1 // intercept
+    val nPhenos = yExpr.size
+    val nCovs = covExpr.size + 1 // intercept
 
     if (nPhenos == 0)
       fatal("No phenotypes present.")
@@ -93,8 +94,8 @@ object RegressionUtils {
 
     val ec = EvalContext(symTab)
 
-    val yIS = getSampleAnnotations(vds, ySA, ec)
-    val covIS = getSampleAnnotations(vds, covSA, ec)
+    val yIS = getSampleAnnotations(vds, yExpr, ec)
+    val covIS = getSampleAnnotations(vds, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
       (yIS, covIS, vds.sampleIds)
@@ -331,6 +332,57 @@ object RegressionUtils {
     }
 
     sb.stats(nMaskedSamples)
+  }
+
+  //keyedRow consists of row key followed by numeric data (passed with key to avoid copying, key is ignored here)
+  def denseStats(keyedRow: Row, y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
+    val n = keyedRow.length - 1
+    assert(y.length == n)
+
+    val valsX = Array.ofDim[Double](n)
+    var sumX = 0.0
+    var sumXX = 0.0
+    var sumXY = 0.0
+    var sumYMissing = 0.0
+    val missingRowIndices = new ArrayBuilder[Int]()
+
+    var i = 0
+    while (i < n) {
+      if (keyedRow.get(i + 1) == null) {
+        missingRowIndices += i
+        sumYMissing += y(i)
+      }
+      else {
+        val e = keyedRow.get(i + 1).asInstanceOf[java.lang.Number].doubleValue()
+        valsX(i) = e
+        sumX += e
+        sumXX += e * e
+        sumXY += e * y(i)
+      }
+      i += 1
+    }
+
+    val missingRowIndicesArray = missingRowIndices.result()
+    val nMissing = missingRowIndicesArray.length
+    val nPresent = n - nMissing
+
+    if (nPresent > 0) {
+      val meanX = sumX / nPresent
+
+      var j = 0
+      while (j < nMissing) {
+        valsX(missingRowIndicesArray(j)) = meanX
+        j += 1
+      }
+
+      val x = DenseVector[Double](valsX)
+      val xx = sumXX + meanX * meanX * nMissing
+      val xy = sumXY + meanX * sumYMissing
+
+      Some(x, xx, xy)
+    }
+    else
+      None
   }
 }
 

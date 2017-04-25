@@ -802,34 +802,39 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LDPrune(vds, r2Threshold, windowSize, nCores, memoryPerCore)
   }
 
-  def linreg(ySA: String, covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
+  def linreg(y: String, covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
     requireSplit("linear regression")
-    LinearRegression(vds, ySA, covSA, root, useDosages, minAC, minAF)
+    LinearRegression(vds, y, covariates, root, useDosages, minAC, minAF)
   }
 
-  def linregMultiPheno(ysSA: Array[String], covSA: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
+  def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
+    requireSplit("linear burden regression")
+    LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
+  }
+
+  def linregMultiPheno(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
     requireSplit("linear regression for multiple phenotypes")
-    LinearRegressionMultiPheno(vds, ysSA, covSA, root, useDosages, minAC, minAF)
+    LinearRegressionMultiPheno(vds, ys, covariates, root, useDosages, minAC, minAF)
   }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,
-    ySA: String,
-    covSA: Array[String] = Array.empty[String],
+    y: String,
+    covariates: Array[String] = Array.empty[String],
     useML: Boolean = false,
     rootGA: String = "global.lmmreg",
     rootVA: String = "va.lmmreg",
     runAssoc: Boolean = true,
-    optDelta: Option[Double] = None,
+    delta: Option[Double] = None,
     sparsityThreshold: Double = 1.0): VariantDataset = {
 
     requireSplit("linear mixed regression")
-    LinearMixedRegression(vds, kinshipMatrix, ySA, covSA, useML, rootGA, rootVA,
-      runAssoc, optDelta, sparsityThreshold)
+    LinearMixedRegression(vds, kinshipMatrix, y, covariates, useML, rootGA, rootVA,
+      runAssoc, delta, sparsityThreshold)
   }
 
-  def logreg(test: String, ySA: String, covSA: Array[String] = Array.empty[String], root: String = "va.logreg"): VariantDataset = {
+  def logreg(test: String, y: String, covariates: Array[String] = Array.empty[String], root: String = "va.logreg"): VariantDataset = {
     requireSplit("logistic regression")
-    LogisticRegression(vds, test, ySA, covSA, root)
+    LogisticRegression(vds, test, y, covariates, root)
   }
 
   def makeSchemaForKudu(): StructType =
