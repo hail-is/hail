@@ -244,13 +244,21 @@ object VEP {
     if (cacheDir == null)
       fatal("property `hail.vep.cache_dir' required")
 
-    val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
-    if (humanAncestor == null)
-      fatal("property `hail.vep.lof.human_ancestor' required")
 
-    val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
-    if (conservationFile == null)
-      fatal("property `hail.vep.lof.conservation_file' required")
+    val plugin = if (properties.getProperty("hail.vep.plugin") != null) {
+         properties.getProperty("hail.vep.plugin")
+    } else {
+
+        val humanAncestor = properties.getProperty("hail.vep.lof.human_ancestor")
+        if (humanAncestor == null)
+          fatal("property `hail.vep.lof.human_ancestor' required")
+
+        val conservationFile = properties.getProperty("hail.vep.lof.conservation_file")
+        if (conservationFile == null)
+          fatal("property `hail.vep.lof.conservation_file' required")
+
+        s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile"
+    }
 
     val fasta = properties.getProperty("hail.vep.fasta")
     if (fasta == null)
@@ -261,11 +269,6 @@ object VEP {
       warn("property `hail.vep.assembly' not specified. Setting to GRCh37")
       assembly = "GRCh37"
     }
-
-    var plugins = s"LoF,human_ancestor_fa:$humanAncestor,filter_position:0.05,min_intron_size:15,conservation_file:$conservationFile"
-    val extraPlugins = properties.getProperty("hail.vep.extra_plugins")
-    if (extraPlugins != null)
-        plugins = s"$plugins,$extraPlugins"
 
     val cmd =
       Array(
@@ -281,7 +284,7 @@ object VEP {
         "--fasta", s"$fasta",
         "--minimal",
         "--assembly", s"$assembly",
-        "--plugin", s"$plugins",
+        "--plugin", s"$plugin",
         "-o", "STDOUT")
 
     val inputQuery = vepSignature.query("input")
