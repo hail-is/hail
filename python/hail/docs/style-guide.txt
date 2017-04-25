@@ -138,12 +138,12 @@
 
     ```
     >>> (hc.import_vcf('python/hail/docs/data/example_burden.vcf')
-    ...    .filter_multi()
-    ...    .annotate_samples_table('python/hail/docs/data/example_burden.tsv', 'Sample', root = 'sa.burden'),
+    ...    .annotate_samples_table('python/hail/docs/data/example_burden.tsv', 'Sample', root = 'sa.burden',
     ...      config = TextTableConfiguration(impute=True))
     ...    .annotate_variants_expr('va.weight = v.start.toDouble')
     ...    .variant_qc()
     ...    .annotate_variants_intervals('python/hail/docs/data/genes.interval_list', 'va.genes', all=True)
+    ...    .annotate_variants_intervals('python/hail/docs/data/gene.interval_list', 'va.gene', all=False)
     ...    .write('python/hail/docs/data/example_burden.vds', overwrite=True))
     ```
 

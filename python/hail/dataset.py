@@ -2602,20 +2602,28 @@ class VariantDataset(object):
 
         **Examples**
 
-        Run a gene burden test using linear regression on the maximum genotype per gene:
+        Run a gene burden test using linear regression on the maximum genotype per gene, where ``va.genes`` is a variant
+        annotation of type Set[String] giving the set of genes containing the variant (see extended example below for
+        more details):
 
         >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
         ...     .linreg_burden(key_name='gene',
         ...                    variant_keys='va.genes',
-        ...                    single_key='false',
+        ...                    single_key=False,
         ...                    agg_expr='gs.map(g => g.gt).max()',
         ...                    y='sa.burden.pheno',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
-        Here ``va.genes`` is the set of genes containing the variant; see the extended example below for details.
+        Run a gene burden test using linear regression on the  weighted sum of genotypes per gene, where ``va.gene`` is
+        a variant annotation of type String giving a single gene per variant:
 
-        To use a weighted sum of genotypes, with weights given by a variant annotation
-        ``va.weight``, set ``agg_expr='gs.map(g => va.weight * g.gt).sum()``.
+        >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
+        ...     .linreg_burden(key_name='gene',
+        ...                    variant_keys='va.gene',
+        ...                    single_key=True,
+        ...                    agg_expr='gs.map(g => g.gt).max()',
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
         ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
@@ -2626,12 +2634,9 @@ class VariantDataset(object):
           With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
           allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
           genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
-          variant will be counted twice in that key's group.
-
-          With ``single_key=True``, ``variant_keys`` expects a variant annotation whose value is itself the
-          key of interest, rather than a collection of keys. For example, if the annotation ``va.gene``
-          of type String specifies one gene (if present) or no gene (if missing) per variant, setting
-          ``variant_keys='va.gene'`` and ``single_key=True`` will group variants by gene as well.
+          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
+          variant annotation whose value is itself the key of interest, rather than a collection of keys. In bose cases,
+          variants with missing keys are ignored.
 
         **Notes**
 
