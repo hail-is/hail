@@ -4339,17 +4339,22 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
-    def make_keytable(self, variant_expr, genotype_expr, key=[], separator='.'):
-        """Make a KeyTable with one row per variant.
+    def make_table(self, variant_expr, genotype_expr, key=[], separator='.'):
+        """Convert to a key table with one row per variant and one or more columns per sample.
+
+        **Examples**
+        
+        >>> kt = vds.make_table('v = v', ['gt = g.gt', 'gq = g.gq'])
+
+        **Notes**
 
         Per sample field names in the result are formed by
         concatenating the sample ID with the ``genotype_expr`` left
-        hand side with ``seperator`` (default: dot (.)).  If the left
-        hand side is empty::
+        hand side with ``separator``.  If the left hand side is empty::
 
           `` = expr
 
-        then the dot (.) is ommited.
+        then the dot (.) is omitted.
 
         **Examples**
 
@@ -4363,7 +4368,7 @@ class VariantDataset(object):
 
         Then:
 
-        >>> kt = vds.make_keytable('v = v', ['gt = g.gt', 'gq = g.gq'])
+        >>> kt = vds.make_table('v = v', ['gt = g.gt', 'gq = g.gq'])
 
         returns a :py:class:`KeyTable` with schema
 
@@ -4371,19 +4376,19 @@ class VariantDataset(object):
 
             v: Variant
             A.gt: Int
-            B.gt: Int
-            C.gt: Int
             A.gq: Int
+            B.gt: Int
             B.gq: Int
+            C.gt: Int
             C.gq: Int
 
         in particular, the values would be
 
         .. code-block:: text
 
-            v	A.gt	B.gt	C.gt	A.gq	B.gq	C.gq
-            1:1:A:T	1	NA	0	99	NA	99
-            1:2:G:C	1	1	2	89	99	93
+            v	A.gt	A.gq	B.gt	B.gq	C.gt	C.gq
+            1:1:A:T	1	99	NA	NA	0	99
+            1:2:G:C	1	89	1	99	2	93
 
         :param variant_expr: Variant annotation expressions.
         :type variant_expr: str or list of str

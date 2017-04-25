@@ -222,7 +222,7 @@ class ContextTests(unittest.TestCase):
              .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
 
             ((dataset
-              .make_keytable('v = v, info = va.info', gt_string, ['v']))
+              .make_table('v = v, info = va.info', gt_string, ['v']))
              .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
 
             dataset.annotate_variants_expr("va.nHet = gs.filter(g => {0}.isHet()).count()".format(gt))
@@ -231,7 +231,7 @@ class ContextTests(unittest.TestCase):
             dataset.aggregate_by_key(["Variant = v"],
                                      ["nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt)])
 
-            dataset.make_keytable('v = v, info = va.info', 'gt = {0}'.format(gt), ['v'])
+            dataset.make_table('v = v, info = va.info', 'gt = {0}'.format(gt), ['v'])
 
             dataset.num_partitions()
             dataset.file_version()
@@ -375,7 +375,7 @@ class ContextTests(unittest.TestCase):
          .export_variants('/tmp/sample_kt.tsv', ','.join(cols)))
 
         ((sample2
-          .make_keytable('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
+          .make_table('v = v, info = va.info', 'gt = g.gt, gq = g.gq', ['v']))
          .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
@@ -383,7 +383,7 @@ class ContextTests(unittest.TestCase):
         sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet().toInt()).sum().toLong()")
         sample_split.aggregate_by_key(["Variant = v"], ["nHet = g.map(g => g.isHet().toInt()).sum().toLong()"])
 
-        sample2.make_keytable('v = v, info = va.info', 'gt = g.gt', ['v'])
+        sample2.make_table('v = v, info = va.info', 'gt = g.gt', ['v'])
 
         sample.num_partitions()
         sample.file_version()

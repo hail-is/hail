@@ -312,19 +312,18 @@ class ImportAnnotationsSuite extends SparkSuite {
     // FIXME better way to array-ify
 
     val kt2 = hc.importTable("src/test/resources/importAnnot.json",
-      types = Map("_0" -> TStruct("Rand1" -> TDouble, "Rand2" -> TDouble,
+      types = Map("f0" -> TStruct("Rand1" -> TDouble, "Rand2" -> TDouble,
         "Gene" -> TString, "contig" -> TString, "start" -> TInt, "ref" -> TString, "alt" -> TString)),
       noHeader = true)
-      .annotate("""v = Variant(_0.contig, _0.start, _0.ref, _0.alt.split("/"))""")
+      .annotate("""v = Variant(f0.contig, f0.start, f0.ref, f0.alt.split("/"))""")
       .keyBy("v")
 
     vds = VariantDataset.fromKeyTable(kt2)
-      .annotateVariantsExpr("va = va._0")
+      .annotateVariantsExpr("va = va.f0")
       .filterMulti()
     vds.write(importJSONFile)
 
     vds = sSample.annotateVariantsTable(kt2, root = "va.third")
-      .annotateVariantsExpr("va.third = va.third._0")
 
     t = sSample.annotateVariantsVDS(hc.read(importJSONFile), root = Some("va.third"))
 
@@ -429,14 +428,14 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val fmt3 = vds.annotateVariantsTable(hc.importTable(tmpf3,
       commentChar = Some("#"), separator = "\\s+", noHeader = true, impute = true)
-      .annotate("v = Variant(str(_0), _1, _2, _3)")
+      .annotate("v = Variant(str(f0), f1, f2, f3)")
       .keyBy("v"),
-      expr = "va.Anno1 = table._4, va.Anno2 = table._5")
+      expr = "va.Anno1 = table.f4, va.Anno2 = table.f5")
 
     val fmt4 = vds.annotateVariantsTable(hc.importTable(tmpf4, separator = ",", noHeader = true, impute = true)
-      .annotate("v = Variant(str(_0), _1, _2, _3)")
+      .annotate("v = Variant(str(f0), f1, f2, f3)")
       .keyBy("v"),
-      expr = "va.Anno1 = table._4, va.Anno2 = table._5")
+      expr = "va.Anno1 = table.f4, va.Anno2 = table.f5")
 
     val fmt5 = vds.annotateVariantsTable(hc.importTable(tmpf5, separator = "\\s+", impute = true, missing = ".")
       .annotate("v = Variant(str(Chr), Pos, Ref, Alt)")
@@ -445,9 +444,9 @@ class ImportAnnotationsSuite extends SparkSuite {
 
     val fmt6 = vds.annotateVariantsTable(hc.importTable(tmpf6,
       noHeader = true, impute = true, separator = ",", commentChar = Some("!"))
-      .annotate("v = Variant(str(_0), _1, _2, _3)")
+      .annotate("v = Variant(str(f0), f1, f2, f3)")
       .keyBy("v"),
-      expr = "va.Anno1 = table._5, va.Anno2 = table._7")
+      expr = "va.Anno1 = table.f5, va.Anno2 = table.f7")
 
     val vds1 = fmt1.cache()
 

@@ -176,7 +176,7 @@ class KeyTable(object):
         return self._jkt.same(other._jkt)
 
     @handle_py4j
-    def export(self, output, types_file=None):
+    def export(self, output, types_file=None, header=True):
         """Export to a TSV file.
 
         **Examples**
@@ -189,9 +189,11 @@ class KeyTable(object):
         :param str output: Output file path.
 
         :param str types_file: Output path of types file.
+        
+        :param bool header: Write a header using the column names.
         """
 
-        self._jkt.export(self.hc._jsc, output, types_file)
+        self._jkt.export(output, types_file, header)
 
     @handle_py4j
     def filter(self, condition, keep=True):
