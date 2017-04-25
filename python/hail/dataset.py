@@ -2602,9 +2602,9 @@ class VariantDataset(object):
 
         **Examples**
 
-        Run a gene burden test using linear regression on the maximum genotype per gene, where ``va.genes`` is a variant
-        annotation of type Set[String] giving the set of genes containing the variant (see extended example below for
-        more details):
+        Run a gene burden test using linear regression on the maximum genotype per gene. Here ``va.genes`` is a variant
+        annotation of type Set[String] giving the set of genes containing the variant (see **Extended example** below
+        for a deep dive):
 
         >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
         ...     .linreg_burden(key_name='gene',
@@ -2614,14 +2614,15 @@ class VariantDataset(object):
         ...                    y='sa.burden.pheno',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
-        Run a gene burden test using linear regression on the  weighted sum of genotypes per gene, where ``va.gene`` is
-        a variant annotation of type String giving a single gene per variant:
+        Run a gene burden test using linear regression on the  weighted sum of genotypes per gene. Here ``va.gene`` is
+        a variant annotation of type String giving a single gene per variant (or no gene if missing), and ``va.weight``
+        is a numeric variant annotation:
 
         >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
         ...     .linreg_burden(key_name='gene',
         ...                    variant_keys='va.gene',
         ...                    single_key=True,
-        ...                    agg_expr='gs.map(g => g.gt).max()',
+        ...                    agg_expr='gs.map(g => va.weight * g.gt).sum()',
         ...                    y='sa.burden.pheno',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
@@ -2635,13 +2636,13 @@ class VariantDataset(object):
           allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
           genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
           variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
-          variant annotation whose value is itself the key of interest, rather than a collection of keys. In bose cases,
-          variants with missing keys are ignored.
+          variant annotation whose value is itself the key of interest. In bose cases, variants with missing keys are
+          ignored.
 
         **Notes**
 
-        This method modifies :py:meth:`.linreg` by replacing the genotype covariate per variant with an aggregated
-        (i.e., collapsed) score per key. For each key and sample, this numeric score is computed from the sample's
+        This method modifies :py:meth:`.linreg` by replacing the genotype covariate per variant and sample with
+        an aggregated (i.e., collapsed) score per key and sample. This numeric score is computed from the sample's
         genotypes and annotations over all variants with that key. Conceptually, the method proceeds as follows:
 
         1) Filter to the set of samples for which all phenotype and covariates are defined.
@@ -2655,7 +2656,7 @@ class VariantDataset(object):
            - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
            Note that ``v``, ``va``, and ``g`` are accessible through
-           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on the ``gs``.
+           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
 
            The resulting **sample key table** has key column ``key_name`` and a numeric column of scores for each sample
            named by the sample ID.
