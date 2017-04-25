@@ -11,9 +11,6 @@ import is.hail.utils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 
-
-
-
 class LinearRegressionSuite extends SparkSuite {
   def assertInt(a: Annotation, value: Int) {
     assert(D_==(a.asInstanceOf[Int], value))
@@ -45,7 +42,7 @@ class LinearRegressionSuite extends SparkSuite {
       .splitMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", false, 1, 0.0)
+      .linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", false, 1, 0.0)
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -108,7 +105,7 @@ class LinearRegressionSuite extends SparkSuite {
       .splitMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
+      .linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -168,7 +165,7 @@ class LinearRegressionSuite extends SparkSuite {
       .filterMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
+      .linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -227,7 +224,7 @@ class LinearRegressionSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .splitMulti()
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.0)
+      .linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.0)
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -381,8 +378,8 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
-    interceptFatal("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
-      vds.linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", useDosages = false, 1, 0.0)
+    interceptFatal("Sample annotation `sa.pheno' must be numeric or Boolean, got String") {
+      vds.linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", useDosages = false, 1, 0.0)
     }
   }
 
@@ -398,7 +395,7 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     interceptFatal("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
-      vds.linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", useDosages = false, 1, 0.0)
+      vds.linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.linreg", useDosages = false, 1, 0.0)
     }
   }
 
@@ -411,7 +408,7 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
     def a = vds.variantsAndAnnotations.collect().toMap
 
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 4, 0.0)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 4, 0.0)
 
     def qBeta = vds.queryVA("va.linreg.beta")._2
 
@@ -419,22 +416,22 @@ class LinearRegressionSuite extends SparkSuite {
     assert(qBeta(a(v2)) != null)
 
     // only 6 samples are included, so 12 alleles total
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.3)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.3)
 
     assertEmpty(qBeta(a(v1)))
     assert(qBeta(a(v2)) != null)
 
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.4)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.4)
 
     assertEmpty(qBeta(a(v1)))
     assertEmpty(qBeta(a(v2)))
 
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.3)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.3)
 
     assertEmpty(qBeta(a(v1)))
     assert(qBeta(a(v2)) != null)
 
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 5, 0.1)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 5, 0.1)
 
     assertEmpty(qBeta(a(v1)))
     assertEmpty(qBeta(a(v2)))
@@ -449,11 +446,11 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     interceptFatal("Minumum alternate allele count must be a positive integer, got 0") {
-      vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 0, 0.0)
+      vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 0, 0.0)
     }
 
     interceptFatal("Minumum alternate allele frequency must lie in") {
-      vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 2.0)
+      vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 2.0)
     }
   }
 }

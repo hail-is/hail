@@ -815,12 +815,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           case Array(TInterval) =>
             val intRDD = keyedRDD
               .map { case (k, v) => (k.getAs[Interval[Locus]](0), v: Annotation) }
+              .sortBy(_._1.start)
             val partitioner = rdd.orderedPartitioner
             val overlaps = intRDD.mapPartitionsWithIndex { case (i, it) =>
               val s = mutable.Set.empty[Int]
 
               it.foreach { case (interval, _) =>
-                s ++= (partitioner.getPartitionT(interval.start) until partitioner.getPartitionT(interval.end))
+                s ++= (partitioner.getPartitionT(interval.start) to partitioner.getPartitionT(interval.end))
               }
 
               s.iterator.map(index => (i, index))
@@ -1313,10 +1314,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           }, preservesPartitioning = true)
 
       case Array(TInterval) =>
-        val intRDD = kt.orderBy(SortColumn(kt.keyFields.head.name, Ascending)).keyedRDD()
-          .map { case (k, v) => k.getAs[Interval[Locus]](0) }
+        val intRDD = kt.keyedRDD()
+          .map { case (k, _) => k.getAs[Interval[Locus]](0) }
           .filter(_ != null)
-
+          .sortBy(_.start)
 
         val part = rdd.orderedPartitioner
         val mappings = intRDD.mapPartitionsWithIndex { case (i, it) =>

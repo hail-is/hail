@@ -36,7 +36,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .splitMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("wald", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+      .logreg("wald", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2
@@ -114,7 +114,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .splitMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("lrt", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+      .logreg("lrt", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
@@ -189,7 +189,7 @@ class LogisticRegressionSuite extends SparkSuite {
       .splitMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("score", "sa.pheno.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+      .logreg("score", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
 
     val qChi2 = vds.queryVA("va.logreg.chi2")._2
     val qPVal = vds.queryVA("va.logreg.pval")._2

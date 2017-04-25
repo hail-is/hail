@@ -277,15 +277,15 @@ class LinearMixedRegressionSuite extends SparkSuite {
     */
 
     val covariates = hc.importTable("src/test/resources/fastlmmCov.txt",
-      noHeader = true, impute = true).keyBy("_1")
+      noHeader = true, impute = true).keyBy("f1")
     val phenotypes = hc.importTable("src/test/resources/fastlmmPheno.txt",
-      noHeader = true, impute = true, separator = " ").keyBy("_1")
+      noHeader = true, impute = true, separator = " ").keyBy("f1")
 
     val vds = hc.importPlink(bed = "src/test/resources/fastlmmTest.bed",
       bim = "src/test/resources/fastlmmTest.bim",
       fam = "src/test/resources/fastlmmTest.fam")
-      .annotateSamplesTable(covariates, expr = "sa.cov=table._2")
-      .annotateSamplesTable(phenotypes, expr = "sa.pheno=table._2")
+      .annotateSamplesTable(covariates, expr = "sa.cov=table.f2")
+      .annotateSamplesTable(phenotypes, expr = "sa.pheno=table.f2")
 
     val vdsChr1 = vds.filterVariantsExpr("""v.contig == "1"""").lmmreg(vds.filterVariantsExpr("""v.contig != "1"""").rrm(), "sa.pheno", Array("sa.cov"), useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = false, optDelta = None, sparsityThreshold = 1.0)
 
@@ -309,7 +309,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .filterMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
-      .annotateSamplesTable(phenotypes, expr = "sa.pheno.Pheno = table.Pheno")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno.Pheno")
       .annotateSamplesExpr("""sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]""")
       .annotateSamplesExpr("sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit")
 
