@@ -95,7 +95,7 @@ class Summary(object):
                    self.samples, self.variants, self.call_rate,
                    self.contigs, self.multiallelics, self.snps,
                    self.mnps, self.insertions, self.deletions,
-                   self.complex, self.star, self.most_alleles)
+                   self.complex, self.star, self.max_alleles)
 
     def __str__(self):
         return repr(self)
@@ -114,7 +114,7 @@ class Summary(object):
         print('%16s: %d' % ('Deletions', self.deletions))
         print('%16s: %d' % ('Complex Alleles', self.complex))
         print('%16s: %d' % ('Star Alleles', self.star))
-        print('%16s: %d' % ('Most alleles', self.most_alleles))
+        print('%16s: %d' % ('Most alleles', self.max_alleles))
 
 
 class FunctionDocumentation(object):
