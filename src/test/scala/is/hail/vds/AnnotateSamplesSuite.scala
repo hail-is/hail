@@ -1,7 +1,6 @@
 package is.hail.vds
 
 import is.hail.SparkSuite
-import is.hail.utils.TextTableConfiguration
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -19,13 +18,11 @@ class AnnotateSamplesSuite extends SparkSuite {
   }
 
   @Test def testKeyTable() {
-    val kt = hc.importKeyTable(List("src/test/resources/sampleAnnotations.tsv"),
-      config = TextTableConfiguration(impute = true)).keyBy("Sample")
-
+    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
 
-    val sampleMap = vds.annotateSamplesKeyTable(kt, "sa.annot = table")
+    val sampleMap = vds.annotateSamplesTable(kt, expr = "sa.annot = table")
       .querySamples("index(samples.map(s => {s: s, anno: sa.annot}).collect(), s).mapValues(x => x.anno)")._1
       .asInstanceOf[Map[_, _]]
 
@@ -36,10 +33,9 @@ class AnnotateSamplesSuite extends SparkSuite {
     assert(sampleMap == ktMap)
 
     // should run without throwing an index error
-    vds.annotateSamplesKeyTable(kt.filter("false", keep = true), "sa.annot = table")
+    vds.annotateSamplesTable(kt.filter("false", keep = true), expr = "sa.annot = table")
 
-
-    val sampleMap2 = vds.annotateSamplesKeyTable(kt, List("s"), "sa.annot = table")
+    val sampleMap2 = vds.annotateSamplesTable(kt, vdsKey = List("s"), expr = "sa.annot = table")
       .querySamples("index(samples.map(s => {s: s, anno: sa.annot}).collect(), s).mapValues(x => x.anno)")._1
       .asInstanceOf[Map[_, _]]
 

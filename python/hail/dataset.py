@@ -3,10 +3,8 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype, TVariant
-from hail.representation import Interval, IntervalTree
-from hail.utils import TextTableConfig
+from hail.representation import Interval
 from hail.kinshipMatrix import KinshipMatrix
-from py4j.protocol import Py4JJavaError
 from decorator import decorator
 
 import warnings
@@ -540,9 +538,8 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_global_table(self, input, root, config=TextTableConfig()):
-        """Load delimited text file (text table) into global annotations as
-        Array[Struct].
+    def annotate_global_table(self, table, root):
+        """Collect and store a table in global annotations.
 
         **Examples**
 
@@ -554,8 +551,8 @@ class VariantDataset(object):
           Gene1   0.12312 2
           ...
 
-        >>> vds_result = vds.annotate_global_table('data/genes_pli_exac.txt', 'global.genes',
-        ...                           config=TextTableConfig(types='PLI: Double, EXAC_LOF_COUNT: Int'))
+        >>> tb = hc.import_table('data/genes_pli_exac.txt', types={'PLI': TDouble(), 'EXAC_LOF_COUNTS': TInt()})
+        >>> vds_result = vds.annotate_global_table(tb, 'global.genes')
 
         creates a new global annotation ``global.genes`` with type:
 
@@ -568,21 +565,22 @@ class VariantDataset(object):
           }]
 
         where each line is stored as an element of the array.
+        
+        .. warning::
+        
+            Global annotations are not distributed. Storing large tables as
+            globals can cause Hail to slow down or crash.
 
-        **Notes**
+        :param table: Key table to be stored as a global annotation.
+        :type table: :py:class:`.KeyTable`
 
-        :param str input: Input text file.
-
-        :param str root: Global annotation path to store text table.
-
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
+        :param str root: Global annotation path.
 
         :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvds.annotateGlobalTable(input, root, config._to_java())
+        jvds = self._jvds.annotateGlobalTable(table._jkt, root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -598,7 +596,8 @@ class VariantDataset(object):
 
         Compute the list of genes with a singleton LOF per sample:
 
-        >>> vds_result = (vds.annotate_variants_table('data/consequence.tsv', 'Variant', code='va.consequence = table.Consequence', config=TextTableConfig(impute=True))
+        >>> variant_annotations_table = hc.import_table('data/consequence.tsv', impute=True).key_by('Variant')
+        >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, expr='va.consequence = table.Consequence')
         ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles()).sum() == 1')
         ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
 
@@ -715,15 +714,15 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_samples_table(self, input, sample_expr, root=None, code=None, config=TextTableConfig()):
-        """Annotate samples with delimited text file (text table).
+    def annotate_samples_table(self, table, root=None, expr=None, vds_key=None, product=False):
+        """Annotate samples with a key table.
 
         **Examples**
 
         To annotates samples using `samples1.tsv` with type imputation::
 
-        >>> conf = TextTableConfig(impute=True)
-        >>> vds_result = vds.annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.pheno', config=conf)
+        >>> table = hc.import_table('data/samples1.tsv', impute=True).key_by('Sample')
+        >>> vds_result = vds.annotate_samples_table(table, root='sa.pheno')
 
         Given this file
 
@@ -740,7 +739,8 @@ class VariantDataset(object):
 
         To annotate without type imputation, resulting in all String types:
 
-        >>> vds_result = vds.annotate_samples_table('data/samples1.tsv', 'Sample', root='sa.phenotypes')
+        >>> annotations = hc.import_table('data/samples1.tsv').key_by('Sample')
+        >>> vds_result = vds.annotate_samples_table(annotations, root='sa.phenotypes')
 
         **Detailed examples**
 
@@ -761,18 +761,19 @@ class VariantDataset(object):
 
         In this case, we should:
 
-        - Escape the ``PT-ID`` column with backticks in the ``sample_expr`` argument because it contains a dash
-
         - Pass the non-default delimiter ``,``
 
         - Pass the non-default missing value ``.``
 
-        - Add the only useful column using ``code`` rather than the ``root`` parameter.
+        - In ``annotate_samples_table``, add the only useful column using ``expr`` 
+          rather than the ``root`` parameter.
 
-        >>> conf = TextTableConfig(delimiter=',', missing='.')
-        >>> vds_result = vds.annotate_samples_table('data/samples2.tsv', '`PT-ID`', code='sa.batch = table.Batch', config=conf)
+        >>> annotations = hc.import_table('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
+        >>> vds_result = vds.annotate_samples_table(annotations, expr='sa.batch = table.Batch')
 
-        Let's import annotations from a file with no header and sample IDs that need to be transformed. Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the sample ID is hidden in a field with other information
+        Let's import annotations from a file with no header and sample IDs that need to be transformed. 
+        Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
+        sample ID is hidden in a field with other information.
 
         .. code-block:: text
 
@@ -785,195 +786,88 @@ class VariantDataset(object):
 
         To import it:
 
-        >>> conf = TextTableConfig(noheader=True)
-        >>> vds_result = vds.annotate_samples_table('data/samples3.tsv',
-        ...                             '_0.split("_")[1]',
-        ...                             code='sa.sex = table._1, sa.batch = table._0.split("_")[0]',
-        ...                             config=conf)
+        >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
+        ...                   .annotate('sample = _0.split("_")[1]')
+        ...                   .key_by('sample'))
+        >>> vds_result = vds.annotate_samples_table(annotations,
+        ...                             expr='sa.sex = table._1, sa.batch = table._0.split("_")[0]')
 
-        **Using the** ``sample_expr`` **argument**
+        **Notes** 
+        
+        If `vds_key` is None, the table's key must be exactly one column and
+        that column must have type *Variant*.
 
-        This argument tells Hail how to get a sample ID out of your table. Each column in the table is exposed to the Hail expr language. Possibilities include ``Sample`` (if your sample id is in a column called 'Sample'), ``_2`` (if your sample ID is the 3rd column of a table with no header), or something more complicated like ``'if ("PGC" ~ ID1) ID1 else ID2'``.  All that matters is that this expr results in a string.  If the expr evaluates to missing, it will not be mapped to any VDS samples.
+        If `vds_key` is not None, it must be a list of Hail expressions whose types
+        match, in order, the table's key types.
+        
+        .. note::
+        
+            One of ``root`` or ``expr`` is required, but not both. 
+            
+        The ``expr`` parameter expects an annotation expression involving ``sa`` (the existing 
+        sample annotations in the dataset) and ``table`` (a struct containing the columns in 
+        the table), like ``sa.col1 = table.col1, sa.col2 = table.col2`` or ``sa = merge(sa, table)``.
+        The ``root`` parameter expects an annotation path beginning in ``sa``, like ``sa.annotations``.
+         Passing ``root='sa.annotations'`` is exactly the same as passing ``expr='sa.annotations = table'``.
 
-        **Using the** ``root`` **and** ``code`` **arguments**
+        ``expr`` has the following symbols in scope:
 
-        This module requires exactly one of these two arguments to tell Hail how to insert the table into the sample annotation schema.
+          - ``sa``: sample annotations
+          - ``table``: :py:class:`.KeyTable` value, or array of value if ``product`` is true
 
-        The ``root`` argument is the simpler of these two, and simply packages up all table annotations as a ``Struct`` and drops it at the given ``root`` location.  If your table has columns ``Sample``, ``Sex``, and ``Batch``, then ``root='sa.metadata'`` creates the struct ``{Sample, Sex, Batch}`` at ``sa.metadata``, which gives you access to the paths ``sa.metadata.Sample``, ``sa.metadata.Sex``, and ``sa.metadata.Batch``.
+        each expression in the list ``vds_key`` has the following symbols in
+        scope:
 
-        The ``code`` argument expects an annotation expression and has access to ``sa`` (the sample annotations in the VDS) and ``table`` (a struct with all the columns in the table).  ``root='sa.anno'`` is equivalent to ``code='sa.anno = table'``.
+          - ``s`` (*String*): sample ID
+          - ``sa``: sample annotations
 
-        **Common uses for the** ``code`` **argument**
+        **Common uses for the** ``expr`` **argument**
 
         Don't generate a full struct in a table with only one annotation column
 
         .. code-block:: text
 
-            code='sa.annot = table._1'
+            expr='sa.annot = table._1'
 
-        Put annotations on the top level under `sa`
-
-        .. code-block:: text
-
-            code='sa = merge(sa, table)'
-
-        Load only specific annotations from the table
+        Put annotations on the top level under ``sa``
 
         .. code-block:: text
 
-            code='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
+            expr='sa = merge(sa, table)'
+
+        Annotate only specific annotations from the table
+
+        .. code-block:: text
+
+            expr='sa.annotations = select(table, toKeep1, toKeep2, toKeep3)'
 
         The above is equivalent to
 
         .. code-block:: text
 
-            code='sa.annotations.toKeep1 = table.toKeep1,
+            expr='''sa.annotations.toKeep1 = table.toKeep1,
                 sa.annotations.toKeep2 = table.toKeep2,
-                sa.annotations.toKeep3 = table.toKeep3'
+                sa.annotations.toKeep3 = table.toKeep3'''
+                
+        Finally, for more information about importing key tables from text, 
+        see the documentation for :py:meth:`.HailContext.import_keytable`.
 
+        :param table: Key table keyed by sample.
+        :type table: :py:class:`.KeyTable`
 
-        :param str input: Path to delimited text file.
+        :param root: Sample annotation path to store text table.
+        :type root: str or None
 
-        :param str sample_expr: Expression for sample id (key).
-
-        :param str root: Sample annotation path to store text table.
-
-        :param str code: Annotation expression.
-
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
-
-        :return: Annotated variant dataset with new samples annotations imported from a text file
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateSamplesTable(input, sample_expr, joption(root), joption(code), config._to_java())
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_samples_vds(self, right, root=None, code=None):
-        """Annotate samples with sample annotations from .vds file.
-
-        :param right: Dataset to annotate with.
-        :type right: :py:class:`.VariantDataset`
-
-        :param str root: Sample annotation path to add sample annotations.
-
-        :param str code: Annotation expression.
+        :param expr: Annotation expression.
+        :type expr: str or None
+        
+        :param bool product: Annotate samples with an array containing all matches.
 
         :return: Annotated variant dataset.
         :rtype: :class:`.VariantDataset`
-
         """
 
-        jvds = self._jvds.annotateSamplesVDS(right._jvds, joption(root), joption(code))
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_samples_keytable(self, keytable, expr, vds_key=None):
-        """Annotate samples with a :py:class:`.KeyTable`.
-
-        If `vds_key` is None, the key table must have exactly one key of
-        type *String*.
-
-        If `vds_key` is not None, it must be a list of Hail expressions whose types
-        match, in order, the `keytable`'s key types.
-
-        **Examples**
-
-        Add annotations from a sample-keyed TSV:
-
-        >>> kt = hc.import_keytable('data/samples2.tsv',
-        ...                         config=TextTableConfig(impute=True, delimiter=",")).key_by('PT-ID')
-        ... annotate_vds = vds.annotate_samples_keytable(kt, expr='sa.batch = table.Batch')
-
-        **Notes**
-
-        ``expr`` has the following symbols in scope:
-
-          - ``sa``: sample annotations
-          - ``table``: :py:class:`.KeyTable` value
-
-        each expression in the list ``vds_key`` has the following symbols in
-        scope:
-
-          - ``s`` (*Sample*): :ref:`sample`
-          - ``sa``: sample annotations
-
-        :param keytable: Key table with which to annotate samples.
-        :type keytable: :class:`.KeyTable`
-
-        :param str expr: Annotation expression.
-
-        :param vds_key: Join key(s) in the dataset. Sample ID is used if this parameter is None.
-        :type vds_key: list of str, str, or None
-
-        :rtype: :class:`VariantDataset`
-        """
-
-        if isinstance(expr, list):
-            expr = ','.join(expr)
-
-        if vds_key is None:
-            jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, expr)
-        else:
-            if not isinstance(vds_key, list):
-                vds_key = [vds_key]
-            jvds = self._jvds.annotateSamplesKeyTable(keytable._jkt, vds_key, expr)
-
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_variants_bed(self, input, root, all=False):
-        """Annotate variants based on the intervals in a .bed file.
-
-        **Examples**
-
-        Add the variant annotation ``va.cnvRegion: Boolean`` indicating inclusion in at least one interval of the three-column BED file `file1.bed`:
-
-        >>> vds_result = vds.annotate_variants_bed('data/file1.bed', 'va.cnvRegion')
-
-        Add a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`:
-
-        >>> vds_result = vds.annotate_variants_bed('data/file2.bed', 'va.cnvRegion')
-
-        The file formats are
-
-        .. code-block:: text
-
-            $ cat data/file1.bed
-            track name="BedTest"
-            20    1          14000000
-            20    17000000   18000000
-            ...
-
-            $ cat file2.bed
-            track name="BedTest"
-            20    1          14000000  cnv1
-            20    17000000   18000000  cnv2
-            ...
-
-
-        **Notes**
-
-        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, but Hail will only ever look at the first four.  The first three fields are required (``chrom``, ``chromStart``, and ``chromEnd``).  If a fourth column is found, Hail will parse this field as a string and load it into the specified annotation path.  If the bed file has only three columns, Hail will assign each variant a Boolean annotation, true if and only if the variant lies in the union of the intervals. Hail ignores header lines in BED files.
-
-        If the ``all`` parameter is set to ``True`` and a fourth column is present, the annotation will be the set (possibly empty) of fourth column strings as a ``Set[String]`` for all intervals that overlap the given variant.
-
-        .. caution:: UCSC BED files are end-exclusive but 0-indexed, so the line "5  100  105" is interpreted in Hail as loci `5:101, 5:102, 5:103, 5:104. 5:105`. Details `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`_.
-
-        :param str input: Path to .bed file.
-
-        :param str root: Variant annotation path to store annotation.
-
-        :param bool all: Store values from all overlapping intervals as a set.
-
-        :return: Annotated variant dataset with new variant annotations imported from a .bed file.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateVariantsBED(input, root, all)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, self._jvds.annotateSamplesTable(table._jkt, vds_key, root, expr, product))
 
     @handle_py4j
     def annotate_variants_expr(self, expr):
@@ -1019,181 +913,150 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_variants_keytable(self, keytable, expr, vds_key=None):
-        """Annotate variants with an expression that may depend on a :py:class:`.KeyTable`.
-
-        If `vds_key` is None, the keytable's key must be exactly one column and
-        that column must have type *Variant*.
-
-        If `vds_key` is not None, it must be a list of Hail expressions whose types
-        match, in order, the `keytable`'s key type.
+    def annotate_variants_table(self, table, root=None, expr=None, vds_key=None, product=False):
+        """Annotate variants with an annotation table keyed by variants or loci.
 
         **Examples**
 
-        Add annotations from a variant-keyed TSV:
+        Add annotations from a variant-keyed tab separated file:
 
-        >>> kt = hc.import_keytable('data/variant-lof.tsv', config=TextTableConfig(impute=True)).key_by('v')
-        >>> vds_result = vds.annotate_variants_keytable(kt, 'va.lof = table.lof')
+        >>> table = hc.import_table('data/variant-lof.tsv', impute=True).key_by('v')
+        >>> vds_result = vds.annotate_variants_table(table, expr='va.lof = table.lof')
+        
+        Add annotations from a locus-keyed TSV:
+        
+        >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
+        >>> vds_result = vds.annotate_variants_table(table, root='va.scores')
 
         Add annotations from a gene-and-type-keyed TSV:
+    
+        >>> table = hc.import_table('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
+        >>> vds_result = (vds.annotate_variants_table(table,
+        ...       expr='va.foo = table.foo',
+        ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
 
-        >>> kt = hc.import_keytable('data/locus-metadata.tsv',
-        ...                         config=TextTableConfig(impute=True)).key_by(['gene', 'type'])
-        >>>
-        >>> vds_result = (vds.annotate_variants_keytable(kt,
-        ...       'va.foo = table.foo',
-        ...       ['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
-
+        Annotate variants with the target in a GATK interval list file:
+        
+        >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
+        >>> vds_result = vds.annotate_variants_table(intervals, root='va.exon')
+        
+        Annotate variants with all targets from matching intervals in a GATK interval list file:
+        
+        >>> intervals = KeyTable.import_interval_list('data/exons2.interval_list')
+        >>> vds_result = vds.annotate_variants_table(intervals, root='va.exons', product=True)
+        
+        Annotate variants using a UCSC BED file, marking each variant true/false for an overlap with any interval:
+        
+        >>> intervals = KeyTable.import_bed('data/file2.bed')
+        >>> vds_result = vds.annotate_variants_table(intervals, root='va.bed')
+        
         **Notes**
+                
+        .. note::
+        
+            One of ``root`` or ``expr`` is required, but not both. 
+            
+        The ``expr`` parameter expects an annotation expression involving ``va`` (the existing 
+        variant annotations in the dataset) and ``table`` (the values(s) in the table),
+        like ``va.col1 = table.col1, va.col2 = table.col2`` or ``va = merge(va, table)``.
+        The ``root`` parameter expects an annotation path beginning in ``va``, like ``va.annotations``.
+        Passing ``root='va.annotations'`` is the same as passing ``expr='va.annotations = table'``.
 
         ``expr`` has the following symbols in scope:
 
           - ``va``: variant annotations
-          - ``table``: :py:class:`.KeyTable` value
+          - ``table``: :py:class:`.KeyTable` value (see below).
 
-        each expression in the list ``vds_key`` has the following symbols in
+        .. note:: 
+        
+            The value of ``table`` inside root/expr depends on the number of values in the key table, 
+            as well as the ``product`` argument. There are three behaviors based on the number of values
+            and one branch for ``product`` being true and false, for a total of six modes:
+            
+            +-------------------------+-------------+--------------------+-----------------------------------------------+
+            | Number of value columns | ``product`` | Type of  ``table`` | Value of  ``table``                           |
+            +=========================+=============+====================+===============================================+
+            | More than 2             | False       | ``Struct``         | Struct with an element for each column.       |
+            +-------------------------+-------------+--------------------+-----------------------------------------------+
+            | 1                       | False       | ``T``              | The value column.                             |
+            +-------------------------+-------------+--------------------+-----------------------------------------------+
+            | 0                       | False       | ``Boolean``        | Existence of any matching key.                |
+            +-------------------------+-------------+--------------------+-----------------------------------------------+
+            | More than 2             | True        | ``Array[Struct]``  | An array with a struct for each matching key. |
+            +-------------------------+-------------+--------------------+-----------------------------------------------+
+            | 1                       | True        | ``Array[T]``       | An array with a value for each matching key.  |
+            +-------------------------+-------------+--------------------+-----------------------------------------------+
+            | 0                       | True        | ``Int``            | The number of matching keys.                  |
+            +-------------------------+-------------+--------------------+-----------------------------------------------+  
+                      
+        If `vds_key` is not None, it must be a list of Hail expressions whose types
+        match, in order, the table's key types. Note that using ``vds_key`` is slower
+        than annotation with a standard key type.
+
+        Each expression in the list ``vds_key`` has the following symbols in
         scope:
 
           - ``v`` (*Variant*): :ref:`variant`
           - ``va``: variant annotations
+          
+        If `vds_key` is None, the table's key must be exactly one column and
+        that column must have type *Variant*, *Locus*, or *Interval*.
 
-        :param expr: Annotation expression or list of annotation expressions
-        :type expr: str or list of str
+        If the key is a ``Variant``, then a variant in the dataset will be annotated based
+        on finding a complete match in the table. Be careful, however: ``1:1:A:T`` does not match 
+        ``1:1:A:T,C``, and vice versa. 
+        
+        If the key is a ``Locus``, then a variant in the dataset will be annotated based on 
+        finding a locus in the table that matches by chromosome and position.
+        
+        If the key is an ``Interval``, then a variant in the dataset will be annotated based 
+        on finding an interval in the table that contains the variant's chromosome and position.
 
-        :param vds_key: A list of annotation expressions to be used as the VDS's join key
-        :type vds_key: None or list of str
+        **Common uses for the** ``expr`` **argument**
 
-        :return: A :py:class:`.VariantDataset` with new variant annotations specified by ``expr``
+        Put annotations on the top level under ``va``
 
-        :rtype: :py:class:`.VariantDataset`
-        """
+        .. code-block: text
 
-        if isinstance(expr, list):
-            expr = ','.join(expr)
+            expr='va = merge(va, table)'
 
-        if vds_key is None:
-            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, expr)
-        else:
-            jvds = self._jvds.annotateVariantsKeyTable(keytable._jkt, vds_key, expr)
+        Annotate only specific annotations from the table
 
-        return VariantDataset(self.hc, jvds)
+        .. code-block: text
 
-    @handle_py4j
-    def annotate_variants_intervals(self, input, root, all=False):
-        """Annotate variants from an interval list file.
+            expr='va.annotations = select(table, toKeep1, toKeep2, toKeep3)'
 
-        **Examples**
+        The above is equivalent to
 
-        Consider the file, *data/exons.interval_list*, in
-        ``chromosome:start-end`` format:
+        .. code-block: text
 
-        .. code-block:: text
+            expr='''va.annotations.toKeep1 = table.toKeep1,
+                va.annotations.toKeep2 = table.toKeep2,
+                va.annotations.toKeep3 = table.toKeep3'''
+                
+        Finally, for more information about importing key tables from text, 
+        see the documentation for :py:meth:`.HailContext.import_table`.
 
-            $ cat data/exons.interval_list
-            1:5122980-5123054
-            1:5531412-5531715
-            1:5600022-5601025
-            1:5610246-5610349
+        :param table: Key table with variant key.
+        :type path: :py:class:`.KeyTable`
 
-        The following invocation produces a vds with a new variant annotation,
-        ``va.inExon``. The annotation ``va.inExon`` is ``true`` for every
-        variant included by ``exons.interval_list`` and false otherwise.
+        :param root: Variant annotation path to store text table.
+        :type root: str or None
 
-        >>> vds_result = vds.annotate_variants_intervals('data/exons.interval_list', 'va.inExon')
-
-        Consider the tab-separated, five-column file *data/exons2.interval_list*:
-
-        .. code-block:: text
-
-            $ cat data/exons2.interval_list
-            1   5122980 5123054 + gene1
-            1   5531412 5531715 + gene1
-            1   5600022 5601025 - gene2
-            1   5610246 5610349 - gene2
-
-        This file maps from variant intervals to gene names. The following
-        invocation produces a vds with a new variant annotation ``va.gene``. The
-        annotation ``va.gene`` is set to the gene name occurring in the fifth
-        column and ``NA`` otherwise.
-
-        >>> vds_result = vds.annotate_variants_intervals('data/exons2.interval_list', 'va.gene')
-
-        **Notes**
-
-        There are two formats for interval list files.  The first appears as
-        ``chromosome:start-end`` as in the first example.  This format will
-        annotate variants with a *Boolean*, which is ``true`` if that variant is
-        found in any interval specified in the file and `false` otherwise.
-
-        The second interval list format is a TSV with fields chromosome, start,
-        end, strand, target.  **There should not be a header.** This file will
-        annotate variants with the *String* in the fifth column (target). If
-        ``all=True``, the annotation will be the, possibly empty,
-        ``Set[String]`` of fifth column strings (targets) for all intervals that
-        overlap the given variant.
-
-        :param str input: Path to .interval_list.
-
-        :param str root: Variant annotation path to store annotation.
-
-        :param bool all: If true, store values from all overlapping
-            intervals as a set.
+        :param expr: Annotation expression.
+        :type expr: str or None
+        
+        :param bool product: Annotate variants with an array containing all matches.
 
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.annotateVariantsIntervals(input, root, all)
+        jvds = self._jvds.annotateVariantsTable(table._jkt, vds_key, root, expr, product)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_variants_loci(self, path, locus_expr, root=None, code=None, config=TextTableConfig()):
-        """Annotate variants from an delimited text file (text table) indexed
-        by loci.
-
-        :param str path: Path to delimited text file.
-
-        :param str locus_expr: Expression for locus (key).
-
-        :param str root: Variant annotation path to store annotation.
-
-        :param str code: Annotation expression.
-
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
-
-        :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateVariantsLoci(path, locus_expr, joption(root), joption(code), config._to_java())
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_variants_table(self, path, variant_expr, root=None, code=None, config=TextTableConfig()):
-        """Annotate variant with delimited text file (text table).
-
-        :param path: Path to delimited text files.
-        :type path: str or list of str
-
-        :param str variant_expr: Expression for Variant (key).
-
-        :param str root: Variant annotation path to store text table.
-
-        :param str code: Annotation expression.
-
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
-
-        :return: Annotated variant dataset.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateVariantsTable(path, variant_expr, joption(root), joption(code), config._to_java())
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_variants_vds(self, other, code=None, root=None):
+    def annotate_variants_vds(self, other, expr=None, root=None):
         '''Annotate variants with variant annotations from .vds file.
 
         **Examples**
@@ -1206,33 +1069,33 @@ class VariantDataset(object):
 
         Copy the ``anno1`` annotation from ``other`` to ``va.annot``:
 
-        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annot = vds.anno1')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, expr='va.annot = vds.anno1')
 
         Merge the variant annotations from the two vds together and places them
         at ``va``:
 
-        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va = merge(va, vds)')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, expr='va = merge(va, vds)')
 
         Select a subset of the annotations from ``other``:
 
-        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annotations = select(vds, toKeep1, toKeep2, toKeep3)')
+        >>> vds_result = vds1.annotate_variants_vds(vds2, expr='va.annotations = select(vds, toKeep1, toKeep2, toKeep3)')
 
         The previous expression is equivalent to:
 
-        >>> vds_result = vds1.annotate_variants_vds(vds2, code='va.annotations.toKeep1 = vds.toKeep1, ' +
+        >>> vds_result = vds1.annotate_variants_vds(vds2, expr='va.annotations.toKeep1 = vds.toKeep1, ' +
         ...                                       'va.annotations.toKeep2 = vds.toKeep2, ' +
         ...                                       'va.annotations.toKeep3 = vds.toKeep3')
 
         **Notes**
 
-        Using this method requires one of the two optional arguments: ``code``
+        Using this method requires one of the two optional arguments: ``expr``
         and ``root``. They specify how to insert the annotations from ``other``
         into the this vds's variant annotations.
 
         The ``root`` argument copies all the variant annotations from ``other``
         to the specified annotation path.
 
-        The ``code`` argument expects an annotation expression whose scope
+        The ``expr`` argument expects an annotation expression whose scope
         includes, ``va``, the variant annotations in the current VDS, and ``vds``,
         the variant annotations in ``other``.
 
@@ -1255,13 +1118,13 @@ class VariantDataset(object):
 
         :param str root: Sample annotation path to add variant annotations.
 
-        :param str code: Annotation expression.
+        :param str expr: Annotation expression.
 
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         '''
 
-        jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(code))
+        jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(expr))
 
         return VariantDataset(self.hc, jvds)
 
@@ -2018,6 +1881,37 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.filterSamplesList(samples, keep))
 
     @handle_py4j
+    def filter_samples_table(self, table, keep=True):
+        """Filter samples with a table keyed by sample ID.
+        
+        **Examples**
+        
+        Keep samples in a text file:
+        
+        >>> table = hc.import_table('data/samples1.tsv').key_by('Sample')
+        >>> vds_filtered = vds.filter_samples_table(table, keep=True)
+        
+        Remove samples in a text file with 1 field, and no header:
+        >>> to_remove = hc.import_table('data/exclude_samples.txt', no_header=True).key_by('f0')
+        >>> vds_filtered = vds.filter_samples_table(to_remove, keep=False)
+        
+        **Notes**
+        
+        This method filters out or filters to the keys of a table. The table must have a key of 
+        type ``String``. 
+        
+        :param table: Key table.
+        :type table: :class:`.KeyTable`
+        
+        :param bool keep: Keep the keys of the table. Remove the keys if false.
+        
+        :return: Filtered dataset.
+        :rtype: :class:`.VariantDataset`
+        """
+
+        return VariantDataset(self.hc, self._jvds.filterSamplesTable(table._jkt, keep))
+
+    @handle_py4j
     def drop_variants(self):
         """Discard all variants, variant annotations and genotypes.
 
@@ -2078,53 +1972,64 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def filter_variants_intervals(self, intervals, keep=True):
-        """Filter variants with an interval or interval tree.
+    def filter_intervals(self, intervals, keep=True):
+        """Filter variants with an interval or list of intervals.
 
         **Examples**
 
-        >>> from hail.representation import *
-        >>> vds_result = vds.filter_variants_intervals(IntervalTree.read('data/intervals.txt'))
-        >>> vds_result = vds.filter_variants_intervals(IntervalTree.parse_all(['1:50M-75M', '2:START-400000','3-22']))
-        >>> vds_result = vds.filter_variants_intervals(Interval(Locus('17', 38449840), Locus('17', 38530994)))
-        >>> vds_result = vds.filter_variants_intervals(Interval.parse('17:38449840-38530994'))
-
-        This method takes an argument either of :class:`.Interval` or :class:`.IntervalTree`.
+        Filter to one interval:
+        
+        >>> vds_result = vds.filter_intervals(Interval.parse('17:38449840-38530994'))
+        
+        Another way of writing this same query:
+        
+        >>> vds_result = vds.filter_intervals(Interval(Locus('17', 38449840), Locus('17', 38530994)))
+        
+        Two identical ways of filtering to a few defined intervals:
+        
+        >>> vds_result = vds.filter_intervals(map(Interval.parse, ['1:50M-75M', '2:START-400000', '3-22']))
+        
+        >>> vds_result = vds.filter_intervals([Interval.parse(x) for x in ['1:50M-75M', '2:START-400000', '3-22']])
+        
+        **Notes**
+        
+        This method takes an argument of :class:`.Interval` or list of :class:`.Interval`.
 
         Based on the ``keep`` argument, this method will either restrict to variants in the
-        supplied interval range, or remove all variants in that range.  Note that intervals
+        supplied interval ranges, or remove all variants in those ranges.  Note that intervals
         are left-inclusive, and right-exclusive.  The below interval includes the locus
         ``15:100000`` but not ``15:101000``.
 
         >>> interval = Interval.parse('15:100000-101000')
 
-        To supply a file containing intervals, use :py:meth:`.IntervalTree.read`:
-
-        >>> vds_result = vds.filter_variants_intervals(IntervalTree.read('data/intervals.txt'))
-
-        This method performs predicate pushdown when ``keep`` is ``True``, meaning that data shards
+        This method performs predicate pushdown when ``keep=True``, meaning that data shards
         that don't overlap any supplied interval will not be loaded at all.  This property
-        enables ``filter_variants_intervals`` to be used for reasonably low-latency queries of one
-        or more variants, even on large variant datasets:
+        enables ``filter_intervals`` to be used for reasonably low-latency queries of one
+        or more variants, even on large datasets:
 
-        >>>  # We are interested in the variant 15:100203:A:T
-        >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start == 100203')  # slow
-        >>> vds_filtered = vds.filter_variants_intervals(Interval.parse('15:100203-100204'))  # very fast
+        >>> # We are interested in the interval  15:100000-200000
+        >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start >= 100000 && v.start < 200000')  # slow
+        >>> vds_filtered = vds.filter_intervals(Interval.parse('15:100000-200000'))  # very fast
 
-        :param intervals: interval or interval tree object
-        :type intervals: s:class:`.Interval` or :class:`.IntervalTree`
+        :param intervals: interval or list of intervals
+        :type intervals: :class:`.Interval` or list of :class:`.Interval`
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
         if isinstance(intervals, Interval):
-            intervals = IntervalTree([intervals])
-        elif not isinstance(intervals, IntervalTree):
-            raise TypeError("argument 'intervals' must be of type Interval or IntervalTree, but found '%s'" %
-                            type(intervals))
+            intervals = [intervals]
+        else:
+            if not isinstance(intervals, list):
+                raise TypeError("argument 'intervals' must be of type Interval or list of Interval, but found '%s'" %
+                                type(intervals))
+            for i in intervals:
+                if not isinstance(i, Interval):
+                    raise TypeError("expected elements of argument 'intervals' to be type Interval, but found '%s'" %
+                                    type(i))
 
-        jvds = self._jvds.filterIntervals(intervals._jrep, keep)
+        jvds = self._jvds.filterIntervals([x._jrep for x in intervals], keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2135,7 +2040,15 @@ class VariantDataset(object):
 
         Filter VDS down to a list of variants:
 
-        >>> vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), Variant.parse('20:10019093:A:G')], keep=True)
+        This method performs predicate pushdown when ``keep=True``, meaning that data shards
+        that don't overlap with any supplied variant will not be loaded at all.  This property
+        enables ``filter_variants_list`` to be used for reasonably low-latency queries of one
+        or more variants, even on large datasets:
+
+        >>>  # We are interested in the variants 20:10626633:G:GC and 20:10019093:A:G
+        >>> vds_filtered = vds.filter_variants_list('v.contig == "20" && v.start == 10626633')  # slow
+        >>> vds_filtered = vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), 
+        ...                                          Variant.parse('20:10019093:A:G')], keep=True)  # fast
 
         :param variants: List of variants to keep or remove.
         :type variants: list of :py:class:`~hail.representation.Variant`
@@ -2144,7 +2057,6 @@ class VariantDataset(object):
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
-        
         """
 
         return VariantDataset(
@@ -2152,21 +2064,49 @@ class VariantDataset(object):
                 [TVariant()._convert_to_j(v) for v in variants], keep))
 
     @handle_py4j
-    def filter_variants_kt(self, kt, keep=True):
+    def filter_variants_table(self, table, keep=True):
         """Filter variants with a Variant keyed key table.
 
         **Example**
 
-        Filter variants of a VDS to those appearing in the Variant column of a TSV file:
+        Filter variants of a VDS to those appearing in the variant column of a TSV file:
 
-        >>> kt = hc.import_keytable('data/sample_variants.txt', key='Variant', config=TextTableConfig(impute=True))
-        >>> filtered_vds = vds.filter_variants_kt(kt, keep=True)
+        >>> kt = hc.import_table('data/sample_variants.txt', key='Variant', impute=True)
+        >>> filtered_vds = vds.filter_variants_table(kt, keep=True)
+        
+        Keep all variants whose chromosome and position (locus) appear in a file with 
+        a chromosome:position column:
+        
+        >>> kt = hc_import_table('data/locus-table.tsv', impute=True).key_by('Locus')
+        >>> filtered_vds = vds.filter_variants_table(kt, keep=True)
+        
+        Remove all variants which overlap an interval in a UCSC BED file:
+        
+        >>> kt = KeyTable.import_bed('file2.bed')
+        >>> filtered_vds = vds.filter_variants_table(kt, keep=False)
+        
+        **Notes**
+        
+        This method takes a key table as an argument, which must be keyed by one of the following:
+        
+            - ``Interval``
+            - ``Locus``
+            - ``Variant``
+            
+        If the key is a ``Variant``, then a variant in the dataset will be kept or removed based
+        on finding a complete match in the table. Be careful, however: ``1:1:A:T`` does not match 
+        ``1:1:A:T,C``, and vice versa. 
+        
+        If the key is a ``Locus``, then a variant in the dataset will be kept or removed based on 
+        finding a locus in the table that matches by chromosome and position.
+        
+        If the key is an ``Interval``, then a variant in the dataset will be kept or removed based 
+        on finding an interval in the table that contains the variant's chromosome and position.
 
-        :param kt: Keep or remove ``kt`` keys.
-        :type kt: :py:class:`.KeyTable`
+        :param table: Key table object, whose keys will be filtered out or filtered to.
+        :type table: :py:class:`.KeyTable`
 
-        :param bool keep: If true, keep variants which appear as keys
-          in ``kt``, otherwise remove them.
+        :param bool keep: If true, keep keys in ``table``, otherwise remove them.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -2174,7 +2114,7 @@ class VariantDataset(object):
         """
 
         return VariantDataset(
-            self.hc, self._jvds.filterVariantsKT(kt._jkt, keep))
+            self.hc, self._jvds.filterVariantsTable(table._jkt, keep))
 
     @property
     def globals(self):
@@ -2651,7 +2591,9 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
+                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
+                                           min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3568,7 +3510,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def rrm(self, force_block = False, force_gramian = False):
+    def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
         **Examples**
@@ -4390,17 +4332,22 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
-    def make_keytable(self, variant_expr, genotype_expr, key=[], separator='.'):
-        """Make a KeyTable with one row per variant.
+    def make_table(self, variant_expr, genotype_expr, key=[], separator='.'):
+        """Convert to a key table with one row per variant and one or more columns per sample.
+
+        **Examples**
+        
+        >>> kt = vds.make_table('v = v', ['gt = g.gt', 'gq = g.gq'])
+
+        **Notes**
 
         Per sample field names in the result are formed by
         concatenating the sample ID with the ``genotype_expr`` left
-        hand side with ``seperator`` (default: dot (.)).  If the left
-        hand side is empty::
+        hand side with ``separator``.  If the left hand side is empty::
 
           `` = expr
 
-        then the dot (.) is ommited.
+        then the dot (.) is omitted.
 
         **Examples**
 
@@ -4414,7 +4361,7 @@ class VariantDataset(object):
 
         Then:
 
-        >>> kt = vds.make_keytable('v = v', ['gt = g.gt', 'gq = g.gq'])
+        >>> kt = vds.make_table('v = v', ['gt = g.gt', 'gq = g.gq'])
 
         returns a :py:class:`KeyTable` with schema
 
@@ -4422,19 +4369,19 @@ class VariantDataset(object):
 
             v: Variant
             A.gt: Int
-            B.gt: Int
-            C.gt: Int
             A.gq: Int
+            B.gt: Int
             B.gq: Int
+            C.gt: Int
             C.gq: Int
 
         in particular, the values would be
 
         .. code-block:: text
 
-            v	A.gt	B.gt	C.gt	A.gq	B.gq	C.gq
-            1:1:A:T	1	NA	0	99	NA	99
-            1:2:G:C	1	1	2	89	99	93
+            v	A.gt	A.gq	B.gt	B.gq	C.gt	C.gq
+            1:1:A:T	1	99	NA	NA	0	99
+            1:2:G:C	1	89	1	99	2	93
 
         :param variant_expr: Variant annotation expressions.
         :type variant_expr: str or list of str

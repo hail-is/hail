@@ -14,7 +14,6 @@ case class Adjustment[T](index: Int, f: Iterator[T] => Iterator[T])
 class AdjustedPartitionsRDD[T](@transient var prev: RDD[T],
   @transient val adjustments: IndexedSeq[Array[Adjustment[T]]])(implicit tct: ClassTag[T])
   extends RDD[T](prev.sparkContext, Nil) {
-  require(adjustments.forall(adj => adj.nonEmpty))
 
   override def getPartitions: Array[Partition] = {
     val parentPartitions = firstParent[T].partitions

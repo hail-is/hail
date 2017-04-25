@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop, Properties}
-import is.hail.sparkextras.{OrderedPartitioner, _}
+import is.hail.sparkextras._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -70,8 +70,40 @@ class OrderedRDDSuite extends SparkSuite {
       sameElems && validPartitions
     }
 
+    def checkLeftJoin(nPar1: Int, is1: IndexedSeq[(Variant, String)],
+      nPar2: Int, is2: IndexedSeq[(Variant, String)]): Boolean = {
 
-    def checkJoin(nPar1: Int, is1: IndexedSeq[(Variant, String)],
+      val leftDistinct = is1.toMap.toIndexedSeq
+      val m2 = is2.groupBy(_._1).mapValues(_.map(_._2).toSet)
+
+      val rdd1 = sc.parallelize(leftDistinct, nPar1).cache()
+      val rdd2 = sc.parallelize(is2, nPar2).cache()
+
+      val leftJoin = rdd1.toOrderedRDD
+        .orderedLeftJoin(rdd2.toOrderedRDD)
+        .collect()
+        .toIndexedSeq
+
+      val check1 = leftDistinct.toSet == leftJoin.map { case (k, (v1, _)) => (k, v1) }.toSet
+      val check2 = leftJoin.forall { case (k, (_, v2)) =>
+        val eq = v2.toSet == m2.getOrElse(k, Set.empty[String])
+          if (!eq)
+            println(
+              s"""key=$k
+                 |  v1 = ${v2.toSet}
+                 |  v2 = ${m2.getOrElse(k, Set.empty[String])}""".stripMargin)
+          eq
+      }
+
+      val p = check1 && check2
+      if (!p)
+        println(
+          s"""check1 : $check1
+             |check2 : $check2""".stripMargin)
+      p
+    }
+
+    def checkLeftJoinDistinct(nPar1: Int, is1: IndexedSeq[(Variant, String)],
       nPar2: Int, is2: IndexedSeq[(Variant, String)]): Boolean = {
       val m2 = is2.toMap
 
@@ -101,12 +133,13 @@ class OrderedRDDSuite extends SparkSuite {
 
       val p = check1 && check2 && check3 && check4 && check5 && check6
       if (!p)
-        println(s"""check1 : $check1
-              |check2 : $check2
-              |check3 : $check3
-              |check4 : $check4
-              |check5 : $check5
-              |check6 : $check6""".stripMargin)
+        println(
+          s"""check1 : $check1
+             |check2 : $check2
+             |check3 : $check3
+             |check4 : $check4
+             |check5 : $check5
+             |check6 : $check6""".stripMargin)
       p
     }
 
@@ -131,7 +164,20 @@ class OrderedRDDSuite extends SparkSuite {
     }
 
     property("join1") = Prop.forAll(g, g) { case ((nPar1, is1), (nPar2, is2)) =>
-      checkJoin(nPar1, is1, nPar2, is2)
+      checkLeftJoinDistinct(nPar1, is1, nPar2, is2)
+    }
+
+    property("leftProductJoin") = {
+      val localV = for {
+        pos <- Gen.choose(1, 50)
+        alt <- Gen.oneOf("T", "C")
+      } yield Variant("1", pos, "A", alt)
+
+      val localG = for (variants <- Gen.buildableOf[Array, Variant](localV).map(x => x: IndexedSeq[Variant]);
+        toZip <- Gen.buildableOfN[Array, String](variants.size, arbitrary[String]);
+        nPar <- Gen.choose(1, 10)) yield (nPar, variants.zip(toZip))
+
+      Prop.forAll(localG, localG) { case ((n1, left), (n2, right)) => checkLeftJoin(n1, left, n2, right) }
     }
 
     // check different levels of partition skipping and sparsity
@@ -144,19 +190,19 @@ class OrderedRDDSuite extends SparkSuite {
       nPar <- Gen.choose(1, 10)) yield (nPar, uniqueVariants.zip(toZip))
 
     property("join2") = Prop.forAll(g, g2) { case ((nPar1, is1), (nPar2, is2)) =>
-      checkJoin(nPar1, is1, nPar2, is2)
+      checkLeftJoinDistinct(nPar1, is1, nPar2, is2)
     }
 
     property("join3") = Prop.forAll(g, g2) { case ((_, is1), (nPar2, is2)) =>
-      checkJoin(1, is1, nPar2, is2)
+      checkLeftJoinDistinct(1, is1, nPar2, is2)
     }
 
     property("join4") = Prop.forAll(g2, g) { case ((nPar1, is1), (nPar2, is2)) =>
-      checkJoin(nPar1, is1, nPar2, is2)
+      checkLeftJoinDistinct(nPar1, is1, nPar2, is2)
     }
 
     property("join4") = Prop.forAll(g2, g) { case ((_, is1), (nPar2, is2)) =>
-      checkJoin(1, is1, nPar2, is2)
+      checkLeftJoinDistinct(1, is1, nPar2, is2)
     }
 
     val tmpPartitioner = tmpDir.createTempFile("partitioner.json.gz")
