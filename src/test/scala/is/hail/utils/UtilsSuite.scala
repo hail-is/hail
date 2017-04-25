@@ -131,10 +131,11 @@ class UtilsSuite extends SparkSuite {
       ref <- genDNAString;
       alt <- genDNAString.filter(_ != ref);
       v <- arbitrary[Int]) yield (Variant(chr, pos, ref, alt), v)
-    val p = Prop.forAll(Gen.buildableOf[IndexedSeq, (Variant, Int)](g)) { is =>
-      val kSorted = is.sortBy(_._1)
-      val tSorted = is.sortBy(_._1.locus)
-      val localKeySorted = OrderedRDD.localKeySort(is.sortBy(_._1.locus).iterator).toIndexedSeq
+    val p = Prop.forAll(Gen.buildableOf[IndexedSeq, (Variant, Int)](g)) { indSeq =>
+      val indSeqDistinct = indSeq.groupBy{ _._1}.map{ case (v, x) => x.head}.toIndexedSeq
+
+      val kSorted = indSeqDistinct.sortBy(_._1)
+      val localKeySorted = OrderedRDD.localKeySort(indSeqDistinct.sortBy(_._1.locus).iterator).toIndexedSeq
 
       kSorted == localKeySorted
     }
