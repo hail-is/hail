@@ -684,4 +684,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     blockSize: Int = 100, rate: Int = 1000): Unit = {
     CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
   }
+
+  def repartition(n: Int): KeyTable = copy(rdd = rdd.repartition(n))
 }

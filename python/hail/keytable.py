@@ -1007,3 +1007,15 @@ class KeyTable(object):
         """
 
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc()._jhc, df._jdf))
+
+    def repartition(self, n):
+        """Change the number of distributed partitions.
+        
+        Always shuffles data.
+        
+        :param int n: Desired number of partitions.
+        
+        :rtype: :class:`.KeyTable` 
+        """
+
+        return KeyTable(self.hc, self._jkt.repartition(n))
