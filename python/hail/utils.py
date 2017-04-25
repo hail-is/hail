@@ -1,4 +1,4 @@
-from hail.java import Env, handle_py4j
+from hail.java import Env, handle_py4j, jiterable_to_list
 
 
 class TextTableConfig(object):
@@ -58,31 +58,44 @@ class Summary(object):
     :ivar int multiallelics: Number of multiallelic variants.
     
     :ivar int snps: Number of SNP alternate alleles.
+    
+    :ivar int mnps: Number of MNP alternate alleles.
 
-    :ivar int indels: Number of insertion / deletion alternate alleles.
+    :ivar int insertions: Number of insertion alternate alleles.
     
-    :ivar int complex: Number of complex (star, MNP, etc) alternate alleles.
+    :ivar int deletions: Number of deletion alternate alleles.
     
-    :ivar int most_alleles: Highest number of alleles at any variant.
+    :ivar int complex: Number of complex alternate alleles.
+    
+    :ivar int star: Number of star (upstream deletion) alternate alleles.
+    
+    :ivar int max_alleles: Highest number of alleles at any variant.
     """
 
-    def __init__(self, samples, variants, call_rate, contigs, multiallelics, snps, indels, complex, most_alleles):
-        self.samples = samples
-        self.variants = variants
-        self.call_rate = call_rate
-        self.contigs = contigs
-        self.multiallelics = multiallelics
-        self.snps = snps
-        self.indels = indels
-        self.complex = complex
-        self.most_alleles = most_alleles
+    @classmethod
+    def _from_java(cls, jrep):
+        summary = Summary.__new__(cls)
+        summary.samples = jrep.samples()
+        summary.variants = jrep.variants()
+        summary.call_rate = jrep.callRate().getOrElse(None)
+        summary.contigs = [str(x) for x in jiterable_to_list(jrep.contigs())]
+        summary.multiallelics = jrep.multiallelics()
+        summary.snps = jrep.snps(),
+        summary.mnps = jrep.mnps(),
+        summary.insertions = jrep.insertions()
+        summary.deletions = jrep.deletions()
+        summary.complex = jrep.complex()
+        summary.star = jrep.star()
+        summary.max_alleles = jrep.maxAlleles()
+        return summary
 
     def __repr__(self):
-        return 'Summary(samples=%d, variants=%d, call_rate=%f, contigs=%s, multiallelics=%d, snps=%d, indels=%d, ' \
-               'complex=%d, most_alleles=%d)' % (
+        return 'Summary(samples=%d, variants=%d, call_rate=%f, contigs=%s, multiallelics=%d, snps=%d, ' \
+               'mnps=%d, insertions=%d, deletions=%d, complex=%d, star=%d, max_alleles=%d)' % (
                    self.samples, self.variants, self.call_rate,
                    self.contigs, self.multiallelics, self.snps,
-                   self.indels, self.complex, self.most_alleles)
+                   self.mnps, self.insertions, self.deletions,
+                   self.complex, self.star, self.most_alleles)
 
     def __str__(self):
         return repr(self)
@@ -90,15 +103,18 @@ class Summary(object):
     def report(self):
         """Print the summary information."""
         print('')  # clear out pesky progress bar if necessary
-        print('%14s: %d' % ('Samples', self.samples))
-        print('%14s: %d' % ('Variants', self.variants))
-        print('%14s: %f' % ('Call rate', self.call_rate))
-        print('%14s: %s' % ('Contigs', self.contigs))
-        print('%14s: %d' % ('Multiallelics', self.multiallelics))
-        print('%14s: %d' % ('SNPs', self.snps))
-        print('%14s: %d' % ('Indels', self.indels))
-        print('%14s: %d' % ('Complex', self.complex))
-        print('%14s: %d' % ('Most alleles', self.most_alleles))
+        print('%16s: %d' % ('Samples', self.samples))
+        print('%16s: %d' % ('Variants', self.variants))
+        print('%16s: %f' % ('Call rate', self.call_rate))
+        print('%16s: %s' % ('Contigs', self.contigs))
+        print('%16s: %d' % ('Multiallelics', self.multiallelics))
+        print('%16s: %d' % ('SNPs', self.snps))
+        print('%16s: %d' % ('MNPs', self.mnps))
+        print('%16s: %d' % ('Insertions', self.insertions))
+        print('%16s: %d' % ('Deletions', self.deletions))
+        print('%16s: %d' % ('Complex Alleles', self.complex))
+        print('%16s: %d' % ('Star Alleles', self.star))
+        print('%16s: %d' % ('Most alleles', self.most_alleles))
 
 
 class FunctionDocumentation(object):

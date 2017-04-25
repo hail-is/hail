@@ -153,7 +153,7 @@ class ContextTests(unittest.TestCase):
             (dataset.annotate_variants_vds(dataset, code='va.good = va.info.AF == vds.info.AF')
              .count())
 
-            downsampled = dataset.downsample_variants(20)
+            downsampled = dataset.sample_variants(20)
             downsampled.export_variants('/tmp/sample2_loci.tsv', 'chr = v.contig, pos = v.start')
             downsampled.export_variants('/tmp/sample2_variants.tsv', 'v')
 

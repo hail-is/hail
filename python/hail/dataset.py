@@ -1344,6 +1344,8 @@ class VariantDataset(object):
         
         >>> samples, variants = vds.count()
         
+        **Notes**
+        
         This is also the fastest way to force evaluation of a Hail pipeline.
         
         :returns: The sample and variant counts.
@@ -1365,19 +1367,27 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deduplicate())
 
     @handle_py4j
-    def downsample_variants(self, fraction):
+    def sample_variants(self, fraction, seed=1):
         """Downsample variants to a given fraction of the dataset.
         
-        Note that this method may not sample exactly ``(fraction * n_variants)``
+        **Examples**
+        
+        >>> small_vds = vds.sample_variants(0.01)
+        
+        **Notes**
+        
+        This method may not sample exactly ``(fraction * n_variants)``
         variants from the dataset.
 
         :param float fraction: (Expected) fraction of variants to keep.
+
+        :param int seed: Random seed.
 
         :return: Downsampled variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.downsampleVariants(fraction))
+        return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
     @requireTGenotype
@@ -2657,7 +2667,9 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
+                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
+                                           min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3574,7 +3586,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def rrm(self, force_block = False, force_gramian = False):
+    def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
         **Examples**
@@ -3742,28 +3754,19 @@ class VariantDataset(object):
          - **contigs** (*list of str*) - List of all unique contigs found in the dataset.
          - **multiallelics** (*int*) - Number of multiallelic variants.
          - **snps** (*int*) - Number of SNP alternate alleles.
-         - **indels** (*int*) - Number of insertion / deletion alternate alleles.
-         - **complex** (*int*) - Number of complex (star, MNP, etc) alternate alleles.
-         - **most_alleles** (*int*) - The highest number of alleles at any variant.
+         - **mnps** (*int*) - Number of MNP alternate alleles.
+         - **insertions** (*int*) - Number of insertion alternate alleles.
+         - **deletions** (*int*) - Number of deletions alternate alleles.
+         - **complex** (*int*) - Number of complex alternate alleles.
+         - **star** (*int*) - Number of star (upstream deletion) alternate alleles.
+         - **max_alleles** (*int*) - The highest number of alleles at any variant.
          
         :return: Object containing summary information.
         :rtype: :class:`~hail.utils.Summary`
         """
 
         js = self._jvdf.summarize()
-        return Summary(
-            js.samples(),
-            js.variants(),
-            js.callRate().getOrElse(None),
-            [str(x) for x in jiterable_to_list(js.contigs())],
-            js.multiallelics(),
-            js.snps(),
-            js.indels(),
-            js.complex(),
-            js.mostAlleles()
-        )
-
-
+        return Summary._from_java(js)
 
     @handle_py4j
     def set_va_attributes(self, ann_path, attributes):
