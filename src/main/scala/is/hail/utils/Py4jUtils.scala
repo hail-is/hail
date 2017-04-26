@@ -1,8 +1,14 @@
 package is.hail.utils
 
+import java.io.{InputStream, OutputStream, OutputStreamWriter}
+import java.util
+
+import is.hail.HailContext
+import is.hail.utils._
 import is.hail.variant.Locus
 
 import scala.collection.JavaConverters._
+import scala.io.{BufferedSource, Source}
 
 trait Py4jUtils {
   def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
@@ -49,4 +55,51 @@ trait Py4jUtils {
   def makeDouble(f: Float): Double = f.toDouble
 
   def makeDouble(d: Double): Double = d
+
+  def readFile(path: String, hc: HailContext): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
+    new HadoopPyReader(hc.hadoopConf.unsafeReader(path))
+  }
+
+  def writeFile(path: String, hc: HailContext): HadoopPyWriter = {
+    new HadoopPyWriter(hc.hadoopConf.unsafeWriter(path))
+  }
+
+  def copyFile(from: String, to: String, hc: HailContext) {
+    hc.hadoopConf.copy(from, to)
+  }
+}
+
+class HadoopPyReader(in: InputStream) {
+  var eof = false
+
+  def read(n: Int): String = {
+    val b = new Array[Byte](n)
+    val bytesRead = in.read(b, 0, n)
+    if (bytesRead < 0)
+      new String(new Array[Byte](0), "ISO-8859-1")
+    else if (bytesRead == n)
+      new String(b, "ISO-8859-1")
+    else
+      new String(b.slice(0, bytesRead), "ISO-8859-1")
+  }
+
+  def close() {
+    in.close()
+  }
+}
+
+class HadoopPyWriter(out: OutputStream) {
+
+  def write(b: Array[Byte]) {
+    out.write(b)
+  }
+
+  def flush() {
+    out.flush()
+  }
+
+  def close() {
+    out.flush()
+    out.close()
+  }
 }
