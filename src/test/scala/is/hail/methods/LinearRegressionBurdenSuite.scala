@@ -219,8 +219,9 @@ class LinearRegressionBurdenSuite extends SparkSuite {
     assert(linregKT same linregKT4)
     assert(sampleKT same sampleKT4)
 
-    val twiceSampleMap = makeMap[String](sampleKT).mapValues(_.map(2 * _))
-    val onceSampleMap5 = makeMap[String](sampleKT5).mapValues(_.map(1 * _))
+    val twiceSampleMap = makeMap[String](sampleKT).mapValues(_.map(v =>
+      if (v == null) null else box(2 * v.doubleValue())))
+    val onceSampleMap5 = makeMap[String](sampleKT5)
     assert(twiceSampleMap == onceSampleMap5)
 
     assert(linregKT6.nRows == 0)
