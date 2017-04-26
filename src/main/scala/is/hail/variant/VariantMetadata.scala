@@ -2,6 +2,7 @@ package is.hail.variant
 
 import is.hail.annotations._
 import is.hail.expr._
+import is.hail.utils._
 
 object VariantMetadata {
   def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(
@@ -43,6 +44,8 @@ case class VariantMetadata(
   wasSplit: Boolean = false,
   isDosage: Boolean = false,
   isGenericGenotype: Boolean = false) {
+
+  assert(sampleIds.areDistinct(), s"Sample ID names are not distinct: ${ sampleIds.duplicates().mkString(", ") }")
 
   def nSamples: Int = sampleIds.length
 }

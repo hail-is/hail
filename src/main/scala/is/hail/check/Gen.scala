@@ -50,7 +50,11 @@ object Gen {
     a(nSuccesses - 1) = sizeAvail
 
     assert(a.sum == size)
-    scala.util.Random.shuffle(a.toList).toArray
+
+    if (a.isEmpty)
+      a
+    else
+      rng.nextPermutation(a.length, a.length).map(a)
   }
 
   def partition(parts: Int, sum: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, sum, parts) }
