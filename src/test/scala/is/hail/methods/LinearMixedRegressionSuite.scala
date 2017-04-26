@@ -1,12 +1,13 @@
 package is.hail.methods
 
 import breeze.linalg._
+import breeze.numerics.{exp, sigmoid}
 import breeze.stats.mean
 import is.hail.annotations._
 import is.hail.expr.{TDouble, TStruct}
 import is.hail.stats._
 import is.hail.utils._
-import is.hail.variant.Variant
+import is.hail.variant.{Variant, VariantDataset}
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
@@ -168,11 +169,14 @@ class LinearMixedRegressionSuite extends SparkSuite {
       if (c == 1)
         DenseMatrix.ones[Double](n, 1)
       else
-        DenseMatrix.horzcat(DenseMatrix.ones[Double](n, 1), DenseMatrix.fill[Double](n, c - 1)(scala.util.Random.nextGaussian()))
+        DenseMatrix.horzcat(
+          DenseMatrix.ones[Double](n, 1),
+          DenseMatrix.fill[Double](n, c - 1)(scala.util.Random.nextGaussian()))
 
     val FstOfPop = Array.fill[Double](k)(Fst)
 
-    val bnm = BaldingNicholsModel(hc, k, n, m0, None, Some(FstOfPop), scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9))
+    val bnm = BaldingNicholsModel(hc, k, n, m0, None, Some(FstOfPop),
+      scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9))
 
     val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
 
@@ -245,7 +249,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val pheno = y.toArray
     val covExpr = (1 until c).map(i => s"sa.covs.cov$i").toArray
     val covSchema = TStruct((1 until c).map(i => (s"cov$i", TDouble)): _*)
-    val covData = bnm.sampleIds.zipWithIndex.map { case (id, i) => (id, Annotation.fromSeq( C(i, 1 until c).t.toArray)) }.toMap
+    val covData = bnm.sampleIds.zipWithIndex.map { case (id, i) =>
+      (id, Annotation.fromSeq( C(i, 1 until c).t.toArray)) }.toMap
 
     val assocVds = bnm
       .annotateSamples(bnm.sampleIds.zip(pheno).toMap, TDouble, "sa.pheno")
@@ -275,25 +280,32 @@ class LinearMixedRegressionSuite extends SparkSuite {
     }
   }
 
-  @Test def fastlmmTest() {
-    /*
-    Test data is from all.bed, all.bim, all.fam, cov.txt, pheno_10_causals.txt:
+  /*
+  FastLMM Test data is from all.bed, all.bim, all.fam, cov.txt, pheno_10_causals.txt:
     https://github.com/MicrosoftGenomics/FaST-LMM/tree/master/tests/datasets/synth
 
-    Data is filtered to chromosome 1,3 and samples 0-124,375-499 (2000 variants and 250 samples)
+  Data is filtered to chromosome 1,3 and samples 0-124,375-499 (2000 variants and 250 samples)
 
-    Results are computed with single_snp as in:
+  Results are computed with single_snp as in:
     https://github.com/MicrosoftGenomics/FaST-LMM/blob/master/doc/ipynb/FaST-LMM.ipynb
-    */
+  */
 
-    val vds = hc.importPlink(bed="src/test/resources/fastlmmTest.bed", bim="src/test/resources/fastlmmTest.bim", fam="src/test/resources/fastlmmTest.fam")
-      .annotateSamplesTable("src/test/resources/fastlmmCov.txt", "_1", code=Some("sa.cov=table._2"), config=TextTableConfiguration(noHeader=true, impute=true))
-      .annotateSamplesTable("src/test/resources/fastlmmPheno.txt", "_1", code=Some("sa.pheno=table._2"), config=TextTableConfiguration(noHeader=true, impute=true, separator=" "))
+  val vdsFastLMM: VariantDataset = hc
+    .importPlink(bed="src/test/resources/fastlmmTest.bed",
+      bim="src/test/resources/fastlmmTest.bim",
+      fam="src/test/resources/fastlmmTest.fam")
+    .annotateSamplesTable("src/test/resources/fastlmmCov.txt", "_1", code=Some("sa.cov=table._2"),
+      config=TextTableConfiguration(noHeader=true, impute=true))
+    .annotateSamplesTable("src/test/resources/fastlmmPheno.txt", "_1", code=Some("sa.pheno=table._2"),
+      config=TextTableConfiguration(noHeader=true, impute=true, separator=" "))
 
-    val vdsChr1 = vds.filterVariantsExpr("""v.contig == "1"""").lmmreg(vds.filterVariantsExpr("""v.contig != "1"""").rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false)
+  val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
+    .lmmreg(vdsFastLMM.filterVariantsExpr("""v.contig != "1"""").rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false)
 
-    val vdsChr3 = vds.filterVariantsExpr("""v.contig == "3"""").lmmreg(vds.filterVariantsExpr("""v.contig != "3"""").rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false)
+  val vdsChr3: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
+    .lmmreg(vdsFastLMM.filterVariantsExpr("""v.contig != "3"""").rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false)
 
+  @Test def fastLMMTest() {
     val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
     val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
 
@@ -301,19 +313,66 @@ class LinearMixedRegressionSuite extends SparkSuite {
     assert(D_==(h2Chr3, 0.14276116822096985))
   }
 
+  @Test def h2seTest() {
+    // Testing that the parabolic approximation of h2SE is close to the empirical standard deviation of the
+    // normalized likelihood function, e.g. the posterior with uniform prior on [0,1].
+
+    val seH21 = vdsChr1.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
+    val seH23 = vdsChr3.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
+
+    val logDeltaGrid =
+      DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.logDeltaGrid")._2.asInstanceOf[IndexedSeq[Double]].toArray)
+
+    val logLkhdVals1 =
+      DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.logLkhdVals")._2.asInstanceOf[IndexedSeq[Double]].toArray)
+    val logLkhdVals3 =
+      DenseVector(vdsChr3.queryGlobal("global.lmmreg.fit.logLkhdVals")._2.asInstanceOf[IndexedSeq[Double]].toArray)
+
+    // Construct normalized likelihood function of h2
+    // shift log lkhd to have max of 0, to prevent numerical issues
+    logLkhdVals1 :-= max(logLkhdVals1)
+    logLkhdVals3 :-= max(logLkhdVals3)
+
+    // integrate in h2 coordinates
+    val h2Vals = sigmoid(-logDeltaGrid)
+    val widths = h2Vals :* (1d - h2Vals) // d(h2) / d (ln(delta)) = - h2 * (1 - h2)
+
+    val total1 = exp(logLkhdVals1) dot widths // normalization constant
+    val total3 = exp(logLkhdVals3) dot widths
+
+    val h2Posterior1 = (exp(logLkhdVals1) :* widths) :/ total1 // normalized likelihood of h2
+    val h2Posterior3 = (exp(logLkhdVals3) :* widths) :/ total3
+
+    assert(D_==(sum(h2Posterior1), 1d))
+    assert(D_==(sum(h2Posterior3), 1d))
+
+    // normal approximation
+    val meanPost1 = sum(h2Vals :* h2Posterior1)
+    val meanPost3 = sum(h2Vals :* h2Posterior3)
+
+    val sdPost1 = math.sqrt(sum((h2Vals :- meanPost1) :* (h2Vals :- meanPost1) :* h2Posterior1 ))
+    val sdPost3 = math.sqrt(sum((h2Vals :- meanPost3) :* (h2Vals :- meanPost3) :* h2Posterior3 ))
+
+    assert(math.abs(seH21 - sdPost1) < 0.02) // both are approx 0.16
+    assert(math.abs(seH23 - sdPost3) < 0.02) // both are approx 0.13
+  }
+
   // this test parallels the lmmreg Python test, and is a regression test related to filtering samples first
   @Test def filterTest() {
-
     var vdsAssoc = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .filterMulti()
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov", "Sample", root = Some("sa.cov"), config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno", "Sample", code = Some("sa.pheno.Pheno = table.Pheno"), config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
+      .annotateSamplesTable("src/test/resources/regressionLinear.cov", "Sample", root = Some("sa.cov"),
+        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
+      .annotateSamplesTable("src/test/resources/regressionLinear.pheno", "Sample",
+        code = Some("sa.pheno.Pheno = table.Pheno"),
+        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
       .annotateSamplesExpr("""sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]""")
       .annotateSamplesExpr("sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit")
 
     val vdsKinship = vdsAssoc.filterVariantsExpr("v.start < 4")
 
-    vdsAssoc = vdsAssoc.lmmreg(vdsKinship.rrm(), "sa.pheno.PhenoLMM", Array("sa.cov.Cov1", "sa.cov.Cov2"), runAssoc = false)
+    vdsAssoc = vdsAssoc.lmmreg(vdsKinship.rrm(), "sa.pheno.PhenoLMM",
+      Array("sa.cov.Cov1", "sa.cov.Cov2"), runAssoc = false)
 
     vdsAssoc.count()
   }
