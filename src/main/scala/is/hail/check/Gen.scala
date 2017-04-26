@@ -2,6 +2,7 @@ package is.hail.check
 
 import breeze.linalg.DenseMatrix
 import breeze.storage.Zero
+import is.hail.utils.UInt
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
@@ -32,17 +33,19 @@ object Gen {
       coin <- choose(0.0, 1.0))
       yield if (coin < 0.5) (l, w) else (w, l)
 
-  // utility
-  def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
+  def partition[T](rng: RandomDataGenerator, size: T, parts: Int, f: (RandomDataGenerator, T) => T)(implicit tn: Numeric[T], tct: ClassTag[T]): Array[T] = {
+    import tn.mkOrderingOps
+    assert(size >= tn.zero, s"size must be greater than or equal to 0. Found $size. tn.zero=${ tn.zero }.")
+
     if (parts == 0)
       return Array()
-    
-    val a = new Array[Int](parts)
+
+    val a = Array.fill[T](parts)(tn.zero)
     var sizeAvail = size
     val nSuccesses = rng.getRandomGenerator.nextInt(parts) + 1
 
     for (i <- 0 until nSuccesses - 1) {
-      val s = if (sizeAvail != 0) rng.getRandomGenerator.nextInt(sizeAvail) else 0
+      val s = if (sizeAvail != tn.zero) f(rng, sizeAvail) else tn.zero
       a(i) = s
       sizeAvail -= s
     }
@@ -54,9 +57,22 @@ object Gen {
     rng.nextPermutation(a.length, a.length).map(a)
   }
 
-  def partition(parts: Int, sum: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, sum, parts) }
+  def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] =
+    partition(rng, size, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
 
-  def partitionSize(parts: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts) }
+  def partition(parts: Int, sum: UInt)(implicit tn: Numeric[UInt], uct: ClassTag[UInt]): Gen[Array[UInt]] =
+    Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: UInt) => UInt(rng.nextLong(0, avail.toLong))) }
+
+  def partition(parts: Int, sum: Int): Gen[Array[Int]] =
+    Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail)) }
+
+  def partition(parts: Int, sum: Long): Gen[Array[Long]] =
+    Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Long) => rng.nextLong(0, avail)) }
+
+  def partition(parts: Int, sum: Double): Gen[Array[Double]] =
+    Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Double) => rng.nextUniform(0, avail)) }
+
+  def partitionSize(parts: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail)) }
 
   def size: Gen[Int] = Gen { p => p.size }
 

@@ -1,7 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.annotations._
-import is.hail.io.KeySerializedValueRecord
+import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.io.gen.GenReport._
 import is.hail.utils._
 import is.hail.variant.{DosageGenotype, Genotype, Variant}
@@ -25,9 +25,9 @@ class BgenRecordV11(compressed: Boolean,
   override def getValue: Iterable[Genotype] = {
     require(input != null, "called getValue before serialized value was set")
 
-    val bytes = if (compressed) decompress(input, nSamples * 6) else input
+    val byteReader = new ByteArrayReader(if (compressed) decompress(input, nSamples * 6) else input)
 
-    assert(bytes.length == nSamples * 6)
+    assert(byteReader.length == nSamples * 6)
 
     resetWarnings()
 
@@ -41,12 +41,12 @@ class BgenRecordV11(compressed: Boolean,
       def iterator = new Iterator[Genotype] {
         var i = 0
 
-        def hasNext: Boolean = i < bytes.length
+        def hasNext: Boolean = i < byteReader.length
 
         def next(): Genotype = {
-          val d0 = (bytes(i) & 0xff) | ((bytes(i + 1) & 0xff) << 8)
-          val d1 = (bytes(i + 2) & 0xff) | ((bytes(i + 3) & 0xff) << 8)
-          val d2 = (bytes(i + 4) & 0xff) | ((bytes(i + 5) & 0xff) << 8)
+          val d0 = byteReader.readShort()
+          val d1 = byteReader.readShort()
+          val d2 = byteReader.readShort()
 
           i += 6
 
@@ -93,50 +93,50 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
   override def getValue: Iterable[Genotype] = {
     require(input != null, "called getValue before serialized value was set")
 
-    val bytes = if (compressed) decompress(input, expectedDataSize) else input
-    val nRow = (bytes(0) & 0xff) | ((bytes(1) & 0xff) << 8) | ((bytes(2) & 0xff) << 16) | ((bytes(3) & 0xff) << 24)
+    val reader = new ByteArrayReader(if (compressed) decompress(input, expectedDataSize) else input)
+
+    val nRow = reader.readInt()
     assert(nRow == nSamples, "row nSamples is not equal to header nSamples")
 
-    val nAlleles = (bytes(4) & 0xff) | ((bytes(5) & 0xff) << 8)
+    val nAlleles = reader.readShort()
     assert(nAlleles == expectedNumAlleles, s"Value for `nAlleles' in genotype probability data storage is not equal to value in variant identifying data. Expected $expectedNumAlleles but found $nAlleles.")
 
-    val minPloidy = bytes(6) & 0xff
-    val maxPloidy = bytes(7) & 0xff
+    val minPloidy = reader.read()
+    val maxPloidy = reader.read()
 
     if (minPloidy != 2 || maxPloidy != 2)
       fatal(s"Hail only supports diploid genotypes. Found min ploidy equals `$minPloidy' and max ploidy equals `$maxPloidy'.")
 
-    val samplePloidy = Array.ofDim[Int](nSamples)
+    val samplePloidy = new Array[Int](nSamples)
     var i = 0
     while (i < nSamples) {
-      val b = bytes(i + 8)
-      val isMissing = ((b & 0xffL) >>> 7) == 1
-      val ploidy = if (isMissing) -1 else b & 0x3f
-      assert(ploidy >= -1 && ploidy <= 63, s"Ploidy value must be in range [0, 63]. Found $ploidy.")
+      val ploidy = reader.read()
+      assert(ploidy == 2 || ploidy < 0, s"Ploidy value must be either 2 or missing. Found $ploidy.")
       samplePloidy(i) = ploidy
       i += 1
     }
     assert(i == nSamples, s"Number of ploidy values `$i' does not equal the number of samples `$nSamples'.")
 
-    val phase = bytes(nSamples + 8) & 0xff
+    val phase = reader.read()
     assert(phase == 0 || phase == 1, s"Value for phase must be 0 or 1. Found $phase.")
     val isPhased = phase == 1
 
     if (isPhased)
       fatal("Hail does not support phased genotypes.")
 
-    val nBitsPerProb = bytes(nSamples + 9) & 0xff
+    val nBitsPerProb = reader.read()
     assert(nBitsPerProb >= 1 && nBitsPerProb <= 32, s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
 
-    val probabilityIterator = new BgenProbabilityIterator(bytes, nBitsPerProb, nSamples + 10)
-
     val nGenotypes = triangle(nAlleles)
-    val sampleProbs = Array.ofDim[Int](nGenotypes)
-    val totalProbInt = (~0L >>> (64 - nBitsPerProb)).toInt
-    val noCall: Genotype = new DosageGenotype(-1, null)
+    val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
+    assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
-    val nExpectedBytesProbs = math.ceil((nSamples * (nGenotypes - 1) * 10).toDouble / 8).toInt
-    assert(bytes.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ bytes.length }' does not match the expected size `$nExpectedBytesProbs'.")
+    val probabilityIterator = new BgenProbabilityIterator(reader, nBitsPerProb)
+
+    val sampleProbs = Array.fill[UInt](nGenotypes)(UInt(0))
+
+    val totalProbInt = UInt((1 << nBitsPerProb) - 1)
+    val noCall = new DosageGenotype(-1, null)
 
     new Iterable[Genotype] {
       def iterator = new Iterator[Genotype] {
@@ -146,7 +146,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
 
         def next(): Genotype = {
           var i = 0
-          var sumProbInt = 0
+          var sumProbInt = UInt(0)
           while (i < nGenotypes - 1) {
             assert(probabilityIterator.hasNext, "Did not decode bytes correctly. Ran out of probabilities.")
             val p = probabilityIterator.next()
@@ -158,7 +158,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
           assert(sumProbInt <= totalProbInt, "Sum of probabilities is greater than 1.")
           sampleProbs(i) = totalProbInt - sumProbInt
 
-          val gt = if (samplePloidy(sampleIndex) == -1)
+          val gt = if (samplePloidy(sampleIndex) < 0)
             noCall
           else {
             val px = Genotype.weightsToLinear(sampleProbs)

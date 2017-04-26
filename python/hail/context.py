@@ -153,7 +153,6 @@ class HailContext(object):
 
         Before importing, ensure that:
 
-          - Files reside in Hadoop file system.
           - The sample file has the same number of samples as the BGEN file.
           - No duplicate sample IDs are present.
 

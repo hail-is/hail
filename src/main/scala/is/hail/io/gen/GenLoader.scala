@@ -113,8 +113,7 @@ object GenLoader {
 
     if (dosages.length != (3 * nSamples))
       fatal("Number of dosages does not match number of samples. If no chromosome column is included, use -c to input the chromosome.")
-
-    val dosageArray = new Array[Int](3)
+    
     val gsb = new GenotypeStreamBuilder(2, isDosage = true)
     val gb = new GenotypeBuilder(2, isDosage = true)
 

@@ -28,7 +28,7 @@ class LoadBgenSuite extends SparkSuite {
     val sampleFile = "src/test/resources/example.sample"
     val inputs = Array(
       ("src/test/resources/example.v11.bgen", 1e-6),
-      ("src/test/resources/example.10bits.bgen", 1d / (math.pow(2, 10) - 1))
+      ("src/test/resources/example.10bits.bgen", 1d / ((1L << 10) - 1))
     )
 
     def testBgen(bgen: String, tolerance: Double = 1e-6): Unit = {
@@ -152,65 +152,55 @@ class LoadBgenSuite extends SparkSuite {
     Spec.check()
   }
 
+  def bitPack(input: Array[UInt], nBitsPerProb: Int): Array[Byte] = {
+    val expectedNBytes = (input.length * nBitsPerProb + 7) / 8
+    val packedInput = new Array[Byte](expectedNBytes)
+
+    val bitMask = (1L << nBitsPerProb) - 1
+    var byteIndex = 0
+    var data = 0L
+    var dataSize = 0
+
+    input.foreach { i =>
+      data |= ((i.toLong & bitMask) << dataSize)
+      dataSize += nBitsPerProb
+
+      while (dataSize >= 8) {
+        packedInput(byteIndex) = (data & 0xffL).toByte
+        data = data >>> 8
+        dataSize -= 8
+        byteIndex += 1
+      }
+    }
+
+    if (dataSize > 0)
+      packedInput(byteIndex) = (data & 0xffL).toByte
+
+    packedInput
+  }
+
   object TestProbIterator extends Properties("ImportBGEN") {
-    val bitPackedIteratorGen = for (
-      v <- Gen.buildableOf[Array, Double](Gen.choose(0d, 1d)).resize(10);
-      nBitsPerProb <- Gen.choose(1, 32)) yield (v, nBitsPerProb)
+    val probIteratorGen = for (nBitsPerProb <- Gen.choose(1, 32);
+      nProbabilities <- Gen.choose(1, 20);
+      size = ((1L << nBitsPerProb) - 1).toUInt;
+      input <- Gen.partition(nProbabilities, size)
+    ) yield (nBitsPerProb, input)
 
     property("bgen probability iterator gives correct result") =
-      forAll(Gen.buildableOf[Array, Double](Gen.choose(0d, 1d)).resize(10)) { v =>
-        val probs = v.map(_ / v.sum)
+      forAll(probIteratorGen) { case (nBitsPerProb, input) =>
+        val packedInput = bitPack(input, nBitsPerProb)
+        val probIterator = new BgenProbabilityIterator(new ByteArrayReader(packedInput), nBitsPerProb)
+        val result = new Array[UInt](input.length)
 
-        (1 to 32).forall { nBitsPerProb =>
-
-          val probInts = probs.map(_ * (math.pow(2, nBitsPerProb) - 1))
-          val floorInts = probInts.map(i => (i, math.floor(i)))
-          val totalFractional = floorInts.map(f => f._1 - f._2).sum.toInt
-          val input = floorInts.sortBy(i => -(i._1 - i._2)).zipWithIndex.map { case (r, i) =>
-            if (i < totalFractional)
-              (i, math.ceil(r._1))
-            else
-              (i, math.floor(r._1))
-          }.map(_._2.toInt)
-
-          val expectedNBytes = math.ceil((probs.length * nBitsPerProb).toDouble / 8).toInt
-          val packedInput = Array.ofDim[Byte](expectedNBytes)
-
-          val bitMask = ~0L >>> (64 - nBitsPerProb)
-          assert(bitMask == (math.pow(2, nBitsPerProb) - 1).toLong)
-
-          var byteIndex = 0
-          var data = 0L
-          var dataSize = 0
-
-          input.foreach { i =>
-            data |= ((i.toLong & bitMask) << dataSize)
-            dataSize += nBitsPerProb
-
-            while (dataSize >= 8) {
-              packedInput(byteIndex) = (data & 0xffL).toByte
-              data = data >>> 8
-              dataSize -= 8
-              byteIndex += 1
-            }
+        for (i <- input.indices) {
+          if (probIterator.hasNext) {
+            result(i) = probIterator.next()
+          } else {
+            fatal(s"Should have at least ${ input.length } probabilities. Found i=$i")
           }
-
-          if (dataSize > 0)
-            packedInput(byteIndex) = (data & 0xffL).toByte
-
-          val probIterator = new BgenProbabilityIterator(packedInput, nBitsPerProb)
-          val result = Array.ofDim[Int](probs.length)
-
-          for (i <- probs.indices) {
-            if (probIterator.hasNext) {
-              result(i) = probIterator.next()
-            } else {
-              fatal(s"Should have at least ${ probs.length } probabilities. Found i=$i")
-            }
-          }
-
-          result sameElements input
         }
+
+        input sameElements result
       }
   }
 
