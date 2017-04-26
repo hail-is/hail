@@ -1146,13 +1146,13 @@ object FunctionRegistry {
     """,
     "min" -> "Minimum value of interval.",
     "max" -> "Maximum value of interval, non-inclusive.")
+
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() },
     """
     Returns a random draw from a normal distribution with mean ``mean`` and standard deviation ``sd``. ``sd`` should be non-negative. This function is non-deterministic.
     """,
     "mean" -> "Mean value of normal distribution.",
     "sd" -> "Standard deviation of normal distribution.")
-
   register("pnorm", { (x: Double) => pnorm(x) },
     """
     Returns left-tail probability p for which p = Prob(:math:`Z` < ``x``) with :math:`Z` a standard normal random variable.
@@ -1163,6 +1163,32 @@ object FunctionRegistry {
     Returns left-quantile x for which p = Prob(:math:`Z` < x) with :math:`Z` a standard normal random variable. ``p`` must satisfy 0 < ``p`` < 1. Inverse of pnorm.
     """,
     "p" -> "Probability")
+
+  register("rpois", { (lambda: Double) => rpois(lambda) },
+    """
+    Returns a random draw from a poisson distribution with parameter ``lambda``. This function is non-deterministic.
+    """,
+    "lambda" -> "Mean of poisson distribution. Must be non-negative.")
+  register("dpois", { (x: Int, lambda: Double) => dpois(x, lambda) },
+    """
+    Returns the :math:`P(X = x)` from a poisson distribution with parameter ``lambda``. This function is non-deterministic.
+    """,
+    "x" -> "Non-negative integer to compute the probability density.",
+    "lambda" -> "Mean of poisson distribution. Must be non-negative.")
+  register("ppois", { (x: Int, lambda: Double, lowerTail: Boolean) => ppois(x, lambda, lowerTail) },
+    """
+    Returns left-tail probability p for which p = :math:`P(X \leq x)` with :math:`X` a poisson random variable with parameter ``lambda``. This function is non-deterministic.
+    """,
+    "x" -> "Non-negative integer to compute the probability density at.",
+    "lambda" -> "Mean of poisson distribution. Must be non-negative.",
+    "lowerTail" -> "If false, returns the :math:`P(X > x)`")
+  register("qpois", { (p: Double, lambda: Double, lowerTail: Boolean) => qpois(p, lambda, lowerTail) },
+    """
+    Returns the largest integer x for which ``p`` = :math:`P(X \leq x)` with :math:`X` a poisson random variable with parameter ``lambda``. Inverse of ppois. This function is non-deterministic.
+    """,
+    "p" -> "Probability. Must satisfy 0 < ``p`` < 1",
+    "lambda" -> "Mean of poisson distribution. Must be non-negative.",
+    "lowerTail" -> "If false, finds the left-quantile for :math:`p = P(X > x)`")
 
   register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(df, x) },
     """

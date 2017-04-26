@@ -5,7 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
 import net.sourceforge.jdistlib.{ChiSquare, Normal}
-import org.apache.commons.math3.distribution.HypergeometricDistribution
+import org.apache.commons.math3.distribution.{HypergeometricDistribution, PoissonDistribution}
 
 package object stats {
 
@@ -280,6 +280,20 @@ package object stats {
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def inverseChiSquaredTail(df: Double, p: Double): Double = ChiSquare.quantile(p, df, false, false)
+
+  def rpois(lambda: Double): Int = new PoissonDistribution(lambda).sample()
+
+  def dpois(k: Int, lambda: Double): Double = new PoissonDistribution(lambda).probability(k)
+
+  def ppois(k: Int, lambda: Double, lowerTail: Boolean = true): Double = {
+    val p = new PoissonDistribution(lambda).cumulativeProbability(k)
+    if (lowerTail) p else 1d - p
+  }
+
+  def qpois(x: Double, lambda: Double, lowerTail: Boolean = true): Int = {
+    val q = if (lowerTail) x else 1d - x
+    new PoissonDistribution(lambda).inverseCumulativeProbability(q)
+  }
 
   def uninitialized[T]: T = {
     class A {

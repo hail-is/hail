@@ -4,7 +4,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.utils._
 import is.hail.variant.Variant
-import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution}
+import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution, PoissonDistribution}
 import org.testng.annotations.Test
 
 class StatsSuite extends SparkSuite {
@@ -61,5 +61,15 @@ class StatsSuite extends SparkSuite {
     for (i <- 0 to 2)
       for (j <- 0 to 1)
         assert(G(i, j) == G1(i, j))
+  }
+
+  @Test def poissonTest() {
+    // compare with R
+    assert(D_==(dpois(5, 10), 0.03783327))
+    assert(qpois(0.3, 10) == 8)
+    assert(qpois(0.3, 10, lowerTail = false) == 12)
+    assert(D_==(ppois(5, 10), 0.06708596))
+    assert(D_==(ppois(5, 10, lowerTail = false), 0.932914))
+    assert(rpois(5) >= 0)
   }
 }
