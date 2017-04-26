@@ -4591,7 +4591,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def genotypes_keytable(self):
-        """Generate a fully expanded genotype key table.
+        """Generate a fully expanded genotype table.
         
         **Examples**
         
@@ -4602,7 +4602,7 @@ class VariantDataset(object):
         This produces a (massive) flat table from all the 
         genotypes in the dataset. The table has columns:
         
-            - **v** (*Variant*) - Variant key
+            - **v** (*Variant*) - Variant
             - **va** (*Variant annotation schema*) - Variant annotations
             - **s** (*String*) - Sample ID
             - **sa** (*Sample annotation schema*) - Sample annotations
@@ -4613,7 +4613,7 @@ class VariantDataset(object):
             This table has a row for each variant/sample pair. The genotype
             key table for a dataset with 10M variants and 10K samples will 
             contain 100 billion rows. Writing or exporting this table will
-            produce a file *much* larger than the equivalent VDS.
+            produce a file **much** larger than the equivalent VDS.
             
         :return: Key table with a row for each genotype.
         :rtype: :class:`.KeyTable`
