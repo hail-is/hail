@@ -134,8 +134,9 @@ class GenericDatasetSuite extends SparkSuite {
     val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz").annotateGenotypesExpr("g = g.GT")
     val path = tmpDir.createTempFile("testExportGenotypes", ".tsv")
     gds.exportGenotypes(path, "s, v, g", false)
-    val countResult = gds.summarize().callRate.getOrElse(0d)
-    assert(sc.textFile(path).count() == countResult)
+    val summary = gds.summarize()
+    val nNotMissing = summary.callRate.get * summary.variants * summary.samples
+    assert(sc.textFile(path).count() == nNotMissing)
   }
 
   @Test def testAnnotate2() {
