@@ -51,10 +51,7 @@ object Gen {
 
     assert(a.sum == size)
 
-    if (a.isEmpty)
-      a
-    else
-      rng.nextPermutation(a.length, a.length).map(a)
+    rng.nextPermutation(a.length, a.length).map(a)
   }
 
   def partition(parts: Int, sum: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, sum, parts) }
