@@ -6,8 +6,11 @@ from hail.dataset import VariantDataset
 from hail.expr import Type
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.stats import UniformDist
+from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
 from hail.utils import wrap_to_list
+
+from hail.typecheck import *
+from pyspark import SparkContext, sql
 
 
 class HailContext(object):
@@ -44,6 +47,18 @@ class HailContext(object):
     :vartype sc: :class:`.pyspark.SparkContext`
     """
 
+    @handle_py4j
+    @typecheck_method(sc=nullable(SparkContext),
+                      app_name=strlike,
+                      master=nullable(strlike),
+                      local=strlike,
+                      log=strlike,
+                      quiet=bool,
+                      append=bool,
+                      parquet_compression=strlike,
+                      min_block_size=integral,
+                      branching_factor=integral,
+                      tmp_dir=strlike)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='snappy',
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
@@ -52,7 +67,6 @@ class HailContext(object):
             raise FatalError('Hail Context has already been created, restart session '
                              'or stop Hail context to change configuration.')
 
-        from pyspark import SparkContext
         SparkContext._ensure_initialized()
 
         self._gateway = SparkContext._gateway
@@ -107,6 +121,9 @@ class HailContext(object):
         return self._jhc.version()
 
     @handle_py4j
+    @typecheck_method(regex=strlike,
+                      path=oneof(strlike, listof(strlike)),
+                      max_count=integral)
     def grep(self, regex, path, max_count=100):
         """Grep big files, like, really fast.
 
@@ -135,6 +152,10 @@ class HailContext(object):
         self._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
     @handle_py4j
+    @typecheck_method(path=oneof(strlike, listof(strlike)),
+                      tolerance=numeric,
+                      sample_file=nullable(strlike),
+                      min_partitions=nullable(integral))
     def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None):
         """Import .bgen file(s) as variant dataset.
 
@@ -198,6 +219,11 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @typecheck_method(path=oneof(strlike, listof(strlike)),
+                      sample_file=nullable(strlike),
+                      tolerance=numeric,
+                      min_partitions=nullable(integral),
+                      chromosome=nullable(strlike))
     def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None):
         """Import .gen file(s) as variant dataset.
 
@@ -257,6 +283,15 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @typecheck_method(paths=oneof(strlike, listof(strlike)),
+                      key=oneof(strlike, listof(strlike)),
+                      min_partitions=nullable(int),
+                      impute=bool,
+                      no_header=bool,
+                      comment=nullable(strlike),
+                      delimiter=strlike,
+                      missing=strlike,
+                      types=dictof(strlike, Type))
     def import_table(self, paths, key=[], min_partitions=None, impute=False, no_header=False,
                      comment=None, delimiter="\t", missing="NA", types={}):
         """Import delimited text file (text table) as key table.
@@ -405,6 +440,13 @@ class HailContext(object):
         return KeyTable(self, jkt)
 
     @handle_py4j
+    @typecheck_method(bed=strlike,
+                      bim=strlike,
+                      fam=strlike,
+                      min_partitions=nullable(integral),
+                      delimiter=strlike,
+                      missing=strlike,
+                      quantpheno=bool)
     def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
@@ -475,6 +517,9 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @typecheck_method(path=oneof(strlike, listof(strlike)),
+                      drop_samples=bool,
+                      drop_variants=bool)
     def read(self, path, drop_samples=False, drop_variants=False):
         """Read .vds files as variant dataset.
 
@@ -507,6 +552,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @typecheck_method(path=strlike)
     def write_partitioning(self, path):
         """Write partitioning.json.gz file for legacy VDS file.
 
@@ -516,6 +562,17 @@ class HailContext(object):
         self._jhc.writePartitioning(path)
 
     @handle_py4j
+    @typecheck_method(path=oneof(strlike, listof(strlike)),
+                      force=bool,
+                      force_bgz=bool,
+                      header_file=nullable(strlike),
+                      min_partitions=nullable(integral),
+                      drop_samples=bool,
+                      store_gq=bool,
+                      pp_as_pl=bool,
+                      skip_bad_ad=bool,
+                      generic=bool,
+                      call_fields=oneof(strlike, listof(strlike)))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
                    drop_samples=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
                    call_fields=[]):
@@ -652,6 +709,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @typecheck_method(path=oneof(strlike, listof(strlike)))
     def index_bgen(self, path):
         """Index .bgen files. :py:meth:`.HailContext.import_bgen` cannot run without these indices.
 
@@ -673,6 +731,14 @@ class HailContext(object):
         self._jhc.indexBgen(jindexed_seq_args(path))
 
     @handle_py4j
+    @typecheck_method(populations=integral,
+                      samples=integral,
+                      variants=integral,
+                      num_partitions=nullable(integral),
+                      pop_dist=nullable(listof(numeric)),
+                      fst=nullable(listof(numeric)),
+                      af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
+                      seed=integral)
     def balding_nichols_model(self, populations, samples, variants, num_partitions=None,
                               pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                               seed=0):
@@ -797,6 +863,7 @@ class HailContext(object):
         return (v, t)
 
     @handle_py4j
+    @typecheck_method(expr=strlike)
     def eval_expr(self, expr):
         """Evaluate an expression.
 
@@ -823,6 +890,7 @@ class HailContext(object):
         Env._hc = None
 
     @handle_py4j
+    @typecheck_method(path=strlike)
     def read_table(self, path):
         """Read a KT file as key table.
 

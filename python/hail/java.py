@@ -1,5 +1,6 @@
 import py4j
 from decorator import decorator
+import sys
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -107,13 +108,13 @@ def handle_py4j(func, *args, **kwargs):
     except py4j.protocol.Py4JJavaError as e:
         tpl = Env.jutils().handleForPython(e.java_exception)
         deepest, full = tpl._1(), tpl._2()
-
         raise FatalError('%s\n\nJava stack trace:\n%s\n'
                          'Hail version: %s\n'
                          'Error summary: %s' % (deepest, full, Env.hc().version, deepest))
     except py4j.protocol.Py4JError as e:
         if e.args[0].startswith('An error occurred while calling'):
             msg = 'An error occurred while calling into JVM, probably due to invalid parameter types.'
+            _, _, tb = sys.exc_info()
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'
                              'Error summary: %s' % (msg, e.message, Env.hc().version, msg))
