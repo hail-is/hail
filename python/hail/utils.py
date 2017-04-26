@@ -61,7 +61,7 @@ def hadoop_read(path, buffer_size=8192):
     """Open a readable file through the Hadoop filesystem API. 
     Supports distributed file systems like hdfs, gs, and s3.
     
-    **Example:**
+    **Examples**
     
     .. doctest::
         :options: +SKIP
@@ -70,13 +70,9 @@ def hadoop_read(path, buffer_size=8192):
         ...     for line in f:
         ...         print(line.strip())
     
-    .. note::
-        
-        The provided source file path must be a URI (uniform resource 
-        identifiers). This means that if the  file is not found in the 
-        default scheme (usually ``hdfs://``) it must be denoted by a
-        full path prefixed by the scheme(``file://``, ``hdfs://``, ``gs://``,
-        ``s3://``, etc.)
+    **Notes**
+    
+    The provided source file path must be a URI (uniform resource identifier).
 
     .. caution::
     
@@ -104,7 +100,7 @@ def hadoop_write(path, buffer_size=8192):
     """Open a writable file through the Hadoop filesystem API. 
     Supports distributed file systems like hdfs, gs, and s3.
     
-    **Example:**
+    **Examples**
     
     .. doctest::
         :options: +SKIP
@@ -113,13 +109,9 @@ def hadoop_write(path, buffer_size=8192):
         ...     f.write('result1: %s\\n' % result1)
         ...     f.write('result2: %s\\n' % result2)
     
-    .. note::
-        
-        The provided destination file path must be a URI (uniform resource 
-        identifiers). This means that if the  destination is not found in the 
-        default scheme (usually ``hdfs://``) it must be denoted by a
-        full path prefixed by the scheme(``file://``, ``hdfs://``, ``gs://``,
-        ``s3://``, etc.)
+    **Notes**
+    
+    The provided destination file path must be a URI (uniform resource identifier).
 
     .. caution::
     
@@ -145,17 +137,14 @@ def hadoop_copy(src, dest):
     """Copy a file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
     
-    **Example:**
+    **Examples**
     
     >>> hadoop_copy('gs://hail-common/LCR.interval_list', 'file:///mnt/data/LCR.interval_list') # doctest: +SKIP
     
-    .. note::
-        
-        If Spark is running in cluster mode, both the source and destination 
-        file paths must be URIs (uniform resource identifiers). This means 
-        fully clarified paths, prefixed by scheme (``file://``, ``hdfs://``, ``gs://``,
-        ``s3://``, etc.)
+    **Notes**
     
+    The provided source and destination file paths must be URIs
+    (uniform resource identifiers).    
     
     :param str src: Source file URI. 
     :param str dest: Destination file URI.
