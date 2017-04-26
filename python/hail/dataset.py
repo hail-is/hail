@@ -2855,7 +2855,7 @@ class VariantDataset(object):
         - Set the ``global_root`` argument to change the global annotation root in Step 4.
         - Set the ``va_root`` argument to change the variant annotation root in Step 5.
 
-        :py:meth:`.lmmreg` adds eight global annotations in Step 4; the last three are omitted if :math:`\delta` is set rather than fit.
+        :py:meth:`.lmmreg` adds eight global annotations in Step 4; ``global.lmmreg.seH2`` and the last three are omitted if :math:`\delta` is set rather than fit.
 
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | Annotation                         | Type                 | Value                                                                                                                                                |
@@ -2872,11 +2872,13 @@ class VariantDataset(object):
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.seH2``             | Double               | standard error of fit narrow-sense heritability                                                                                                      |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order                                                                                                |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathit{ln}(\delta)` used in the grid search                                                                                        |
+        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathrm{ln}(\delta)` used in the grid search                                                                                        |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathit{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
+        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to the fit delta                                                                                   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -2964,9 +2966,17 @@ class VariantDataset(object):
 
         for which the covariance is diagonal (e.g., unmixed). That is, rotating the phenotype vector (:math:`y`) and covariate vectors (columns of :math:`X`) in :math:`\mathbb{R}^n` by :math:`U^T` transforms the model to one with independent residuals. For any particular value of :math:`\delta`, the restricted maximum likelihood (REML) solution for the latter model can be solved exactly in time complexity that is linear rather than cubic in :math:`n`.  In particular, having rotated, we can run a very efficient 1-dimensional optimization procedure over :math:`\delta` to find the REML estimate :math:`(\hat{\delta}, \\hat{\\beta}, \\hat{\sigma}_g^2)` of the triple :math:`(\delta, \\beta, \sigma_g^2)`, which in turn determines :math:`\\hat{\sigma}_e^2` and :math:`\\hat{h}^2`.
 
-        We first compute the maximum log likelihood on a :math:`\delta`-grid that is uniform on the log scale, with :math:`\\mathit{ln}(\delta)` running from -10 to 10 by 0.01, corresponding to :math:`h^2` decreasing from 0.999999998 to 0.000000002. If :math:`h^2` is maximized at the lower boundary then standard linear regression would be more appropriate and Hail will exit; more generally, consider using standard linear regression when :math:`\\hat{h}^2` is very small. A maximum at the upper boundary is highly suspicious and will also cause Hail to exit, with the ``hail.log`` recording all values over the grid for further inspection.
+        We first compute the maximum log likelihood on a :math:`\delta`-grid that is uniform on the log scale, with :math:`\\mathrm{ln}(\delta)` running from -10 to 10 by 0.01, corresponding to :math:`h^2` decreasing from 0.999999998 to 0.000000002. If :math:`h^2` is maximized at the lower boundary then standard linear regression would be more appropriate and Hail will exit; more generally, consider using standard linear regression when :math:`\\hat{h}^2` is very small. A maximum at the upper boundary is highly suspicious and will also cause Hail to exit, with the ``hail.log`` recording all values over the grid for further inspection.
 
-        If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`__ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathit{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than .01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid. Note that :math:`h^2` is related to :math:`\\mathit{ln}(\delta)` through the `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`__. Hence one can change variables to extract a high-resolution discretization of the likelihood function of :math:`h^2` over :math:`[0,1]` at the corresponding REML estimators for :math:`\\beta` and :math:`\sigma_g^2`.
+        If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`__ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathrm{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than .01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid. Note that :math:`h^2` is related to :math:`\\mathrm{ln}(\delta)` through the `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`_. More precisely, :math:`h^2 = \mathrm{sigmoid}(-\\mathrm{ln}(\delta))`. Hence one can change variables to extract a high-resolution discretization of the likelihood function of :math:`h^2` over :math:`[0,1]` at the corresponding REML estimators for :math:`\\beta` and :math:`\sigma_g^2`, as well as integrate over the normalized likelihood function using `change of variables <https://en.wikipedia.org/wiki/Integration_by_substitution>`_ and the differential equation :math:`\mathrm{sigmoid}^\prime = \mathrm{sigmoid} (1 - \mathrm{sigmoid})`.
+
+        By the theory of maximum likelihood estimation, this normalized likelihood function is approximately normally distributed near the maximum likelihood estimate. So we estimate the standard error of the estimator of :math:`h^2` as follows. Let :math:`x_2` be the maximum likelihood estimate of :math:`h^2` and let :math:`x_1` and :math:`x_3` be the values of :math:`h^2` corresponding to the grid points just below and just above :math:`x_2`. Let :math:`y_1`, :math:`y_2`, and :math:`y_3` be the corresponding values of the (unnormalized) log likelihood function. Setting equal the leading coefficient of the unique parabola through these points (as given by Lagrange interpolation) and the leading coefficient of the log of the normal distribution, we have:
+
+        .. math::
+
+          \\frac{x_3 (y_2 - y_1) + x_2 (y_1 - y_3) + x_1 (y_3 - y_2))}{(x_2 - x_1)(x_1 - x_3)(x_3 - x_2)} = -\\frac{1}{2 \sigma^2}
+
+        The standard error is then given by solving for :math:`\sigma`.
 
         **Testing each variant for association**
 
@@ -2988,7 +2998,7 @@ class VariantDataset(object):
 
         .. math::
 
-          \chi^2 = n \\, \\mathit{ln}\left(\\frac{\hat{\sigma}^2_g}{\\hat{\sigma}_{g,v}^2}\\right)
+          \chi^2 = n \\, \\mathrm{ln}\left(\\frac{\hat{\sigma}^2_g}{\\hat{\sigma}_{g,v}^2}\\right)
 
         and follows a chi-squared distribution with one degree of freedom. Here the ratio :math:`\\hat{\sigma}^2_g / \\hat{\sigma}_{g,v}^2` captures the degree to which adding the variant :math:`v` to the global model reduces the residual phenotypic variance.
 

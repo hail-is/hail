@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg._
-import breeze.numerics.sqrt
+import breeze.numerics.{sigmoid, sqrt}
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats._
@@ -45,7 +45,6 @@ object LinearMixedRegression {
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
     val completeSamplesSet = completeSamples.toSet
     val sampleMask = assocVds.sampleIds.map(completeSamplesSet).toArray
-
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
@@ -97,7 +96,7 @@ object LinearMixedRegression {
     val globalBetaMap = covNames.zip(diagLMM.globalB.toArray).toMap
     val globalSg2 = diagLMM.globalS2
     val globalSe2 = delta * globalSg2
-    val h2 = globalSg2 / (globalSg2 + globalSe2)
+    val h2 = 1 / (1 + delta)
 
     val header = "rank\teval"
     val evalString = (0 until n).map(i => s"$i\t${ S(n - i - 1) }").mkString("\n")
@@ -109,18 +108,22 @@ object LinearMixedRegression {
     info(s"lmmreg: global model fit: delta = $delta")
     info(s"lmmreg: global model fit: h2 = $h2")
 
+    diagLMM.optGlobalFit.foreach { gf =>
+      info(s"lmmreg: global model fit: seH2 = ${gf.sigmaH2}")
+    }
+
     val vds1 = assocVds.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, S.data.reverse: IndexedSeq[Double]),
       TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
         ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble))), rootGA)
 
-    val vds2 = (diagLMM.maxLogLkhd, diagLMM.deltaGridLogLkhd) match {
-      case (Some(maxLogLkhd), Some(deltaGridLogLkhd)) =>
-        val (logDeltaGrid, logLkhdVals) = deltaGridLogLkhd.unzip
+    val vds2 = diagLMM.optGlobalFit match {
+      case Some(gf) =>
+        val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
-          Annotation(maxLogLkhd, logDeltaGrid, logLkhdVals),
-          TStruct(("maxLogLkhd", TDouble), ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
-      case _ =>
+          Annotation(gf.sigmaH2, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
+          TStruct(("seH2", TDouble), ("maxLogLkhd", TDouble), ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
+      case None =>
         assert(optDelta.isDefined)
         vds1
     }
@@ -173,10 +176,11 @@ object DiagLMM {
 
     require(C.rows == y.length)
 
-    val (delta, maxLogLkhd, gridLogLkhd) =
-      optDelta match {
-        case Some(d) => (d, None, None)
-        case None => fitDelta(C, y, S, useML)
+    val (delta, optGlobalFit) = optDelta match {
+        case Some(d) => (d, None)
+        case None =>
+          val (d, gf) = fitDelta(C, y, S, useML)
+          (d, Some(gf))
       }
 
     val n = y.length
@@ -189,10 +193,10 @@ object DiagLMM {
     val b = TCTC \ TCTy
     val s2 = (TyTy - (TCTy dot b)) / (if (useML) n else n - C.cols)
 
-    DiagLMM(b, s2, math.log(s2), delta, maxLogLkhd, gridLogLkhd, sqrtInvD, TC, Ty, TyTy, useML)
+    DiagLMM(b, s2, math.log(s2), delta, optGlobalFit, sqrtInvD, TC, Ty, TyTy, useML)
   }
 
-  def fitDelta(C: DenseMatrix[Double], y: DenseVector[Double], S: DenseVector[Double], useML: Boolean): (Double, Option[Double], Option[IndexedSeq[(Double, Double)]]) = {
+  def fitDelta(C: DenseMatrix[Double], y: DenseVector[Double], S: DenseVector[Double], useML: Boolean): (Double, GlobalFitLMM) = {
 
     val n = y.length
     val c = C.cols
@@ -229,11 +233,11 @@ object DiagLMM {
       }
     }
 
-    val logmin = -10
-    val logmax = 10
+    val logMin = -10
+    val logMax = 10
     val pointsPerUnit = 100 // number of points per unit of log space
 
-    val grid = (logmin * pointsPerUnit to logmax * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (logmin to logmax by logres)
+    val grid = (logMin * pointsPerUnit to logMax * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (logMin to logMax by logres)
 
     val gridLogLkhd = if (useML)
       grid.map(logDelta => (logDelta, LogLkhdML.value(logDelta)))
@@ -246,10 +250,10 @@ object DiagLMM {
 
     val approxLogDelta = gridLogLkhd.maxBy(_._2)._1
 
-    if (approxLogDelta == logmin)
-      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta lower search boundary e^$logmin = ${FastMath.exp(logmin)}, indicating negligible enviromental component of variance. The model is likely ill-specified.")
-    else if (approxLogDelta == logmax)
-      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta upper search boundary e^$logmax = ${FastMath.exp(logmax)}, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
+    if (approxLogDelta == logMin)
+      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta lower search boundary e^$logMin = ${FastMath.exp(logMin)}, indicating negligible enviromental component of variance. The model is likely ill-specified.")
+    else if (approxLogDelta == logMax)
+      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta upper search boundary e^$logMax = ${FastMath.exp(logMax)}, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
 
     val searchInterval = new SearchInterval(-10d, 10d, approxLogDelta)
     val goal = GoalType.MAXIMIZE
@@ -264,17 +268,39 @@ object DiagLMM {
       warn(s"lmmreg: the difference between the optimal value $approxLogDelta of ln(delta) on the grid and the optimal value $logDelta of ln(delta) by Brent's method exceeds the grid resolution of ${1.0 / pointsPerUnit}. Plot the values over the full grid to investigate.")
     }
 
-    (FastMath.exp(logDelta), Some(maxLogLkhd), Some(gridLogLkhd))
+    val indexBelow = (pointsPerUnit * (logDelta - logMin)).toInt
+    val indexAbove = indexBelow + 1
+
+    // three values of h2 = sigmoid(-ln(delta)) below, at, and above the MLE
+    val x1 = sigmoid(-gridLogLkhd(indexBelow)._1)
+    val x2 = sigmoid(-logDelta)
+    val x3 = sigmoid(-gridLogLkhd(indexAbove)._1)
+
+    assert(x1 > x2 && x2 > x3)
+
+    // corresponding values of logLkhd
+    val y1 = gridLogLkhd(indexBelow)._2
+    val y2 = maxLogLkhd
+    val y3 = gridLogLkhd(indexAbove)._2
+
+    // fitting parabola logLkhd ~ a * x^2 + b * x + c near MLE by Lagrange interpolation
+    val a = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / ((x2 - x1) * (x1 - x3) * (x3 - x2))
+
+    // comparing to normal approx: logLkhd ~ 1 / (-2 * sigma^2) * x^2 + lower order terms
+    val sigmaH2 = math.sqrt(1 / (-2 * a))
+
+    (FastMath.exp(logDelta), GlobalFitLMM(maxLogLkhd, gridLogLkhd, sigmaH2))
   }
 }
+
+case class GlobalFitLMM(maxLogLkhd: Double, gridLogLkhd: IndexedSeq[(Double, Double)], sigmaH2: Double)
 
 case class DiagLMM(
   globalB: DenseVector[Double],
   globalS2: Double,
   logNullS2: Double,
   delta: Double,
-  maxLogLkhd: Option[Double],
-  deltaGridLogLkhd: Option[IndexedSeq[(Double, Double)]],
+  optGlobalFit: Option[GlobalFitLMM],
   sqrtInvD: DenseVector[Double],
   TC: DenseMatrix[Double],
   Ty: DenseVector[Double],
