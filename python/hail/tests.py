@@ -256,6 +256,8 @@ class ContextTests(unittest.TestCase):
 
             self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
+            dataset.genotypes_keytable()
+
             ## This is very slow!!!
             variants_py = (dataset
                            .annotate_variants_expr('va.hets = gs.filter(g => {0}.isHet()).collect()'.format(gt))

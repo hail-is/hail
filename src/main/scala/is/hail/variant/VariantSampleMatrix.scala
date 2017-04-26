@@ -1953,7 +1953,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def variantsKT(): KeyTable = {
-    val localVASignature = vaSignature
     KeyTable(hc, rdd.map { case (v, (va, gs)) =>
       Row(v, va)
     },
@@ -1961,6 +1960,18 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         "v" -> TVariant,
         "va" -> vaSignature),
       Array("v"))
+  }
+
+  def genotypeKT(): KeyTable = {
+    KeyTable(hc,
+      expandWithAll.map { case (v, va, s, sa, g) => Row(v, va, s, sa, g) },
+      TStruct(
+        "v" -> TVariant,
+        "va" -> vaSignature,
+        "s" -> TString,
+        "sa" -> saSignature,
+        "g" -> genotypeSignature),
+      Array())
   }
 
   /**
