@@ -2855,7 +2855,7 @@ class VariantDataset(object):
         - Set the ``global_root`` argument to change the global annotation root in Step 4.
         - Set the ``va_root`` argument to change the variant annotation root in Step 5.
 
-        :py:meth:`.lmmreg` adds 7 or 11 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
+        :py:meth:`.lmmreg` adds eight global annotations in Step 4; ``global.lmmreg.seH2`` and the last three are omitted if :math:`\delta` is set rather than fit.
 
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | Annotation                         | Type                 | Value                                                                                                                                                |
@@ -2872,17 +2872,15 @@ class VariantDataset(object):
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.seH2``             | Double               | standard error of fit narrow-sense heritability                                                                                                      |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order                                                                                                |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.seH2``         | Double               | standard error of :math:`\\hat{h}^2` under asymptotic normal approximation                                                                            |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.normLkhdH2``   | Array[Double]        | likelihood function of :math:`h^2` normalized on the discrete grid ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for percentage ``i``.    |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to :math:`\\hat{\delta}`                                                                            |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathrm{ln}(\delta)` used in the grid search                                                                                        |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
+        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to the fit delta                                                                                   |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
 
         These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
@@ -2970,27 +2968,15 @@ class VariantDataset(object):
 
         We first compute the maximum log likelihood on a :math:`\delta`-grid that is uniform on the log scale, with :math:`\\mathrm{ln}(\delta)` running from -10 to 10 by 0.01, corresponding to :math:`h^2` decreasing from 0.999999998 to 0.000000002. If :math:`h^2` is maximized at the lower boundary then standard linear regression would be more appropriate and Hail will exit; more generally, consider using standard linear regression when :math:`\\hat{h}^2` is very small. A maximum at the upper boundary is highly suspicious and will also cause Hail to exit, with the ``hail.log`` recording all values over the grid for further inspection.
 
-        If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`__ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathrm{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than .01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid.
+        If the optimal grid point falls in the interior of the grid as expected, we then use `Brent's method <https://en.wikipedia.org/wiki/Brent%27s_method>`__ to find the precise location of the maximum over the same range, with initial guess given by the optimal grid point and a tolerance on :math:`\\mathrm{ln}(\delta)` of 1e-6. If this location differs from the optimal grid point by more than .01, a warning will be displayed and logged, and one would be wise to investigate by plotting the values over the grid. Note that :math:`h^2` is related to :math:`\\mathrm{ln}(\delta)` through the `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`_. More precisely, :math:`h^2 = \mathrm{sigmoid}(-\\mathrm{ln}(\delta))`. Hence one can change variables to extract a high-resolution discretization of the likelihood function of :math:`h^2` over :math:`[0,1]` at the corresponding REML estimators for :math:`\\beta` and :math:`\sigma_g^2`, as well as integrate over the normalized likelihood function using `change of variables <https://en.wikipedia.org/wiki/Integration_by_substitution>`_ and the differential equation :math:`\mathrm{sigmoid}^\prime = \mathrm{sigmoid} (1 - \mathrm{sigmoid})`.
 
-        Note that :math:`h^2` is related to :math:`\\mathrm{ln}(\delta)` through the `sigmoid function <https://en.wikipedia.org/wiki/Sigmoid_function>`_. More precisely,
-
-        .. math::
-
-          h^2 = 1 - \mathrm{sigmoid}(\\mathrm{ln}(\delta)) = \mathrm{sigmoid}(-\\mathrm{ln}(\delta))
-
-        Hence one can change variables to extract a high-resolution discretization of the likelihood function of :math:`h^2` over :math:`[0,1]` at the corresponding REML estimators for :math:`\\beta` and :math:`\sigma_g^2`, as well as integrate over the normalized likelihood function using `change of variables <https://en.wikipedia.org/wiki/Integration_by_substitution>`_ and the `sigmoid differential equation <https://en.wikipedia.org/wiki/Sigmoid_function#Properties>`_.
-
-        For convenience, ``global.lmmreg.fit.normLkhdH2`` records the the likelihood function of :math:`h^2` normalized over the discrete grid ``0.01, 0.02, ..., 0.98, 0.99``. The length of the array is 101 so that index ``i`` contains the likelihood at percentage ``i``. The values at indices 0 and 100 left undefined.
-
-        By the theory of maximum likelihood estimation, this normalized likelihood function is approximately normally distributed near the maximum likelihood estimate. So we estimate the standard error of the estimator of :math:`h^2` as follows. Let :math:`x_2` be the maximum likelihood estimate of :math:`h^2` and let :math:`x_ 1` and :math:`x_3` be just to the left and right of :math:`x_2`. Let :math:`y_1`, :math:`y_2`, and :math:`y_3` be the corresponding values of the (unnormalized) log likelihood function. Setting equal the leading coefficient of the unique parabola through these points (as given by Lagrange interpolation) and the leading coefficient of the log of the normal distribution, we have:
+        By the theory of maximum likelihood estimation, this normalized likelihood function is approximately normally distributed near the maximum likelihood estimate. So we estimate the standard error of the estimator of :math:`h^2` as follows. Let :math:`x_2` be the maximum likelihood estimate of :math:`h^2` and let :math:`x_1` and :math:`x_3` be the values of :math:`h^2` corresponding to the grid points just below and just above :math:`x_2`. Let :math:`y_1`, :math:`y_2`, and :math:`y_3` be the corresponding values of the (unnormalized) log likelihood function. Setting equal the leading coefficient of the unique parabola through these points (as given by Lagrange interpolation) and the leading coefficient of the log of the normal distribution, we have:
 
         .. math::
 
           \\frac{x_3 (y_2 - y_1) + x_2 (y_1 - y_3) + x_1 (y_3 - y_2))}{(x_2 - x_1)(x_1 - x_3)(x_3 - x_2)} = -\\frac{1}{2 \sigma^2}
 
         The standard error is then given by solving for :math:`\sigma`.
-
-        Note that the mean and standard deviation of the distribution ``global.lmmreg.fit.normLkhdH2`` will not coincide with :math:`\\hat{h}^2` and :math:`\sigma`, since this distribution only becomes normal in the infinite sample limit. One can visually assess normality by plotting this distribution against a normal distribution with the same mean and standard deviation, or use this distribution to approximate credible intervals under a flat prior on :math:`\\hat{h}^2`.
 
         **Testing each variant for association**
 
@@ -4612,38 +4598,6 @@ class VariantDataset(object):
         """
 
         return KeyTable(self.hc, self._jvds.samplesKT())
-
-    @handle_py4j
-    def genotypes_keytable(self):
-        """Generate a fully expanded genotype table.
-        
-        **Examples**
-        
-        >>> gs = vds.genotypes_keytable()
-    
-        **Notes**
-        
-        This produces a (massive) flat table from all the 
-        genotypes in the dataset. The table has columns:
-        
-            - **v** (*Variant*) - Variant
-            - **va** (*Variant annotation schema*) - Variant annotations
-            - **s** (*String*) - Sample ID
-            - **sa** (*Sample annotation schema*) - Sample annotations
-            - **g** (*Genotype schema*) - Genotype or generic genotype
-            
-        .. caution::
-        
-            This table has a row for each variant/sample pair. The genotype
-            key table for a dataset with 10M variants and 10K samples will 
-            contain 100 billion rows. Writing or exporting this table will
-            produce a file **much** larger than the equivalent VDS.
-            
-        :return: Key table with a row for each genotype.
-        :rtype: :class:`.KeyTable`
-        """
-
-        return KeyTable(self.hc, self._jvds.genotypeKT())
 
     @handle_py4j
     def make_keytable(self, variant_expr, genotype_expr, key_names=[], separator='.'):
