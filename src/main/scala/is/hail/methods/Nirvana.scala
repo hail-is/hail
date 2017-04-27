@@ -140,6 +140,7 @@ object Nirvana {
       )),
       "cosmic" -> TArray(TStruct(
         "id" -> TString,
+        "sampleCount" -> TInt,
         "isAlleleSpecific" -> TBoolean,
         "refAllele" -> TString,
         "altAllele" -> TString,
