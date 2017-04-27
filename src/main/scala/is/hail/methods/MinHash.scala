@@ -9,13 +9,13 @@ import scala.util.Random
 import scala.collection.immutable.SortedMap
 
 object MinHash {
-  // returns a k by vds.nSamples matrix
-  def apply(vds: VariantDataset, k: Int): DenseMatrix[Int] = {
+  // returns a nHashes by vds.nSamples matrix
+  def apply(vds: VariantDataset, nHashes: Int): DenseMatrix[Int] = {
     val n = vds.nSamples
     def seqOp(l: DenseMatrix[Int], r: (Variant, (Annotation, Iterable[Genotype]))): DenseMatrix[Int] = r match {
       case (_, (_, gs)) =>
         val gsItr = gs.hardCallGenotypeIterator
-        val hashes = DenseVector.fill[Int](k)(Random.nextInt())
+        val hashes = DenseVector.fill[Int](nHashes)(Random.nextInt())
         var i = 0
         while(i < n) {
           //TODO: Write a min UFunc that modifies the left arg in place
@@ -24,15 +24,15 @@ object MinHash {
         }
         l
     }
-    val zeroValue = DenseMatrix.fill[Int](k, n)(Int.MaxValue)
+    val zeroValue = DenseMatrix.fill[Int](nHashes, n)(Int.MaxValue)
     vds.rdd.aggregate(zeroValue)(seqOp, min(_,_))
   }
 
-  //mat is a k-by-n matrix, which will be split into r-by-n submatrices for Min-LSH
+  //mat is a nHashes-by-nSamples matrix, which will be split into blockSize-by-nSamples submatrices for Min-LSH
   def findSimilarPairs(mat: DenseMatrix[Int], blockSize: Int): Set[(Int, Int)] =
     findSimilarPairs(mat, blockSize, mat.rows / blockSize)
 
-  // specifying l might be helpful for trying different parameters without recomputing minHash
+  // specifying numBlocks might be helpful for trying different parameters without recomputing minHash
   def findSimilarPairs(mat: DenseMatrix[Int], blockSize: Int, numBlocks: Int): Set[(Int, Int)] = {
     require(blockSize * numBlocks <= mat.rows)
     val n = mat.cols
@@ -84,6 +84,35 @@ object MinHash {
       intersections(i, j) /= counts(i) + counts(j) - intersections(i, j)
 
     intersections
+  }
+
+  def trueJacaardFromVDS(vds: VariantDataset): DenseMatrix[Double] = {
+    val n = vds.nSamples
+    val rdd = vds.rdd.map(t => t._2._2)
+    val zeroValue = DenseMatrix.zeros[Int](n, n)
+
+    def seqOp(counts: DenseMatrix[Int], gs: Iterable[Genotype]): DenseMatrix[Int] = {
+      val gsItr = gs.hardCallGenotypeIterator
+      var i = 0
+      while (i < n) {
+        if (gsItr.next() > 0) {
+          val gsItr2 = gs.hardCallGenotypeIterator
+          var j = 0
+          while (j < n) {
+            if (gsItr2.next() > 0) counts(i, j) += 1
+            j += 1
+          }
+        }
+        i += 1
+      }
+      counts
+    }
+
+    val distances = rdd.aggregate(zeroValue)(seqOp, _ + _).mapValues(_.toDouble)
+    for (i <- 0 until n; j <- 0 until n if i != j && distances(i, j) != 0)
+      distances(i, j) /= distances(i, i) + distances(j, j) - distances(i, j)
+    for (i <- 0 until n if distances(i, i) != 0) distances(i, i) = 1
+    distances
   }
 
   def hitProb(sim: Double, numBlocks: Int, blockSize: Int): Double =
