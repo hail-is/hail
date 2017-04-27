@@ -1815,7 +1815,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val aggregationST = Map(
       "global" -> (0, globalSignature),
       "s" -> (1, TString),
-      "va" -> (2, saSignature),
+      "sa" -> (2, saSignature),
       "g" -> (3, genotypeSignature),
       "v" -> (4, TVariant),
       "va" -> (5, vaSignature))
