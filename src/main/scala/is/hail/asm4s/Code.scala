@@ -88,6 +88,10 @@ object Code {
     tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
 
+  def newInstance[T, A1, A2, A3](a1: Code[A1], a2: Code[A2], a3: Code[A3])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))
+
   def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T], atti: TypeInfo[Array[T]]): Code[Array[T]] = {
     new Code[Array[T]] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -145,6 +149,9 @@ object Code {
   }
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T]): Code[U] = Code(cerr, new InsnNode(ATHROW))
+
+  def _return[T](c: Code[T])(implicit tti: TypeInfo[T]): Code[Unit] =
+    Code(c, Code(new InsnNode(tti.returnOp)))
 
   def checkcast[T](v: Code[AnyRef])(implicit tct: ClassTag[T]): Code[T] = Code(
     v,
@@ -465,6 +472,8 @@ class LocalRef[T](i: Int)(implicit tti: TypeInfo[T]) {
     }
 
   def storeInsn: Code[Unit] = Code(new IntInsnNode(tti.storeOp, i))
+
+  def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 }
 
 class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
