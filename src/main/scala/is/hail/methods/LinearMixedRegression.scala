@@ -214,7 +214,7 @@ object DiagLMM {
         val b = CdC \ Cdy
         val r = ydy - (Cdy dot b)
 
-        -0.5 * (-sum(breeze.numerics.log(invD)) - n * math.log(r) + shift)
+        -0.5 * (-sum(breeze.numerics.log(invD)) + n * math.log(r) + shift)
       }
     }
 
