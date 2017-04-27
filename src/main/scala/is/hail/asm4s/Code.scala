@@ -465,6 +465,8 @@ class LocalRef[T](i: Int)(implicit tti: TypeInfo[T]) {
     }
 
   def storeInsn: Code[Unit] = Code(new IntInsnNode(tti.storeOp, i))
+
+  def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 }
 
 class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
