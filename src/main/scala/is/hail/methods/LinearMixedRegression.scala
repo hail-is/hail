@@ -121,8 +121,9 @@ object LinearMixedRegression {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
-          Annotation(gf.sigmaH2, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
-          TStruct(("seH2", TDouble), ("maxLogLkhd", TDouble), ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
+          Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
+          TStruct(("seH2", TDouble), ("normLkhdH2", TArray(TDouble)), ("maxLogLkhd", TDouble),
+            ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
       case None =>
         assert(optDelta.isDefined)
         vds1
@@ -205,15 +206,15 @@ object DiagLMM {
       val shift: Double = n * (1 + math.log(2 * math.Pi) + math.log(1d / n))
 
       def value(logDelta: Double): Double = {
-        val D = S + FastMath.exp(logDelta)
-        val dy = y :/ D
+        val invD = (S + FastMath.exp(logDelta)).map(1 / _)
+        val dy = y :* invD
         val ydy = y dot dy
         val Cdy = C.t * dy
-        val CdC = C.t * (C(::, *) :/ D)
+        val CdC = C.t * (C(::, *) :* invD)
         val b = CdC \ Cdy
         val r = ydy - (Cdy dot b)
 
-        -0.5 * (sum(breeze.numerics.log(D)) + n * math.log(r) + shift)
+        -0.5 * (-sum(breeze.numerics.log(invD)) - n * math.log(r) + shift)
       }
     }
 
@@ -221,23 +222,23 @@ object DiagLMM {
       val shift: Double = n * (1 + math.log(1d / n)) + (n - c) * math.log(2 * math.Pi) - logdet(C.t * C)._2
 
       def value(logDelta: Double): Double = {
-        val D = S + FastMath.exp(logDelta)
-        val dy = y :/ D
+        val invD = (S + FastMath.exp(logDelta)).map(1 / _)
+        val dy = y :* invD
         val ydy = y dot dy
         val Cdy = C.t * dy
-        val CdC = C.t * (C(::, *) :/ D)
+        val CdC = C.t * (C(::, *) :* invD)
         val b = CdC \ Cdy
         val r = ydy - (Cdy dot b)
 
-        -0.5 * (sum(breeze.numerics.log(D)) + (n - c) * math.log(r) + logdet(CdC)._2 + shift)
+        -0.5 * (-sum(breeze.numerics.log(invD)) + (n - c) * math.log(r) + logdet(CdC)._2 + shift)
       }
     }
 
-    val logMin = -10
-    val logMax = 10
+    val minLogDelta = -10
+    val maxLogDelta = 10
     val pointsPerUnit = 100 // number of points per unit of log space
 
-    val grid = (logMin * pointsPerUnit to logMax * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (logMin to logMax by logres)
+    val grid = (minLogDelta * pointsPerUnit to maxLogDelta * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (minLogDelta to logMax by logres)
 
     val gridLogLkhd = if (useML)
       grid.map(logDelta => (logDelta, LogLkhdML.value(logDelta)))
@@ -250,32 +251,32 @@ object DiagLMM {
 
     val approxLogDelta = gridLogLkhd.maxBy(_._2)._1
 
-    if (approxLogDelta == logMin)
-      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta lower search boundary e^$logMin = ${FastMath.exp(logMin)}, indicating negligible enviromental component of variance. The model is likely ill-specified.")
-    else if (approxLogDelta == logMax)
-      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta upper search boundary e^$logMax = ${FastMath.exp(logMax)}, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
+    if (approxLogDelta == minLogDelta)
+      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta lower search boundary e^$minLogDelta = ${FastMath.exp(minLogDelta)}, indicating negligible enviromental component of variance. The model is likely ill-specified.")
+    else if (approxLogDelta == maxLogDelta)
+      fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta upper search boundary e^$maxLogDelta = ${FastMath.exp(maxLogDelta)}, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
 
-    val searchInterval = new SearchInterval(-10d, 10d, approxLogDelta)
+    val searchInterval = new SearchInterval(minLogDelta, maxLogDelta, approxLogDelta)
     val goal = GoalType.MAXIMIZE
     val objectiveFunction = new UnivariateObjectiveFunction(if (useML) LogLkhdML else LogLkhdREML)
     val brentOptimizer = new BrentOptimizer(5e-8, 5e-7) // tol = 5e-8 * abs((ln(delta))) + 5e-7 <= 1e-6
     val logDeltaPointValuePair = brentOptimizer.optimize(objectiveFunction, goal, searchInterval, MaxEval.unlimited)
 
-    val logDelta = logDeltaPointValuePair.getPoint
+    val maxlogDelta = logDeltaPointValuePair.getPoint
     val maxLogLkhd = logDeltaPointValuePair.getValue
 
-    if (math.abs(logDelta - approxLogDelta) > 1d / pointsPerUnit) {
+    if (math.abs(maxlogDelta - approxLogDelta) > 1d / pointsPerUnit) {
       warn(s"lmmreg: the difference between the optimal value $approxLogDelta of ln(delta) on the grid and" +
-        s"the optimal value $logDelta of ln(delta) by Brent's method exceeds the grid resolution" +
+        s"the optimal value $maxlogDelta of ln(delta) by Brent's method exceeds the grid resolution" +
         s"of ${1d / pointsPerUnit}. Plot the values over the full grid to investigate.")
     }
 
     val epsilon = 1d / pointsPerUnit
 
     // three values of ln(delta) right of, at, and left of the MLE
-    val z1 = logDelta + epsilon
-    val z2 = logDelta
-    val z3 = logDelta - epsilon
+    val z1 = maxlogDelta + epsilon
+    val z2 = maxlogDelta
+    val z3 = maxlogDelta - epsilon
 
     // three values of h2 = sigmoid(-ln(delta)) left of, at, and right of the MLE
     val x1 = sigmoid(-z1)
@@ -288,7 +289,7 @@ object DiagLMM {
     val y3 = if (useML) LogLkhdML.value(z3) else LogLkhdREML.value(z3)
 
     if (y1 >= y2 || y3 >= y2)
-      fatal(s"Maximum likelihood estimate ${ math.exp(logDelta) } for delta is not a global max." +
+      fatal(s"Maximum likelihood estimate ${ math.exp(maxlogDelta) } for delta is not a global max." +
         s"Plot the values over the full grid to investigate.")
 
     // Fitting parabola logLkhd ~ a * x^2 + b * x + c near MLE by Lagrange interpolation gives
@@ -297,11 +298,21 @@ object DiagLMM {
     val sigmaH2 =
       math.sqrt(((x2 - x1) * (x1 - x3) * (x3 - x2)) / (-2 * (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2))))
 
-    (FastMath.exp(logDelta), GlobalFitLMM(maxLogLkhd, gridLogLkhd, sigmaH2))
+    val h2LogLkhd =
+      if (useML)
+        (0.01 to 0.99 by 0.01).map(h2 => LogLkhdML.value(math.log((1 - h2) / h2)))
+      else
+        (0.01 to 0.99 by 0.01).map(h2 => LogLkhdREML.value(math.log((1 - h2) / h2)))
+
+    val h2Lkhd = h2LogLkhd.map(ll => math.exp(ll - maxLogLkhd))
+    val h2LkhdSum = h2Lkhd.sum
+    val h2NormLkhd = IndexedSeq(Double.NaN) ++ h2Lkhd.map(_ / h2LkhdSum) ++ IndexedSeq(Double.NaN)
+
+    (FastMath.exp(maxlogDelta), GlobalFitLMM(maxLogLkhd, gridLogLkhd, sigmaH2, h2NormLkhd))
   }
 }
 
-case class GlobalFitLMM(maxLogLkhd: Double, gridLogLkhd: IndexedSeq[(Double, Double)], sigmaH2: Double)
+case class GlobalFitLMM(maxLogLkhd: Double, gridLogLkhd: IndexedSeq[(Double, Double)], sigmaH2: Double, h2NormLkhd: IndexedSeq[Double])
 
 case class DiagLMM(
   globalB: DenseVector[Double],
