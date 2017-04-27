@@ -234,8 +234,8 @@ object DiagLMM {
       }
     }
 
-    val minLogDelta = -10
-    val maxLogDelta = 10
+    val minLogDelta = -8
+    val maxLogDelta = 8
     val pointsPerUnit = 100 // number of points per unit of log space
 
     val grid = (minLogDelta * pointsPerUnit to maxLogDelta * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (minLogDelta to logMax by logres)
