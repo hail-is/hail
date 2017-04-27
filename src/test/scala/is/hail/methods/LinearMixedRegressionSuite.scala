@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg._
-import breeze.numerics.{exp, sigmoid}
+import breeze.numerics.{abs, exp, sigmoid}
 import breeze.stats.mean
 import is.hail.annotations._
 import is.hail.expr.{TDouble, TStruct}
@@ -309,16 +309,19 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
     val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
 
-    assert(D_==(h2Chr1, 0.36733239840887433))
-    assert(D_==(h2Chr3, 0.14276116822096985))
+    assert(D_==(h2Chr1, 0.36733240))
+    assert(D_==(h2Chr3, 0.14276117))
   }
 
   @Test def h2seTest() {
     // Testing that the parabolic approximation of h2 standard error is close to the empirical standard deviation of the
     // normalized likelihood function, e.g. the posterior with uniform prior on [0,1].
 
-    val seH21 = vdsChr1.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
-    val seH23 = vdsChr3.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
+    val h2Chr1 = vdsChr1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
+    val h2Chr3 = vdsChr3.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]
+
+    val seH2Chr1 = vdsChr1.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
+    val seH2Chr3 = vdsChr3.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
 
     val logDeltaGrid =
       DenseVector(vdsChr1.queryGlobal("global.lmmreg.fit.logDeltaGrid")._2.asInstanceOf[IndexedSeq[Double]].toArray)
@@ -347,18 +350,60 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val h2Posterior1 = (exp(logLkhdVals1) :* widths) :/ total1
     val h2Posterior3 = (exp(logLkhdVals3) :* widths) :/ total3
 
-    assert(D_==(sum(h2Posterior1), 1d))
-    assert(D_==(sum(h2Posterior3), 1d))
-
     // normal approximation to mean and standard deviation
-    val meanPost1 = sum(h2Vals :* h2Posterior1)
-    val meanPost3 = sum(h2Vals :* h2Posterior3)
+    val meanPosterior1 = sum(h2Vals :* h2Posterior1)
+    val meanPosterior3 = sum(h2Vals :* h2Posterior3)
 
-    val sdPost1 = math.sqrt(sum((h2Vals :- meanPost1) :* (h2Vals :- meanPost1) :* h2Posterior1 ))
-    val sdPost3 = math.sqrt(sum((h2Vals :- meanPost3) :* (h2Vals :- meanPost3) :* h2Posterior3 ))
+    val sdPosterior1 = math.sqrt(sum((h2Vals :- meanPosterior1) :* (h2Vals :- meanPosterior1) :* h2Posterior1 ))
+    val sdPosterior3 = math.sqrt(sum((h2Vals :- meanPosterior3) :* (h2Vals :- meanPosterior3) :* h2Posterior3 ))
 
-    assert(math.abs(seH21 - sdPost1) < 0.02) // both are approx 0.16
-    assert(math.abs(seH23 - sdPost3) < 0.02) // both are approx 0.13
+    assert(math.abs(h2Chr1 - meanPosterior1) < 0.01) // both are approx 0.37
+    assert(math.abs(seH2Chr3 - meanPosterior3) < 0.07) // values are approx 0.14 and 0.20
+
+    assert(math.abs(seH2Chr1 - sdPosterior1) < 0.02) // both are approx 0.16
+    assert(math.abs(seH2Chr3 - sdPosterior3) < 0.02) // both are approx 0.13
+
+    val h2NormLkhd1 = DenseVector(
+      vdsChr1.queryGlobal("global.lmmreg.fit.normLkhdH2")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
+
+    val h2NormLkhd3 = DenseVector(
+      vdsChr3.queryGlobal("global.lmmreg.fit.normLkhdH2")._2.asInstanceOf[IndexedSeq[Double]].slice(1,100).toArray)
+
+    // checking that normLkhdH2 is normalized
+    assert(D_==(sum(h2NormLkhd1), 1d))
+    assert(D_==(sum(h2NormLkhd3), 1d))
+
+    // comparing normLkhdH2 and approximation of h2Posterior over h2Grid
+    val h2Grid = DenseVector((0.01 to 0.99 by 0.01).toArray)
+
+    val h2NormLkhdMean1 = sum(h2Grid :* h2NormLkhd1)
+    val h2NormLkhdMean3 = sum(h2Grid :* h2NormLkhd3)
+
+    val h2NormLkhdSe1 = sum((h2Grid - h2NormLkhdMean1) :* (h2Grid - h2NormLkhdMean1) :* h2NormLkhd1)
+    val h2NormLkhdSe3 = sum((h2Grid - h2NormLkhdMean3) :* (h2Grid - h2NormLkhdMean3) :* h2NormLkhd3)
+
+    def h2ToNearbyIndex(h2: Double): Int = ((math.log((1 - h2) / h2) + 10) * 100).round.toInt
+
+    val h2Post1 = h2Grid.map(h2 => h2Posterior1(h2ToNearbyIndex(h2)))
+    val h2Post3 = h2Grid.map(h2 => h2Posterior3(h2ToNearbyIndex(h2)))
+
+    h2Post1 :/= sum(h2Post1)
+    h2Post3 :/= sum(h2Post3)
+
+    val h2PostMean1 = sum(h2Grid :* h2Post1)
+    val h2PostMean3 = sum(h2Grid :* h2Post3)
+
+    val h2PostSe1 = math.sqrt(sum((h2Grid - h2PostMean1) :* (h2Grid - h2PostMean1) :* h2Post1))
+    val h2PostSe3 = math.sqrt(sum((h2Grid - h2PostMean3) :* (h2Grid - h2PostMean3) :* h2Post3))
+
+    assert(math.abs(meanPosterior1 - h2PostMean1) < 0.03) // approx 0.37 and 0.40
+    assert(math.abs(meanPosterior3 - h2PostMean3) < 0.06) // approx 0.20 and 0.26
+
+    assert(math.abs(sdPosterior1 - h2PostSe1) < 0.02) // both are approx 0.15
+    assert(math.abs(sdPosterior3 - h2PostSe3) < 0.01) // both are approx 0.12
+
+    assert(max(abs(h2NormLkhd1 - h2Post1)) < .02)
+    assert(max(abs(h2NormLkhd3 - h2Post3)) < .02)
   }
 
   // this test parallels the lmmreg Python test, and is a regression test related to filtering samples first
