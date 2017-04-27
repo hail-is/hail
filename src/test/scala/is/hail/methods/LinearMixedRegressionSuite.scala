@@ -314,7 +314,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
   }
 
   @Test def h2seTest() {
-    // Testing that the parabolic approximation of h2SE is close to the empirical standard deviation of the
+    // Testing that the parabolic approximation of h2 standard error is close to the empirical standard deviation of the
     // normalized likelihood function, e.g. the posterior with uniform prior on [0,1].
 
     val seH21 = vdsChr1.queryGlobal("global.lmmreg.fit.seH2")._2.asInstanceOf[Double]
@@ -335,18 +335,22 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     // integrate in h2 coordinates
     val h2Vals = sigmoid(-logDeltaGrid)
-    val widths = h2Vals :* (1d - h2Vals) // d(h2) / d (ln(delta)) = - h2 * (1 - h2)
 
-    val total1 = exp(logLkhdVals1) dot widths // normalization constant
+    // d(h2) / d (ln(delta)) = - h2 * (1 - h2)
+    val widths = h2Vals :* (1d - h2Vals)
+
+    // normalization constant
+    val total1 = exp(logLkhdVals1) dot widths
     val total3 = exp(logLkhdVals3) dot widths
 
-    val h2Posterior1 = (exp(logLkhdVals1) :* widths) :/ total1 // normalized likelihood of h2
+    // normalized likelihood of h2
+    val h2Posterior1 = (exp(logLkhdVals1) :* widths) :/ total1
     val h2Posterior3 = (exp(logLkhdVals3) :* widths) :/ total3
 
     assert(D_==(sum(h2Posterior1), 1d))
     assert(D_==(sum(h2Posterior3), 1d))
 
-    // normal approximation
+    // normal approximation to mean and standard deviation
     val meanPost1 = sum(h2Vals :* h2Posterior1)
     val meanPost3 = sum(h2Vals :* h2Posterior3)
 
