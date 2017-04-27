@@ -2993,7 +2993,7 @@ class VariantDataset(object):
 
         The standard error :math:`\\hat{\sigma}` is then estimated by solving for :math:`\sigma`.
 
-        Note that the mean and standard deviation of the (discretized or continuous) distribution held in ``global.lmmreg.fit.normLkhdH2`` will not coincide with :math:`\\hat{h}^2` and :math:`\sigma`, since this distribution only becomes normal in the infinite sample limit. One can visually assess normality by plotting this distribution against a normal distribution with the same mean and standard deviation, or use this distribution to approximate credible intervals under a flat prior on :math:`h^2`.
+        Note that the mean and standard deviation of the (discretized or continuous) distribution held in ``global.lmmreg.fit.normLkhdH2`` will not coincide with :math:`\\hat{h}^2` and :math:`\\hat{\sigma}`, since this distribution only becomes normal in the infinite sample limit. One can visually assess normality by plotting this distribution against a normal distribution with the same mean and standard deviation, or use this distribution to approximate credible intervals under a flat prior on :math:`h^2`.
 
         **Testing each variant for association**
 
