@@ -264,30 +264,39 @@ object DiagLMM {
     val logDelta = logDeltaPointValuePair.getPoint
     val maxLogLkhd = logDeltaPointValuePair.getValue
 
-    if (math.abs(logDelta - approxLogDelta) > 1.0 / pointsPerUnit) {
-      warn(s"lmmreg: the difference between the optimal value $approxLogDelta of ln(delta) on the grid and the optimal value $logDelta of ln(delta) by Brent's method exceeds the grid resolution of ${1.0 / pointsPerUnit}. Plot the values over the full grid to investigate.")
+    if (math.abs(logDelta - approxLogDelta) > 1d / pointsPerUnit) {
+      warn(s"lmmreg: the difference between the optimal value $approxLogDelta of ln(delta) on the grid and" +
+        s"the optimal value $logDelta of ln(delta) by Brent's method exceeds the grid resolution" +
+        s"of ${1d / pointsPerUnit}. Plot the values over the full grid to investigate.")
     }
 
-    val indexBelow = (pointsPerUnit * (logDelta - logMin)).toInt
-    val indexAbove = indexBelow + 1
+    val epsilon = 1d / pointsPerUnit
 
-    // three values of h2 = sigmoid(-ln(delta)) below, at, and above the MLE
-    val x1 = sigmoid(-gridLogLkhd(indexBelow)._1)
-    val x2 = sigmoid(-logDelta)
-    val x3 = sigmoid(-gridLogLkhd(indexAbove)._1)
+    // three values of ln(delta) right of, at, and left of the MLE
+    val z1 = logDelta + epsilon
+    val z2 = logDelta
+    val z3 = logDelta - epsilon
 
-    assert(x1 > x2 && x2 > x3)
+    // three values of h2 = sigmoid(-ln(delta)) left of, at, and right of the MLE
+    val x1 = sigmoid(-z1)
+    val x2 = sigmoid(-z2)
+    val x3 = sigmoid(-z3)
 
     // corresponding values of logLkhd
-    val y1 = gridLogLkhd(indexBelow)._2
+    val y1 = if (useML) LogLkhdML.value(z1) else LogLkhdREML.value(z1)
     val y2 = maxLogLkhd
-    val y3 = gridLogLkhd(indexAbove)._2
+    val y3 = if (useML) LogLkhdML.value(z3) else LogLkhdREML.value(z3)
 
-    // fitting parabola logLkhd ~ a * x^2 + b * x + c near MLE by Lagrange interpolation
-    val a = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / ((x2 - x1) * (x1 - x3) * (x3 - x2))
+    if (y1 >= y2 || y3 >= y2)
+      fatal(s"Maximum likelihood estimate ${ math.exp(logDelta) } for delta is not a global max." +
+        s"Plot the values over the full grid to investigate.")
 
-    // comparing to normal approx: logLkhd ~ 1 / (-2 * sigma^2) * x^2 + lower order terms
-    val sigmaH2 = math.sqrt(1 / (-2 * a))
+    // Fitting parabola logLkhd ~ a * x^2 + b * x + c near MLE by Lagrange interpolation gives
+    // a = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / ((x2 - x1) * (x1 - x3) * (x3 - x2))
+    // Comparing to normal approx: logLkhd ~ 1 / (-2 * sigma^2) * x^2 + lower order terms:
+
+    val sigmaH2 =
+      math.sqrt(((x2 - x1) * (x1 - x3) * (x3 - x2)) / (-2 * (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2))))
 
     (FastMath.exp(logDelta), GlobalFitLMM(maxLogLkhd, gridLogLkhd, sigmaH2))
   }
