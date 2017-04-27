@@ -2774,7 +2774,8 @@ class VariantDataset(object):
         :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
-        r = self._jvdf.linregBurden(key_name, variant_keys, single_key, agg_expr, y, jarray(Env.jvm().java.lang.String, covariates))
+        r = self._jvdf.linregBurden(key_name, variant_keys, single_key, agg_expr, y,
+                                    jarray(Env.jvm().java.lang.String, covariates))
         linreg_kt = KeyTable(self.hc, r._1())
         sample_kt = KeyTable(self.hc, r._2())
 
@@ -2821,7 +2822,9 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys), jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
+                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
+                                           min_af)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -3772,7 +3775,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def rrm(self, force_block = False, force_gramian = False):
+    def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
         **Examples**
@@ -3837,7 +3840,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def sample_qc(self, root='sa.qc', keep_star = False):
+    def sample_qc(self, root='sa.qc', keep_star=False):
         """Compute per-sample QC metrics.
 
         .. include:: requireTGenotype.rst
