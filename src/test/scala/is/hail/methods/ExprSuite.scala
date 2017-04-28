@@ -671,6 +671,17 @@ class ExprSuite extends SparkSuite {
     assert(D_==(eval[Double]("qchisqtail(pchisqtail(0.5,1),1)").get, 0.5))
     assert(D_==(eval[Double]("pchisqtail(qchisqtail(0.5,1),1)").get, 0.5))
 
+    assert(eval[Boolean]("rpois(5) >= 0").contains(true))
+    assert(eval[Boolean]("rpois(5, 5).length == 5").contains(true))
+    assert(D_==(eval[Double]("dpois(5, 5)").get, 0.1754674))
+    assert(D_==(eval[Double]("dpois(5, 5, true)").get, -1.740302))
+    assert(D_==(eval[Double]("ppois(5, 5)").get, 0.6159607))
+    assert(D_==(eval[Double]("ppois(5, 5, true, true)").get, -0.4845722))
+    assert(D_==(eval[Double]("ppois(5, 5, false, false)").get, 0.3840393))
+    assert(D_==(eval[Double]("qpois(0.4, 5)").get, 4))
+    assert(D_==(eval[Double]("qpois(log(0.4), 5, true, true)").get, 4))
+    assert(D_==(eval[Double]("qpois(0.4, 5, false, false)").get, 5))
+
     assert(eval[Any]("if (true) NA: Double else 0.0").isEmpty)
 
     assert(eval[Int]("gtIndex(3, 5)").contains(18))

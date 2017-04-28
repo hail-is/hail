@@ -4,8 +4,8 @@ import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
-import net.sourceforge.jdistlib.{ChiSquare, Normal}
-import org.apache.commons.math3.distribution.{HypergeometricDistribution, PoissonDistribution}
+import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson}
+import org.apache.commons.math3.distribution.HypergeometricDistribution
 
 package object stats {
 
@@ -281,19 +281,15 @@ package object stats {
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def inverseChiSquaredTail(df: Double, p: Double): Double = ChiSquare.quantile(p, df, false, false)
 
-  def rpois(lambda: Double): Int = new PoissonDistribution(lambda).sample()
+  def rpois(lambda: Double): Double = new Poisson(lambda).random()
 
-  def dpois(k: Int, lambda: Double): Double = new PoissonDistribution(lambda).probability(k)
+  def rpois(n: Int, lambda: Double): IndexedSeq[Double] = new Poisson(lambda).random(n)
 
-  def ppois(k: Int, lambda: Double, lowerTail: Boolean = true): Double = {
-    val p = new PoissonDistribution(lambda).cumulativeProbability(k)
-    if (lowerTail) p else 1d - p
-  }
+  def dpois(x: Double, lambda: Double, logP: Boolean = false): Double = new Poisson(lambda).density(x, logP)
 
-  def qpois(x: Double, lambda: Double, lowerTail: Boolean = true): Int = {
-    val q = if (lowerTail) x else 1d - x
-    new PoissonDistribution(lambda).inverseCumulativeProbability(q)
-  }
+  def ppois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Double = new Poisson(lambda).cumulative(x, lowerTail, logP)
+
+  def qpois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Double = new Poisson(lambda).quantile(x, lowerTail, logP)
 
   def uninitialized[T]: T = {
     class A {
