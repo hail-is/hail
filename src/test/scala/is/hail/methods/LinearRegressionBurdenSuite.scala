@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
+import is.hail.TestUtils.interceptFatal
 import is.hail.expr.TDouble
 import is.hail.keytable.KeyTable
 import is.hail.utils._
@@ -8,7 +9,23 @@ import is.hail.variant.VariantDataset
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
+object BurdenSuiteUtils {
+  def makeMap[T](kt: KeyTable): Map[T, IndexedSeq[java.lang.Double]] = kt.collect().map { r =>
+    val s = r.asInstanceOf[Row].toSeq
+    s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq
+  }.toMap
+
+  def indexedSeqBoxDoubleEquals(tol: Double)(xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]): Boolean =
+    (xs, ys).zipped.forall { case (x, y) =>
+      if (x == null || y == null)
+        x == null && y == null
+      else
+        D_==(x.doubleValue(), y.doubleValue(), tolerance = tol)
+    }
+}
+
 class LinearRegressionBurdenSuite extends SparkSuite {
+  import BurdenSuiteUtils._
 
   /*
   vdsBurden is shared by testWeightedSum, testWeightedSumWithImputation, and testMax.
@@ -19,9 +36,9 @@ class LinearRegressionBurdenSuite extends SparkSuite {
   Gene1 ---
   Gene2   -
   Gene3 -----
-  */
 
-  /* The genotypes for the six complete samples:
+  Here are the genotypes for the six complete samples:
+
   Variant A       B       C       D       E       F
   1       0.0     1.0     0.0     0.0     0.0     1.0
   2         .     2.0       .     2.0     0.0     0.0
@@ -40,19 +57,6 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       root = Some("sa.cov"),
       config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
 
-  def makeMap[T](sampleKT: KeyTable): Map[T, IndexedSeq[java.lang.Double]] = sampleKT.collect().map { r =>
-    val s = r.asInstanceOf[Row].toSeq
-    s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq
-  }.toMap
-
-  def indexedSeqBoxDoubleEquals(tol: Double)(xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]): Boolean =
-    (xs, ys).zipped.forall { case (x, y) =>
-      if (x == null || y == null)
-        x == null && y == null
-      else
-        D_==(x.doubleValue(), y.doubleValue(), tolerance = tol)
-    }
-
   @Test def testWeightedSum() {
 
     val (linregKT, sampleKT) = vdsBurden.linregBurden("gene", "va.genes", singleKey = false,
@@ -63,11 +67,11 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
     /*
     Sample  Cov1    Cov2    Pheno   Gene1   Gene2   Gene3
-    A       0.0     -1.0    1.0     0.0     0.0     0.0
+    A       0.0    -1.0     1.0     0.0     0.0     0.0
     B       2.0     3.0     1.0     5.0     4.0     5.0
     C       1.0     5.0     2.0     0.0     0.0     3.0
-    D       -2.0    0.0     2.0     4.0     4.0     7.0
-    E       -2.0    -4.0    2.0     0.0     0.0     3.0
+    D      -2.0     0.0     2.0     4.0     4.0     7.0
+    E      -2.0    -4.0     2.0     0.0     0.0     3.0
     F       4.0     3.0     2.0     1.0     0.0     1.0
     */
 
@@ -100,11 +104,11 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
     /*
     Sample  Cov1    Cov2    Pheno   Gene1   Gene2   Gene3
-    A       0.0     -1.0    1.0     2.0     2.0     2.0
+    A       0.0    -1.0     1.0     2.0     2.0     2.0
     B       2.0     3.0     1.0     5.0     4.0     7.25
     C       1.0     5.0     2.0     2.0     2.0     5.0
-    D       -2.0    0.0     2.0     4.0     4.0     7.0
-    E       -2.0    -4.0    2.0     0.0     0.0     3.0
+    D      -2.0     0.0     2.0     4.0     4.0     7.0
+    E      -2.0    -4.0     2.0     0.0     0.0     3.0
     F       4.0     3.0     2.0     1.0     0.0     3.25
     */
 
@@ -132,11 +136,11 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
     /*
     Sample  Cov1    Cov2    Pheno   Gene1   Gene2   Gene3
-    A       0.0     -1.0    1.0     0.0       .     0.0
+    A       0.0    -1.0     1.0     0.0       .     0.0
     B       2.0     3.0     1.0     2.0     2.0     2.0
     C       1.0     5.0     2.0     0.0       .     1.0
-    D       -2.0    0.0     2.0     2.0     2.0     2.0
-    E       -2.0    -4.0    2.0     0.0     0.0     1.0
+    D      -2.0     0.0     2.0     2.0     2.0     2.0
+    E      -2.0    -4.0     2.0     0.0     0.0     1.0
     F       4.0     3.0     2.0     1.0     0.0     1.0
     */
 
@@ -234,5 +238,17 @@ class LinearRegressionBurdenSuite extends SparkSuite {
     val sampleMap8 = makeMap[Double](sampleKT8)
     assert(sampleMap8.size == 10)
     assert(sampleMap8.forall { case (key, value) => value.forall(_ % key.asInstanceOf[Double] == 0) })
+  }
+
+  @Test def testFatals() {
+    interceptFatal("clashes with reserved linreg columns") {
+      vdsBurden.linregBurden("pval", "va.genes", singleKey = false,
+        "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    }
+
+    interceptFatal("clashes with a sample name") {
+      vdsBurden.linregBurden("A", "va.genes", singleKey = false,
+        "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    }
   }
 }

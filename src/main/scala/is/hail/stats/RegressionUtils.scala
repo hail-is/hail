@@ -155,6 +155,44 @@ object RegressionUtils {
     !lastColumnIsConstant
   }
 
+  //keyedRow consists of row key followed by numeric data (passed with key to avoid copying, key is ignored here)
+  def setLastColumnToKeyedRow(X: DenseMatrix[Double], keyedRow: Row): Boolean = {
+    val n = X.rows
+    val k = X.cols - 1
+    var missingRowIndices = new ArrayBuilder[Int]()
+    var gtSum = 0d
+
+    var i = 0
+    var j = k * n
+    while (i < n) {
+      if (keyedRow.get(i + 1) == null)
+        missingRowIndices += j + i
+      else {
+        val e = keyedRow.get(i + 1).asInstanceOf[java.lang.Number].doubleValue()
+        X.data(j + i) = e
+        gtSum += e
+      }
+      i += 1
+    }
+
+    val missingIndicesArray = missingRowIndices.result()
+    val nMissing = missingIndicesArray.length
+    val nPresent = n - nMissing
+    val somePresent = nPresent > 0
+
+    if (somePresent) {
+      val gtMean = gtSum / nPresent
+
+      i = 0
+      while (i < missingIndicesArray.length) {
+        X.data(missingIndicesArray(i)) = gtMean
+        i += 1
+      }
+    }
+
+    somePresent
+  }
+
   // mean 0, norm sqrt(n), variance 1 (constant variants return None)
   def toNormalizedGtArray(gs: Iterable[Genotype], nSamples: Int): Option[Array[Double]] = {
     val gtVals = Array.ofDim[Double](nSamples)
@@ -335,7 +373,7 @@ object RegressionUtils {
   }
 
   //keyedRow consists of row key followed by numeric data (passed with key to avoid copying, key is ignored here)
-  def denseStats(keyedRow: Row, y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
+  def statsKeyedRow(keyedRow: Row, y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
     val n = keyedRow.length - 1
     assert(y.length == n)
 

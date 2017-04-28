@@ -14,6 +14,8 @@ object LogisticRegression {
     require(vds.wasSplit)
 
     def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
+    if (!tests.isDefinedAt(test))
+      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
 
     val logRegTest = tests(test)
 
@@ -21,10 +23,7 @@ object LogisticRegression {
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
-      fatal(s"For logistic regression, phenotype must be Boolean or numeric with all values equal to 0 or 1")
-
-    if (!tests.isDefinedAt(test))
-      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
+      fatal(s"For logistic regression, phenotype must be Boolean or numeric with all present values equal to 0 or 1")
 
     val n = y.size
     val k = cov.cols

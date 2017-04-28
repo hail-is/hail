@@ -1,12 +1,10 @@
 package is.hail.variant
 
 import java.nio.ByteBuffer
-import java.util
 
-import scala.collection.JavaConverters._
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.expr.{EvalContext, TAggregable, _}
+import is.hail.expr._
 import is.hail.io._
 import is.hail.io.annotators.{BedAnnotator, IntervalListAnnotator}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
