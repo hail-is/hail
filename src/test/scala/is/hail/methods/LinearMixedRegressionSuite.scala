@@ -382,7 +382,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val h2NormLkhdSe1 = sum((h2Grid - h2NormLkhdMean1) :* (h2Grid - h2NormLkhdMean1) :* h2NormLkhd1)
     val h2NormLkhdSe3 = sum((h2Grid - h2NormLkhdMean3) :* (h2Grid - h2NormLkhdMean3) :* h2NormLkhd3)
 
-    def h2ToNearbyIndex(h2: Double): Int = ((math.log((1 - h2) / h2) + 10) * 100).round.toInt
+    val minLogDelta = -8
+    val pointsPerUnit = 100
+
+    def h2ToNearbyIndex(h2: Double): Int = ((math.log((1 - h2) / h2) - minLogDelta) * pointsPerUnit).round.toInt
 
     val h2Post1 = h2Grid.map(h2 => h2Posterior1(h2ToNearbyIndex(h2)))
     val h2Post3 = h2Grid.map(h2 => h2Posterior3(h2ToNearbyIndex(h2)))
