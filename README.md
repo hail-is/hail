@@ -16,7 +16,9 @@ alias stop-cluster=< local cloud-tools directory >/stop_cluster.py
 
 To use the scripts here, you'll also need the Google Cloud SDK -- see quickstart instructions for Mac OS X [here](https://cloud.google.com/sdk/docs/quickstart-mac-os-x). The scripts in this repository are wrappers around the functionality in the SDK.
 
-The `start_cluster.py` script references a copy of the initialization script `init_notebook.py` that lives in the publically-readable Google Storage bucket `gs://hail-common/`. You don't need a copy of this initialization script on your local machine to use the other scripts, but it's hosted in this repository as a reference. You can also use the initialization script with your own cluster start-up script. 
+The `start_cluster.py` script references a copy of the initialization script `init_notebook.py` that lives in the publically-readable Google Storage bucket `gs://hail-common/`. 
+
+You don't need a copy of this initialization script on your local machine to use the other scripts, but it's hosted in this repository as a reference. You can also use the initialization script with your own cluster start-up script. 
 
 **REMINDER:** As always, don't forget to shut down your cluster when you're done with it! You can do this through the Google Cloud Console, using `stop-cluster --name mycluster` after setting up the aliases above, or using the Google Cloud SDK directly with `gcloud dataproc clusters delete mycluster`.
 
