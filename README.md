@@ -75,7 +75,7 @@ import pandas as pd
 hc = hail.HailContext()
 
 with hail.hadoop_read('gs://mybucket/genes.tsv') as f:
-	df = pd.read_csv(f, sep='\t')
+    df = pd.read_csv(f, sep='\t')
 ```
 
 When you save your notebooks using either `File -> Save and Checkpoint` or `command + s`, they'll be saved automatically to the bucket you're working in.
