@@ -59,14 +59,6 @@ If you'd like to use a Jupyter notebook to run Hail commands, connect to the clu
 
 After navigating to `localhost:8123`, you should see the Google Storage home directory of the project your cluster was launched in, with all of the project's buckets listed.
 
-Select the bucket you'd
-```
-$ start-cluster --name mycluster --notebook
-...wait for cluster to start...
-$ connect-cluster --name mycluster --notebook
-```
-When your browser opens with the connection to the Jupyter notebook server, you should see the Google Storage home directory of the project your cluster was launched in, with all of the project's buckets listed. 
-
 Select the bucket you'd like to work in, and you should see all of the files and directories in that bucket. You can either resume working on an existing `.ipynb` file in the bucket, or create a new Hail notebook by selecting `Hail` from the `New` notebook drop-down in the upper-right corner.
 
 From the notebook, you can use Hail the same way that you would in a complete job script:
