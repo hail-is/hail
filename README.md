@@ -1,5 +1,7 @@
 # cloud-tools
-Scripts for working with Hail on Google Cloud Dataproc service from your local machine.
+This is a small collection of scripts for working with Hail on Google Cloud Dataproc service from your local machine.
+
+To use the scripts here, you'll also need the Google Cloud SDK -- see quickstart instructions for Mac OS X [here](https://cloud.google.com/sdk/docs/quickstart-mac-os-x). The scripts in this repository are wrappers around the functionality in the SDK.
 
 To get started, clone this repository:
 ```
@@ -13,8 +15,6 @@ alias submit-cluster=< local cloud-tools directory >/submit_cluster.py
 alias connect-cluster=< local cloud-tools directory >/connect_cluster.py
 alias stop-cluster=< local cloud-tools directory >/stop_cluster.py
 ```
-
-To use the scripts here, you'll also need the Google Cloud SDK -- see quickstart instructions for Mac OS X [here](https://cloud.google.com/sdk/docs/quickstart-mac-os-x). The scripts in this repository are wrappers around the functionality in the SDK.
 
 The `start_cluster.py` script references a copy of the initialization script `init_notebook.py` that lives in the publically-readable Google Storage bucket `gs://hail-common/`. 
 
