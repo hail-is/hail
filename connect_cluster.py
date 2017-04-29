@@ -44,7 +44,7 @@ time.sleep(2)
 cmd = [
     r'/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome',
     'http://localhost:8123',
-    '--proxy-server="socks5://localhost:10000"',
+    '--proxy-server="socks5://localhost:{}"'.format(args.port),
     '--host-resolver-rules="MAP * 0.0.0.0 , EXCLUDE localhost"',
     '--user-data-dir=/tmp/',
     '> /dev/null 2>&1 &'
