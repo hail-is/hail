@@ -53,7 +53,7 @@ If you'd like to troubleshoot jobs that have failed, you can view the details of
 
 ### Interactive Hail with Jupyter Notebook
 
-Another way to use the Dataproc service is through a Jupyter notebook running on the cluster's master machine. By default, the `start_cluster.py` script in this repository uses the `init_notebook.py` initialization action, which sets up and starts a Jupyter server process complete with a Hail kernel on the master machine. 
+Another way to use the Dataproc service is through a Jupyter notebook running on the cluster's master machine. By default, the `start_cluster.py` script in this repository uses the `init_notebook.py` initialization action, which sets up and starts a Jupyter server process - complete with a Hail kernel - on the master machine. 
 
 If you'd like to use a Jupyter notebook to run Hail commands, connect to the cluster using the `connect_cluster.py` script as described above and then navigate to `localhost:8123' (by default, the Jupyter notebook process runs on port `8123` of the master node).
 
