@@ -43,7 +43,9 @@ While your job is running, you can monitor its progress through the Spark Web UI
 ```
 $ connect-cluster --name mycluster
 ```
-This will open an SSH tunnel to the master node of your cluster and open a Google Chrome browser configured to view processes running on the master node. Once the browser is open and you have a Hail job running, you can monitor the progress of your job by navigating to `localhost:4040` to view the Spark Web UI. Each `HailContext` has its own Web UI, so if you have multiple contexts running, they may also be found on ports `4041`, `4042`, etc.
+This will open an SSH tunnel to the master node of your cluster and open a Google Chrome browser configured to view processes running on the master node. 
+
+Once the browser is open and you have a Hail job running, you can monitor the progress of your job by navigating to `localhost:4040` to view the Spark Web UI. Each `HailContext` has its own Web UI, so if you have multiple contexts running, they may also be found on ports `4041`, `4042`, etc.
 
 If you'd like to troubleshoot jobs that have failed, you can view the details of jobs that are no longer active by accessing the Spark history server at `localhost:18080`.
 
