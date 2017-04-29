@@ -67,14 +67,14 @@ import hail
 hc = hail.HailContext()
 ...
 ```
-To read or write files stored in a Google bucket outside of Hail-specific commands, use Hail's `hadoop_read()` and `hadoop_write()` methods. For example, to read in a file from Google storage to a pandas dataframe:
+To read or write files stored in a Google bucket outside of Hail-specific commands, use Hail's `hadoop_read()` and `hadoop_write()` helper functions. For example, to read in a file from Google storage to a pandas dataframe:
 ```
 import hail
 import pandas as pd
 
 hc = hail.HailContext()
 
-with hail.hadoop_read('gs://mybucket/genes.tsv') as f:
+with hail.hadoop_read('gs://mybucket/mydata.tsv') as f:
     df = pd.read_csv(f, sep='\t')
 ```
 
