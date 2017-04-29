@@ -55,7 +55,7 @@ If you'd like to troubleshoot jobs that have failed, you can view the details of
 
 Another way to use the Dataproc service is through a Jupyter notebook running on the cluster's master machine. By default, the `start_cluster.py` script in this repository uses the `init_notebook.py` initialization action, which sets up and starts a Jupyter server process - complete with a Hail kernel - on the master machine. 
 
-If you'd like to use a Jupyter notebook to run Hail commands, connect to the cluster using the `connect_cluster.py` script as described above and then navigate to `localhost:8123' (by default, the Jupyter notebook process runs on port `8123` of the master node).
+If you'd like to use a Jupyter notebook to run Hail commands, connect to the cluster using the `connect_cluster.py` script as described above and then navigate to `localhost:8123` (by default, the Jupyter notebook process runs on port `8123` of the master node).
 
 After navigating to `localhost:8123`, you should see the Google Storage home directory of the project your cluster was launched in, with all of the project's buckets listed.
 
