@@ -28,6 +28,21 @@ if role == 'Master':
     for pkg in pkgs:
         call(['/home/anaconda2/bin/pip', 'install', pkg])
 
+    # get latest Hail hash
+    hash = Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash.txt'], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
+
+    # Hail jar and zip names
+    hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hash)
+    hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
+
+    # make directory for Hail and Jupyter notebook related files
+    os.mkdir('/home/hail/')
+    os.chmod('/home/hail/', 0777)
+
+    # copy Hail jar and zip to local directory on master node
+    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_jar), '/home/hail/'])
+    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_zip), '/home/hail/'])
+
     # create Jupyter kernel spec file
     kernel = {
         'argv': [
@@ -50,21 +65,6 @@ if role == 'Master':
     os.makedirs('/home/anaconda2/share/jupyter/kernels/hail/')
     with open('/home/anaconda2/share/jupyter/kernels/hail/kernel.json', 'wb') as f:
         json.dump(kernel, f)
-
-    # get latest Hail hash
-    hash = Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash.txt'], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
-
-    # Hail jar and zip names
-    hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hash)
-    hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
-
-    # make directory for Hail and Jupyter notebook related files
-    os.mkdir('/home/hail/')
-    os.chmod('/home/hail/', 0777)
-
-    # copy Hail jar and zip to local directory on master node
-    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_jar), '/home/hail/'])
-    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_zip), '/home/hail/'])
 
     # modify default Spark config file to reference Hail jar and zip
     with open('/etc/spark/conf/spark-defaults.conf', 'ab') as f:
