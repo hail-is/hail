@@ -10,6 +10,13 @@ role = Popen('/usr/share/google/get_metadata_value attributes/dataproc-role', sh
 # initialization actions to perform on master machine only
 if role == 'Master':
 
+    # download Anaconda Python 2.7 installation script
+    call(['wget', '-P', '/home/anaconda2/', 'https://repo.continuum.io/archive/Anaconda2-4.3.1-Linux-x86_64.sh'])
+
+    # install Anaconda in /home/anaconda2/
+    call(['bash', '/home/anaconda2/Anaconda2-4.3.1-Linux-x86_64.sh', '-b', '-f', '-p', '/home/anaconda2/'])
+    os.chmod('/home/anaconda2/', 0777)
+
     # additional packages to install
     pkgs = [
         'lxml',
@@ -19,46 +26,9 @@ if role == 'Master':
 
     # use pip to install packages
     for pkg in pkgs:
-        call('/home/anaconda2/bin/pip install {}'.format(pkg), shell=True)
+        call(['/home/anaconda2/bin/pip', 'install', pkg])
 
-    # get latest Hail hash
-    hash = Popen('gsutil cat gs://hail-common/latest-hash.txt', shell=True, stdout=PIPE, stderr=PIPE).communicate()[0].strip()
-
-    # Hail jar and zip names
-    hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hash)
-    hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
-
-    # make directory for Hail and Jupyter notebook related files
-    call('mkdir /home/hail/', shell=True)
-
-    # copy Hail jar and zip to local directory on master node
-    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_jar), '/home/hail/'])
-    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_zip), '/home/hail/'])
-
-    # modify default Spark config file to reference Hail jar and zip
-    with open('/etc/spark/conf/spark-defaults.conf', 'ab') as f:
-        opts = [
-            'spark.files=/home/hail/{}'.format(hail_jar),
-            'spark.submit.pyFiles=/home/hail/{}'.format(hail_zip),
-            'spark.driver.extraClassPath=./{}'.format(hail_jar),
-            'spark.executor.extraClassPath=./{}'.format(hail_jar)
-        ]
-        f.write('\n'.join(opts))
-
-    # create Jupyter configuration file
-    call('mkdir -p /home/anaconda2/etc/jupyter/', shell=True)
-    with open('/home/anaconda2/etc/jupyter/jupyter_notebook_config.py', 'wb') as f:
-	    opts = [
-		    'c.Application.log_level = "DEBUG"',
-		    'c.NotebookApp.ip = "127.0.0.1"',
-		    'c.NotebookApp.open_browser = False',
-		    'c.NotebookApp.port = 8123',
-		    'c.NotebookApp.token = ""',
-		    'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"'
-        ]
-	    f.write('\n'.join(opts) + '\n')
-
-    # create kernel spec file
+    # create Jupyter kernel spec file
     kernel = {
         'argv': [
             '/home/anaconda2/bin/python',
@@ -74,17 +44,60 @@ if role == 'Master':
             'SPARK_HOME': '/usr/lib/spark/',
             'PYTHONPATH': '/usr/lib/spark/python/:/usr/lib/spark/python/lib/py4j-0.10.3-src.zip:/home/hail/pyhail-hail-is-master-{}.zip'.format(hash)
         }
-    }
+    }    
 
-    call('mkdir -p /home/anaconda2/share/jupyter/kernels/hail/', shell=True)
+    # write kernel spec file to default Jupyter kernel directory
+    os.makedirs('/home/anaconda2/share/jupyter/kernels/hail/')
     with open('/home/anaconda2/share/jupyter/kernels/hail/kernel.json', 'wb') as f:
-    	json.dump(kernel, f)
+        json.dump(kernel, f)
+
+    # get latest Hail hash
+    hash = Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash.txt'], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
+
+    # Hail jar and zip names
+    hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hash)
+    hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
+
+    # make directory for Hail and Jupyter notebook related files
+    os.mkdir('/home/hail/')
+    os.chmod('/home/hail/', 0777)
+
+    # copy Hail jar and zip to local directory on master node
+    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_jar), '/home/hail/'])
+    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_zip), '/home/hail/'])
+
+    # modify default Spark config file to reference Hail jar and zip
+    with open('/etc/spark/conf/spark-defaults.conf', 'ab') as f:
+        opts = [
+            'spark.files=/home/hail/{}'.format(hail_jar),
+            'spark.submit.pyFiles=/home/hail/{}'.format(hail_zip),
+            'spark.driver.extraClassPath=./{0}:/home/hail/{0}'.format(hail_jar),
+            'spark.executor.extraClassPath=./{0}:/home/hail/{0}'.format(hail_jar)
+        ]
+        f.write('\n'.join(opts))
+
+    # add Spark variable designating Anaconda Python executable as the default on driver
+    with open('/etc/spark/conf/spark-env.sh', 'ab') as f:
+        f.write('PYSPARK_DRIVER_PYTHON=/home/anaconda2/bin/python' + '\n')
+
+    # create Jupyter configuration file
+    call(['mkdir', '-p', '/home/anaconda2/etc/jupyter/'])
+    with open('/home/anaconda2/etc/jupyter/jupyter_notebook_config.py', 'wb') as f:
+	    opts = [
+		    'c.Application.log_level = "DEBUG"',
+		    'c.NotebookApp.ip = "127.0.0.1"',
+		    'c.NotebookApp.open_browser = False',
+		    'c.NotebookApp.port = 8123',
+		    'c.NotebookApp.token = ""',
+		    'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"'
+        ]
+	    f.write('\n'.join(opts) + '\n')
 
     # setup jupyter-spark extension
-    call('/home/anaconda2/bin/jupyter serverextension enable --user --py jupyter_spark', shell=True)
-    call('/home/anaconda2/bin/jupyter nbextension install --user --py jupyter_spark', shell=True)
-    call('/home/anaconda2/bin/jupyter nbextension enable --user --py jupyter_spark', shell=True)
-    call('/home/anaconda2/bin/jupyter nbextension enable --user --py widgetsnbextension', shell=True)
+    call(['/home/anaconda2/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'jupyter_spark'])
+    call(['/home/anaconda2/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'jupyter_spark'])
+    call(['/home/anaconda2/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'jupyter_spark'])
+    call(['/home/anaconda2/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension'])
 
     # create systemd service file for Jupyter notebook server process
     with open('/lib/systemd/system/jupyter.service', 'wb') as f:
@@ -106,10 +119,6 @@ if role == 'Master':
     	f.write('\n'.join(opts) + '\n')
 
     # add Jupyter service to autorun and start it
-    call('systemctl daemon-reload', shell=True)
-    call('systemctl enable jupyter', shell=True)
-    call('service jupyter start', shell=True)
-
-	# give all permissions to Hail and Anaconda directories
-    call('chmod -R 777 /home/hail/', shell=True)
-    call('chmod -R 777 /home/anaconda2/', shell=True)
+    call(['systemctl', 'daemon-reload'])
+    call(['systemctl', 'enable', 'jupyter'])
+    call(['service', 'jupyter', 'start'])
