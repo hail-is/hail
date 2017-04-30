@@ -234,7 +234,9 @@ of installing and managing an on-prem cluster.
 Hail publishes pre-built JARs for Google Cloud Platform's Dataproc Spark
 clusters. If you would prefer to avoid building Hail from source, learn how to
 get started on Google Cloud Platform by reading this `forum post
-<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`_.
+<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__. To get
+started running Hail on GCP via an interactive Jupyter notebook, see this `forum post
+<http://discuss.hail.is/t/using-hail-with-jupyter-notebooks-on-google-cloud/196>`__.
 
 Building with other versions of Spark 2
 =======================================
