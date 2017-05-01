@@ -345,7 +345,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        This command is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr` dynamically splits multi-allelic sites,
+        This method is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr` dynamically splits multi-allelic sites,
         evaluates each expression on each split allele separately, and for each expression annotates with an array with one element per alternate allele. In the splitting, genotypes are downcoded and each alternate allele is represented
         using its minimal representation (see :py:meth:`split_multi` for more details).
 
@@ -1284,20 +1284,23 @@ class VariantDataset(object):
         .. include:: requireTGenotype.rst
 
         **Example**
-
-        >>> summary, samples, variants = vds.concordance(hc.read('data/example2.vds'))
+        
+        >>> comparison_vds = hc.read('data/example2.vds')
+        >>> summary, samples, variants = vds.concordance(comparison_vds)
 
         **Notes**
 
-        The `concordance` command computes the genotype call concordance between two bialellic variant datasets. 
+        This method computes the genotype call concordance between two bialellic variant datasets. 
         It performs an inner join on samples (only samples in both datasets will be considered), and an outer join
-        on variants. This method returns a tuple of three objects: a nested list of list of int with global concordance
+        on variants. If a variant is only in one dataset, then each genotype is treated as "no data" in the other.
+        This method returns a tuple of three objects: a nested list of list of int with global concordance
         summary statistics, a key table with sample concordance statistics, and a key table with variant concordance 
         statistics.
         
         **Using the global summary result**
         
-        The global summary is a list of list of int, where the indices have special meaning:
+        The global summary is a list of list of int (conceptually a 5 by 5 matrix), 
+        where the indices have special meaning:
 
         0. No Data (missing variant)
         1. No Call (missing genotype call)
@@ -1320,14 +1323,14 @@ class VariantDataset(object):
         
         Columns of the sample key table:
         
-           - **s** (*String*) -- Sample ID.
+           - **s** (*String*) -- Sample ID, key column.
            - **nDiscordant** (*Long*) -- Count of discordant calls (see below for full definition).
            - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
-             matches the structure of the global summary defined above.
+             matching the structure of the global summary defined above.
              
         Columns of the variant key table:
         
-           - **v** (*Variant*) -- Genomic variant.
+           - **v** (*Variant*) -- Key column.
            - **nDiscordant** (*Long*) -- Count of discordant calls (see below for full definition).
            - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
              matches the structure of the global summary defined above.
@@ -1337,19 +1340,19 @@ class VariantDataset(object):
         :py:meth:`.VariantDataset.annotate_variants_keytable`, among other things.
         
         In these tables, the column **nDiscordant** is provided as a convenience, because this is often one
-        of the most useful single statistics about variant or sample concordance. This value is the number of genotypes 
-        which were called ("Hom Ref", "Heterozygous", or "Hom Var") in both datasets, but where the call did not match
-        between the two.
+        of the most useful concordance statistics. This value is the number of genotypes 
+        which were called (homozygous reference, heterozygous, or homozygous variant) in both datasets, 
+        but where the call did not match between the two.
         
         The column **concordance** matches the structure of the global summmary, which is detailed above. Once again,
-        the first index into this array is the state on the left, and the second index is the state on the right: 
-        for example, ``concordance[1][4]`` is the number of "No Call" genotypes on the left that were called "Hom 
-        Var" on the right. 
+        the first index into this array is the state on the left, and the second index is the state on the right.
+        For example, ``concordance[1][4]`` is the number of "no call" genotypes on the left that were called 
+        homozygous variant on the right. 
         
         :param right: right hand variant dataset for concordance
         :type right: :class:`.VariantDataset`
 
-        :return: The global concordance stats, a key table with sample concordance
+        :return: The global concordance statistics, a key table with sample concordance
             statistics, and a key table with variant concordance statistics.
         :rtype: (list of list of int, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
@@ -1651,10 +1654,10 @@ class VariantDataset(object):
 
         **Designating output with an expression**
 
-        Much like the filtering methods, exporting allows flexible expressions
-        to be written on the command line. While the filtering methods expect an
+        Much like the filtering methods, this method uses the Hail expression language.
+        While the filtering methods expect an
         expression that evaluates to true or false, this method expects a
-        comma-separated list of fields to print. These fields *must* take the
+        comma-separated list of fields to print. These fields take the
         form ``IDENTIFIER = <expression>``.
 
 
@@ -2537,7 +2540,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The :py:meth:`.linreg` command computes, for each variant, statistics of
+        The :py:meth:`.linreg` method computes, for each variant, statistics of
         the :math:`t`-test for the genotype coefficient of the linear function
         of best fit from sample genotype and covariates to quantitative
         phenotype or case-control status. Hail only includes samples for which
@@ -2551,7 +2554,7 @@ class VariantDataset(object):
         calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         Assuming there are sample annotations ``sa.pheno.height``,
-        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the command:
+        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the code:
 
         >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale', 'sa.cov.PC1'])
 
@@ -2572,7 +2575,7 @@ class VariantDataset(object):
         alternate alleles (AC) or alternate allele frequency (AF) at least
         :math:`p` in the included samples using the options ``minac=k`` or
         ``minaf=p``, respectively. Unlike the :py:meth:`.filter_variants_expr`
-        command, these filters do not remove variants from the underlying
+        method, these filters do not remove variants from the underlying
         variant dataset. Adding both filters is equivalent to applying the more
         stringent of the two, as AF equals AC over twice the number of included
         samples.
@@ -2887,7 +2890,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The :py:meth:`~hail.VariantDataset.logreg` command performs,
+        The :py:meth:`~hail.VariantDataset.logreg` method performs,
         for each variant, a significance test of the genotype in
         predicting a binary (case-control) phenotype based on the
         logistic regression model. Hail supports the Wald test ('wald'),
@@ -3218,7 +3221,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The :py:meth:`~hail.VariantDataset.persist` and :py:meth:`~hail.VariantDataset.cache` commands 
+        The :py:meth:`~hail.VariantDataset.persist` and :py:meth:`~hail.VariantDataset.cache` methods 
         allow you to store the current dataset on disk or in memory to avoid redundant computation and 
         improve the performance of Hail pipelines.
 
@@ -3576,7 +3579,7 @@ class VariantDataset(object):
 
         The data in a variant dataset is divided into chunks called partitions, which may be stored together or across a network, so that each partition may be read and processed in parallel by available cores. When a variant dataset with :math:`M` variants is first imported, each of the :math:`k` partition will contain about :math:`M/k` of the variants. Since each partition has some computational overhead, decreasing the number of partitions can improve performance after significant filtering. Since it's recommended to have at least 2 - 4 partitions per core, increasing the number of partitions can allow one to take advantage of more cores.
 
-        Partitions are a core concept of distributed computation in Spark, see `here <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`_ for details. With ``shuffle=True``, Hail does a full shuffle of the data and creates equal sized partitions. With ``shuffle=False``, Hail combines existing partitions to avoid a full shuffle. These algorithms correspond to the ``repartition`` and ``coalesce`` commands in Spark, respectively. In particular, when ``shuffle=False``, ``num_partitions`` cannot exceed current number of partitions.
+        Partitions are a core concept of distributed computation in Spark, see `here <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`_ for details. With ``shuffle=True``, Hail does a full shuffle of the data and creates equal sized partitions. With ``shuffle=False``, Hail combines existing partitions to avoid a full shuffle. These algorithms correspond to the ``repartition`` and ``coalesce`` methods in Spark, respectively. In particular, when ``shuffle=False``, ``num_partitions`` cannot exceed current number of partitions.
 
         :param int num_partitions: Desired number of partitions, must be less than the current number if ``shuffle=False``
 
@@ -3758,7 +3761,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Consider the following command which adds a filter and an annotation to the VDS (we're assuming a split VDS for simplicity):
+        Consider the following code which adds a filter and an annotation to the VDS (we're assuming a split VDS for simplicity):
         1) an INFO field `AC_HC`, which stores the allele count of high confidence genotypes (DP >= 10, GQ >= 20) for each non-reference allele,
         2) a filter `HardFilter` that filters all sites with the [GATK suggested hard filters]
         (http://gatkforums.broadinstitute.org/gatk/discussion/2806/howto-apply-hard-filters-to-a-call-set):
