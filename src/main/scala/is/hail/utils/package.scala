@@ -1,9 +1,11 @@
 package is.hail
 
+import java.io._
 import java.lang.reflect.Method
 import java.net.URI
 
 import is.hail.check.Gen
+import org.apache.commons.io.output.TeeOutputStream
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
@@ -11,6 +13,8 @@ import org.apache.spark.{AccumulableParam, Partition}
 import org.json4s.Extraction.decompose
 import org.json4s.jackson.Serialization
 import org.json4s.{Formats, JValue, NoTypeHints}
+import org.slf4j.event.Level
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
@@ -24,6 +28,8 @@ package object utils extends Logging
   with Py4jUtils
   with ErrorHandling {
 
+  def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
+    new TeeOutputStream(new LoggerOutputStream(LoggerFactory.getLogger(tct.runtimeClass), Level.ERROR), System.err)
 
   trait Truncatable {
     def truncate: String
