@@ -154,7 +154,14 @@ package object asm4s {
           clazz
         } catch {
           case e: java.lang.Throwable => {
-            loadClass(name)
+            try {
+              loadClass(name)
+            } catch {
+              case e2: java.lang.Throwable => {
+                e.printStackTrace()
+                throw new RuntimeException("Failed to define or load class, check logs for the exception from defineClass.", e2)
+              }
+            }
           }
         }
       }
