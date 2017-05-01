@@ -106,16 +106,16 @@ class GenericDatasetSuite extends SparkSuite {
     hc.importVCF(path).write(path2)
   }
 
-  @Test def testCount() {
+  @Test def testSummarize() {
     val vcf = "src/test/resources/sample.vcf.bgz"
     val vds = hc.importVCF(vcf)
     val gds = hc.importVCFGeneric(vcf).annotateGenotypesExpr("g = g.GT")
-    assert(vds.count(countGenotypes = true) == gds.count(countGenotypes = true))
+    assert(vds.summarize() == gds.summarize())
 
     assert(gds
       .filterGenotypes("false")
-      .count(countGenotypes = true)
-      .nCalled.get == 0)
+      .summarize()
+      .callRate.get == 0)
   }
 
   @Test def testPersistCoalesce() {
@@ -134,8 +134,9 @@ class GenericDatasetSuite extends SparkSuite {
     val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz").annotateGenotypesExpr("g = g.GT")
     val path = tmpDir.createTempFile("testExportGenotypes", ".tsv")
     gds.exportGenotypes(path, "s, v, g", false)
-    val countResult = gds.count(countGenotypes = true).nCalled.getOrElse(0)
-    assert(sc.textFile(path).count() == countResult)
+    val summary = gds.summarize()
+    val nNotMissing = summary.callRate.get * summary.variants * summary.samples
+    assert(sc.textFile(path).count() == nNotMissing)
   }
 
   @Test def testAnnotate2() {
