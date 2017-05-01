@@ -1,7 +1,9 @@
 package is.hail
 
+import java.io.PrintWriter
 import java.lang.reflect.Method
 
+import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
@@ -147,6 +149,8 @@ package object asm4s {
   }
 
   object HailClassLoader extends ClassLoader {
+    val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[HailClassLoader.type]
+
     def loadOrDefineClass(name: String, b: Array[Byte]): Class[_] = {
       getClassLoadingLock(name).synchronized {
         try {
@@ -154,7 +158,14 @@ package object asm4s {
           clazz
         } catch {
           case e: java.lang.Throwable => {
-            loadClass(name)
+            try {
+              loadClass(name)
+            } catch {
+              case e2: java.lang.Throwable => {
+                e.printStackTrace(new PrintWriter(stderrAndLoggerErrorOS))
+                throw new RuntimeException("Failed to define or load class, check logs for the exception from defineClass.", e2)
+              }
+            }
           }
         }
       }

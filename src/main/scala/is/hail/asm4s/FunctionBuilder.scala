@@ -3,8 +3,6 @@ package is.hail.asm4s
 import java.util
 import java.io._
 
-import org.apache.commons.io.output.TeeOutputStream
-
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.{ClassWriter, Type}
@@ -12,19 +10,15 @@ import java.util
 
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 import org.objectweb.asm.{ClassReader, ClassWriter, Type}
-import org.slf4j.{Logger, LoggerFactory}
-import org.slf4j.event.Level
 
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
-import is.hail.utils.LoggerOutputStream
+import is.hail.utils._
 
 object FunctionBuilder {
-  val logger = LoggerFactory.getLogger(classOf[FunctionBuilder[AnyRef]])
-  val loggerErrorOS = new LoggerOutputStream(logger, Level.ERROR)
-  val stderrAndLoggerErrorOS = new TeeOutputStream(loggerErrorOS, System.err)
+  val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[FunctionBuilder[AnyRef]]
 
   var count = 0
 
