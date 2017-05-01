@@ -120,21 +120,6 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
   def coalesce(k: Int, shuffle: Boolean = true): GenericDataset =
     gds.copy(rdd = gds.rdd.coalesce(k, shuffle = shuffle)(null).toOrderedRDD)
 
-  def count(countGenotypes: Boolean = false): CountResult = {
-    val (nVariants, nCalled) =
-      if (countGenotypes) {
-        val (nVar, nCalled) = gds.rdd.map { case (v, (va, gs)) =>
-          (1L, gs.count(g => g != null).toLong)
-        }.fold((0L, 0L)) { (comb, x) =>
-          (comb._1 + x._1, comb._2 + x._2)
-        }
-        (nVar, Some(nCalled))
-      } else
-        (gds.countVariants, None)
-
-    CountResult(gds.nSamples, nVariants, nCalled)
-  }
-
   def exportGenotypes(path: String, expr: String, typeFile: Boolean, printMissing: Boolean = false) {
     val localPrintMissing = printMissing
     val filterF: Annotation => Boolean = g => g != null || localPrintMissing
@@ -264,4 +249,9 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     ))
   }
 
+  def summarize(): SummaryResult = {
+    gds.rdd
+      .aggregate(new SummaryCombiner[Annotation](_.count(_ != null)))(_.merge(_), _.merge(_))
+      .result(gds.nSamples)
+  }
 }

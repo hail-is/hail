@@ -1009,6 +1009,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateVariants(other.variantsAndAnnotations, finalType, inserter)
   }
 
+  def count(): (Long, Long) = (nSamples, variants.count())
+
   def countVariants(): Long = variants.count()
 
   def variants: RDD[Variant] = rdd.keys
@@ -1033,10 +1035,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
   def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
-
-  def downsampleVariants(keep: Long): VariantSampleMatrix[T] = {
-    sampleVariants(keep.toDouble / countVariants())
-  }
 
   def dropSamples(): VariantSampleMatrix[T] =
     copy(sampleIds = IndexedSeq.empty[String],
@@ -1878,8 +1876,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       .forall { case (s1, s2) => saSignature.valuesSimilar(s1, s2, tolerance) }
   }
 
-  def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
-    copy(rdd = rdd.sample(withReplacement = false, fraction, 1).asOrderedRDD)
+  def sampleVariants(fraction: Double, seed: Int = 1): VariantSampleMatrix[T] ={
+    require(fraction > 0 && fraction < 1, s"the 'fraction' parameter must fall between 0 and 1, found $fraction")
+    copy(rdd = rdd.sample(withReplacement = false, fraction, seed).asOrderedRDD)
+  }
 
   def copy[U](rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[U])] = rdd,
     sampleIds: IndexedSeq[String] = sampleIds,

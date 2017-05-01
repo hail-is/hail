@@ -4,7 +4,7 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype, TVariant
 from hail.representation import Interval, IntervalTree
-from hail.utils import TextTableConfig
+from hail.utils import TextTableConfig, Summary
 from hail.kinshipMatrix import KinshipMatrix
 from py4j.protocol import Py4JJavaError
 from decorator import decorator
@@ -1337,19 +1337,24 @@ class VariantDataset(object):
         return global_concordance, sample_vds, variant_vds
 
     @handle_py4j
-    def count(self, genotypes=False):
-        """Returns number of samples, variants and genotypes in this vds as a dictionary with keys
-        ``'nSamples'``, ``'nVariants'``, and ``'nGenotypes'``.
-
-        :param bool genotypes: If true, include number of called
-            genotypes and genotype call rate as keys ``'nCalled'`` and ``'callRate'``, respectively. If the genotype
-            schema does not equal :py:class:`~hail.expr.TGenotype`, the definition of "called" is the genotype cell (``g``) is
-            not missing.
-
-        :rtype: dict
+    def count(self):
+        """Returns number of samples and variants in the dataset.
+        
+        **Examples**
+        
+        >>> samples, variants = vds.count()
+        
+        **Notes**
+        
+        This is also the fastest way to force evaluation of a Hail pipeline.
+        
+        :returns: The sample and variant counts.
+        :rtype: (int, int)
         """
 
-        return dict(self._jvdf.count(genotypes).toJavaMap())
+        r = self._jvds.count()
+
+        return r._1(), r._2()
 
     @handle_py4j
     def deduplicate(self):
@@ -1362,16 +1367,27 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deduplicate())
 
     @handle_py4j
-    def downsample_variants(self, keep):
-        """Downsample variants.
+    def sample_variants(self, fraction, seed=1):
+        """Downsample variants to a given fraction of the dataset.
+        
+        **Examples**
+        
+        >>> small_vds = vds.sample_variants(0.01)
+        
+        **Notes**
+        
+        This method may not sample exactly ``(fraction * n_variants)``
+        variants from the dataset.
 
-        :param int keep: (Expected) number of variants to keep.
+        :param float fraction: (Expected) fraction of variants to keep.
+
+        :param int seed: Random seed.
 
         :return: Downsampled variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.downsampleVariants(keep))
+        return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
     @requireTGenotype
@@ -4038,6 +4054,43 @@ class VariantDataset(object):
         """
 
         return self._jvds.storageLevel()
+
+    @handle_py4j
+    @requireTGenotype
+    def summarize(self):
+        """Returns a summary of useful information about the dataset.
+        
+        .. include:: requireTGenotype.rst
+
+        
+        **Examples**
+        
+        >>> s = vds.summarize()
+        >>> print(s.contigs)
+        >>> print('call rate is %.2f' % s.call_rate)
+        >>> s.report()
+        
+        The following information is contained in the summary:
+        
+         - **samples** (*int*) - Number of samples.
+         - **variants** (*int*) - Number of variants.
+         - **call_rate** (*float*) - Fraction of all genotypes called.
+         - **contigs** (*list of str*) - List of all unique contigs found in the dataset.
+         - **multiallelics** (*int*) - Number of multiallelic variants.
+         - **snps** (*int*) - Number of SNP alternate alleles.
+         - **mnps** (*int*) - Number of MNP alternate alleles.
+         - **insertions** (*int*) - Number of insertion alternate alleles.
+         - **deletions** (*int*) - Number of deletions alternate alleles.
+         - **complex** (*int*) - Number of complex alternate alleles.
+         - **star** (*int*) - Number of star (upstream deletion) alternate alleles.
+         - **max_alleles** (*int*) - The highest number of alleles at any variant.
+         
+        :return: Object containing summary information.
+        :rtype: :class:`~hail.utils.Summary`
+        """
+
+        js = self._jvdf.summarize()
+        return Summary._from_java(js)
 
     @handle_py4j
     def set_va_attributes(self, ann_path, attributes):
