@@ -19,12 +19,12 @@ class MinHashSuite extends SparkSuite {
 
     val vds = stats.vdsFromMatrix(hc)(genotypes)
 
-    val m = MinHash.apply(vds,k)
-    for (i <- 0 until k) assert(m(i,3) == math.min(m(i,0), m(i,1)))
-    for (i <- 0 until k) assert(m(i,4) == math.min(m(i,0), m(i,2)))
-    for (i <- 0 until k) assert(m(i,5) == math.min(m(i,1), m(i,2)))
-    for (i <- 0 until k) assert(m(i,6) == math.min(m(i,0), math.min(m(i,1), m(i,2))))
-    for (i <- 0 until k) assert(m(i,7) == Int.MaxValue)
+    val m = MinHash.fastMinHash(vds, k)
+    for (i <- 0 until k) assert(m(i, 3) == math.min(m(i, 0), m(i, 1)))
+    for (i <- 0 until k) assert(m(i, 4) == math.min(m(i, 0), m(i, 2)))
+    for (i <- 0 until k) assert(m(i, 5) == math.min(m(i, 1), m(i, 2)))
+    for (i <- 0 until k) assert(m(i, 6) == math.min(m(i, 0), math.min(m(i, 1), m(i, 2))))
+    for (i <- 0 until k) assert(m(i, 7) == Int.MaxValue)
   }
 
   @Test def trueJacaardFromVDSTest() {

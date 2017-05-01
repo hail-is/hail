@@ -18,7 +18,6 @@ object MinHash {
         val hashes = DenseVector.fill[Int](nHashes)(Random.nextInt())
         var i = 0
         while(i < n) {
-          //TODO: Write a min UFunc that modifies the left arg in place
           if (gsItr.next() > 0) l(::,i) := min(l(::,i), hashes)
           i += 1
         }
@@ -26,6 +25,39 @@ object MinHash {
     }
     val zeroValue = DenseMatrix.fill[Int](nHashes, n)(Int.MaxValue)
     vds.rdd.aggregate(zeroValue)(seqOp, min(_,_))
+  }
+
+  def fastMinHash(vds: VariantDataset, nHashes: Int): DenseMatrix[Int] = {
+    val n = vds.nSamples
+    val matSize = n * nHashes
+    def seqOp(l: Array[Int], r: (Variant, (Annotation, Iterable[Genotype]))): Array[Int] = r match {
+      case (_, (_, gs)) =>
+        val gsItr = gs.hardCallGenotypeIterator
+        val hashes = Array.fill[Int](nHashes)(Random.nextInt())
+        var i = 0
+        while(i < n) {
+          if (gsItr.next() > 0) {
+            var j = 0
+            while(j < nHashes) {
+              l(i * nHashes + j) = scala.math.min(l(i * nHashes + j), hashes(j))
+              j += 1
+            }
+          }
+          i += 1
+        }
+        l
+    }
+    def combOp(l: Array[Int], r: Array[Int]): Array[Int] = {
+      var i = 0
+      while(i < matSize) {
+        l(i) = scala.math.min(l(i), r(i))
+        i += 1
+      }
+      l
+    }
+    val zeroValue = Array.fill[Int](matSize)(Int.MaxValue)
+    val data = vds.rdd.aggregate(zeroValue)(seqOp, combOp)
+    new DenseMatrix[Int](nHashes, n, data)
   }
 
   //mat is a nHashes-by-nSamples matrix, which will be split into blockSize-by-nSamples submatrices for Min-LSH
