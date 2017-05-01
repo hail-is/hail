@@ -99,11 +99,17 @@ To :func:`split <hail.VariantDataset.split_multi>` multi-allelic variants, compu
     >>> vds.write('sample.qc.vds')
 
 
-To :func:`count <hail.VariantDataset.count>` the number of samples, variants, and genotypes, run:
+To :func:`count <hail.VariantDataset.count>` the number of samples and variants, run:
 
 .. doctest::
 
-    >>> vds.count(genotypes=True)
+    >>> vds.count()
+
+The :func:`summarize <hail.VariantDataset.summarize>` method produces a variety of useful statistics:
+
+.. doctest::
+
+    >>> vds.summarize().report()
 
 Now let's get a feel for Hail's powerful objects, annotation system, and `expression language <exprlang>`_. To print the current annotation schema and use these annotations to filter variants, samples, and genotypes, run:
 
