@@ -411,19 +411,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     CalculateConcordance(vds, other)
   }
 
-  def count(countGenotypes: Boolean = false): CountResult = {
-    val (nVariants, nCalled) =
-      if (countGenotypes) {
-        val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs)) =>
-          (1L, gs.hardCallGenotypeIterator.countNonNegative().toLong)
-        }.fold((0L, 0L)) { (comb, x) =>
-          (comb._1 + x._1, comb._2 + x._2)
-        }
-        (nVar, Some(nCalled))
-      } else
-        (vds.countVariants, None)
-
-    CountResult(vds.nSamples, nVariants, nCalled)
+  def summarize(): SummaryResult = {
+    vds.rdd
+      .aggregate(new SummaryCombiner[Genotype](_.hardCallGenotypeIterator.countNonNegative()))(_.merge(_), _.merge(_))
+      .result(vds.nSamples)
   }
 
   def eraseSplit(): VariantDataset = {
