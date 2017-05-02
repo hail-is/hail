@@ -36,25 +36,25 @@ object Gen {
   def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
     if (parts == 0)
       return Array()
-    
+
     val a = new Array[Int](parts)
-    var sizeAvail = size
-    val nSuccesses = rng.getRandomGenerator.nextInt(parts) + 1
-
-    for (i <- 0 until nSuccesses - 1) {
-      val s = if (sizeAvail != 0) rng.getRandomGenerator.nextInt(sizeAvail) else 0
-      a(i) = s
-      sizeAvail -= s
+    for (_ <- 0 until size) {
+      val i = rng.getRandomGenerator.nextInt(parts)
+      a(i) += 1
     }
-
-    a(nSuccesses - 1) = sizeAvail
-
     assert(a.sum == size)
-
-    rng.nextPermutation(a.length, a.length).map(a)
+    a
   }
 
-  def partition(parts: Int, sum: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, sum, parts) }
+  def partition(parts: Int, sum: Int): Gen[Array[Int]] = {
+    val allOneBucket = Gen { p =>
+      val a = Array.fill[Int](parts)(0)
+      a(p.rng.nextInt(0, parts - 1)) = sum
+      a
+    }
+
+    Gen.frequency(1 -> allOneBucket, 9 -> Gen { p => partition(p.rng, sum, parts) })
+  }
 
   def partitionSize(parts: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts) }
 

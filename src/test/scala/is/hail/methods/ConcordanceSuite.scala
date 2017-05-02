@@ -16,12 +16,7 @@ class ConcordanceSuite extends SparkSuite {
     scrambledIds1 <- Gen.shuffle(vds1.sampleIds).map(_.iterator);
     newIds2 <- Gen.parameterized { p =>
       Gen.const(vds2.sampleIds.map { id =>
-        if (scrambledIds1.hasNext && p.rng.nextUniform(0, 1) < .5) {
-          val newId = scrambledIds1.next()
-          if (!vds2.sampleIds.contains(newId)) newId else id
-        }
-        else
-          id
+        if (scrambledIds1.hasNext && p.rng.nextUniform(0, 1) < .5) scrambledIds1.next() else id
       })
     };
     scrambledVariants1 <- Gen.shuffle(vds1.variants.collect()).map(_.iterator);
