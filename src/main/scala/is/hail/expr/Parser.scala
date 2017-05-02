@@ -527,7 +527,7 @@ object Parser extends JavaTokenParsers {
     "Empty" ^^ { _ => TStruct.empty } |
       "Interval" ^^ { _ => TInterval } |
       "Boolean" ^^ { _ => TBoolean } |
-      "Char" ^^ { _ => TChar } |
+      "Char" ^^ { _ => TString } | // FIXME backward-compatibility, remove this at some point
       "Int" ^^ { _ => TInt } |
       "Long" ^^ { _ => TLong } |
       "Float" ^^ { _ => TFloat } |

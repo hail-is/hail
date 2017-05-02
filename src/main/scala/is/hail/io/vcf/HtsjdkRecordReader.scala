@@ -351,12 +351,9 @@ object HtsjdkRecordReader {
         s.split(",").map(x => (if (x == ".") null else x.toDouble): java.lang.Double): IndexedSeq[java.lang.Double]
       case (s: String, TArray(TString)) =>
         s.split(",").map(x => if (x == ".") null else x): IndexedSeq[String]
-      case (s: String, TArray(TChar)) =>
-        s.split(",").map(x => if (x == ".") null else x): IndexedSeq[String]
       case (s: String, TBoolean) => s.toBoolean
       case (b: Boolean, TBoolean) => b
       case (s: String, TString) => s
-      case (s: String, TChar) => s
       case (s: String, TInt) => s.toInt
       case (s: String, TDouble) => if (s == "nan") Double.NaN else s.toDouble
 
@@ -389,8 +386,6 @@ object HtsjdkRecordReader {
           case i: Int => i.toString
           case d: Double => d.toString
         }.toArray[String]: IndexedSeq[String]
-      case (l: java.util.List[_], TArray(TChar)) =>
-        l.asScala.iterator.map(_.asInstanceOf[String]).toArray[String]: IndexedSeq[String]
 
       case (i: Int, TCall) => i
       case (s: String, TCall) => s.toInt

@@ -16,7 +16,7 @@ import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 object Type {
-  val genScalar = Gen.oneOf[Type](TBoolean, TChar, TInt, TLong, TFloat, TDouble, TString,
+  val genScalar = Gen.oneOf[Type](TBoolean, TInt, TLong, TFloat, TDouble, TString,
     TVariant, TAltAllele, TGenotype, TLocus, TInterval, TCall)
 
   def genSized(size: Int): Gen[Type] = {
@@ -187,22 +187,6 @@ case object TBoolean extends Type {
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]])
-}
-
-case object TChar extends Type {
-  override def toString = "Char"
-
-  def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[String]
-    && a.asInstanceOf[String].length == 1)
-
-  override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
-    .filter(_.nonEmpty)
-    .map(s => s.substring(0, 1))
-
-  override def scalaClassTag: ClassTag[java.lang.String] = classTag[java.lang.String]
-
-  def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]])
 }
 
 object TNumeric {

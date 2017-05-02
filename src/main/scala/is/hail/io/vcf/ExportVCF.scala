@@ -1,7 +1,7 @@
 package is.hail.io.vcf
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{Field, TArray, TBoolean, TCall, TChar, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TSet, TString, TStruct, Type}
+import is.hail.expr.{Field, TArray, TBoolean, TCall, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TSet, TString, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.{Call, GenericDataset, Genotype, Variant}
 import org.apache.spark.sql.Row
@@ -93,7 +93,6 @@ object ExportVCF {
     case TLong => "Integer"
     case TDouble => "Float"
     case TFloat => "Float"
-    case TChar => "Character"
     case TString => "String"
     case TBoolean => "Flag"
     case _ => fatal(s"Cannot export type `$t' to VCF INFO field.")
@@ -106,7 +105,6 @@ object ExportVCF {
     case TLong => "Integer"
     case TDouble => "Float"
     case TFloat => "Float"
-    case TChar => "Character"
     case TString => "String"
     case TCall => "String"
     case _ => fatal(s"Cannot export type `$t' to VCF FORMAT field.")
@@ -189,7 +187,6 @@ object ExportVCF {
   def validFormatType(typ: Type): Boolean = {
     typ match {
       case TString => true
-      case TChar => true
       case TDouble => true
       case TFloat => true
       case TInt => true

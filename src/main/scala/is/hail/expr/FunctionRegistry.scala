@@ -2506,7 +2506,7 @@ object FunctionRegistry {
         let s = "genetics" in s[6]
         result: "c"
     """, "i" -> "Index of the character to return."
-  )(stringHr, intHr, charHr)
+  )(stringHr, intHr, stringHr)
 
   registerMethod("[:]", (a: IndexedSeq[Any]) => a,
     """

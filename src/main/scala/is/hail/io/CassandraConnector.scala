@@ -52,7 +52,6 @@ object CassandraImpex {
     case TFloat => DataType.cfloat()
     case TDouble => DataType.cdouble()
     case TString => DataType.text()
-    case TChar => DataType.text()
     case TBinary => DataType.blob()
     case TCall => DataType.cint()
     case TArray(elementType) => DataType.list(exportType(elementType, depth + 1), depth == 1)
@@ -107,7 +106,6 @@ object CassandraImpex {
     case TFloat => a
     case TDouble => a
     case TString => a
-    case TChar => a
     case TBinary => ByteBuffer.wrap(a.asInstanceOf[Array[Byte]])
     case TCall => a
     case TArray(elementType) =>
