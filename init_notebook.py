@@ -2,6 +2,7 @@
 
 import os
 import json
+import time
 from subprocess import call, Popen, PIPE
 
 # get role of machine (master or worker)
@@ -122,3 +123,7 @@ if role == 'Master':
     call(['systemctl', 'daemon-reload'])
     call(['systemctl', 'enable', 'jupyter'])
     call(['service', 'jupyter', 'start'])
+
+    # sleep for 30 seconds to allow Jupyter notebook server to start
+    time.sleep(30)
+

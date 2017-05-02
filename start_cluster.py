@@ -66,7 +66,8 @@ properties = ','.join([
 ])
 
 # default initialization script to start up cluster with
-init_actions = 'gs://hail-common/init_notebook.py'
+init_actions = 'gs://labbott/init_notebook2.py'
+#init_actions = 'gs://hail-common/init_notebook.py'
 
 # add VEP action
 if args.vep:
@@ -99,8 +100,3 @@ try:
 except subprocess.CalledProcessError:
     pass
 
-# wait for Jupyter server process to start 
-else:
-    print "Waiting 30 seconds for Jupyter notebook server to start..."
-    time.sleep(30)
-    print "Done!"
