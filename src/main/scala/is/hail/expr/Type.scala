@@ -1,5 +1,7 @@
 package is.hail.expr
 
+import is.hail.asm4s
+import is.hail.asm4s._
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
@@ -150,6 +152,8 @@ sealed abstract class Type {
 
   def scalaClassTag: ClassTag[_ <: AnyRef]
 
+  def typeInfo: asm4s.TypeInfo[_ <: AnyRef]
+
   def canCompare(other: Type): Boolean = this == other
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation]
@@ -163,6 +167,8 @@ case object TBinary extends Type {
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf(arbitrary[Byte])
 
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
+
+  override def typeInfo: asm4s.TypeInfo[Array[Byte]] = implicitly[asm4s.TypeInfo[Array[Byte]]]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
     val ord = Ordering.Iterable[Byte]
@@ -185,6 +191,8 @@ case object TBoolean extends Type {
 
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 
+  override def typeInfo: asm4s.TypeInfo[java.lang.Boolean] = implicitly[asm4s.TypeInfo[java.lang.Boolean]]
+
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]])
 }
@@ -200,6 +208,8 @@ case object TChar extends Type {
     .map(s => s.substring(0, 1))
 
   override def scalaClassTag: ClassTag[java.lang.String] = classTag[java.lang.String]
+
+  override def typeInfo: asm4s.TypeInfo[java.lang.String] = implicitly[asm4s.TypeInfo[java.lang.String]]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]])
@@ -239,6 +249,8 @@ case object TInt extends TIntegral {
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
+  override def typeInfo: asm4s.TypeInfo[java.lang.Integer] = implicitly[asm4s.TypeInfo[java.lang.Integer]]
+
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]])
 
@@ -254,6 +266,8 @@ case object TLong extends TIntegral {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Long]
 
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
+
+  override def typeInfo: asm4s.TypeInfo[java.lang.Long] = implicitly[asm4s.TypeInfo[java.lang.Long]]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Long]])
@@ -275,6 +289,8 @@ case object TFloat extends TNumeric {
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
+  override def typeInfo: asm4s.TypeInfo[java.lang.Float] = implicitly[asm4s.TypeInfo[java.lang.Float]]
+
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Float]])
 }
@@ -295,6 +311,8 @@ case object TDouble extends TNumeric {
 
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
 
+  override def typeInfo: asm4s.TypeInfo[java.lang.Double] = implicitly[asm4s.TypeInfo[java.lang.Double]]
+
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]])
 }
@@ -307,6 +325,8 @@ case object TString extends Type {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
+
+  override def typeInfo: asm4s.TypeInfo[String] = implicitly[asm4s.TypeInfo[String]]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]])
@@ -338,6 +358,8 @@ case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
   override def children: Seq[Type] = paramTypes :+ returnType
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TFunction is not realizable")
+
+  override def typeInfo: asm4s.TypeInfo[AnyRef] = throw new RuntimeException("TFunction is not realizable")
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TFunction is not realizable")
@@ -391,6 +413,8 @@ case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends 
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")
 
+  override def typeInfo: asm4s.TypeInfo[AnyRef] = throw new RuntimeException("TAggregableVariable is not realizable")
+
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TAggregableVariable is not realizable")
 }
@@ -423,6 +447,8 @@ case class TVariable(name: String, var t: Type = null) extends Type {
   }
 
   override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TVariable is not realizable")
+
+  override def typeInfo: asm4s.TypeInfo[AnyRef] = throw new RuntimeException("TVariable is not realizable")
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TVariable is not realizable")
@@ -463,6 +489,8 @@ case class TAggregable(elementType: Type) extends TContainer {
   override def desc: String = TAggregable.desc
 
   override def scalaClassTag: ClassTag[_ <: AnyRef] = elementType.scalaClassTag
+
+  override def typeInfo: asm4s.TypeInfo[_ <: AnyRef] = elementType.typeInfo
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     throw new RuntimeException("TAggregable is not realizable")
@@ -542,6 +570,9 @@ case class TArray(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
+
+  override def typeInfo: asm4s.TypeInfo[IndexedSeq[AnyRef]] = implicitly[asm4s.TypeInfo[IndexedSeq[AnyRef]]]
+
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -587,6 +618,9 @@ case class TSet(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
+
+  override def typeInfo: asm4s.TypeInfo[Set[AnyRef]] = implicitly[asm4s.TypeInfo[Set[AnyRef]]]
+
 }
 
 case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -644,6 +678,8 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
+  override def typeInfo: asm4s.TypeInfo[Map[_,_]] = implicitly[asm4s.TypeInfo[Map[_,_]]]
+
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
     extendOrderingToNull(missingGreatest)(
       Ordering.Iterable(
@@ -664,6 +700,8 @@ case object TGenotype extends Type {
 
   override def scalaClassTag: ClassTag[Genotype] = classTag[Genotype]
 
+  override def typeInfo: asm4s.TypeInfo[Genotype] = implicitly[asm4s.TypeInfo[Genotype]]
+
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Genotype]])
 }
@@ -679,6 +717,8 @@ case object TCall extends Type {
 
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
+  override def typeInfo: asm4s.TypeInfo[java.lang.Integer] = implicitly[asm4s.TypeInfo[java.lang.Integer]]
+
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]])
 }
@@ -693,6 +733,8 @@ case object TAltAllele extends Type {
   override def desc: String = "An ``AltAllele`` is a Hail data type representing an alternate allele in the Variant Dataset."
 
   override def scalaClassTag: ClassTag[AltAllele] = classTag[AltAllele]
+
+  override def typeInfo: asm4s.TypeInfo[AltAllele] = implicitly[asm4s.TypeInfo[AltAllele]]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]])
@@ -719,6 +761,8 @@ case object TVariant extends Type {
 
   override def scalaClassTag: ClassTag[Variant] = classTag[Variant]
 
+  override def typeInfo: asm4s.TypeInfo[Variant] = implicitly[asm4s.TypeInfo[Variant]]
+
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]])
 }
@@ -734,6 +778,8 @@ case object TLocus extends Type {
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
+  override def typeInfo: asm4s.TypeInfo[Locus] = implicitly[asm4s.TypeInfo[Locus]]
+
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]])
 }
@@ -748,6 +794,8 @@ case object TInterval extends Type {
   override def desc: String = "An ``Interval`` is a Hail data type representing a range of genomic locations in the Variant Dataset."
 
   override def scalaClassTag: ClassTag[Interval[Locus]] = classTag[Interval[Locus]]
+
+  override def typeInfo: asm4s.TypeInfo[Interval[Locus]] = implicitly[asm4s.TypeInfo[Interval[Locus]]]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]])
@@ -1180,6 +1228,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     """
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
+
+  override def typeInfo: asm4s.TypeInfo[Row] = implicitly[asm4s.TypeInfo[Row]]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
     val fieldOrderings = fields.map(f => f.typ.ordering(missingGreatest))

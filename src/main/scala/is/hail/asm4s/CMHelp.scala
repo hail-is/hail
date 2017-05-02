@@ -1,6 +1,6 @@
-package is.hail.expr
+package is.hail.asm4s
 
-import is.hail.asm4s.{Code, TypeInfo, _}
+import is.hail.expr.{TNumeric, Type}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree.{AbstractInsnNode, InsnNode}
 
@@ -8,12 +8,12 @@ import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-// Without this, we can't use invokeStatic with CompilationHelp as a type.
-case class CompilationHelp() {}
+// Without this, we can't use invokeStatic with CMHelp as a type.
+case class CMHelp() {}
 
-object CompilationHelp {
+object CMHelp {
   def arrayToWrappedArray[T](a: Code[Array[T]])(implicit tct: ClassTag[T]): Code[IndexedSeq[T]] =
-    Code.invokeStatic[CompilationHelp, Array[T], mutable.WrappedArray[T]]("__arrayToWrappedArray", a)
+    Code.invokeStatic[CMHelp, Array[T], mutable.WrappedArray[T]]("__arrayToWrappedArray", a)
 
   def __arrayToWrappedArray(a: Array[Double]): mutable.WrappedArray[Double] = a
   def __arrayToWrappedArray(a: Array[Int]): mutable.WrappedArray[Int] = a

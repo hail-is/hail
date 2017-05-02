@@ -236,7 +236,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   def runAggregator(ec: EvalContext): CPS[Any] = {
     val typedNames = ec.st.toSeq
       .sortBy { case (_, (i, _)) => i }
-      .map { case (name, (_, typ)) => (name, typ) }
+      .map { case (name, (_, typ)) => (name, typ.typeInfo) }
     val values = ec.a.asInstanceOf[mutable.ArrayBuffer[AnyRef]]
 
     val idx = ec.a.length
@@ -308,7 +308,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
     case t: TStruct =>
       val Some(f) = t.selfField(rhs)
       val i = f.index
-      AST.evalComposeCode[Row](lhs) { r: Code[Row] => Code.checkcast(r.invoke[Int, AnyRef]("get", i))(f.typ.scalaClassTag) }
+      AST.evalComposeCode[Row](lhs) { r: Code[Row] => Code.checkcast(r.invoke[Int, AnyRef]("get", i))(f.typ.typeInfo) }
 
     case t =>
       val localPos = posn
@@ -350,9 +350,9 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
 
   def compile() = for (
     celements <- CM.sequence(elements.map(_.compile()));
-    convertedArray <- CompilationHelp.arrayOfWithConversion(`type`.asInstanceOf[TArray].elementType, celements))
+    convertedArray <- CMHelp.arrayOfWithConversion(`type`.asInstanceOf[TArray].elementType, celements))
   yield
-    CompilationHelp.arrayToWrappedArray(convertedArray)
+    CMHelp.arrayToWrappedArray(convertedArray)
 }
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
@@ -373,7 +373,7 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
 
   def compile() = for (
     celements <- CM.sequence(elements.map(_.compile()))
-  ) yield arrayToAnnotation(CompilationHelp.arrayOf(celements))
+  ) yield arrayToAnnotation(CMHelp.arrayOf(celements))
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
@@ -644,7 +644,10 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
 
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
-  def compile() = CM.bindRepIn(bindings.map { case (name, expr) => (name, expr.`type`, expr.compile()) })(body.compile())
+  // the compilation process ensures that types are respected
+  // FIXME: return the correct type with the compilation process
+  def compile() =
+    CM.bindRepIn(bindings.map { case (name, expr) => (name, unsafeCastCode(expr.`type`.typeInfo, expr.compile())) })(body.compile())
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {

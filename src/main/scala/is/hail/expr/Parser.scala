@@ -5,6 +5,7 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
+import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -45,7 +46,7 @@ object Parser extends JavaTokenParsers {
   private def evalNoTypeCheck(t: AST, ec: EvalContext): () => Any = {
     val typedNames = ec.st.toSeq
       .sortBy { case (name, (i, _)) => i }
-      .map { case (name, (_, typ)) => (name, typ) }
+      .map { case (name, (_, typ)) => (name, typ.typeInfo) }
     val f = t.compile().runWithDelayedValues(typedNames.toSeq, ec)
 
     // FIXME: ec.a is actually mutable.ArrayBuffer[AnyRef] because Annotation is
