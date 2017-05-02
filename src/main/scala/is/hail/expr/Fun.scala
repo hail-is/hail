@@ -63,6 +63,25 @@ case class Arity0Aggregator[T, U](retType: Type, ctor: () => TypedAggregator[U])
   }
 }
 
+object GroupByAggregatorFun {
+  def apply[T](retType: Type): GroupByAggregatorFun[T] =
+    GroupByAggregatorFun(retType,
+      { (key: Any => Any, transformer: (Any, Any => Any) => Any, downstream: TypedAggregator[T]) =>
+        new is.hail.methods.GroupByAggregator(key, transformer, downstream) })
+}
+
+case class GroupByAggregatorFun[T](retType: Type,
+  ctor: (Any => Any, (Any, Any => Any) => Any, TypedAggregator[T]) => TypedAggregator[Map[Any, T]]) extends Fun {
+  def subst() = GroupByAggregatorFun[T](retType.subst(), ctor)
+
+  def convertArgs(transformations: Array[Transformation[Any, Any]]): Fun = {
+    assert(transformations.length == 1)
+
+    GroupByAggregatorFun[T](retType, (key: Any => Any, transformation: (Any, Any => Any) => Any, downstream: TypedAggregator[T]) =>
+      new is.hail.methods.GroupByAggregator(key, (x, k)  => transformation(transformations(0).f(x), k), downstream))
+  }
+}
+
 class TransformedAggregator[T](val prev: TypedAggregator[T], transform: (Any) => Any) extends TypedAggregator[T] {
   def seqOp(x: Any) = prev.seqOp(transform(x))
 

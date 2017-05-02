@@ -257,6 +257,8 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
       f(values)
     }
   }
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])]
 }
 
 case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
@@ -275,6 +277,8 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
   })
 
   override def typecheckThis(): Type = t
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = throw new UnsupportedOperationException
 }
 
 case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) {
@@ -323,6 +327,8 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
         case otherwise => fatal(otherwise.message)
       }
   }
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = throw new UnsupportedOperationException
 }
 
 case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(posn, elements) {
@@ -353,6 +359,8 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     convertedArray <- CompilationHelp.arrayOfWithConversion(`type`.asInstanceOf[TArray].elementType, celements))
   yield
     CompilationHelp.arrayToWrappedArray(convertedArray)
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = throw new UnsupportedOperationException
 }
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
@@ -374,6 +382,8 @@ case class StructConstructor(posn: Position, names: Array[String], elements: Arr
   def compile() = for (
     celements <- CM.sequence(elements.map(_.compile()))
   ) yield arrayToAnnotation(CompilationHelp.arrayOf(celements))
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = throw new UnsupportedOperationException
 }
 
 case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, body) {
@@ -382,6 +392,8 @@ case class Lambda(posn: Position, param: String, body: AST) extends AST(posn, bo
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   def compile() = throw new UnsupportedOperationException
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = throw new UnsupportedOperationException
 }
 
 case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn, args) {
@@ -560,6 +572,8 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case (_, _) =>
       FunctionRegistry.call(fn, args, args.map(_.`type`).toSeq)
   }
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = throw new UnsupportedOperationException
 }
 
 case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST]) extends AST(posn, lhs +: args) {
@@ -573,6 +587,15 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   override def typecheck(ec: EvalContext) {
     lhs.typecheck(ec)
     (lhs.`type`, method, args) match {
+
+      case (it: TAggregable, "groupBy", Array(Lambda(_, param1, body1), Lambda(_, param2, body2), rest@_*)) =>
+        rest.foreach(_.typecheck(ec.copy(st = emptySymTab)))
+        body1.typecheck(ec.copy(st = it.symTab + ((param1, (-1, it.elementType)))))
+        body2.typecheck(ec.copy(st = ec.st.filter { case (name, (idx, typ)) => !typ.isInstanceOf[TAggregable] } + ((param2, (it.symTab.find { case (_, (_, t)) => t == it.elementType }.get._2._1, it)))))
+        val funType1 = TFunction(Array(it.elementType), body1.`type`)
+        val funType2 = TFunction(Array(it), body2.`type`)
+        `type` = FunctionRegistry.lookupMethodReturnType(it, funType1 +: funType2 +: rest.map(_.`type`), method)
+          .valueOr(x => parseError(x.message))
 
       case (it: TAggregable, _, Array(Lambda(_, param, body), rest@_*)) =>
         rest.foreach(_.typecheck(ec.copy(st = emptySymTab)))
@@ -622,10 +645,34 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   }
 
   def compile() = ((lhs.`type`, method, args): @unchecked) match {
+    case (it: TContainer, "groupBy", Array(Lambda(_, param, body), Lambda(_, param2, body2), rest@_*)) =>
+      val funType1 = TFunction(Array(it.elementType), body.`type`)
+      val funType2 = TFunction(Array(it), body2.`type`)
+      FunctionRegistry.call(method, lhs +: args, it +: funType1 +: funType2 +: rest.map(_.`type`))
     case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
       val funType = TFunction(Array(it.elementType), body.`type`)
       FunctionRegistry.call(method, lhs +: args, it +: funType +: rest.map(_.`type`))
     case (t, _, _) => FunctionRegistry.call(method, lhs +: args, t +: args.map(_.`type`))
+  }
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = ((lhs.`type`, method, args): @unchecked) match {
+    case (it: TAggregable, "groupBy", Array(Lambda(_, param1, body1), Lambda(_, param2, body2), rest@_*)) =>
+      val funType1 = TFunction(Array(it.elementType), body1.`type`)
+      val funType2 = TFunction(Array(it), body2.`type`)
+      `type` = FunctionRegistry.lookupMethodReturnType(it, funType1 +: funType2 +: rest.map(_.`type`), method)
+        .valueOr(x => parseError(x.message))
+      for {
+        aggregator <- FunctionRegistry.lookupAggregator(method, lhs +: args, it +: funType1 +: funType2 +: rest.map(_.`type`))
+      } yield (lhs.compileAggregator(), aggregator)
+
+    case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
+      val funType = TFunction(Array(it.elementType), body.`type`)
+      for {
+        aggregator <- FunctionRegistry.lookupAggregator(method, lhs +: args, it +: funType +: rest.map(_.`type`))
+      } yield (lhs.compileAggregator(), aggregator)
+    case (t, _, _) => for {
+        aggregator <- FunctionRegistry.lookupAggregator(method, lhs +: args, t +: args.map(_.`type`))
+      } yield (lhs.compileAggregator(), aggregator)
   }
 }
 
@@ -645,6 +692,12 @@ case class Let(posn: Position, bindings: Array[(String, AST)], body: AST) extend
   def compileAggregator(): CMCodeCPS[AnyRef] = throw new UnsupportedOperationException
 
   def compile() = CM.bindRepIn(bindings.map { case (name, expr) => (name, expr.`type`, expr.compile()) })(body.compile())
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = for {
+    (downstreamCode, downstreamAggregator) <- body.downstreamAggregator();
+    code = { (k: Code[AnyRef] => CM[Code[Unit]]) =>
+      CM.bindRepIn(bindings.map { case (name, expr) => (name, expr.`type`, expr.compile()) })(downstreamCode(k)) }
+  } yield (code, downstreamAggregator)
 }
 
 case class SymRef(posn: Position, symbol: String) extends AST(posn) {
@@ -667,6 +720,8 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
   }
 
   def compile() = CM.lookup(symbol)
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = throw new UnsupportedOperationException
 }
 
 case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
@@ -696,4 +751,6 @@ case class If(pos: Position, cond: AST, thenTree: AST, elseTree: AST)
         coerce(cc.invoke[Boolean]("booleanValue").mux(tc, ec)))
     ) yield result
   }
+
+  def downstreamAggregator(): CM[(CMCodeCPS[AnyRef], TypedAggregator[_])] = throw new UnsupportedOperationException
 }
