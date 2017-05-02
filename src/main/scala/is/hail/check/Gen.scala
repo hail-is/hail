@@ -306,11 +306,13 @@ object Gen {
   def zip[T1](g1: Gen[T1]): Gen[T1] = g1
 
   def zip[T1, T2](g1: Gen[T1], g2: Gen[T2]): Gen[(T1, T2)] = Gen { (p: Parameters) =>
-    (g1(p), g2(p))
+    val s = partition(p.rng, p.size, 2)
+    (g1.resize(s(0))(p), g2.resize(s(1))(p))
   }
 
   def zip[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3]): Gen[(T1, T2, T3)] = Gen { (p: Parameters) =>
-    (g1(p), g2(p), g3(p))
+    val s = partition(p.rng, p.size, 3)
+    (g1.resize(s(0))(p), g2.resize(s(1))(p), g3.resize(s(2))(p))
   }
 
   def parameterized[T](f: (Parameters => Gen[T])) = Gen { p => f(p)(p) }
