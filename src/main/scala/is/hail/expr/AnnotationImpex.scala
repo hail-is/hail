@@ -434,6 +434,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case Array(ref, alt) => AltAllele(ref, alt)
       }
       case TGenotype => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case TCall => a.toInt
       case TChar => a
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
