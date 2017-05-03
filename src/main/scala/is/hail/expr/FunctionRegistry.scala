@@ -2579,6 +2579,7 @@ object FunctionRegistry {
     this rule:
 
     .. code-block:: text
+
         s[-i:-j] == s[s.length - i, s.length - j]
     """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
   )(arrayHr(TTHr), intHr, intHr, arrayHr(TTHr))
@@ -2654,6 +2655,7 @@ object FunctionRegistry {
     this rule, which holds for any positive integers i and j:
 
     .. code-block:: text
+
         s[-i:-j] == s[s.length - i, s.length - j]
     """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
   )
