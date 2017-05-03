@@ -462,20 +462,51 @@ class ExprSuite extends SparkSuite {
     assert(t2 == TStruct(("field1", TInt), ("asdasd", TString)))
 
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][0:2] """).contains(IndexedSeq(0, 1)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][2:100] """).contains(IndexedSeq(2, 3)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][2:] """).contains(IndexedSeq(2, 3)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][:2] """).contains(IndexedSeq(0, 1)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][:] """).contains(IndexedSeq(0, 1, 2, 3)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][-3:] """).contains(IndexedSeq(1, 2, 3)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][:-1] """).contains(IndexedSeq(0, 1, 2)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][0:-3] """).contains(IndexedSeq(0)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][-4:-2] """).contains(IndexedSeq()))
+
+    forAll(Gen.choose(1, 10), Gen.choose(1, 10)) { (i: Int, j: Int) =>
+      assert(eval[String](""" [0,1,2,3][-$i:-$j] """) == eval[String](""" [0,1,2,3][4-$i:4-$j] """))
+    }.check()
+
+    forAll { (i: Int) =>
+      assert(eval[String](""" [0,1,2,3][$i:] """) == eval[String](""" [0,1,2,3][$i:4] """))
+    }.check()
+
+    forAll { (i: Int) =>
+      assert(eval[String](""" [0,1,2,3][:$i] """) == eval[String](""" [0,1,2,3][0:$i] """))
+    }.check()
 
     assert(eval[String](""" "abcd"[0:2] """).contains("ab"))
+    assert(eval[String](""" "abcd"[2:100] """).contains("cd"))
     assert(eval[String](""" "abcd"[2:] """).contains("cd"))
     assert(eval[String](""" "abcd"[:2] """).contains("ab"))
     assert(eval[String](""" "abcd"[:] """).contains("abcd"))
     assert(eval[String](""" ""[:] """).contains(""))
-    assert(eval[String](""" "abcd"[-2:100] """).contains("abcd"))
+    assert(eval[String](""" "abcd"[-2:100] """).contains("cd"))
     assert(eval[String](""" "abcd"[-2:0] """).contains(""))
     assert(eval[String](""" "abcd"[0:100] """).contains("abcd"))
     assert(eval[String](""" "abcd"[4:] """).contains(""))
     assert(eval[String](""" "abcd"[3:] """).contains("d"))
+    assert(eval[String](""" "abcd"[-4:-2] """).contains(""))
+
+    forAll(Gen.choose(1, 10), Gen.choose(1, 10)) { (i: Int, j: Int) =>
+      assert(eval[String](""" "abcd"[-$i:-$j] """) == eval[String](""" "abcd"[4-$i:4-$j] """))
+    }.check()
+
+    forAll { (i: Int) =>
+      assert(eval[String](""" "abcd"[$i:] """) == eval[String](""" "abcd"[$i:4] """))
+    }.check()
+
+    forAll { (i: Int) =>
+      assert(eval[String](""" "abcd"[:$i] """) == eval[String](""" "abcd"[0:$i] """))
+    }.check()
 
     assert(eval[Int](""" genedict["gene2"] """).contains(10))
 
