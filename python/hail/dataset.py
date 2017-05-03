@@ -3081,7 +3081,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def logreg(self, test, y, covariates=[], root='va.logreg'):
+    def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
         """Test each variant for association using logistic regression.
 
         .. include:: requireTGenotype.rst
@@ -3104,6 +3104,12 @@ class VariantDataset(object):
         Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
         and Firth test ('firth'). Hail only includes samples for which the phenotype and all covariates are
         defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
+
+        By default, genotypes values are given by hard call genotypes (``g.gt``).
+        If ``use_dosages=True``, then genotype values are given by dosage genotypes, defined by
+        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For any variant, if ``Variant.is_dosage``
+        is false, then :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
+        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         The example above considers a model of the form
 
@@ -3194,11 +3200,13 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of logistic regression.
 
+        :param bool use_dosages: If true, use genotype dosage rather than hard call.
+
         :return: Variant dataset with logistic regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root)
+        jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
