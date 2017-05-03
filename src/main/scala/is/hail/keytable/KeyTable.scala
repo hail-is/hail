@@ -373,32 +373,38 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         s"""Columns that are not keys cannot be present in both key tables.
            |  Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
 
-    val mergeFields = other.valueSignature.fields
-    val mergeIndices = mergeFields.map(_.index)
 
-    val newSignature = TStruct((fields ++ mergeFields).map(fd => (fd.name, fd.typ)): _*)
-
-    val size1 = nFields
-    val targetSize = newSignature.size
+    val newSignature = TStruct((keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields)
+      .map(fd => (fd.name, fd.typ)): _*)
     val localNKeys = nKeys
-    val localLeftSize = valueSignature.size
+    val size1 = valueSignature.size
+    val size2 = other.valueSignature.size
+    val totalSize = newSignature.size
+
+    assert(totalSize == localNKeys + size1 + size2)
 
     val merger = (k: Row, r1: Row, r2: Row) => {
-      val result = Array.fill[Any](targetSize)(null)
+      val result = Array.fill[Any](totalSize)(null)
 
-      (0 until localNKeys).foreach { i =>
+      var i = 0
+      while (i < localNKeys) {
         result(i) = k.get(i)
+        i += 1
       }
 
       if (r1 != null) {
-        (localNKeys until localNKeys + localLeftSize).foreach { i =>
-          result(i) = r1.get(i - localNKeys)
+        i = 0
+        while (i < size1) {
+          result(localNKeys + i) = r1.get(i)
+          i += 1
         }
       }
 
       if (r2 != null) {
-        mergeIndices.indices.foreach { i =>
-          result(size1 + i) = r2(mergeIndices(i))
+        i = 0
+        while (i < size2) {
+          result(localNKeys + size1 + i) = r2.get(i)
+          i += 1
         }
       }
       Row.fromSeq(result)

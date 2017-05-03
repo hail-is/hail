@@ -28,7 +28,7 @@ object Type {
       Gen.oneOfGen(genScalar,
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
-        Gen.zip(genArb.resize(size - 1), genArb.resize(size - 1)).map { case (k, v) => TDict(k, v) },
+        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v) },
         genStruct.resize(size))
   }
 
