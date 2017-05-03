@@ -82,7 +82,7 @@ object VariantSampleMatrix {
 }
 
 case class VSMSubgen[T](
-  sampleIdGen: Gen[IndexedSeq[String]],
+  sampleIdGen: Gen[Array[String]],
   saSigGen: Gen[Type],
   vaSigGen: Gen[Type],
   globalSigGen: Gen[Type],
