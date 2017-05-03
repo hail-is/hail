@@ -42,13 +42,16 @@ if (!(sparkVersion ==~ /^2\..*/))
 
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
-String breezeVersion = '0.11.2'
 
 String py4jVersion
-if (sparkVersion ==~ /^2\.1.*/)
+String breezeVersion
+if (sparkVersion ==~ /^2\.1.*/) {
     py4jVersion = '0.10.4'
-else
+    breezeVersion = '0.12'
+} else {
     py4jVersion = '0.10.3'
+    breezeVersion = '0.11.2'
+}
 
 String kuduSpark = 'spark2'
 String mongoVersion = '2.0.0'
