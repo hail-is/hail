@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.TestUtils._
 import is.hail.annotations.Annotation
+import is.hail.check.Gen
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
