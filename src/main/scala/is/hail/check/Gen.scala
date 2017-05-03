@@ -305,15 +305,18 @@ object Gen {
 
   def zip[T1](g1: Gen[T1]): Gen[T1] = g1
 
-  def zip[T1, T2](g1: Gen[T1], g2: Gen[T2]): Gen[(T1, T2)] = Gen { (p: Parameters) =>
-    val s = partition(p.rng, p.size, 2)
-    (g1.resize(s(0))(p), g2.resize(s(1))(p))
-  }
+  def zip[T1, T2](g1: Gen[T1], g2: Gen[T2]): Gen[(T1, T2)] = for {
+    Array(s1, s2) <- partitionSize(2)
+    x <- g1.resize(s1)
+    y <- g2.resize(s2)
+  } yield (x, y)
 
-  def zip[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3]): Gen[(T1, T2, T3)] = Gen { (p: Parameters) =>
-    val s = partition(p.rng, p.size, 3)
-    (g1.resize(s(0))(p), g2.resize(s(1))(p), g3.resize(s(2))(p))
-  }
+  def zip[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3]): Gen[(T1, T2, T3)] = for {
+    Array(s1, s2, s3) <- partitionSize(3)
+    x <- g1.resize(s1)
+    y <- g2.resize(s2)
+    z <- g3.resize(s3)
+  } yield (x, y, z)
 
   def parameterized[T](f: (Parameters => Gen[T])) = Gen { p => f(p)(p) }
 
