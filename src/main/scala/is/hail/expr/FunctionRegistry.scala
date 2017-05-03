@@ -1166,56 +1166,59 @@ object FunctionRegistry {
 
   register("rpois", { (lambda: Double) => rpois(lambda) },
     """
-    Returns a random draw from a Poisson distribution with rate (mean) parameter ``lambda``. This function is non-deterministic.
+    Returns a random draw from a Poisson distribution with rate parameter ``lambda``. This function is non-deterministic.
     """,
     "lambda" -> "Poisson rate parameter. Must be non-negative.")
   register("rpois", { (n: Int, lambda: Double) => rpois(n, lambda) },
     """
-    Returns ``n`` random draws from a Poisson distribution with rate (mean) parameter ``lambda``. This function is non-deterministic.
+    Returns ``n`` random draws from a Poisson distribution with rate parameter ``lambda``. This function is non-deterministic.
     """,
     "n" -> "Number of random draws to make.",
     "lambda" -> "Poisson rate parameter. Must be non-negative.")(intHr, doubleHr, arrayHr(doubleHr))
   register("dpois", { (x: Double, lambda: Double) => dpois(x, lambda) },
     """
-    Returns the Prob(:math:`X` = ``x``) from a Poisson distribution with rate (mean) parameter ``lambda``.
+    Returns the Prob(:math:`X` = ``x``) from a Poisson distribution with rate parameter ``lambda``.
     """,
     "x" -> "Non-negative number at which to compute the probability density.",
     "lambda" -> "Poisson rate parameter. Must be non-negative.")
   register("dpois", { (x: Double, lambda: Double, logP: Boolean) => dpois(x, lambda, logP) },
     """
-    Returns the Prob(:math:`X` = ``x``) from a Poisson distribution with rate (mean) parameter ``lambda``.
+    Returns the Prob(:math:`X` = ``x``) from a Poisson distribution with rate parameter ``lambda``.
     """,
     "x" -> "Non-negative number at which to compute the probability density.",
     "lambda" -> "Poisson rate parameter. Must be non-negative.",
     "logP" -> "If true, probabilities are returned as log(p).")
   register("ppois", { (x: Double, lambda: Double) => ppois(x, lambda) },
     """
-    Returns the left-tail probability p for which p = Prob(:math:`X \leq` ``x``) with :math:`X` a Poisson random variable with rate (mean) parameter ``lambda``.
+    Returns the left-tail probability p for which p = Prob(:math:`X \leq` ``x``) with :math:`X` a Poisson random variable with rate parameter ``lambda``.
     """,
     "x" -> "Non-negative bound for the left-tail cumulative probability.",
     "lambda" -> "Poisson rate parameter. Must be non-negative.")
   register("ppois", { (x: Double, lambda: Double, lowerTail: Boolean, logP: Boolean) => ppois(x, lambda, lowerTail, logP) },
     """
-    If ``lowerTail`` equals true, returns the probability p for which p = Prob(:math:`X \leq` ``x``) with :math:`X` a Poisson random variable with rate (mean) parameter ``lambda``. If ``lowerTail`` equals false, returns the probability p for which p = Prob(:math:`X` > ``x``).
+    If ``lowerTail`` equals true, returns the probability p for which p = Prob(:math:`X \leq` ``x``) with :math:`X` a Poisson random variable with rate parameter ``lambda``. If ``lowerTail`` equals false, returns the probability p for which p = Prob(:math:`X` > ``x``).
     """,
-    "x" -> "Non-negative number at which to compute the probability density at.",
+    "x" -> "Non-negative number at which to compute the probability density.",
     "lambda" -> "Poisson rate parameter. Must be non-negative.",
     "lowerTail" -> "If false, returns the exclusive right-tail probability :math:`P(X > x)`",
     "logP" -> "If true, probabilities are returned as log(p).")
-  register("qpois", { (q: Double, lambda: Double) => qpois(q, lambda) },
+
+  register("qpois", { (p: Double, lambda: Double) => qpois(p, lambda) },
     """
-    Returns the left-tail inverse cumulative density function of a Poisson distribution with rate (mean) parameter ``lambda``.
+    Returns the smallest integer :math:`x` such that Prob(:math:`X \leq x`) :math:`\geq` ``p`` where :math:`X` is a Poisson random variable with rate parameter ``lambda``. Inverse of ppois.
     """,
-    "q" -> """Quantile to compute. Must satisfy 0 :math:`\leq` ``q`` :math:`\leq` 1.""",
+    "p" -> """Quantile to compute. Must satisfy 0 :math:`\leq` ``p`` :math:`\leq` 1.""",
     "lambda" -> "Poisson rate parameter. Must be non-negative.")
-  register("qpois", { (q: Double, lambda: Double, lowerTail: Boolean, logP: Boolean) => qpois(q, lambda, lowerTail, logP) },
+
+  register("qpois", { (p: Double, lambda: Double, lowerTail: Boolean, logP: Boolean) => qpois(p, lambda, lowerTail, logP) },
     """
-    Returns the inverse cumulative density function of a Poisson distribution with rate (mean) parameter ``lambda``.
+    If ``lowerTail`` equals true, returns the smallest integer :math:`x` such that Prob(:math:`X \leq x`) :math:`\geq` ``p`` where :math:`X` is a Poisson random variable with rate parameter ``lambda``.
+    If ``lowerTail`` equals false, returns the largest integer :math:`x` such that Prob(:math:`X > x`) :math:`\geq` ``p``. Inverse of ppois.
     """,
-    "q" -> """Quantile to compute. Must satisfy 0 :math:`\leq` ``q`` :math:`\leq` 1.""",
+    "p" -> """Quantile to compute. Must satisfy 0 :math:`\leq` ``p`` :math:`\leq` 1.""",
     "lambda" -> "Poisson rate parameter. Must be non-negative.",
-    "lowerTail" -> """If true, finds the value of x which satisfies ``q`` = Prob(:math:`X \leq` x). If false, finds the value of x which satisfies ``q`` = Prob(:math:`X` > x).""",
-    "logP" -> "If true, quantiles are given as log(q).")
+    "lowerTail" -> """If false, returns the right-tail inverse cumulative density function.""",
+    "logP" -> "If true, input quantiles are given as log(p).")
 
   register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(df, x) },
     """

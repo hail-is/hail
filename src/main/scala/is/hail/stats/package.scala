@@ -289,7 +289,11 @@ package object stats {
 
   def ppois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Double = new Poisson(lambda).cumulative(x, lowerTail, logP)
 
-  def qpois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Double = new Poisson(lambda).quantile(x, lowerTail, logP)
+  def qpois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Int = {
+    val result = new Poisson(lambda).quantile(x, lowerTail, logP)
+    assert(result.isValidInt, s"qpois result is not a valid int. Found $result.")
+    result.toInt
+  }
 
   def uninitialized[T]: T = {
     class A {
