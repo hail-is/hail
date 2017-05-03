@@ -10,10 +10,10 @@ $ git clone https://github.com/Nealelab/cloud-tools.git
 
 If you'd like command line shortcuts to these scripts, add these lines to `~/.bash_profile` or `~/.bashrc`: 
 ```
-alias start-cluster=< local cloud-tools directory >/start_cluster.py
-alias submit-cluster=< local cloud-tools directory >/submit_cluster.py
-alias connect-cluster=< local cloud-tools directory >/connect_cluster.py
-alias stop-cluster=< local cloud-tools directory >/stop_cluster.py
+alias start-cluster=/path/to/cloud-tools/start_cluster.py
+alias submit-cluster=/path/to/cloud-tools/submit_cluster.py
+alias connect-cluster=/path/to/cloud-tools/connect_cluster.py
+alias stop-cluster=/path/to/cloud-tools/stop_cluster.py
 ```
 
 The `start_cluster.py` script references a copy of the initialization script `init_notebook.py` that lives in the publically-readable Google Storage bucket `gs://hail-common/`. 
