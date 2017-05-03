@@ -2969,7 +2969,7 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
+        :param bool use_dosages: If true, use genotype dosage rather than hard call.
 
         :return: Variant dataset with logistic regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
