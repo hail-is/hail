@@ -42,7 +42,7 @@ if (!(sparkVersion ==~ /^2\..*/))
 
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
-String breezeVersion = '0.11.2'
+String breezeVersion = '0.12'
 
 String py4jVersion
 if (sparkVersion ==~ /^2\.1.*/)
