@@ -9,7 +9,14 @@ import is.hail.variant._
 import org.apache.spark.rdd.RDD
 
 object LogisticRegression {
-  def apply(vds: VariantDataset, test: String, yExpr: String, covExpr: Array[String], root: String): VariantDataset = {
+
+  def apply(vds: VariantDataset,
+    test: String,
+    yExpr: String,
+    covExpr: Array[String],
+    root: String,
+    useDosages: Boolean): VariantDataset = {
+
     require(vds.wasSplit)
 
     val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
@@ -54,7 +61,10 @@ object LogisticRegression {
       val X = XBc.value.copy
       it.map { case (v, (va, gs)) =>
         val isNotDegenerate =
-          RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator, sampleMaskBc.value)
+          if (useDosages)
+            RegressionUtils.setLastColumnToMaskedGts(X, gs.biallelicDosageGenotypeIterator, sampleMaskBc.value, useHardCalls=false)
+          else
+            RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator, sampleMaskBc.value, useHardCalls=true)
 
         val logregAnnot =
           if (isNotDegenerate)
