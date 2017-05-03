@@ -52,7 +52,7 @@ object WaldTest extends LogisticRegressionTest {
         val z = fit.b :/ se
         val p = z.map(zi => 2 * pnorm(-math.abs(zi)))
 
-        Some(new WaldStats(fit.b, se, z, p))
+        Some(WaldStats(fit.b, se, z, p))
       } catch {
         case e: breeze.linalg.MatrixSingularException => None
         case e: breeze.linalg.NotConvergedException => None
@@ -91,7 +91,7 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
         val chi2 = 2 * (fit.logLkhd - nullFit.logLkhd)
         val p = chiSquaredTail(m - m0, chi2)
 
-        Some(new LikelihoodRatioStats(fit.b, chi2, p))
+        Some(LikelihoodRatioStats(fit.b, chi2, p))
       } else
         None
 
@@ -134,7 +134,7 @@ object FirthTest extends LogisticRegressionTest {
           val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
           val p = chiSquaredTail(m - m0, chi2)
 
-          Some(new FirthStats(fitFirth.b, chi2, p))
+          Some(FirthStats(fitFirth.b, chi2, p))
         } else
           None
 
@@ -189,7 +189,7 @@ object ScoreTest extends LogisticRegressionTest {
         val chi2 = score dot (fisher \ score)
         val p = chiSquaredTail(m - m0, chi2)
 
-        Some(new ScoreStats(chi2, p))
+        Some(ScoreStats(chi2, p))
       } catch {
         case e: breeze.linalg.MatrixSingularException => None
         case e: breeze.linalg.NotConvergedException => None

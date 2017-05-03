@@ -813,9 +813,14 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       runAssoc, delta, sparsityThreshold)
   }
 
-  def logreg(test: String, y: String, covariates: Array[String] = Array.empty[String], root: String = "va.logreg"): VariantDataset = {
+  def logreg(test: String,
+    y: String,
+    covariates: Array[String] = Array.empty[String],
+    root: String = "va.logreg",
+    useDosages: Boolean = false): VariantDataset = {
+
     requireSplit("logistic regression")
-    LogisticRegression(vds, test, y, covariates, root)
+    LogisticRegression(vds, test, y, covariates, root, useDosages)
   }
 
   def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
