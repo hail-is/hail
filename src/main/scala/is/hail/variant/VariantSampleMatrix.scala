@@ -67,7 +67,7 @@ object VariantSampleMatrix {
   def genGeneric(hc: HailContext): Gen[VariantSampleMatrix[Annotation]] =
     for (tSig <- Type.genArb.resize(3);
       vsm <- VSMSubgen[Annotation](
-        sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
+        sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier),
         saSigGen = Type.genArb,
         vaSigGen = Type.genArb,
         globalSigGen = Type.genArb,
@@ -82,7 +82,7 @@ object VariantSampleMatrix {
 }
 
 case class VSMSubgen[T](
-  sampleIdGen: Gen[IndexedSeq[String]],
+  sampleIdGen: Gen[Array[String]],
   saSigGen: Gen[Type],
   vaSigGen: Gen[Type],
   globalSigGen: Gen[Type],
@@ -109,13 +109,13 @@ case class VSMSubgen[T](
 
       sampleIds <- sampleIdGen.resize(w);
       nSamples = sampleIds.length;
-      saValues <- Gen.buildableOfN[IndexedSeq, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
-      rows <- Gen.distinctBuildableOf[Seq, (Variant, (Annotation, Iterable[T]))](
+      saValues <- Gen.buildableOfN[Array, Annotation](nSamples, saGen(saSig)).resize(subsizes(4));
+      rows <- Gen.distinctBuildableOf[Array, (Variant, (Annotation, Iterable[T]))](
         for (subsubsizes <- Gen.partitionSize(3);
           v <- vGen.resize(subsubsizes(0));
           va <- vaGen(vaSig).resize(subsubsizes(1));
-          ts <- Gen.buildableOfN[Iterable, T](nSamples, tGen(v)).resize(subsubsizes(2)))
-          yield (v, (va, ts))).resize(l))
+          ts <- Gen.buildableOfN[Array, T](nSamples, tGen(v)).resize(subsubsizes(2)))
+          yield (v, (va, ts: Iterable[T]))).resize(l))
       yield {
         VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isDosage = isDosage, isGenericGenotype = isGenericGenotype),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
@@ -124,7 +124,7 @@ case class VSMSubgen[T](
 
 object VSMSubgen {
   val random = VSMSubgen[Genotype](
-    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.identifier),
+    sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier),
     saSigGen = Type.genArb,
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,
@@ -136,7 +136,7 @@ object VSMSubgen {
     tGen = Genotype.genExtreme)
 
   val plinkSafeBiallelic = random.copy(
-    sampleIdGen = Gen.distinctBuildableOf[IndexedSeq, String](Gen.plinkSafeIdentifier),
+    sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.plinkSafeIdentifier),
     vGen = VariantSubgen.plinkCompatible.copy(nAllelesGen = Gen.const(2)).gen,
     wasSplit = true)
 
