@@ -470,7 +470,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][-3:] """).contains(IndexedSeq(1, 2, 3)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][:-1] """).contains(IndexedSeq(0, 1, 2)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][0:-3] """).contains(IndexedSeq(0)))
-    assert(eval[IndexedSeq[_]](""" [0,1,2,3][-4:-2] """).contains(IndexedSeq()))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][-4:-2] """).contains(IndexedSeq(0, 1)))
+    assert(eval[IndexedSeq[_]](""" [0,1,2,3][-2:-4] """).contains(IndexedSeq()))
 
     forAll(Gen.choose(1, 10), Gen.choose(1, 10)) { (i: Int, j: Int) =>
       eval[String](""" [0,1,2,3][-$i:-$j] """) == eval[String](""" [0,1,2,3][4-$i:4-$j] """)
@@ -495,7 +496,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[String](""" "abcd"[0:100] """).contains("abcd"))
     assert(eval[String](""" "abcd"[4:] """).contains(""))
     assert(eval[String](""" "abcd"[3:] """).contains("d"))
-    assert(eval[String](""" "abcd"[-4:-2] """).contains(""))
+    assert(eval[String](""" "abcd"[-4:-2] """).contains("ab"))
+    assert(eval[String](""" "abcd"[-2:-4] """).contains(""))
 
     forAll(Gen.choose(1, 10), Gen.choose(1, 10)) { (i: Int, j: Int) =>
       eval[String](""" "abcd"[-$i:-$j] """) == eval[String](""" "abcd"[4-$i:4-$j] """)
