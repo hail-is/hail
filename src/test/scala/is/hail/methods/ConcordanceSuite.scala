@@ -106,6 +106,34 @@ class ConcordanceSuite extends SparkSuite {
       IndexedSeq(0L, 2L, 0L, 2L, 0L),
       IndexedSeq(3L, 3L, 0L, 0L, 0L)
     ))
+
+    assert(comb2.nDiscordant == 0)
+  }
+
+  @Test def testNDiscordant() {
+    val g = (for {i <- Gen.choose(-2, 2)
+      j <- Gen.choose(-2, 2)} yield (i, j)).filter { case (i, j) => !(i == -2 && j == -2) }
+    val seqG = Gen.buildableOf[Array, (Int, Int)](g)
+
+    val comb = new ConcordanceCombiner
+
+    Prop.forAll(seqG) { values =>
+      comb.reset()
+
+      var n = 0
+      values.foreach { case (i, j) =>
+        if (i == -2)
+          comb.mergeRight(j)
+        else if (j == -2)
+          comb.mergeLeft(i)
+        else {
+          if (i >= 0 && j >= 0 && i != j)
+            n += 1
+          comb.mergeBoth(i, j)
+        }
+      }
+      n == comb.nDiscordant
+    }.check()
   }
 
   @Test def test() {
@@ -143,20 +171,15 @@ class ConcordanceSuite extends SparkSuite {
 
       val (globals, samples, variants) = vds1.concordance(vds2)
 
-      val (_, queryUnique1Sum) = samples.querySA("sa.concordance[0].sum()")
-      val (_, queryUnique2Sum) = samples.querySA("sa.concordance.map(x => x[0]).sum()")
-      val (_, innerJoinQuery) = samples.querySA("sa.concordance.map(x => x[1:])[1:]")
-
-      samples.sampleIdsAndAnnotations.foreach { case (s, sa) =>
-        assert(queryUnique1Sum(sa) == uniqueVds2Variants)
-        assert(queryUnique2Sum(sa) == uniqueVds1Variants)
-        assert(innerJoinQuery(sa) == innerJoinSamples(s))
+      samples.rdd.collect().foreach { r =>
+        assert(r.getAs[IndexedSeq[IndexedSeq[Long]]](2).apply(0).sum == uniqueVds2Variants)
+        assert(r.getAs[IndexedSeq[IndexedSeq[Long]]](2).map(_.apply(0)).sum == uniqueVds1Variants)
+        assert(r.getAs[IndexedSeq[IndexedSeq[Long]]](2).map(_.tail).tail == innerJoinSamples(r.getAs[String](0)))
       }
 
-      val (_, variantQuery) = variants.queryVA("va.concordance")
-      variants.variantsAndAnnotations.collect()
-        .foreach { case (v, va) =>
-          innerJoinVariants.get(v).forall(variantQuery(va) == _)
+      variants.rdd.collect()
+        .foreach { r =>
+          innerJoinVariants.get(r.getAs[Variant](0)).forall(r.get(2) == _)
         }
       true
     }.check()
