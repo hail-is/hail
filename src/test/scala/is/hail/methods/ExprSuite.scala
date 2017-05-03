@@ -473,15 +473,15 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][-4:-2] """).contains(IndexedSeq()))
 
     forAll(Gen.choose(1, 10), Gen.choose(1, 10)) { (i: Int, j: Int) =>
-      assert(eval[String](""" [0,1,2,3][-$i:-$j] """) == eval[String](""" [0,1,2,3][4-$i:4-$j] """))
+      eval[String](""" [0,1,2,3][-$i:-$j] """) == eval[String](""" [0,1,2,3][4-$i:4-$j] """)
     }.check()
 
     forAll { (i: Int) =>
-      assert(eval[String](""" [0,1,2,3][$i:] """) == eval[String](""" [0,1,2,3][$i:4] """))
+      eval[String](""" [0,1,2,3][$i:] """) == eval[String](""" [0,1,2,3][$i:4] """)
     }.check()
 
     forAll { (i: Int) =>
-      assert(eval[String](""" [0,1,2,3][:$i] """) == eval[String](""" [0,1,2,3][0:$i] """))
+      eval[String](""" [0,1,2,3][:$i] """) == eval[String](""" [0,1,2,3][0:$i] """)
     }.check()
 
     assert(eval[String](""" "abcd"[0:2] """).contains("ab"))
@@ -498,15 +498,15 @@ class ExprSuite extends SparkSuite {
     assert(eval[String](""" "abcd"[-4:-2] """).contains(""))
 
     forAll(Gen.choose(1, 10), Gen.choose(1, 10)) { (i: Int, j: Int) =>
-      assert(eval[String](""" "abcd"[-$i:-$j] """) == eval[String](""" "abcd"[4-$i:4-$j] """))
+      eval[String](""" "abcd"[-$i:-$j] """) == eval[String](""" "abcd"[4-$i:4-$j] """)
     }.check()
 
     forAll { (i: Int) =>
-      assert(eval[String](""" "abcd"[$i:] """) == eval[String](""" "abcd"[$i:4] """))
+      eval[String](""" "abcd"[$i:] """) == eval[String](""" "abcd"[$i:4] """)
     }.check()
 
     forAll { (i: Int) =>
-      assert(eval[String](""" "abcd"[:$i] """) == eval[String](""" "abcd"[0:$i] """))
+      eval[String](""" "abcd"[:$i] """) == eval[String](""" "abcd"[0:$i] """)
     }.check()
 
     assert(eval[Int](""" genedict["gene2"] """).contains(10))
