@@ -75,10 +75,6 @@ class StatsSuite extends SparkSuite {
     assert(qpois(ppois(5, 10), 10) == 5)
     assert(qpois(ppois(5, 10, lowerTail = false), 10, lowerTail = false) == 5)
 
-    assert(ppois(10, 1) != 1)
-    assert(ppois(10, 1, lowerTail = false) < 1)
-
-    assert(ppois(17, 1) != 1)
-    assert(ppois(17, 1, lowerTail = false) < 1)
+    assert(ppois(30, 1, lowerTail = false) > 0)
   }
 }
