@@ -1133,9 +1133,9 @@ object FunctionRegistry {
 
   registerAnn("ctTest", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int, minCellCount: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
-      fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
+      fatal(s"got invalid argument to function `ctTest': ctTest($c1, $c2, $c3, $c4)")
 
-    if (Vector(c1, c2, c3, c4).exists(_ < minCellCount)) {
+    if (Array(c1, c2, c3, c4).exists(_ < minCellCount)) {
       val fet = FisherExactTest(c1, c2, c3, c4)
       Annotation(fet(0).orNull, fet(1).orNull)
     } else {
