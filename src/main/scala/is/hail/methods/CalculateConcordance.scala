@@ -1,10 +1,10 @@
 package is.hail.methods
 
-import is.hail.annotations.Annotation
 import is.hail.expr._
-import is.hail.sparkextras.OrderedRDD
+import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.sql.Row
 
 object ConcordanceCombiner {
   val schema = TArray(TArray(TLong))
@@ -40,24 +40,33 @@ class ConcordanceCombiner extends Serializable {
     }
   }
 
+  def nDiscordant: Long = {
+    var n = 0L
+    for (i <- 2 to 4)
+      for (j <- 2 to 4)
+        if (i != j)
+          n += mapping(i, j)
+    n
+  }
+
   def report() {
     val innerTotal = (1 until 5).map(i => (1 until 5).map(j => mapping(i, j)).sum).sum
     val innerDiagonal = (1 until 5).map(i => mapping(i, i)).sum
     val total = mapping.sum
     info(
       s"""Summary of inner join concordance:
-          |  Total observations: $innerTotal
-          |  Total concordant observations: $innerDiagonal
-          |  Total concordance: ${ (innerDiagonal.toDouble / innerTotal * 100).formatted("%.2f") }%""".stripMargin)
+         |  Total observations: $innerTotal
+         |  Total concordant observations: $innerDiagonal
+         |  Total concordance: ${ (innerDiagonal.toDouble / innerTotal * 100).formatted("%.2f") }%""".stripMargin)
   }
 
-  def toAnnotation =
-    (0 until 5).map(i => (0 until 5).map(j => mapping(i, j)).toArray : IndexedSeq[Long]).toArray[IndexedSeq[Long]]: IndexedSeq[IndexedSeq[Long]]
+  def toAnnotation: IndexedSeq[IndexedSeq[Long]] =
+    (0 until 5).map(i => (0 until 5).map(j => mapping(i, j)).toArray: IndexedSeq[Long]).toArray[IndexedSeq[Long]]
 }
 
 object CalculateConcordance {
 
-  def apply(left: VariantDataset, right: VariantDataset): (IndexedSeq[IndexedSeq[Long]], VariantDataset, VariantDataset) = {
+  def apply(left: VariantDataset, right: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
     require(left.wasSplit && right.wasSplit, "passed unsplit dataset to Concordance")
     val overlap = left.sampleIds.toSet.intersect(right.sampleIds.toSet)
     if (overlap.isEmpty)
@@ -65,28 +74,22 @@ object CalculateConcordance {
 
     info(
       s"""Found ${ overlap.size } overlapping samples
-          |  Left: ${ left.nSamples } total samples
-          |  Right: ${ right.nSamples } total samples""".stripMargin)
+         |  Left: ${ left.nSamples } total samples
+         |  Right: ${ right.nSamples } total samples""".stripMargin)
 
     val leftFiltered = left.filterSamples { case (s, _) => overlap(s) }
     val rightFiltered = right.filterSamples { case (s, _) => overlap(s) }
 
-    val globalSchema = TStruct(
-      "concordance" -> ConcordanceCombiner.schema,
-      "left" -> left.globalSignature,
-      "right" -> right.globalSignature
-    )
-
     val sampleSchema = TStruct(
-      "concordance" -> ConcordanceCombiner.schema,
-      "left" -> left.saSignature,
-      "right" -> right.saSignature
+      "s" -> TString,
+      "nDiscordant" -> TLong,
+      "concordance" -> ConcordanceCombiner.schema
     )
 
-    val vaSchema = TStruct(
-      "concordance" -> ConcordanceCombiner.schema,
-      "left" -> left.vaSignature,
-      "right" -> right.vaSignature
+    val variantSchema = TStruct(
+      "v" -> TVariant,
+      "nDiscordant" -> TLong,
+      "concordance" -> ConcordanceCombiner.schema
     )
 
     val leftIds = leftFiltered.sampleIds
@@ -142,7 +145,7 @@ object CalculateConcordance {
       arr1
     }
 
-    val variantResults = join.mapPartitions({ it =>
+    val variantRDD = join.mapPartitions { it =>
       val arr = Array.ofDim[Int](nSamples)
       val comb = new ConcordanceCombiner
       val rightMapping = rightIdMappingBc.value
@@ -169,44 +172,24 @@ object CalculateConcordance {
           case (Some((_, gs1)), None) =>
             gs1.foreach { g => comb.mergeLeft(g.unboxedGT) }
         }
-        val va = Annotation(comb.toAnnotation, value1.map(_._1).orNull, value2.map(_._1).orNull)
-        assert(vaSchema.typeCheck(va))
-        (v, (va, Iterable.empty[Genotype]))
+        val r = Row(v, comb.nDiscordant, comb.toAnnotation)
+        assert(variantSchema.typeCheck(r))
+        r
       }
-    }, preservesPartitioning = true).asOrderedRDD
+    }
 
     val global = new ConcordanceCombiner
     sampleResults.foreach(global.merge)
 
     global.report()
 
-    val globalAnnotation = Annotation(global.toAnnotation, left.globalAnnotation, right.globalAnnotation)
-    assert(globalSchema.typeCheck(globalAnnotation))
+    val sampleRDD = left.hc.sc.parallelize(leftFiltered.sampleIds.zip(sampleResults)
+      .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) })
 
-    val rightSampleAnnotations = rightFiltered.sampleIdsAndAnnotations.toMap
+    val sampleKT = KeyTable(left.hc, sampleRDD, sampleSchema, Array("s"))
 
-    val samples = VariantSampleMatrix(left.hc, VariantMetadata(leftIds,
-      sampleAnnotations = leftFiltered.sampleIdsAndAnnotations.zip(sampleResults).map { case ((s, leftSA), comb) =>
-        val anno = Annotation(comb.toAnnotation, leftSA, rightSampleAnnotations(s))
-        assert(sampleSchema.typeCheck(anno))
-        anno
-      },
-      globalAnnotation = globalAnnotation,
-      saSignature = sampleSchema,
-      vaSignature = TStruct.empty,
-      globalSignature = globalSchema,
-      wasSplit = true),
-      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](left.sparkContext))
+    val variantKT = KeyTable(left.hc, variantRDD, variantSchema, Array("v"))
 
-    val variants = VariantSampleMatrix(left.hc, VariantMetadata(IndexedSeq.empty[String],
-      sampleAnnotations = IndexedSeq.empty[Annotation],
-      globalAnnotation = globalAnnotation,
-      saSignature = TStruct.empty,
-      vaSignature = vaSchema,
-      globalSignature = globalSchema,
-      wasSplit = true),
-      variantResults)
-
-    (global.toAnnotation, samples, variants)
+    (global.toAnnotation, sampleKT, variantKT)
   }
 }

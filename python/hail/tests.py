@@ -300,8 +300,8 @@ class ContextTests(unittest.TestCase):
         print(glob[1][4])
         print(glob[4][0])
         print(glob[:][3])
-        concordance1.write('/tmp/foo.vds', overwrite=True)
-        concordance2.write('/tmp/foo.vds', overwrite=True)
+        concordance1.write('/tmp/foo.kt', overwrite=True)
+        concordance2.write('/tmp/foo.kt', overwrite=True)
 
         sample2_split.export_gen('/tmp/sample2.gen', 5)
         sample2_split.export_plink('/tmp/sample2')
@@ -804,7 +804,7 @@ class ContextTests(unittest.TestCase):
         bn2 = hc.balding_nichols_model(3, 1, 50, 1, seed=50)
 
         glob, samples, variants = bn1.concordance(bn2)
-        self.assertEqual(samples.sample_annotations[samples.sample_ids[0]].concordance, glob)
+        self.assertEqual(samples.collect()[0].concordance, glob)
 
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
