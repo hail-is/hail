@@ -4,12 +4,11 @@ import is.hail.SparkSuite
 import is.hail.TestUtils.interceptFatal
 import is.hail.expr.TDouble
 import is.hail.utils._
+import is.hail.TestUtils._
 import is.hail.variant.VariantDataset
 import org.testng.annotations.Test
 
 class LogisticRegressionBurdenSuite extends SparkSuite {
-  import BurdenSuiteUtils._
-
   /*
   Three genes overlap each other in the first 3 positions:
 
@@ -41,11 +40,11 @@ class LogisticRegressionBurdenSuite extends SparkSuite {
     val (logregScoreKT, _) = vdsBurden.logregBurden("gene", "va.genes", singleKey = false,
       "gs.map(g => g.gt.toDouble).max()", "score", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
-    val sampleMap = makeMap[String](sampleKT)
+    val sampleMap = keyTableBoxedDoubleToMap[String](sampleKT)
 
-    val logregWaldMap = makeMap[String](logregWaldKT.select(logregWaldKT.fieldNames.dropRight(1), logregWaldKT.keyNames))
-    val logregLRTMap = makeMap[String](logregLRTKT.select(logregLRTKT.fieldNames.dropRight(1), logregLRTKT.keyNames))
-    val logregScoreMap = makeMap[String](logregScoreKT)
+    val logregWaldMap = keyTableBoxedDoubleToMap[String](logregWaldKT.select(logregWaldKT.fieldNames.dropRight(1), logregWaldKT.keyNames))
+    val logregLRTMap = keyTableBoxedDoubleToMap[String](logregLRTKT.select(logregLRTKT.fieldNames.dropRight(1), logregLRTKT.keyNames))
+    val logregScoreMap = keyTableBoxedDoubleToMap[String](logregScoreKT)
 
     /*
     Variant A       B       C       D       E       F
@@ -92,14 +91,14 @@ class LogisticRegressionBurdenSuite extends SparkSuite {
       2 -> IndexedSeq(3.50656, 0.06112625),
       3 -> IndexedSeq(0.06615483, 0.7970199))
 
-    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxDoubleEquals(1e-6)))
+    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxedDoubleEquals(1e-6)))
 
     assert(mapSameElements(logregWaldMapR.map{ case (k, v) => (s"Gene$k", v) },
-      logregWaldMap, indexedSeqBoxDoubleEquals(1e-3)))
+      logregWaldMap, indexedSeqBoxedDoubleEquals(1e-3)))
     assert(mapSameElements(logregLRTMapR.map{ case (k, v) => (s"Gene$k", v) },
-      logregLRTMap, indexedSeqBoxDoubleEquals(1e-3)))
+      logregLRTMap, indexedSeqBoxedDoubleEquals(1e-3)))
     assert(mapSameElements(logregScoreMapR.map{ case (k, v) => (s"Gene$k", v) },
-      logregScoreMap, indexedSeqBoxDoubleEquals(1e-3)))
+      logregScoreMap, indexedSeqBoxedDoubleEquals(1e-3)))
   }
 
   @Test def testFatals() {

@@ -9,7 +9,6 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object LogisticRegressionBurden {
-
   def apply(vds: VariantDataset,
     keyName: String,
     variantKeys: String,
@@ -19,11 +18,8 @@ object LogisticRegressionBurden {
     yExpr: String,
     covExpr: Array[String]): (KeyTable, KeyTable) = {
 
-    def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
-    if (!tests.isDefinedAt(test))
-      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
-
-    val logRegTest = tests(test)
+    val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
+      fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val completeSamplesSet = completeSamples.toSet
@@ -58,6 +54,7 @@ object LogisticRegressionBurden {
 
     def sampleKT = vds.filterSamples((s, sa) => completeSamplesSet(s))
       .aggregateBySamplePerVariantKey(keyName, variantKeys, aggExpr, singleKey)
+      .cache()
 
     val keyType = sampleKT.fields(0).typ
 

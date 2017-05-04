@@ -9,15 +9,11 @@ import is.hail.variant._
 import org.apache.spark.rdd.RDD
 
 object LogisticRegression {
-
   def apply(vds: VariantDataset, test: String, yExpr: String, covExpr: Array[String], root: String): VariantDataset = {
     require(vds.wasSplit)
 
-    def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
-    if (!tests.isDefinedAt(test))
-      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
-
-    val logRegTest = tests(test)
+    val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
+      fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
@@ -38,7 +34,7 @@ object LogisticRegression {
     val nullFit = nullModel.fit()
 
     if (!nullFit.converged)
-      fatal("Failed to fit (unregulatized) logistic regression null model (covariates only): " + (
+      fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
         if (nullFit.exploded)
           s"exploded at Newton iteration ${ nullFit.nIter }"
         else

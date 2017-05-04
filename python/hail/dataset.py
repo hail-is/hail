@@ -2668,7 +2668,7 @@ class VariantDataset(object):
 
            The resulting **linear regression key table** has the following columns:
 
-           - ``key_name`` (*String*) -- descriptor of variant group key (key column)
+           - value of ``key_name`` (*String*) -- descriptor of variant group key (key column)
            - **beta** (*Double*) -- fit coefficient, :math:`\hat\beta_1`
            - **se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
            - **tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`

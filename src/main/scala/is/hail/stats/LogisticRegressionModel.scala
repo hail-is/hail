@@ -5,6 +5,10 @@ import breeze.numerics._
 import is.hail.annotations.Annotation
 import is.hail.expr._
 
+object LogisticRegressionTest {
+  val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
+}
+
 abstract class LogisticRegressionTest extends Serializable {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResult[LogisticRegressionStats]
   val schema: Type
