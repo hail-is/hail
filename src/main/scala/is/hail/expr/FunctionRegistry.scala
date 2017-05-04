@@ -1131,7 +1131,7 @@ object FunctionRegistry {
     "c1" -> "value for cell 1", "c2" -> "value for cell 2", "c3" -> "value for cell 3", "c4" -> "value for cell 4"
   )
 
-  registerAnn("ctTest", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int, minCellCount: Int) =>
+  registerAnn("ctt", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int, minCellCount: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `ctTest': ctTest($c1, $c2, $c3, $c4)")
 
