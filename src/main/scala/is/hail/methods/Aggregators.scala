@@ -610,8 +610,10 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
 
   def result = _state.toArray[(Any, Any)].map(_._1).reverse: IndexedSeq[Any]
 
-  def seqOp(x: Any) = {
-    val p = (x, f(x))
+  def seqOp(x: Any) = seqOp(x, f(x))
+
+  private def seqOp(x: Any, sortKey: Any) = {
+    val p = (x, sortKey)
     if (_state.length < n)
       _state += p
     else {
@@ -623,7 +625,7 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
   }
 
   def combOp(agg2: this.type) {
-    agg2._state.foreach { case (x, p) => seqOp(x) }
+    agg2._state.foreach { case (x, p) => seqOp(x, p) }
   }
 
   def copy() = new TakeByAggregator(f, n)
