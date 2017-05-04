@@ -220,4 +220,16 @@ class LinearRegressionBurdenSuite extends SparkSuite {
     assert(sampleMap8.size == 10)
     assert(sampleMap8.forall { case (key, value) => value.forall(_ % key.asInstanceOf[Double] == 0) })
   }
+
+  @Test def testFatals() {
+    interceptFatal("clashes with reserved linreg columns") {
+      vdsBurden.linregBurden("pval", "va.genes", singleKey = false,
+        "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    }
+
+    interceptFatal("clashes with a sample name") {
+      vdsBurden.linregBurden("A", "va.genes", singleKey = false,
+        "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    }
+  }
 }

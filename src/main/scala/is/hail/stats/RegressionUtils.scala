@@ -373,7 +373,7 @@ object RegressionUtils {
   }
 
   //keyedRow consists of row key followed by numeric data (passed with key to avoid copying, key is ignored here)
-  def denseStats(keyedRow: Row, y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
+  def statsKeyedRow(keyedRow: Row, y: DenseVector[Double]): Option[(DenseVector[Double], Double, Double)] = {
     val n = keyedRow.length - 1
     assert(y.length == n)
 

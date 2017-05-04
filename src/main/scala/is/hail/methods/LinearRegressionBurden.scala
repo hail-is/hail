@@ -67,7 +67,7 @@ object LinearRegressionBurden {
     val linregRDD = sampleKT.mapAnnotations { keyedRow =>
       val key = keyedRow.get(0)
 
-      RegressionUtils.denseStats(keyedRow, y) match {
+      RegressionUtils.statsKeyedRow(keyedRow, y) match {
         case Some((x, xx, xy)) =>
           val qtx = QtBc.value * x
           val qty = QtyBc.value
