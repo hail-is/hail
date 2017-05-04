@@ -308,6 +308,13 @@ class AggregatorSuite extends SparkSuite {
     }.check()
   }
 
+  private def equalModuloDisordering[T,K](orderOn: T => K)(xs: Seq[T], ys: Seq[T]): Boolean = {
+    val sameOrdering = xs.zip(ys).forall { case (x, y) => orderOn(x) == orderOn(y) }
+    val sameElements = (xs.groupBy(orderOn) zip ys.groupBy(orderOn)).forall { case (xs, ys) => xs.toSet == ys.toSet }
+
+    sameOrdering && sameElements
+  }
+
   @Test def takeByAndSortByAgree() {
     val rng = new RandomDataGenerator()
     rng.reSeed(Prop.seed)
@@ -317,8 +324,8 @@ class AggregatorSuite extends SparkSuite {
         "gs.map(g => [g.dp, g.gq]).takeBy(x => x[1], 10)"))
       val x = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
       val y = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      if (x != y) {
-        println(s"$x\n!=\n$y")
+      if (equalModuloDisordering(x, y)) {
+        println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$x\n$y")
         false
       } else {
         true
@@ -335,8 +342,8 @@ class AggregatorSuite extends SparkSuite {
         "gs.map(g => [g.dp, g.gq]).takeBy(x => g.gq, 10)"))
       val x = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
       val y = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      if (x != y) {
-        println(s"$x\n!=\n$y")
+      if (equalModuloDisordering(x, y)) {
+        println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$x\n$y")
         false
       } else {
         true
