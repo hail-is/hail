@@ -1,11 +1,12 @@
 package is.hail.methods
 
-import is.hail.check.{Gen, Prop}
+import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
+import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
@@ -306,4 +307,41 @@ class AggregatorSuite extends SparkSuite {
       p1 && p2
     }.check()
   }
+
+  @Test def takeByAndSortByAgree() {
+    val rng = new RandomDataGenerator()
+    rng.reSeed(Prop.seed)
+
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
+      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])[0:10]",
+        "gs.map(g => [g.dp, g.gq]).takeBy(x => x[1], 10)"))
+      val x = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      val y = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      if (x != y) {
+        println(s"$x\n!=\n$y")
+        false
+      } else {
+        true
+      }
+    } (Parameters(rng, 1000, 100))
+  }
+
+  @Test def takeByAndSortByAgreeUsingLatentEnvironment() {
+    val rng = new RandomDataGenerator()
+    rng.reSeed(Prop.seed)
+
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
+      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])[0:10]",
+        "gs.map(g => [g.dp, g.gq]).takeBy(x => g.gq, 10)"))
+      val x = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      val y = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      if (x != y) {
+        println(s"$x\n!=\n$y")
+        false
+      } else {
+        true
+      }
+    } (Parameters(rng, 1000, 100))
+  }
+
 }
