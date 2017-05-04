@@ -38,6 +38,7 @@ object LinearRegressionBurden {
 
     def sampleKT = vds.filterSamples((s, sa) => completeSamplesSet(s))
       .aggregateBySamplePerVariantKey(keyName, variantKeys, aggExpr, singleKey)
+      .cache()
 
     val keyType = sampleKT.fields(0).typ
 

@@ -4383,8 +4383,10 @@ class VariantDataset(object):
         - **hail.vep.location** -- Location of the VEP Perl script.  Required.
         - **hail.vep.cache_dir** -- Location of the VEP cache dir, passed to VEP with the `--dir` option.  Required.
         - **hail.vep.fasta** -- Location of the FASTA file to use to look up the reference sequence, passed to VEP with the `--fasta` option.  Required.
-        - **hail.vep.lof.human_ancestor** -- Location of the human ancestor file for the LOFTEE plugin.  Required.
-        - **hail.vep.lof.conservation_file** -- Location of the conservation file for the LOFTEE plugin.  Required.
+        - **hail.vep.plugin** -- VEP plugin, passed to VEP with the `--plugin` option.  Optional. Overrides `hail.vep.lof.human_ancestor` and `hail.vep.lof.conservation_file`.
+        - **hail.vep.lof.human_ancestor** -- Location of the human ancestor file for the LOFTEE plugin.  Ignored if `hail.vep.plugin` is set. Required otherwise.
+        - **hail.vep.lof.conservation_file** -- Location of the conservation file for the LOFTEE plugin.  Ignored if `hail.vep.plugin` is set. Required otherwise.
+
 
         Here is an example `vep.properties` configuration file
 

@@ -351,4 +351,17 @@ class KeyTableSuite extends SparkSuite {
 
     assert(ktCounter == counter)
   }
+
+  @Test def test1725() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val kt = vds.annotateVariantsExpr("va.id = str(v)")
+      .variantsKT()
+      .flatten()
+      .select(Array("v", "va.id"), Array("va.id"))
+
+    val kt2 = KeyTable(hc, vds.variants.map(v => Row(v.toString, 5)),
+      TStruct("v" -> TString, "value" -> TInt), Array("v"))
+
+    kt.join(kt2, "inner").toDF(sqlContext).count()
+  }
 }
