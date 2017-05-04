@@ -584,20 +584,13 @@ class TakeAggregator(n: Int) extends TypedAggregator[IndexedSeq[Any]] {
 class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Ordering[T]) extends TypedAggregator[IndexedSeq[Any]] {
   def this() = this(null, 0)(null)
 
-  def makeOrd(): Ordering[(Any, Any)] = if (tord != null) {
-    new Ordering[(Any, Any)] {
-      // nulls are the largest
-      def compare(a: (Any, Any), b: (Any, Any)) = (a._2, b._2) match {
-        case (null, null) => 0
-        case (null, _) => 1
-        case (_, null) => -1
-        case (x, y) => -tord.compare(x.asInstanceOf[T], y.asInstanceOf[T])
-      }
-    }
-  } else
-    null
+  def makeOrd(): Ordering[(Any, Any)] =
+    if (tord != null)
+      extendOrderingToNull(true)(tord)
+        .on { case (e, k) => k.asInstanceOf[T] }
+    else
+      null
 
-  // double-reverse makes nulls the smallest
   var ord: Ordering[(Any, Any)] = makeOrd()
 
   // PriorityQueue is not serializable
