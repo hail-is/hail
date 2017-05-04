@@ -324,7 +324,7 @@ class AggregatorSuite extends SparkSuite {
         "gs.map(g => [g.dp, g.gq]).takeBy(x => x[1], 10)"))
       val x = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
       val y = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      if (equalModuloDisordering(x, y)) {
+      if (!equalModuloDisordering((x: Seq[Int]) => x(1))(x, y)) {
         println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$x\n$y")
         false
       } else {
@@ -342,7 +342,7 @@ class AggregatorSuite extends SparkSuite {
         "gs.map(g => [g.dp, g.gq]).takeBy(x => g.gq, 10)"))
       val x = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
       val y = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      if (equalModuloDisordering(x, y)) {
+      if (!equalModuloDisordering((x: Seq[Int]) => x(1))(x, y)) {
         println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$x\n$y")
         false
       } else {
