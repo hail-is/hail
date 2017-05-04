@@ -4,7 +4,7 @@ import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
-import net.sourceforge.jdistlib.{ChiSquare, Normal}
+import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 
 package object stats {
@@ -280,6 +280,20 @@ package object stats {
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def inverseChiSquaredTail(df: Double, p: Double): Double = ChiSquare.quantile(p, df, false, false)
+
+  def rpois(lambda: Double): Double = new Poisson(lambda).random()
+
+  def rpois(n: Int, lambda: Double): IndexedSeq[Double] = new Poisson(lambda).random(n)
+
+  def dpois(x: Double, lambda: Double, logP: Boolean = false): Double = new Poisson(lambda).density(x, logP)
+
+  def ppois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Double = new Poisson(lambda).cumulative(x, lowerTail, logP)
+
+  def qpois(x: Double, lambda: Double, lowerTail: Boolean = true, logP: Boolean = false): Int = {
+    val result = new Poisson(lambda).quantile(x, lowerTail, logP)
+    assert(result.isValidInt, s"qpois result is not a valid int. Found $result.")
+    result.toInt
+  }
 
   def uninitialized[T]: T = {
     class A {

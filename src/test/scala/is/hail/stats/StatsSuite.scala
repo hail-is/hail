@@ -62,4 +62,19 @@ class StatsSuite extends SparkSuite {
       for (j <- 0 to 1)
         assert(G(i, j) == G1(i, j))
   }
+
+  @Test def poissonTest() {
+    // compare with R
+    assert(D_==(dpois(5, 10), 0.03783327))
+    assert(qpois(0.3, 10) == 8)
+    assert(qpois(0.3, 10, lowerTail = false) == 12)
+    assert(D_==(ppois(5, 10), 0.06708596))
+    assert(D_==(ppois(5, 10, lowerTail = false), 0.932914))
+    assert(rpois(5) >= 0)
+
+    assert(qpois(ppois(5, 10), 10) == 5)
+    assert(qpois(ppois(5, 10, lowerTail = false), 10, lowerTail = false) == 5)
+
+    assert(ppois(30, 1, lowerTail = false) > 0)
+  }
 }
