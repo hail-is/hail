@@ -20,23 +20,13 @@ abstract class LogisticRegressionStats {
 }
 
 class LogisticRegressionTestResult[+T <: LogisticRegressionStats](val stats: Option[T]) {
-  def toAnnotation(emptyStats: Seq[Annotation], optKey: Option[Annotation] = None): Annotation = {
-    val values = stats.map(_.toAnnotations).getOrElse(emptyStats)
-    optKey match {
-      case Some(key) => Annotation.fromSeq(key +: values)
-      case None => Annotation.fromSeq(values)
-    }
-  }
+  def toAnnotation(emptyStats: Seq[Annotation]): Annotation =
+    Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats))
 }
 
 class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override val stats: Option[T], val fitStats: LogisticRegressionFit) extends LogisticRegressionTestResult[T](stats) {
-  override def toAnnotation(emptyStats: Seq[Annotation], optKey: Option[Annotation] = None): Annotation = {
-    val values = stats.map(_.toAnnotations).getOrElse(emptyStats) :+ fitStats.toAnnotation
-    optKey match {
-      case Some(key) => Annotation.fromSeq(key +: values)
-      case None => Annotation.fromSeq(values)
-    }
-  }
+  override def toAnnotation(emptyStats: Seq[Annotation]): Annotation =
+    Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats) :+ fitStats.toAnnotation)
 }
 
 
