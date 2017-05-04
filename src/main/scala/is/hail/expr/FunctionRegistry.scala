@@ -1146,13 +1146,13 @@ object FunctionRegistry {
     """,
     "min" -> "Minimum value of interval.",
     "max" -> "Maximum value of interval, non-inclusive.")
+
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() },
     """
     Returns a random draw from a normal distribution with mean ``mean`` and standard deviation ``sd``. ``sd`` should be non-negative. This function is non-deterministic.
     """,
     "mean" -> "Mean value of normal distribution.",
     "sd" -> "Standard deviation of normal distribution.")
-
   register("pnorm", { (x: Double) => pnorm(x) },
     """
     Returns left-tail probability p for which p = Prob(:math:`Z` < ``x``) with :math:`Z` a standard normal random variable.
@@ -1163,6 +1163,62 @@ object FunctionRegistry {
     Returns left-quantile x for which p = Prob(:math:`Z` < x) with :math:`Z` a standard normal random variable. ``p`` must satisfy 0 < ``p`` < 1. Inverse of pnorm.
     """,
     "p" -> "Probability")
+
+  register("rpois", { (lambda: Double) => rpois(lambda) },
+    """
+    Returns a random draw from a Poisson distribution with rate parameter ``lambda``. This function is non-deterministic.
+    """,
+    "lambda" -> "Poisson rate parameter. Must be non-negative.")
+  register("rpois", { (n: Int, lambda: Double) => rpois(n, lambda) },
+    """
+    Returns ``n`` random draws from a Poisson distribution with rate parameter ``lambda``. This function is non-deterministic.
+    """,
+    "n" -> "Number of random draws to make.",
+    "lambda" -> "Poisson rate parameter. Must be non-negative.")(intHr, doubleHr, arrayHr(doubleHr))
+  register("dpois", { (x: Double, lambda: Double) => dpois(x, lambda) },
+    """
+    Returns Prob(:math:`X` = ``x``) from a Poisson distribution with rate parameter ``lambda``.
+    """,
+    "x" -> "Non-negative number at which to compute the probability density.",
+    "lambda" -> "Poisson rate parameter. Must be non-negative.")
+  register("dpois", { (x: Double, lambda: Double, logP: Boolean) => dpois(x, lambda, logP) },
+    """
+    Returns Prob(:math:`X` = ``x``) from a Poisson distribution with rate parameter ``lambda``.
+    """,
+    "x" -> "Non-negative number at which to compute the probability density.",
+    "lambda" -> "Poisson rate parameter. Must be non-negative.",
+    "logP" -> "If true, probabilities are returned as log(p).")
+  register("ppois", { (x: Double, lambda: Double) => ppois(x, lambda) },
+    """
+    Returns the left-tail Prob(:math:`X \leq` ``x``) where :math:`X` is a Poisson random variable with rate parameter ``lambda``.
+    """,
+    "x" -> "Non-negative bound for the left-tail cumulative probability.",
+    "lambda" -> "Poisson rate parameter. Must be non-negative.")
+  register("ppois", { (x: Double, lambda: Double, lowerTail: Boolean, logP: Boolean) => ppois(x, lambda, lowerTail, logP) },
+    """
+    If ``lowerTail`` equals true, returns Prob(:math:`X \leq` ``x``) where :math:`X` is a Poisson random variable with rate parameter ``lambda``. If ``lowerTail`` equals false, returns Prob(:math:`X` > ``x``).
+    """,
+    "x" -> "Non-negative number at which to compute the probability density.",
+    "lambda" -> "Poisson rate parameter. Must be non-negative.",
+    "lowerTail" -> "If false, returns the exclusive right-tail probability :math:`P(X > x)`.",
+    "logP" -> "If true, probabilities are returned as log(p).")
+
+  register("qpois", { (p: Double, lambda: Double) => qpois(p, lambda) },
+    """
+    Returns the smallest integer :math:`x` such that Prob(:math:`X \leq x`) :math:`\geq` ``p`` where :math:`X` is a Poisson random variable with rate parameter ``lambda``. Inverts ppois.
+    """,
+    "p" -> """Quantile to compute. Must satisfy :math:`0 \leq p \leq 1`.""",
+    "lambda" -> "Poisson rate parameter. Must be non-negative.")
+
+  register("qpois", { (p: Double, lambda: Double, lowerTail: Boolean, logP: Boolean) => qpois(p, lambda, lowerTail, logP) },
+    """
+    If ``lowerTail`` equals true, returns the smallest integer :math:`x` such that Prob(:math:`X \leq x`) :math:`\geq` ``p`` where :math:`X` is a Poisson random variable with rate parameter ``lambda``.
+    If ``lowerTail`` equals false, returns the largest integer :math:`x` such that Prob(:math:`X > x`) :math:`\geq` ``p``. Inverts ppois.
+    """,
+    "p" -> """Quantile to compute. Must satisfy :math:`0 \leq p \leq 1`.""",
+    "lambda" -> "Poisson rate parameter. Must be non-negative.",
+    "lowerTail" -> """If false, returns the right-tail inverse cumulative density function.""",
+    "logP" -> "If true, input quantiles are given as log(p).")
 
   register("pchisqtail", { (x: Double, df: Double) => chiSquaredTail(df, x) },
     """
@@ -2552,4 +2608,49 @@ object FunctionRegistry {
         result: [4, 6]
     """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
   )(arrayHr(TTHr), intHr, intHr, arrayHr(TTHr))
+
+  registerMethod("[:]", (a: String) => a,
+    """
+    Returns a copy of the string.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcd" in a[:]
+        result: "abcd"
+    """
+  )
+  registerMethod("[*:]", (a: String, i: Int) => a.slice(i, a.length),
+    """
+    Returns a slice of the string from the i*th* unicode-codepoint (0-indexed) to the end.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[3:]
+        result: "def"
+    """, "i" -> "Starting index of the slice."
+  )
+  registerMethod("[:*]", (a: String, i: Int) => a.slice(0, i),
+    """
+    Returns a slice of the string from the first unicode-codepoint until the j*th* unicode-codepoint (0-indexed).
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[:4]
+        result: "abcd"
+    """, "j" -> "End index of the slice (not included in result)."
+  )
+  registerMethod("[*:*]", (a: String, i: Int, j: Int) => a.slice(i, j),
+    """
+    Returns a slice of the string from the i*th* unicode-codepoint until the j*th* unicode-codepoint (both 0-indexed).
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[2:4]
+        result: "cd"
+    """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
+  )
 }

@@ -466,6 +466,17 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][:2] """).contains(IndexedSeq(0, 1)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][:] """).contains(IndexedSeq(0, 1, 2, 3)))
 
+    assert(eval[String](""" "abcd"[0:2] """).contains("ab"))
+    assert(eval[String](""" "abcd"[2:] """).contains("cd"))
+    assert(eval[String](""" "abcd"[:2] """).contains("ab"))
+    assert(eval[String](""" "abcd"[:] """).contains("abcd"))
+    assert(eval[String](""" ""[:] """).contains(""))
+    assert(eval[String](""" "abcd"[-2:100] """).contains("abcd"))
+    assert(eval[String](""" "abcd"[-2:0] """).contains(""))
+    assert(eval[String](""" "abcd"[0:100] """).contains("abcd"))
+    assert(eval[String](""" "abcd"[4:] """).contains(""))
+    assert(eval[String](""" "abcd"[3:] """).contains("d"))
+
     assert(eval[Int](""" genedict["gene2"] """).contains(10))
 
     val (dictType, result) = evalWithType[Map[_, _]](""" index(structArray, f2) """)
@@ -670,6 +681,17 @@ class ExprSuite extends SparkSuite {
 
     assert(D_==(eval[Double]("qchisqtail(pchisqtail(0.5,1),1)").get, 0.5))
     assert(D_==(eval[Double]("pchisqtail(qchisqtail(0.5,1),1)").get, 0.5))
+
+    assert(eval[Boolean]("rpois(5) >= 0").contains(true))
+    assert(eval[Boolean]("rpois(5, 5).length == 5").contains(true))
+    assert(D_==(eval[Double]("dpois(5, 5)").get, 0.1754674))
+    assert(D_==(eval[Double]("dpois(5, 5, true)").get, -1.740302))
+    assert(D_==(eval[Double]("ppois(5, 5)").get, 0.6159607))
+    assert(D_==(eval[Double]("ppois(5, 5, true, true)").get, -0.4845722))
+    assert(D_==(eval[Double]("ppois(5, 5, false, false)").get, 0.3840393))
+    assert(D_==(eval[Int]("qpois(0.4, 5)").get, 4))
+    assert(D_==(eval[Int]("qpois(log(0.4), 5, true, true)").get, 4))
+    assert(D_==(eval[Int]("qpois(0.4, 5, false, false)").get, 5))
 
     assert(eval[Any]("if (true) NA: Double else 0.0").isEmpty)
 
