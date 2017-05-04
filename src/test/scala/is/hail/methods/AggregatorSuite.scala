@@ -310,7 +310,7 @@ class AggregatorSuite extends SparkSuite {
 
   private def equalModuloDisordering[T,K](orderOn: T => K)(xs: Seq[T], ys: Seq[T]): Boolean = {
     val sameOrdering = xs.zip(ys).forall { case (x, y) => orderOn(x) == orderOn(y) }
-    val sameElements = (xs.groupBy(orderOn) zip ys.groupBy(orderOn)).forall { case (xs, ys) => xs.toSet == ys.toSet }
+    val sameElements = (xs.groupBy(orderOn) zip ys.groupBy(orderOn)).forall { case ((_, xs), (_, ys)) => xs.toSet == ys.toSet }
 
     sameOrdering && sameElements
   }
