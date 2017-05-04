@@ -608,7 +608,7 @@ class TakeByAggregator[T](var f: (Any) => Any, var n: Int)(implicit var tord: Or
   else
     null
 
-  def result = _state.toArray[(Any, Any)].map(_._1).reverse: IndexedSeq[Any]
+  def result = _state.clone.dequeueAll.toArray[(Any, Any)].map(_._1).reverse: IndexedSeq[Any]
 
   def seqOp(x: Any) = seqOp(x, f(x))
 
