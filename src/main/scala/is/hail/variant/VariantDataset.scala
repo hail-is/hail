@@ -444,7 +444,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       vds
   }
 
-  def exportGen(path: String) {
+  def exportGen(path: String, precision: Int = 4) {
     requireSplit("export gen")
 
     def writeSampleFile() {
@@ -454,7 +454,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
 
-    def formatDosage(d: Double): String = d.formatted("%.4f")
+    def formatDosage(d: Double): String = d.formatted(s"%.${precision}f")
 
     val emptyDosage = Array(0d, 0d, 0d)
 

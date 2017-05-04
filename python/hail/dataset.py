@@ -1375,7 +1375,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def export_gen(self, output):
+    def export_gen(self, output, precision=4):
         """Export variant dataset as GEN and SAMPLE file.
 
         .. include:: requireTGenotype.rst
@@ -1415,9 +1415,10 @@ class VariantDataset(object):
         - The third column ("missing") is set to 0 for all samples.
 
         :param str output: Output file base.  Will write GEN and SAMPLE files.
+        :param int precision: Number of digits after the decimal point each probability is truncated to.
         """
 
-        self._jvdf.exportGen(output)
+        self._jvdf.exportGen(output, precision)
 
     @handle_py4j
     def export_genotypes(self, output, expr, types=False, export_ref=False, export_missing=False):

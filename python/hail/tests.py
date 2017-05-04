@@ -299,7 +299,7 @@ class ContextTests(unittest.TestCase):
         concordance1.write('/tmp/foo.vds', overwrite=True)
         concordance2.write('/tmp/foo.vds', overwrite=True)
 
-        sample2_split.export_gen('/tmp/sample2.gen')
+        sample2_split.export_gen('/tmp/sample2.gen', 5)
         sample2_split.export_plink('/tmp/sample2')
 
         sample2.filter_multi().count()

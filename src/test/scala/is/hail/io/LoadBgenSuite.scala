@@ -88,7 +88,7 @@ class LoadBgenSuite extends SparkSuite {
         val genFile = fileRoot + ".gen"
         val bgenFile = fileRoot + ".bgen"
 
-        vds.exportGen(fileRoot)
+        vds.exportGen(fileRoot, 5)
 
         val localRoot = tmpDir.createLocalTempFile("testImportBgen")
         val localGenFile = localRoot + ".gen"
