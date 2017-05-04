@@ -273,19 +273,25 @@ class VariantDataset(object):
 
         **Notes**
 
-        For each sample and key, this method aggregate values across variants with that key.
-           ``agg_expr`` has the following symbols are in scope:
+        To run linear or logistic burden tests on the resulting key table, use :py:meth:`.linreg_burden` or
+        :py:meth:`.logreg_burden` instead. The sample key table produced by those methods is the same
+        as the key table produced by :py:meth:`.aggregate_by_sample_and_variant_key` except that in the former those
+        columns corresponding to samples missing a phenotype or covariate dropped. Unlike those methods,
+        :py:meth:`.aggregate_by_sample_and_variant_key` does not require aggregate values to have numeric type.
+
+        For each sample and key, this method computes a value using the ``agg_expr``, which has
+        the following symbols are in scope:
 
            - ``s`` (*Sample*): sample
            - ``sa``: sample annotations
            - ``global``: global annotations
            - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
-           Note that ``v``, ``va``, and ``g`` are accessible through
-           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
+        Note that ``v``, ``va``, and ``g`` are accessible through
+        `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
 
-           The resulting key table has key column ``key_name`` and a column of aggregated results for each sample
-           named by the sample ID.
+        The resulting key table has key column ``key_name`` and a column of aggregated results for each sample
+        named by the sample ID.
 
         **Extended example**
 
@@ -2720,13 +2726,11 @@ class VariantDataset(object):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         linear regression model.
 
-        .. include:: requireTGenotype.rst
-
         **Examples**
 
         Run a gene burden test using linear regression on the maximum genotype per gene. Here ``va.genes`` is a variant
         annotation of type Set[String] giving the set of genes containing the variant (see **Extended example** below
-        for a deep dive):
+        for a deep dive), and the variant dataset is bi-allelic so ``g.gt`` takes values 0, 1, 2, or missing:
 
         >>> linreg_kt, sample_kt = (hc.read('data/example_burden.vds')
         ...     .linreg_burden(key_name='gene',
@@ -3305,13 +3309,12 @@ class VariantDataset(object):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         logistic regression model.
 
-        .. include:: requireTGenotype.rst
-
         **Examples**
 
         Run a gene burden test using the logistic Wald test on the maximum genotype per gene. Here ``va.genes`` is
         a variant annotation of type Set[String] giving the set of genes containing the variant
-        (see **Extended example** in :py:meth:`.linreg_burden` for a deeper  dive in the context of linear regression):
+        (see **Extended example** in :py:meth:`.linreg_burden` for a deeper  dive in the context of linear regression),
+        and the variant dataset is bi-allelic so ``g.gt`` takes values 0, 1, 2, or missing:
 
         >>> logreg_kt, sample_kt = (hc.read('data/example_burden.vds')
         ...     .logreg_burden(key_name='gene',
