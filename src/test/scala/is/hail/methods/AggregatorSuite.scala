@@ -308,9 +308,25 @@ class AggregatorSuite extends SparkSuite {
     }.check()
   }
 
-  private def equalModuloDisordering[T,K](orderOn: T => K)(xs: Seq[T], ys: Seq[T]): Boolean = {
-    val sameOrdering = xs.zip(ys).forall { case (x, y) => orderOn(x) == orderOn(y) }
-    val sameElements = (xs.groupBy(orderOn) zip ys.groupBy(orderOn)).forall { case ((_, xs), (_, ys)) => xs.toSet == ys.toSet }
+  private def mapJoin[K, V, W](l: Map[K, V], r: Map[K, W]): Map[K, (V, W)] =
+    (l.keySet ++ r.keySet).map(k => (k, (l(k), r(k)))).toMap
+
+  private def prefixModuloDisordering[T,K](orderOn: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+    def equivClasses(s: Seq[T]): Map[K, Set[T]] =
+      s.groupBy(orderOn).mapValues(_.toSet)
+
+    val sameOrdering = prefix.zip(full).forall { case (x, y) => orderOn(x) == orderOn(y) }
+
+    val lastKey = orderOn(prefix.last)
+    val prefixEquivClasses = equivClasses(prefix)
+    val fullPrefixKeysOnly = equivClasses(full).filterKeys(prefixEquivClasses.keySet)
+    val sameElements = mapJoin(prefixEquivClasses, fullPrefixKeysOnly)
+      .forall { case (key, (xs, ys)) =>
+        if (key == lastKey)
+          xs.subsetOf(ys)
+        else
+          xs == ys
+    }
 
     sameOrdering && sameElements
   }
@@ -322,10 +338,10 @@ class AggregatorSuite extends SparkSuite {
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
       val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])[0:10]",
         "gs.map(g => [g.dp, g.gq]).takeBy(x => x[1], 10)"))
-      val x = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      val y = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      if (!equalModuloDisordering((x: Seq[Int]) => x(1))(x, y)) {
-        println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$x\n$y")
+      val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      if (!prefixModuloDisordering((x: Seq[Int]) => x(1))(takeby, sortby)) {
+        println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$sortby\n$takeby")
         false
       } else {
         true
@@ -340,10 +356,10 @@ class AggregatorSuite extends SparkSuite {
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
       val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])[0:10]",
         "gs.map(g => [g.dp, g.gq]).takeBy(x => g.gq, 10)"))
-      val x = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      val y = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      if (!equalModuloDisordering((x: Seq[Int]) => x(1))(x, y)) {
-        println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$x\n$y")
+      val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      if (!prefixModuloDisordering((x: Seq[Int]) => x(1))(takeby, sortby)) {
+        println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$sortby\n$takeby")
         false
       } else {
         true
