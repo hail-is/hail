@@ -1,11 +1,12 @@
 package is.hail.methods
 
-import is.hail.check.{Gen, Prop}
+import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{VSMSubgen, VariantSampleMatrix}
+import is.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
+import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 import org.testng.annotations.Test
@@ -306,4 +307,87 @@ class AggregatorSuite extends SparkSuite {
       p1 && p2
     }.check()
   }
+
+  private def isLensedPrefix[T,K](lens: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+    prefix.zip(full).forall { case (x, y) => lens(x) == lens(y) }
+  }
+
+  private def prefixModuloDisordering[T,K](sortBy: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+    def equivClasses(ts: Seq[T]): Map[K, Set[T]] =
+      ts.groupBy(sortBy).mapValues(_.toSet)
+
+    if (prefix.isEmpty) {
+      true
+    } else {
+      val sameOrdering = isLensedPrefix(sortBy)(prefix, full)
+
+      val lastKey = sortBy(prefix.last)
+
+      val prefixEquivClasses = equivClasses(prefix)
+      val fullEquivClasses = equivClasses(full)
+
+      val wholeClassesPrefix = prefixEquivClasses.filterKeys(_ != lastKey)
+      val wholeClassesFull = fullEquivClasses.filterKeys(k => prefixEquivClasses.contains(k) && k != lastKey)
+
+      val wholeClassesSame = wholeClassesFull == wholeClassesPrefix
+
+      val lastKeySubset = prefixEquivClasses(lastKey).subsetOf(fullEquivClasses(lastKey))
+
+      if (sameOrdering) {
+        if (wholeClassesSame) {
+          if (lastKeySubset) {
+            true
+          } else {
+            println(s"The values at the last key in the prefix, $lastKey, were not a subset of those in the full list: ${prefixEquivClasses(lastKey)} ${fullEquivClasses(lastKey)}")
+            false
+          }
+        } else {
+          println(s"The values differed at some key:\n$wholeClassesPrefix\n$wholeClassesFull")
+          false
+        }
+      } else {
+        println(s"The sequences didn't have the same ordering:\n$prefix\n$full")
+        false
+      }
+    }
+  }
+
+  @Test def takeByAndSortByAgree() {
+    val rng = new RandomDataGenerator()
+    rng.reSeed(Prop.seed)
+
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
+      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])",
+        "gs.map(g => [g.dp, g.gq]).takeBy(x => x[1], 10)"))
+      val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+
+      if (!prefixModuloDisordering((x: Seq[Int]) => x(1))(takeby, sortby)) {
+        println(s"The first sequence is not a prefix, up to irrelevant disorderings, of the second sequence\n$takeby\n$sortby")
+        false
+      } else {
+        true
+      }
+    } (Parameters(rng, 1000, 100))
+  }
+
+  @Test def takeByAndSortByAgreeUsingLatentEnvironment() {
+    val rng = new RandomDataGenerator()
+    rng.reSeed(Prop.seed)
+
+    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
+      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])",
+        "gs.map(g => [g.dp, g.gq]).takeBy(x => g.gq, 10)"))
+      val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+
+      if (!prefixModuloDisordering((x: Seq[Int]) => x(1))(takeby, sortby)) {
+        println(s"The first sequence is not a prefix, up to irrelevant disorderings, of the second sequence\n$takeby\n$sortby")
+        false
+      } else {
+        true
+      }
+    } (Parameters(rng, 1000, 100))
+  }
+
 }
