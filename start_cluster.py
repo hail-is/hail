@@ -66,8 +66,7 @@ properties = ','.join([
 ])
 
 # default initialization script to start up cluster with
-init_actions = 'gs://labbott/init_notebook2.py'
-#init_actions = 'gs://hail-common/init_notebook.py'
+init_actions = 'gs://hail-common/init_notebook.py'
 
 # add VEP action
 if args.vep:
