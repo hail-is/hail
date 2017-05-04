@@ -2608,4 +2608,49 @@ object FunctionRegistry {
         result: [4, 6]
     """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
   )(arrayHr(TTHr), intHr, intHr, arrayHr(TTHr))
+
+  registerMethod("[:]", (a: String) => a,
+    """
+    Returns a copy of the string.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcd" in a[:]
+        result: "abcd"
+    """
+  )
+  registerMethod("[*:]", (a: String, i: Int) => a.slice(i, a.length),
+    """
+    Returns a slice of the string from the i*th* unicode-codepoint (0-indexed) to the end.
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[3:]
+        result: "def"
+    """, "i" -> "Starting index of the slice."
+  )
+  registerMethod("[:*]", (a: String, i: Int) => a.slice(0, i),
+    """
+    Returns a slice of the string from the first unicode-codepoint until the j*th* unicode-codepoint (0-indexed).
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[:4]
+        result: "abcd"
+    """, "j" -> "End index of the slice (not included in result)."
+  )
+  registerMethod("[*:*]", (a: String, i: Int, j: Int) => a.slice(i, j),
+    """
+    Returns a slice of the string from the i*th* unicode-codepoint until the j*th* unicode-codepoint (both 0-indexed).
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[2:4]
+        result: "cd"
+    """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
+  )
 }

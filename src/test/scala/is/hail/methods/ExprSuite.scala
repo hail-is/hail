@@ -466,6 +466,17 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][:2] """).contains(IndexedSeq(0, 1)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][:] """).contains(IndexedSeq(0, 1, 2, 3)))
 
+    assert(eval[String](""" "abcd"[0:2] """).contains("ab"))
+    assert(eval[String](""" "abcd"[2:] """).contains("cd"))
+    assert(eval[String](""" "abcd"[:2] """).contains("ab"))
+    assert(eval[String](""" "abcd"[:] """).contains("abcd"))
+    assert(eval[String](""" ""[:] """).contains(""))
+    assert(eval[String](""" "abcd"[-2:100] """).contains("abcd"))
+    assert(eval[String](""" "abcd"[-2:0] """).contains(""))
+    assert(eval[String](""" "abcd"[0:100] """).contains("abcd"))
+    assert(eval[String](""" "abcd"[4:] """).contains(""))
+    assert(eval[String](""" "abcd"[3:] """).contains("d"))
+
     assert(eval[Int](""" genedict["gene2"] """).contains(10))
 
     val (dictType, result) = evalWithType[Map[_, _]](""" index(structArray, f2) """)
