@@ -166,7 +166,7 @@ object LoadVCF {
       case (VCFHeaderLineType.Float, false) => TDouble
       case (VCFHeaderLineType.String, true) => TCall
       case (VCFHeaderLineType.String, false) => TString
-      case (VCFHeaderLineType.Character, false) => TChar
+      case (VCFHeaderLineType.Character, false) => TString
       case (VCFHeaderLineType.Flag, false) => TBoolean
       case (_, true) => fatal(s"Can only convert a header line with type `String' to a Call Type. Found `${ line.getType }'.")
     }

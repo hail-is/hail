@@ -111,7 +111,6 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
     case TFloat => FloatType
     case TDouble => DoubleType
     case TString => StringType
-    case TChar => StringType
     case TBinary => BinaryType
     case TArray(elementType) => ArrayType(exportType(elementType))
     case TSet(elementType) => ArrayType(exportType(elementType))
@@ -262,7 +261,6 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     else {
       (t: @unchecked) match {
         case TBoolean => JBool(a.asInstanceOf[Boolean])
-        case TChar => JString(a.asInstanceOf[String])
         case TInt => JInt(a.asInstanceOf[Int])
         case TLong => JInt(a.asInstanceOf[Long])
         case TFloat => JDouble(a.asInstanceOf[Float])
@@ -313,7 +311,6 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
       case (JString("-Infinity"), TFloat) => Float.NegativeInfinity
       case (JDouble(x), TFloat) => x.toFloat
       case (JString(x), TString) => x
-      case (JString(x), TChar) => x
       case (JString(x), TInt) =>
         x.toInt
       case (JString(x), TDouble) =>
@@ -435,7 +432,6 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       }
       case TGenotype => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case TCall => a.toInt
-      case TChar => a
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
