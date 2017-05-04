@@ -234,12 +234,13 @@ class VariantDataset(object):
 
     @handle_py4j
     def aggregate_by_sample_and_variant_key(self, key_name, variant_keys, single_key, agg_expr):
-        r"""Aggregate values per sample and variant key using a user-defined aggregation expression to produce a
+        r"""Aggregate values by sample and variant key using a user-defined aggregation expression to produce a
         KeyTable with a key column, a column for each sample, and a row for each key.
 
         **Examples**
         Make a key table with the maximum genotype per gene per sample. Here ``va.genes`` is a variant annotation
-        of type Set[String] giving the set of genes containing the variant.
+        of type Set[String] giving the set of genes containing the variant, and the variant dataset is bi-allelic
+        so ``g.gt`` takes values 0, 1, 2, or missing.
 
         >>> kt = (hc.read('data/example_burden.vds')
         ...     .aggregate_by_sample_and_variant_key(key_name='gene',
@@ -272,8 +273,8 @@ class VariantDataset(object):
 
         **Notes**
 
-        For each key and sample, this method aggregate genotypes across variants with that key to produce a numeric score.
-           ``agg_expr`` must be of numeric type and has the following symbols are in scope:
+        For each sample and key, this method aggregate values across variants with that key.
+           ``agg_expr`` has the following symbols are in scope:
 
            - ``s`` (*Sample*): sample
            - ``sa``: sample annotations
@@ -283,7 +284,7 @@ class VariantDataset(object):
            Note that ``v``, ``va``, and ``g`` are accessible through
            `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
 
-           The resulting key table has key column ``key_name`` and a column of aggregated values for each sample
+           The resulting key table has key column ``key_name`` and a column of aggregated results for each sample
            named by the sample ID.
 
         **Extended example**
