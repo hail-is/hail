@@ -49,14 +49,16 @@ object LogisticRegression {
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(logRegTest.schema, pathVA)
-    val emptyStats = logRegTest.emptyStats
 
     vds.copy(rdd = vds.rdd.mapPartitions( { it =>
       val X = XBc.value.copy
       it.map { case (v, (va, gs)) =>
+        val isNotDegenerate =
+          RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator, sampleMaskBc.value)
+
         val logregAnnot =
-          if (RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator, sampleMaskBc.value))
-            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
+          if (isNotDegenerate)
+            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
           else
             null
 

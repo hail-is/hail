@@ -79,12 +79,15 @@ object LogisticRegressionBurden {
       val X = XBc.value.copy
       it.map { keyedRow =>
         val key = Row(keyedRow.get(0))
-        (
-          if (RegressionUtils.setLastColumnToKeyedRow(X, keyedRow))
-            merger(key, logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats))
+        val isNotDegenerate =  RegressionUtils.setLastColumnToKeyedRow(X, keyedRow)
+
+        val logregAnnot =
+          if (isNotDegenerate)
+            merger(key, logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation)
           else
             merger(key, emptyStats)
-        ).asInstanceOf[Row]
+
+        logregAnnot.asInstanceOf[Row]
       }
     })
 
