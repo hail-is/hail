@@ -2078,26 +2078,22 @@ object FunctionRegistry {
     ...   .query_samples(['samples.takeBy(s => sa.qc.nSingleton, 10)']))
 
     """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, boxedintHr), intHr, arrayHr(TTHr))
+  )(aggregableHr(TTHr), unaryHr(TTHr, boxedintHr), intHr, arrayHr(TTHr))
   registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Long](f, n),
     """
     Take the first ``n`` items of an aggregable ordered by the result of ``f``.
     """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, boxedlongHr), intHr, arrayHr(TTHr))
+  )(aggregableHr(TTHr), unaryHr(TTHr, boxedlongHr), intHr, arrayHr(TTHr))
   registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Float](f, n),
     """
     Take the first ``n`` items of an aggregable ordered by the result of ``f``.
     """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, boxedfloatHr), intHr, arrayHr(TTHr))
+  )(aggregableHr(TTHr), unaryHr(TTHr, boxedfloatHr), intHr, arrayHr(TTHr))
   registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Double](f, n),
     """
     Take the first ``n`` items of an aggregable ordered by the result of ``f``.
     """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, boxeddoubleHr), intHr, arrayHr(TTHr))
+  )(aggregableHr(TTHr), unaryHr(TTHr, boxeddoubleHr), intHr, arrayHr(TTHr))
   registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[String](f, n),
     """
     Take the first ``n`` items of an aggregable ordered by the result of ``f``.
