@@ -233,6 +233,125 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.aggregateByKey(key_code, agg_code))
 
     @handle_py4j
+    def aggregate_by_sample_and_variant_key(self, key_name, variant_keys, single_key, agg_expr):
+        r"""Aggregate values per sample and variant key using a user-defined aggregation expression to produce a
+        KeyTable with a key column, a column for each sample, and a row for each key.
+
+        **Examples**
+        Make a key table with the maximum genotype per gene per sample. Here ``va.genes`` is a variant annotation
+        of type Set[String] giving the set of genes containing the variant.
+
+        >>> kt = (hc.read('data/example_burden.vds')
+        ...     .aggregate_by_sample_and_variant_key(key_name='gene',
+        ...                    variant_keys='va.genes',
+        ...                    single_key=False,
+        ...                    agg_expr='gs.map(g => g.gt).max()'))
+
+        Make a key table with the weighted sum of genotypes per gene per sample. Here ``va.gene`` is a variant
+        annotation of type String giving a single gene per variant (or no gene if missing), and ``va.weight``
+        is a numeric variant annotation:
+
+        >>> kt = (hc.read('data/example_burden.vds')
+        ...     .aggregate_by_sample_and_variant_key(key_name='gene',
+        ...                    variant_keys='va.gene',
+        ...                    single_key=True,
+        ...                    agg_expr='gs.map(g => va.weight * g.gt).sum()'))
+
+        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
+        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
+        is the allele frequency over those samples that have no missing phenotype or covariates.
+
+        .. caution::
+
+          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
+          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
+          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
+          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
+          variant annotation whose value is itself the key of interest. In bose cases, variants with missing keys are
+          ignored.
+
+        **Notes**
+
+        For each key and sample, this method aggregate genotypes across variants with that key to produce a numeric score.
+           ``agg_expr`` must be of numeric type and has the following symbols are in scope:
+
+           - ``s`` (*Sample*): sample
+           - ``sa``: sample annotations
+           - ``global``: global annotations
+           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
+
+           Note that ``v``, ``va``, and ``g`` are accessible through
+           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
+
+           The resulting key table has key column ``key_name`` and a column of aggregated values for each sample
+           named by the sample ID.
+
+        **Extended example**
+
+        Let's walk through these steps in the ``max()`` toy example above.
+
+        There are three variants with the following ``gt`` values:
+
+        +---------+---+---+---+---+---+---+
+        | Variant | A | B | C | D | E | F |
+        +=========+===+===+===+===+===+===+
+        | 1:1:A:C | 0 | 1 | 0 | 0 | 0 | 1 |
+        +---------+---+---+---+---+---+---+
+        | 1:2:C:T | . | 2 | . | 2 | 0 | 0 |
+        +---------+---+---+---+---+---+---+
+        | 1:3:G:C | 0 | . | 1 | 1 | 1 | . |
+        +---------+---+---+---+---+---+---+
+
+        The ``va.genes`` annotation of type Set[String] on ``example_burden.vds`` was created
+        using :py:meth:`.annotate_variants_intervals` with ``all=True`` on the interval list:
+
+        .. literalinclude:: data/genes.interval_list
+
+        So there are three overlapping genes: gene A contains two variants,
+        gene B contains one variant, and gene C contains all three variants.
+
+        +--------+---------+---------+---------+
+        |  gene  | 1:1:A:C | 1:2:C:T | 1:3:G:C |
+        +========+=========+=========+=========+
+        |  geneA |    X    |    X    |         |
+        +--------+---------+---------+---------+
+        |  geneB |         |    X    |         |
+        +--------+---------+---------+---------+
+        |  geneC |    X    |    X    |    X    |
+        +--------+---------+---------+---------+
+
+        Therefore :py:meth:`.annotate_variants_intervals` with ``all=True`` creates
+        a variant annotation of type Set[String] with values ``Set('geneA', 'geneB')``,
+        ``Set('geneB')``, and ``Set('geneA', 'geneB', 'geneC')``.
+
+        So the resulting key table is:
+
+        +-----+---+---+---+---+---+---+
+        | gene| A | B | C | D | E | F |
+        +=====+===+===+===+===+===+===+
+        |geneA|  0|  2|  0|  2|  0|  1|
+        +-----+---+---+---+---+---+---+
+        |geneB| NA|  2| NA|  2|  0|  0|
+        +-----+---+---+---+---+---+---+
+        |geneC|  0|  2|  1|  2|  1|  1|
+        +-----+---+---+---+---+---+---+
+
+        :param str key_name: Name to assign to key column of returned key tables.
+
+        :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
+
+        :param bool single_key: if true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
+                                rather than as a collection of keys.
+
+        :param str agg_expr: Sample aggregation expression (per key).
+
+        :return: Key table with variant key column and a column for each sample.
+        :rtype: :py:class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jvds.aggregateBySampleAndVariantKey(key_name, variant_keys, single_key, agg_expr))
+
+    @handle_py4j
     def aggregate_intervals(self, input, expr, output):
         '''Aggregate over intervals and export.
 

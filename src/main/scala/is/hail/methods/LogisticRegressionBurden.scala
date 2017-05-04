@@ -53,7 +53,7 @@ object LogisticRegressionBurden {
     info(s"Aggregating variants by '$keyName' for $n samples...")
 
     def sampleKT = vds.filterSamples((s, sa) => completeSamplesSet(s))
-      .aggregateBySamplePerVariantKey(keyName, variantKeys, aggExpr, singleKey)
+      .aggregateBySampleAndVariantKey(keyName, variantKeys, singleKey, aggExpr)
       .cache()
 
     val keyType = sampleKT.fields(0).typ
