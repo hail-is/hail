@@ -5,6 +5,10 @@ import breeze.numerics._
 import is.hail.annotations.Annotation
 import is.hail.expr._
 
+object LogisticRegressionTest {
+  val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
+}
+
 abstract class LogisticRegressionTest extends Serializable {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResult[LogisticRegressionStats]
   val schema: Type
@@ -15,16 +19,27 @@ abstract class LogisticRegressionStats {
   def toAnnotations: Seq[Annotation]
 }
 
-class LogisticRegressionTestResult[+T <: LogisticRegressionStats](val stats: Option[T]) {
-  def toAnnotation(emptyStats: Seq[Annotation]): Annotation = Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats))
+class LogisticRegressionTestResult[+T <: LogisticRegressionStats](val stats: Option[T], private val emptyStats: Seq[Annotation]) {
+  def toAnnotation: Annotation =
+    Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats))
 }
 
-class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override val stats: Option[T], val fitStats: LogisticRegressionFit) extends LogisticRegressionTestResult[T](stats) {
-  override def toAnnotation(emptyStats: Seq[Annotation]): Annotation = Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats) :+ fitStats.toAnnotation)
+class LogisticRegressionTestResultWithFit[T <: LogisticRegressionStats](override val stats: Option[T], private val emptyStats: Seq[Annotation], val fitStats: LogisticRegressionFit) extends LogisticRegressionTestResult[T](stats, emptyStats) {
+  override def toAnnotation: Annotation =
+    Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats) :+ fitStats.toAnnotation)
 }
 
 
 object WaldTest extends LogisticRegressionTest {
+  val schema: Type = TStruct(
+    ("beta", TDouble),
+    ("se", TDouble),
+    ("zstat", TDouble),
+    ("pval", TDouble),
+    ("fit", LogisticRegressionFit.schema))
+
+  val emptyStats = Annotation.emptyIndexedSeq(schema.children.size - 1)
+
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[WaldStats] = {
     require(nullFit.fisher.isDefined)
 
@@ -45,17 +60,8 @@ object WaldTest extends LogisticRegressionTest {
     } else
       None
 
-    new LogisticRegressionTestResultWithFit[WaldStats](waldStats, fit)
+    new LogisticRegressionTestResultWithFit[WaldStats](waldStats, emptyStats, fit)
   }
-
-  val schema: Type = TStruct(
-    ("beta", TDouble),
-    ("se", TDouble),
-    ("zstat", TDouble),
-    ("pval", TDouble),
-    ("fit", LogisticRegressionFit.schema))
-
-  val emptyStats = Annotation.emptyIndexedSeq(4)
 }
 
 case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends LogisticRegressionStats {
@@ -65,8 +71,16 @@ case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVe
 
 
 object LikelihoodRatioTest extends LogisticRegressionTest {
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[LikelihoodRatioStats] = {
+  val schema = TStruct(
+    ("beta", TDouble),
+    ("chi2", TDouble),
+    ("pval", TDouble),
+    ("fit", LogisticRegressionFit.schema))
 
+  val emptyStats = Annotation.emptyIndexedSeq(schema.children.size - 1)
+
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit):
+    LogisticRegressionTestResultWithFit[LikelihoodRatioStats] = {
     val m = X.cols
     val m0 = nullFit.b.length
     val model = new LogisticRegressionModel(X, y)
@@ -81,16 +95,8 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
       } else
         None
 
-    new LogisticRegressionTestResultWithFit[LikelihoodRatioStats](lrStats, fit)
+    new LogisticRegressionTestResultWithFit[LikelihoodRatioStats](lrStats, emptyStats, fit)
   }
-
-  val schema = TStruct(
-    ("beta", TDouble),
-    ("chi2", TDouble),
-    ("pval", TDouble),
-    ("fit", LogisticRegressionFit.schema))
-
-  val emptyStats = Annotation.emptyIndexedSeq(3)
 }
 
 
@@ -101,7 +107,17 @@ case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double)
 
 
 object FirthTest extends LogisticRegressionTest {
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[FirthStats] = {
+  val schema = TStruct(
+    ("beta", TDouble),
+    ("chi2", TDouble),
+    ("pval", TDouble),
+    ("fit", LogisticRegressionFit.schema))
+
+  val emptyStats = Annotation.emptyIndexedSeq(schema.children.size - 1)
+
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit):
+    LogisticRegressionTestResultWithFit[FirthStats] = {
+
     val m = X.cols
     val m0 = nullFit.b.length
     val model = new LogisticRegressionModel(X, y)
@@ -122,18 +138,10 @@ object FirthTest extends LogisticRegressionTest {
         } else
           None
 
-      new LogisticRegressionTestResultWithFit[FirthStats](firthStats, fitFirth)
+      new LogisticRegressionTestResultWithFit[FirthStats](firthStats, emptyStats, fitFirth)
     } else
-      new LogisticRegressionTestResultWithFit[FirthStats](None, nullFitFirth)
+      new LogisticRegressionTestResultWithFit[FirthStats](None, emptyStats, nullFitFirth)
   }
-
-  val schema = TStruct(
-    ("beta", TDouble),
-    ("chi2", TDouble),
-    ("pval", TDouble),
-    ("fit", LogisticRegressionFit.schema))
-
-  val emptyStats = Annotation.emptyIndexedSeq(3)
 }
 
 
@@ -143,7 +151,15 @@ case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends L
 
 
 object ScoreTest extends LogisticRegressionTest {
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResult[ScoreStats] = {
+  val schema: Type = TStruct(
+    ("chi2", TDouble),
+    ("pval", TDouble))
+
+  val emptyStats = Annotation.emptyIndexedSeq(schema.children.size)
+
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit):
+    LogisticRegressionTestResult[ScoreStats] = {
+
     require(nullFit.score.isDefined && nullFit.fisher.isDefined)
 
     val scoreStats = {
@@ -180,14 +196,8 @@ object ScoreTest extends LogisticRegressionTest {
       }
     }
 
-    new LogisticRegressionTestResult[ScoreStats](scoreStats)
+    new LogisticRegressionTestResult[ScoreStats](scoreStats, emptyStats)
   }
-
-  val schema: Type = TStruct(
-    ("chi2", TDouble),
-    ("pval", TDouble))
-
-  val emptyStats = Annotation.emptyIndexedSeq(2)
 }
 
 

@@ -3,10 +3,8 @@ package is.hail.variant
 import java.io.FileNotFoundException
 
 import is.hail.HailContext
-import is.hail.annotations.{Annotation, _}
-import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
-import is.hail.io._
-import is.hail.io.annotators.IntervalListAnnotator
+import is.hail.annotations._
+import is.hail.expr._
 import is.hail.io.plink.ExportBedBimFam
 import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable
@@ -16,15 +14,13 @@ import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
-import org.apache.kudu.spark.kudu.{KuduContext, _}
-import org.apache.spark.SparkEnv
-import org.apache.spark.mllib.linalg.distributed.BlockMatrix
+import org.apache.kudu.spark.kudu._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.json4s.{JArray, JBool, JInt, JObject, JString, JValue, _}
+import org.json4s._
 
 import scala.collection.mutable
 import scala.io.Source
@@ -835,6 +831,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def logreg(test: String, y: String, covariates: Array[String] = Array.empty[String], root: String = "va.logreg"): VariantDataset = {
     requireSplit("logistic regression")
     LogisticRegression(vds, test, y, covariates, root)
+  }
+
+  def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
+    requireSplit("linear burden regression")
+    LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 
   def makeSchemaForKudu(): StructType =

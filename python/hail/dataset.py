@@ -2616,7 +2616,7 @@ class VariantDataset(object):
         ...                    y='sa.burden.pheno',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
-        Run a gene burden test using linear regression on the  weighted sum of genotypes per gene. Here ``va.gene`` is
+        Run a gene burden test using linear regression on the weighted sum of genotypes per gene. Here ``va.gene`` is
         a variant annotation of type String giving a single gene per variant (or no gene if missing), and ``va.weight``
         is a numeric variant annotation:
 
@@ -2664,12 +2664,12 @@ class VariantDataset(object):
            named by the sample ID.
 
         3) For each key, fit the linear regression model using the supplied phenotype and covariates.
-           The model is that of :py:meth:`.linreg` with sample genotype ``gt`` replaced by the scores in the sample
+           The model is that of :py:meth:`.linreg` with sample genotype ``gt`` replaced by the score in the sample
            key table. For each key, missing scores are mean-imputed across all samples.
 
            The resulting **linear regression key table** has the following columns:
 
-           - **key** (*String*) -- key of variant group
+           - value of ``key_name`` (*String*) -- descriptor of variant group key (key column)
            - **beta** (*Double*) -- fit coefficient, :math:`\hat\beta_1`
            - **se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
            - **tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
@@ -2685,17 +2685,17 @@ class VariantDataset(object):
         +--------+-------+------+------+
         | Sample | pheno | cov1 | cov2 |
         +========+=======+======+======+
-        |      A |     1 |    0 |   -1 |
+        |      A |     0 |    0 |   -1 |
         +--------+-------+------+------+
-        |      B |     1 |    2 |    3 |
+        |      B |     0 |    2 |    3 |
         +--------+-------+------+------+
-        |      C |     2 |    1 |    5 |
+        |      C |     1 |    1 |    5 |
         +--------+-------+------+------+
-        |      D |     2 |   -2 |    0 |
+        |      D |     1 |   -2 |    0 |
         +--------+-------+------+------+
-        |      E |     2 |   -2 |   -4 |
+        |      E |     1 |   -2 |   -4 |
         +--------+-------+------+------+
-        |      F |     2 |    4 |    3 |
+        |      F |     1 |    4 |    3 |
         +--------+-------+------+------+
 
         There are three variants with the following ``gt`` values:
@@ -2744,7 +2744,7 @@ class VariantDataset(object):
         |geneC|  0|  2|  1|  2|  1|  1|
         +-----+---+---+---+---+---+---+
 
-        Linear regression is done for each row using the supplied phenotype and covariates.
+        Linear regression is done for each row using the supplied phenotype, covariates, and implicit intercept.
         The resulting linear regression key table is:
 
         +------+-------+------+-------+------+
@@ -3067,7 +3067,8 @@ class VariantDataset(object):
 
         **Examples**
 
-        Run the logistic regression Wald test per variant using a phenotype and two covariates stored in sample annotations:
+        Run the logistic regression Wald test per variant using a Boolean phenotype and two covariates stored
+        in sample annotations:
 
         >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
@@ -3076,11 +3077,12 @@ class VariantDataset(object):
         The :py:meth:`~hail.VariantDataset.logreg` command performs,
         for each variant, a significance test of the genotype in
         predicting a binary (case-control) phenotype based on the
-        logistic regression model. Hail supports the Wald test ('wald'),
-        likelihood ratio test ('lrt'), Rao score test ('score'), and Firth test ('firth'). Hail only
-        includes samples for which the phenotype and all covariates are
-        defined. For each variant, Hail imputes missing genotypes as
-        the mean of called genotypes.
+        logistic regression model. The phenotype type must either be numeric (with all
+        present values 0 or 1) or Boolean, in which case true and false are coded as 1 and 0, respectively.
+
+        Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
+        and Firth test ('firth'). Hail only includes samples for which the phenotype and all covariates are
+        defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
 
         The example above considers a model of the form
 
@@ -3169,7 +3171,7 @@ class VariantDataset(object):
         :param covariates: list of covariate expressions
         :type covariates: list of str
 
-        :param str root: Variant annotation path to store result of linear regression.
+        :param str root: Variant annotation path to store result of logistic regression.
 
         :return: Variant dataset with logistic regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
@@ -3177,6 +3179,116 @@ class VariantDataset(object):
 
         jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root)
         return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    def logreg_burden(self, key_name, variant_keys, single_key, agg_expr, test, y, covariates=[]):
+        r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
+        logistic regression model.
+
+        .. include:: requireTGenotype.rst
+
+        **Examples**
+
+        Run a gene burden test using the logistic Wald test on the maximum genotype per gene. Here ``va.genes`` is
+        a variant annotation of type Set[String] giving the set of genes containing the variant
+        (see **Extended example** in :py:meth:`.linreg_burden` for a deeper  dive in the context of linear regression):
+
+        >>> logreg_kt, sample_kt = (hc.read('data/example_burden.vds')
+        ...     .logreg_burden(key_name='gene',
+        ...                    variant_keys='va.genes',
+        ...                    single_key=False,
+        ...                    agg_expr='gs.map(g => g.gt).max()',
+        ...                    test='wald',
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
+
+        Run a gene burden test using the logistic score test on the weighted sum of genotypes per gene.
+        Here ``va.gene`` is a variant annotation of type String giving a single gene per variant (or no gene if
+        missing), and ``va.weight`` is a numeric variant annotation:
+
+        >>> logreg_kt, sample_kt = (hc.read('data/example_burden.vds')
+        ...     .logreg_burden(key_name='gene',
+        ...                    variant_keys='va.gene',
+        ...                    single_key=True,
+        ...                    agg_expr='gs.map(g => va.weight * g.gt).sum()',
+        ...                    test='score',
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
+
+        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
+        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
+        is the allele frequency over those samples that have no missing phenotype or covariates.
+
+        .. caution::
+
+          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
+          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
+          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
+          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
+          variant annotation whose value is itself the key of interest. In bose cases, variants with missing keys are
+          ignored.
+
+        **Notes**
+
+        This method modifies :py:meth:`.logreg` by replacing the genotype covariate per variant and sample with
+        an aggregated (i.e., collapsed) score per key and sample. This numeric score is computed from the sample's
+        genotypes and annotations over all variants with that key. The phenotype type must either be numeric
+        (with all present values 0 or 1) or Boolean, in which case true and false are coded as 1 and 0, respectively.
+
+        Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
+        and Firth test ('firth') as the ``test`` parameter. Conceptually, the method proceeds as follows:
+
+        1) Filter to the set of samples for which all phenotype and covariates are defined.
+
+        2) For each key and sample, aggregate genotypes across variants with that key to produce a numeric score.
+           ``agg_expr`` must be of numeric type and has the following symbols are in scope:
+
+           - ``s`` (*Sample*): sample
+           - ``sa``: sample annotations
+           - ``global``: global annotations
+           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
+
+           Note that ``v``, ``va``, and ``g`` are accessible through
+           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
+
+           The resulting **sample key table** has key column ``key_name`` and a numeric column of scores for each sample
+           named by the sample ID.
+
+        3) For each key, fit the logistic regression model using the supplied phenotype, covariates, and test.
+           The model and tests are those of :py:meth:`.logreg` with sample genotype ``gt`` replaced by the
+           score in the sample key table. For each key, missing scores are mean-imputed across all samples.
+
+           The resulting **logistic regression key table** has key column of type String given by the ``key_name``
+           parameter and additional columns corresponding to the fields of the ``va.logreg`` schema given for ``test``
+           in :py:meth:`.logreg`.
+
+        :py:meth:`.logreg_burden` returns both the logistic regression key table and the sample key table.
+
+        :param str key_name: Name to assign to key column of returned key tables.
+
+        :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
+
+        :param bool single_key: if true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
+                                rather than as a collection of keys.
+
+        :param str agg_expr: Sample aggregation expression (per key).
+
+        :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
+
+        :param str y: Response expression.
+
+        :param covariates: list of covariate expressions.
+        :type covariates: list of str
+
+        :return: Tuple of logistic regression key table and sample aggregation key table.
+        :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`)
+        """
+
+        r = self._jvdf.logregBurden(key_name, variant_keys, single_key, agg_expr, test, y, jarray(Env.jvm().java.lang.String, covariates))
+        logreg_kt = KeyTable(self.hc, r._1())
+        sample_kt = KeyTable(self.hc, r._2())
+
+        return logreg_kt, sample_kt
 
     @handle_py4j
     @requireTGenotype

@@ -29,12 +29,15 @@ object LinearRegressionBurden {
     if (d < 1)
       fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
-    info(s"Running linreg_burden, aggregated by key $keyName on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"Aggregating variants by '$keyName' for $n samples...")
 
     val completeSamplesSet = completeSamples.toSet
-
     if (completeSamplesSet(keyName))
-      fatal(s"Sample name conflicts with the key name $keyName")
+      fatal(s"Key name '$keyName' clashes with a sample name")
+
+    val linregFields = LinearRegression.schema.fields.map(_.name).toSet
+    if (linregFields(keyName))
+      fatal(s"Key name '$keyName' clashes with reserved linreg columns $linregFields")
 
     def sampleKT = vds.filterSamples((s, sa) => completeSamplesSet(s))
       .aggregateBySamplePerVariantKey(keyName, variantKeys, aggExpr, singleKey)
@@ -47,6 +50,8 @@ object LinearRegressionBurden {
 
     if (!numericType.isInstanceOf[TNumeric])
       fatal(s"aggregate_expr type must be numeric, found $numericType")
+
+    info(s"Running linear regression burden test for ${sampleKT.nRows} keys on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val emptyStats = Annotation.emptyIndexedSeq(LinearRegression.schema.fields.size)
 
@@ -81,8 +86,7 @@ object LinearRegressionBurden {
       }
     }
 
-    def linregSignature = TStruct(keyName -> keyType).merge(LinearRegression.schema)._1
-
+    val linregSignature = TStruct(keyName -> keyType).merge(LinearRegression.schema)._1
     val linregKT = new KeyTable(sampleKT.hc, linregRDD, signature = linregSignature, keyNames = Array(keyName))
 
     (linregKT, sampleKT)
