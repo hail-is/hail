@@ -308,27 +308,48 @@ class AggregatorSuite extends SparkSuite {
     }.check()
   }
 
-  private def mapJoin[K, V, W](l: Map[K, V], r: Map[K, W]): Map[K, (V, W)] =
-    (l.keySet ++ r.keySet).map(k => (k, (l(k), r(k)))).toMap
+  private def isLensedPrefix[T,K](lens: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+    prefix.zip(full).forall { case (x, y) => lens(x) == lens(y) }
+  }
 
-  private def prefixModuloDisordering[T,K](orderOn: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
-    def equivClasses(s: Seq[T]): Map[K, Set[T]] =
-      s.groupBy(orderOn).mapValues(_.toSet)
+  private def prefixModuloDisordering[T,K](sortBy: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+    def equivClasses(ts: Seq[T]): Map[K, Set[T]] =
+      ts.groupBy(sortBy).mapValues(_.toSet)
 
-    val sameOrdering = prefix.zip(full).forall { case (x, y) => orderOn(x) == orderOn(y) }
+    if (prefix.isEmpty) {
+      true
+    } else {
+      val sameOrdering = isLensedPrefix(sortBy)(prefix, full)
 
-    val lastKey = orderOn(prefix.last)
-    val prefixEquivClasses = equivClasses(prefix)
-    val fullPrefixKeysOnly = equivClasses(full).filterKeys(prefixEquivClasses.keySet)
-    val sameElements = mapJoin(prefixEquivClasses, fullPrefixKeysOnly)
-      .forall { case (key, (xs, ys)) =>
-        if (key == lastKey)
-          xs.subsetOf(ys)
-        else
-          xs == ys
+      val lastKey = sortBy(prefix.last)
+
+      val prefixEquivClasses = equivClasses(prefix)
+      val fullEquivClasses = equivClasses(full)
+
+      val wholeClassesPrefix = prefixEquivClasses.filterKeys(_ != lastKey)
+      val wholeClassesFull = fullEquivClasses.filterKeys(k => prefixEquivClasses.contains(k) && k != lastKey)
+
+      val wholeClassesSame = wholeClassesFull == wholeClassesPrefix
+
+      val lastKeySubset = prefixEquivClasses(lastKey).subsetOf(fullEquivClasses(lastKey))
+
+      if (sameOrdering) {
+        if (wholeClassesSame) {
+          if (lastKeySubset) {
+            true
+          } else {
+            println(s"The values at the last key in the prefix, $lastKey, were not a subset of those in the full list: ${prefixEquivClasses(lastKey)} ${fullEquivClasses(lastKey)}")
+            false
+          }
+        } else {
+          println(s"The values differed at some key:\n$wholeClassesPrefix\n$wholeClassesFull")
+          false
+        }
+      } else {
+        println(s"The sequences didn't have the same ordering:\n$prefix\n$full")
+        false
+      }
     }
-
-    sameOrdering && sameElements
   }
 
   @Test def takeByAndSortByAgree() {
@@ -336,12 +357,13 @@ class AggregatorSuite extends SparkSuite {
     rng.reSeed(Prop.seed)
 
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
-      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])[0:10]",
+      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])",
         "gs.map(g => [g.dp, g.gq]).takeBy(x => x[1], 10)"))
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
       val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+
       if (!prefixModuloDisordering((x: Seq[Int]) => x(1))(takeby, sortby)) {
-        println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$sortby\n$takeby")
+        println(s"The first sequence is not a prefix, up to irrelevant disorderings, of the second sequence\n$takeby\n$sortby")
         false
       } else {
         true
@@ -354,12 +376,13 @@ class AggregatorSuite extends SparkSuite {
     rng.reSeed(Prop.seed)
 
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
-      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])[0:10]",
+      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])",
         "gs.map(g => [g.dp, g.gq]).takeBy(x => g.gq, 10)"))
       val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
       val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+
       if (!prefixModuloDisordering((x: Seq[Int]) => x(1))(takeby, sortby)) {
-        println(s"The following IndexedSeqs were not the same up to irrelevant disorderings\n$sortby\n$takeby")
+        println(s"The first sequence is not a prefix, up to irrelevant disorderings, of the second sequence\n$takeby\n$sortby")
         false
       } else {
         true
