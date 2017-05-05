@@ -36,8 +36,8 @@ object CodeM {
     }
 
   def getArg[T: TypeInfo](i: Int): CodeM[Code[T]] =
-    CodeM(fb => fb.getArg[T](i + 1))
+    CodeM { fb => fb.getArg[T](i + 1) }
 
   implicit def emit[T](c: Code[T]): CodeM[Unit] =
-    CodeM(fb => { fb.emit(c); () })
+    CodeM { fb => fb.emit(c); () }
 }

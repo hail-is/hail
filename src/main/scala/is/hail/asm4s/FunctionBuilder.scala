@@ -208,7 +208,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     val bytes = classAsBytes()
     val localName = name.replaceAll("/",".")
 
-    new Function0[F] with java.io.Serializable {
+    new () => F with java.io.Serializable {
       @transient @volatile private var f: F = null
       def apply(): F = {
         try {
