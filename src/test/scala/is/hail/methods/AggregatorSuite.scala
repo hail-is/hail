@@ -267,7 +267,7 @@ class AggregatorSuite extends SparkSuite {
 
     val va = vds.variantsAndAnnotations.map(_._2).collect().head
     assert(qTake(va) == IndexedSeq[Any](11, null, 20))
-    assert(qTakeBy(va) == IndexedSeq[Any](55, null, 11))
+    assert(qTakeBy(va) == IndexedSeq[Any](5, 20, 1))
   }
 
   @Test def testTransformations() {
