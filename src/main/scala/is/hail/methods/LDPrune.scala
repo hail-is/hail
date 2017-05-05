@@ -152,7 +152,7 @@ object LDPrune {
     }
   }
 
-  def computeR2(x: BitPackedVector, y: BitPackedVector): Double = {
+  def computeR(x: BitPackedVector, y: BitPackedVector): Double = {
     require(x.nSamples == y.nSamples)
 
     val gsX = x.gs
@@ -189,6 +189,11 @@ object LDPrune {
     }
 
     val r = stdDevRecX * stdDevRecY * ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
+    r
+  }
+
+  def computeR2(x: BitPackedVector, y: BitPackedVector): Double = {
+    val r = computeR(x, y)
     val r2 = r * r
     assert(D_>=(r2, 0d) && D_<=(r2, 1d), s"R2 must lie in [0,1]. Found $r2.")
     r2

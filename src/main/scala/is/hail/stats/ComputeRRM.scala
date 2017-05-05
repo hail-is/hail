@@ -79,7 +79,7 @@ object ToNormalizedRowMatrix {
   }
 }
 
-// each row has mean 0, norm sqrt(n), variance 1, constant variants are dropped
+// each row has mean 0, norm sqrt(n), variance 1
 object ToNormalizedIndexedRowMatrix {
   def apply(vds: VariantDataset): IndexedRowMatrix = {
     require(vds.wasSplit)
