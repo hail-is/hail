@@ -926,7 +926,7 @@ class KeyTable(object):
         >>> bed = KeyTable.import_bed('data/file1.bed')
         >>> vds_result = vds.annotate_variants_table(bed, root='va.cnvRegion')
 
-        Add a variant annotation ``va.cnvRegion: String`` with value given by the fourth column of `file2.bed`:
+        Add a variant annotation **va.cnvRegion** (*String*) with value given by the fourth column of ``file2.bed``:
         
         >>> bed = KeyTable.import_bed('data/file2.bed')
         >>> vds_result = vds.annotate_variants_table(bed, root='va.cnvID')
@@ -954,20 +954,22 @@ class KeyTable(object):
         three fields (``chrom``, ``chromStart``, and ``chromEnd``), then the produced key table has only one
         column:
         
-         - **interval** (*Interval*) - Genomic interval.
+            - **interval** (*Interval*) - Genomic interval.
          
         If the .bed file has four or more columns, then Hail will store the fourth column as another key 
         table column:
          
-         - **interval** (*Interval*) - Genomic interval.
-         - **target** (*String*) - Fourth column of .bed file.
+             - **interval** (*Interval*) - Genomic interval.
+             - **target** (*String*) - Fourth column of .bed file.
          
 
-        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`_ can have up to 12 fields, 
+        `UCSC bed files <https://genome.ucsc.edu/FAQ/FAQformat.html#format1>`__ can have up to 12 fields, 
         but Hail will only ever look at the first four. Hail ignores header lines in BED files.
 
-        .. caution:: UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105" will contain
-        locus ``5:105`` but not ``5:100``. Details `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`_.
+        .. caution:: 
+        
+            UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105" will contain
+            locus ``5:105`` but not ``5:100``. Details `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
 
         :param str path: Path to .bed file.
 
@@ -1024,7 +1026,7 @@ class KeyTable(object):
 
     @staticmethod
     @handle_py4j
-    def import_fam(fam_file, quantitative=False, delimiter='\\\\s+', root='sa.fam', missing='NA'):
+    def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
         """Import PLINK .fam file into a key table.
 
         **Examples**
@@ -1057,7 +1059,7 @@ class KeyTable(object):
             - **isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9", non-numeric or the ``missing`` argument, if given.
             - **qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the ``missing`` argument, if given.
 
-        :param str input: Path to .fam file.
+        :param str path: Path to .fam file.
 
         :param bool quantitative: If True, .fam phenotype is interpreted as quantitative.
 
@@ -1072,5 +1074,5 @@ class KeyTable(object):
         """
 
         hc = Env.hc()
-        jkt = scala_object(Env.hail().keytable, 'KeyTable').importFam(hc._jhc, input, quantitative, delimiter, missing)
+        jkt = Env.hail().keytable.KeyTable.importFam(hc._jhc, path, quantitative, delimiter, missing)
         return KeyTable(hc, jkt)

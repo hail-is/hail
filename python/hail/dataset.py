@@ -601,7 +601,7 @@ class VariantDataset(object):
         Compute the list of genes with a singleton LOF per sample:
 
         >>> variant_annotations_table = hc.import_table('data/consequence.tsv', impute=True).key_by('Variant')
-        >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, expr='va.consequence = table.Consequence')
+        >>> vds_result = (vds.annotate_variants_table(variant_annotations_table, root='va.consequence')
         ...     .annotate_variants_expr('va.isSingleton = gs.map(g => g.nNonRefAlleles()).sum() == 1')
         ...     .annotate_samples_expr('sa.LOF_genes = gs.filter(g => va.isSingleton && g.isHet() && va.consequence == "LOF").map(g => va.gene).collect()'))
 
@@ -721,7 +721,7 @@ class VariantDataset(object):
           rather than the ``root`` parameter.
 
         >>> annotations = hc.import_table('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
-        >>> vds_result = vds.annotate_samples_table(annotations, expr='sa.batch = table.Batch')
+        >>> vds_result = vds.annotate_samples_table(annotations, root='sa.batch')
 
         Let's import annotations from a file with no header and sample IDs that need to be transformed. 
         Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
@@ -739,10 +739,10 @@ class VariantDataset(object):
         To import it:
 
         >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
-        ...                   .annotate('sample = _0.split("_")[1]')
+        ...                   .annotate('sample = f0.split("_")[1]')
         ...                   .key_by('sample'))
         >>> vds_result = vds.annotate_samples_table(annotations,
-        ...                             expr='sa.sex = table._1, sa.batch = table._0.split("_")[0]')
+        ...                             expr='sa.sex = table.f1, sa.batch = table.f0.split("_")[0]')
 
         **Notes** 
 
@@ -768,7 +768,7 @@ class VariantDataset(object):
         sample annotations in the dataset) and ``table`` (a struct containing the columns in 
         the table), like ``sa.col1 = table.col1, sa.col2 = table.col2`` or ``sa = merge(sa, table)``.
         The ``root`` parameter expects an annotation path beginning in ``sa``, like ``sa.annotations``.
-         Passing ``root='sa.annotations'`` is exactly the same as passing ``expr='sa.annotations = table'``.
+        Passing ``root='sa.annotations'`` is exactly the same as passing ``expr='sa.annotations = table'``.
 
         ``expr`` has the following symbols in scope:
 
@@ -894,7 +894,7 @@ class VariantDataset(object):
         Add annotations from a variant-keyed tab separated file:
 
         >>> table = hc.import_table('data/variant-lof.tsv', impute=True).key_by('v')
-        >>> vds_result = vds.annotate_variants_table(table, expr='va.lof = table.lof')
+        >>> vds_result = vds.annotate_variants_table(table, root='va.lof')
         
         Add annotations from a locus-keyed TSV:
         
@@ -905,7 +905,7 @@ class VariantDataset(object):
     
         >>> table = hc.import_table('data/locus-metadata.tsv', impute=True).key_by(['gene', 'type'])
         >>> vds_result = (vds.annotate_variants_table(table,
-        ...       expr='va.foo = table.foo',
+        ...       root='va.foo',
         ...       vds_key=['va.gene', 'if (va.score > 10) "Type1" else "Type2"']))
 
         Annotate variants with the target in a GATK interval list file:
@@ -2079,16 +2079,17 @@ class VariantDataset(object):
 
         Filter VDS down to a list of variants:
 
+        >>> vds_filtered = vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), 
+        ...                                          Variant.parse('20:10019093:A:G')], keep=True)
+        
+        **Notes**
+
+
         This method performs predicate pushdown when ``keep=True``, meaning that data shards
         that don't overlap with any supplied variant will not be loaded at all.  This property
         enables ``filter_variants_list`` to be used for reasonably low-latency queries of one
-        or more variants, even on large datasets:
-
-        >>>  # We are interested in the variants 20:10626633:G:GC and 20:10019093:A:G
-        >>> vds_filtered = vds.filter_variants_list('v.contig == "20" && v.start == 10626633')  # slow
-        >>> vds_filtered = vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), 
-        ...                                          Variant.parse('20:10019093:A:G')], keep=True)  # fast
-
+        or more variants, even on large datasets. 
+        
         :param variants: List of variants to keep or remove.
         :type variants: list of :py:class:`~hail.representation.Variant`
 
@@ -2116,12 +2117,12 @@ class VariantDataset(object):
         Keep all variants whose chromosome and position (locus) appear in a file with 
         a chromosome:position column:
         
-        >>> kt = hc_import_table('data/locus-table.tsv', impute=True).key_by('Locus')
+        >>> kt = hc.import_table('data/locus-table.tsv', impute=True).key_by('Locus')
         >>> filtered_vds = vds.filter_variants_table(kt, keep=True)
         
         Remove all variants which overlap an interval in a UCSC BED file:
         
-        >>> kt = KeyTable.import_bed('file2.bed')
+        >>> kt = KeyTable.import_bed('data/file2.bed')
         >>> filtered_vds = vds.filter_variants_table(kt, keep=False)
         
         **Notes**
@@ -3294,7 +3295,7 @@ class VariantDataset(object):
         Find all violations of Mendelian inheritance in each (dad,
         mom, kid) trio in a pedigree and return four tables:
 
-        >>> ped = Pedigree.read_fam('data/trios.fam')
+        >>> ped = Pedigree.read('data/trios.fam')
         >>> all, per_fam, per_sample, per_variant = vds.mendel_errors(ped)
         
         Export all mendel errors to a text file:
@@ -4386,7 +4387,7 @@ class VariantDataset(object):
 
         Compute TDT association results:
 
-        >>> pedigree = Pedigree.from_fam('data/trios.fam')
+        >>> pedigree = Pedigree.read('data/trios.fam')
         >>> (vds.tdt(pedigree)
         ...     .export_variants("output/tdt_results.tsv", "Variant = v, va.tdt.*"))
 

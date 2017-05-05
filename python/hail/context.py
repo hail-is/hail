@@ -700,7 +700,7 @@ class HailContext(object):
 
         **Example**
 
-        >>> vds = hc.index_bgen("data/example3.bgen")
+        >>> hc.index_bgen("data/example3.bgen")
 
         .. warning::
 
@@ -711,7 +711,6 @@ class HailContext(object):
 
         :param path: .bgen files to index.
         :type path: str or list of str
-
         """
 
         self._jhc.indexBgen(jindexed_seq_args(path))

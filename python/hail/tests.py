@@ -357,7 +357,7 @@ class ContextTests(unittest.TestCase):
 
         vds_assoc.export_variants('/tmp/lmmreg.tsv', 'Variant = v, va.lmmreg.*')
 
-        men, fam, ind, var = sample_split.mendel_errors(Pedigree.read_fam(test_resources + '/sample.fam'))
+        men, fam, ind, var = sample_split.mendel_errors(Pedigree.read(test_resources + '/sample.fam'))
         men.select(['fid', 's', 'code'])
         fam.select(['father', 'nChildren'])
         self.assertEqual(ind.key, ['s'])
@@ -366,7 +366,7 @@ class ContextTests(unittest.TestCase):
 
         sample_split.pca('sa.scores')
 
-        sample_split.tdt(Pedigree.read_fam(test_resources + '/sample.fam'))
+        sample_split.tdt(Pedigree.read(test_resources + '/sample.fam'))
 
         sample2_split.variant_qc().variant_schema
 
@@ -515,6 +515,8 @@ class ContextTests(unittest.TestCase):
         bydescab = [(r.get('a'), r.get('b'))
                     for r in kt4.order_by(desc('a'), 'b').collect()]
         self.assertEqual(bydescab, [(7, 'baz'), (5, 'quam'), (5, None), (-1, 'quam'), (None, 'foo')])
+
+        KeyTable.import_fam('data/sample.fam')._typecheck()
 
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
@@ -904,9 +906,9 @@ class ContextTests(unittest.TestCase):
 
     def test_pedigree(self):
 
-        ped = Pedigree.read_fam('src/test/resources/sample.fam')
-        ped.write_fam('/tmp/sample_out.fam')
-        ped2 = Pedigree.read_fam('/tmp/sample_out.fam')
+        ped = Pedigree.read('src/test/resources/sample.fam')
+        ped.write('/tmp/sample_out.fam')
+        ped2 = Pedigree.read('/tmp/sample_out.fam')
         self.assertEqual(ped, ped2)
         print(ped.trios[:5])
         print(ped.complete_trios)

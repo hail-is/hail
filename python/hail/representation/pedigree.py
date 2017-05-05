@@ -214,12 +214,12 @@ class Pedigree(object):
 
     @staticmethod
     @handle_py4j
-    def read_fam(fam_path, delimiter='\\s+'):
+    def read(fam_path, delimiter='\\s+'):
         """Read a .fam file and return a pedigree object.
         
         **Examples**
         
-        >>> ped = Pedigree.read_fam('data/test.fam')
+        >>> ped = Pedigree.read('data/test.fam')
         
         **Notes**
 
@@ -234,7 +234,7 @@ class Pedigree(object):
         :rtype: :class:`.Pedigree`
         """
 
-        jrep = scala_object(Env.hail().methods, 'Pedigree').fromFam(fam_path, Env.hc()._jhc.hadoopConf(), delimiter)
+        jrep = Env.hail().methods.Pedigree.read(fam_path, Env.hc()._jhc.hadoopConf(), delimiter)
         return Pedigree._from_java(jrep)
 
     @property
@@ -280,13 +280,13 @@ class Pedigree(object):
         return Pedigree._from_java(self._jrep.filterTo(jset(samples)))
 
     @handle_py4j
-    def write_fam(self, path):
+    def write(self, path):
         """Write a .fam file to the given path.
 
         **Examples**
         
-        >>> ped = Pedigree.read_fam('data/test.fam')
-        >>> ped.write_fam('out.fam')
+        >>> ped = Pedigree.read('data/test.fam')
+        >>> ped.write('out.fam')
         
         **Notes**
 
