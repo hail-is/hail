@@ -33,7 +33,7 @@ You can also view the notebook [here](https://docs.databricks.com/spark/latest/t
 
 #### Getting Started
 
-To get started using Hail on your data:
+To get started using Hail on your data or [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
 
 - follow the installation instructions in [Getting Started](https://hail.is/hail/getting_started.html)
 - check out the [Overview](https://hail.is/hail/overview.html), [Tutorial](https://hail.is/hail/tutorial.html), and [Python API](https://hail.is/hail/index.html)
