@@ -793,7 +793,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.annotateSamples(result, signature, "sa.imputesex")
   }
 
-  def ldPrune(r2Threshold: Double, windowSize: Int, nCores: Int, memoryPerCore: Long): VariantDataset = {
+  def ldPrune(r2Threshold: Double = 0.2, windowSize: Int = 1000000, nCores: Int = 1, memoryPerCore: Long = 256): VariantDataset = {
     requireSplit("LD Prune")
     LDPrune(vds, r2Threshold, windowSize, nCores, memoryPerCore)
   }
