@@ -2493,7 +2493,6 @@ class VariantDataset(object):
         :rtype: VariantDataset
         """
 
-        memory_per_core = int(memory_per_core * 1024 * 1024)
         jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
         return VariantDataset(self.hc, jvds)
 
