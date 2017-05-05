@@ -17,65 +17,6 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.mutable
 
-object GenericDataset {
-  def read(hc: HailContext, dirname: String, metadata: VariantMetadata, parquetGenotypes: Boolean,
-    dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset = {
-
-    val sqlContext = hc.sqlContext
-    val sc = hc.sc
-    val hConf = sc.hadoopConfiguration
-
-    val vaSignature = metadata.vaSignature
-    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
-
-    val genotypeSignature = metadata.genotypeSignature
-    val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
-    val isGenericGenotype = metadata.isGenericGenotype
-    
-    require(isGenericGenotype && !parquetGenotypes, "Can only read datasets with generic genotypes.")
-
-    val parquetFile = dirname + "/rdd.parquet"
-
-    val orderedRDD = if (dropVariants)
-      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Annotation])](sc)
-    else {
-      val rdd = if (dropSamples)
-        sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
-          .map(row => (row.getVariant(0),
-            (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              Iterable.empty[Annotation])))
-      else {
-        val rdd = sqlContext.readParquetSorted(parquetFile)
-        rdd.map { row =>
-          val v = row.getVariant(0)
-          (v,
-            (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              row.getSeq[Any](2).lazyMap { g => if (gRequiresConversion) SparkAnnotationImpex.importAnnotation(g, genotypeSignature) else g }
-              )
-            )
-        }
-      }
-
-      val partitioner: OrderedPartitioner[Locus, Variant] =
-        try {
-          val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
-          jv.fromJSON[OrderedPartitioner[Locus, Variant]]
-        } catch {
-          case _: FileNotFoundException =>
-            fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
-        }
-
-      OrderedRDD(rdd, partitioner)
-    }
-
-    new VariantSampleMatrix[Annotation](hc,
-      if (dropSamples) metadata.copy(sampleIds = IndexedSeq.empty[String],
-        sampleAnnotations = IndexedSeq.empty[Annotation])
-      else metadata,
-      orderedRDD)
-  }
-}
-
 class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) extends AnyVal {
 
   def annotateGenotypesExpr(expr: String): GenericDataset = {

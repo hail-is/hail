@@ -3,6 +3,8 @@ package is.hail.variant
 import java.io.FileNotFoundException
 
 import is.hail.HailContext
+import is.hail.annotations._
+import is.hail.expr._
 import is.hail.annotations.{Annotation, _}
 import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
 import is.hail.io.plink.ExportBedBimFam
@@ -15,6 +17,7 @@ import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
 import org.apache.kudu.spark.kudu._
+import org.apache.kudu.spark.kudu.{KuduContext, _}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
@@ -28,202 +31,6 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 object VariantDataset {
-  def read(hc: HailContext, dirname: String,
-    metadata: VariantMetadata, parquetGenotypes: Boolean,
-    dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset = {
-
-    val sqlContext = hc.sqlContext
-    val sc = hc.sc
-    val hConf = sc.hadoopConfiguration
-
-    val vaSignature = metadata.vaSignature
-    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
-
-    val genotypeSignature = metadata.genotypeSignature
-    val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
-    val isGenericGenotype = metadata.isGenericGenotype
-    val isLinearScale = metadata.isLinearScale
-
-    if (isGenericGenotype)
-      fatal("Cannot read datasets with generic genotypes.")
-
-    val parquetFile = dirname + "/rdd.parquet"
-
-    val orderedRDD = if (dropVariants)
-      OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
-    else {
-      val rdd = if (dropSamples)
-        sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
-          .map(row => (row.getVariant(0),
-            (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-              Iterable.empty[Genotype])))
-      else {
-        val rdd = sqlContext.readParquetSorted(parquetFile)
-        if (parquetGenotypes)
-          rdd.map { row =>
-            val v = row.getVariant(0)
-            (v,
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getSeq[Row](2).lazyMap { rg =>
-                  new RowGenotype(rg): Genotype
-                }))
-          } else
-          rdd.map { row =>
-            val v = row.getVariant(0)
-            (v,
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getGenotypeStream(v, 2, isLinearScale): Iterable[Genotype]))
-          }
-      }
-
-      val partitioner: OrderedPartitioner[Locus, Variant] =
-        try {
-          val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
-          jv.fromJSON[OrderedPartitioner[Locus, Variant]]
-        } catch {
-          case _: FileNotFoundException =>
-            fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
-        }
-
-      OrderedRDD(rdd, partitioner)
-    }
-
-    new VariantSampleMatrix[Genotype](hc,
-      if (dropSamples) metadata.copy(sampleIds = IndexedSeq.empty[String],
-        sampleAnnotations = IndexedSeq.empty[Annotation])
-      else metadata,
-      orderedRDD)
-  }
-
-  def readMetadata(hConf: hadoop.conf.Configuration, dirname: String,
-    requireParquetSuccess: Boolean = true): (VariantMetadata, Boolean) = {
-    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
-      fatal(s"input path ending in `.vds' required, found `$dirname'")
-
-    if (!hConf.exists(dirname))
-      fatal(s"no VDS found at `$dirname'")
-
-    val metadataFile = dirname + "/metadata.json.gz"
-    val pqtSuccess = dirname + "/rdd.parquet/_SUCCESS"
-
-    if (!hConf.exists(pqtSuccess) && requireParquetSuccess)
-      fatal(
-        s"""corrupt VDS: no parquet success indicator
-           |  Unexpected shutdown occurred during `write'
-           |  Recreate VDS.""".stripMargin)
-
-    if (!hConf.exists(metadataFile))
-      fatal(
-        s"""corrupt or outdated VDS: invalid metadata
-           |  No `metadata.json.gz' file found in VDS directory
-           |  Recreate VDS with current version of Hail.""".stripMargin)
-
-    val json = try {
-      hConf.readFile(metadataFile)(
-        in => JsonMethods.parse(in))
-    } catch {
-      case e: Throwable => fatal(
-        s"""
-           |corrupt VDS: invalid metadata file.
-           |  Recreate VDS with current version of Hail.
-           |  caught exception: ${ expandException(e, logMessage = true) }
-         """.stripMargin)
-    }
-
-    val fields = json match {
-      case jo: JObject => jo.obj.toMap
-      case _ =>
-        fatal(
-          s"""corrupt VDS: invalid metadata value
-             |  Recreate VDS with current version of Hail.""".stripMargin)
-    }
-
-    def getAndCastJSON[T <: JValue](fname: String)(implicit tct: ClassTag[T]): T =
-      fields.get(fname) match {
-        case Some(t: T) => t
-        case Some(other) =>
-          fatal(
-            s"""corrupt VDS: invalid metadata
-               |  Expected `${ tct.runtimeClass.getName }' in field `$fname', but got `${ other.getClass.getName }'
-               |  Recreate VDS with current version of Hail.""".stripMargin)
-        case None =>
-          fatal(
-            s"""corrupt VDS: invalid metadata
-               |  Missing field `$fname'
-               |  Recreate VDS with current version of Hail.""".stripMargin)
-      }
-
-    val version = getAndCastJSON[JInt]("version").num
-
-    if (version != VariantSampleMatrix.fileVersion)
-      fatal(
-        s"""Invalid VDS: old version [$version]
-           |  Recreate VDS with current version of Hail.
-         """.stripMargin)
-
-    val wasSplit = getAndCastJSON[JBool]("split").value
-    val isLinearScale = fields.get("isLinearScale") match {
-      case Some(t: JBool) => t.value
-      case Some(other) => fatal(
-        s"""corrupt VDS: invalid metadata
-           |  Expected `JBool' in field `isLinearScale', but got `${ other.getClass.getName }'
-           |  Recreate VDS with current version of Hail.""".stripMargin)
-      case _ => false
-    }
-
-    val parquetGenotypes = fields.get("parquetGenotypes") match {
-      case Some(t: JBool) => t.value
-      case Some(other) => fatal(
-        s"""corrupt VDS: invalid metadata
-           |  Expected `JBool' in field `parquetGenotypes', but got `${ other.getClass.getName }'
-           |  Recreate VDS with current version of Hail.""".stripMargin)
-      case _ => false
-    }
-
-    val genotypeSignature = fields.get("genotype_schema") match {
-      case Some(t: JString) => Parser.parseType(t.s)
-      case Some(other) => fatal(
-        s"""corrupt VDS: invalid metadata
-           |  Expected `JString' in field `genotype_schema', but got `${ other.getClass.getName }'
-           |  Recreate VDS with current version of Hail.""".stripMargin)
-      case _ => TGenotype
-    }
-
-    val isGenericGenotype = fields.get("isGenericGenotype") match {
-      case Some(t: JBool) => t.value
-      case Some(other) => fatal(
-        s"""corrupt VDS: invalid metadata
-           |  Expected `JBool' in field `isGenericGenotype', but got `${ other.getClass.getName }'
-           |  Recreate VDS with current version of Hail.""".stripMargin)
-      case _ => false
-    }
-
-    val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
-    val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
-    val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
-
-    val sampleInfoSchema = TStruct(("id", TString), ("annotation", saSignature))
-    val sampleInfo = getAndCastJSON[JArray]("sample_annotations")
-      .arr
-      .map {
-        case JObject(List(("id", JString(id)), ("annotation", jv: JValue))) =>
-          (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations"))
-        case other => fatal(
-          s"""corrupt VDS: invalid metadata
-             |  Invalid sample annotation metadata
-             |  Recreate VDS with current version of Hail.""".stripMargin)
-      }
-      .toArray
-
-    val globalAnnotation = JSONAnnotationImpex.importAnnotation(getAndCastJSON[JValue]("global_annotation"),
-      globalSignature, "global")
-
-    val ids = sampleInfo.map(_._1)
-    val annotations = sampleInfo.map(_._2)
-
-    (VariantMetadata(ids, annotations, globalAnnotation,
-      saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype), parquetGenotypes)
-  }
 
   def fromKeyTable(kt: KeyTable): VariantDataset = {
     kt.keyFields.map(_.typ) match {
@@ -238,24 +45,21 @@ object VariantDataset {
       .mapValues(a => (a: Annotation, Iterable.empty[Genotype]))
       .toOrderedRDD
 
-    val metadata = VariantMetadata(
-      sampleIds = Array.empty[String],
-      sa = Array.empty[Annotation],
-      globalAnnotation = Annotation.empty,
-      sas = TStruct.empty,
-      vas = kt.valueSignature,
-      globalSignature = TStruct.empty
-    )
+    val metadata = VSMMetadata(
+      saSignature = TStruct.empty,
+      vaSignature = kt.valueSignature,
+      globalSignature = TStruct.empty)
 
-    VariantSampleMatrix[Genotype](kt.hc, metadata, rdd)
+    new VariantSampleMatrix[Genotype](kt.hc, metadata,
+      VSMLocalValue(Annotation.empty, Array.empty[String], Array.empty[Annotation]), rdd)
   }
 
   def readKudu(hc: HailContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
-    val (metadata, _) = readMetadata(hc.hadoopConf, dirname, requireParquetSuccess = false)
-    val vaSignature = metadata.vaSignature
-    val isLinearScale = metadata.isLinearScale
+    val (fileMetadata, _) = VariantSampleMatrix.readFileMetadata(hc.hadoopConf, dirname, requireParquetSuccess = false)
+    val vaSignature = fileMetadata.metadata.vaSignature
+    val isLinearScale = fileMetadata.metadata.isLinearScale
 
     val df = hc.sqlContext.read.options(
       Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
@@ -275,7 +79,7 @@ object VariantDataset {
       val v = importedRow.getVariant(0)
       (v,
         (importedRow.get(1),
-          importedRow.getGenotypeStream(v, 2, metadata.isLinearScale)))
+          importedRow.getGenotypeStream(v, 2, isLinearScale)))
     }.spanByKey().map(kv => {
       // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
@@ -284,7 +88,7 @@ object VariantDataset {
       val genotypes = kv._2.flatMap(_._2) // combine genotype streams
       (variant, (annotations, genotypes))
     })
-    new VariantSampleMatrix[Genotype](hc, metadata, rdd.toOrderedRDD)
+    new VariantSampleMatrix[Genotype](hc, fileMetadata, rdd.toOrderedRDD)
   }
 
   def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.expandedType,
@@ -441,7 +245,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
 
-    def formatGP(d: Double): String = d.formatted(s"%.${precision}f")
+    def formatGP(d: Double): String = d.formatted(s"%.${ precision }f")
 
     val emptyGP = Array(0d, 0d, 0d)
 
@@ -613,8 +417,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param path output path
-    * @param append append file to header
+    * @param path     output path
+    * @param append   append file to header
     * @param exportPP export Hail PLs as a PP format field
     * @param parallel export VCF in parallel using the path argument as a directory
     */
@@ -641,7 +445,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     *
     * @param filterExpr filter expression involving v (Variant), va (variant annotations), s (sample),
     *                   sa (sample annotations), and g (genotype), which returns a boolean value
-    * @param keep keep genotypes where filterExpr evaluates to true
+    * @param keep       keep genotypes where filterExpr evaluates to true
     */
   def filterGenotypes(filterExpr: String, keep: Boolean = true): VariantDataset = {
     val vas = vds.vaSignature
@@ -735,10 +539,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     *
     * @param computeMafExpr An expression for the minor allele frequency of the current variant, `v', given
     *                       the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
-    * @param bounded Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
-    *                (e.g. outside of [0,1]).
-    * @param minimum Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
-    * @param maximum Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
+    * @param bounded        Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
+    *                       (e.g. outside of [0,1]).
+    * @param minimum        Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
+    * @param maximum        Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
     */
   def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
     minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
@@ -755,11 +559,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param mafThreshold Minimum minor allele frequency threshold
-    * @param includePAR Include pseudoautosomal regions
+    * @param mafThreshold     Minimum minor allele frequency threshold
+    * @param includePAR       Include pseudoautosomal regions
     * @param fFemaleThreshold Samples are called females if F < femaleThreshold
-    * @param fMaleThreshold Samples are called males if F > maleThreshold
-    * @param popFreqExpr Use an annotation expression for estimate of MAF rather than computing from the data
+    * @param fMaleThreshold   Samples are called males if F > maleThreshold
+    * @param popFreqExpr      Use an annotation expression for estimate of MAF rather than computing from the data
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
     fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
@@ -840,11 +644,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param scoresRoot Sample annotation path for scores (period-delimited path starting in 'sa')
-    * @param k Number of principal components
+    * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
+    * @param k            Number of principal components
     * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
-    * @param eigenRoot Global annotation path for eigenvalues (period-delimited path starting in 'global'
-    * @param asArrays Store score and loading results as arrays, rather than structs
+    * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
+    * @param asArrays     Store score and loading results as arrays, rather than structs
     */
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
     asArrays: Boolean = false): VariantDataset = {
@@ -888,8 +692,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   /**
     *
     * @param propagateGQ Propagate GQ instead of computing from PL
-    * @param keepStar Do not filter * alleles
-    * @param maxShift Maximum possible position change during minimum representation calculation
+    * @param keepStar    Do not filter * alleles
+    * @param maxShift    Maximum possible position change during minimum representation calculation
     */
   def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false,
     maxShift: Int = 100): VariantDataset = {

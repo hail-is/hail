@@ -58,13 +58,13 @@ object BgenLoader {
     if (unequalSamples.length > 0)
       fatal(
         s"""The following BGEN files did not contain the expected number of samples $nSamples:
-            |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
+           |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
 
     val noVariants = results.filter(_.nVariants == 0).map(_.file)
     if (noVariants.length > 0)
       fatal(
         s"""The following BGEN files did not contain at least 1 variant:
-            |  ${ noVariants.mkString("\n  ") })""".stripMargin)
+           |  ${ noVariants.mkString("\n  ") })""".stripMargin)
 
     val nVariants = results.map(_.nVariants).sum
 
@@ -80,15 +80,16 @@ object BgenLoader {
       (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
     })).toOrderedRDD[Locus](fastKeys)
 
-    VariantSampleMatrix(hc, VariantMetadata(
-      sampleIds = samples,
-      sampleAnnotations = IndexedSeq.fill(nSamples)(Annotation.empty),
-      globalAnnotation = Annotation.empty,
+    new VariantSampleMatrix(hc, VSMMetadata(
       saSignature = TStruct.empty,
       vaSignature = signature,
       globalSignature = TStruct.empty,
       wasSplit = true,
-      isLinearScale = true), rdd)
+      isLinearScale = true),
+      VSMLocalValue(globalAnnotation = Annotation.empty,
+        sampleIds = samples,
+        sampleAnnotations = IndexedSeq.fill(nSamples)(Annotation.empty)),
+      rdd)
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

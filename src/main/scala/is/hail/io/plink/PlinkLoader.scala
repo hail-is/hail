@@ -133,14 +133,15 @@ object PlinkLoader {
         (v, (Annotation(rsId), vr.getValue))
     }.toOrderedRDD(fastKeys)
 
-    VariantSampleMatrix(hc, VariantMetadata(
-      sampleIds = sampleIds,
-      sampleAnnotations = sampleAnnotations,
-      globalAnnotation = Annotation.empty,
+    new VariantSampleMatrix(hc, VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
       globalSignature = TStruct.empty,
-      wasSplit = true), variantRDD)
+      wasSplit = true),
+      VSMLocalValue(globalAnnotation = Annotation.empty,
+        sampleIds = sampleIds,
+        sampleAnnotations = sampleAnnotations),
+      variantRDD)
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
@@ -184,7 +185,7 @@ object PlinkLoader {
       val n = duplicateIds.length
       warn(
         s"""found $n duplicate sample ${ plural(n, "ID") }
-            |  Duplicate IDs: @1""".stripMargin, duplicateIds)
+           |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
     val vds = parseBed(hc, bedPath, ids, annotations, signature, variants, nPartitions)

@@ -1,5 +1,6 @@
 package is.hail.variant
 
+import java.io.FileNotFoundException
 import java.nio.ByteBuffer
 
 import is.hail.annotations._
@@ -20,7 +21,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.{Partitioner, SparkContext, SparkEnv}
 import org.json4s._
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -31,9 +32,237 @@ import scala.reflect.ClassTag
 object VariantSampleMatrix {
   final val fileVersion: Int = 4
 
-  def apply[T](hc: HailContext, metadata: VariantMetadata,
-    rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
-    new VariantSampleMatrix(hc, metadata, rdd)
+  def read(hc: HailContext, dirname: String,
+    dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_] = {
+
+    val sqlContext = hc.sqlContext
+    val sc = hc.sc
+    val hConf = sc.hadoopConfiguration
+
+    val (fileMetadata, parquetGenotypes) = readFileMetadata(hConf, dirname)
+
+    val metadata = fileMetadata.metadata
+
+    val vaSignature = metadata.vaSignature
+    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
+
+    val genotypeSignature = metadata.genotypeSignature
+    val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
+    val isGenericGenotype = metadata.isGenericGenotype
+    val isLinearScale = metadata.isLinearScale
+
+    if (!parquetGenotypes && !isGenericGenotype) {
+      return new VariantDataset(hc,
+        metadata,
+        MatrixRead(hc, dirname, metadata, dropSamples = dropSamples, dropVariants = dropVariants,
+          MatrixType(metadata)))
+    }
+
+    val parquetFile = dirname + "/rdd.parquet"
+
+    val partitioner: OrderedPartitioner[Locus, Variant] =
+      try {
+        val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
+        jv.fromJSON[OrderedPartitioner[Locus, Variant]]
+      } catch {
+        case _: FileNotFoundException =>
+          fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
+      }
+
+    val localValue =
+      if (dropSamples)
+        fileMetadata.localValue.dropSamples()
+      else
+        fileMetadata.localValue
+
+    if (isGenericGenotype) {
+      val orderedRDD = if (dropVariants)
+        OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Annotation])](sc)
+      else {
+        val rdd = if (dropSamples)
+          sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
+            .map(row => (row.getVariant(0),
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                Iterable.empty[Annotation])))
+        else {
+          val rdd = sqlContext.readParquetSorted(parquetFile)
+          rdd.map { row =>
+            (row.getVariant(0),
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                row.getSeq[Any](2).lazyMap { g => if (gRequiresConversion) SparkAnnotationImpex.importAnnotation(g, genotypeSignature) else g }
+              ))
+          }
+        }
+
+        OrderedRDD(rdd, partitioner)
+      }
+
+      new VariantSampleMatrix[Annotation](hc, metadata, localValue, orderedRDD)
+    } else {
+      val orderedRDD = if (dropVariants)
+        OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
+      else {
+        val rdd = if (dropSamples)
+          sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
+            .map(row => (row.getVariant(0),
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                Iterable.empty[Genotype])))
+        else {
+          val rdd = sqlContext.readParquetSorted(parquetFile)
+          if (parquetGenotypes)
+            rdd.map { row =>
+              val v = row.getVariant(0)
+              (v,
+                (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                  row.getSeq[Row](2).lazyMap { rg =>
+                    new RowGenotype(rg): Genotype
+                  }))
+            } else
+            rdd.map { row =>
+              val v = row.getVariant(0)
+              (v,
+                (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+                  row.getGenotypeStream(v, 2, isLinearScale): Iterable[Genotype]))
+            }
+        }
+
+        OrderedRDD(rdd, partitioner)
+      }
+
+      new VariantSampleMatrix[Genotype](hc, metadata, localValue, orderedRDD)
+    }
+  }
+
+  def readFileMetadata(hConf: hadoop.conf.Configuration, dirname: String,
+    requireParquetSuccess: Boolean = true): (VSMFileMetadata, Boolean) = {
+    if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
+      fatal(s"input path ending in `.vds' required, found `$dirname'")
+
+    if (!hConf.exists(dirname))
+      fatal(s"no VDS found at `$dirname'")
+
+    val metadataFile = dirname + "/metadata.json.gz"
+    val pqtSuccess = dirname + "/rdd.parquet/_SUCCESS"
+
+    if (!hConf.exists(pqtSuccess) && requireParquetSuccess)
+      fatal(
+        s"""corrupt VDS: no parquet success indicator
+           |  Unexpected shutdown occurred during `write'
+           |  Recreate VDS.""".stripMargin)
+
+    if (!hConf.exists(metadataFile))
+      fatal(
+        s"""corrupt or outdated VDS: invalid metadata
+           |  No `metadata.json.gz' file found in VDS directory
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+
+    val json = try {
+      hConf.readFile(metadataFile)(
+        in => JsonMethods.parse(in))
+    } catch {
+      case e: Throwable => fatal(
+        s"""
+           |corrupt VDS: invalid metadata file.
+           |  Recreate VDS with current version of Hail.
+           |  caught exception: ${ expandException(e, logMessage = true) }
+         """.stripMargin)
+    }
+
+    val fields = json match {
+      case jo: JObject => jo.obj.toMap
+      case _ =>
+        fatal(
+          s"""corrupt VDS: invalid metadata value
+             |  Recreate VDS with current version of Hail.""".stripMargin)
+    }
+
+    def getAndCastJSON[T <: JValue](fname: String)(implicit tct: ClassTag[T]): T =
+      fields.get(fname) match {
+        case Some(t: T) => t
+        case Some(other) =>
+          fatal(
+            s"""corrupt VDS: invalid metadata
+               |  Expected `${ tct.runtimeClass.getName }' in field `$fname', but got `${ other.getClass.getName }'
+               |  Recreate VDS with current version of Hail.""".stripMargin)
+        case None =>
+          fatal(
+            s"""corrupt VDS: invalid metadata
+               |  Missing field `$fname'
+               |  Recreate VDS with current version of Hail.""".stripMargin)
+      }
+
+    val version = getAndCastJSON[JInt]("version").num
+
+    if (version != VariantSampleMatrix.fileVersion)
+      fatal(
+        s"""Invalid VDS: old version [$version]
+           |  Recreate VDS with current version of Hail.
+         """.stripMargin)
+
+    val wasSplit = getAndCastJSON[JBool]("split").value
+    val isDosage = fields.get("isDosage") match {
+      case Some(t: JBool) => t.value
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JBool' in field `isDosage', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case _ => false
+    }
+
+    val parquetGenotypes = fields.get("parquetGenotypes") match {
+      case Some(t: JBool) => t.value
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JBool' in field `parquetGenotypes', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case _ => false
+    }
+
+    val genotypeSignature = fields.get("genotype_schema") match {
+      case Some(t: JString) => Parser.parseType(t.s)
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JString' in field `genotype_schema', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case _ => TGenotype
+    }
+
+    val isGenericGenotype = fields.get("isGenericGenotype") match {
+      case Some(t: JBool) => t.value
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JBool' in field `isGenericGenotype', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case _ => false
+    }
+
+    assert(!isGenericGenotype || !parquetGenotypes)
+
+    val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
+    val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
+    val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
+
+    val sampleInfoSchema = TStruct(("id", TString), ("annotation", saSignature))
+    val sampleInfo = getAndCastJSON[JArray]("sample_annotations")
+      .arr
+      .map {
+        case JObject(List(("id", JString(id)), ("annotation", jv: JValue))) =>
+          (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations"))
+        case other => fatal(
+          s"""corrupt VDS: invalid metadata
+             |  Invalid sample annotation metadata
+             |  Recreate VDS with current version of Hail.""".stripMargin)
+      }
+      .toArray
+
+    val globalAnnotation = JSONAnnotationImpex.importAnnotation(getAndCastJSON[JValue]("global_annotation"),
+      globalSignature, "global")
+
+    val ids = sampleInfo.map(_._1)
+    val annotations = sampleInfo.map(_._2)
+
+    (VSMFileMetadata(VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype),
+      VSMLocalValue(globalAnnotation, ids, annotations)), parquetGenotypes)
   }
 
   def writePartitioning(sqlContext: SQLContext, dirname: String): Unit = {
@@ -115,7 +344,9 @@ case class VSMSubgen[T](
           ts <- Gen.buildableOfN[Array, T](nSamples, tGen(v)).resize(subsubsizes(2)))
           yield (v, (va, ts: Iterable[T]))).resize(l))
       yield {
-        VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isLinearScale = isLinearScale, isGenericGenotype = isGenericGenotype),
+        new VariantSampleMatrix[T](hc,
+          VSMMetadata(saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isLinearScale = isLinearScale, isGenericGenotype = isGenericGenotype),
+          VSMLocalValue(global, sampleIds, saValues),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
       }
 }
@@ -145,8 +376,34 @@ object VSMSubgen {
     tGen = Genotype.genDosageGenotype, isLinearScale = true)
 }
 
-class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
-  val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {
+class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
+  val ast: MatrixAST[T])(implicit val tct: ClassTag[T]) extends JoinAnnotator {
+
+  def this(hc: HailContext,
+    metadata: VSMMetadata,
+    localValue: VSMLocalValue,
+    rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) =
+    this(hc, metadata,
+      MatrixLiteral(
+        MatrixType(metadata),
+        MatrixValue(localValue, rdd)))
+
+  def this(hc: HailContext, fileMetadata: VSMFileMetadata,
+    rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) =
+    this(hc, fileMetadata.metadata, fileMetadata.localValue, rdd)
+
+  lazy val value = {
+    val opt = MatrixAST.optimize(ast)
+    opt.execute(hc)
+  }
+
+  def globalAnnotation: Annotation = value.localValue.globalAnnotation
+
+  def sampleIds: IndexedSeq[String] = value.localValue.sampleIds
+
+  def sampleAnnotations: IndexedSeq[Annotation] = value.localValue.sampleAnnotations
+
+  def rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])] = value.rdd
 
   type RowT = (Variant, (Annotation, Iterable[T]))
 
@@ -371,7 +628,36 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       globalSignature = finalType)
   }
 
-  def globalAnnotation: Annotation = metadata.globalAnnotation
+  /**
+    * Load text file into global annotations as Array[String] or
+    * Set[String].
+    *
+    * @param path  Input text file
+    * @param root  Global annotation path to store text file
+    * @param asSet If true, load text file as Set[String],
+    *              otherwise, load as Array[String]
+    */
+  def annotateGlobalList(path: String, root: String, asSet: Boolean = false): VariantSampleMatrix[T] = {
+    val textList = hc.hadoopConf.readFile(path) { in =>
+      Source.fromInputStream(in)
+        .getLines()
+        .toArray
+    }
+
+    val (sig, toInsert) =
+      if (asSet)
+        (TSet(TString), textList.toSet)
+      else
+        (TArray(TString), textList: IndexedSeq[String])
+
+    val rootPath = Parser.parseAnnotationRoot(root, "global")
+
+    val (newGlobalSig, inserter) = insertGlobal(sig, rootPath)
+
+    copy(
+      globalAnnotation = inserter(globalAnnotation, toInsert),
+      globalSignature = newGlobalSig)
+  }
 
   def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
     globalSignature.insert(sig, path)
@@ -397,7 +683,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     }
     val inserters = inserterBuilder.result()
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
 
     ec.set(0, globalAnnotation)
     val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) =>
@@ -871,7 +1157,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       exportTypes(path + ".types", hadoopConf, typeInfo)
     }
 
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
+    val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, value, ec)
 
     hadoopConf.delete(path, recursive = true)
 
@@ -963,25 +1249,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * @param keep       keep where filterExpr evaluates to true
     */
   def filterSamplesExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
-    val localGlobalAnnotation = globalAnnotation
-
-    val sas = saSignature
-
-    val ec = sampleEC
-
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
-
-    val sampleAggregationOption = Aggregators.buildSampleAggregations(this, ec)
-
-    val localKeep = keep
-    //    val sampleIds = vsampleIds
-    val p = (s: String, sa: Annotation) => {
-      sampleAggregationOption.foreach(f => f.apply(s))
-      ec.setAll(localGlobalAnnotation, s, sa)
-      Filter.boxedKeepThis(f(), localKeep)
-    }
-
-    filterSamples(p)
+    var filterAST = Parser.expr.parse(filterExpr)
+    if (!keep)
+      filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+    copyAST(ast = FilterSamples(ast, filterAST))
   }
 
   def filterSamplesList(samples: java.util.ArrayList[String], keep: Boolean): VariantSampleMatrix[T] =
@@ -1021,22 +1292,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     * @return
     */
   def filterVariantsExpr(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[T] = {
-    val localGlobalAnnotation = globalAnnotation
-    val ec = variantEC
-
-    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
-
-    val aggregatorOption = Aggregators.buildVariantAggregations(this, ec)
-
-    val localKeep = keep
-    val p = (v: Variant, va: Annotation, gs: Iterable[T]) => {
-      aggregatorOption.foreach(f => f(v, va, gs))
-
-      ec.setAll(localGlobalAnnotation, v, va)
-      Filter.boxedKeepThis(f(), localKeep)
-    }
-
-    filterVariants(p)
+    var filterAST = Parser.expr.parse(filterExpr)
+    if (!keep)
+      filterAST = Apply(filterAST.getPos, "!", Array(filterAST))
+    copyAST(ast = FilterVariants(ast, filterAST))
   }
 
   def filterVariantsList(variants: java.util.ArrayList[Variant], keep: Boolean): VariantSampleMatrix[T] =
@@ -1696,11 +1955,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       "gs" -> (3, TAggregable(genotypeSignature, aggregationST))))
   }
 
-  def sampleIds: IndexedSeq[String] = metadata.sampleIds
-
   def saSignature: Type = metadata.saSignature
-
-  def sampleAnnotations: IndexedSeq[Annotation] = metadata.sampleAnnotations
 
   def wasSplit: Boolean = metadata.wasSplit
 
@@ -1729,8 +1984,20 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     isGenericGenotype: Boolean = isGenericGenotype)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](hc,
-      VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
-        saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype), rdd)
+      VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype),
+      VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
+
+  def copyAST[U](ast: MatrixAST[U] = ast,
+    saSignature: Type = saSignature,
+    vaSignature: Type = vaSignature,
+    globalSignature: Type = globalSignature,
+    genotypeSignature: Type = genotypeSignature,
+    wasSplit: Boolean = wasSplit,
+    isLinearScale: Boolean = isLinearScale,
+    isGenericGenotype: Boolean = isGenericGenotype)(implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
+    new VariantSampleMatrix[U](hc,
+      VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype),
+      ast)
 
   def samplesKT(): KeyTable = {
     KeyTable(hc, sparkContext.parallelize(sampleIdsAndAnnotations)
@@ -1771,7 +2038,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   = s"VariantSampleMatrix(metadata=$metadata, rdd=$rdd, sampleIds=$sampleIds, nSamples=$nSamples, vaSignature=$vaSignature, saSignature=$saSignature, globalSignature=$globalSignature, sampleAnnotations=$sampleAnnotations, sampleIdsAndAnnotations=$sampleIdsAndAnnotations, globalAnnotation=$globalAnnotation, wasSplit=$wasSplit)"
 
-  def nSamples: Int = metadata.sampleIds.length
+  def nSamples: Int = sampleIds.length
 
   def typecheck() {
     var foundError = false

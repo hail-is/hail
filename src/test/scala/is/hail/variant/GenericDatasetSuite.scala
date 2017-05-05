@@ -20,7 +20,7 @@ class GenericDatasetSuite extends SparkSuite {
     gds.write(path)
 
     intercept[HailException] {
-      hc.read(path)
+      hc.readVDS(path)
     }
 
     assert(gds same hc.readGDS(path))

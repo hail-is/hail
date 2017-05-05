@@ -97,7 +97,7 @@ class AnnotationsSuite extends SparkSuite {
     // Check that VDS can be written to disk and retrieved while staying the same
     val f = tmpDir.createTempFile("sample", extension = ".vds")
     vds2.write(f)
-    val readBack = hc.read(f)
+    val readBack = hc.readVDS(f)
 
     assert(readBack.same(vds2))
 
@@ -124,7 +124,7 @@ class AnnotationsSuite extends SparkSuite {
     // Write VCF and check that annotaions are the same
     val f2 = tmpDir.createTempFile("sample2", extension = ".vds")
     vds_attr.write(f2)
-    val readBack_attr = hc.read(f2)
+    val readBack_attr = hc.readVDS(f2)
 
     assert(readBack_attr.same(vds_attr))
   }
@@ -136,7 +136,7 @@ class AnnotationsSuite extends SparkSuite {
 
     val f = tmpDir.createTempFile("sample", extension = ".vds")
     vds1.write(f)
-    val vds3 = hc.read(f)
+    val vds3 = hc.readVDS(f)
     assert(vds3.same(vds1))
   }
 
@@ -403,6 +403,6 @@ class AnnotationsSuite extends SparkSuite {
       .copy(vaSignature = newS)
     vds.write(f)
 
-    assert(hc.read(f).same(vds))
+    assert(hc.readVDS(f).same(vds))
   }
 }

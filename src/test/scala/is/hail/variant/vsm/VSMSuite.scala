@@ -51,9 +51,9 @@ class VSMSuite extends SparkSuite {
     val vds2 = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     assert(vds1.same(vds2))
 
-    val mdata1 = VariantMetadata(Array("S1", "S2", "S3"))
-    val mdata2 = VariantMetadata(Array("S1", "S2"))
-    val mdata3 = new VariantMetadata(
+    val mdata1 = VSMFileMetadata(Array("S1", "S2", "S3"))
+    val mdata2 = VSMFileMetadata(Array("S1", "S2"))
+    val mdata3 = VSMFileMetadata(
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
       Annotation.empty,
@@ -63,7 +63,7 @@ class VSMSuite extends SparkSuite {
         "thing2" -> TString),
       TStruct.empty,
       TStruct.empty)
-    val mdata4 = new VariantMetadata(
+    val mdata4 = VSMFileMetadata(
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
       Annotation.empty,
@@ -174,7 +174,7 @@ class VSMSuite extends SparkSuite {
     val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f)
-      hc.read(f).same(vds)
+      hc.readVDS(f).same(vds)
     }
 
     p.check()
@@ -184,7 +184,7 @@ class VSMSuite extends SparkSuite {
     val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f, parquetGenotypes = true)
-      hc.read(f).same(vds)
+      hc.readVDS(f).same(vds)
     }
 
     p.check()
@@ -243,7 +243,7 @@ class VSMSuite extends SparkSuite {
       val filteredOut = tmpDir.createTempFile("filtered", extension = ".vds")
       filtered.write(filteredOut)
 
-      assert(hc.read(filteredOut).same(filtered))
+      assert(hc.readVDS(filteredOut).same(filtered))
     }
   }
 
@@ -263,8 +263,8 @@ class VSMSuite extends SparkSuite {
     hc.importVCF("src/test/resources/sample2.vcf")
       .write(f)
 
-    assert(hc.read(f, dropSamples = true)
-      .same(hc.read(f).dropSamples()))
+    assert(hc.readVDS(f, dropSamples = true)
+      .same(hc.readVDS(f).dropSamples()))
   }
 
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
@@ -335,7 +335,7 @@ class VSMSuite extends SparkSuite {
       vds.filterVariants { case (v, _, _) => groups(v) == 3 }
         .write(path3)
 
-      hc.readAll(Array(path1, path2, path3))
+      hc.readVDSAll(Array(path1, path2, path3))
         .same(vds)
 
     }.check()
@@ -364,12 +364,12 @@ class VSMSuite extends SparkSuite {
 
 
     interceptFatal("missing partitioner") {
-      hc.read(path)
+      hc.readVDS(path)
     }
 
     hc.writePartitioning(path)
 
-    assert(hc.read(path).same(hc.importVCF("src/test/resources/sample.vcf")))
+    assert(hc.readVDS(path).same(hc.importVCF("src/test/resources/sample.vcf")))
   }
 
   @Test def testAnnotateVariantsKeyTable() {
@@ -445,12 +445,12 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testImportOldVDS() {
-    val vds = hc.read("src/test/resources/sample.vds")
+    val vds = hc.readVDS("src/test/resources/sample.vds")
     vds.countVariants()
   }
 
   @Test def testQueryGenotypes() {
-    val vds = hc.read("src/test/resources/sample.vds")
+    val vds = hc.readVDS("src/test/resources/sample.vds")
     vds.queryGenotypes("gs.map(g => g.gq).hist(0, 100, 100)")
   }
 }

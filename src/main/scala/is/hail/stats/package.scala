@@ -3,7 +3,7 @@ package is.hail
 import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
+import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset}
 import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 
@@ -328,6 +328,6 @@ package object stats {
       nPartitions
     ).toOrderedRDD
 
-    new VariantDataset(hc, VariantMetadata(sampleIds, wasSplit = true), rdd)
+    new VariantDataset(hc, VSMFileMetadata(sampleIds, wasSplit = true), rdd)
   }
 }

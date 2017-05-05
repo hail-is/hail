@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TDouble, TInt, TString, TStruct}
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset, VariantMetadata}
+import is.hail.variant.{Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
@@ -50,9 +50,9 @@ object BaldingNicholsModel {
     af_dist match {
       case u: UniformDist =>
         if (u.minVal < 0)
-          fatal(s"minVal ${u.minVal} must be at least 0")
+          fatal(s"minVal ${ u.minVal } must be at least 0")
         else if (u.maxVal > 1)
-          fatal(s"maxVal ${u.maxVal} must be at most 1")
+          fatal(s"maxVal ${ u.maxVal } must be at most 1")
       case _ =>
     }
 
@@ -85,7 +85,7 @@ object BaldingNicholsModel {
 
         val ancestralAF = af_dist.getBreezeDist(perVariantRandomBasis).draw()
 
-        val popAF_k = (0 until K).map{k =>
+        val popAF_k = (0 until K).map { k =>
           new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
         }
 
@@ -107,7 +107,7 @@ object BaldingNicholsModel {
           )
         )
       }
-    .toOrderedRDD
+      .toOrderedRDD
 
     val sampleIds = (0 until N).map(_.toString).toArray
     val sampleAnnotations = (popOfSample_n.toArray: IndexedSeq[Int]).map(pop => Annotation(pop))
@@ -130,16 +130,15 @@ object BaldingNicholsModel {
     }
 
     val globalSignature = TStruct(
-        "nPops" -> TInt,
-        "nSamples" -> TInt,
-        "nVariants" -> TInt,
-        "popDist" -> TArray(TDouble),
-        "Fst" -> TArray(TDouble),
-        "ancestralAFDist" -> ancestralAFAnnotationSignature,
-        "seed" -> TInt)
+      "nPops" -> TInt,
+      "nSamples" -> TInt,
+      "nVariants" -> TInt,
+      "popDist" -> TArray(TDouble),
+      "Fst" -> TArray(TDouble),
+      "ancestralAFDist" -> ancestralAFAnnotationSignature,
+      "seed" -> TInt)
     new VariantDataset(hc,
-      new VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation, saSignature, vaSignature, globalSignature, wasSplit=true),
-      rdd
-    )
+      VSMMetadata(saSignature, vaSignature, globalSignature, wasSplit = true),
+      VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
   }
 }

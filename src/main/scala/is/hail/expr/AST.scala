@@ -220,6 +220,8 @@ case class Positioned[T](x: T) extends Positional
 sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
   var `type`: Type = _
 
+  def getPos: Position = pos
+
   def this(posn: Position, subexpr1: AST) = this(posn, Array(subexpr1))
 
   def this(posn: Position, subexpr1: AST, subexpr2: AST) = this(posn, Array(subexpr1, subexpr2))

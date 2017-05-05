@@ -496,15 +496,9 @@ class HailContext(object):
 
         """
 
-        metadata = self._jhc.readAllMetadata(jindexed_seq_args(path))
-        is_generic_genotype = metadata[0]._1().isGenericGenotype()
-
-        if is_generic_genotype:
-            jvds = self._jhc.readAllGDS(jindexed_seq_args(path), drop_samples, drop_variants, joption(metadata))
-        else:
-            jvds = self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants, joption(metadata))
-
-        return VariantDataset(self, jvds)
+        return VariantDataset(
+            self,
+            self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants))
 
     @handle_py4j
     def write_partitioning(self, path):

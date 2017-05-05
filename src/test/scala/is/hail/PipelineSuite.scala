@@ -16,7 +16,7 @@ class PipelineSuite extends SparkSuite {
     vds.splitMulti()
       .write(vdsFile)
 
-    val qc = hc.read(vdsFile)
+    val qc = hc.readVDS(vdsFile)
       .sampleQC()
       .variantQC()
 

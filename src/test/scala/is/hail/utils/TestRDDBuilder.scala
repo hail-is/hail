@@ -126,6 +126,6 @@ object TestRDDBuilder {
         }
         (variant, (Annotation.empty, b.result(): Iterable[Genotype]))
     }
-    VariantSampleMatrix(hc, VariantMetadata(sampleList), streamRDD.toOrderedRDD)
+    new VariantSampleMatrix(hc, VSMFileMetadata(sampleList), streamRDD.toOrderedRDD)
   }
 }
