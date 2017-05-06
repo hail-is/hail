@@ -179,14 +179,14 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
       Row(kids.flatMap(x => trioFamBc.value.get(x.head)).orNull, dad, mom, kids.map(_.length).getOrElse(0), n, nSNP)
     }
 
-    KeyTable(hc, rdd, signature, Array())
+    KeyTable(hc, rdd, signature, Array("fid"))
   }
 
   def iMendelKT(): KeyTable = {
 
     val signature = TStruct(
-      "s" -> TString,
       "fid" -> TString,
+      "s" -> TString,
       "nError" -> TInt,
       "nSNP" -> TInt
     )
@@ -197,7 +197,7 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
       }
     }.toMap)
 
-    val rdd = nErrorPerIndiv.map { case (s, (n, nSNP)) => Row(s, trioFamBc.value.getOrElse(s, null), n, nSNP) }
+    val rdd = nErrorPerIndiv.map { case (s, (n, nSNP)) => Row(trioFamBc.value.getOrElse(s, null), s, n, nSNP) }
 
     KeyTable(hc, rdd, signature, Array("s"))
   }

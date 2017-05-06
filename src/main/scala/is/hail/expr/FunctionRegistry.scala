@@ -847,7 +847,7 @@ object FunctionRegistry {
     "start" -> "Starting number of the sequence.",
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
-  
+
   registerSpecial("Genotype", { (vF: () => Any, dosF: () => Any) =>
     val v = vF()
     val dos = dosF()
@@ -910,7 +910,7 @@ object FunctionRegistry {
     """,
     "v" -> "Variant", "c" -> "Call", "ad" -> "Allelic depths", "dp" -> "Depth", "gq" -> "Genotype quality", "pl" -> "Phred-scaled likelihoods"
   )(variantHr, boxedintHr, arrayHr[Int], boxedintHr, boxedintHr, arrayHr[Int], genotypeHr)
-  
+
   register("Variant", { (x: String) => Variant.parse(x) },
     """
     Construct a :ref:`variant` object.
@@ -1135,12 +1135,20 @@ object FunctionRegistry {
     "b" -> "the base.",
     "x" -> "the exponent.")
 
-  register("parseInterval", (s: String) => Locus.parseInterval(s),
+  register("Interval", (s: String) => Locus.parseInterval(s),
     """
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
     """,
     "s" -> "The string to parse."
   )
+
+  register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
+    """
+    Constructs an interval from a given chromosome, start, and end.
+    """,
+    "chr" -> "Chromosome.",
+    "start" -> "Starting position.",
+    "end" -> "Ending position (exclusive).")
 
   register("pcoin", { (p: Double) => math.random < p },
     """

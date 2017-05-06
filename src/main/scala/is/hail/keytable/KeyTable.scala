@@ -330,20 +330,20 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     filter(p)
   }
 
-  def keyBy(newKeys: String*): KeyTable = keyBy(newKeys)
+  def keyBy(key: String*): KeyTable = keyBy(key)
 
-  def keyBy(newKeys: java.util.ArrayList[String]): KeyTable = keyBy(newKeys.asScala)
+  def keyBy(key: java.util.ArrayList[String]): KeyTable = keyBy(key.asScala)
 
-  def keyBy(newKeys: Iterable[String]): KeyTable = {
+  def keyBy(key: Iterable[String]): KeyTable = {
     val colSet = fieldNames.toSet
-    val badKeys = newKeys.filter(!colSet.contains(_))
+    val badKeys = key.filter(!colSet.contains(_))
 
     if (badKeys.nonEmpty)
       fatal(
         s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
            |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
 
-    copy(key = newKeys.toArray)
+    copy(key = key.toArray)
   }
 
   def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {

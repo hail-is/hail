@@ -41,7 +41,7 @@ class Type(object):
 
     @classmethod
     def _from_java(cls, jtype):
-        # FIXME string matching is pretty hacsky
+        # FIXME string matching is pretty hacky
         class_name = jtype.getClass().getCanonicalName()
 
         if class_name in __singletons__:

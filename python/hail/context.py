@@ -7,6 +7,7 @@ from hail.expr import Type
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist
+from hail.utils import wrap_to_list
 
 
 class HailContext(object):
@@ -393,58 +394,12 @@ class HailContext(object):
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(paths, list):
-            for p in paths:
-                if not isinstance(p, str) and not isinstance(p, unicode):
-                    raise TypeError(
-                        "method 'import_table' expected elements of param 'paths' to be str, but found %s" % type(p))
-        elif not isinstance(paths, str) and not isinstance(paths, unicode):
-            raise TypeError("method 'import_table' expected param 'paths' to be str, but found %s" % type(paths))
-        else:
-            paths = [paths]
-
-        if isinstance(key, list):
-            for k in key:
-                if not isinstance(k, str) and not isinstance(k, unicode):
-                    raise TypeError(
-                        "method 'import_table' expected elements of param 'key' to be str, but found %s" % type(k))
-        elif not isinstance(key, str) and not isinstance(key, unicode):
-            raise TypeError("method 'import_table' expected param 'key' to be str, but found %s" % type(paths))
-        else:
-            key = [key]
-
-        if min_partitions is not None and not isinstance(min_partitions, int):
-            raise TypeError(
-                "method 'import_table' expected param 'min_partitions' to be None or int, but found %s" %
-                type(min_partitions))
-        if not isinstance(impute, bool):
-            raise TypeError("method 'import_table' expected param 'impute' to be bool, but found %s" % type(impute))
-        if not isinstance(no_header, bool):
-            raise TypeError(
-                "method 'import_table' expected param 'no_header' to be bool, but found %s" % type(no_header))
-        if comment is not None and not isinstance(comment, str) and not isinstance(comment, unicode):
-            raise TypeError(
-                "method 'import_table' expected param 'comment' to be None or str, but found %s" % type(comment))
-        if not isinstance(delimiter, str) and not isinstance(delimiter, unicode):
-            raise TypeError(
-                "method 'import_table' expected param 'delimiter' to be None or str, but found %s" % type(delimiter))
-        if not isinstance(missing, str) and not isinstance(missing, unicode):
-            raise TypeError(
-                "method 'import_table' expected param 'missing' to be None or str, but found %s" % type(missing))
-        if not isinstance(types, dict):
-            raise TypeError("method 'import_table' expected param 'types' to be dict, but found %s" % type(types))
-        for k, v in types.items():
-            if not isinstance(k, str) and not isinstance(k, unicode):
-                raise TypeError(
-                    "method 'import_table' expected keys of param 'types' to be str, but found %s" % type(k))
-            if not isinstance(v, Type):
-                raise TypeError(
-                    "method 'import_table' expected values of param 'types' to be Type, but found %s" % type(k))
-
+        key = wrap_to_list(key)
+        paths = wrap_to_list(paths)
         jtypes = {k: v._jtype for k, v in types.items()}
 
-        jkt = self._jhc.importKeyTable(paths, key, joption(min_partitions), jtypes, comment, delimiter, missing,
-                                       no_header, impute)
+        jkt = self._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
+                                    no_header, impute)
         return KeyTable(self, jkt)
 
     @handle_py4j
@@ -686,7 +641,7 @@ class HailContext(object):
 
         if generic:
             jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                           joption(npartitions), drop_samples, jset_args(call_fields))
+                                               joption(npartitions), drop_samples, jset_args(call_fields))
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
                                         joption(npartitions), drop_samples, store_gq,

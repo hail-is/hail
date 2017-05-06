@@ -300,15 +300,15 @@ class HailContext private(val sc: SparkContext,
       .copy(vaSignature = signature, wasSplit = true)
   }
 
-  def importKeyTable(inputs: java.util.ArrayList[String],
+  def importTable(inputs: java.util.ArrayList[String],
     keyNames: java.util.ArrayList[String],
-    nPartitions: Option[Int],
+    nPartitions: java.lang.Integer,
     types: java.util.HashMap[String, Type],
     commentChar: String,
     separator: String,
     missing: String,
     noHeader: Boolean,
-    impute: Boolean): KeyTable = importKeyTables(inputs.asScala, keyNames.asScala.toArray, nPartitions,
+    impute: Boolean): KeyTable = importKeyTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
     types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute)
 
   def importTable(input: String,

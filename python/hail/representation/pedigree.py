@@ -4,54 +4,30 @@ from hail.java import *
 class Trio(object):
     """Class containing information about nuclear family relatedness and sex.
 
-    :param str proband: sample ID of proband
+    :param str proband: Sample ID of proband.
 
-    :param father: sample ID of proband
+    :param father: Sample ID of father.
     :type father: str or None
 
-    :param mother: sample ID of proband
+    :param mother: Sample ID of mother.
     :type mother: str or None
 
-    :param sex: sex of proband: 1 for male, 2 for female
-    :type sex: int or None
+    :param is_female: Sex of proband.
+    :type is_female: bool or None
     """
 
     _sex_jobject = None
-    _pheno_jobject = None
 
     @staticmethod
     def _get_sex_jobject():
         if not Trio._sex_jobject:
-            Trio._sex_jobject = scala_object(Env.hail().variant, 'Sex')
+            Trio._sex_jobject = Env.hail().variant.Sex
         return Trio._sex_jobject
 
-    @staticmethod
-    def _get_pheno_jobject():
-        if not Trio._pheno_jobject:
-            Trio._pheno_jobject = scala_object(Env.hail().variant, 'Phenotype')
-        return Trio._pheno_jobject
-
     @handle_py4j
-    def __init__(self, proband, fam=None, father=None, mother=None, sex=None):
-        if not isinstance(proband, str) and not isinstance(proband, unicode):
-            raise TypeError("param 'proband' must be of type str or unicode, but  found '%s'" % type(proband))
-
-        if fam and not isinstance(fam, str) and not isinstance(fam, unicode):
-            raise TypeError("param 'fam' must be of type str or unicode, but  found '%s'" % type(proband))
-
-        if father and not isinstance(father, str) and not isinstance(father, unicode):
-            raise TypeError("param 'father' must be of type str or unicode, but  found '%s'" % type(proband))
-
-        if mother and not isinstance(mother, str) and not isinstance(mother, unicode):
-            raise TypeError("param 'mother' must be of type str or unicode, but  found '%s'" % type(proband))
-
-        if sex and sex != 1 and sex != 2:
-            raise ValueError("sex must be 1, 2, or None, but found '%s'" % sex)
-
-        if sex:
-            if not Trio._sex_jobject:
-                Trio._sex_jobject = scala_object(Env.hail().variant, 'Sex')
-            jsex = jsome(Trio._sex_jobject.Male()) if sex == 1 else jsome(Trio._sex_jobject.Female())
+    def __init__(self, proband, fam=None, father=None, mother=None, is_female=None):
+        if is_female is not None:
+            jsex = jsome(Trio._get_sex_jobject().Female()) if is_female else jsome(Trio._get_sex_jobject().Male())
         else:
             jsex = jnone()
 
@@ -60,7 +36,7 @@ class Trio(object):
         self._proband = proband
         self._father = father
         self._mother = mother
-        self._sex = sex
+        self._is_female = is_female
 
     @classmethod
     def _from_java(cls, jrep):
@@ -69,14 +45,14 @@ class Trio(object):
         return trio
 
     def __repr__(self):
-        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, sex=%s)' % (
+        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, is_female=%s)' % (
             repr(self.proband), repr(self.fam), repr(self.father),
-            repr(self.mother), repr(self.sex))
+            repr(self.mother), repr(self.is_female))
 
     def __str__(self):
-        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, sex=%s)' % (
+        return 'Trio(proband=%s, fam=%s, father=%s, mother=%s, is_female=%s)' % (
             str(self.proband), str(self.fam), str(self.father),
-            str(self.mother), str(self.sex))
+            str(self.mother), str(self.is_female))
 
     def __eq__(self, other):
         if not isinstance(other, Trio):
@@ -131,41 +107,41 @@ class Trio(object):
         return self._fam
 
     @property
-    def sex(self):
-        """Sex of proband: 1 for male, 2 for female. May be missing.
-
-        :rtype: int or None
-        """
-
-        if not hasattr(self, '_sex'):
-            jsex = self._jrep.sex()
-            if jsex.isDefined():
-                self._sex = 1 if jsex.get() == Trio._get_sex_jobject().Male() else 2
-            else:
-                self._sex = None
-        return self._sex
-
     def is_male(self):
         """Returns True if the proband is a reported male, False if reported female or missing.
 
-        :rtype: bool
+        :rtype: bool or None
         """
+        if not hasattr(self, '_is_female'):
+            j_female = self._jrep.isFemale()
+            j_male = self._jrep.isFemale()
+            if not j_female and not j_male:
+                self._is_female = None
+            else:
+                self._is_female = j_female
+        return self._is_female is False
 
-        return self.sex is 1
-
+    @property
     def is_female(self):
         """Returns True if the proband is a reported female, False if reported male or missing.
 
-        :rtype: bool
+        :rtype: bool or None
         """
 
-        return self.sex is 2
+        if not hasattr(self, '_is_female'):
+            j_female = self._jrep.isFemale()
+            j_male = self._jrep.isFemale()
+            if not j_female and not j_male:
+                self._is_female = None
+            else:
+                self._is_female = j_female
+        return self._is_female is True
 
     def is_complete(self):
         """Returns True if the trio has a defined mother, father, and sex.
 
         The considered fields are ``mother``, ``father``, and ``sex``.
-        Recall that ``proband`` may not ever be missing. The ``fam`` field 
+        Recall that ``proband`` may never be missing. The ``fam`` field 
         may be missing in a complete trio.
 
         :rtype: bool
@@ -193,14 +169,12 @@ class Pedigree(object):
 
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = trios
-        self._complete_trios = None
 
     @classmethod
     def _from_java(cls, jrep):
         ped = Pedigree.__new__(cls)
         ped._jrep = jrep
         ped._trios = None
-        ped._complete_trios = None
         return ped
 
     def __eq__(self, other):
@@ -248,16 +222,12 @@ class Pedigree(object):
             self._trios = [Trio._from_java(t) for t in jiterable_to_list(self._jrep.trios())]
         return self._trios
 
-    @property
     def complete_trios(self):
         """List of trio objects that have a defined father, mother, and sex.
 
         :rtype: list of :class:`.Trio`
         """
-
-        if not self._complete_trios:
-            self._complete_trios = filter(lambda t: t.is_complete(), self._trios)
-        return self._complete_trios
+        return filter(lambda t: t.is_complete(), self._trios)
 
     @handle_py4j
     def filter_to(self, samples):

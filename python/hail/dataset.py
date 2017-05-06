@@ -573,7 +573,7 @@ class VariantDataset(object):
         .. warning::
         
             Global annotations are not distributed. Storing large tables as
-            globals can cause Hail to slow down or crash.
+            globals can cause Hail to slow down or run out of memory.
 
         :param table: Key table to be stored as a global annotation.
         :type table: :py:class:`.KeyTable`

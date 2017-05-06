@@ -516,7 +516,7 @@ class ContextTests(unittest.TestCase):
                     for r in kt4.order_by(desc('a'), 'b').collect()]
         self.assertEqual(bydescab, [(7, 'baz'), (5, 'quam'), (5, None), (-1, 'quam'), (None, 'foo')])
 
-        KeyTable.import_fam('data/sample.fam')._typecheck()
+        KeyTable.import_fam(test_resources + '/sample.fam')._typecheck()
 
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
@@ -914,8 +914,8 @@ class ContextTests(unittest.TestCase):
         print(ped.complete_trios)
 
 
-        t1 = Trio('kid1', father='dad1', sex=2)
-        t2 = Trio('kid1', father='dad1', sex=2)
+        t1 = Trio('kid1', father='dad1', is_female=True)
+        t2 = Trio('kid1', father='dad1', is_female=True)
 
         self.assertEqual(t1, t2)
 
@@ -923,7 +923,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(t1.proband, 'kid1')
         self.assertEqual(t1.father, 'dad1')
         self.assertEqual(t1.mother, None)
-        self.assertEqual(t1.sex, 2)
+        self.assertEqual(t1.is_female, True)
         self.assertEqual(t1.is_complete(), False)
-        self.assertEqual(t1.is_female(), True)
-        self.assertEqual(t1.is_male(), False)
+        self.assertEqual(t1.is_female, True)
+        self.assertEqual(t1.is_male, False)
