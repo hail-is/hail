@@ -508,7 +508,7 @@ class ExprSuite extends SparkSuite {
     }.check()
 
     forAll(Gen.choose(5, 10), Gen.choose(5, 10)) { (i: Int, j: Int) =>
-      eval[String](s""" "abcd"[-$i:-$j] """) == eval[String]("")
+      eval[String](s""" "abcd"[-$i:-$j] """).contains("")
     }.check()
     
     forAll(Gen.choose(-5, 5)) { (i: Int) =>
