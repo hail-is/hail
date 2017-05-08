@@ -290,7 +290,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     https://github.com/MicrosoftGenomics/FaST-LMM/blob/master/doc/ipynb/FaST-LMM.ipynb
   */
 
-  val vdsFastLMM: VariantDataset = hc
+  lazy val vdsFastLMM: VariantDataset = hc
     .importPlink(bed="src/test/resources/fastlmmTest.bed",
       bim="src/test/resources/fastlmmTest.bim",
       fam="src/test/resources/fastlmmTest.fam")
@@ -299,10 +299,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
     .annotateSamplesTable("src/test/resources/fastlmmPheno.txt", "_1", code=Some("sa.pheno=table._2"),
       config=TextTableConfiguration(noHeader=true, impute=true, separator=" "))
 
-  val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
+  lazy val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
     .lmmreg(vdsFastLMM.filterVariantsExpr("""v.contig != "1"""").rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false)
 
-  val vdsChr3: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
+  lazy val vdsChr3: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
     .lmmreg(vdsFastLMM.filterVariantsExpr("""v.contig != "3"""").rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false)
 
   @Test def fastLMMTest() {
