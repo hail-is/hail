@@ -133,9 +133,9 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
 
     val probabilityIterator = new BgenProbabilityIterator(reader, nBitsPerProb)
 
-    val sampleProbs = Array.fill[UInt](nGenotypes)(UInt(0))
+    val sampleProbs = new Array[UInt](nGenotypes)
 
-    val totalProbInt = UInt((1 << nBitsPerProb) - 1)
+    val totalProbInt = ((1L << nBitsPerProb) - 1).toUInt
     val noCall = new DosageGenotype(-1, null)
 
     new Iterable[Genotype] {

@@ -458,7 +458,7 @@ package object utils extends Logging
   }
 
   def decompress(input: Array[Byte], size: Int): Array[Byte] = {
-    val expansion = Array.ofDim[Byte](size)
+    val expansion = new Array[Byte](size)
     val inflater = new Inflater
     inflater.setInput(input)
     var off = 0

@@ -231,5 +231,6 @@ class UtilsSuite extends SparkSuite {
     intercept[AssertionError](UInt(-1) + UInt(5))
     intercept[AssertionError](UInt(4294967294L) + UInt(10))
     intercept[AssertionError](UInt(-1) * UInt(2))
+    intercept[AssertionError](UInt(-3) + UInt(5) == UInt(2))
   }
 }

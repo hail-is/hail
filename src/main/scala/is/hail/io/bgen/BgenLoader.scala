@@ -109,7 +109,7 @@ object BgenLoader {
         reader.seek(position)
 
         if (bState.version == 1)
-          reader.readInt()
+          reader.readInt() // nRows for v1.1 only
 
         val snpid = reader.readLengthAndString(2)
         val rsid = reader.readLengthAndString(2)

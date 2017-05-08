@@ -95,7 +95,7 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
       val nAltAlleles = nAlleles - 1
 
       val ref = bfis.readLengthAndString(4)
-      val altAlleles = Array.ofDim[String](nAltAlleles)
+      val altAlleles = new Array[String](nAltAlleles)
 
       var altIndex = 0
       while (altIndex < nAltAlleles) {
@@ -114,13 +114,12 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
       val variant = Variant(recodedChr, position, ref, altAlleles)
 
       val dataSize = bfis.readInt()
-      val uncompressedSize = if (bState.compressed) bfis.readInt() else dataSize
 
-      val bytesInput =
+      val (uncompressedSize, bytesInput) =
         if (bState.compressed)
-          bfis.readBytes(dataSize - 4)
+          (bfis.readInt(), bfis.readBytes(dataSize - 4))
         else
-          bfis.readBytes(dataSize)
+          (dataSize, bfis.readBytes(dataSize))
 
       value.setKey(variant)
       value.setAnnotation(Annotation(rsid, lid))
