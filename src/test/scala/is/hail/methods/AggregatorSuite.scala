@@ -422,8 +422,8 @@ class AggregatorSuite extends SparkSuite {
     }
 
   @Test def takeByNAIsAlwaysLast() {
-    val inf = 1.0/0.0
-    val nan = 0.0/0.0
+    val inf = Double.PositiveInfinity
+    val nan = Double.NaN
 
     val xs = Array(inf, -1.0, 1.0, 0.0, -inf, na, nan)
 
