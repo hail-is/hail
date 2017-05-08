@@ -26,7 +26,19 @@ object Contig {
       case (None, None) => lhs.compare(rhs)
     }
   }
+
+  val t: TStruct = TStruct(
+    ("name", TString),
+    ("length", TInt),
+    ("isX", TBoolean),
+    ("isY", TBoolean),
+    ("isMT", TBoolean),
+    ("par", TArray(TInterval)))
+
+  def fromRow(r: Row): Contig = Contig(r.getString(0), r.getInt(1), r.getBoolean(2), r.getBoolean(3), r.getBoolean(4), r.getSeq[Interval[Locus]](5): _*)
 }
+
+case class Contig(name: String, length: Int, isX: Boolean, isY: Boolean, isMT: Boolean, par: Interval[Locus]*)
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
