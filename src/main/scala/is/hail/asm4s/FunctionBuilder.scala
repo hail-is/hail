@@ -99,10 +99,14 @@ abstract class FunctionBuilder[R](parameterTypeInfo: Array[TypeInfo[_]], returnT
     new LocalRef[T](argIndex(i))
   }
 
+  val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+  def emit(c: Code[_]) {
+    c.emit(l)
+  }
+
   def classAsBytes(c: Code[R]): Array[Byte] = {
     mn.instructions.add(start)
-    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
-    c.emit(l)
+    emit(c)
     val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
     assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${dupes: Seq[Any]}")
     l.foreach(mn.instructions.add _)
