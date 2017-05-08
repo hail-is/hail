@@ -473,16 +473,16 @@ class ExprSuite extends SparkSuite {
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][-4:-2] """).contains(IndexedSeq(0, 1)))
     assert(eval[IndexedSeq[_]](""" [0,1,2,3][-2:-4] """).contains(IndexedSeq()))
 
-    forAll(Gen.choose(1, 10), Gen.choose(1, 10)) { (i: Int, j: Int) =>
-      eval[String](""" [0,1,2,3][-$i:-$j] """) == eval[String](""" [0,1,2,3][4-$i:4-$j] """)
+    forAll(Gen.choose(1, 5), Gen.choose(1, 5)) { (i: Int, j: Int) =>
+      eval[String](s""" [0,1,2,3][-$i:-$j] """) == eval[String](s""" [0,1,2,3][4-$i:4-$j] """)
     }.check()
 
-    forAll { (i: Int) =>
-      eval[String](""" [0,1,2,3][$i:] """) == eval[String](""" [0,1,2,3][$i:4] """)
+    forAll(Gen.choose(-5, 5)) { (i: Int) =>
+      eval[String](s""" [0,1,2,3][$i:] """) == eval[String](s""" [0,1,2,3][$i:4] """)
     }.check()
 
-    forAll { (i: Int) =>
-      eval[String](""" [0,1,2,3][:$i] """) == eval[String](""" [0,1,2,3][0:$i] """)
+    forAll(Gen.choose(-5, 5)) { (i: Int) =>
+      eval[String](s""" [0,1,2,3][:$i] """) == eval[String](s""" [0,1,2,3][0:$i] """)
     }.check()
 
     assert(eval[String](""" "abcd"[0:2] """).contains("ab"))
@@ -499,16 +499,16 @@ class ExprSuite extends SparkSuite {
     assert(eval[String](""" "abcd"[-4:-2] """).contains("ab"))
     assert(eval[String](""" "abcd"[-2:-4] """).contains(""))
 
-    forAll(Gen.choose(1, 10), Gen.choose(1, 10)) { (i: Int, j: Int) =>
-      eval[String](""" "abcd"[-$i:-$j] """) == eval[String](""" "abcd"[4-$i:4-$j] """)
+    forAll(Gen.choose(1, 5), Gen.choose(1, 5)) { (i: Int, j: Int) =>
+      eval[String](s""" "abcd"[-$i:-$j] """) == eval[String](s""" "abcd"[4-$i:4-$j] """)
     }.check()
 
-    forAll { (i: Int) =>
-      eval[String](""" "abcd"[$i:] """) == eval[String](""" "abcd"[$i:4] """)
+    forAll(Gen.choose(-5, 5)) { (i: Int) =>
+      eval[String](s""" "abcd"[$i:] """) == eval[String](s""" "abcd"[$i:4] """)
     }.check()
 
-    forAll { (i: Int) =>
-      eval[String](""" "abcd"[:$i] """) == eval[String](""" "abcd"[0:$i] """)
+    forAll(Gen.choose(-5, 5)) { (i: Int) =>
+      eval[String](s""" "abcd"[:$i] """) == eval[String](s""" "abcd"[0:$i] """)
     }.check()
 
     assert(eval[String](""" "abcd"[0:2] """).contains("ab"))
