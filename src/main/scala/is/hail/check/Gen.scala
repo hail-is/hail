@@ -1,6 +1,9 @@
 package is.hail.check
 
+import is.hail.utils._
+
 import breeze.linalg.DenseMatrix
+import breeze.stats.distributions.Dirichlet
 import breeze.storage.Zero
 import org.apache.commons.math3.random._
 
@@ -33,25 +36,21 @@ object Gen {
       yield if (coin < 0.5) (l, w) else (w, l)
 
   // utility
-  def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
+  def partition(rng: RandomDataGenerator, size: Int, parts: Int, alpha: Double = 4d, beta: Double = 1d): Array[Int] = {
     if (parts == 0)
       return Array()
-    
-    val a = new Array[Int](parts)
-    var sizeAvail = size
-    val nSuccesses = rng.getRandomGenerator.nextInt(parts) + 1
+    if (size == 0)
+      return new Array[Int](parts)
 
-    for (i <- 0 until nSuccesses - 1) {
-      val s = if (sizeAvail != 0) rng.getRandomGenerator.nextInt(sizeAvail) else 0
-      a(i) = s
-      sizeAvail -= s
-    }
+    // nSuccesses from beta-binomial distribution
+    val pSuccess = rng.nextBeta(alpha, beta)
+    val nSuccesses = math.max(1, rng.nextBinomial(parts, pSuccess))
 
-    a(nSuccesses - 1) = sizeAvail
+    // distribute size with symmetric dirichlet distribution
+    val conc = rng.nextUniform(0.3, 2, true)
+    val a = Dirichlet.sym(conc, nSuccesses).draw().toArray
 
-    assert(a.sum == size)
-
-    rng.nextPermutation(a.length, a.length).map(a)
+    rng.nextPermutation(parts, parts).map(roundWithConstantSum(a, size) ++ new Array[Int](parts - nSuccesses))
   }
 
   def partition(parts: Int, sum: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, sum, parts) }

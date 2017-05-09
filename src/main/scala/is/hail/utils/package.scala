@@ -461,4 +461,22 @@ package object utils extends Logging
     }
     s
   }
+
+  def roundWithConstantSum(a: Array[Double], size: Int): Array[Int] = {
+    val resized = a.map(_ * size).zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
+    val totalFractional = (resized.map { case (i, orig, floor) => orig - floor }.sum + 0.5).toInt
+
+    val result = resized
+      .sortBy { case (_, orig, floor) => floor - orig }
+      .zipWithIndex
+      .map { case ((i, orig, floor), iSort) =>
+      if (iSort < totalFractional)
+        (i, math.ceil(orig))
+      else
+        (i, math.floor(orig))
+    }.sortBy(_._1).map(_._2.toInt)
+
+    assert(result.sum == size)
+    result
+  }
 }
