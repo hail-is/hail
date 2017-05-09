@@ -12,7 +12,7 @@ object LDMatrix {
 
   /**
     * Computes the LD matrix for the given VDS.
-    * @param vds The VDS to compute LD matrix of.
+    * @param vds VDS on which to compute Pearson correlation between pairs of variants.
     * @return An LDMatrix.
     */
   def apply(vds : VariantDataset): LDMatrix = {
