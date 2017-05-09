@@ -5,15 +5,18 @@ from hail.expr import Type, TArray, TStruct
 from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
 
+
 def asc(col):
     """Sort by ``col`` ascending."""
-    
+
     return scala_package_object(Env.hail().keytable).asc(col)
+
 
 def desc(col):
     """Sort by ``col`` descending."""
-    
+
     return scala_package_object(Env.hail().keytable).desc(col)
+
 
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
@@ -590,7 +593,7 @@ class KeyTable(object):
           :py:meth:`~.export_mongodb` is EXPERIMENTAL.
 
         """
-        
+
         (scala_package_object(self.hc._hail.driver)
          .exportMongoDB(self.hc._jsql_context, self._jkt, mode))
 
@@ -615,7 +618,7 @@ class KeyTable(object):
           :py:meth:`~.export_cassandra` is EXPERIMENTAL.
 
         """
-        
+
         self._jkt.exportCassandra(address, keyspace, table, block_size, rate)
 
     @handle_py4j
@@ -631,7 +634,7 @@ class KeyTable(object):
         c3.
 
         >>> kt3 = hc.import_table('data/kt_example3.tsv', impute=True,
-        ...                          types={'c1': TString(), 'c2': TArray(TInt()), 'c3': TArray(TArray(TInt()))})
+        ...                       types={'c1': TString(), 'c2': TArray(TInt()), 'c3': TArray(TArray(TInt()))})
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
         c1 cannot be exploded because its type is not an ``Array`` or ``Set``.
@@ -851,7 +854,7 @@ class KeyTable(object):
         :return: Key table sorted by ``cols``.
         :rtype: :class:`.KeyTable`
         """
-        
+
         jsort_columns = [asc(col) if isinstance(col, str) else col for col in cols]
         return KeyTable(self.hc,
                         self._jkt.orderBy(jarray(Env.hail().keytable.SortColumn, jsort_columns)))
@@ -956,8 +959,7 @@ class KeyTable(object):
         
             - **interval** (*Interval*) - Genomic interval.
          
-        If the .bed file has four or more columns, then Hail will store the fourth column as another key 
-        table column:
+        If the .bed file has four or more columns, then Hail will store the fourth column in the table:
          
              - **interval** (*Interval*) - Genomic interval.
              - **target** (*String*) - Fourth column of .bed file.

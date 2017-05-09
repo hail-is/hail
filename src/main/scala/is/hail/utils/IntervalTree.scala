@@ -1,16 +1,12 @@
 package is.hail.utils
 
-import is.hail.HailContext
 import is.hail.check._
-import is.hail.expr.{TInterval, TStruct}
-import is.hail.keytable.KeyTable
-import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
 import scala.collection.mutable
-import scala.math.Ordering.Implicits._
 import scala.language.implicitConversions
+import scala.math.Ordering.Implicits._
 import scala.reflect.ClassTag
 
 // interval inclusive of start, exclusive of end: [start, end)
@@ -85,10 +81,10 @@ object IntervalTree {
     new IntervalTree[T, U](fromSorted(sorted, 0, sorted.length))
   }
 
-  def apply[T: Ordering](intervals: Array[Interval[T]], noisy: Boolean = false): IntervalTree[T, Unit] = {
+  def apply[T: Ordering](intervals: Array[Interval[T]]): IntervalTree[T, Unit] = {
     val sorted = if (intervals.nonEmpty) {
       val unpruned = intervals.sorted
-      val ab = mutable.ArrayBuilder.make[Interval[T]]
+      val ab = new ArrayBuilder[Interval[T]](intervals.length)
       var tmp = unpruned.head
       var i = 1
       var pruned = 0
@@ -109,9 +105,6 @@ object IntervalTree {
         i += 1
       }
       ab += tmp
-
-      if (noisy)
-        info(s"pruned $pruned redundant intervals")
 
       ab.result()
     } else intervals

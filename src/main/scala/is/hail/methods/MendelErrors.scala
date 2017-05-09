@@ -157,7 +157,7 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
 
     val rdd = mendelErrors.map { e => Row(e.trio.fam.orNull, e.trio.kid, e.variant, e.code, e.errorString) }
 
-    KeyTable(hc, rdd, signature, Array())
+    KeyTable(hc, rdd, signature, Array("s", "v"))
   }
 
   def fMendelKT(): KeyTable = {

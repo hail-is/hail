@@ -1139,7 +1139,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def filterIntervals(intervals: java.util.ArrayList[Interval[Locus]], keep: Boolean): VariantSampleMatrix[T] = {
-    val iList = IntervalTree[Locus](intervals.asScala.toArray, noisy = true)
+    val iList = IntervalTree[Locus](intervals.asScala.toArray)
     filterIntervals(iList, keep)
   }
 
@@ -2171,14 +2171,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
   def genotypeKT(): KeyTable = {
     KeyTable(hc,
-      expandWithAll.map { case (v, va, s, sa, g) => Row(v, va, s, sa, g) },
+      expandWithAll().map { case (v, va, s, sa, g) => Row(v, va, s, sa, g) },
       TStruct(
         "v" -> TVariant,
         "va" -> vaSignature,
         "s" -> TString,
         "sa" -> saSignature,
         "g" -> genotypeSignature),
-      Array())
+      Array("v", "s"))
   }
 
   /**

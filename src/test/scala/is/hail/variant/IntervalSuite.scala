@@ -41,7 +41,7 @@ class IntervalSuite extends SparkSuite {
     ex1.annotate("""interval = interval.start.contig + ":" + interval.start.position + "-" + interval.end.position""")
       .export(f)
 
-    val ex1wr = hc.importTable(f).annotate("interval = parseInterval(interval)").keyBy("interval")
+    val ex1wr = hc.importTable(f).annotate("interval = Interval(interval)").keyBy("interval")
 
     assert(ex1wr.same(ex1))
 

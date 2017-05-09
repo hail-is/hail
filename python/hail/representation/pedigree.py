@@ -16,18 +16,11 @@ class Trio(object):
     :type is_female: bool or None
     """
 
-    _sex_jobject = None
-
-    @staticmethod
-    def _get_sex_jobject():
-        if not Trio._sex_jobject:
-            Trio._sex_jobject = Env.hail().variant.Sex
-        return Trio._sex_jobject
-
     @handle_py4j
     def __init__(self, proband, fam=None, father=None, mother=None, is_female=None):
+        jobject = Env.hail().variant.Sex
         if is_female is not None:
-            jsex = jsome(Trio._get_sex_jobject().Female()) if is_female else jsome(Trio._get_sex_jobject().Male())
+            jsex = jsome(jobject.Female()) if is_female else jsome(jobject.Male())
         else:
             jsex = jnone()
 

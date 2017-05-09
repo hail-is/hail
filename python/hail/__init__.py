@@ -39,5 +39,6 @@ __all__ = ['HailContext',
            'hadoop_read',
            'hadoop_write',
            'hadoop_copy',
+           'KinshipMatrix',
            'representation',
            'expr']

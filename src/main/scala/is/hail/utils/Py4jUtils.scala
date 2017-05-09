@@ -26,11 +26,12 @@ trait Py4jUtils {
   }
 
   def parseIntervalList(strs: java.util.ArrayList[String]): IntervalTree[Locus, Unit] =
-    IntervalTree(Locus.parseIntervals(strs.asScala.toArray), noisy = true)
+    IntervalTree(Locus.parseIntervals(strs.asScala.toArray))
 
   def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]]): IntervalTree[Locus, Unit] =
-    IntervalTree(intervals.asScala.toArray, noisy = true)
+    IntervalTree(intervals.asScala.toArray)
 
+  // we cannot construct an array because we don't have the class tag
   def arrayListToISeq[T](al: java.util.ArrayList[T]): IndexedSeq[T] = al.asScala.toIndexedSeq
 
   def arrayListToSet[T](al: java.util.ArrayList[T]): Set[T] = al.asScala.toSet

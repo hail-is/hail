@@ -748,7 +748,7 @@ class VariantDataset(object):
 
         This method takes as an argument a :class:`.KeyTable` object. Hail has a default join strategy
         for tables keyed by String, which joins by sample ID. If the table is keyed by something else, like
-        population or cohort, then the ``vds_key`` argument must be passed to describe the keys in the dataset 
+        population or cohort, then the ``vds_key`` argument must be passed to describe the key in the dataset 
         to use for the join. This argument expects a list of Hail expressions whose types match, in order, the 
         table's key types.
         
@@ -925,26 +925,27 @@ class VariantDataset(object):
         
         **Notes**
         
-        This method takes as an argument a :class:`.KeyTable` object. Hail has defined join strategies
-        for tables keyed by Variant, Locus, or Interval. If the table is keyed by something else (gene ID, etc)
-        then the ``vds_key`` argument must be passed to describe the keys in the dataset to use for the join.
+        This method takes as an argument a :class:`.KeyTable` object. Hail has default join strategies
+        for tables keyed by Variant, Locus, or Interval.
         
         **Join strategies:**
                   
-        If the key is a ``Variant``, then a variant in the dataset will be annotated by finding a
-        complete match in the table. Be careful, however: ``1:1:A:T`` does not match ``1:1:A:T,C``, 
+        If the key is a ``Variant``, then a variant in the dataset will match a variant in the 
+        table that is equivalent. Be careful, however: ``1:1:A:T`` does not match ``1:1:A:T,C``, 
         and vice versa. 
         
-        If the key is a ``Locus``, then a variant in the dataset will be annotated by matching 
-        chromosome and position.
+        If the key is a ``Locus``, then a variant in the dataset will match any locus in the table
+        which is equivalent to ``v.locus`` (same chromosome and position).
+            
+        If the key is an ``Interval``, then a variant in the dataset will match any interval in 
+        the table that contains the variant's locus (chromosome and position).
         
-        If the key is an ``Interval``, then a variant in the dataset will be annotated by finding
-        an interval that contains the variant's chromosome and position.
-        
-        If the key is not one of the above three types or if another join strategy should be used
-        for these types, then the ``vds_key`` argument should be passed. This argument expects
-        a list of Hail expressions whose types match, in order, the table's key types. Note that 
-        using ``vds_key`` is slower than annotation with a standard key type.
+        If the key is not one of the above three types (a String representing gene ID, for instance),
+        or if another join strategy should be used for a key of one of these three types (join with a 
+        locus object in variant annotations, for instance) for these types, then the ``vds_key`` argument 
+        should be passed. This argument expects a list of expressions whose types match, in order, 
+        the table's key types. Note that using ``vds_key`` is slower than annotation with a standard 
+        key type.
 
         Each expression in the list ``vds_key`` has the following symbols in
         scope:
@@ -952,13 +953,13 @@ class VariantDataset(object):
           - ``v`` (*Variant*): :ref:`variant`
           - ``va``: variant annotations
         
-        **The ``root`` and ``expr`` arguments**
+        **The** ``root`` **and** ``expr`` **arguments**
         
         .. note::
         
             One of ``root`` or ``expr`` is required, but not both. 
             
-        The ``expr`` parameter expects an annotation expression involving ``va`` (the existing 
+        The ``expr`` parameter expects an annotation assignment involving ``va`` (the existing 
         variant annotations in the dataset) and ``table`` (the values(s) in the table),
         like ``va.col1 = table.col1, va.col2 = table.col2`` or ``va = merge(va, table)``.
         The ``root`` parameter expects an annotation path beginning in ``va``, like ``va.annotations``.
@@ -993,21 +994,21 @@ class VariantDataset(object):
                       
         **Common uses for the** ``expr`` **argument**
 
-        Put annotations on the top level under ``va``
+        Put annotations on the top level under ``va``:
 
-        .. code-block: text
+        .. code-block:: text
 
             expr='va = merge(va, table)'
 
-        Annotate only specific annotations from the table
+        Annotate only specific annotations from the table:
 
-        .. code-block: text
+        .. code-block:: text
 
             expr='va.annotations = select(table, toKeep1, toKeep2, toKeep3)'
 
-        The above is equivalent to
+        The above is roughly equivalent to:
 
-        .. code-block: text
+        .. code-block:: text
 
             expr='''va.annotations.toKeep1 = table.toKeep1,
                 va.annotations.toKeep2 = table.toKeep2,
@@ -1080,7 +1081,7 @@ class VariantDataset(object):
         The ``root`` argument copies all the variant annotations from ``other``
         to the specified annotation path.
 
-        The ``expr`` argument expects an annotation expression whose scope
+        The ``expr`` argument expects an annotation assignment whose scope
         includes, ``va``, the variant annotations in the current VDS, and ``vds``,
         the variant annotations in ``other``.
 
@@ -1096,8 +1097,7 @@ class VariantDataset(object):
 
         It is possible that an unsplit variant dataset contains no multiallelic
         variants, so ignore any warnings Hail prints if you know that to be the
-        case.  Otherwise, run :py:meth:`.split_multi` before
-        :py:meth:`.annotate_variants_vds`.
+        case.  Otherwise, run :py:meth:`.split_multi` before :py:meth:`.annotate_variants_vds`.
 
         :param VariantDataset other: Variant dataset to annotate with.
 
@@ -1836,7 +1836,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def filter_samples_expr(self, condition, keep=True):
-        """Filter samples based on expression.
+        """Filter samples with the expression language.
 
         **Examples**
 
@@ -1934,7 +1934,7 @@ class VariantDataset(object):
         :param table: Key table.
         :type table: :class:`.KeyTable`
         
-        :param bool keep: Keep the keys of the table. Remove the keys if false.
+        :param bool keep: If true, keep only the keys in ``table``, otherwise remove them.
         
         :return: Filtered dataset.
         :rtype: :class:`.VariantDataset`
@@ -1961,7 +1961,7 @@ class VariantDataset(object):
 
     @handle_py4j
     def filter_variants_expr(self, condition, keep=True):
-        """Filter variants based on expression.
+        """Filter variants with the expression language.
 
         **Examples**
 
@@ -2146,7 +2146,7 @@ class VariantDataset(object):
         :param table: Key table object.
         :type table: :py:class:`.KeyTable`
 
-        :param bool keep: If true, keep keys in ``table``, otherwise remove them.
+        :param bool keep: If true, keep only matches in ``table``, otherwise remove them.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -2479,13 +2479,12 @@ class VariantDataset(object):
 
         :param int window: Width of window in base-pairs for computing pair-wise :math:`R^2` values.
 
-        :param float memory_per_core: Total amount of memory available for each core in MB. If unsure, use the default value.
+        :param int memory_per_core: Total amount of memory available for each core in MB. If unsure, use the default value.
 
         :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
 
         :return: Variant dataset filtered to those variants which remain after LD pruning.
-
-        :rtype: VariantDataset
+        :rtype: :py:class:`.VariantDataset`
         """
 
         jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
@@ -2705,7 +2704,7 @@ class VariantDataset(object):
         +---------+---+---+---+---+---+---+
 
         The ``va.genes`` annotation of type Set[String] on ``example_burden.vds`` was created
-        using :py:meth:`.annotate_variants_intervals` with ``all=True`` on the interval list:
+        using :py:meth:`.annotate_variants_table` with ``product=True`` on the interval list:
 
         .. literalinclude:: data/genes.interval_list
 
@@ -2722,7 +2721,7 @@ class VariantDataset(object):
         |  geneC |    X    |    X    |    X    |
         +--------+---------+---------+---------+
 
-        Therefore :py:meth:`.annotate_variants_intervals` with ``all=True`` creates
+        Therefore :py:meth:`.annotate_variants_table` with ``product=True`` creates
         a variant annotation of type Set[String] with values ``Set('geneA', 'geneB')``,
         ``Set('geneB')``, and ``Set('geneA', 'geneB', 'geneC')``.
 
@@ -4842,11 +4841,11 @@ class VariantDataset(object):
         This produces a (massive) flat table from all the
         genotypes in the dataset. The table has columns:
 
-            - **v** (*Variant*) - Variant
-            - **va** (*Variant annotation schema*) - Variant annotations
-            - **s** (*String*) - Sample ID
-            - **sa** (*Sample annotation schema*) - Sample annotations
-            - **g** (*Genotype schema*) - Genotype or generic genotype
+            - **v** (*Variant*) - Variant (key column).
+            - **va** (*Variant annotation schema*) - Variant annotations.
+            - **s** (*String*) - Sample ID (key column).
+            - **sa** (*Sample annotation schema*) - Sample annotations.
+            - **g** (*Genotype schema*) - Genotype or generic genotype.
 
         .. caution::
 

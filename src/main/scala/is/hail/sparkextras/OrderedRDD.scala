@@ -342,27 +342,28 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     new OrderedRDD[PK, K, Array[V]](rdd.mapPartitions { it =>
 
       val bit = it.buffered
-      val buffer = mutable.ArrayBuffer.empty[V]
+      val builder = new ArrayBuilder[V]()
 
       new Iterator[(K, Array[V])] {
         def hasNext: Boolean = bit.hasNext
 
         def next(): (K, Array[V]) = {
-          buffer.clear()
+          builder.clear()
           val (k, v) = bit.next()
 
-          buffer += v
+          builder += v
           while (bit.hasNext && bit.head._1 == k)
-            buffer += bit.next()._2
+            builder += bit.next()._2
 
-          (k, buffer.toArray)
+          (k, builder.result())
         }
       }
     }, orderedPartitioner)
   }
 
-  def orderedLeftJoin[V2](other: OrderedRDD[PK, K, V2])(implicit vct: ClassTag[V2]): RDD[(K, (V, Array[V2]))] =
-    new OrderedLeftJoinRDD[PK, K, V, V2](this, other)
+  def orderedLeftJoin[V2](other: OrderedRDD[PK, K, V2])(implicit vct: ClassTag[V2]): RDD[(K, (V, Array[V2]))] = {
+    orderedLeftJoinDistinct(other.groupByKey()).mapValues { case (l, r) => (l, r.getOrElse(Array.empty[V2]))}
+  }
 
   def orderedLeftJoinDistinct[V2](other: OrderedRDD[PK, K, V2]): RDD[(K, (V, Option[V2]))] =
     new OrderedLeftJoinDistinctRDD[PK, K, V, V2](this, other)

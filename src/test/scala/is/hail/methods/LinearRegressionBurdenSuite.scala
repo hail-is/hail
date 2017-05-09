@@ -219,12 +219,12 @@ class LinearRegressionBurdenSuite extends SparkSuite {
   @Test def testFatals() {
     interceptFatal("clashes with reserved linreg columns") {
       vdsBurden.linregBurden("pval", "va.genes", singleKey = false,
-        "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+        "gs.map(g => g.gt.toDouble).max()", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
 
     interceptFatal("clashes with a sample name") {
       vdsBurden.linregBurden("A", "va.genes", singleKey = false,
-        "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+        "gs.map(g => g.gt.toDouble).max()", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
 }
