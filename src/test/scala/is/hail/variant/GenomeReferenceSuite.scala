@@ -17,5 +17,8 @@ class GenomeReferenceSuite extends SparkSuite {
 
     assert(parXLocus.forall(grch37.inXPar) && parYLocus.forall(grch37.inYPar))
     assert(!nonParXLocus.forall(grch37.inXPar) && !nonParYLocus.forall(grch37.inYPar))
+
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    assert(vds.filterVariants { case (v, va, gs) => v.isMitochondrial }.countVariants() == 0)
   }
 }

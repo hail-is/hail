@@ -618,6 +618,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
     assert(eval[Variant]("""Variant("1", 1, "A", ["T", "G"])""").contains(Variant("1", 1, "A", Array("T", "G"))))
     assert(eval[Boolean]("""let v = Variant("1", 1, "A", "T") in Variant(str(v)) == v""").contains(true))
+    assert(eval[Boolean]("""let v = Variant("MT", 1, "A", "T") in v.isAutosomal()""").contains(false))
+    assert(eval[Boolean]("""let v = Variant("X", 100000, "A", "T") in v.inXPar()""").contains(true))
 
     {
       val x = eval[Annotation]("""let left = Variant("1:1000:AT:A,CT") and right = Variant("1:1000:A:C,AGG") in combineVariants(left,right)""")

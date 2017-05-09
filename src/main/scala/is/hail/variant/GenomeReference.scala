@@ -22,6 +22,16 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
 }
 
 object GenomeReference {
+  @volatile var genomeReference: GenomeReference = _
+
+  def setReference(gr: GenomeReference) {
+    if (genomeReference == null) {
+      synchronized {
+        genomeReference = gr
+      }
+    }
+  }
+
   def GRCh37 = fromResource("reference/human_g1k_v37.json")
 
   def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
