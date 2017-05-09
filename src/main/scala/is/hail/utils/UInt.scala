@@ -1,11 +1,14 @@
 package is.hail.utils
 
 object UInt {
-  def apply(i: Int): UInt = new UInt(i)
+  def apply(i: Int): UInt = {
+    assert(i >= 0, s"UInt cannot be constructed from negative integers. Found $i.")
+    new UInt(i)
+  }
 
   def apply(l: Long): UInt = {
     assert((l >>> 32) == 0, s"Long value does not fit in UInt. Found $l.")
-    UInt(l.toInt)
+    new UInt(l.toInt)
   }
 
   implicit val numeric: Numeric[UInt] = new Numeric[UInt] {
@@ -36,7 +39,6 @@ object UInt {
 }
 
 class UInt private(val i: Int) extends AnyVal {
-//  require(i >= 0)
 
   def compare(right: UInt): Int = {
     val l = toLong
