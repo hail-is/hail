@@ -15,7 +15,7 @@ Lastly, data is **exported** to a variety of file formats.
 Variant Dataset (VDS)
 ---------------------
 
-.. image:: ../../../www/hail-vds-rep.png
+.. image:: hail-vds-rep.png
 
 Hail represents a genetic data set as a matrix where the rows are keyed by
 :ref:`variant` objects, the columns are keyed by samples, and each cell is a
