@@ -12,7 +12,7 @@ import is.hail.keytable.KeyTable
 import is.hail.methods.DuplicateReport
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix, GenomeReference}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -143,7 +143,8 @@ object HailContext {
     parquetCompression: String = "snappy",
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = {
+    tmpDir: String = "/tmp",
+    reference: String = "GRCh37"): HailContext = {
 
     val javaVersion = System.getProperty("java.version")
     if (!javaVersion.startsWith("1.8"))
@@ -183,8 +184,15 @@ object HailContext {
       }.mkString(", ")
     }")
 
+
+    val genomeReference = reference match {
+      case "GRCh37" => GenomeReference.GRCh37
+      case "GRCh38" => GenomeReference.GRCh38
+      case _ => fatal(s"Did not recognize genome reference name `$reference'. Choose from `GRCh37, GRCh38'.")
+    }
+
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor, genomeReference)
     val welcomeMessage =
       """Welcome to
         |     __  __     <>__
@@ -200,7 +208,8 @@ object HailContext {
 class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
   val tmpDir: String,
-  val branchingFactor: Int) {
+  val branchingFactor: Int,
+  var genomeReference: GenomeReference) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
@@ -273,7 +282,7 @@ class HailContext private(val sc: SparkContext,
     val nSamples = samples.length
 
     //FIXME: can't specify multiple chromosomes
-    val results = inputs.map(f => GenLoader(f, sampleFile, sc, nPartitions,
+    val results = inputs.map(f => GenLoader(f, sampleFile, this, nPartitions,
       tolerance, chromosome))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
@@ -340,7 +349,7 @@ class HailContext private(val sc: SparkContext,
       fatal("Arguments referred to no files")
 
     val (struct, rdd) =
-      TextTableReader.read(sc)(files, types, commentChar, separator, missing,
+      TextTableReader.read(this)(files, types, commentChar, separator, missing,
         noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     KeyTable(this, rdd.map(_.value), struct, keyNames)
@@ -488,7 +497,7 @@ class HailContext private(val sc: SparkContext,
   }
 
   def writePartitioning(path: String) {
-    VariantSampleMatrix.writePartitioning(sqlContext, path)
+    VariantSampleMatrix.writePartitioning(sqlContext, path, genomeReference)
   }
 
   def importVCF(file: String, force: Boolean = false,

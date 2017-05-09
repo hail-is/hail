@@ -89,7 +89,7 @@ object BaldingNicholsModel {
           new Beta(ancestralAF * Fst1_kBc.value(k), (1 - ancestralAF) * Fst1_kBc.value(k))(perVariantRandomBasis).draw()
         }
 
-        (Variant("1", m + 1, "A", "C"),
+        (Variant(0, m + 1, "A", "C"),
           (Annotation(ancestralAF, popAF_k),
             (0 until N).map { n =>
               val p = popAF_k(popOfSample_nBc.value(n))

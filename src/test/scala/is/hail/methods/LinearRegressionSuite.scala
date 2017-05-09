@@ -25,14 +25,14 @@ class LinearRegressionSuite extends SparkSuite {
     assert(a == null)
   }
 
-  val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
-  val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
-  val v3 = Variant("1", 3, "C", "T") // x = (0, ., 1, 1, 1, .)
-  val v6 = Variant("1", 6, "C", "T") // x = (0, 0, 0, 0, 0, 0)
-  val v7 = Variant("1", 7, "C", "T") // x = (1, 1, 1, 1, 1, 1)
-  val v8 = Variant("1", 8, "C", "T") // x = (2, 2, 2, 2, 2, 2)
-  val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
-  val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
+  lazy val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
+  lazy val v2 = Variant("1", 2, "C", "T") // x = (., 2, ., 2, 0, 0)
+  lazy val v3 = Variant("1", 3, "C", "T") // x = (0, ., 1, 1, 1, .)
+  lazy val v6 = Variant("1", 6, "C", "T") // x = (0, 0, 0, 0, 0, 0)
+  lazy val v7 = Variant("1", 7, "C", "T") // x = (1, 1, 1, 1, 1, 1)
+  lazy val v8 = Variant("1", 8, "C", "T") // x = (2, 2, 2, 2, 2, 2)
+  lazy val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
+  lazy val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
   @Test def testWithTwoCov() {
     val covariates = hc.importTable("src/test/resources/regressionLinear.cov",

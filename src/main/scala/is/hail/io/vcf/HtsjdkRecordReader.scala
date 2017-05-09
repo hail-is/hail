@@ -27,7 +27,7 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
 
   import HtsjdkRecordReader._
 
-  def readVariantInfo(vc: VariantContext, infoSignature: Option[TStruct]): (Variant, Annotation) = {
+  def readVariantInfo(vc: VariantContext, infoSignature: Option[TStruct], gr: GenomeReference): (Variant, Annotation) = {
     val filters: Set[String] = {
       if (!vc.filtersWereApplied)
         null
@@ -49,9 +49,7 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
       vc.getAlternateAlleles.iterator.asScala.map(a => {
         val base = if (a.getBaseString.isEmpty) "." else a.getBaseString // TODO: handle structural variants
         AltAllele(ref, base)
-      }).toArray)
-    val nAlleles = v.nAlleles
-    val nGeno = v.nGenotypes
+      }).toArray)(gr)
 
     val info = infoSignature.map { sig =>
       val a = Annotation(
@@ -82,7 +80,8 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type): (Variant, (Annotation, Iterable[T]))
+    genotypeSignature: Type,
+    gr: GenomeReference): (Variant, (Annotation, Iterable[T]))
 
   def genericGenotypes: Boolean
 }
@@ -93,9 +92,10 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type): (Variant, (Annotation, Iterable[Genotype])) = {
+    genotypeSignature: Type,
+    gr: GenomeReference): (Variant, (Annotation, Iterable[Genotype])) = {
 
-    val (v, va) = readVariantInfo(vc, infoSignature)
+    val (v, va) = readVariantInfo(vc, infoSignature, gr)
 
     val nAlleles = v.nAlleles
 
@@ -271,9 +271,10 @@ case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordRead
   def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
     vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type): (Variant, (Annotation, Iterable[Annotation])) = {
+    genotypeSignature: Type,
+    gr: GenomeReference): (Variant, (Annotation, Iterable[Annotation])) = {
 
-    val (v, va) = readVariantInfo(vc, infoSignature)
+    val (v, va) = readVariantInfo(vc, infoSignature, gr)
     val nAlleles = v.nAlleles
 
     val gs = vc.getGenotypes.iterator.asScala.map { g =>

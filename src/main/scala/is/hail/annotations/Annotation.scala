@@ -57,39 +57,39 @@ object Annotation {
     case _ => t
   }
 
-  def expandAnnotation(a: Annotation, t: Type): Annotation =
+  def expandAnnotation(a: Annotation, t: Type, gr: GenomeReference): Annotation =
     if (a == null)
       null
     else
       t match {
-        case TVariant => a.asInstanceOf[Variant].toRow
+        case TVariant => a.asInstanceOf[Variant].toRow(gr)
         case TGenotype => a.asInstanceOf[Genotype].toRow
-        case TLocus => a.asInstanceOf[Locus].toRow
+        case TLocus => a.asInstanceOf[Locus].toRow(gr)
 
         case TArray(elementType) =>
-          a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
+          a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType, gr))
         case TStruct(fields) =>
           Row.fromSeq((a.asInstanceOf[Row].toSeq, fields).zipped.map { case (ai, f) =>
-            expandAnnotation(ai, f.typ)
+            expandAnnotation(ai, f.typ, gr)
           })
 
         case TSet(elementType) =>
           (a.asInstanceOf[Set[_]]
             .toArray[Any] : IndexedSeq[_])
-            .map(expandAnnotation(_, elementType))
+            .map(expandAnnotation(_, elementType, gr))
 
         case TDict(keyType, valueType) =>
           (a.asInstanceOf[Map[String, _]]
 
             .toArray[(Any, Any)]: IndexedSeq[(Any, Any)])
-            .map { case (k, v) => Annotation(expandAnnotation(k, keyType), expandAnnotation(v, valueType)) }
+            .map { case (k, v) => Annotation(expandAnnotation(k, keyType, gr), expandAnnotation(v, valueType, gr)) }
 
         case TAltAllele => a.asInstanceOf[AltAllele].toRow
 
         case TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
-          Annotation(i.start.toRow,
-            i.end.toRow)
+          Annotation(i.start.toRow(gr),
+            i.end.toRow(gr))
 
         // including TChar, TSample
         case _ => a

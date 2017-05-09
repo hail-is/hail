@@ -20,16 +20,19 @@ class Variant(object):
 
     @handle_py4j
     def __init__(self, contig, start, ref, alts):
+        self._gr = scala_object(Env.hail().variant, 'GenomeReference').genomeReference()
+
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(Env.hail().variant, 'Variant').apply(contig, start, ref, alts)
+
+        jrep = scala_object(Env.hail().variant, 'Variant').apply(contig, start, ref, alts, self._gr)
         self._init_from_java(jrep)
         self._contig = contig
         self._start = start
         self._ref = ref
 
     def __str__(self):
-        return self._jrep.toString()
+        return self._jrep.toString(self._gr)
 
     def __repr__(self):
         return 'Variant(contig=%s, start=%s, ref=%s, alts=%s)' % (self.contig, self.start, self.ref, self._alt_alleles)
@@ -47,8 +50,9 @@ class Variant(object):
     @classmethod
     def _from_java(cls, jrep):
         v = Variant.__new__(cls)
+        v._gr = scala_object(Env.hail().variant, 'GenomeReference').genomeReference()
         v._init_from_java(jrep)
-        v._contig = jrep.contig()
+        v._contig = jrep.contigStr(v._gr)
         v._start = jrep.start()
         v._ref = jrep.ref()
         return v
@@ -68,7 +72,9 @@ class Variant(object):
 
         :rtype: :class:`.Variant`
         """
-        jrep = scala_object(Env.hail().variant, 'Variant').parse(string)
+
+        gr = scala_object(Env.hail().variant, 'GenomeReference').genomeReference()
+        jrep = scala_object(Env.hail().variant, 'Variant').parse(string, gr)
         return Variant._from_java(jrep)
 
     @property
@@ -204,14 +210,14 @@ class Variant(object):
 
         :rtype: bool
         """
-        return self._jrep.isAutosomalOrPseudoAutosomal()
+        return self._jrep.isAutosomalOrPseudoAutosomal(self._gr)
 
     def is_autosomal(self):
         """True if this polymorphism is located on an autosome.
 
         :rtype: bool
         """
-        return self._jrep.isAutosomal()
+        return self._jrep.isAutosomal(self._gr)
 
     def is_mitochondrial(self):
         """True if this polymorphism is mapped to mitochondrial DNA.
@@ -219,7 +225,7 @@ class Variant(object):
         :rtype: bool
         """
 
-        return self._jrep.isMitochondrial()
+        return self._jrep.isMitochondrial(self._gr)
 
     def in_X_PAR(self):
         """True of this polymorphism is found on the pseudoautosomal region of chromosome X.
@@ -227,7 +233,7 @@ class Variant(object):
         :rtype: bool
         """
 
-        return self._jrep.inXPar()
+        return self._jrep.inXPar(self._gr)
 
     def in_Y_PAR(self):
         """True of this polymorphism is found on the pseudoautosomal region of chromosome Y.
@@ -235,7 +241,7 @@ class Variant(object):
         :rtype: bool
         """
 
-        return self._jrep.inYPar()
+        return self._jrep.inYPar(self._gr)
 
     def in_X_non_PAR(self):
         """True of this polymorphism is found on the non-pseudoautosomal region of chromosome X.
@@ -243,7 +249,7 @@ class Variant(object):
         :rtype: bool
         """
 
-        return self._jrep.inXNonPar()
+        return self._jrep.inXNonPar(self._gr)
 
     def in_Y_non_PAR(self):
         """True of this polymorphism is found on the non-pseudoautosomal region of chromosome Y.
@@ -251,7 +257,7 @@ class Variant(object):
         :rtype: bool
         """
 
-        return self._jrep.inYNonPar()
+        return self._jrep.inYNonPar(self._gr)
 
 
 class AltAllele(object):
@@ -428,15 +434,18 @@ class Locus(object):
 
     @handle_py4j
     def __init__(self, contig, position):
+        self._gr = scala_object(Env.hail().variant, 'GenomeReference').genomeReference()
+
         if isinstance(contig, int):
             contig = str(contig)
-        jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position)
+
+        jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position, self._gr)
         self._init_from_java(jrep)
         self._contig = contig
         self._position = position
 
     def __str__(self):
-        return self._jrep.toString()
+        return self._jrep.toString(self._gr)
 
     def __repr__(self):
         return 'Locus(contig=%s, position=%s)' % (self.contig, self.position)
@@ -453,8 +462,9 @@ class Locus(object):
     @classmethod
     def _from_java(cls, jrep):
         l = Locus.__new__(cls)
+        l._gr = scala_object(Env.hail().variant, 'GenomeReference').genomeReference()
         l._init_from_java(jrep)
-        l._contig = jrep.contig()
+        l._contig = jrep.contigStr(l._gr)
         l._position = jrep.position()
         return l
 
@@ -467,7 +477,8 @@ class Locus(object):
         :rtype: :class:`.Locus`
         """
 
-        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string))
+        gr = scala_object(Env.hail().variant, 'GenomeReference').genomeReference()
+        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string, gr))
 
     @property
     def contig(self):

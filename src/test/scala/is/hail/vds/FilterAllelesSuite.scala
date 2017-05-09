@@ -26,7 +26,7 @@ class FilterAllelesSuite extends SparkSuite {
   }
 
   @Test def filterSecondOfTwoAllelesDowncode(): Unit = {
-    val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
+    val variant1 = Variant("1", 0, "ref", Array("alt1", "alt2"))
     val va1 = null
     val genotype11 = Genotype(Option(1), Option(Array(25, 5, 30)), Option(100), Option(5), Option(Array(10, 0, 10, 10, 5, 7)))
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
@@ -55,7 +55,7 @@ class FilterAllelesSuite extends SparkSuite {
   }
 
   @Test def filterFirstOfTwoAllelesDowncode(): Unit = {
-    val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
+    val variant1 = Variant("1", 0, "ref", Array("alt1", "alt2"))
     val va1 = null
     val genotype11 = Genotype(Option(1), Option(Array(25, 5, 30)), Option(100), Option(5), Option(Array(10, 0, 10, 10, 5, 7)))
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
@@ -84,7 +84,7 @@ class FilterAllelesSuite extends SparkSuite {
   }
 
   @Test def filterFirstOfTwoAllelesSubset(): Unit = {
-    val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
+    val variant1 = Variant("1", 0, "ref", Array("alt1", "alt2"))
     val va1 = null
     val genotype11 = Genotype(Option(1), Option(Array(25, 5, 30)), Option(100), Option(5), Option(Array(10, 0, 10, 10, 5, 7)))
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
@@ -113,7 +113,7 @@ class FilterAllelesSuite extends SparkSuite {
   }
 
   @Test def filterSecondOfTwoAllelesSubset(): Unit = {
-    val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
+    val variant1 = Variant("1", 0, "ref", Array("alt1", "alt2"))
     val va1 = null
     val genotype11 = Genotype(Option(1), Option(Array(25, 5, 30)), Option(100), Option(5), Option(Array(10, 0, 10, 10, 5, 7)))
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
@@ -142,7 +142,7 @@ class FilterAllelesSuite extends SparkSuite {
   }
 
   @Test def filterSecondOfTwoAllelesFilterAlteredGenotypes(): Unit = {
-    val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
+    val variant1 = Variant("1", 0, "ref", Array("alt1", "alt2"))
     val va1 = null
     val genotype11 = Genotype(Option(1), Option(Array(25, 5, 30)), Option(100), Option(5), Option(Array(10, 0, 10, 10, 5, 7)))
     val genotype12 = Genotype(Option(2), Option(Array(25, 35, 0)), Option(100), Option(5), Option(Array(10, 10, 0, 7, 5, 10)))
@@ -171,7 +171,7 @@ class FilterAllelesSuite extends SparkSuite {
   }
 
   @Test def filterOneAlleleAndModifyAnnotation(): Unit = {
-    val variant1 = new Variant("contig", 0, "ref", IndexedSeq("alt1", "alt2").map(AltAllele("ref", _)))
+    val variant1 = Variant("1", 0, "ref", Array("alt1", "alt2"))
     val va1 = null
     val genotypes1 = Seq(Genotype(1), Genotype(2), Genotype(3))
     val row1: (Variant, (Annotation, Iterable[Genotype])) = (variant1, (va1, genotypes1))

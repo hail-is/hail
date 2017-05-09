@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, GenomeReference, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -17,7 +17,6 @@ import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.language.higherKinds
 import scala.reflect.ClassTag
-
 import org.apache.commons.math3.stat.inference.ChiSquareTest
 
 case class MetaData(docstring: Option[String], args: Seq[(String, String)] = Seq.empty[(String, String)])
@@ -48,6 +47,8 @@ object FunctionRegistry {
   private def lookupConversion(from: Type, to: Type): Option[(Int, Transformation[Any, Any])] = conversions.get(from -> to)
 
   private val chisq = new ChiSquareTest()
+
+  private def gr = GenomeReference.genomeReference
 
   private def registerConversion[T, U](how: T => U, codeHow: Code[T] => CM[Code[U]], priority: Int = 1)(implicit hrt: HailRep[T], hru: HailRep[U]) {
     val from = hrt.typ
@@ -764,8 +765,8 @@ object FunctionRegistry {
   registerFieldCode("isLinearScale",
     { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("isLinearScale"))) },
     "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
-  registerFieldCode("contig",
-    { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) },
+  registerMethod("contig",
+    { (x: Variant) => x.contigStr(gr) },
     "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")
   registerFieldCode("start",
     { (x: Code[Variant]) => CM.ret(boxInt(x.invoke[Int]("start"))) },
@@ -780,16 +781,16 @@ object FunctionRegistry {
   registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, "Number of alleles.")
   registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, "True if `v` has one alternate allele.")
   registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, "Number of genotypes.")
-  registerMethod("inXPar", { (x: Variant) => x.inXPar }, "True if chromosome is X and start is in pseudoautosomal region of X.")
-  registerMethod("inYPar", { (x: Variant) => x.inYPar }, "True if chromosome is Y and start is in pseudoautosomal region of Y. *NB: most callers assign variants in PAR to X.*")
-  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar }, "True if chromosome is X and start is not in pseudoautosomal region of X.")
-  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar }, "True if chromosome is Y and start is not in pseudoautosomal region of Y.")
+  registerMethod("inXPar", { (x: Variant) => x.inXPar(gr) }, "True if chromosome is X and start is in pseudoautosomal region of X.")
+  registerMethod("inYPar", { (x: Variant) => x.inYPar(gr) }, "True if chromosome is Y and start is in pseudoautosomal region of Y. *NB: most callers assign variants in PAR to X.*")
+  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar(gr) }, "True if chromosome is X and start is not in pseudoautosomal region of X.")
+  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar(gr) }, "True if chromosome is Y and start is not in pseudoautosomal region of Y.")
   // assumes biallelic
   registerMethod("alt", { (x: Variant) => x.alt }, "Alternate allele sequence.  **Assumes biallelic.**")
   registerMethod("altAllele", { (x: Variant) => x.altAllele }, "The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**")
   registerMethod("locus", { (x: Variant) => x.locus }, "Chromosomal locus (chr, pos) of this variant")
-  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal }, "True if chromosome is not X, not Y, and not MT.")
-  registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")
+  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal(gr) }, "True if chromosome is not X, not Y, and not MT.")
+  registerField("contig", { (x: Locus) => x.contigStr(gr) }, "String representation of contig.")
   registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")
   registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus` at the start of the interval (inclusive).")
   registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus` at the end of the interval (exclusive).")
@@ -947,7 +948,7 @@ object FunctionRegistry {
     "v" -> "Variant", "c" -> "Call", "ad" -> "Allelic depths", "dp" -> "Depth", "gq" -> "Genotype quality", "pl" -> "Phred-scaled likelihoods"
   )(variantHr, boxedintHr, arrayHr[Int], boxedintHr, boxedintHr, arrayHr[Int], genotypeHr)
 
-  register("Variant", { (x: String) => Variant.parse(x) },
+  register("Variant", { (x: String) => Variant.parse(x)(gr) },
     """
     Construct a :ref:`variant` object.
 
@@ -958,7 +959,7 @@ object FunctionRegistry {
         result: "7"
     """,
     "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")
-  register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) },
+  register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a)(gr) },
     """
     Construct a :ref:`variant` object.
 
@@ -972,7 +973,7 @@ object FunctionRegistry {
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
     "alt" -> "Alternate allele sequence.")
-  register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) },
+  register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray)(gr) },
     """
     Construct a :ref:`variant` object.
 
@@ -1041,7 +1042,10 @@ object FunctionRegistry {
 
   register("Locus", { (x: String) =>
     val Array(chr, pos) = x.split(":")
-    Locus(chr, pos.toInt)
+    gr.contigIndex.get(chr) match {
+      case Some(idx) => Locus(idx, pos.toInt)
+      case None => fatal(s"Did not find the contig `$chr' in genome reference `${ gr.name }'.")
+    }
   },
     """
     Construct a :ref:`locus` object.
@@ -1055,7 +1059,7 @@ object FunctionRegistry {
     ("s", "String of the form ``CHR:POS``")
   )
 
-  register("Locus", { (x: String, y: Int) => Locus(x, y) },
+  register("Locus", { (x: String, y: Int) => Locus(x, y)(gr) },
     """
     Construct a :ref:`locus` object.
 
@@ -1221,14 +1225,14 @@ object FunctionRegistry {
     "b" -> "the base.",
     "x" -> "the exponent.")
 
-  register("Interval", (s: String) => Locus.parseInterval(s),
+  register("Interval", (s: String) => Locus.parseInterval(s)(gr),
     """
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
     """,
     "s" -> "The string to parse."
   )
 
-  register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
+  register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start)(gr), Locus(chr, end)(gr)),
     """
     Constructs an interval from a given chromosome, start, and end.
     """,

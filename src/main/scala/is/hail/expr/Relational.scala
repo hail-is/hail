@@ -247,6 +247,7 @@ case class MatrixRead[T](
     val vaSignature = typ.vaType
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
     val isLinearScale = metadata.isLinearScale
+    val localGenomeRef = metadata.genomeReference
 
     val orderedRDD =
       if (dropVariants) {
@@ -254,16 +255,16 @@ case class MatrixRead[T](
       } else {
         val rdd = if (dropSamples)
           sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
-            .map(row => (row.getVariant(0),
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+            .map(row => (row.getVariant(0, localGenomeRef),
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature, localGenomeRef) else row.get(1),
                 Iterable.empty[Genotype])))
         else {
           val rdd = sqlContext.readParquetSorted(parquetFile)
 
           rdd.map { row =>
-            val v = row.getVariant(0)
+            val v = row.getVariant(0, localGenomeRef)
             (v,
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
+              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature, localGenomeRef) else row.get(1),
                 row.getGenotypeStream(v, 2, isLinearScale): Iterable[Genotype]))
           }
         }
@@ -280,7 +281,7 @@ case class MatrixRead[T](
         OrderedRDD(rdd, partitioner)
       }
 
-    val (fileMetadata, _) = VariantSampleMatrix.readFileMetadata(hConf, path)
+    val (fileMetadata, _) = VariantSampleMatrix.readFileMetadata(hc, path)
     val localValue = fileMetadata.localValue
 
     MatrixValue(

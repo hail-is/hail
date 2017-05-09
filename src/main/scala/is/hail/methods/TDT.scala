@@ -83,16 +83,17 @@ object TDT {
 
     val (newVA, inserter) = vds.insertVA(schema, path)
 
+    val localGenomeReference = vds.hc.genomeReference
     vds.copy(rdd = vds.rdd.mapPartitions({ it =>
 
       val arr = MultiArray2.fill(nTrio, 3)(NoCall)
       it.map { case (v, (va, gs)) =>
-        if (v.isMitochondrial || v.inYNonPar)
+        if (v.isMitochondrial(localGenomeReference) || v.inYNonPar(localGenomeReference))
           (v, (inserter(va, null), gs))
         else {
           gs.iterator.zipWithIndex.foreach { case (g, i) =>
             sampleTrioRolesBc.value(i).foreach { case (tIdx, rIdx) =>
-              if (v.inXNonPar && rIdx == 1 && g.isHet)
+              if (v.inXNonPar(localGenomeReference) && rIdx == 1 && g.isHet)
                 arr.update(tIdx, rIdx, GenotypeType.NoCall)
               else
                 arr.update(tIdx, rIdx, g.gtType)
@@ -103,7 +104,7 @@ object TDT {
           var u = 0
           var i = 0
           while (i < arr.n1) {
-            val (nt, nu) = getTransmission(arr(i, 0), arr(i, 1), arr(i, 2), v.copyState(trioSexBc.value(i)))
+            val (nt, nu) = getTransmission(arr(i, 0), arr(i, 1), arr(i, 2), v.copyState(trioSexBc.value(i), localGenomeReference))
             t += nt
             u += nu
             i += 1

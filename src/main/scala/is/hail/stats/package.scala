@@ -315,9 +315,11 @@ package object stats {
 
     val sampleIds = samplesIdsOpt.getOrElse((0 until genotypes.rows).map(_.toString).toArray)
 
+    val localGenomeRef = hc.genomeReference
+
     val rdd = hc.sc.parallelize(
       (0 until genotypes.cols).map { j =>
-        (Variant("1", j + 1, "A", "C"),
+        (Variant(0, j + 1, "A", "C"),
           (Annotation.empty,
             (0 until genotypes.rows).map { i =>
               Genotype(genotypes(i, j))

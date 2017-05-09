@@ -42,6 +42,8 @@ class HailContext(object):
 
     :param tmp_dir: temporary directory for file merging
 
+    :param reference: Genome reference to use. Possible options are 'GRCh37', 'GRCh38'.
+
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
     """
@@ -56,10 +58,11 @@ class HailContext(object):
                       parquet_compression=strlike,
                       min_block_size=integral,
                       branching_factor=integral,
-                      tmp_dir=strlike)
+                      tmp_dir=strlike,
+                      reference=strlike)
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='snappy',
-                 min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
+                 min_block_size=1, branching_factor=50, tmp_dir='/tmp', reference='GRCh37'):
 
         if Env._hc:
             raise FatalError('Hail Context has already been created, restart session '
@@ -80,7 +83,7 @@ class HailContext(object):
 
         self._jhc = scala_object(self._hail, 'HailContext').apply(
             jsc, app_name, joption(master), local, log, quiet, append,
-            parquet_compression, min_block_size, branching_factor, tmp_dir)
+            parquet_compression, min_block_size, branching_factor, tmp_dir, reference)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))

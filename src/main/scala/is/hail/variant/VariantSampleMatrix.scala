@@ -36,7 +36,7 @@ object VariantSampleMatrix {
     val sc = hc.sc
     val hConf = sc.hadoopConfiguration
 
-    val (fileMetadata, parquetGenotypes) = readFileMetadata(hConf, dirname)
+    val (fileMetadata, parquetGenotypes) = readFileMetadata(hc, dirname)
 
     val metadata = fileMetadata.metadata
 
@@ -47,6 +47,11 @@ object VariantSampleMatrix {
     val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
     val isGenericGenotype = metadata.isGenericGenotype
     val isLinearScale = metadata.isLinearScale
+
+    if (!metadata.genomeReference.same(hc.genomeReference))
+      fatal(s"VDS genome reference `${ metadata.genomeReference.name }' does not match the global genome reference `${ hc.genomeReference.name }'.")
+
+    val localGenomeRef = metadata.genomeReference
 
     if (!parquetGenotypes && !isGenericGenotype) {
       return new VariantDataset(hc,
@@ -77,7 +82,7 @@ object VariantSampleMatrix {
       if (isGenericGenotype) {
         ((v: Variant, r: Row) => r.getSeq[Any](2).lazyMap(
           if (gRequiresConversion)
-            (g: Any) => SparkAnnotationImpex.importAnnotation(g, genotypeSignature)
+            (g: Any) => SparkAnnotationImpex.importAnnotation(g, genotypeSignature, localGenomeRef)
           else
             (g: Any) => g: Annotation), classTag[Annotation]): ImportGT
       } else {
@@ -92,10 +97,10 @@ object VariantSampleMatrix {
       val (importGenotypes, tct) = genotypeImporter
 
       def importVa(r: Row): Annotation =
-        if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(r.get(1), vaSignature) else r.get(1)
+        if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(r.get(1), vaSignature, localGenomeRef) else r.get(1)
 
-      def importRow(r: Row) = {
-        val v = r.getVariant(0)
+      def importRow(r: Row, gr: GenomeReference) = {
+        val v = r.getVariant(0, gr)
         (v, (importVa(r),
           if (dropSamples)
             Iterable.empty[T]
@@ -108,7 +113,7 @@ object VariantSampleMatrix {
           OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[T])](sc)
         else {
           val columns = someIf(dropSamples, Array("variant", "annotations"))
-          OrderedRDD[Locus, Variant, (Annotation, Iterable[T])](sqlContext.readParquetSorted(parquetFile, columns).map(importRow), partitioner)
+          OrderedRDD[Locus, Variant, (Annotation, Iterable[T])](sqlContext.readParquetSorted(parquetFile, columns).map(importRow(_, localGenomeRef)), partitioner)
         }
 
       new VariantSampleMatrix[T](hc, metadata, localValue, orderedRDD)(tct)
@@ -117,8 +122,10 @@ object VariantSampleMatrix {
     doRead(genotypeImporter)
   }
 
-  def readFileMetadata(hConf: hadoop.conf.Configuration, dirname: String,
+  def readFileMetadata(hc: HailContext, dirname: String,
     requireParquetSuccess: Boolean = true): (VSMFileMetadata, Boolean) = {
+    val hConf = hc.hadoopConf
+
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
@@ -240,6 +247,17 @@ object VariantSampleMatrix {
 
     assert(!isGenericGenotype || !parquetGenotypes)
 
+    val genomeReference = fields.get("genome_reference") match {
+      case Some(jo: JObject) => GenomeReference.fromJSON(jo)
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JObject' in field `genome_reference', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case _ =>
+        warn("VDS does not have a genome reference set. Defaulting to genome reference on HailContext.")
+        hc.genomeReference
+    }
+
     val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
     val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
     val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
@@ -249,7 +267,7 @@ object VariantSampleMatrix {
       .arr
       .map {
         case JObject(List(("id", JString(id)), ("annotation", jv: JValue))) =>
-          (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations"))
+          (id, JSONAnnotationImpex.importAnnotation(jv, saSignature, "sample_annotations", genomeReference))
         case other => fatal(
           s"""corrupt VDS: invalid metadata
              |  Invalid sample annotation metadata
@@ -258,16 +276,16 @@ object VariantSampleMatrix {
       .toArray
 
     val globalAnnotation = JSONAnnotationImpex.importAnnotation(getAndCastJSON[JValue]("global_annotation"),
-      globalSignature, "global")
+      globalSignature, "global", genomeReference)
 
     val ids = sampleInfo.map(_._1)
     val annotations = sampleInfo.map(_._2)
 
-    (VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype),
+    (VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype, genomeReference),
       VSMLocalValue(globalAnnotation, ids, annotations)), parquetGenotypes)
   }
 
-  def writePartitioning(sqlContext: SQLContext, dirname: String): Unit = {
+  def writePartitioning(sqlContext: SQLContext, dirname: String, gr: GenomeReference): Unit = {
     val sc = sqlContext.sparkContext
     val hConf = sc.hadoopConfiguration
 
@@ -279,7 +297,7 @@ object VariantSampleMatrix {
     val parquetFile = dirname + "/rdd.parquet"
 
     val fastKeys = sqlContext.readParquetSorted(parquetFile, Some(Array("variant")))
-      .map(_.getVariant(0))
+      .map(_.getVariant(0, gr))
     val kvRDD = fastKeys.map(k => (k, ()))
 
     val ordered = kvRDD.toOrderedRDD(fastKeys)
@@ -399,7 +417,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       fatal(s"in $method: column key (sample) schema must be String, but found: $sSignature")
   }
 
-  val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype) = metadata
+  val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype, genomeReference) = metadata
 
   lazy val value: MatrixValue[T] = {
     val opt = MatrixAST.optimize(ast)
@@ -1062,7 +1080,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
     val ec = EvalContext(symTab)
     ec.set(5, globalAnnotation)
-    val (names, ts, f) = Parser.parseExportExprs(expr, ec)
+
+    val localGenomeRef = genomeReference
+
+    val (names, ts, f) = Parser.parseExportExprs(expr, ec, localGenomeRef)
 
     val hadoopConf = hc.hadoopConf
     if (typeFile) {
@@ -1095,7 +1116,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
     val ec = sampleEC
 
-    val (names, types, f) = Parser.parseExportExprs(expr, ec)
+    val localGenomeRef = genomeReference
+
+    val (names, types, f) = Parser.parseExportExprs(expr, ec, localGenomeRef)
     val hadoopConf = hc.hadoopConf
     if (typeFile) {
       hadoopConf.delete(path + ".types", recursive = false)
@@ -1126,9 +1149,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     val hConf = hc.hadoopConf
 
     val localGlobalAnnotations = globalAnnotation
+    val localGenomeRef = genomeReference
     val ec = variantEC
 
-    val (names, types, f) = Parser.parseExportExprs(expr, ec)
+    val (names, types, f) = Parser.parseExportExprs(expr, ec, localGenomeRef)
 
     val hadoopConf = hc.hadoopConf
     if (typeFile) {
@@ -1386,7 +1410,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
-    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
@@ -1778,6 +1802,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
   def same(that: VariantSampleMatrix[T], tolerance: Double = utils.defaultTolerance): Boolean = {
     var metadataSame = true
+    if (!genomeReference.same(that.genomeReference)) {
+      metadataSame = false
+      println(
+        s"""different genome reference:
+           |  left:  ${ genomeReference.name }
+           |  right: ${ genomeReference.name }""".stripMargin)
+    }
     if (vaSignature != that.vaSignature) {
       metadataSame = false
       println(
@@ -2078,11 +2109,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     genotypeSignature.pretty(sb, printAttrs = true, compact = true)
     val genotypeSchemaString = sb.result()
 
+    val localGenomeRef = hc.genomeReference
+
     val sampleInfoJson = JArray(
       sampleIdsAndAnnotations
         .map { case (id, annotation) =>
-          JObject(List(("id", JSONAnnotationImpex.exportAnnotation(id, sSignature)),
-            ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, saSignature))))
+          JObject(List(("id", JSONAnnotationImpex.exportAnnotation(id, sSignature, localGenomeRef)),
+            ("annotation", JSONAnnotationImpex.exportAnnotation(annotation, saSignature, localGenomeRef))))
         }
         .toList
     )
@@ -2100,7 +2133,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       ("global_annotation_schema", JString(globalSchemaString)),
       ("genotype_schema", JString(genotypeSchemaString)),
       ("sample_annotations", sampleInfoJson),
-      ("global_annotation", JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature))
+      ("global_annotation", JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature, localGenomeRef)),
+      ("genome_reference", hc.genomeReference.toJSON)
     )
 
     hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))

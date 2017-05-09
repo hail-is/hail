@@ -5,7 +5,7 @@ import java.util
 
 import is.hail.HailContext
 import is.hail.utils._
-import is.hail.variant.Locus
+import is.hail.variant.{GenomeReference, Locus}
 
 import scala.collection.JavaConverters._
 import scala.io.{BufferedSource, Source}
@@ -25,8 +25,8 @@ trait Py4jUtils {
     list
   }
 
-  def parseIntervalList(strs: java.util.ArrayList[String]): IntervalTree[Locus, Unit] =
-    IntervalTree(Locus.parseIntervals(strs.asScala.toArray))
+  def parseIntervalList(strs: java.util.ArrayList[String], gr: GenomeReference): IntervalTree[Locus, Unit] =
+    IntervalTree(Locus.parseIntervals(strs.asScala.toArray)(gr))
 
   def makeIntervalList(intervals: java.util.ArrayList[Interval[Locus]]): IntervalTree[Locus, Unit] =
     IntervalTree(intervals.asScala.toArray)

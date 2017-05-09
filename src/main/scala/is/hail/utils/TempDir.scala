@@ -19,7 +19,7 @@ object TempDir {
 
           val fs = hConf.fileSystem(tmpdir)
           val qDir = fs.makeQualified(new hadoop.fs.Path(dir))
-          fs.deleteOnExit(qDir)
+//          fs.deleteOnExit(qDir)
 
           return qDir.toString
         }

@@ -88,7 +88,8 @@ class Interval(object):
         :rtype: :class:`.Interval`
         """
 
-        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string)
+        gr = scala_object(Env.hail().variant, 'GenomeReference').genomeReference()
+        jrep = scala_object(Env.hail().variant, 'Locus').parseInterval(string, gr)
         return Interval._from_java(jrep)
 
     @property

@@ -3,6 +3,7 @@ package is.hail.expr
 import is.hail.asm4s.{Code, _}
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils.{HailException, _}
+import is.hail.variant.GenomeReference
 import org.apache.spark.sql.{Row, RowFactory}
 import org.json4s.jackson.JsonMethods
 
@@ -529,13 +530,13 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
     case ("str", Array(a)) => for (
       v <- a.compile();
       t = a.`type`;
-      result <- CM.invokePrimitive1(t.str)(v)
+      result <- CM.invokePrimitive1((x: AnyRef) => t.str(x, GenomeReference.genomeReference))(v)
     ) yield result
 
     case ("json", Array(a)) => for (
       v <- a.compile();
       t = a.`type`;
-      result <- CM.invokePrimitive1((x: AnyRef) => JsonMethods.compact(t.toJSON(x)))(v)
+      result <- CM.invokePrimitive1((x: AnyRef) => JsonMethods.compact(t.toJSON(x, GenomeReference.genomeReference)))(v)
     ) yield result
 
     case ("merge", Array(struct1, struct2)) => for (

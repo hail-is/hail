@@ -69,7 +69,7 @@ class IBDSuite extends SparkSuite {
 
     hadoopConf.copy(localGenomeFile, genomeFile)
 
-    val (_, rdd) = TextTableReader.read(sc)(Array(tmpdir + ".genome"),
+    val (_, rdd) = TextTableReader.read(hc)(Array(tmpdir + ".genome"),
       types = Map(("IID1", TString), ("IID2", TString), ("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble),
         ("PI_HAT", TDouble), ("IBS0", TInt), ("IBS1", TInt), ("IBS2", TInt)),
       separator = " +"
@@ -97,10 +97,13 @@ class IBDSuite extends SparkSuite {
   }
 
   object Spec extends Properties("IBD") {
-    val plinkSafeBiallelicVDS = VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
-      .resize(1000)
-      .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal })
-      .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
+    val plinkSafeBiallelicVDS = {
+      val localGenomeReference = hc.genomeReference
+      VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)
+        .resize(1000)
+        .map(vds => vds.filterVariants { case (v, va, gs) => v.isAutosomalOrPseudoAutosomal(localGenomeReference) })
+        .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
+    }
 
     property("hail generates same result as plink 1.9") =
       forAll(plinkSafeBiallelicVDS) { vds =>

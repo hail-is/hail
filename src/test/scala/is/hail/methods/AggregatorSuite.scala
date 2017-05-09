@@ -266,9 +266,10 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testCounter() {
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.plinkSafeBiallelic)) { vds =>
+      val localGenomeRef = hc.genomeReference
       val (r, t) = vds.queryVariants("variants.map(v => v.contig).counter()")
       val counterMap = r.asInstanceOf[Map[String, Long]]
-      val aggMap = vds.variants.map(_.contig).countByValue()
+      val aggMap = vds.variants.map(_.contigStr(localGenomeRef)).countByValue()
       aggMap == counterMap
     }.check()
   }

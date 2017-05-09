@@ -49,7 +49,7 @@ class LoadBgenSuite extends SparkSuite {
       val varidGenQuery = genVDS.vaSignature.query("varid")
       val rsidGenQuery = bgenVDS.vaSignature.query("rsid")
 
-      assert(bgenVDS.metadata == genVDS.metadata)
+      assert(bgenVDS.metadata.same(genVDS.metadata))
       assert(bgenVDS.sampleIds == genVDS.sampleIds)
 
       val bgenAnnotations = bgenVDS.variantsAndAnnotations.map { case (v, va) => (varidBgenQuery(va), va) }
@@ -84,7 +84,7 @@ class LoadBgenSuite extends SparkSuite {
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- VariantSampleMatrix.gen(hc,
-      VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
+      VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = 21)),
         sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier.filter(_ != "NA"))))
       .filter(_.countVariants > 0)
       .map(_.copy(wasSplit = true));
@@ -207,5 +207,4 @@ class LoadBgenSuite extends SparkSuite {
   @Test def testBgenProbabilityIterator() {
     TestProbIterator.check()
   }
-
 }

@@ -618,6 +618,8 @@ class ExprSuite extends SparkSuite {
     assert(eval[Variant]("""Variant("1", 1, "A", "T")""").contains(Variant("1", 1, "A", "T")))
     assert(eval[Variant]("""Variant("1", 1, "A", ["T", "G"])""").contains(Variant("1", 1, "A", Array("T", "G"))))
     assert(eval[Boolean]("""let v = Variant("1", 1, "A", "T") in Variant(str(v)) == v""").contains(true))
+    assert(eval[Boolean]("""let v = Variant("MT", 1, "A", "T") in v.isAutosomal()""").contains(false))
+    assert(eval[Boolean]("""let v = Variant("X", 100000, "A", "T") in v.inXPar()""").contains(true))
 
     {
       val x = eval[Annotation]("""let left = Variant("1:1000:AT:A,CT") and right = Variant("1:1000:A:C,AGG") in combineVariants(left,right)""")
@@ -981,22 +983,24 @@ class ExprSuite extends SparkSuite {
     val g = for {t <- Type.genArb
       a <- t.genValue} yield (t, a)
 
+    val localGenomeRef = hc.genomeReference
+
     object Spec extends Properties("ImpEx") {
       property("json") = forAll(g) { case (t, a) =>
-        JSONAnnotationImpex.importAnnotation(JSONAnnotationImpex.exportAnnotation(a, t), t) == a
+        JSONAnnotationImpex.importAnnotation(JSONAnnotationImpex.exportAnnotation(a, t, localGenomeRef), t, localGenomeRef) == a
       }
 
       property("json-text") = forAll(g) { case (t, a) =>
-        val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
-        JSONAnnotationImpex.importAnnotation(parse(string), t) == a
+        val string = compact(JSONAnnotationImpex.exportAnnotation(a, t, localGenomeRef))
+        JSONAnnotationImpex.importAnnotation(parse(string), t, localGenomeRef) == a
       }
 
       property("table") = forAll(g.filter { case (t, a) => t != TDouble && a != null }.resize(10)) { case (t, a) =>
-        TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
+        TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t, localGenomeRef), t, localGenomeRef) == a
       }
 
       property("spark") = forAll(g) { case (t, a) =>
-        SparkAnnotationImpex.importAnnotation(SparkAnnotationImpex.exportAnnotation(a, t), t) == a
+        SparkAnnotationImpex.importAnnotation(SparkAnnotationImpex.exportAnnotation(a, t, localGenomeRef), t, localGenomeRef) == a
       }
     }
 

@@ -149,7 +149,7 @@ class ExportVcfSuite extends SparkSuite {
 
     intercept[HailException] {
       val sb = new StringBuilder()
-      ExportVCF.strVCF(sb, TLong, 3147483647L)
+      ExportVCF.strVCF(sb, TLong, 3147483647L, hc.genomeReference)
     }
   }
 

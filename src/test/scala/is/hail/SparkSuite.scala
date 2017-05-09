@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.utils.TempDir
+import is.hail.variant.GenomeReference
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
@@ -12,6 +13,8 @@ object SparkSuite {
     local = "local[2]",
     quiet = true,
     minBlockSize = 0)
+
+  implicit def genomeReference: GenomeReference = hc.genomeReference
 }
 
 class SparkSuite extends TestNGSuite {
@@ -25,4 +28,5 @@ class SparkSuite extends TestNGSuite {
   lazy val hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
   lazy val tmpDir: TempDir = TempDir(hadoopConf)
+
 }

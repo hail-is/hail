@@ -210,11 +210,12 @@ class OrderedRDDSuite extends SparkSuite {
 
     property("writeRead") = Prop.forAll(g) { case (nPar, is) =>
       val rdd = sc.parallelize(is, nPar).toOrderedRDD
+      val localGenomeRef = hc.genomeReference
       val schema = StructType(Array(
         StructField("variant", Variant.sparkSchema, nullable = false),
         StructField("str", StringType, nullable = false)))
       hadoopConf.delete(tmpRdd, recursive = true)
-      val df = sqlContext.createDataFrame(rdd.map { case (v, s) => Row.fromSeq(Seq(v.toRow, s)) }, schema)
+      val df = sqlContext.createDataFrame(rdd.map { case (v, s) => Row.fromSeq(Seq(v.toRow(localGenomeRef), s)) }, schema)
         .write.parquet(tmpRdd)
 
       hadoopConf.writeTextFile(tmpPartitioner) { out =>
@@ -224,7 +225,7 @@ class OrderedRDDSuite extends SparkSuite {
       val status = hadoopConf.fileStatus(tmpPartitioner)
 
       val rddReadBack = sqlContext.readParquetSorted(tmpRdd)
-        .map(r => (Variant.fromRow(r.getAs[Row](0)), r.getAs[String](1)))
+        .map(r => (Variant.fromRow(r.getAs[Row](0), localGenomeRef), r.getAs[String](1)))
 
       val readBackPartitioner = hadoopConf.readFile(tmpPartitioner) { in =>
         JsonMethods.parse(in).fromJSON[OrderedPartitioner[Locus, Variant]]

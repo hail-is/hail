@@ -7,6 +7,7 @@ import com.datastax.driver.core.{Cluster, DataType, Session, TableMetadata, Row 
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
+import is.hail.variant.GenomeReference
 import org.apache.spark.sql.Row
 import org.json4s._
 import org.json4s.jackson.JsonMethods
@@ -99,7 +100,7 @@ object CassandraImpex {
     }
   }
 
-  def exportAnnotation(a: Any, t: Type): Any = t match {
+  def exportAnnotation(a: Any, t: Type, gr: GenomeReference): Any = t match {
     case TBoolean => a
     case TInt => a
     case TLong => a
@@ -112,24 +113,24 @@ object CassandraImpex {
       if (a == null)
         null
       else
-        a.asInstanceOf[Seq[_]].map(x => exportAnnotation(x, elementType)).asJava
+        a.asInstanceOf[Seq[_]].map(x => exportAnnotation(x, elementType, gr)).asJava
     case TSet(elementType) =>
       if (a == null)
         null
       else
-        a.asInstanceOf[Set[_]].map(x => exportAnnotation(x, elementType)).asJava
+        a.asInstanceOf[Set[_]].map(x => exportAnnotation(x, elementType, gr)).asJava
     case TDict(keyType, valueType) =>
       if (a == null)
         null
       else
         a.asInstanceOf[Map[_, _]].map { case (k, v) =>
-          (exportAnnotation(k, keyType),
-            exportAnnotation(v, valueType))
+          (exportAnnotation(k, keyType, gr),
+            exportAnnotation(v, valueType, gr))
         }.asJava
     case TAltAllele | TVariant | TLocus | TInterval | TGenotype =>
-      JsonMethods.compact(t.toJSON(a))
+      JsonMethods.compact(t.toJSON(a, gr))
     case s: TStruct => DataType.text()
-      JsonMethods.compact(t.toJSON(a))
+      JsonMethods.compact(t.toJSON(a, gr))
   }
 
   def importAnnotation(a: Any, dt: DataType): Any =
@@ -281,6 +282,7 @@ object CassandraConnector {
 
     CassandraConnector.disconnect()
 
+    val localGenomeRef = kt.hc.genomeReference
     val localSignature = kt.signature
     val localBlockSize = blockSize
     val maxRetryInterval = 3 * 60 * 1000 // 3m
@@ -304,11 +306,11 @@ object CassandraConnector {
             nb.clear()
             vb.clear()
 
-            (r.asInstanceOf[Row].toSeq, localSignature.fields).zipped
+            (r.toSeq, localSignature.fields).zipped
               .map { case (a, f) =>
                 if (a != null) {
                   nb += "\"" + f.name + "\""
-                  vb += CassandraImpex.exportAnnotation(a, f.typ).asInstanceOf[AnyRef]
+                  vb += CassandraImpex.exportAnnotation(a, f.typ, localGenomeRef).asInstanceOf[AnyRef]
                 }
               }
 

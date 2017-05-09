@@ -12,9 +12,9 @@ abstract class AnnotationImpex[T, A] {
   // FIXME for now, schema must be specified on import
   def exportType(t: Type): T
 
-  def exportAnnotation(a: Annotation, t: Type): A
+  def exportAnnotation(a: Annotation, t: Type, gr: GenomeReference): A
 
-  def importAnnotation(a: A, t: Type): Annotation
+  def importAnnotation(a: A, t: Type, gr: GenomeReference): Annotation
 }
 
 object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
@@ -53,20 +53,20 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         }: _*)
   }
 
-  def importAnnotation(a: Any, t: Type): Annotation = {
+  def importAnnotation(a: Any, t: Type, gr: GenomeReference): Annotation = {
     if (a == null)
       null
     else
       t match {
         case TArray(elementType) =>
-          a.asInstanceOf[Seq[_]].map(elem => importAnnotation(elem, elementType))
+          a.asInstanceOf[Seq[_]].map(elem => importAnnotation(elem, elementType, gr))
         case TSet(elementType) =>
-          a.asInstanceOf[Seq[_]].map(elem => importAnnotation(elem, elementType)).toSet
+          a.asInstanceOf[Seq[_]].map(elem => importAnnotation(elem, elementType, gr)).toSet
         case TDict(keyType, valueType) =>
           val kvPairs = a.asInstanceOf[IndexedSeq[Annotation]]
           kvPairs
             .map(_.asInstanceOf[Row])
-            .map(r => (importAnnotation(r.get(0), keyType), importAnnotation(r.get(1), valueType)))
+            .map(r => (importAnnotation(r.get(0), keyType, gr), importAnnotation(r.get(1), valueType, gr)))
             .toMap
         case TGenotype =>
           val r = a.asInstanceOf[Row]
@@ -84,20 +84,20 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           val r = a.asInstanceOf[Row]
           Variant(r.getAs[String](0), r.getAs[Int](1), r.getAs[String](2),
             r.getAs[Seq[Row]](3).map(aa =>
-              importAnnotation(aa, TAltAllele).asInstanceOf[AltAllele]).toArray)
+              importAnnotation(aa, TAltAllele, gr).asInstanceOf[AltAllele]).toArray)(gr)
         case TLocus =>
           val r = a.asInstanceOf[Row]
-          Locus(r.getAs[String](0), r.getAs[Int](1))
+          Locus(r.getAs[String](0), r.getAs[Int](1))(gr)
         case TInterval =>
           val r = a.asInstanceOf[Row]
-          Interval(importAnnotation(r.get(0), TLocus).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus).asInstanceOf[Locus])
+          Interval(importAnnotation(r.get(0), TLocus, gr).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus, gr).asInstanceOf[Locus])
         case TStruct(fields) =>
           if (fields.isEmpty)
             null
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
-              importAnnotation(v, f.typ)
+              importAnnotation(v, f.typ, gr)
             })
           }
         case _ => a
@@ -135,19 +135,19 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             StructField(escapeColumnName(f.name), f.typ.schema)))
   }
 
-  def exportAnnotation(a: Annotation, t: Type): Any = {
+  def exportAnnotation(a: Annotation, t: Type, gr: GenomeReference): Any = {
     if (a == null)
       null
     else
       t match {
         case TArray(elementType) =>
-          a.asInstanceOf[IndexedSeq[_]].map(elem => exportAnnotation(elem, elementType))
+          a.asInstanceOf[IndexedSeq[_]].map(elem => exportAnnotation(elem, elementType, gr))
         case TSet(elementType) =>
-          a.asInstanceOf[Set[_]].toSeq.map(elem => exportAnnotation(elem, elementType))
+          a.asInstanceOf[Set[_]].toSeq.map(elem => exportAnnotation(elem, elementType, gr))
         case TDict(keyType, valueType) =>
           a.asInstanceOf[Map[_, _]]
             .map { case (k, v) =>
-              Row.fromSeq(Seq(exportAnnotation(k, keyType), exportAnnotation(v, valueType)))
+              Row.fromSeq(Seq(exportAnnotation(k, keyType, gr), exportAnnotation(v, valueType, gr)))
             }.toIndexedSeq
         case TGenotype =>
           val g = a.asInstanceOf[Genotype]
@@ -157,20 +157,20 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Row(aa.ref, aa.alt)
         case TVariant =>
           val v = a.asInstanceOf[Variant]
-          Row(v.contig, v.start, v.ref, v.altAlleles.map(aa => Row(aa.ref, aa.alt)))
+          Row(v.contigStr(gr), v.start, v.ref, v.altAlleles.map(aa => Row(aa.ref, aa.alt)))
         case TLocus =>
           val l = a.asInstanceOf[Locus]
-          Row(l.contig, l.position)
+          Row(l.contigStr(gr), l.position)
         case TInterval =>
           val i = a.asInstanceOf[Interval[_]]
-          Row(exportAnnotation(i.start, TLocus), exportAnnotation(i.end, TLocus))
+          Row(exportAnnotation(i.start, TLocus, gr), exportAnnotation(i.end, TLocus, gr))
         case TStruct(fields) =>
           if (fields.isEmpty)
             null
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map {
-              case (v, f) => exportAnnotation(v, f.typ)
+              case (v, f) => exportAnnotation(v, f.typ, gr)
             })
           }
         case _ => a
@@ -194,22 +194,33 @@ case class JSONExtractVariant(contig: String,
   start: Int,
   ref: String,
   altAlleles: List[AltAllele]) {
-  def toVariant =
-    Variant(contig, start, ref, altAlleles.toArray)
+  def toVariant(gr: GenomeReference) =
+    Variant(contig, start, ref, altAlleles.toArray)(gr)
 }
 
-case class JSONExtractInterval(start: Locus, end: Locus) {
-  def toInterval = Interval(start, end)
+case class JSONExtractLocus(contig: String,
+  position: Int) {
+  def toLocus(gr: GenomeReference) =
+    Locus(contig, position)(gr)
+}
+
+case class JSONExtractInterval(start: JSONExtractLocus, end: JSONExtractLocus) {
+  def toInterval(gr: GenomeReference) = Interval(start.toLocus(gr), end.toLocus(gr))
 }
 
 case class JSONExtractGenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
   yContigs: Set[String], mtContigs: Set[String], par: Array[JSONExtractInterval]) {
 
-  def toGenomeReference: GenomeReference = GenomeReference(name, contigs, xContigs, yContigs, mtContigs, par.map(_.toInterval))
+  def toGenomeReference: GenomeReference = {
+    val gr = GenomeReference(name, contigs, xContigs, yContigs, mtContigs)
+    GenomeReference.setReference(gr)
+    gr.par = par.map(_.toInterval(gr))
+    gr
+  }
 }
 
 object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
-  def jsonExtractVariant(t: Type, variantFields: String): Any => Variant = {
+  def jsonExtractVariant(t: Type, variantFields: String, gr: GenomeReference): Any => Variant = {
     val ec = EvalContext(Map(
       "root" -> (0, t)))
 
@@ -241,7 +252,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         Variant(chr.asInstanceOf[String],
           pos.asInstanceOf[Int],
           ref.asInstanceOf[String],
-          alt.asInstanceOf[IndexedSeq[String]].toArray)
+          alt.asInstanceOf[IndexedSeq[String]].toArray)(gr)
       else
         null
     }
@@ -261,7 +272,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
 
   def exportType(t: Type): Type = t
 
-  def exportAnnotation(a: Annotation, t: Type): JValue =
+  def exportAnnotation(a: Annotation, t: Type, gr: GenomeReference): JValue =
     if (a == null)
       JNull
     else {
@@ -274,34 +285,34 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         case TString => JString(a.asInstanceOf[String])
         case TArray(elementType) =>
           val arr = a.asInstanceOf[Seq[Any]]
-          JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
+          JArray(arr.map(elem => exportAnnotation(elem, elementType, gr)).toList)
         case TSet(elementType) =>
           val arr = a.asInstanceOf[Set[Any]]
-          JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
+          JArray(arr.map(elem => exportAnnotation(elem, elementType, gr)).toList)
         case TDict(keyType, valueType) =>
           val m = a.asInstanceOf[Map[_, _]]
           JArray(m.map { case (k, v) => JObject(
-            "key" -> exportAnnotation(k, keyType),
-            "value" -> exportAnnotation(v, valueType))
+            "key" -> exportAnnotation(k, keyType, gr),
+            "value" -> exportAnnotation(v, valueType, gr))
           }.toList)
         case TCall => JInt(a.asInstanceOf[Int])
         case TGenotype => a.asInstanceOf[Genotype].toJSON
         case TAltAllele => a.asInstanceOf[AltAllele].toJSON
-        case TVariant => a.asInstanceOf[Variant].toJSON
-        case TLocus => a.asInstanceOf[Locus].toJSON
-        case TInterval => a.asInstanceOf[Interval[Locus]].toJSON(TLocus.toJSON(_))
+        case TVariant => a.asInstanceOf[Variant].toJSON(gr)
+        case TLocus => a.asInstanceOf[Locus].toJSON(gr)
+        case TInterval => a.asInstanceOf[Interval[Locus]].toJSON(TLocus.toJSON(_, gr))
         case TStruct(fields) =>
           val row = a.asInstanceOf[Row]
           JObject(fields
-            .map(f => (f.name, exportAnnotation(row.get(f.index), f.typ)))
+            .map(f => (f.name, exportAnnotation(row.get(f.index), f.typ, gr)))
             .toList)
       }
     }
 
-  def importAnnotation(jv: JValue, t: Type): Annotation =
-    importAnnotation(jv, t, "<root>")
+  def importAnnotation(jv: JValue, t: Type, gr: GenomeReference): Annotation =
+    importAnnotation(jv, t, "<root>", gr)
 
-  def importAnnotation(jv: JValue, t: Type, parent: String): Annotation = {
+  def importAnnotation(jv: JValue, t: Type, parent: String, gr: GenomeReference): Annotation = {
     implicit val formats = Serialization.formats(NoTypeHints)
 
     (jv, t) match {
@@ -329,7 +340,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
       // back compatibility
       case (JObject(a), TDict(TString, valueType)) =>
         a.map { case (key, value) =>
-          (key, importAnnotation(value, valueType, parent))
+          (key, importAnnotation(value, valueType, parent, gr))
         }
           .toMap
 
@@ -339,7 +350,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
             case List(k, v) =>
               (k, v) match {
                 case (("key", ka), ("value", va)) =>
-                  (importAnnotation(ka, keyType, parent), importAnnotation(va, valueType, parent))
+                  (importAnnotation(ka, keyType, parent, gr), importAnnotation(va, valueType, parent, gr))
               }
             case _ =>
               warn(s"Can't convert JSON value $jv to type $t at $parent.")
@@ -360,7 +371,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
           for ((name, jv2) <- jfields) {
             t.selfField(name) match {
               case Some(f) =>
-                a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name)
+                a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name, gr)
 
               case None =>
                 warn(s"$t has no field $name at $parent")
@@ -372,20 +383,20 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
       case (_, TAltAllele) =>
         jv.extract[AltAllele]
       case (_, TVariant) =>
-        jv.extract[JSONExtractVariant].toVariant
+        jv.extract[JSONExtractVariant].toVariant(gr)
       case (_, TLocus) =>
-        jv.extract[Locus]
+        jv.extract[JSONExtractLocus].toLocus(gr)
       case (_, TInterval) =>
-        jv.extract[JSONExtractInterval].toInterval
+        jv.extract[JSONExtractInterval].toInterval(gr)
       case (_, TGenotype) =>
         jv.extract[JSONExtractGenotype].toGenotype
       case (JInt(x), TCall) => x.toInt
 
       case (JArray(a), TArray(elementType)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>")).toArray[Any]: IndexedSeq[Any]
+        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", gr)).toArray[Any]: IndexedSeq[Any]
 
       case (JArray(a), TSet(elementType)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>")).toSet[Any]
+        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", gr)).toSet[Any]
 
       case _ =>
         warn(s"Can't convert JSON value $jv to type $t at $parent.")
@@ -401,28 +412,30 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
   // Tables have no schema
   def exportType(t: Type): Unit = ()
 
-  def exportAnnotation(a: Annotation, t: Type): String = {
+  def exportAnnotation(a: Annotation, t: Type, gr: GenomeReference): String = {
     if (a == null)
       "NA"
     else {
       t match {
         case TDouble => a.asInstanceOf[Double].formatted("%.4e")
         case TString => a.asInstanceOf[String]
-        case d: TDict => JsonMethods.compact(d.toJSON(a))
-        case it: TIterable => JsonMethods.compact(it.toJSON(a))
-        case t: TStruct => JsonMethods.compact(t.toJSON(a))
-        case TGenotype => JsonMethods.compact(t.toJSON(a))
+        case d: TDict => JsonMethods.compact(d.toJSON(a, gr))
+        case it: TIterable => JsonMethods.compact(it.toJSON(a, gr))
+        case t: TStruct => JsonMethods.compact(t.toJSON(a, gr))
+        case TGenotype => JsonMethods.compact(t.toJSON(a, gr))
         case TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
           if (i.start.contig == i.end.contig)
-            s"${ i.start }-${ i.end.position }"
-          else s"${ i.start }-${ i.end }"
+            s"${ i.start.toString(gr) }-${ i.end.position }"
+          else s"${ i.start.toString(gr) }-${ i.end.toString(gr) }"
+        case TLocus => a.asInstanceOf[Locus].toString(gr)
+        case TVariant => a.asInstanceOf[Variant].toString(gr)
         case _ => a.toString
       }
     }
   }
 
-  def importAnnotation(a: String, t: Type): Annotation = {
+  def importAnnotation(a: String, t: Type, gr: GenomeReference): Annotation = {
     (t: @unchecked) match {
       case TString => a
       case TInt => a.toInt
@@ -430,18 +443,18 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case TFloat => a.toFloat
       case TDouble => if (a == "nan") Double.NaN else a.toDouble
       case TBoolean => a.toBoolean
-      case TLocus => Locus.parse(a)
-      case TInterval => Locus.parseInterval(a)
-      case TVariant => Variant.parse(a)
+      case TLocus => Locus.parse(a, gr)
+      case TInterval => Locus.parseInterval(a)(gr)
+      case TVariant => Variant.parse(a)(gr)
       case TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)
       }
-      case TGenotype => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case TGenotype => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t, gr)
       case TCall => a.toInt
-      case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case t: TStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
+      case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t, gr)
+      case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t, gr)
+      case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t, gr)
+      case t: TStruct => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t, gr)
     }
   }
 }

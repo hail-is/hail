@@ -2,7 +2,6 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.io._
-import is.hail.variant.Variant
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
@@ -60,15 +59,13 @@ class BgenBlockReaderV11(job: Configuration, split: FileSplit) extends BgenBlock
         case x => x
       }
 
-      val variant = Variant(recodedChr, position, ref, alt)
-
       val bytesInput = if (bState.compressed) {
         val compressedBytes = bfis.readInt()
         bfis.readBytes(compressedBytes)
       } else
         bfis.readBytes(nRow * 6)
 
-      value.setKey(variant)
+      value.setKey(recodedChr, position, ref, Array(alt))
       value.setAnnotation(Annotation(rsid, lid))
       value.setSerializedValue(bytesInput)
 
@@ -111,8 +108,6 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
         case x => x
       }
 
-      val variant = Variant(recodedChr, position, ref, altAlleles)
-
       val dataSize = bfis.readInt()
 
       val (uncompressedSize, bytesInput) =
@@ -121,7 +116,7 @@ class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlock
         else
           (dataSize, bfis.readBytes(dataSize))
 
-      value.setKey(variant)
+      value.setKey(recodedChr, position, ref, altAlleles)
       value.setAnnotation(Annotation(rsid, lid))
       value.setSerializedValue(bytesInput)
       value.setExpectedDataSize(uncompressedSize)

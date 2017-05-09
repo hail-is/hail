@@ -2,6 +2,7 @@ package is.hail.utils
 
 import java.util.regex.Pattern
 
+import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
@@ -68,15 +69,18 @@ object TextTableReader {
     }.toArray
   }
 
-  def read(sc: SparkContext)(files: Array[String],
+  def read(hc: HailContext)(files: Array[String],
     types: Map[String, Type] = Map.empty[String, Type],
     commentChar: Option[String] = None,
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    nPartitions: Int = sc.defaultMinPartitions): (TStruct, RDD[WithContext[Row]]) = {
+    nPartitions: Int = hc.sc.defaultMinPartitions): (TStruct, RDD[WithContext[Row]]) = {
     require(files.nonEmpty)
+
+    val sc = hc.sc
+    val localGenomeRef = hc.genomeReference
 
     val firstFile = files.head
     val header = sc.hadoopConfiguration.readLines(firstFile) { lines =>
@@ -174,7 +178,7 @@ object TextTableReader {
               if (field == missing)
                 a(i) = null
               else
-                a(i) = TableAnnotationImpex.importAnnotation(field, t)
+                a(i) = TableAnnotationImpex.importAnnotation(field, t, localGenomeRef)
             } catch {
               case e: Exception =>
                 fatal(s"""${ e.getClass.getName }: could not convert "$field" to $t in column "$name" """)

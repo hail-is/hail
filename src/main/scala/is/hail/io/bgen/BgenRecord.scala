@@ -4,9 +4,9 @@ import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.io.gen.GenReport._
 import is.hail.utils._
-import is.hail.variant.{DosageGenotype, Genotype, Variant}
+import is.hail.variant.{DosageGenotype, Genotype}
 
-abstract class BgenRecord extends KeySerializedValueRecord[Variant, Iterable[Genotype]] {
+abstract class BgenRecord extends KeySerializedValueRecord[(String, Int, String, Array[String]), Iterable[Genotype]] {
   var ann: Annotation = _
 
   def setAnnotation(ann: Annotation) {

@@ -20,10 +20,10 @@ object KuduAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def exportType(t: expr.Type): DataType = flatten(SparkAnnotationImpex.exportType(t))
 
-  def exportAnnotation(a: Annotation, t: expr.Type): Any = flatten(SparkAnnotationImpex.exportAnnotation(a, t), t)
+  def exportAnnotation(a: Annotation, t: expr.Type, gr: GenomeReference): Any = flatten(SparkAnnotationImpex.exportAnnotation(a, t, gr), t)
 
-  def importAnnotation(a: Any, t: expr.Type): Annotation =
-    SparkAnnotationImpex.importAnnotation(unflatten(a, t), t)
+  def importAnnotation(a: Any, t: expr.Type, gr: GenomeReference): Annotation =
+    SparkAnnotationImpex.importAnnotation(unflatten(a, t), t, gr)
 
   val fixedArraySize = 2
 

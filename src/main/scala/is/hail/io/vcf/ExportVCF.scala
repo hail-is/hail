@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.{Field, TArray, TBoolean, TCall, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TSet, TString, TStruct, Type}
 import is.hail.utils._
-import is.hail.variant.{Call, GenericDataset, Genotype, Variant}
+import is.hail.variant.{Call, GenericDataset, GenomeReference, Genotype, Variant}
 import org.apache.spark.sql.Row
 
 import scala.io.Source
@@ -16,7 +16,7 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def strVCF(sb: StringBuilder, elementType: Type, a: Annotation) {
+  def strVCF(sb: StringBuilder, elementType: Type, a: Annotation, gr: GenomeReference) {
     if (a == null)
       sb += '.'
     else {
@@ -37,13 +37,13 @@ object ExportVCF {
           val x = a.asInstanceOf[Long]
           if (x > Int.MaxValue || x < Int.MinValue)
             fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) or less than Int.MinValue (-2^31). Found $x.")
-          sb.append(elementType.str(x))
-        case _ => sb.append(elementType.str(a))
+          sb.append(elementType.str(x, gr))
+        case _ => sb.append(elementType.str(a, gr))
       }
     }
   }
 
-  def emitFormatField(f: Field, sb: StringBuilder, a: Annotation) {
+  def emitFormatField(f: Field, sb: StringBuilder, a: Annotation, gr: GenomeReference) {
     f.typ match {
       case TCall => sb.append(Call.toString(a.asInstanceOf[Call]))
       case it: TIterable =>
@@ -51,13 +51,13 @@ object ExportVCF {
           sb += '.'
         else {
           val arr = a.asInstanceOf[Iterable[_]]
-          arr.foreachBetween(a => strVCF(sb, it.elementType, a))(sb += ',')
+          arr.foreachBetween(a => strVCF(sb, it.elementType, a, gr))(sb += ',')
         }
-      case t => strVCF(sb, t, a)
+      case t => strVCF(sb, t, a, gr)
     }
   }
 
-  def emitInfo(f: Field, sb: StringBuilder, value: Annotation): Boolean = {
+  def emitInfo(f: Field, sb: StringBuilder, value: Annotation, gr: GenomeReference): Boolean = {
     if (value == null)
       false
     else
@@ -69,7 +69,7 @@ object ExportVCF {
           } else {
             sb.append(f.name)
             sb += '='
-            arr.foreachBetween(a => strVCF(sb, it.elementType, a))(sb += ',')
+            arr.foreachBetween(a => strVCF(sb, it.elementType, a, gr))(sb += ',')
             true
           }
         case TBoolean => value match {
@@ -82,7 +82,7 @@ object ExportVCF {
         case t =>
           sb.append(f.name)
           sb += '='
-          strVCF(sb, t, value)
+          strVCF(sb, t, value, gr)
           true
       }
   }
@@ -150,13 +150,13 @@ object ExportVCF {
     toAppend.foreachBetween(sb.append(_))(sb += ',')
   }
 
-  def writeGenotype(sb: StringBuilder, sig: TStruct, fieldOrder: Array[Int], a: Annotation) {
+  def writeGenotype(sb: StringBuilder, sig: TStruct, fieldOrder: Array[Int], a: Annotation, gr: GenomeReference) {
     val r = a.asInstanceOf[Row]
     val fields = sig.fields
     assert(r.length == fields.length, "annotation/type mismatch")
 
     fieldOrder.foreachBetween { i =>
-      emitFormatField(fields(i), sb, r.get(i))
+      emitFormatField(fields(i), sb, r.get(i), gr)
     }(sb += ':')
   }
 
@@ -372,9 +372,9 @@ object ExportVCF {
           false
       }.map(_ => gds.queryVA("va.filters")._2)
 
-    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Annotation]) {
+    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Annotation], gr: GenomeReference) {
 
-      sb.append(v.contig)
+      sb.append(v.contigStr(gr))
       sb += '\t'
       sb.append(v.start)
       sb += '\t'
@@ -415,7 +415,7 @@ object ExportVCF {
 
         var wrote: Boolean = false
         fields.indices.foreachBetween { i =>
-          wrote = emitInfo(fields(i), sb, r.get(i))
+          wrote = emitInfo(fields(i), sb, r.get(i), gr)
           wroteAnyInfo = wroteAnyInfo || wrote
         }(if (wrote) sb += ';')
       }
@@ -431,17 +431,19 @@ object ExportVCF {
 
             genotypeSignature match {
               case TGenotype => writeGenotype(sb, g.asInstanceOf[Genotype])
-              case sig: TStruct => writeGenotype(sb, sig, genotypeFieldOrder, g)
+              case sig: TStruct => writeGenotype(sb, sig, genotypeFieldOrder, g, gr)
             }
         }
       }
     }
 
+    val localGenomeRef = gds.genomeReference
+
     gds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Annotation]))] =>
       val sb = new StringBuilder
       it.map { case (v, (va, gs)) =>
         sb.clear()
-        appendRow(sb, v, va, gs)
+        appendRow(sb, v, va, gs, localGenomeRef)
         sb.result()
       }
     }.writeTable(path, gds.hc.tmpDir, Some(header), parallelWrite = parallel)

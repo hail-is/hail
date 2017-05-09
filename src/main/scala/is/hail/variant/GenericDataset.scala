@@ -163,16 +163,18 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     val genotypeSignature = gds.genotypeSignature
     val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
 
+    val localGenomeRef = gds.genomeReference
+
     gds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
       Serialization.write(gds.rdd.orderedPartitioner.toJSON, out)
     }
 
     val rowRDD = gds.rdd.map { case (v, (va, gs)) =>
-      Row.fromSeq(Array(v.toRow,
-        if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
+      Row.fromSeq(Array(v.toRow(localGenomeRef),
+        if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature, localGenomeRef) else va,
         gs.lazyMap { g =>
           if (gRequiresConversion)
-            SparkAnnotationImpex.exportAnnotation(g, genotypeSignature)
+            SparkAnnotationImpex.exportAnnotation(g, genotypeSignature, localGenomeRef)
           else
             g
         }.toArray[Any]: IndexedSeq[Any]))
@@ -191,8 +193,9 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
   }
 
   def summarize(): SummaryResult = {
+    val localGenomeRef = gds.genomeReference
     gds.rdd
-      .aggregate(new SummaryCombiner[Annotation](_.count(_ != null)))(_.merge(_), _.merge(_))
+      .aggregate(new SummaryCombiner[Annotation](_.count(_ != null)))(_.merge(_, localGenomeRef), _.merge(_))
       .result(gds.nSamples)
   }
 }

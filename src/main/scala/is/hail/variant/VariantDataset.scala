@@ -57,9 +57,10 @@ object VariantDataset {
   def readKudu(hc: HailContext, dirname: String, tableName: String,
     master: String): VariantDataset = {
 
-    val (fileMetadata, _) = VariantSampleMatrix.readFileMetadata(hc.hadoopConf, dirname, requireParquetSuccess = false)
+    val (fileMetadata, _) = VariantSampleMatrix.readFileMetadata(hc, dirname, requireParquetSuccess = false)
     val vaSignature = fileMetadata.metadata.vaSignature
     val isLinearScale = fileMetadata.metadata.isLinearScale
+    val localGenomeRef = fileMetadata.metadata.genomeReference
 
     val df = hc.sqlContext.read.options(
       Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
@@ -75,8 +76,8 @@ object VariantDataset {
 
     val rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))] = df.rdd.map { row =>
       val importedRow = KuduAnnotationImpex.importAnnotation(
-        KuduAnnotationImpex.reorder(row, indices), rowType).asInstanceOf[Row]
-      val v = importedRow.getVariant(0)
+        KuduAnnotationImpex.reorder(row, indices), rowType, localGenomeRef).asInstanceOf[Row]
+      val v = importedRow.getVariant(0, localGenomeRef)
       (v,
         (importedRow.get(1),
           importedRow.getGenotypeStream(v, 2, isLinearScale)))
@@ -216,8 +217,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def summarize(): SummaryResult = {
+    val localGenomeRef = vds.genomeReference
     vds.rdd
-      .aggregate(new SummaryCombiner[Genotype](_.hardCallIterator.countNonNegative()))(_.merge(_), _.merge(_))
+      .aggregate(new SummaryCombiner[Genotype](_.hardCallIterator.countNonNegative()))(_.merge(_, localGenomeRef), _.merge(_))
       .result(vds.nSamples)
   }
 
@@ -249,10 +251,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val emptyGP = Array(0d, 0d, 0d)
 
-    def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
-      sb.append(v.contig)
+    def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier, gr: GenomeReference) {
+      sb.append(v.contigStr(gr))
       sb += ' '
-      sb.append(Option(varidQuery(va)).getOrElse(v.toString))
+      sb.append(Option(varidQuery(va)).getOrElse(v.toString(gr)))
       sb += ' '
       sb.append(Option(rsidQuery(va)).getOrElse("."))
       sb += ' '
@@ -279,9 +281,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         case Some(_) => val (t, q) = vds.queryVA("va.varid")
           t match {
             case TString => q
-            case _ => a => None
+            case _ => a => null
           }
-        case None => a => None
+        case None => a => null
       }
 
       val rsidSignature = vds.vaSignature.getOption("rsid")
@@ -289,18 +291,18 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         case Some(_) => val (t, q) = vds.queryVA("va.rsid")
           t match {
             case TString => q
-            case _ => a => None
+            case _ => a => null
           }
-        case None => a => None
+        case None => a => null
       }
-
-      val isLinearScale = vds.isLinearScale
+      
+      val localGenomeRef = vds.genomeReference
 
       vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
         val sb = new StringBuilder
         it.map { case (v, (va, gs)) =>
           sb.clear()
-          appendRow(sb, v, va, gs, rsidQuery, varidQuery)
+          appendRow(sb, v, va, gs, rsidQuery, varidQuery, localGenomeRef)
           sb.result()
         }
       }.writeTable(path + ".gen", vds.hc.tmpDir, None)
@@ -396,7 +398,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     plinkRDD.map { case (v, bed) => bed }
       .saveFromByteArrays(path + ".bed", vds.hc.tmpDir, header = Some(bedHeader))
 
-    plinkRDD.map { case (v, bed) => ExportBedBimFam.makeBimRow(v) }
+    val localGenomeRef = vds.genomeReference
+    plinkRDD.map { case (v, bed) => ExportBedBimFam.makeBimRow(v, localGenomeRef) }
       .writeTable(path + ".bim", vds.hc.tmpDir)
 
     plinkRDD.unpersist()
@@ -716,9 +719,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
     val isLinearScale = vds.isLinearScale
+    val localGenomeRef = vds.genomeReference
+
     val rowRDD = vds.rdd.map { case (v, (va, gs)) =>
-      Row.fromSeq(Array(v.toRow,
-        if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
+      Row.fromSeq(Array(v.toRow(localGenomeRef),
+        if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature, localGenomeRef) else va,
         if (parquetGenotypes)
           gs.lazyMap(_.toRow).toArray[Row]: IndexedSeq[Row]
         else
@@ -751,15 +756,16 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     val vaSignature = vds.vaSignature
     val isLinearScale = vds.isLinearScale
+    val localGenomeRef = vds.genomeReference
 
     val rowType = VariantDataset.kuduRowType(vaSignature)
     val rowRDD = vds.rdd
       .map { case (v, (va, gs)) =>
         KuduAnnotationImpex.exportAnnotation(Annotation(
-          v.toRow,
+          v.toRow(localGenomeRef),
           va,
           gs.toGenotypeStream(v, isLinearScale).toRow,
-          sampleGroup), rowType).asInstanceOf[Row]
+          sampleGroup), rowType, localGenomeRef).asInstanceOf[Row]
       }
 
     val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]

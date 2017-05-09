@@ -136,9 +136,9 @@ object LoadVCF {
     s.substring(start, end)
   }
 
-  def lineVariant(s: String): Variant = {
+  def lineVariant(s: String, gr: GenomeReference): Variant = {
     val Array(contig, start, id, ref, alts, rest) = s.split("\t", 6)
-    Variant(contig, start.toInt, ref, alts.split(","))
+    Variant(contig, start.toInt, ref, alts.split(","))(gr)
   }
 
   def headerNumberToString(line: VCFCompoundHeaderLine): String = line.getCountType match {
@@ -273,6 +273,8 @@ object LoadVCF {
     val lines = sc.textFilesLines(files2, nPartitions.getOrElse(sc.defaultMinPartitions))
     val partitionFile = lines.partitions.map(partitionPath)
 
+    val localGenomeRef = hc.genomeReference
+
     val justVariants = lines
       .filter(_.map { line =>
         !line.isEmpty &&
@@ -280,7 +282,7 @@ object LoadVCF {
           lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
         // FIXME this doesn't filter symbolic, but also avoids decoding the line.  Won't cause errors but might cause unnecessary shuffles
       }.value)
-      .map(_.map(lineVariant).value)
+      .map(_.map(lineVariant(_, localGenomeRef)).value)
     justVariants.persist(StorageLevel.MEMORY_AND_DISK)
 
     val noMulti = justVariants.forall(_.nAlleles == 2)
@@ -319,7 +321,7 @@ object LoadVCF {
                 reportAcc += VCFReport.Symbolic
                 None
               } else
-                Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value))
+                Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value, localGenomeRef))
             }
           }.value
         }

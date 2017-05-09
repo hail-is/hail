@@ -5,7 +5,7 @@ import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
-import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.json4s._
@@ -133,9 +133,9 @@ sealed abstract class Type {
 
   def schema: DataType = SparkAnnotationImpex.exportType(this)
 
-  def str(a: Annotation): String = if (a == null) "NA" else a.toString
+  def str(a: Annotation, gr: GenomeReference): String = if (a == null) "NA" else a.toString
 
-  def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
+  def toJSON(a: Annotation, gr: GenomeReference): JValue = JSONAnnotationImpex.exportAnnotation(a, this, gr)
 
   def genNonmissingValue: Gen[Annotation] = Gen.const(Annotation.empty)
 
@@ -250,7 +250,7 @@ case object TFloat extends TNumeric {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Float]
 
-  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
+  override def str(a: Annotation, gr: GenomeReference): String = if (a == null) "NA" else a.asInstanceOf[Float].formatted("%.5e")
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
@@ -270,7 +270,7 @@ case object TDouble extends TNumeric {
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Double]
 
-  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
+  override def str(a: Annotation, gr: GenomeReference): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double]
 
@@ -498,7 +498,7 @@ case class TArray(elementType: Type) extends TIterable {
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck))
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation, gr: GenomeReference): String = JsonMethods.compact(toJSON(a, gr))
 
   override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf[Array, Annotation](elementType.genValue).map(x => x: IndexedSeq[Annotation])
@@ -547,7 +547,7 @@ case class TSet(elementType: Type) extends TIterable {
     sb.append("]")
   }
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation, gr: GenomeReference): String = JsonMethods.compact(toJSON(a, gr))
 
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set, Annotation](elementType.genValue)
 
@@ -609,7 +609,7 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
   def typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation, gr: GenomeReference): String = JsonMethods.compact(toJSON(a, gr))
 
   override def genNonmissingValue: Gen[Annotation] =
     Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
@@ -705,6 +705,8 @@ case object TVariant extends Type {
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]])
+
+  override def str(a: Annotation, gr: GenomeReference): String = a.asInstanceOf[Variant].toString(gr)
 }
 
 case object TLocus extends Type {
@@ -720,6 +722,8 @@ case object TLocus extends Type {
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]])
+
+  override def str(a: Annotation, gr: GenomeReference): String = a.asInstanceOf[Locus].toString(gr)
 }
 
 case object TInterval extends Type {
@@ -1129,7 +1133,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
           }
       })
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation, gr: GenomeReference): String = JsonMethods.compact(toJSON(a, gr))
 
   override def genNonmissingValue: Gen[Annotation] = {
     if (size == 0)

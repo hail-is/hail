@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
+import is.hail.variant.GenomeReference
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -126,7 +127,7 @@ object Parser extends JavaTokenParsers {
     })
   }
 
-  def parseExportExprs(code: String, ec: EvalContext): (Option[Array[String]], Array[Type], () => Array[String]) = {
+  def parseExportExprs(code: String, ec: EvalContext, gr: GenomeReference): (Option[Array[String]], Array[Type], () => Array[String]) = {
     val (names, types, f) = parseNamedExprs[String](code, tsvIdentifier, ec,
       (t, s) => Some(t.map(_ + "." + s).getOrElse(s)))
 
@@ -141,7 +142,7 @@ object Parser extends JavaTokenParsers {
     (anyFailAllFail(names), types,
       () => {
         (types, f()).zipped.map { case (t, v) =>
-          t.str(v)
+          t.str(v, gr)
         }
       })
   }

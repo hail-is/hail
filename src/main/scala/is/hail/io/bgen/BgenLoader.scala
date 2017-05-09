@@ -38,6 +38,8 @@ object BgenLoader {
     hc.hadoopConf.setDouble("tolerance", tolerance)
 
     val sc = hc.sc
+    val localGenomeRef = hc.genomeReference
+
     val results = files.map { file =>
       val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
       val bState = readState(sc.hadoopConfiguration, file)
@@ -74,10 +76,16 @@ object BgenLoader {
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey)))
+    val fastKeys = sc.union(results.map(_.rdd.map {
+      case (_, decoder) =>
+        val (contig, start, ref, alts) = decoder.getKey
+        Variant(contig, start, ref, alts)(localGenomeRef)
+    }))
 
     val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
-      (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
+      val (contig, start, ref, alts) = decoder.getKey
+      val v = Variant(contig, start, ref, alts)(localGenomeRef)
+      (v, (decoder.getAnnotation, decoder.getValue))
     })).toOrderedRDD[Locus](fastKeys)
 
     new VariantSampleMatrix(hc, VSMMetadata(

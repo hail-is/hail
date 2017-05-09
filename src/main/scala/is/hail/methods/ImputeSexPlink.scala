@@ -41,11 +41,12 @@ object ImputeSexPlink {
       }
     }
 
+    val localGenomeReference = vds.hc.genomeReference
     vds.filterVariants { case (v, _, _) =>
       if (!includePar)
-        v.inXNonPar
+        v.inXNonPar(localGenomeReference)
       else
-        v.contig == "X" || v.contig == "23" || v.contig == "25"
+        v.inX(localGenomeReference)
     }
       .mapAnnotations { case (v, va, gs) =>
         query.map(_.apply(va))

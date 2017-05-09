@@ -183,7 +183,9 @@ class LogisticRegressionModelSuite extends SparkSuite {
       s"${ uriPath(inputFile) } " + s"${ uriPath(waldFile) } ${ uriPath(lrtFile) } " +
       s"${ uriPath(scoreFile) } ${ uriPath(firthFitFile) } ${ uriPath(firthLrtFile) }"
 
-    rScript !
+    val exitCode = rScript !
+
+    assert(exitCode == 0, "R process for regressionLogistic.R failed.")
 
     val waldR = readResults(waldFile)
     val lrtR = readResults(lrtFile)

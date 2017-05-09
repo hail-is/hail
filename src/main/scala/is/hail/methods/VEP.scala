@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -166,15 +166,15 @@ object VEP {
     w(sb.result())
   }
 
-  def variantFromInput(input: String): Variant = {
+  def variantFromInput(input: String, gr: GenomeReference): Variant = {
     val a = input.split("\t")
     Variant(a(0),
       a(1).toInt,
       a(3),
-      a(4).split(","))
+      a(4).split(","))(gr)
   }
 
-  def getCSQHeaderDefinition(cmd: Array[String], perl5lib: String, path: String): Option[String] = {
+  def getCSQHeaderDefinition(cmd: Array[String], perl5lib: String, path: String, gr: GenomeReference): Option[String] = {
     val csqHeaderRegex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
     val pb = new ProcessBuilder(cmd.toList.asJava)
     val env = pb.environment()
@@ -182,7 +182,8 @@ object VEP {
       env.put("PERL5LIB", perl5lib)
     if (path != null)
       env.put("PATH", path)
-    val (jt, proc) = List(Variant("1", 13372, "G", "C")).iterator.pipe(pb,
+    val contig = gr.contigNames(0)
+    val (jt, proc) = List(Variant(contig, 13372, "G", "C")(gr)).iterator.pipe(pb,
       printContext,
       printElement,
       _ => ())
@@ -292,8 +293,9 @@ object VEP {
     val csqRegex = "CSQ=[^;^\\t]+".r
 
     val localBlockSize = blockSize
+    val localGenomeRef = vsm.genomeReference
 
-    val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path).getOrElse("") else ""
+    val csqHeader = if (csq) getCSQHeaderDefinition(cmd, perl5lib, path, localGenomeRef).getOrElse("") else ""
     val alleleNumIndex = if (csq) csqHeader.split("\\|").indexOf("ALLELE_NUM") else -1
 
     val annotations = vsm.rdd
@@ -321,7 +323,7 @@ object VEP {
               .filter(s => !s.isEmpty && s(0) != '#')
               .map { s =>
                 if (csq) {
-                  val vvep = variantFromInput(s)
+                  val vvep = variantFromInput(s, localGenomeRef)
                   if (!nonStarToOriginalVariant.contains(vvep))
                     fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")
 
@@ -350,8 +352,8 @@ object VEP {
                       (v, IndexedSeq.empty[Annotation])
                   }
                 } else {
-                  val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature)
-                  val vvep = variantFromInput(inputQuery(a).asInstanceOf[String])
+                  val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), vepSignature, localGenomeRef)
+                  val vvep = variantFromInput(inputQuery(a).asInstanceOf[String], localGenomeRef)
 
                   if (!nonStarToOriginalVariant.contains(vvep))
                     fatal(s"VEP output variant ${ vvep } not found in original variants.\nVEP output: $s")

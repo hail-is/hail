@@ -128,11 +128,14 @@ class GRMSuite extends SparkSuite {
     val grmBinFile = tmpDir.createTempFile("test", ".grm.bin")
     val grmNBinFile = tmpDir.createTempFile("test", ".grm.N.bin")
 
+    val localGenomeRef = hc.genomeReference
+
     Prop.check(forAll(
       VSMSubgen.realistic.copy(
         vGen = VariantSubgen.plinkCompatible.gen,
         tGen = VSMSubgen.realistic.tGen(_).filter(_.isCalled))
         .gen(hc)
+        .map(vsm => vsm.filterVariants{ case (v, _, _) => v.isAutosomal(localGenomeRef) })
         // plink fails with fewer than 2 samples, no variants
         .filter(vsm => vsm.nSamples > 1 && vsm.countVariants > 0)
         .map(_.splitMulti()),
@@ -151,7 +154,7 @@ class GRMSuite extends SparkSuite {
 
         format match {
           case "rel" =>
-            s"plink --bfile ${ uriPath(bFile) } --make-rel --out ${ uriPath(bFile) }" !
+            s"plink --bfile ${ uriPath(bFile) } --make-rel --allow-extra-chr --out ${ uriPath(bFile) }" !
 
             assert(loadIDFile(bFile + ".rel.id").toIndexedSeq == vds.sampleIds)
 
@@ -163,7 +166,7 @@ class GRMSuite extends SparkSuite {
               loadRel(nSamples, relFile))
 
           case "gcta-grm" =>
-            s"plink --bfile ${ uriPath(bFile) } --make-grm-gz --out ${ uriPath(bFile) }" !
+            s"plink --bfile ${ uriPath(bFile) } --make-grm-gz --allow-extra-chr --out ${ uriPath(bFile) }" !
 
             assert(loadIDFile(bFile + ".grm.id").toIndexedSeq == vds.sampleIds)
 
@@ -173,7 +176,7 @@ class GRMSuite extends SparkSuite {
               loadGRM(nSamples, nVariants, grmFile))
 
           case "gcta-grm-bin" =>
-            s"plink --bfile ${ uriPath(bFile) } --make-grm-bin --out ${ uriPath(bFile) }" !
+            s"plink --bfile ${ uriPath(bFile) } --make-grm-bin --allow-extra-chr --out ${ uriPath(bFile) }" !
 
             assert(loadIDFile(bFile + ".grm.id").toIndexedSeq == vds.sampleIds)
 

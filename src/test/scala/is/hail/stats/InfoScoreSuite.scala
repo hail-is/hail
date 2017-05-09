@@ -27,12 +27,13 @@ class InfoScoreSuite extends SparkSuite {
     val (_, infoQuerier) = vds.queryVA("va.infoScore.score")
     val (_, nQuerier) = vds.queryVA("va.infoScore.nIncluded")
 
+    val localGenomeRef = hc.genomeReference
     val hailResult = vds.rdd.mapValues { case (va, gs) =>
       (Option(infoQuerier(va)).map(_.asInstanceOf[Double]), Option(nQuerier(va)).map(_.asInstanceOf[Int]))
     }
-      .map { case (v, (info, n)) => (v.toString, (info, n)) }.collectAsMap()
+      .map { case (v, (info, n)) => (v.toString(localGenomeRef), (info, n)) }.collectAsMap()
 
-    (truthResult.keys ++ hailResult.keys).forall { v =>
+    assert((truthResult.keys ++ hailResult.keys).forall { v =>
       val (tI, tN) = truthResult.getOrElse(v, (None, None))
       val (hI, hN) = hailResult.getOrElse(v, (None, None))
 
@@ -43,6 +44,6 @@ class InfoScoreSuite extends SparkSuite {
         println(s"v=$v tI=$tI tN=$tN hI=$hI hN=$hN")
 
       res
-    }
+    })
   }
 }

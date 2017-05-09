@@ -530,15 +530,21 @@ class ContextTests(unittest.TestCase):
 
         self.assertEqual(v, Variant('1', 100, 'A', 'T'))
         self.assertEqual(v, Variant(1, 100, 'A', ['T']))
+        self.assertEqual(v.contig, "1")
+        self.assertEqual(Variant('1', 100, 'A', 'T').contig, "1")
 
         v2 = Variant.parse('1:100:A:T,C')
 
         self.assertEqual(v2, Variant('1', 100, 'A', ['T', 'C']))
+        self.assertEqual(v2.contig, "1")
+        self.assertEqual(Variant('1', 100, 'A', ['T', 'C']).contig, "1")
 
         l = Locus.parse('1:100')
 
         self.assertEqual(l, Locus('1', 100))
         self.assertEqual(l, Locus(1, 100))
+        self.assertEqual(l.contig, "1")
+        self.assertEqual(Locus('1', 100).contig, "1")
 
         self.assertEqual(l, v.locus())
 

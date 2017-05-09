@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.utils._
-import is.hail.variant.{VSMSubgen, Variant, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkContext
 import org.testng.annotations.Test
 
@@ -50,7 +50,6 @@ class ConcordanceSuite extends SparkSuite {
   def readVariantConcordance(file: String): Map[Variant, IndexedSeq[IndexedSeq[Int]]] = {
     hadoopConf.readLines(file) { lines =>
       val header = lines.next().value.split("\\s+")
-
       lines.filter(line => !line.value.startsWith("chr") && !line.value.startsWith("#Total") && !line.value.isEmpty)
         .map(_.map { line =>
           val split = line.split("\\s+")

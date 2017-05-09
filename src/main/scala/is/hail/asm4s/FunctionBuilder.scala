@@ -204,7 +204,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
 
-  def result(): () => F = {
+  def result(init: () => Unit = () => {}): () => F = {
     val bytes = classAsBytes()
     val localName = name.replaceAll("/",".")
 
@@ -215,6 +215,7 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
           if (f == null) {
             this.synchronized {
               if (f == null) {
+                init()
                 f = loadClass(localName, bytes).newInstance().asInstanceOf[F]
               }
             }

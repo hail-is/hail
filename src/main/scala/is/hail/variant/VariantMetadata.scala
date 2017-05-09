@@ -36,9 +36,10 @@ object VSMFileMetadata {
     globalSignature: Type = TStruct.empty,
     genotypeSignature: Type = TGenotype,
     wasSplit: Boolean = false,
-    isLinearScale: Boolean = false): VSMFileMetadata = {
+    isLinearScale: Boolean = false,
+    genomeReference: GenomeReference = GenomeReference.GRCh37): VSMFileMetadata = {
     VSMFileMetadata(
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, genomeReference = genomeReference),
       VSMLocalValue(globalAnnotation, sampleIds,
         if (sampleAnnotations == null)
           Annotation.emptyIndexedSeq(sampleIds.length)
@@ -60,4 +61,18 @@ case class VSMMetadata(
   genotypeSignature: Type = TGenotype,
   wasSplit: Boolean = false,
   isLinearScale: Boolean = false,
-  isGenericGenotype: Boolean = false)
+  isGenericGenotype: Boolean = false,
+  genomeReference: GenomeReference = GenomeReference.GRCh37) {
+
+  def same(other: VSMMetadata): Boolean =
+    sSignature == other.sSignature &&
+      saSignature == other.saSignature &&
+      vSignature == other.vSignature &&
+      vaSignature == other.vaSignature &&
+      globalSignature == other.globalSignature &&
+      genotypeSignature == other.genotypeSignature &&
+      wasSplit == other.wasSplit &&
+      isLinearScale == other.isLinearScale &&
+      isGenericGenotype == other.isGenericGenotype &&
+      genomeReference.same(other.genomeReference)
+}

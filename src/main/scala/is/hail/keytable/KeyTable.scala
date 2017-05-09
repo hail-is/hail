@@ -51,8 +51,9 @@ object KeyTable {
 
   def fromDF(hc: HailContext, df: DataFrame, key: Array[String] = Array.empty[String]): KeyTable = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
+    val localGenomeRef = hc.genomeReference
     KeyTable(hc, df.rdd.map { r =>
-      SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
+      SparkAnnotationImpex.importAnnotation(r, signature, localGenomeRef).asInstanceOf[Row]
     },
       signature, key)
   }
@@ -111,11 +112,13 @@ object KeyTable {
     val requiresConversion = SparkAnnotationImpex.requiresConversion(signature)
     val parquetFile = path + "/rdd.parquet"
 
+    val localGenomeRef = hc.genomeReference
+
     val rdd = hc.sqlContext.read.parquet(parquetFile)
       .rdd
       .map { r =>
         if (requiresConversion)
-          SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
+          SparkAnnotationImpex.importAnnotation(r, signature, localGenomeRef).asInstanceOf[Row]
         else
           r
       }
@@ -504,6 +507,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     }
 
     val localTypes = fields.map(_.typ)
+    val localGenomeRef = hc.genomeReference
 
     rdd.mapPartitions { it =>
       val sb = new StringBuilder()
@@ -512,7 +516,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         sb.clear()
 
         localTypes.indices.foreachBetween { i =>
-          sb.append(localTypes(i).str(r.get(i)))
+          sb.append(localTypes(i).str(r.get(i), localGenomeRef))
         }(sb += '\t')
 
         sb.result()
@@ -567,8 +571,9 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def expandTypes(): KeyTable = {
     val localSignature = signature
     val expandedSignature = Annotation.expandType(localSignature).asInstanceOf[TStruct]
+    val localGenomeRef = hc.genomeReference
 
-    KeyTable(hc, rdd.map { a => Annotation.expandAnnotation(a, localSignature).asInstanceOf[Row] },
+    KeyTable(hc, rdd.map { a => Annotation.expandAnnotation(a, localSignature, localGenomeRef).asInstanceOf[Row] },
       expandedSignature,
       key)
   }
@@ -586,9 +591,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
   def toDF(sqlContext: SQLContext): DataFrame = {
     val localSignature = signature
+    val localGenomeRef = hc.genomeReference
     sqlContext.createDataFrame(
       rdd.map {
-        a => SparkAnnotationImpex.exportAnnotation(a, localSignature).asInstanceOf[Row]
+        a => SparkAnnotationImpex.exportAnnotation(a, localSignature, localGenomeRef).asInstanceOf[Row]
       },
       signature.schema.asInstanceOf[StructType])
   }
@@ -659,9 +665,11 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     val localSignature = signature
     val requiresConversion = SparkAnnotationImpex.requiresConversion(signature)
 
+    val localGenomeRef = hc.genomeReference
+
     val rowRDD = rdd.map { a =>
       (if (requiresConversion)
-        SparkAnnotationImpex.exportAnnotation(a, localSignature)
+        SparkAnnotationImpex.exportAnnotation(a, localSignature, localGenomeRef)
       else
         a).asInstanceOf[Row]
     }

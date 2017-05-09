@@ -27,7 +27,13 @@ object LocusImplicits {
 }
 
 object Locus {
-  val simpleContigs: Seq[String] = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")
+
+  def apply(contig: String, position: Int)(implicit gr: GenomeReference): Locus = {
+    gr.contigIndex.get(contig) match {
+      case Some(idx) => Locus(idx, position)
+      case None => fatal(s"Did not find contig `$contig' in genome reference `${ gr.name }'.")
+    }
+  }
 
   def sparkSchema: StructType =
     StructType(Array(
@@ -38,38 +44,38 @@ object Locus {
     "contig" -> TString,
     "position" -> TInt)
 
-  def gen(contigs: Seq[String]): Gen[Locus] =
-    Gen.zip(Gen.oneOfSeq(contigs), Gen.posInt)
+  def gen(gr: GenomeReference): Gen[Locus] =
+    Gen.zip(Gen.oneOfSeq(gr.contigs.indices), Gen.posInt)
       .map { case (contig, pos) => Locus(contig, pos) }
 
-  def gen: Gen[Locus] = gen(simpleContigs)
+  def gen: Gen[Locus] = gen(GenomeReference.GRCh37)
 
   implicit val locusJSONRWer: JSONReaderWriter[Locus] = caseClassJSONReaderWriter[Locus]
 
-  def parse(str: String): Locus = {
+  def parse(str: String, gr: GenomeReference): Locus = {
     str.split(":") match {
-      case Array(chr, pos) => Locus(chr, pos.toInt)
+      case Array(chr, pos) => Locus(chr, pos.toInt)(gr)
       case a => fatal(s"expected 2 colon-delimited fields, but found ${ a.length }")
     }
   }
 
   object LocusIntervalParser extends JavaTokenParsers {
-    def parseInterval(input: String): Interval[Locus] = {
-      parseAll[Interval[Locus]](interval, input) match {
+    def parseInterval(input: String, gr: GenomeReference): Interval[Locus] = {
+      parseAll[Interval[Locus]](interval(gr), input) match {
         case Success(r, _) => r
         case NoSuccess(msg, next) => fatal(s"invalid interval expression: `$input': $msg")
       }
     }
 
-    def interval: Parser[Interval[Locus]] = {
-      locus ~ "-" ~ locus ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |
-        locus ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copy(position = p2)) } |
-        contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => Interval(Locus(c1, 0), Locus(c2, Int.MaxValue)) } |
-        contig ^^ { c => Interval(Locus(c, 0), Locus(c, Int.MaxValue)) }
+    def interval(gr: GenomeReference): Parser[Interval[Locus]] = {
+      locus(gr) ~ "-" ~ locus(gr) ^^ { case l1 ~ _ ~ l2 => Interval(l1, l2) } |
+        locus(gr) ~ "-" ~ pos ^^ { case l1 ~ _ ~ p2 => Interval(l1, l1.copy(position = p2)) } |
+        contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => Interval(Locus(c1, 0)(gr), Locus(c2, Int.MaxValue)(gr)) } |
+        contig ^^ { c => Interval(Locus(c, 0)(gr), Locus(c, Int.MaxValue)(gr))}
     }
 
-    def locus: Parser[Locus] = {
-      contig ~ ":" ~ pos ^^ { case c ~ _ ~ p => Locus(c, p) }
+    def locus(gr: GenomeReference): Parser[Locus] = {
+      contig ~ ":" ~ pos ^^ { case c ~ _ ~ p => Locus(c, p)(gr) }
     }
 
     def contig: Parser[String] = "\\w+".r
@@ -101,28 +107,32 @@ object Locus {
     }
   }
 
-  def parseInterval(str: String): Interval[Locus] = LocusIntervalParser.parseInterval(str)
+  def parseInterval(str: String)(implicit gr: GenomeReference): Interval[Locus] = LocusIntervalParser.parseInterval(str, gr)
 
-  def parseIntervals(arr: Array[String]): Array[Interval[Locus]] = arr.map(parseInterval)
+  def parseIntervals(arr: Array[String])(implicit gr: GenomeReference): Array[Interval[Locus]] = arr.map(parseInterval(_)(gr))
 
   def makeInterval(start: Locus, end: Locus): Interval[Locus] = Interval(start, end)
 }
 
 @SerialVersionUID(9197069433877243281L)
-case class Locus(contig: String, position: Int) extends Ordered[Locus] {
+case class Locus(contig: Int, position: Int) extends Ordered[Locus] {
+  def contigStr(gr: GenomeReference): String = gr.contigNames(contig)
+
   def compare(that: Locus): Int = {
-    var c = Contig.compare(contig, that.contig)
+    val c = contig.compare(that.contig)
     if (c != 0)
       return c
 
     position.compare(that.position)
   }
 
-  def toRow: Row = Row(contig, position)
+  def toRow(gr: GenomeReference): Row = Row(contigStr(gr), position)
 
-  def toJSON: JValue = JObject(
-    ("contig", JString(contig)),
+  def toJSON(gr: GenomeReference): JValue = JObject(
+    ("contig", JString(contigStr(gr))),
     ("position", JInt(position)))
+
+  def toString(gr: GenomeReference): String = s"${ contigStr(gr) }:$position"
 
   override def toString: String = s"$contig:$position"
 }

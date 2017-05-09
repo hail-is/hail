@@ -4,8 +4,6 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr._
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils._
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.json4s._
@@ -15,20 +13,16 @@ import scala.math.Numeric.Implicits._
 import scala.reflect.ClassTag
 
 object Contig {
-  val standardContigs = (1 to 23).map(_.toString) ++ IndexedSeq("X", "Y", "MT")
-  val standardContigIdx = standardContigs.zipWithIndex.toMap
-
-  def compare(lhs: String, rhs: String): Int = {
-    (standardContigIdx.get(lhs), standardContigIdx.get(rhs)) match {
-      case (Some(i), Some(j)) => i.compare(j)
-      case (Some(_), None) => -1
-      case (None, Some(_)) => 1
-      case (None, None) => lhs.compare(rhs)
-    }
-  }
+  def gen: Gen[Contig] = for {
+    name <- Gen.identifier
+    length <- Gen.posInt
+  } yield Contig(name, length)
 }
 
-case class Contig(name: String, length: Int)
+case class Contig(name: String, length: Int) {
+  assert(length > 0, s"Contig length must be greater than 0. Contig `$name' has length equal to $length.")
+  def toJSON: JValue = JObject(("name", JString(name)), ("length", JInt(length)))
+}
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
@@ -145,25 +139,56 @@ object Variant {
   def apply(contig: String,
     start: Int,
     ref: String,
-    alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
+    alt: String)(implicit gr: GenomeReference): Variant = {
+    gr.contigIndex.get(contig) match {
+      case Some(idx) => Variant(idx, start, ref, Array(AltAllele(ref, alt)))
+      case None => fatal(s"Did not find contig `$contig' in genome reference `${ gr.name }'.")
+    }
+  }
 
   def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: Array[String])(implicit gr: GenomeReference): Variant = {
+    gr.contigIndex.get(contig) match {
+      case Some(idx) => Variant(idx, start, ref, alts.map(alt => AltAllele(ref, alt)))
+      case None => fatal(s"Did not find contig `$contig' in genome reference `${ gr.name }'.")
+    }
+  }
+
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: Array[AltAllele])(implicit gr: GenomeReference): Variant = {
+    gr.contigIndex.get(contig) match {
+      case Some(idx) => Variant(idx, start, ref, alts)
+      case None => fatal(s"Did not find contig `$contig' in genome reference `${ gr.name }'.")
+    }
+  }
+
+  def apply(contig: String,
+    start: Int,
+    ref: String,
+    alts: java.util.ArrayList[String])(implicit gr: GenomeReference): Variant = Variant(contig, start, ref, alts.asScala.toArray)(gr)
+
+  def apply(contig: Int,
+    start: Int,
+    ref: String,
+    alt: String): Variant = Variant(contig, start, ref, Array(AltAllele(ref, alt)))
+
+  def apply(contig: Int,
     start: Int,
     ref: String,
     alts: Array[String]): Variant =
     Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
 
-  def apply(contig: String,
-    start: Int,
-    ref: String,
-    alts: java.util.ArrayList[String]): Variant = Variant(contig, start, ref, alts.asScala.toArray)
 
-  def parse(str: String): Variant = {
+  def parse(str: String)(implicit gr: GenomeReference): Variant = {
     val colonSplit = str.split(":")
     if (colonSplit.length != 4)
       fatal(s"expected 4 colon-delimited fields, but found ${ colonSplit.length }")
     val Array(contig, start, ref, alts) = colonSplit
-    Variant(contig, start.toInt, ref, alts.split(","))
+    Variant(contig, start.toInt, ref, alts.split(","))(gr)
   }
 
   def nGenotypes(nAlleles: Int): Int = {
@@ -189,13 +214,20 @@ object Variant {
       "ref" -> TString,
       "altAlleles" -> TArray(AltAllele.expandedType))
 
-  def fromRow(r: Row) =
-    Variant(r.getAs[String](0),
-      r.getAs[Int](1),
-      r.getAs[String](2),
-      r.getSeq[Row](3)
-        .map(s => AltAllele.fromRow(s))
-        .toArray)
+  def fromRow(r: Row, gr: GenomeReference) = {
+    val contig = r.getAs[String](0)
+    gr.contigIndex.get(contig) match {
+      case Some(idx) =>
+        Variant(idx,
+          r.getAs[Int](1),
+          r.getAs[String](2),
+          r.getSeq[Row](3)
+            .map(s => AltAllele.fromRow(s))
+            .toArray)
+      case None => fatal(s"Did not find contig `$contig' in genome reference `${ gr.name }'.")
+    }
+
+  }
 
   implicit val orderedKey: OrderedKey[Locus, Variant] =
     new OrderedKey[Locus, Variant] {
@@ -210,21 +242,6 @@ object Variant {
       def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
     }
 
-  def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
-    sc.textFileLines(input)
-      .map {
-        _.map { line =>
-          val fields = line.split(":")
-          if (fields.length != 4)
-            fatal("invalid variant: expect `CHR:POS:REF:ALT1,ALT2,...,ALTN'")
-          val ref = fields(2)
-          (Variant(fields(0),
-            fields(1).toInt,
-            ref,
-            fields(3).split(",").map(alt => AltAllele(ref, alt))), ())
-        }.value
-      }
-
   implicit def variantOrder: Ordering[Variant] = new Ordering[Variant] {
     def compare(x: Variant, y: Variant): Int = x.compare(y)
   }
@@ -232,7 +249,7 @@ object Variant {
 
 object VariantSubgen {
   val random = VariantSubgen(
-    contigGen = Gen.identifier,
+    genomeRefGen = Gen.const(GenomeReference.GRCh37),
     startGen = Gen.posInt,
     nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
     refGen = genDNAString,
@@ -240,21 +257,22 @@ object VariantSubgen {
       (1, Gen.const("*"))))
 
   val plinkCompatible = random.copy(
-    contigGen = Gen.choose(1, 22).map(_.toString)
+    genomeRefGen = Gen.const(GenomeReference.GRCh37)
   )
 
   val biallelic = random.copy(nAllelesGen = Gen.const(2))
 }
 
 case class VariantSubgen(
-  contigGen: Gen[String],
+  genomeRefGen: Gen[GenomeReference],
   startGen: Gen[Int],
   nAllelesGen: Gen[Int],
   refGen: Gen[String],
   altGen: Gen[String]) {
 
   def gen: Gen[Variant] =
-    for (contig <- contigGen;
+    for (gr <- genomeRefGen;
+      contig <- Gen.oneOfSeq(gr.contigs.indices);
       start <- startGen;
       nAlleles <- nAllelesGen;
       ref <- refGen;
@@ -265,7 +283,7 @@ case class VariantSubgen(
       Variant(contig, start, ref, altAlleles.tail.map(alt => AltAllele(ref, alt)))
 }
 
-case class Variant(contig: String,
+case class Variant(contig: Int,
   start: Int,
   ref: String,
   altAlleles: IndexedSeq[AltAllele]) {
@@ -274,6 +292,8 @@ case class Variant(contig: String,
        corresponding chromosome or contig. See the VCF spec, v4.2, section 1.4.1. */
   require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
+
+  def contigStr(gr: GenomeReference): String = gr.contigNames(contig)
 
   def nAltAlleles: Int = altAlleles.length
 
@@ -298,42 +318,32 @@ case class Variant(contig: String,
 
   def locus: Locus = Locus(contig, start)
 
-  def isAutosomalOrPseudoAutosomal: Boolean =
-    isAutosomal || inXPar || inYPar
+  def isAutosomalOrPseudoAutosomal(gr: GenomeReference): Boolean =
+    isAutosomal(gr) || inXPar(gr) || inYPar(gr)
 
-  def isAutosomal = !(inX || inY || isMitochondrial)
+  def isAutosomal(gr: GenomeReference) = !(inX(gr) || inY(gr) || isMitochondrial(gr))
 
-  def isMitochondrial = {
-    val c = contig.toUpperCase
-    c == "MT" || c == "M" || c == "26"
-  }
+  def isMitochondrial(gr: GenomeReference) = gr.isMitochondrial(contig)
 
-  // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
-  // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
-  def inXParPos: Boolean = (60001 <= start && start <= 2699520) || (154931044 <= start && start <= 155260560)
+  def inXPar(gr: GenomeReference): Boolean = gr.inXPar(locus)
 
-  def inYParPos: Boolean = (10001 <= start && start <= 2649520) || (59034050 <= start && start <= 59363566)
+  def inYPar(gr: GenomeReference): Boolean = gr.inYPar(locus)
 
-  // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
-  def inXPar: Boolean = inX && inXParPos
+  def inXNonPar(gr: GenomeReference): Boolean = inX(gr) && !inXPar(gr)
 
-  def inYPar: Boolean = inY && inYParPos
+  def inYNonPar(gr: GenomeReference): Boolean = inY(gr) && !inYPar(gr)
 
-  def inXNonPar: Boolean = inX && !inXParPos
+  def inX(gr: GenomeReference): Boolean = gr.inX(contig)
 
-  def inYNonPar: Boolean = inY && !inYParPos
-
-  private def inX: Boolean = contig.toUpperCase == "X" || contig == "23" || contig == "25"
-
-  private def inY: Boolean = contig.toUpperCase == "Y" || contig == "24"
+  def inY(gr: GenomeReference): Boolean = gr.inY(contig)
 
   import CopyState._
 
-  def copyState(sex: Sex.Sex): CopyState =
+  def copyState(sex: Sex.Sex, gr: GenomeReference): CopyState =
     if (sex == Sex.Male)
-      if (inXNonPar)
+      if (inXNonPar(gr))
         HemiX
-      else if (inYNonPar)
+      else if (inYNonPar(gr))
         HemiY
       else
         Auto
@@ -341,7 +351,7 @@ case class Variant(contig: String,
       Auto
 
   def compare(that: Variant): Int = {
-    var c = Contig.compare(contig, that.contig)
+    var c = contig.compare(that.contig)
     if (c != 0)
       return c
 
@@ -403,21 +413,27 @@ case class Variant(contig: String,
     }
   }
 
+  def toString(gr: GenomeReference): String = {
+    s"${ contigStr(gr) }:$start:$ref:${ altAlleles.map(_.alt).mkString(",") }"
+  }
+
   override def toString: String =
     s"$contig:$start:$ref:${ altAlleles.map(_.alt).mkString(",") }"
 
-  def toRow = {
+  def toRow(gr: GenomeReference) = {
     Row.fromSeq(Array(
-      contig,
+      contigStr(gr),
       start,
       ref,
       altAlleles.map { a => Row.fromSeq(Array(a.ref, a.alt)) }))
   }
 
-  def toJSON: JValue = JObject(
-    ("contig", JString(contig)),
-    ("start", JInt(start)),
-    ("ref", JString(ref)),
-    ("altAlleles", JArray(altAlleles.map(_.toJSON).toList))
-  )
+  def toJSON(gr: GenomeReference): JValue = {
+    JObject(
+      ("contig", JString(contigStr(gr))),
+      ("start", JInt(start)),
+      ("ref", JString(ref)),
+      ("altAlleles", JArray(altAlleles.map(_.toJSON).toList))
+    )
+  }
 }

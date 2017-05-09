@@ -42,6 +42,8 @@ object BedAnnotator {
     else
       TStruct("interval" -> TInterval)
 
+    val localGenomeRef = hc.genomeReference
+
     val rdd = hc.sc.textFileLines(filename)
       .filter(line =>
         !(line.value.startsWith("browser") ||
@@ -57,7 +59,7 @@ object BedAnnotator {
           // transform BED 0-based coordinates to Hail/VCF 1-based coordinates
           val start = spl(1).toInt + 1
           val end = spl(2).toInt + 1
-          val interval = Interval(Locus(chrom, start), Locus(chrom, end))
+          val interval = Interval(Locus(chrom, start)(localGenomeRef), Locus(chrom, end)(localGenomeRef))
 
           if (hasTarget)
             Row(interval, spl(3))

@@ -352,12 +352,14 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def test1725() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val localGenomeRef = hc.genomeReference
+
     val kt = vds.annotateVariantsExpr("va.id = str(v)")
       .variantsKT()
       .flatten()
       .select(Array("v", "va.id"), Array("va.id"))
 
-    val kt2 = KeyTable(hc, vds.variants.map(v => Row(v.toString, 5)),
+    val kt2 = KeyTable(hc, vds.variants.map(v => Row(v.toString(localGenomeRef), 5)),
       TStruct("v" -> TString, "value" -> TInt), Array("v"))
 
     kt.join(kt2, "inner").toDF(sqlContext).count()

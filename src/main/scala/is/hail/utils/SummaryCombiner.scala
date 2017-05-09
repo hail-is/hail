@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.Annotation
-import is.hail.variant.{AltAlleleType, Variant}
+import is.hail.variant.{AltAlleleType, GenomeReference, Variant}
 
 import scala.collection.mutable
 
@@ -39,11 +39,11 @@ class SummaryCombiner[T](f: Iterable[T] => Int) extends Serializable {
     this
   }
 
-  def merge(data: (Variant, (Annotation, Iterable[T]))): SummaryCombiner[T] = {
+  def merge(data: (Variant, (Annotation, Iterable[T])), gr: GenomeReference): SummaryCombiner[T] = {
     nVariants += 1
 
     val v = data._1
-    contigs += v.contig
+    contigs += gr.contigNames(v.contig)
     if (v.nAlleles > 2)
       multiallelics += 1
     if (v.nAlleles > maxAlleles)

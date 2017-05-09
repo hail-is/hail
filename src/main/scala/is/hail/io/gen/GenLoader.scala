@@ -1,5 +1,6 @@
 package is.hail.io.gen
 
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.io.bgen.BgenLoader
@@ -58,12 +59,14 @@ object GenReport {
 }
 
 object GenLoader {
-  def apply(genFile: String, sampleFile: String, sc: SparkContext,
+  def apply(genFile: String, sampleFile: String, hc: HailContext,
     nPartitions: Option[Int] = None, tolerance: Double = 0.02,
     chromosome: Option[String] = None): GenResult = {
 
+    val sc = hc.sc
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
+    val localGenomeRef = hc.genomeReference
 
     if (sampleIds.length != sampleIds.toSet.size)
       fatal(s"Duplicate sample IDs exist in $sampleFile")
@@ -75,7 +78,7 @@ object GenLoader {
 
     val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
       .map(_.map { l =>
-        readGenLine(l, nSamples, tolerance, reportAcc, chromosome)
+        readGenLine(l, nSamples, tolerance, reportAcc, chromosome, localGenomeRef)
       }.value)
 
     val signatures = TStruct("rsid" -> TString, "varid" -> TString)
@@ -86,7 +89,8 @@ object GenLoader {
   def readGenLine(line: String, nSamples: Int,
     tolerance: Double,
     reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    chromosome: Option[String] = None): (Variant, (Annotation, Iterable[Genotype])) = {
+    chromosome: Option[String] = None,
+    gr: GenomeReference): (Variant, (Annotation, Iterable[Genotype])) = {
 
     val arr = line.split("\\s+")
     val chrCol = if (chromosome.isDefined) 1 else 0
@@ -105,7 +109,7 @@ object GenLoader {
       case x => x
     }
 
-    val variant = Variant(recodedChr, start.toInt, ref, alt)
+    val variant = Variant(recodedChr, start.toInt, ref, alt)(gr)
     val nGenotypes = 3
     val gp = arr.drop(6 - chrCol).map {
       _.toDouble

@@ -37,6 +37,8 @@ object IntervalList {
     else
       TStruct("interval" -> TInterval)
 
+    val localGenomeRef = hc.genomeReference
+
     val rdd = hc.sc.textFileLines(filename)
       .filter(l => !l.value.isEmpty && l.value(0) != '@')
       .map {
@@ -45,14 +47,14 @@ object IntervalList {
             val split = line.split("\\s+")
             split match {
               case Array(contig, start, end, dir, target) =>
-                val interval = Interval(Locus(contig, start.toInt), Locus(contig, end.toInt + 1))
+                val interval = Interval(Locus(contig, start.toInt)(localGenomeRef), Locus(contig, end.toInt + 1)(localGenomeRef))
                 Row(interval, target)
               case arr => fatal(s"expected 5 fields, but found ${ arr.length }")
             }
           } else {
             line match {
               case intervalRegex(contig, startStr, endStr) =>
-                Row(Interval(Locus(contig, startStr.toInt), Locus(contig, endStr.toInt + 1)))
+                Row(Interval(Locus(contig, startStr.toInt)(localGenomeRef), Locus(contig, endStr.toInt + 1)(localGenomeRef)))
               case _ => fatal("invalid interval")
             }
           }
