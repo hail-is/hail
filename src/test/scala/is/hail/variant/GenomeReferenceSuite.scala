@@ -8,7 +8,7 @@ class GenomeReferenceSuite extends SparkSuite {
     val grch37 = GenomeReference.GRCh37
 
     assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))
-    assert(grch37.contigs.count(_.isX) == 1 && grch37.contigs.count(_.isY) == 1 && grch37.contigs.count(_.isMT) == 1)
+    assert(grch37.contigs.find(_.name == "1").get.length == 249250621)
 
     val parXLocus = Array(Locus("X", 2499520), Locus("X", 155260460))
     val parYLocus = Array(Locus("Y", 50001), Locus("Y", 59035050))

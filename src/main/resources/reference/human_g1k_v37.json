@@ -1,720 +1,393 @@
 {
+    "name": "GRCh37",
+    "source": "ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict",
     "contigs": [
         {
             "name": "1",
-            "length": 249250621,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 249250621
         },
         {
             "name": "2",
-            "length": 243199373,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 243199373
         },
         {
             "name": "3",
-            "length": 198022430,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 198022430
         },
         {
             "name": "4",
-            "length": 191154276,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 191154276
         },
         {
             "name": "5",
-            "length": 180915260,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 180915260
         },
         {
             "name": "6",
-            "length": 171115067,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 171115067
         },
         {
             "name": "7",
-            "length": 159138663,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 159138663
         },
         {
             "name": "8",
-            "length": 146364022,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 146364022
         },
         {
             "name": "9",
-            "length": 141213431,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 141213431
         },
         {
             "name": "10",
-            "length": 135534747,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 135534747
         },
         {
             "name": "11",
-            "length": 135006516,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 135006516
         },
         {
             "name": "12",
-            "length": 133851895,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 133851895
         },
         {
             "name": "13",
-            "length": 115169878,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 115169878
         },
         {
             "name": "14",
-            "length": 107349540,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 107349540
         },
         {
             "name": "15",
-            "length": 102531392,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 102531392
         },
         {
             "name": "16",
-            "length": 90354753,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 90354753
         },
         {
             "name": "17",
-            "length": 81195210,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 81195210
         },
         {
             "name": "18",
-            "length": 78077248,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 78077248
         },
         {
             "name": "19",
-            "length": 59128983,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 59128983
         },
         {
             "name": "20",
-            "length": 63025520,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 63025520
         },
         {
             "name": "21",
-            "length": 48129895,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 48129895
         },
         {
             "name": "22",
-            "length": 51304566,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 51304566
         },
         {
             "name": "X",
-            "length": 155270560,
-            "isX": true,
-            "isY": false,
-            "isMT": false,
-            "par": [
-                {
-                    "start": {
-                        "contig": "X",
-                        "position": 60001
-                    },
-                    "end": {
-                        "contig": "X",
-                        "position": 2699520
-                    }
-                },
-                {
-                    "start": {
-                        "contig": "X",
-                        "position": 154931044
-                    },
-                    "end": {
-                        "contig": "X",
-                        "position": 155260560
-                    }
-                }
-            ]
+            "length": 155270560
         },
         {
             "name": "Y",
-            "length": 59373566,
-            "isX": false,
-            "isY": true,
-            "isMT": false,
-            "par": [
-                {
-                    "start": {
-                        "contig": "Y",
-                        "position": 10001
-                    },
-                    "end": {
-                        "contig": "Y",
-                        "position": 2649520
-                    }
-                },
-                {
-                    "start": {
-                        "contig": "Y",
-                        "position": 59034050
-                    },
-                    "end": {
-                        "contig": "Y",
-                        "position": 59363566
-                    }
-                }
-            ]
+            "length": 59373566
         },
         {
             "name": "MT",
-            "length": 16569,
-            "isX": false,
-            "isY": false,
-            "isMT": true,
-            "par": null
+            "length": 16569
         },
         {
             "name": "GL000207",
-            "length": 4262,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 4262
         },
         {
             "name": "GL000226",
-            "length": 15008,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 15008
         },
         {
             "name": "GL000229",
-            "length": 19913,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 19913
         },
         {
             "name": "GL000231",
-            "length": 27386,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 27386
         },
         {
             "name": "GL000210",
-            "length": 27682,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 27682
         },
         {
             "name": "GL000239",
-            "length": 33824,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 33824
         },
         {
             "name": "GL000235",
-            "length": 34474,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 34474
         },
         {
             "name": "GL000201",
-            "length": 36148,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 36148
         },
         {
             "name": "GL000247",
-            "length": 36422,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 36422
         },
         {
             "name": "GL000245",
-            "length": 36651,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 36651
         },
         {
             "name": "GL000197",
-            "length": 37175,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 37175
         },
         {
             "name": "GL000203",
-            "length": 37498,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 37498
         },
         {
             "name": "GL000246",
-            "length": 38154,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 38154
         },
         {
             "name": "GL000249",
-            "length": 38502,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 38502
         },
         {
             "name": "GL000196",
-            "length": 38914,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 38914
         },
         {
             "name": "GL000248",
-            "length": 39786,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 39786
         },
         {
             "name": "GL000244",
-            "length": 39929,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 39929
         },
         {
             "name": "GL000238",
-            "length": 39939,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 39939
         },
         {
             "name": "GL000202",
-            "length": 40103,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 40103
         },
         {
             "name": "GL000234",
-            "length": 40531,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 40531
         },
         {
             "name": "GL000232",
-            "length": 40652,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 40652
         },
         {
             "name": "GL000206",
-            "length": 41001,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 41001
         },
         {
             "name": "GL000240",
-            "length": 41933,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 41933
         },
         {
             "name": "GL000236",
-            "length": 41934,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 41934
         },
         {
             "name": "GL000241",
-            "length": 42152,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 42152
         },
         {
             "name": "GL000243",
-            "length": 43341,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 43341
         },
         {
             "name": "GL000242",
-            "length": 43523,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 43523
         },
         {
             "name": "GL000230",
-            "length": 43691,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 43691
         },
         {
             "name": "GL000237",
-            "length": 45867,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 45867
         },
         {
             "name": "GL000233",
-            "length": 45941,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 45941
         },
         {
             "name": "GL000204",
-            "length": 81310,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 81310
         },
         {
             "name": "GL000198",
-            "length": 90085,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 90085
         },
         {
             "name": "GL000208",
-            "length": 92689,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 92689
         },
         {
             "name": "GL000191",
-            "length": 106433,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 106433
         },
         {
             "name": "GL000227",
-            "length": 128374,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 128374
         },
         {
             "name": "GL000228",
-            "length": 129120,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 129120
         },
         {
             "name": "GL000214",
-            "length": 137718,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 137718
         },
         {
             "name": "GL000221",
-            "length": 155397,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 155397
         },
         {
             "name": "GL000209",
-            "length": 159169,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 159169
         },
         {
             "name": "GL000218",
-            "length": 161147,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 161147
         },
         {
             "name": "GL000220",
-            "length": 161802,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 161802
         },
         {
             "name": "GL000213",
-            "length": 164239,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 164239
         },
         {
             "name": "GL000211",
-            "length": 166566,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 166566
         },
         {
             "name": "GL000199",
-            "length": 169874,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 169874
         },
         {
             "name": "GL000217",
-            "length": 172149,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 172149
         },
         {
             "name": "GL000216",
-            "length": 172294,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 172294
         },
         {
             "name": "GL000215",
-            "length": 172545,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 172545
         },
         {
             "name": "GL000205",
-            "length": 174588,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 174588
         },
         {
             "name": "GL000219",
-            "length": 179198,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 179198
         },
         {
             "name": "GL000224",
-            "length": 179693,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 179693
         },
         {
             "name": "GL000223",
-            "length": 180455,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 180455
         },
         {
             "name": "GL000195",
-            "length": 182896,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 182896
         },
         {
             "name": "GL000212",
-            "length": 186858,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 186858
         },
         {
             "name": "GL000222",
-            "length": 186861,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 186861
         },
         {
             "name": "GL000200",
-            "length": 187035,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 187035
         },
         {
             "name": "GL000193",
-            "length": 189789,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 189789
         },
         {
             "name": "GL000194",
-            "length": 191469,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 191469
         },
         {
             "name": "GL000225",
-            "length": 211173,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 211173
         },
         {
             "name": "GL000192",
-            "length": 547496,
-            "isX": false,
-            "isY": false,
-            "isMT": false,
-            "par": null
+            "length": 547496
         }
     ],
-    "source": "ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict",
-    "name": "GRCh37"
+    "x_contigs": [
+        "X"
+    ],
+    "y_contigs": [
+        "Y"
+    ],
+    "mt_contigs": [
+        "MT"
+    ],
+    "par": [
+        {
+            "start": {
+                "contig": "X",
+                "position": 60001
+            },
+            "end": {
+                "contig": "X",
+                "position": 2699520
+            }
+        },
+        {
+            "start": {
+                "contig": "X",
+                "position": 154931044
+            },
+            "end": {
+                "contig": "X",
+                "position": 155260560
+            }
+        },
+        {
+            "start": {
+                "contig": "Y",
+                "position": 10001
+            },
+            "end": {
+                "contig": "Y",
+                "position": 2649520
+            }
+        },
+        {
+            "start": {
+                "contig": "Y",
+                "position": 59034050
+            },
+            "end": {
+                "contig": "Y",
+                "position": 59363566
+            }
+        }
+    ]
 }
