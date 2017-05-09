@@ -14,10 +14,10 @@ parser.add_argument('--zone', '-z', default='us-central1-b', type=str, help='Com
 args = parser.parse_args()
 
 # check if Google Chrome is installed at default path
-chrome = os.path.abspath(r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
-if not os.path.isfile(chrome):
-    print 'Connection failed - Google Chrome executable not found at "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome".'
-    sys.exit()
+#chrome = os.path.abspath(r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
+#if not os.path.isfile(chrome):
+#    print 'Connection failed - Google Chrome executable not found at "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome".'
+#    sys.exit()
 
 # if process is currently running on local port designated for SSH tunnel, kill it
 try:
