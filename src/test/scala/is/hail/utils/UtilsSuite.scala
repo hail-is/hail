@@ -1,6 +1,5 @@
 package is.hail.utils
 
-import breeze.linalg.{DenseMatrix => BDenseMatrix}
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop}
@@ -206,5 +205,31 @@ class UtilsSuite extends SparkSuite {
     assert(stringList.sorted(ord1) == stringList)
     val ord2 = dictionaryOrdering(byFirstLetter, longestToShortestLength)
     assert(stringList.sorted(ord2) == Seq("Crayon", "Cats", "Dog"))
+  }
+
+  @Test def testUInt() {
+    assert(UInt((1L << 32) - 1).toLong == 4294967295L)
+    assert(UInt(4294967295L).toLong == 4294967295L)
+    assert(UInt(327886).toInt == 327886)
+    assert(UInt(4294967295L).toDouble == 4294967295d)
+
+    assert(UInt(2147483647) + UInt(5) == UInt(2147483652L))
+    assert(UInt(2147483647) - UInt(5) == UInt(2147483642L))
+    assert(UInt(2147483647) * UInt(2) == UInt(4294967294L))
+    assert(UInt(2147483647) / UInt(2) == UInt(1073741823L))
+
+    assert(UInt(4294967295L) > UInt(0))
+    assert(UInt(4294967295L) >= UInt(0))
+    assert(UInt(0) < UInt(4294967295L))
+    assert(UInt(0) <= UInt(4294967295L))
+    assert(UInt(4294967295L) == (UInt(4294967295L) + UInt(0)))
+    assert(UInt(4294967295L) != UInt(0))
+
+    intercept[AssertionError](UInt(-5).toInt)
+    intercept[AssertionError](UInt(5L) - UInt(4294967295L))
+    intercept[AssertionError](UInt(4294967295L * 10))
+    intercept[AssertionError](UInt(4294967294L) + UInt(10))
+    intercept[AssertionError](UInt(-1) * UInt(2))
+    intercept[AssertionError](UInt(-3) + UInt(5) == UInt(2))
   }
 }

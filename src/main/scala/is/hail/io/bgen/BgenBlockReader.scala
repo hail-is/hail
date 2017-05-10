@@ -1,95 +1,13 @@
 package is.hail.io.bgen
 
-import java.util.zip.Inflater
-
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.io._
-import is.hail.io.gen.GenReport._
-import is.hail.variant.{DosageGenotype, Genotype, Variant}
+import is.hail.variant.Variant
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 
-class BgenRecord(compressed: Boolean,
-  nSamples: Int,
-  tolerance: Double) extends KeySerializedValueRecord[Variant, Iterable[Genotype]] {
-  var ann: Annotation = _
-
-  def setAnnotation(ann: Annotation) {
-    this.ann = ann
-  }
-
-  def getAnnotation: Annotation = ann
-
-  override def getValue: Iterable[Genotype] = {
-    require(input != null, "called getValue before serialized value was set")
-
-    val bytes =
-      if (compressed) {
-        val expansion = Array.ofDim[Byte](nSamples * 6)
-        val inflater = new Inflater
-        inflater.setInput(input)
-        var off = 0
-        while (off < expansion.length) {
-          off += inflater.inflate(expansion, off, expansion.length - off)
-        }
-        expansion
-      } else
-        input
-
-    assert(bytes.length == nSamples * 6)
-
-    resetWarnings()
-
-    val lowerTol = (32768 * (1.0 - tolerance) + 0.5).toInt
-    val upperTol = (32768 * (1.0 + tolerance) + 0.5).toInt
-    assert(lowerTol > 0)
-
-    val noCall: Genotype = new DosageGenotype(-1, null)
-
-    new Iterable[Genotype] {
-      def iterator = new Iterator[Genotype] {
-        var i = 0
-
-        def hasNext: Boolean = i < bytes.length
-
-        def next(): Genotype = {
-          val d0 = (bytes(i) & 0xff) | ((bytes(i + 1) & 0xff) << 8)
-          val d1 = (bytes(i + 2) & 0xff) | ((bytes(i + 3) & 0xff) << 8)
-          val d2 = (bytes(i + 4) & 0xff) | ((bytes(i + 5) & 0xff) << 8)
-
-          i += 6
-
-          val dsum = d0 + d1 + d2
-          if (dsum >= lowerTol) {
-            if (dsum <= upperTol) {
-              val px =
-                if (dsum == 32768)
-                  Array(d0, d1, d2)
-                else
-                  Genotype.weightsToLinear(d0, d1, d2)
-              val gt = Genotype.unboxedGTFromLinear(px)
-              new DosageGenotype(gt, px)
-            } else {
-              setWarning(dosageGreaterThanTolerance)
-              noCall
-            }
-          } else {
-            if (dsum == 0)
-              setWarning(dosageNoCall)
-            else
-              setWarning(dosageLessThanTolerance)
-
-            noCall
-          }
-        }
-      }
-    }
-  }
-}
-
-class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[BgenRecord](job, split) {
+abstract class BgenBlockReader[T <: BgenRecord](job: Configuration, split: FileSplit) extends IndexedBinaryBlockReader[T](job, split) {
   val file = split.getPath
   val bState = BgenLoader.readState(bfis)
   val indexPath = file + ".idx"
@@ -99,7 +17,7 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
 
   seekToFirstBlockInSplit(split.getStart)
 
-  override def createValue(): BgenRecord = new BgenRecord(bState.compressed, bState.nSamples, tolerance)
+  override def createValue(): T
 
   def seekToFirstBlockInSplit(start: Long) {
     pos = btree.queryIndex(start) match {
@@ -111,7 +29,13 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
     bfis.seek(pos)
   }
 
-  def next(key: LongWritable, value: BgenRecord): Boolean = {
+  def next(key: LongWritable, value: T): Boolean
+}
+
+class BgenBlockReaderV11(job: Configuration, split: FileSplit) extends BgenBlockReader[BgenRecordV11](job, split) {
+  override def createValue(): BgenRecordV11 = new BgenRecordV11(bState.compressed, bState.nSamples, tolerance)
+
+  override def next(key: LongWritable, value: BgenRecordV11): Boolean = {
     if (pos >= end)
       false
     else {
@@ -147,6 +71,61 @@ class BgenBlockReader(job: Configuration, split: FileSplit) extends IndexedBinar
       value.setKey(variant)
       value.setAnnotation(Annotation(rsid, lid))
       value.setSerializedValue(bytesInput)
+
+      pos = bfis.getPosition
+      true
+    }
+  }
+}
+
+class BgenBlockReaderV12(job: Configuration, split: FileSplit) extends BgenBlockReader[BgenRecordV12](job, split) {
+  override def createValue(): BgenRecordV12 = new BgenRecordV12(bState.compressed, bState.nSamples, tolerance)
+
+  override def next(key: LongWritable, value: BgenRecordV12): Boolean = {
+    if (pos >= end)
+      false
+    else {
+      val lid = bfis.readLengthAndString(2)
+      val rsid = bfis.readLengthAndString(2)
+      val chr = bfis.readLengthAndString(2)
+      val position = bfis.readInt()
+
+      val nAlleles = bfis.readShort()
+      assert(nAlleles >= 2, s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant '$lid'")
+      val nAltAlleles = nAlleles - 1
+
+      val ref = bfis.readLengthAndString(4)
+      val altAlleles = new Array[String](nAltAlleles)
+
+      var altIndex = 0
+      while (altIndex < nAltAlleles) {
+        altAlleles(altIndex) = bfis.readLengthAndString(4)
+        altIndex += 1
+      }
+
+      val recodedChr = chr match {
+        case "23" => "X"
+        case "24" => "Y"
+        case "25" => "X"
+        case "26" => "MT"
+        case x => x
+      }
+
+      val variant = Variant(recodedChr, position, ref, altAlleles)
+
+      val dataSize = bfis.readInt()
+
+      val (uncompressedSize, bytesInput) =
+        if (bState.compressed)
+          (bfis.readInt(), bfis.readBytes(dataSize - 4))
+        else
+          (dataSize, bfis.readBytes(dataSize))
+
+      value.setKey(variant)
+      value.setAnnotation(Annotation(rsid, lid))
+      value.setSerializedValue(bytesInput)
+      value.setExpectedDataSize(uncompressedSize)
+      value.setExpectedNumAlleles(nAlleles)
 
       pos = bfis.getPosition
       true

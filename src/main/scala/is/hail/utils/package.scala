@@ -3,6 +3,7 @@ package is.hail
 import java.io._
 import java.lang.reflect.Method
 import java.net.URI
+import java.util.zip.Inflater
 
 import is.hail.check.Gen
 import org.apache.commons.io.output.TeeOutputStream
@@ -460,5 +461,16 @@ package object utils extends Logging
       i += 1
     }
     s
+  }
+
+  def decompress(input: Array[Byte], size: Int): Array[Byte] = {
+    val expansion = new Array[Byte](size)
+    val inflater = new Inflater
+    inflater.setInput(input)
+    var off = 0
+    while (off < expansion.length) {
+      off += inflater.inflate(expansion, off, expansion.length - off)
+    }
+    expansion
   }
 }

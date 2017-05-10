@@ -14,9 +14,9 @@ import scala.collection.mutable
 import scala.io.Source
 
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
-  headerLength: Int, dataStart: Int, hasIds: Boolean)
+  headerLength: Int, dataStart: Int, hasIds: Boolean, version: Int)
 
-case class BgenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(LongWritable, BgenRecord)])
+case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: Int, rdd: RDD[(LongWritable, T)])
 
 object BgenLoader {
 
@@ -29,7 +29,7 @@ object BgenLoader {
     val duplicateIds = samples.duplicates().toArray
     if (duplicateIds.nonEmpty) {
       val n = duplicateIds.length
-      warn(s"""found $n duplicate sample ${plural(n, "ID")}
+      warn(s"""found $n duplicate sample ${ plural(n, "ID") }
                |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
@@ -42,9 +42,16 @@ object BgenLoader {
       val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
       val bState = readState(sc.hadoopConfiguration, file)
       GenReport.accumulators ::= (file, reportAcc)
-      BgenResult(file, bState.nSamples, bState.nVariants,
-        sc.hadoopFile(file, classOf[BgenInputFormat], classOf[LongWritable], classOf[BgenRecord],
-          nPartitions.getOrElse(sc.defaultMinPartitions)))
+
+      bState.version match {
+        case 1 =>
+          BgenResult(file, bState.nSamples, bState.nVariants,
+            sc.hadoopFile(file, classOf[BgenInputFormatV11], classOf[LongWritable], classOf[BgenRecordV11], nPartitions.getOrElse(sc.defaultMinPartitions)))
+        case 2 =>
+          BgenResult(file, bState.nSamples, bState.nVariants,
+            sc.hadoopFile(file, classOf[BgenInputFormatV12], classOf[LongWritable], classOf[BgenRecordV12], nPartitions.getOrElse(sc.defaultMinPartitions)))
+        case x => fatal(s"Hail does not support BGEN v1.$x.")
+      }
     }
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
@@ -101,21 +108,27 @@ object BgenLoader {
       for (i <- 1 to bState.nVariants) {
         reader.seek(position)
 
-        val nRow = reader.readInt()
+        if (bState.version == 1)
+          reader.readInt() // nRows for v1.1 only
 
         val snpid = reader.readLengthAndString(2)
         val rsid = reader.readLengthAndString(2)
         val chr = reader.readLengthAndString(2)
         val pos = reader.readInt()
 
-        reader.readLengthAndString(4) // read an allele
-        reader.readLengthAndString(4) // read an allele
+        val nAlleles = if (bState.version == 2) reader.readShort() else 2
+        assert(nAlleles >= 2, s"Number of alleles must be greater than or equal to 2. Found $nAlleles alleles for variant '$snpid'")
+        (0 until nAlleles).foreach { i => reader.readLengthAndString(4) }
 
-
-        position = if (bState.compressed)
-          reader.readInt() + reader.getPosition
-        else
-          reader.getPosition + 6 * bState.nSamples
+        position = bState.version match {
+          case 1 =>
+            if (bState.compressed)
+              reader.readInt() + reader.getPosition
+            else
+              reader.getPosition + 6 * bState.nSamples
+          case 2 =>
+            reader.readInt() + reader.getPosition
+        }
 
         dataBlockStarts(i) = position
       }
@@ -194,12 +207,18 @@ object BgenLoader {
       reader.skipBytes(headerLength.toInt - 20)
 
     val flags = reader.readInt()
-    val compression = (flags & 1) != 0
-    val version = flags >> 2 & 0xf
-    if (version != 1)
-      fatal(s"Hail supports BGEN version 1.1, got version 1.$version")
+    val compressType = flags & 3
 
-    val hasIds = (flags >> 30 & 1) != 0
-    BgenHeader(compression, nSamples, nVariants, headerLength, dataStart, hasIds)
+    if (compressType != 0 && compressType != 1)
+      fatal(s"Hail only supports zlib compression.")
+
+    val isCompressed = compressType != 0
+
+    val version = flags >> 2 & 0xf
+    if (version != 1 && version != 2)
+      fatal(s"Hail supports BGEN version 1.1 and 1.2, got version 1.$version")
+
+    val hasIds = (flags >> 31 & 1) != 0
+    BgenHeader(isCompressed, nSamples, nVariants, headerLength, dataStart, hasIds, version)
   }
 }
