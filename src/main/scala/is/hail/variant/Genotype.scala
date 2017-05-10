@@ -587,33 +587,23 @@ object Genotype {
     r
   }
 
-  def weightsToLinear(a: Array[UInt])(implicit uct: ClassTag[UInt]): Array[Int] = {
-    val n = a.length
-    val r = new Array[Int](a.length)
-    val s = a.sum.toDouble
-    assert(s >= 0)
-    var aAcc = 0.0
-    var rAcc = 0
-    for (i <- 0 until n) {
-      aAcc += a(i).toDouble
-      val t = (aAcc * 32768 / s + 0.5).toInt
-      r(i) = t - rAcc
-      rAcc = t
-    }
-    assert(rAcc == 32768)
-    r
-  }
-
   def weightsToLinear(a: Array[Int]): Array[Int] = {
     val n = a.length
     val r = new Array[Int](a.length)
-    val s = a.sum.toDouble
+
+    var s = UInt(0)
+    var i = 0
+    while (i < a.length) {
+      s += a(i).toUIntNoCheck
+      i += 1
+    }
+
     assert(s >= 0)
     var aAcc = 0.0
     var rAcc = 0
     for (i <- 0 until n) {
-      aAcc += a(i).toDouble
-      val t = (aAcc * 32768 / s + 0.5).toInt
+      aAcc += a(i).toUIntNoCheck.toDouble
+      val t = (aAcc * 32768 / s.toDouble + 0.5).toInt
       r(i) = t - rAcc
       rAcc = t
     }
@@ -621,25 +611,8 @@ object Genotype {
     r
   }
 
-  def weightsToLinear(w0: Int, w1: Int, w2: Int): Array[Int] = {
-    val sum = w0 + w1 + w2
-    assert(sum > 0)
-
-    val l0 = (w0.toDouble * 32768 / sum + 0.5).toInt
-    val l1 = ((w0 + w1).toDouble * 32768 / sum + 0.5).toInt - l0
-    val l2 = 32768 - l0 - l1
-    Array(l0, l1, l2)
-  }
-
-  def weightsToLinear(w0: UInt, w1: UInt, w2: UInt)(implicit uct: ClassTag[UInt]): Array[Int] = {
-    val sum = w0 + w1 + w2
-    assert(sum > UInt(0))
-
-    val l0 = (w0.toDouble * 32768 / sum.toDouble + 0.5).toInt
-    val l1 = ((w0 + w1).toDouble * 32768 / sum.toDouble + 0.5).toInt - l0
-    val l2 = 32768 - l0 - l1
-    Array(l0, l1, l2)
-  }
+  def weightsToLinear(w0: Int, w1: Int, w2: Int): Array[Int] =
+    weightsToLinear(w0.toUIntNoCheck.toDouble, w1.toUIntNoCheck.toDouble, w2.toUIntNoCheck.toDouble)
 
   def weightsToLinear(w0: Double, w1: Double, w2: Double): Array[Int] = {
     val sum = w0 + w1 + w2

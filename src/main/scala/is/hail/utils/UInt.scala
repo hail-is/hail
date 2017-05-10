@@ -1,5 +1,7 @@
 package is.hail.utils
 
+import scala.reflect.ClassTag
+
 object UInt {
   def apply(i: Int): UInt = {
     assert(i >= 0, s"UInt cannot be constructed from negative integers. Found $i.")
@@ -10,6 +12,8 @@ object UInt {
     assert((l >>> 32) == 0, s"Long value does not fit in UInt. Found $l.")
     new UInt(l.toInt)
   }
+
+  def applyUnchecked(i: Int): UInt = new UInt(i)
 
   implicit val numeric: Numeric[UInt] = new Numeric[UInt] {
     override def plus(x: UInt, y: UInt): UInt = x + y
@@ -46,6 +50,8 @@ class UInt private(val i: Int) extends AnyVal {
     if (l == r) 0 else if (l > r) 1 else -1
   }
 
+  def intRep: Int = i
+
   def +(right: UInt): UInt = UInt(toLong + right.toLong)
 
   def -(right: UInt): UInt = UInt(toLong - right.toLong)
@@ -54,17 +60,23 @@ class UInt private(val i: Int) extends AnyVal {
 
   def /(right: UInt): UInt = UInt(toLong / right.toLong)
 
-  def <=(right: UInt): Boolean = toLong <= right.toLong
+  def <=(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong <= right.toLong
+  def <=(right: Int): Boolean = toLong <= right
 
-  def >=(right: UInt): Boolean = toLong >= right.toLong
+  def >=(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong >= right.toLong
+  def >=(right: Int): Boolean = toLong >= right
 
-  def <(right: UInt): Boolean = toLong < right.toLong
+  def <(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong < right.toLong
+  def <(right: Int): Boolean = toLong < right
 
-  def >(right: UInt): Boolean = toLong > right.toLong
+  def >(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong > right.toLong
+  def >(right: Int): Boolean = toLong > right
 
-  def ==(right: UInt): Boolean = toLong == right.toLong
+  def ==(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong == right.toLong
+  def ==(right: Int): Boolean = toLong == right
 
-  def !=(right: UInt): Boolean = toLong != right.toLong
+  def !=(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong != right.toLong
+  def !=(right: Int): Boolean = toLong != right
 
   def toInt: Int = {
     assert(i >= 0)
