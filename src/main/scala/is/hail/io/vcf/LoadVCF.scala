@@ -18,7 +18,7 @@ import scala.io.Source
 import scala.reflect.ClassTag
 
 case class VCFSettings(storeGQ: Boolean = false,
-  skipGenotypes: Boolean = false,
+  dropSamples: Boolean = false,
   ppAsPL: Boolean = false,
   skipBadAD: Boolean = false)
 
@@ -198,7 +198,7 @@ object LoadVCF {
     file1: String,
     files: Array[String] = null,
     nPartitions: Option[Int] = None,
-    skipGenotypes: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
+    dropSamples: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
     val hConf = hc.hadoopConf
     val sc = hc.sc
     val headerLines = hConf.readFile(file1) { s =>
@@ -253,7 +253,7 @@ object LoadVCF {
            |  found: @1""".stripMargin, headerLine)
 
     val sampleIds: Array[String] =
-      if (skipGenotypes)
+      if (dropSamples)
         Array.empty
       else
         headerLine

@@ -99,7 +99,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
 
     val nAlleles = v.nAlleles
 
-    if (vcfSettings.skipGenotypes)
+    if (vcfSettings.dropSamples)
       return (v, (va, Iterable.empty))
 
     val gb = new GenotypeBuilder(v.nAlleles, false) // FIXME: make dependent on fields in genotypes; for now, assumes PLs
