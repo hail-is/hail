@@ -19,7 +19,7 @@ import scala.collection.mutable
 
 object GenericDataset {
   def read(hc: HailContext, dirname: String, metadata: VariantMetadata, parquetGenotypes: Boolean,
-    skipGenotypes: Boolean = false, skipVariants: Boolean = false): GenericDataset = {
+    dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset = {
 
     val sqlContext = hc.sqlContext
     val sc = hc.sc
@@ -36,10 +36,10 @@ object GenericDataset {
 
     val parquetFile = dirname + "/rdd.parquet"
 
-    val orderedRDD = if (skipVariants)
+    val orderedRDD = if (dropVariants)
       OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Annotation])](sc)
     else {
-      val rdd = if (skipGenotypes)
+      val rdd = if (dropSamples)
         sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
           .map(row => (row.getVariant(0),
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
@@ -69,7 +69,7 @@ object GenericDataset {
     }
 
     new VariantSampleMatrix[Annotation](hc,
-      if (skipGenotypes) metadata.copy(sampleIds = IndexedSeq.empty[String],
+      if (dropSamples) metadata.copy(sampleIds = IndexedSeq.empty[String],
         sampleAnnotations = IndexedSeq.empty[Annotation])
       else metadata,
       orderedRDD)
