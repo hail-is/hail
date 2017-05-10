@@ -1,12 +1,10 @@
 package is.hail.variant
 
 import java.nio.ByteBuffer
-import java.util
 
-import scala.collection.JavaConverters._
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.expr.{EvalContext, TAggregable, _}
+import is.hail.expr._
 import is.hail.io._
 import is.hail.io.annotators.{BedAnnotator, IntervalListAnnotator}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
@@ -150,6 +148,8 @@ object VSMSubgen {
 class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   val rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) extends JoinAnnotator {
 
+  type RowT = (Variant, (Annotation, Iterable[T]))
+
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
@@ -242,7 +242,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val signature = TStruct((keyName -> keyType) +: sampleIds.map(id => id -> resultType): _*)
 
-    new KeyTable(hc, ktRDD, signature, keyNames = Array(keyName))
+    new KeyTable(hc, ktRDD, signature, key = Array(keyName))
   }
 
   def aggregateBySample[U](zeroValue: U)(
@@ -1009,6 +1009,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateVariants(other.variantsAndAnnotations, finalType, inserter)
   }
 
+  def count(): (Long, Long) = (nSamples, variants.count())
+
   def countVariants(): Long = variants.count()
 
   def variants: RDD[Variant] = rdd.keys
@@ -1033,10 +1035,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def deleteVA(args: String*): (Type, Deleter) = deleteVA(args.toList)
 
   def deleteVA(path: List[String]): (Type, Deleter) = vaSignature.delete(path)
-
-  def downsampleVariants(keep: Long): VariantSampleMatrix[T] = {
-    sampleVariants(keep.toDouble / countVariants())
-  }
 
   def dropSamples(): VariantSampleMatrix[T] =
     copy(sampleIds = IndexedSeq.empty[String],
@@ -1177,8 +1175,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       copy(rdd = rdd.filterIntervals(iList))
     else {
       val iListBc = sparkContext.broadcast(iList)
-      filterVariants { (v, va, gs) => !iListBc.value.contains(v.locus)
-      }
+      filterVariants { (v, va, gs) => !iListBc.value.contains(v.locus) }
     }
   }
 
@@ -1269,22 +1266,61 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     filterVariants(p)
   }
 
-  def filterVariantsList(input: String, keep: Boolean): VariantSampleMatrix[T] = {
-    copy(
-      rdd = rdd
-        .orderedLeftJoinDistinct(Variant.variantUnitRdd(sparkContext, input).toOrderedRDD)
-        .mapPartitions({ it =>
-          it.flatMap { case (v, ((va, gs), o)) =>
-            o match {
-              case Some(_) =>
-                if (keep) Some((v, (va, gs))) else None
-              case None =>
-                if (keep) None else Some((v, (va, gs)))
-            }
+  def filterVariantsList(variants: java.util.ArrayList[Variant], keep: Boolean): VariantSampleMatrix[T] =
+    filterVariantsList(variants.asScala.toSet, keep)
+
+  def filterVariantsList(variants: Set[Variant], keep: Boolean): VariantSampleMatrix[T] = {
+    if (keep) {
+      val partitionVariants = variants
+        .groupBy(v => rdd.orderedPartitioner.getPartition(v))
+        .toArray
+        .sortBy(_._1)
+
+      val adjRDD = new AdjustedPartitionsRDD[RowT](rdd,
+        partitionVariants.map { case (oldPart, variantsSet) =>
+          Array(Adjustment[RowT](oldPart,
+            _.filter { case (v, _) =>
+              variantsSet.contains(v)
+            }))
+        })
+
+      val adjRangeBounds =
+        if (partitionVariants.isEmpty)
+          Array.empty[Locus]
+        else
+          partitionVariants.init.map { case (oldPart, _) =>
+            rdd.orderedPartitioner.rangeBounds(oldPart)
           }
-        }, preservesPartitioning = true)
-        .asOrderedRDD
-    )
+
+      copy(rdd = OrderedRDD(adjRDD, OrderedPartitioner(adjRangeBounds, partitionVariants.length)(
+        rdd.kOk)))
+    } else {
+      val variantsBc = hc.sc.broadcast(variants)
+      filterVariants { case (v, _, _) => !variantsBc.value.contains(v) }
+    }
+  }
+
+  def filterVariantsKT(kt: KeyTable, keep: Boolean): VariantSampleMatrix[T] = {
+    if (kt.keyFields.length != 1 || kt.keyFields(0).typ != TVariant)
+      fatal(
+        s"""Filtering variants requires a key table with one Variant key.
+           |  Got key table with key signature:
+           |${ kt.keySignature.toPrettyString(indent = 2) }""".stripMargin)
+
+    val keyIndex = kt.signature.fieldIdx(kt.key.head)
+
+    val ktVariantRDD = kt.rdd.map { r =>
+      (r.get(keyIndex).asInstanceOf[Variant], ())
+    }.filter(_._1 != null)
+      .toOrderedRDD
+
+    copy(rdd = rdd.orderedLeftJoinDistinct(ktVariantRDD)
+      .mapPartitions(_.filter { case (_, (_, o)) =>
+        Filter.keepThis(o.isDefined, keep)
+      }.map { case (v, (vags, _)) =>
+        (v, vags)
+      }, preservesPartitioning = true)
+      .asOrderedRDD)
   }
 
   def sparkContext: SparkContext = hc.sc
@@ -1840,8 +1876,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       .forall { case (s1, s2) => saSignature.valuesSimilar(s1, s2, tolerance) }
   }
 
-  def sampleVariants(fraction: Double): VariantSampleMatrix[T] =
-    copy(rdd = rdd.sample(withReplacement = false, fraction, 1).asOrderedRDD)
+  def sampleVariants(fraction: Double, seed: Int = 1): VariantSampleMatrix[T] ={
+    require(fraction > 0 && fraction < 1, s"the 'fraction' parameter must fall between 0 and 1, found $fraction")
+    copy(rdd = rdd.sample(withReplacement = false, fraction, seed).asOrderedRDD)
+  }
 
   def copy[U](rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[U])] = rdd,
     sampleIds: IndexedSeq[String] = sampleIds,

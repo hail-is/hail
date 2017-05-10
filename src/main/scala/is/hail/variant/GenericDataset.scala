@@ -19,7 +19,7 @@ import scala.collection.mutable
 
 object GenericDataset {
   def read(hc: HailContext, dirname: String, metadata: VariantMetadata, parquetGenotypes: Boolean,
-    skipGenotypes: Boolean = false, skipVariants: Boolean = false): GenericDataset = {
+    dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset = {
 
     val sqlContext = hc.sqlContext
     val sc = hc.sc
@@ -36,10 +36,10 @@ object GenericDataset {
 
     val parquetFile = dirname + "/rdd.parquet"
 
-    val orderedRDD = if (skipVariants)
+    val orderedRDD = if (dropVariants)
       OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Annotation])](sc)
     else {
-      val rdd = if (skipGenotypes)
+      val rdd = if (dropSamples)
         sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
           .map(row => (row.getVariant(0),
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
@@ -69,7 +69,7 @@ object GenericDataset {
     }
 
     new VariantSampleMatrix[Annotation](hc,
-      if (skipGenotypes) metadata.copy(sampleIds = IndexedSeq.empty[String],
+      if (dropSamples) metadata.copy(sampleIds = IndexedSeq.empty[String],
         sampleAnnotations = IndexedSeq.empty[Annotation])
       else metadata,
       orderedRDD)
@@ -119,21 +119,6 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
 
   def coalesce(k: Int, shuffle: Boolean = true): GenericDataset =
     gds.copy(rdd = gds.rdd.coalesce(k, shuffle = shuffle)(null).toOrderedRDD)
-
-  def count(countGenotypes: Boolean = false): CountResult = {
-    val (nVariants, nCalled) =
-      if (countGenotypes) {
-        val (nVar, nCalled) = gds.rdd.map { case (v, (va, gs)) =>
-          (1L, gs.count(g => g != null).toLong)
-        }.fold((0L, 0L)) { (comb, x) =>
-          (comb._1 + x._1, comb._2 + x._2)
-        }
-        (nVar, Some(nCalled))
-      } else
-        (gds.countVariants, None)
-
-    CountResult(gds.nSamples, nVariants, nCalled)
-  }
 
   def exportGenotypes(path: String, expr: String, typeFile: Boolean, printMissing: Boolean = false) {
     val localPrintMissing = printMissing
@@ -264,4 +249,9 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     ))
   }
 
+  def summarize(): SummaryResult = {
+    gds.rdd
+      .aggregate(new SummaryCombiner[Annotation](_.count(_ != null)))(_.merge(_), _.merge(_))
+      .result(gds.nSamples)
+  }
 }

@@ -2,14 +2,12 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.expr.TDouble
-import is.hail.keytable.KeyTable
 import is.hail.utils._
+import is.hail.TestUtils._
 import is.hail.variant.VariantDataset
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class LinearRegressionBurdenSuite extends SparkSuite {
-
   /*
   vdsBurden is shared by testWeightedSum, testWeightedSumWithImputation, and testMax.
   Three genes overlap each other in the first 3 positions:
@@ -19,9 +17,9 @@ class LinearRegressionBurdenSuite extends SparkSuite {
   Gene1 ---
   Gene2   -
   Gene3 -----
-  */
 
-  /* The genotypes for the six complete samples:
+  Here are the genotypes for the six complete samples:
+
   Variant A       B       C       D       E       F
   1       0.0     1.0     0.0     0.0     0.0     1.0
   2         .     2.0       .     2.0     0.0     0.0
@@ -40,34 +38,21 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       root = Some("sa.cov"),
       config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
 
-  def makeMap[T](sampleKT: KeyTable): Map[T, IndexedSeq[java.lang.Double]] = sampleKT.collect().map { r =>
-    val s = r.asInstanceOf[Row].toSeq
-    s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq
-  }.toMap
-
-  def indexedSeqBoxDoubleEquals(tol: Double)(xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]): Boolean =
-    (xs, ys).zipped.forall { case (x, y) =>
-      if (x == null || y == null)
-        x == null && y == null
-      else
-        D_==(x.doubleValue(), y.doubleValue(), tolerance = tol)
-    }
-
   @Test def testWeightedSum() {
 
     val (linregKT, sampleKT) = vdsBurden.linregBurden("gene", "va.genes", singleKey = false,
       "gs.map(g => va.weight * g.gt).sum()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
-    val linregMap = makeMap[String](linregKT)
-    val sampleMap = makeMap[String](sampleKT)
+    val linregMap = keyTableBoxedDoubleToMap[String](linregKT)
+    val sampleMap = keyTableBoxedDoubleToMap[String](sampleKT)
 
     /*
     Sample  Cov1    Cov2    Pheno   Gene1   Gene2   Gene3
-    A       0.0     -1.0    1.0     0.0     0.0     0.0
+    A       0.0    -1.0     1.0     0.0     0.0     0.0
     B       2.0     3.0     1.0     5.0     4.0     5.0
     C       1.0     5.0     2.0     0.0     0.0     3.0
-    D       -2.0    0.0     2.0     4.0     4.0     7.0
-    E       -2.0    -4.0    2.0     0.0     0.0     3.0
+    D      -2.0     0.0     2.0     4.0     4.0     7.0
+    E      -2.0    -4.0     2.0     0.0     0.0     3.0
     F       4.0     3.0     2.0     1.0     0.0     1.0
     */
 
@@ -82,8 +67,8 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       2 -> IndexedSeq(0.0, 4.0, 0.0, 4.0, 0.0, 0.0),
       3 -> IndexedSeq(0.0, 5.0, 3.0, 7.0, 3.0, 1.0))
 
-    assert(mapSameElements(linregMapR.map{ case (k, v) => (s"Gene$k", v) }, linregMap, indexedSeqBoxDoubleEquals(1e-3)))
-    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxDoubleEquals(1e-6)))
+    assert(mapSameElements(linregMapR.map{ case (k, v) => (s"Gene$k", v) }, linregMap, indexedSeqBoxedDoubleEquals(1e-3)))
+    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxedDoubleEquals(1e-6)))
   }
 
   @Test def testWeightedSumWithImputation() {
@@ -95,16 +80,16 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       "gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()",
       "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
-    val linregMap = makeMap[String](linregKT)
-    val sampleMap = makeMap[String](sampleKT)
+    val linregMap = keyTableBoxedDoubleToMap[String](linregKT)
+    val sampleMap = keyTableBoxedDoubleToMap[String](sampleKT)
 
     /*
     Sample  Cov1    Cov2    Pheno   Gene1   Gene2   Gene3
-    A       0.0     -1.0    1.0     2.0     2.0     2.0
+    A       0.0    -1.0     1.0     2.0     2.0     2.0
     B       2.0     3.0     1.0     5.0     4.0     7.25
     C       1.0     5.0     2.0     2.0     2.0     5.0
-    D       -2.0    0.0     2.0     4.0     4.0     7.0
-    E       -2.0    -4.0    2.0     0.0     0.0     3.0
+    D      -2.0     0.0     2.0     4.0     4.0     7.0
+    E      -2.0    -4.0     2.0     0.0     0.0     3.0
     F       4.0     3.0     2.0     1.0     0.0     3.25
     */
 
@@ -119,24 +104,24 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       2 -> IndexedSeq(2.0, 4.0, 2.0, 4.0, 0.0, 0.0),
       3 -> IndexedSeq(2.0, 7.25, 5.0, 7.0, 3.0, 3.25))
 
-    assert(mapSameElements(linregMapR.map{ case (k, v) => (s"Gene$k", v) }, linregMap, indexedSeqBoxDoubleEquals(1e-3)))
-    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxDoubleEquals(1e-6)))
+    assert(mapSameElements(linregMapR.map{ case (k, v) => (s"Gene$k", v) }, linregMap, indexedSeqBoxedDoubleEquals(1e-3)))
+    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxedDoubleEquals(1e-6)))
     }
 
   @Test def testMax() {
     val (linregKT, sampleKT) = vdsBurden.linregBurden("gene", "va.genes", singleKey = false,
       "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
-    val linregMap = makeMap[String](linregKT)
-    val sampleMap = makeMap[String](sampleKT)
+    val linregMap = keyTableBoxedDoubleToMap[String](linregKT)
+    val sampleMap = keyTableBoxedDoubleToMap[String](sampleKT)
 
     /*
     Sample  Cov1    Cov2    Pheno   Gene1   Gene2   Gene3
-    A       0.0     -1.0    1.0     0.0       .     0.0
+    A       0.0    -1.0     1.0     0.0       .     0.0
     B       2.0     3.0     1.0     2.0     2.0     2.0
     C       1.0     5.0     2.0     0.0       .     1.0
-    D       -2.0    0.0     2.0     2.0     2.0     2.0
-    E       -2.0    -4.0    2.0     0.0     0.0     1.0
+    D      -2.0     0.0     2.0     2.0     2.0     2.0
+    E      -2.0    -4.0     2.0     0.0     0.0     1.0
     F       4.0     3.0     2.0     1.0     0.0     1.0
     */
 
@@ -152,8 +137,8 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       3 -> IndexedSeq(0.0, 2.0, 1.0, 2.0, 1.0, 1.0))
 
 
-    assert(mapSameElements(linregMapR.map{ case (k, v) => (s"Gene$k", v) }, linregMap, indexedSeqBoxDoubleEquals(1e-3)))
-    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxDoubleEquals(1e-6)))
+    assert(mapSameElements(linregMapR.map{ case (k, v) => (s"Gene$k", v) }, linregMap, indexedSeqBoxedDoubleEquals(1e-3)))
+    assert(mapSameElements(sampleMapR.map{ case (k, v) => (s"Gene$k", v) }, sampleMap, indexedSeqBoxedDoubleEquals(1e-6)))
   }
 
   @Test def testSingleVsArray() {
@@ -219,20 +204,32 @@ class LinearRegressionBurdenSuite extends SparkSuite {
     assert(linregKT same linregKT4)
     assert(sampleKT same sampleKT4)
 
-    val twiceSampleMap = makeMap[String](sampleKT).mapValues(_.map(v =>
+    val twiceSampleMap = keyTableBoxedDoubleToMap[String](sampleKT).mapValues(_.map(v =>
       if (v == null) null else box(2 * v.doubleValue())))
-    val onceSampleMap5 = makeMap[String](sampleKT5)
+    val onceSampleMap5 = keyTableBoxedDoubleToMap[String](sampleKT5)
     assert(twiceSampleMap == onceSampleMap5)
 
     assert(linregKT6.nRows == 0)
     assert(sampleKT6.nRows == 0)
 
-    val sampleMap7 = makeMap[Int](sampleKT7)
+    val sampleMap7 = keyTableBoxedDoubleToMap[Int](sampleKT7)
     assert(sampleMap7.size == 10)
     assert(sampleMap7.forall { case (key, value) => value.forall(_ % key.asInstanceOf[Int] == 0) })
 
-    val sampleMap8 = makeMap[Double](sampleKT8)
+    val sampleMap8 = keyTableBoxedDoubleToMap[Double](sampleKT8)
     assert(sampleMap8.size == 10)
     assert(sampleMap8.forall { case (key, value) => value.forall(_ % key.asInstanceOf[Double] == 0) })
+  }
+
+  @Test def testFatals() {
+    interceptFatal("clashes with reserved linreg columns") {
+      vdsBurden.linregBurden("pval", "va.genes", singleKey = false,
+        "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    }
+
+    interceptFatal("clashes with a sample name") {
+      vdsBurden.linregBurden("A", "va.genes", singleKey = false,
+        "gs.map(g => g.gt.toDouble).max()", "sa.pheno.Pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    }
   }
 }

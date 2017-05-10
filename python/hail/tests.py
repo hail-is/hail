@@ -37,11 +37,11 @@ class ContextTests(unittest.TestCase):
 
         bgen = hc.import_bgen(test_resources + '/example.v11.bgen',
                               sample_file=test_resources + '/example.sample')
-        self.assertEqual(bgen.count()['nVariants'], 199)
+        self.assertEqual(bgen.count()[1], 199)
 
         gen = hc.import_gen(test_resources + '/example.gen',
                             sample_file=test_resources + '/example.sample')
-        self.assertEqual(gen.count()['nVariants'], 199)
+        self.assertEqual(gen.count()[1], 199)
 
         vcf = hc.import_vcf(test_resources + '/sample2.vcf').split_multi()
 
@@ -50,7 +50,7 @@ class ContextTests(unittest.TestCase):
         bfile = '/tmp/sample_plink'
         plink = hc.import_plink(
             bfile + '.bed', bfile + '.bim', bfile + '.fam')
-        self.assertEqual(vcf.count(genotypes=True), plink.count(genotypes=True))
+        self.assertEqual(vcf.count(), plink.count())
 
         vcf.write('/tmp/sample.vds', overwrite=True)
         vds = hc.read('/tmp/sample.vds')
@@ -61,8 +61,8 @@ class ContextTests(unittest.TestCase):
 
         bn = hc.balding_nichols_model(3, 10, 100, 8)
         bn_count = bn.count()
-        self.assertEqual(bn_count['nSamples'], 10)
-        self.assertEqual(bn_count['nVariants'], 100)
+        self.assertEqual(bn_count[0], 10)
+        self.assertEqual(bn_count[1], 100)
 
         self.assertEqual(hc.eval_expr_typed('[1, 2, 3].map(x => x * 2)'), ([2, 4, 6], TArray(TInt())))
         self.assertEqual(hc.eval_expr('[1, 2, 3].map(x => x * 2)'), [2, 4, 6])
@@ -96,7 +96,7 @@ class ContextTests(unittest.TestCase):
 
             dataset.write('/tmp/sample.vds', overwrite=True)
 
-            dataset.count(genotypes=True)
+            dataset.count()
 
             dataset.aggregate_intervals(test_resources + '/annotinterall.interval_list',
                                         'N = variants.count()',
@@ -152,24 +152,24 @@ class ContextTests(unittest.TestCase):
             (dataset.annotate_variants_vds(dataset, code='va.good = va.info.AF == vds.info.AF')
              .count())
 
-            downsampled = dataset.downsample_variants(20)
+            downsampled = dataset.sample_variants(0.10)
             downsampled.export_variants('/tmp/sample2_loci.tsv', 'chr = v.contig, pos = v.start')
             downsampled.export_variants('/tmp/sample2_variants.tsv', 'v')
 
             with open(test_resources + '/sample2.sample_list') as f:
                 samples = [s.strip() for s in f]
             (dataset.filter_samples_list(samples)
-             .count()['nSamples'] == 56)
+             .count()[0] == 56)
 
             dataset.export_vcf('/tmp/sample2.vcf.bgz')
 
-            self.assertEqual(dataset.drop_samples().count()['nSamples'], 0)
-            self.assertEqual(dataset.drop_variants().count()['nVariants'], 0)
+            self.assertEqual(dataset.drop_samples().count()[0], 0)
+            self.assertEqual(dataset.drop_variants().count()[1], 0)
 
             dataset_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
                                         test_resources + '/sample2.vcf'])
                          .deduplicate())
-            self.assertEqual(dataset_dedup.count()['nVariants'], 735)
+            self.assertEqual(dataset_dedup.count()[1], 735)
 
             (dataset.filter_samples_expr('pcoin(0.5)')
              .export_samples('/tmp/sample2.sample_list', 's'))
@@ -187,15 +187,17 @@ class ContextTests(unittest.TestCase):
             (dataset.filter_variants_intervals(IntervalTree.read(test_resources + '/annotinterall.interval_list'))
              .count())
 
-            self.assertEqual(dataset2.filter_variants_list(
-                test_resources + '/sample2_variants.tsv')
-                             .count()['nVariants'], 21)
+            self.assertEqual(dataset2.filter_variants_kt(
+                hc.import_keytable(test_resources + '/sample2_variants.tsv',
+                                   key='_0',
+                                   config=TextTableConfig(impute=True, noheader=True)))
+                             .count()[1], 21)
 
             m2 = {r._0: r._1 for r in hc.import_keytable(test_resources + '/sample2_rename.tsv',
                                                          config=TextTableConfig(noheader=True))
                 .collect()}
             self.assertEqual(dataset2.join(dataset2.rename_samples(m2))
-                             .count()['nSamples'], 200)
+                             .count()[0], 200)
 
             dataset._typecheck()
 
@@ -282,6 +284,8 @@ class ContextTests(unittest.TestCase):
         sample = hc.import_vcf(test_resources + '/sample.vcf')
         sample.cache()
 
+        sample.summarize().report()
+
         sample_split = sample.split_multi()
 
         sample2 = hc.import_vcf(test_resources + '/sample2.vcf')
@@ -296,15 +300,15 @@ class ContextTests(unittest.TestCase):
         print(glob[1][4])
         print(glob[4][0])
         print(glob[:][3])
-        concordance1.write('/tmp/foo.vds', overwrite=True)
-        concordance2.write('/tmp/foo.vds', overwrite=True)
+        concordance1.write('/tmp/foo.kt', overwrite=True)
+        concordance2.write('/tmp/foo.kt', overwrite=True)
 
         sample2_split.export_gen('/tmp/sample2.gen', 5)
         sample2_split.export_plink('/tmp/sample2')
 
         sample2.filter_multi().count()
 
-        sample2.split_multi().grm('/tmp/sample2.grm', 'gcta-grm-bin')
+        sample2.split_multi().grm().export_gcta_grm_bin('/tmp/sample2.grm')
 
         sample2.hardcalls().count()
 
@@ -375,7 +379,7 @@ class ContextTests(unittest.TestCase):
 
         # Variables
         self.assertEqual(kt.num_columns, 3)
-        self.assertEqual(kt.key_names[0], "Sample")
+        self.assertEqual(kt.key[0], "Sample")
         self.assertEqual(kt.column_names[2], "qPhen")
         self.assertEqual(kt.count_rows(), 100)
         kt.schema
@@ -800,7 +804,7 @@ class ContextTests(unittest.TestCase):
         bn2 = hc.balding_nichols_model(3, 1, 50, 1, seed=50)
 
         glob, samples, variants = bn1.concordance(bn2)
-        self.assertEqual(samples.sample_annotations[samples.sample_ids[0]].concordance, glob)
+        self.assertEqual(samples.collect()[0].concordance, glob)
 
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']

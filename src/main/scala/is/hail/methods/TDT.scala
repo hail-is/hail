@@ -41,7 +41,7 @@ object TDT {
   }
 
 
-  def calcTDTstat(t: Int, u: Int): Double = {
+  def calcTDTstat(t: Double, u: Double): Double = {
     // The TDT uses a McNemar based statistic (which is a 1 df Chi-Square).
     //        (t - u)^2
     //      -------------

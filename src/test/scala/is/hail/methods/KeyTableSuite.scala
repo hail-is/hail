@@ -40,14 +40,14 @@ class KeyTableSuite extends SparkSuite {
   @Test def testImportExport() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
-    val kt = hc.importKeyTable(List(inputFile), None, TextTableConfiguration()).keyBy(List("Sample", "Status"))
+    val kt = hc.importKeyTable(List(inputFile)).keyBy(List("Sample", "Status"))
     kt.export(sc, outputFile, null)
 
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toIndexedSeq)
 
     intercept[HailException] {
-      val kt = hc.importKeyTable(List(inputFile), None, TextTableConfiguration())
+      val kt = hc.importKeyTable(List(inputFile))
         .keyBy(List("Sample", "Status", "BadKeyName"))
     }
 
@@ -56,7 +56,7 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testAnnotate() = {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
-    val kt1 = hc.importKeyTable(List(inputFile), None, TextTableConfiguration(impute = true)).keyBy("Sample")
+    val kt1 = hc.importKeyTable(List(inputFile), config = TextTableConfiguration(impute = true)).keyBy("Sample")
     val kt2 = kt1.annotate("""qPhen2 = pow(qPhen, 2), NotStatus = Status == "CASE", X = qPhen == 5""")
     val kt3 = kt2.annotate("")
     val kt4 = kt3.select(kt3.fieldNames, Array("qPhen", "NotStatus"))
@@ -80,8 +80,8 @@ class KeyTableSuite extends SparkSuite {
     val kt3data = getDataAsMap(kt3)
     val kt4data = getDataAsMap(kt4)
 
-    assert(kt4.keyNames.toSet == Set("qPhen", "NotStatus") &&
-      kt4.fieldNames.toSet -- kt4.keyNames == Set("qPhen2", "X", "Sample", "Status") &&
+    assert(kt4.key.toSet == Set("qPhen", "NotStatus") &&
+      kt4.fieldNames.toSet -- kt4.key == Set("qPhen2", "X", "Sample", "Status") &&
       kt3data == kt4data
     )
 
@@ -111,8 +111,8 @@ class KeyTableSuite extends SparkSuite {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    val ktLeft = hc.importKeyTable(List(inputFile1), None, TextTableConfiguration(impute = true)).keyBy("Sample")
-    val ktRight = hc.importKeyTable(List(inputFile2), None, TextTableConfiguration(impute = true)).keyBy("Sample")
+    val ktLeft = hc.importKeyTable(List(inputFile1), config = TextTableConfiguration(impute = true)).keyBy("Sample")
+    val ktRight = hc.importKeyTable(List(inputFile2), config = TextTableConfiguration(impute = true)).keyBy("Sample")
 
     val ktLeftJoin = ktLeft.join(ktRight, "left")
     val ktRightJoin = ktLeft.join(ktRight, "right")
@@ -171,19 +171,19 @@ class KeyTableSuite extends SparkSuite {
     val inputFile1 = "src/test/resources/sampleAnnotations.tsv"
     val inputFile2 = "src/test/resources/sampleAnnotations2.tsv"
 
-    val ktLeft = hc.importKeyTable(List(inputFile1), None, TextTableConfiguration(impute = true)).keyBy("Sample")
-    val ktRight = hc.importKeyTable(List(inputFile2), None, TextTableConfiguration(impute = true))
+    val ktLeft = hc.importKeyTable(List(inputFile1), config = TextTableConfiguration(impute = true)).keyBy("Sample")
+    val ktRight = hc.importKeyTable(List(inputFile2), config = TextTableConfiguration(impute = true))
       .keyBy("Sample")
       .rename(Map("Sample" -> "sample"))
     val ktBad = ktRight.select(ktRight.fieldNames, Array("qPhen2"))
 
     intercept[HailException] {
       val ktJoinBad = ktLeft.join(ktBad, "left")
-      assert(ktJoinBad.keyNames sameElements Array("Sample"))
+      assert(ktJoinBad.key sameElements Array("Sample"))
     }
 
     val ktJoin = ktLeft.join(ktRight, "left")
-    assert(ktJoin.keyNames sameElements Array("Sample"))
+    assert(ktJoin.key sameElements Array("Sample"))
   }
 
   @Test def testAggregate() {
@@ -205,7 +205,7 @@ class KeyTableSuite extends SparkSuite {
     val result = Array(Array("Case", 12, 12, 16, 2L, 1L), Array("Control", 3, 3, 11, 2L, 0L))
     val resRDD = sc.parallelize(result.map(Row.fromSeq(_)))
     val resSignature = TStruct(("Status", TString), ("A", TInt), ("B", TInt), ("C", TInt), ("D", TLong), ("E", TLong))
-    val ktResult = KeyTable(hc, resRDD, resSignature, keyNames = Array("Status"))
+    val ktResult = KeyTable(hc, resRDD, resSignature, key = Array("Status"))
 
     assert(kt2 same ktResult)
 
@@ -259,16 +259,16 @@ class KeyTableSuite extends SparkSuite {
     val kt = KeyTable(hc, rdd, signature, keyNames)
 
     val select1 = kt.select(Array("field1"), Array("field1"))
-    assert((select1.keyNames sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
+    assert((select1.key sameElements Array("field1")) && (select1.fieldNames sameElements Array("field1")))
 
     val select2 = kt.select(Array("Sample", "field2", "field1"), Array("Sample"))
-    assert((select2.keyNames sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
+    assert((select2.key sameElements Array("Sample")) && (select2.fieldNames sameElements Array("Sample", "field2", "field1")))
 
     val select3 = kt.select(Array("field2", "field1", "Sample"), Array.empty[String])
-    assert((select3.keyNames sameElements Array.empty[String]) && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
+    assert((select3.key sameElements Array.empty[String]) && (select3.fieldNames sameElements Array("field2", "field1", "Sample")))
 
     val select4 = kt.select(Array.empty[String], Array.empty[String])
-    assert((select4.keyNames sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
+    assert((select4.key sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
 
     intercept[HailException](kt.select(Array.empty[String], Array("Sample")))
 
@@ -295,12 +295,12 @@ class KeyTableSuite extends SparkSuite {
     val result2 = Array(Array("Sample1", 9, 5), Array("Sample1", 1, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5),
       Array("Sample3", 3, 5), Array("Sample3", 4, 5))
     val resRDD2 = sc.parallelize(result2.map(Row.fromSeq(_)))
-    val ktResult2 = KeyTable(hc, resRDD2, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
+    val ktResult2 = KeyTable(hc, resRDD2, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), key = Array("Sample"))
 
     val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
       Array("Sample1", 1, 5), Array("Sample1", 1, 6), Array("Sample2", 3, 5), Array("Sample2", 3, 3))
     val resRDD3 = sc.parallelize(result3.map(Row.fromSeq(_)))
-    val ktResult3 = KeyTable(hc, resRDD3, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), keyNames = Array("Sample"))
+    val ktResult3 = KeyTable(hc, resRDD3, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), key = Array("Sample"))
 
     intercept[HailException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))

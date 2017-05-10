@@ -1,8 +1,10 @@
 package is.hail
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.VariantDataset
+import org.apache.spark.sql.Row
 
 object TestUtils {
 
@@ -60,4 +62,19 @@ object TestUtils {
       vds.nSamples,
       vds.countVariants.toInt,
       vds.rdd.map(_._2._2.map(_.gt.map(_.toDouble).getOrElse(Double.NaN))).collect().flatten)
+
+  def indexedSeqBoxedDoubleEquals(tol: Double)
+    (xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]): Boolean =
+    (xs, ys).zipped.forall { case (x, y) =>
+      if (x == null || y == null)
+        x == null && y == null
+      else
+        D_==(x.doubleValue(), y.doubleValue(), tolerance = tol)
+    }
+
+  def keyTableBoxedDoubleToMap[T](kt: KeyTable): Map[T, IndexedSeq[java.lang.Double]] =
+    kt.collect().map { r =>
+      val s = r.asInstanceOf[Row].toSeq
+      s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq
+    }.toMap
 }

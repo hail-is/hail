@@ -10,21 +10,23 @@ import org.apache.spark.rdd.RDD
 
 object LogisticRegression {
 
-  def apply(vds: VariantDataset, test: String, yExpr: String, covExpr: Array[String], root: String): VariantDataset = {
+  def apply(vds: VariantDataset,
+    test: String,
+    yExpr: String,
+    covExpr: Array[String],
+    root: String,
+    useDosages: Boolean): VariantDataset = {
+
     require(vds.wasSplit)
 
-    def tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> ScoreTest, "firth" -> FirthTest)
-
-    val logRegTest = tests(test)
+    val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
+      fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
-      fatal(s"For logistic regression, phenotype must be Boolean or numeric with all values equal to 0 or 1")
-
-    if (!tests.isDefinedAt(test))
-      fatal(s"Supported tests are ${ tests.keys.mkString(", ") }, got: $test")
+      fatal(s"For logistic regression, phenotype must be Boolean or numeric with all present values equal to 0 or 1")
 
     val n = y.size
     val k = cov.cols
@@ -39,7 +41,7 @@ object LogisticRegression {
     val nullFit = nullModel.fit()
 
     if (!nullFit.converged)
-      fatal("Failed to fit (unregulatized) logistic regression null model (covariates only): " + (
+      fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
         if (nullFit.exploded)
           s"exploded at Newton iteration ${ nullFit.nIter }"
         else
@@ -54,14 +56,19 @@ object LogisticRegression {
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(logRegTest.schema, pathVA)
-    val emptyStats = logRegTest.emptyStats
 
     vds.copy(rdd = vds.rdd.mapPartitions( { it =>
       val X = XBc.value.copy
       it.map { case (v, (va, gs)) =>
+        val isNotDegenerate =
+          if (useDosages)
+            RegressionUtils.setLastColumnToMaskedGts(X, gs.biallelicDosageGenotypeIterator, sampleMaskBc.value, useHardCalls=false)
+          else
+            RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator, sampleMaskBc.value, useHardCalls=true)
+
         val logregAnnot =
-          if (RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator, sampleMaskBc.value))
-            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation(emptyStats)
+          if (isNotDegenerate)
+            logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
           else
             null
 

@@ -61,8 +61,7 @@ object LinearRegressionMultiPheno {
         else
           RegressionUtils.toLinregHardCallStats(gs, yDummyBc.value, sampleMaskBc.value, combinedMinAC)
 
-      val linregAnnot = optStats.map { stats =>
-        val (x, xx, _) = stats
+      val linregAnnot = optStats.map { case (x, xx, _) =>
 
         val qtx: DenseVector[Double] = QtBc.value * x
         val qty: DenseMatrix[Double] = QtyBc.value
@@ -80,8 +79,7 @@ object LinearRegressionMultiPheno {
           se.toArray: IndexedSeq[Double],
           t.toArray: IndexedSeq[Double],
           p.toArray: IndexedSeq[Double])
-      }
-      .orNull
+      }.orNull
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))

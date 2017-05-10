@@ -2,9 +2,9 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.expr import Type, TGenotype
+from hail.expr import Type, TGenotype, TVariant
 from hail.representation import Interval, IntervalTree
-from hail.utils import TextTableConfig
+from hail.utils import TextTableConfig, Summary
 from hail.kinshipMatrix import KinshipMatrix
 from py4j.protocol import Py4JJavaError
 from decorator import decorator
@@ -345,7 +345,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        This command is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr` dynamically splits multi-allelic sites,
+        This method is similar to :py:meth:`.annotate_variants_expr`. :py:meth:`.annotate_alleles_expr` dynamically splits multi-allelic sites,
         evaluates each expression on each split allele separately, and for each expression annotates with an array with one element per alternate allele. In the splitting, genotypes are downcoded and each alternate allele is represented
         using its minimal representation (see :py:meth:`split_multi` for more details).
 
@@ -1284,72 +1284,106 @@ class VariantDataset(object):
         .. include:: requireTGenotype.rst
 
         **Example**
-
-        >>> concordance_pair = vds.concordance(hc.read('data/example2.vds'))
+        
+        >>> comparison_vds = hc.read('data/example2.vds')
+        >>> summary, samples, variants = vds.concordance(comparison_vds)
 
         **Notes**
 
-        The `concordance` command computes the genotype call concordance between two bialellic variant datasets. The concordance
-        results are stored in a global annotation of type Array[Array[Long]], which is a 5x5 table of counts with the
-        following mapping:
+        This method computes the genotype call concordance between two bialellic variant datasets. 
+        It performs an inner join on samples (only samples in both datasets will be considered), and an outer join
+        on variants. If a variant is only in one dataset, then each genotype is treated as "no data" in the other.
+        This method returns a tuple of three objects: a nested list of list of int with global concordance
+        summary statistics, a key table with sample concordance statistics, and a key table with variant concordance 
+        statistics.
+        
+        **Using the global summary result**
+        
+        The global summary is a list of list of int (conceptually a 5 by 5 matrix), 
+        where the indices have special meaning:
 
         0. No Data (missing variant)
         1. No Call (missing genotype call)
         2. Hom Ref
         3. Heterozygous
         4. Hom Var
-
-        The first index in array is the left dataset, the second is the right. For example, ``concordance[3][2]`` is the count of
-        genotypes which were heterozygous on the left and homozygous reference on the right. This command produces two new datasets
-        and returns them as a Python tuple. The first dataset contains the concordance statistics per variant. This dataset
-        **contains no genotypes** (sites-only). It contains a new variant annotation, ``va.concordance``. This is the concordance
-        table for each variant in the outer join of the two datasets -- if the variant is present in only one dataset, all
-        of the counts will lie in the axis ``va.concordance[0][:]`` (if it is missing on the left) or ``va.concordance.map(x => x[0])``
-        (if it is missing on the right). The variant annotations from the left and right datasets are included as ``va.left``
-        and ``va.right`` -- these will be missing on one side if a variant was only present in one dataset. This vds also contains
-        the global concordance statistics in ``global.concordance``, as well as the left and right global annotations in ``global.left``
-        and ``global.right``. The second dataset contains the concordance statistics per sample. This dataset **contains no variants**
-        (samples-only). It contains a new sample annotation, ``sa.concordance``. This is a concordance table whose sum is the total number
-        of variants in the outer join of the two datasets. The sum ``sa[0].sum`` is equal to the number of variants in the right dataset
-        but not the left, and the sum ``sa.concordance.map(x => x[0]).sum)`` is equal to the number of variants in the left dataset but
-        not the right. The sample annotations from the left and right datasets are included as ``sa.left`` and ``sa.right``. This dataset
-        also contains the global concordance statistics in ``global.concordance``, as well as the left and right global annotations in
-        ``global.left`` and ``global.right``.
-
-        **Notes**
-
-        Performs inner join on variants, outer join on samples.
-
+        
+        The first index is the state in the left dataset (the one on which concordance was called), and the second
+        index is the state in the right dataset (the argument to the concordance method call). Typical uses of 
+        the summary list are shown below.
+          
+        >>> summary, samples, variants = vds.concordance(hc.read('data/example2.vds'))
+        >>> left_homref_right_homvar = summary[2][4]
+        >>> left_het_right_missing = summary[3][1]
+        >>> left_het_right_something_else = sum(summary[3][:]) - summary[3][3]
+        >>> total_concordant = summary[2][2] + summary[3][3] + summary[4][4]
+        >>> total_discordant = sum([sum(s[2:]) for s in summary[2:]]) - total_concordant
+        
+        **Using the key table results**
+        
+        Columns of the sample key table:
+        
+           - **s** (*String*) -- Sample ID, key column.
+           - **nDiscordant** (*Long*) -- Count of discordant calls (see below for full definition).
+           - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
+             matching the structure of the global summary defined above.
+             
+        Columns of the variant key table:
+        
+           - **v** (*Variant*) -- Key column.
+           - **nDiscordant** (*Long*) -- Count of discordant calls (see below for full definition).
+           - **concordance** (*Array[Array[Long]]*) -- Array of concordance per state on left and right,
+             matches the structure of the global summary defined above.
+             
+        The two key tables produced by the concordance method can be queried with :py:meth:`.KeyTable.query`, 
+        exported to text with :py:meth:`.KeyTable.export`, and used to annotate a variant dataset with
+        :py:meth:`.VariantDataset.annotate_variants_keytable`, among other things.
+        
+        In these tables, the column **nDiscordant** is provided as a convenience, because this is often one
+        of the most useful concordance statistics. This value is the number of genotypes 
+        which were called (homozygous reference, heterozygous, or homozygous variant) in both datasets, 
+        but where the call did not match between the two.
+        
+        The column **concordance** matches the structure of the global summmary, which is detailed above. Once again,
+        the first index into this array is the state on the left, and the second index is the state on the right.
+        For example, ``concordance[1][4]`` is the number of "no call" genotypes on the left that were called 
+        homozygous variant on the right. 
+        
         :param right: right hand variant dataset for concordance
         :type right: :class:`.VariantDataset`
 
-        :return: The global concordance stats, a variant dataset with sample concordance
-            statistics, and a variant dataset with variant concordance statistics.
-        :rtype: (list of list of int, :py:class:`.VariantDataset`, :py:class:`.VariantDataset`)
+        :return: The global concordance statistics, a key table with sample concordance
+            statistics, and a key table with variant concordance statistics.
+        :rtype: (list of list of int, :py:class:`.KeyTable`, :py:class:`.KeyTable`)
         """
 
         r = self._jvdf.concordance(right._jvds)
         j_global_concordance = r._1()
-        sample_vds = VariantDataset(self.hc, r._2())
-        variant_vds = VariantDataset(self.hc, r._3())
+        sample_kt = KeyTable(self.hc, r._2())
+        variant_kt = KeyTable(self.hc, r._3())
         global_concordance = [[j_global_concordance.apply(j).apply(i) for i in xrange(5)] for j in xrange(5)]
 
-        return global_concordance, sample_vds, variant_vds
+        return global_concordance, sample_kt, variant_kt
 
     @handle_py4j
-    def count(self, genotypes=False):
-        """Returns number of samples, variants and genotypes in this vds as a dictionary with keys
-        ``'nSamples'``, ``'nVariants'``, and ``'nGenotypes'``.
-
-        :param bool genotypes: If true, include number of called
-            genotypes and genotype call rate as keys ``'nCalled'`` and ``'callRate'``, respectively. If the genotype
-            schema does not equal :py:class:`~hail.expr.TGenotype`, the definition of "called" is the genotype cell (``g``) is
-            not missing.
-
-        :rtype: dict
+    def count(self):
+        """Returns number of samples and variants in the dataset.
+        
+        **Examples**
+        
+        >>> samples, variants = vds.count()
+        
+        **Notes**
+        
+        This is also the fastest way to force evaluation of a Hail pipeline.
+        
+        :returns: The sample and variant counts.
+        :rtype: (int, int)
         """
 
-        return dict(self._jvdf.count(genotypes).toJavaMap())
+        r = self._jvds.count()
+
+        return r._1(), r._2()
 
     @handle_py4j
     def deduplicate(self):
@@ -1362,16 +1396,27 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deduplicate())
 
     @handle_py4j
-    def downsample_variants(self, keep):
-        """Downsample variants.
+    def sample_variants(self, fraction, seed=1):
+        """Downsample variants to a given fraction of the dataset.
+        
+        **Examples**
+        
+        >>> small_vds = vds.sample_variants(0.01)
+        
+        **Notes**
+        
+        This method may not sample exactly ``(fraction * n_variants)``
+        variants from the dataset.
 
-        :param int keep: (Expected) number of variants to keep.
+        :param float fraction: (Expected) fraction of variants to keep.
+
+        :param int seed: Random seed.
 
         :return: Downsampled variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvds.downsampleVariants(keep))
+        return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
     @requireTGenotype
@@ -1626,10 +1671,10 @@ class VariantDataset(object):
 
         **Designating output with an expression**
 
-        Much like the filtering methods, exporting allows flexible expressions
-        to be written on the command line. While the filtering methods expect an
+        Much like the filtering methods, this method uses the Hail expression language.
+        While the filtering methods expect an
         expression that evaluates to true or false, this method expects a
-        comma-separated list of fields to print. These fields *must* take the
+        comma-separated list of fields to print. These fields take the
         form ``IDENTIFIER = <expression>``.
 
 
@@ -2001,8 +2046,10 @@ class VariantDataset(object):
         >>> to_remove = [s.strip() for s in open('data/exclude_samples.txt')]
         >>> vds_result = vds.filter_samples_list(to_remove, keep=False)
     
-        :param input: List of samples to keep or remove.
-        :type input: list of str
+        :param samples: List of samples to keep or remove.
+        :type samples: list of str
+
+        :param bool keep: If true, keep samples in ``samples``, otherwise remove them.
     
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -2127,36 +2174,57 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def filter_variants_list(self, input, keep=True):
+    def filter_variants_list(self, variants, keep=True):
         """Filter variants with a list of variants.
 
         **Examples**
 
-        Keep all variants that occur in *data/variants.txt* (removing all other
-        variants):
+        Filter VDS down to a list of variants:
 
-        >>> vds_result = vds.filter_variants_list('data/variants.txt')
+        >>> vds.filter_variants_list([Variant.parse('20:10626633:G:GC'), Variant.parse('20:10019093:A:G')], keep=True)
 
-        Remove all variants that occur in *data/variants.txt*:
+        :param variants: List of variants to keep or remove.
+        :type variants: list of :py:class:`~hail.representation.Variant`
 
-        >>> vds_result = vds.filter_variants_list('data/variants.txt', keep=False)
-
-        **File Format**
-
-        Hail expects the given file to contain a variant per line following
-        format: ``contig:pos:ref:alt1,alt2,...,altN``.
-
-        :param str input: Path to variant list file.
+        :param bool keep: If true, keep variants in ``variants``, otherwise remove them.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
+        
         """
 
-        jvds = self._jvds.filterVariantsList(input, keep)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(
+            self.hc, self._jvds.filterVariantsList(
+                [TVariant()._convert_to_j(v) for v in variants], keep))
+
+    @handle_py4j
+    def filter_variants_kt(self, kt, keep=True):
+        """Filter variants with a Variant keyed key table.
+
+        **Example**
+
+        Filter variants of a VDS to those appearing in the Variant column of a TSV file:
+
+        >>> kt = hc.import_keytable('data/sample_variants.txt', key='Variant', config=TextTableConfig(impute=True))
+        >>> filtered_vds = vds.filter_variants_kt(kt, keep=True)
+
+        :param kt: Keep or remove ``kt`` keys.
+        :type kt: :py:class:`.KeyTable`
+
+        :param bool keep: If true, keep variants which appear as keys
+          in ``kt``, otherwise remove them.
+
+        :return: Filtered variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+
+        """
+
+        return VariantDataset(
+            self.hc, self._jvds.filterVariantsKT(kt._jkt, keep))
 
     @property
     def globals(self):
+
         """Return global annotations as a Python object.
 
         :return: Dataset global annotations.
@@ -2168,14 +2236,14 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def grm(self, output, format, id_file=None, n_file=None):
+    def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
         .. include:: requireTGenotype.rst
 
         **Examples**
         
-        >>> vds.grm('data/grm.rel', 'rel')
+        >>> km = vds.grm()
         
         **Notes**
         
@@ -2189,21 +2257,14 @@ class VariantDataset(object):
         
         .. math::
 
-          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
-        
-        The output formats are consistent with `PLINK formats <https://www.cog-genomics.org/plink2/formats>`__ as created by the `make-rel and make-grm commands <https://www.cog-genomics.org/plink2/distance#make_rel>`__ and used by `GCTA <http://cnsgenomics.com/software/gcta/estimate_grm.html>`__.
-
-        :param str output: Output file.
-
-        :param str format: Output format.  One of: 'rel', 'gcta-grm', 'gcta-grm-bin'.
-
-        :param str id_file: ID file.
-
-        :param str n_file: N file, for gcta-grm-bin only.
+          G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}  
+                
+        :return: Genetic Relatedness Matrix for all samples.
+        :rtype: :py:class:`KinshipMatrix`
         """
 
-        jvds = self._jvdf.grm(output, format, joption(id_file), joption(n_file))
-        return VariantDataset(self.hc, jvds)
+        jkm = self._jvdf.grm()
+        return KinshipMatrix(jkm)
 
     @handle_py4j
     @requireTGenotype
@@ -2493,7 +2554,6 @@ class VariantDataset(object):
         :rtype: VariantDataset
         """
 
-        memory_per_core = int(memory_per_core * 1024 * 1024)
         jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
         return VariantDataset(self.hc, jvds)
 
@@ -2512,7 +2572,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The :py:meth:`.linreg` command computes, for each variant, statistics of
+        The :py:meth:`.linreg` method computes, for each variant, statistics of
         the :math:`t`-test for the genotype coefficient of the linear function
         of best fit from sample genotype and covariates to quantitative
         phenotype or case-control status. Hail only includes samples for which
@@ -2526,7 +2586,7 @@ class VariantDataset(object):
         calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         Assuming there are sample annotations ``sa.pheno.height``,
-        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the command:
+        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the code:
 
         >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale', 'sa.cov.PC1'])
 
@@ -2547,7 +2607,7 @@ class VariantDataset(object):
         alternate alleles (AC) or alternate allele frequency (AF) at least
         :math:`p` in the included samples using the options ``minac=k`` or
         ``minaf=p``, respectively. Unlike the :py:meth:`.filter_variants_expr`
-        command, these filters do not remove variants from the underlying
+        method, these filters do not remove variants from the underlying
         variant dataset. Adding both filters is equivalent to applying the more
         stringent of the two, as AF equals AC over twice the number of included
         samples.
@@ -2616,7 +2676,7 @@ class VariantDataset(object):
         ...                    y='sa.burden.pheno',
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
-        Run a gene burden test using linear regression on the  weighted sum of genotypes per gene. Here ``va.gene`` is
+        Run a gene burden test using linear regression on the weighted sum of genotypes per gene. Here ``va.gene`` is
         a variant annotation of type String giving a single gene per variant (or no gene if missing), and ``va.weight``
         is a numeric variant annotation:
 
@@ -2664,12 +2724,12 @@ class VariantDataset(object):
            named by the sample ID.
 
         3) For each key, fit the linear regression model using the supplied phenotype and covariates.
-           The model is that of :py:meth:`.linreg` with sample genotype ``gt`` replaced by the scores in the sample
+           The model is that of :py:meth:`.linreg` with sample genotype ``gt`` replaced by the score in the sample
            key table. For each key, missing scores are mean-imputed across all samples.
 
            The resulting **linear regression key table** has the following columns:
 
-           - **key** (*String*) -- key of variant group
+           - value of ``key_name`` (*String*) -- descriptor of variant group key (key column)
            - **beta** (*Double*) -- fit coefficient, :math:`\hat\beta_1`
            - **se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
            - **tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
@@ -2685,17 +2745,17 @@ class VariantDataset(object):
         +--------+-------+------+------+
         | Sample | pheno | cov1 | cov2 |
         +========+=======+======+======+
-        |      A |     1 |    0 |   -1 |
+        |      A |     0 |    0 |   -1 |
         +--------+-------+------+------+
-        |      B |     1 |    2 |    3 |
+        |      B |     0 |    2 |    3 |
         +--------+-------+------+------+
-        |      C |     2 |    1 |    5 |
+        |      C |     1 |    1 |    5 |
         +--------+-------+------+------+
-        |      D |     2 |   -2 |    0 |
+        |      D |     1 |   -2 |    0 |
         +--------+-------+------+------+
-        |      E |     2 |   -2 |   -4 |
+        |      E |     1 |   -2 |   -4 |
         +--------+-------+------+------+
-        |      F |     2 |    4 |    3 |
+        |      F |     1 |    4 |    3 |
         +--------+-------+------+------+
 
         There are three variants with the following ``gt`` values:
@@ -2744,7 +2804,7 @@ class VariantDataset(object):
         |geneC|  0|  2|  1|  2|  1|  1|
         +-----+---+---+---+---+---+---+
 
-        Linear regression is done for each row using the supplied phenotype and covariates.
+        Linear regression is done for each row using the supplied phenotype, covariates, and implicit intercept.
         The resulting linear regression key table is:
 
         +------+-------+------+-------+------+
@@ -2891,7 +2951,7 @@ class VariantDataset(object):
 
         These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
 
-        If Step 5 is performed, :py:meth:`.lmmreg` also adds nine variant annotations.
+        If Step 5 is performed, :py:meth:`.lmmreg` also adds four linear regression variant annotations.
 
         +------------------------+--------+-------------------------------------------------------------------------+
         | Annotation             | Type   | Value                                                                   |
@@ -2903,16 +2963,6 @@ class VariantDataset(object):
         | ``va.lmmreg.chi2``     | Double | :math:`\chi^2` statistic of the likelihood ratio test                   |
         +------------------------+--------+-------------------------------------------------------------------------+
         | ``va.lmmreg.pval``     | Double | :math:`p`-value                                                         |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.AF``       | Double | minor allele frequency for included samples                             |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.nHomRef``  | Int    | count of HomRef genotypes for included samples                          |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.nHet``     | Int    | count of Het genotypes among for samples                                |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.nHomVar``  | Int    | count of HomVar genotypes for included samples                          |
-        +------------------------+--------+-------------------------------------------------------------------------+
-        | ``va.lmmreg.nMissing`` | Int    | count of missing genotypes for included samples                         |
         +------------------------+--------+-------------------------------------------------------------------------+
 
         Those variants that don't vary across the included samples (e.g., all genotypes are HomRef) will have missing annotations.
@@ -3028,12 +3078,12 @@ class VariantDataset(object):
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
 
-        :param kinshipMatrix: Kinship matrix to be used
+        :param kinshipMatrix: Kinship matrix to be used.
         :type kinshipMatrix: :class:`KinshipMatrix`
 
         :param str y: Response sample annotation.
 
-        :param covariates: List of covariate sample annotations
+        :param covariates: List of covariate sample annotations.
         :type covariates: list of str
 
         :param str global_root: Global annotation root, a period-delimited path starting with `global`.
@@ -3049,7 +3099,7 @@ class VariantDataset(object):
 
         :param float sparsity_threshold: AF threshold above which to use dense genotype vectors in rotation (advanced).
 
-        :return: Variant dataset with linear mixed regression annotations
+        :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
@@ -3060,27 +3110,35 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def logreg(self, test, y, covariates=[], root='va.logreg'):
+    def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
         """Test each variant for association using logistic regression.
 
         .. include:: requireTGenotype.rst
 
         **Examples**
 
-        Run the logistic regression Wald test per variant using a phenotype and two covariates stored in sample annotations:
+        Run the logistic regression Wald test per variant using a Boolean phenotype and two covariates stored
+        in sample annotations:
 
         >>> vds_result = vds.logreg('wald', 'sa.pheno.isCase', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
 
-        The :py:meth:`~hail.VariantDataset.logreg` command performs,
+        The :py:meth:`~hail.VariantDataset.logreg` method performs,
         for each variant, a significance test of the genotype in
         predicting a binary (case-control) phenotype based on the
-        logistic regression model. Hail supports the Wald test ('wald'),
-        likelihood ratio test ('lrt'), Rao score test ('score'), and Firth test ('firth'). Hail only
-        includes samples for which the phenotype and all covariates are
-        defined. For each variant, Hail imputes missing genotypes as
-        the mean of called genotypes.
+        logistic regression model. The phenotype type must either be numeric (with all
+        present values 0 or 1) or Boolean, in which case true and false are coded as 1 and 0, respectively.
+
+        Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
+        and Firth test ('firth'). Hail only includes samples for which the phenotype and all covariates are
+        defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
+
+        By default, genotypes values are given by hard call genotypes (``g.gt``).
+        If ``use_dosages=True``, then genotype values are given by dosage genotypes, defined by
+        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For any variant, if ``Variant.is_dosage``
+        is false, then :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
+        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         The example above considers a model of the form
 
@@ -3169,14 +3227,126 @@ class VariantDataset(object):
         :param covariates: list of covariate expressions
         :type covariates: list of str
 
-        :param str root: Variant annotation path to store result of linear regression.
+        :param str root: Variant annotation path to store result of logistic regression.
+
+        :param bool use_dosages: If true, use genotype dosage rather than hard call.
 
         :return: Variant dataset with logistic regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root)
+        jvds = self._jvdf.logreg(test, y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages)
         return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    def logreg_burden(self, key_name, variant_keys, single_key, agg_expr, test, y, covariates=[]):
+        r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
+        logistic regression model.
+
+        .. include:: requireTGenotype.rst
+
+        **Examples**
+
+        Run a gene burden test using the logistic Wald test on the maximum genotype per gene. Here ``va.genes`` is
+        a variant annotation of type Set[String] giving the set of genes containing the variant
+        (see **Extended example** in :py:meth:`.linreg_burden` for a deeper  dive in the context of linear regression):
+
+        >>> logreg_kt, sample_kt = (hc.read('data/example_burden.vds')
+        ...     .logreg_burden(key_name='gene',
+        ...                    variant_keys='va.genes',
+        ...                    single_key=False,
+        ...                    agg_expr='gs.map(g => g.gt).max()',
+        ...                    test='wald',
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
+
+        Run a gene burden test using the logistic score test on the weighted sum of genotypes per gene.
+        Here ``va.gene`` is a variant annotation of type String giving a single gene per variant (or no gene if
+        missing), and ``va.weight`` is a numeric variant annotation:
+
+        >>> logreg_kt, sample_kt = (hc.read('data/example_burden.vds')
+        ...     .logreg_burden(key_name='gene',
+        ...                    variant_keys='va.gene',
+        ...                    single_key=True,
+        ...                    agg_expr='gs.map(g => va.weight * g.gt).sum()',
+        ...                    test='score',
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
+
+        To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
+        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
+        is the allele frequency over those samples that have no missing phenotype or covariates.
+
+        .. caution::
+
+          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
+          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
+          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
+          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
+          variant annotation whose value is itself the key of interest. In bose cases, variants with missing keys are
+          ignored.
+
+        **Notes**
+
+        This method modifies :py:meth:`.logreg` by replacing the genotype covariate per variant and sample with
+        an aggregated (i.e., collapsed) score per key and sample. This numeric score is computed from the sample's
+        genotypes and annotations over all variants with that key. The phenotype type must either be numeric
+        (with all present values 0 or 1) or Boolean, in which case true and false are coded as 1 and 0, respectively.
+
+        Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao score test ('score'),
+        and Firth test ('firth') as the ``test`` parameter. Conceptually, the method proceeds as follows:
+
+        1) Filter to the set of samples for which all phenotype and covariates are defined.
+
+        2) For each key and sample, aggregate genotypes across variants with that key to produce a numeric score.
+           ``agg_expr`` must be of numeric type and has the following symbols are in scope:
+
+           - ``s`` (*Sample*): sample
+           - ``sa``: sample annotations
+           - ``global``: global annotations
+           - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
+
+           Note that ``v``, ``va``, and ``g`` are accessible through
+           `Aggregable methods <https://hail.is/hail/types.html#aggregable>`_ on ``gs``.
+
+           The resulting **sample key table** has key column ``key_name`` and a numeric column of scores for each sample
+           named by the sample ID.
+
+        3) For each key, fit the logistic regression model using the supplied phenotype, covariates, and test.
+           The model and tests are those of :py:meth:`.logreg` with sample genotype ``gt`` replaced by the
+           score in the sample key table. For each key, missing scores are mean-imputed across all samples.
+
+           The resulting **logistic regression key table** has key column of type String given by the ``key_name``
+           parameter and additional columns corresponding to the fields of the ``va.logreg`` schema given for ``test``
+           in :py:meth:`.logreg`.
+
+        :py:meth:`.logreg_burden` returns both the logistic regression key table and the sample key table.
+
+        :param str key_name: Name to assign to key column of returned key tables.
+
+        :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
+
+        :param bool single_key: if true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
+                                rather than as a collection of keys.
+
+        :param str agg_expr: Sample aggregation expression (per key).
+
+        :param str test: Statistical test, one of: 'wald', 'lrt', 'score', or 'firth'.
+
+        :param str y: Response expression.
+
+        :param covariates: list of covariate expressions.
+        :type covariates: list of str
+
+        :return: Tuple of logistic regression key table and sample aggregation key table.
+        :rtype: (:py:class:`.KeyTable`, :py:class:`.KeyTable`)
+        """
+
+        r = self._jvdf.logregBurden(key_name, variant_keys, single_key, agg_expr, test, y, jarray(Env.jvm().java.lang.String, covariates))
+        logreg_kt = KeyTable(self.hc, r._1())
+        sample_kt = KeyTable(self.hc, r._2())
+
+        return logreg_kt, sample_kt
 
     @handle_py4j
     @requireTGenotype
@@ -3404,7 +3574,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The :py:meth:`~hail.VariantDataset.persist` and :py:meth:`~hail.VariantDataset.cache` commands 
+        The :py:meth:`~hail.VariantDataset.persist` and :py:meth:`~hail.VariantDataset.cache` methods 
         allow you to store the current dataset on disk or in memory to avoid redundant computation and 
         improve the performance of Hail pipelines.
 
@@ -3921,6 +4091,43 @@ class VariantDataset(object):
         """
 
         return self._jvds.storageLevel()
+
+    @handle_py4j
+    @requireTGenotype
+    def summarize(self):
+        """Returns a summary of useful information about the dataset.
+        
+        .. include:: requireTGenotype.rst
+
+        
+        **Examples**
+        
+        >>> s = vds.summarize()
+        >>> print(s.contigs)
+        >>> print('call rate is %.2f' % s.call_rate)
+        >>> s.report()
+        
+        The following information is contained in the summary:
+        
+         - **samples** (*int*) - Number of samples.
+         - **variants** (*int*) - Number of variants.
+         - **call_rate** (*float*) - Fraction of all genotypes called.
+         - **contigs** (*list of str*) - List of all unique contigs found in the dataset.
+         - **multiallelics** (*int*) - Number of multiallelic variants.
+         - **snps** (*int*) - Number of SNP alternate alleles.
+         - **mnps** (*int*) - Number of MNP alternate alleles.
+         - **insertions** (*int*) - Number of insertion alternate alleles.
+         - **deletions** (*int*) - Number of deletions alternate alleles.
+         - **complex** (*int*) - Number of complex alternate alleles.
+         - **star** (*int*) - Number of star (upstream deletion) alternate alleles.
+         - **max_alleles** (*int*) - The highest number of alleles at any variant.
+         
+        :return: Object containing summary information.
+        :rtype: :class:`~hail.utils.Summary`
+        """
+
+        js = self._jvdf.summarize()
+        return Summary._from_java(js)
 
     @handle_py4j
     def set_va_attributes(self, ann_path, attributes):
@@ -4651,8 +4858,7 @@ class VariantDataset(object):
 
         return KeyTable(self.hc, self._jvds.genotypeKT())
 
-    @handle_py4j
-    def make_keytable(self, variant_expr, genotype_expr, key_names=[], separator='.'):
+    def make_keytable(self, variant_expr, genotype_expr, key=[], separator='.'):
         """Make a KeyTable with one row per variant.
 
         Per sample field names in the result are formed by
@@ -4704,8 +4910,8 @@ class VariantDataset(object):
         :param genotype_expr: Genotype annotation expressions.
         :type genotype_expr: str or list of str
 
-        :param key_names: list of key columns
-        :type key_names: list of str
+        :param key: List of key columns.
+        :type key: str or list of str
 
         :param str separator: Seperator to use between sample IDs and genotype expression left hand side identifiers.
 
@@ -4717,7 +4923,9 @@ class VariantDataset(object):
             variant_expr = ','.join(variant_expr)
         if isinstance(genotype_expr, list):
             genotype_expr = ','.join(genotype_expr)
+        if not isinstance(key, list):
+            key = [key]
 
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
-                                jarray(Env.jvm().java.lang.String, key_names), separator)
+                                jarray(Env.jvm().java.lang.String, key), separator)
         return KeyTable(self.hc, jkt)

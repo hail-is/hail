@@ -256,7 +256,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_keytable(self, path, npartitions=None, config=TextTableConfig()):
+    def import_keytable(self, path, key=[], npartitions=None, config=TextTableConfig()):
         """Import delimited text file (text table) as key table.
 
         The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
@@ -264,6 +264,9 @@ class HailContext(object):
 
         :param path: files to import.
         :type path: str or list of str
+
+        :param key: List of key columns.
+        :type key: str or list of str
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None
@@ -275,11 +278,16 @@ class HailContext(object):
         :rtype: :class:`.KeyTable`
         """
 
+        if not isinstance(key, list):
+            key = [key]
+
         if not config:
             config = TextTableConfig()
 
         jkt = self._jhc.importKeyTable(jindexed_seq_args(path),
-                                       joption(npartitions), config._to_java())
+                                       jarray(self._jvm.java.lang.String, key),
+                                       joption(npartitions),
+                                       config._to_java())
         return KeyTable(self, jkt)
 
     @handle_py4j
@@ -353,33 +361,34 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def read(self, path, sites_only=False, samples_only=False):
+    def read(self, path, drop_samples=False, drop_variants=False):
         """Read .vds files as variant dataset.
 
-        When loading multiple .vds files, they must have the same
+        When loading multiple VDS files, they must have the same
         sample IDs, genotype schema, split status and variant metadata.
 
-        :param path: .vds files to read.
+        :param path: VDS files to read.
         :type path: str or list of str
 
-        :param bool sites_only: If True, create sites-only variant
+        :param bool drop_samples: If True, create sites-only variant
           dataset.  Don't load sample ids, sample annotations
           or gneotypes.
 
-        :param bool samples_only: If True, create samples-only variant
+        :param bool drop_variants: If True, create samples-only variant
           dataset (no variants or genotypes).
 
         :return: Variant dataset read from disk.
         :rtype: :class:`.VariantDataset`
+
         """
 
         metadata = self._jhc.readAllMetadata(jindexed_seq_args(path))
         is_generic_genotype = metadata[0]._1().isGenericGenotype()
 
         if is_generic_genotype:
-            jvds = self._jhc.readAllGDS(jindexed_seq_args(path), sites_only, samples_only, joption(metadata))
+            jvds = self._jhc.readAllGDS(jindexed_seq_args(path), drop_samples, drop_variants, joption(metadata))
         else:
-            jvds = self._jhc.readAll(jindexed_seq_args(path), sites_only, samples_only, joption(metadata))
+            jvds = self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants, joption(metadata))
 
         return VariantDataset(self, jvds)
 
@@ -394,7 +403,7 @@ class HailContext(object):
 
     @handle_py4j
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
-                   sites_only=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
+                   drop_samples=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
                    call_fields=[]):
         """Import VCF file(s) as variant dataset.
 
@@ -496,9 +505,9 @@ class HailContext(object):
         :param npartitions: Number of partitions.
         :type npartitions: int or None
 
-        :param bool sites_only: If True, create sites-only
-            variant dataset.  Don't load sample ids, sample annotations
-            or genotypes.
+        :param bool drop_samples: If True, create sites-only variant
+            dataset.  Don't load sample ids, sample annotations or
+            genotypes.
 
         :param bool store_gq: If True, store GQ FORMAT field instead of computing from PL. Only applies if ``generic=False``.
 
@@ -520,10 +529,10 @@ class HailContext(object):
 
         if generic:
             jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                           joption(npartitions), sites_only, jset_args(call_fields))
+                                           joption(npartitions), drop_samples, jset_args(call_fields))
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(npartitions), sites_only, store_gq,
+                                        joption(npartitions), drop_samples, store_gq,
                                         pp_as_pl, skip_bad_ad)
 
         return VariantDataset(self, jvds)

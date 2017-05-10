@@ -194,7 +194,7 @@ test {
 
 test.dependsOn(checkSettings)
 
-task testHail(type: Exec, dependsOn: shadowJar) {
+task testPython(type: Exec, dependsOn: shadowJar) {
      commandLine 'python', '-m', 'unittest', 'hail.tests'
 
      environment SPARK_HOME: sparkHome
@@ -202,7 +202,7 @@ task testHail(type: Exec, dependsOn: shadowJar) {
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-test.dependsOn(testHail)
+task testAll(dependsOn: ['testPython', 'test'])
 
 tasks.withType(ShadowJar) {
     manifest {

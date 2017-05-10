@@ -3,10 +3,8 @@ package is.hail.variant
 import java.io.FileNotFoundException
 
 import is.hail.HailContext
-import is.hail.annotations.{Annotation, _}
-import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
-import is.hail.io._
-import is.hail.io.annotators.IntervalListAnnotator
+import is.hail.annotations._
+import is.hail.expr._
 import is.hail.io.plink.ExportBedBimFam
 import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable
@@ -16,15 +14,13 @@ import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
-import org.apache.kudu.spark.kudu.{KuduContext, _}
-import org.apache.spark.SparkEnv
-import org.apache.spark.mllib.linalg.distributed.BlockMatrix
+import org.apache.kudu.spark.kudu._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.json4s.{JArray, JBool, JInt, JObject, JString, JValue, _}
+import org.json4s._
 
 import scala.collection.mutable
 import scala.io.Source
@@ -34,7 +30,7 @@ import scala.reflect.ClassTag
 object VariantDataset {
   def read(hc: HailContext, dirname: String,
     metadata: VariantMetadata, parquetGenotypes: Boolean,
-    skipGenotypes: Boolean = false, skipVariants: Boolean = false): VariantDataset = {
+    dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset = {
 
     val sqlContext = hc.sqlContext
     val sc = hc.sc
@@ -53,10 +49,10 @@ object VariantDataset {
 
     val parquetFile = dirname + "/rdd.parquet"
 
-    val orderedRDD = if (skipVariants)
+    val orderedRDD = if (dropVariants)
       OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
     else {
-      val rdd = if (skipGenotypes)
+      val rdd = if (dropSamples)
         sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
           .map(row => (row.getVariant(0),
             (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
@@ -93,7 +89,7 @@ object VariantDataset {
     }
 
     new VariantSampleMatrix[Genotype](hc,
-      if (skipGenotypes) metadata.copy(sampleIds = IndexedSeq.empty[String],
+      if (dropSamples) metadata.copy(sampleIds = IndexedSeq.empty[String],
         sampleAnnotations = IndexedSeq.empty[Annotation])
       else metadata,
       orderedRDD)
@@ -406,7 +402,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     start.copy(rdd = start.rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
   }
 
-  def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], VariantDataset, VariantDataset) = {
+  def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
     requireSplit("concordance")
 
     if (!other.wasSplit)
@@ -415,19 +411,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     CalculateConcordance(vds, other)
   }
 
-  def count(countGenotypes: Boolean = false): CountResult = {
-    val (nVariants, nCalled) =
-      if (countGenotypes) {
-        val (nVar, nCalled) = vds.rdd.map { case (v, (va, gs)) =>
-          (1L, gs.hardCallGenotypeIterator.countNonNegative().toLong)
-        }.fold((0L, 0L)) { (comb, x) =>
-          (comb._1 + x._1, comb._2 + x._2)
-        }
-        (nVar, Some(nCalled))
-      } else
-        (vds.countVariants, None)
-
-    CountResult(vds.nSamples, nVariants, nCalled)
+  def summarize(): SummaryResult = {
+    vds.rdd
+      .aggregate(new SummaryCombiner[Genotype](_.hardCallGenotypeIterator.countNonNegative()))(_.merge(_), _.merge(_))
+      .result(vds.nSamples)
   }
 
   def eraseSplit(): VariantDataset = {
@@ -735,16 +722,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
   }
 
-  /**
-    *
-    * @param path output path
-    * @param format output format: one of rel, gcta-grm, gcta-grm-bin
-    * @param idFile write ID file to this path
-    * @param nFile N file path, used with gcta-grm-bin only
-    */
-  def grm(path: String, format: String, idFile: Option[String] = None, nFile: Option[String] = None) {
+  def grm(): KinshipMatrix = {
     requireSplit("GRM")
-    GRM(vds, path, format, idFile, nFile)
+    info("Computing GRM...")
+    GRM(vds)
   }
 
   def hardCalls(): VariantDataset = {
@@ -797,9 +778,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.annotateSamples(result, signature, "sa.imputesex")
   }
 
-  def ldPrune(r2Threshold: Double, windowSize: Int, nCores: Int, memoryPerCore: Long): VariantDataset = {
+  def ldPrune(r2Threshold: Double = 0.2, windowSize: Int = 1000000, nCores: Int = 1, memoryPerCore: Int = 256): VariantDataset = {
     requireSplit("LD Prune")
-    LDPrune(vds, r2Threshold, windowSize, nCores, memoryPerCore)
+    LDPrune(vds, r2Threshold, windowSize, nCores, memoryPerCore * 1024L * 1024L)
   }
 
   def linreg(y: String, covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
@@ -832,9 +813,19 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       runAssoc, delta, sparsityThreshold)
   }
 
-  def logreg(test: String, y: String, covariates: Array[String] = Array.empty[String], root: String = "va.logreg"): VariantDataset = {
+  def logreg(test: String,
+    y: String,
+    covariates: Array[String] = Array.empty[String],
+    root: String = "va.logreg",
+    useDosages: Boolean = false): VariantDataset = {
+
     requireSplit("logistic regression")
-    LogisticRegression(vds, test, y, covariates, root)
+    LogisticRegression(vds, test, y, covariates, root, useDosages)
+  }
+
+  def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
+    requireSplit("linear burden regression")
+    LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 
   def makeSchemaForKudu(): StructType =
@@ -900,7 +891,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     info(s"rrm: Computing Realized Relationship Matrix...")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants.")
-    new KinshipMatrix(vds.hc, rrm, vds.sampleIds.toArray)
+    new KinshipMatrix(vds.hc, rrm, vds.sampleIds.toArray, m)
   }
 
 

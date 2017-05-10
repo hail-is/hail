@@ -38,11 +38,12 @@ case class CM[+T](mt: (E, S) => (T, S)) {
     val e = emptyE
     val (code, s2) = mt(e,emptyS(ec))
     val primitiveFunctionArray = s2.fa.reverse
-    val f = e.fb.result(code)
+    e.fb.emit(Code._return(code))
+    val f = e.fb.result()
 
     { () =>
       try {
-        f(primitiveFunctionArray, mutable.ArrayBuffer[AnyRef]())
+        f()(primitiveFunctionArray, mutable.ArrayBuffer[AnyRef]())
       } catch {
         case e: java.lang.reflect.InvocationTargetException =>
           throw e.getCause()
@@ -65,11 +66,12 @@ case class CM[+T](mt: (E, S) => (T, S)) {
 
     val (code, s2) = mt(e2,emptyS(ec))
     val primitiveFunctionArray = s2.fa.reverse
-    val f = e2.fb.result(code)
+    e2.fb.emit(Code._return(code))
+    val f = e2.fb.result()
 
     { (x: mutable.ArrayBuffer[AnyRef]) =>
       try {
-        f(primitiveFunctionArray, x)
+        f()(primitiveFunctionArray, x)
       } catch {
         case e: java.lang.reflect.InvocationTargetException =>
           throw e.getCause()

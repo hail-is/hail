@@ -1,11 +1,11 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
-import is.hail.utils.{ArrayBuilder, JSONWriter, MultiArray2, Truncatable}
+import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable}
 import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.distributed.IndexedRow
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
@@ -33,6 +33,8 @@ trait Implicits {
     new RichHadoopConfiguration(hConf)
 
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow = new RichIndexedRow(r)
+
+  implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
     new RichIntPairTraversableOnce[V](t)
@@ -97,4 +99,9 @@ trait Implicits {
   implicit def toJSONWritable[T](x: T)(implicit jw: JSONWriter[T]): JSONWritable[T] = new JSONWritable(x, jw)
 
   implicit def toRichJValue(jv: JValue): RichJValue = new RichJValue(jv)
+
+  implicit def toHailIteratorDouble(it: HailIterator[Int]): HailIterator[Double] = new HailIterator[Double] {
+    override def next(): Double = it.next().toDouble
+    override def hasNext: Boolean = it.hasNext
+  }
 }
