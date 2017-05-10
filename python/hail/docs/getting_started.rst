@@ -80,7 +80,7 @@ To :func:`import <hail.HailContext.import_vcf>` the included *sample.vcf* into H
 .. doctest::
     :hide:
 
-    >>> hc.import_vcf('../../../src/test/resources/sample.vcf').write('sample.vds')
+    >>> hc.import_vcf('../../../../../src/test/resources/sample.vcf').write('sample.vds')
 
 .. doctest::
     :options: +SKIP

@@ -344,8 +344,12 @@ task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
 }
 
-task setupDocsDirs(type: Exec) {
-    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/'
+task cleanHailDocs(type: Exec) {
+    commandLine 'rm', '-rf', 'build/www/hail', 'build/tmp/python', 'build/tmp/docs'
+}
+
+task setupDocsDirs(type: Exec, dependsOn: cleanHailDocs) {
+    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/', 'build/tmp/python/'
 }
 
 task copyHtml(type: Copy, dependsOn: setupDocsDirs) {
@@ -394,45 +398,47 @@ task buildIndex(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copyH
     executable 'build/tmp/docs/buildIndex.js'
 }
 
-task setupTutorial(type: Exec) {
-    workingDir 'python/hail/docs'
+task copyPythonDirToTmp(type: Copy, dependsOn: setupDocsDirs) {
+    from 'python'
+    into 'build/tmp/python'
+}
+
+task setupTutorial(type: Exec, dependsOn: copyPythonDirToTmp) {
+    workingDir 'build/tmp/python/hail/docs'
     args tutorialFileLoc
     executable 'scripts/setupTutorial.sh'
 }
 
-task makeFunctionsRst(type: Exec, dependsOn: ['setupDocsDirs', 'shadowJar']) {
+task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']) {
+    workingDir 'build/tmp/'
     commandLine 'python', '-c', 'from hail import *; from hail.utils import *; hc = HailContext(); fd = FunctionDocumentation(); fd.types_rst("python/hail/docs/types.rst"); fd.functions_rst("python/hail/docs/functions.rst")'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst']) {
-    workingDir 'python/hail/docs'
+task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+    workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst']) {
-    workingDir 'python/hail/docs'
+task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+    workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task cleanHailDocs(type: Exec) {
-    commandLine 'rm', '-rf', 'build/www/hail'
+task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs']) {
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
 }
 
-task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs', 'cleanHailDocs']) {
-    commandLine 'mv', 'python/hail/docs/_build/html', 'build/www/hail'
-}
-
-task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs', 'cleanHailDocs']) {
-    commandLine 'mv', 'python/hail/docs/_build/html', 'build/www/hail'
+task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs']) {
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
 }
 
 task copyCompiledDocs(type: Copy, dependsOn: ['buildIndex']) {
@@ -440,9 +446,8 @@ task copyCompiledDocs(type: Copy, dependsOn: ['buildIndex']) {
     into 'build/www'
 }
 
-task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocs']) {
-}
+task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocs'])
 
 task createDocs(dependsOn: createWebsite)
 
-task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocsNoTest'])
+task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocsNoTest', 'copyPythonDirToTmp'])
