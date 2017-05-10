@@ -10,7 +10,6 @@ class LDMatrixSuite extends SparkSuite {
   val m = 100
   val n = 100
   val seed = scala.util.Random.nextInt()
-  println(seed)
   val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
   val ldMatrix = vds.ldMatrix()
 
