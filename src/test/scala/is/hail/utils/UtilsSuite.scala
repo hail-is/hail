@@ -207,4 +207,11 @@ class UtilsSuite extends SparkSuite {
     val ord2 = dictionaryOrdering(byFirstLetter, longestToShortestLength)
     assert(stringList.sorted(ord2) == Seq("Crayon", "Cats", "Dog"))
   }
+
+  @Test def testCollectAsSet() {
+    Prop.forAll(Gen.buildableOf[Array, Int](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) { case (values, parts) =>
+      val rdd = sc.parallelize(values, numSlices = parts)
+      rdd.collectAsSet() == rdd.collect().toSet
+    }.check()
+  }
 }
