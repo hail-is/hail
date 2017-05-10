@@ -111,12 +111,6 @@ class BgenSuite extends SparkSuite {
       nPartitions <- choose(1, 10)
     } yield (vds, nPartitions)
 
-    val compGen2 = for {vds <- VariantSampleMatrix.gen(hc,
-      VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.random.gen,
-        sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier.filter(_ != "NA")))).filter(_.countVariants > 0)
-      nBitsPerProb <- choose(1, 32)
-    } yield (vds, nBitsPerProb)
-
     val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
     hadoopConf.writeTextFile(sampleRenameFile)(_.write("NA\tfdsdakfasdkfla"))
 
@@ -157,6 +151,12 @@ class BgenSuite extends SparkSuite {
         hadoopConf.delete(bgenFile + ".idx", recursive = true)
         isSame
       }
+
+    val compGen2 = for {vds <- VariantSampleMatrix.gen(hc,
+      VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.random.gen,
+        sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier.filter(_ != "NA")))).filter(_.countVariants > 0)
+      nBitsPerProb <- choose(1, 32)
+    } yield (vds, nBitsPerProb)
 
     property("bgen v1.2 export/import") =
       forAll(compGen2) { case (vds, nBitsPerProb) =>

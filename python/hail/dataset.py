@@ -1082,7 +1082,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Import dosage data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
+        Import dosage data, filter variants based on INFO score, and export data to a BGEN and SAMPLE file:
 
         >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
 
