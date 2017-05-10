@@ -396,11 +396,11 @@ class HailContext private(val sc: SparkContext,
 
   def readAllMetadata(files: Seq[String]): Array[(VariantMetadata, Boolean)] = files.map(readMetadata).toArray
   
-  def read(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false,
+  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false,
     metadata: Option[Array[(VariantMetadata, Boolean)]] = None): VariantDataset =
-    readAll(List(file), sitesOnly, samplesOnly, metadata)
+    readAll(List(file), dropSamples, dropVariants, metadata)
 
-  def readAll(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false,
+  def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false,
     metadata: Option[Array[(VariantMetadata, Boolean)]] = None): VariantDataset = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
@@ -413,7 +413,7 @@ class HailContext private(val sc: SparkContext,
 
     val vdses = inputs.zipWithIndex.map { case (input, i) =>
       VariantDataset.read(this, input, mdArray(i), pqgtArray(i),
-        skipGenotypes = sitesOnly, skipVariants = samplesOnly)
+        dropSamples = dropSamples, dropVariants = dropVariants)
     }
 
     checkDatasetSchemasCompatible(vdses, inputs)
@@ -421,11 +421,11 @@ class HailContext private(val sc: SparkContext,
     vdses(0).copy(rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
   }
 
-  def readGDS(file: String, sitesOnly: Boolean = false, samplesOnly: Boolean = false,
+  def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false,
     metadata: Option[Array[(VariantMetadata, Boolean)]] = None): GenericDataset =
-    readAllGDS(List(file), sitesOnly, samplesOnly, metadata)
+    readAllGDS(List(file), dropSamples, dropVariants, metadata)
 
-  def readAllGDS(files: Seq[String], sitesOnly: Boolean = false, samplesOnly: Boolean = false,
+  def readAllGDS(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false,
     metadata: Option[Array[(VariantMetadata, Boolean)]] = None): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
@@ -438,7 +438,7 @@ class HailContext private(val sc: SparkContext,
 
     val gdses = inputs.zipWithIndex.map { case (input, i) =>
       GenericDataset.read(this, input, mdArray(i), pqgtArray(i),
-        skipGenotypes = sitesOnly, skipVariants = samplesOnly)
+        dropSamples = dropSamples, dropVariants = dropVariants)
     }
 
     checkDatasetSchemasCompatible(gdses, inputs)
@@ -467,11 +467,11 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    sitesOnly: Boolean = false,
+    dropSamples: Boolean = false,
     storeGQ: Boolean = false,
     ppAsPL: Boolean = false,
     skipBadAD: Boolean = false): VariantDataset = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, sitesOnly,
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples,
       storeGQ, ppAsPL, skipBadAD)
   }
 
@@ -479,7 +479,7 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    sitesOnly: Boolean = false,
+    dropSamples: Boolean = false,
     storeGQ: Boolean = false,
     ppAsPL: Boolean = false,
     skipBadAD: Boolean = false): VariantDataset = {
@@ -494,9 +494,9 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val settings = VCFSettings(storeGQ, sitesOnly, ppAsPL, skipBadAD)
+    val settings = VCFSettings(storeGQ, dropSamples, ppAsPL, skipBadAD)
     val reader = new GenotypeRecordReader(settings)
-    val vds = LoadVCF(this, reader, header, inputs, nPartitions, sitesOnly)
+    val vds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
@@ -507,16 +507,16 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    sitesOnly: Boolean = false,
+    dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String]): GenericDataset = {
-    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, sitesOnly, callFields)
+    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields)
   }
 
   def importVCFsGeneric(files: Seq[String], force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    sitesOnly: Boolean = false,
+    dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String]): GenericDataset = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
@@ -530,7 +530,7 @@ class HailContext private(val sc: SparkContext,
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
     val reader = new GenericRecordReader(callFields)
-    val gds = LoadVCF(this, reader, header, inputs, nPartitions, sitesOnly)
+    val gds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
