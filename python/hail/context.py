@@ -147,13 +147,14 @@ class HailContext(object):
         **Notes**
 
         Hail supports importing data in the BGEN file format. For more information on the BGEN file format,
-        see `here <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.1.html>`__. Note that only v1.1 BGEN files
-        are supported at this time.
+        see `here <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format.html>`__. Note that only v1.1 and v1.2 BGEN files
+        are supported at this time. For v1.2 BGEN files, only **unphased** and **diploid** genotype probabilities are allowed and the
+        genotype probability blocks must be either compressed with zlib or uncompressed.
 
         Before importing, ensure that:
-        - Files reside in Hadoop file system.
-        - The sample file has the same number of samples as the BGEN file.
-        - No duplicate sample IDs are present.
+
+          - The sample file has the same number of samples as the BGEN file.
+          - No duplicate sample IDs are present.
 
         To load multiple files at the same time, use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
@@ -161,11 +162,11 @@ class HailContext(object):
 
         **Dosage representation**:
 
-        Since dosages are understood as genotype probabilities, :py:meth:`~hail.HailContext.import_bgen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` parameter from 1.0.  The default tolerance is 0.2, so a genotype with sum .79 or 1.21 is filtered out, whereas a genotype with sum .8 or 1.2 remains.
+        The following modifications are made to dosages in BGEN v1.1 files:
 
-        :py:meth:`~hail.HailContext.import_gen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+          - Since dosages are understood as genotype probabilities, :py:meth:`~hail.HailContext.import_bgen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` parameter from 1.0.  The default tolerance is 0.2, so a genotype with sum .79 or 1.21 is filtered out, whereas a genotype with sum .8 or 1.2 remains.
 
-        Even when the dosages sum to 1.0, Hail may store slightly different values than the original GEN file (maximum observed difference is 3E-4).
+          - :py:meth:`~hail.HailContext.import_bgen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
 
         **Annotations**
 
@@ -180,7 +181,7 @@ class HailContext(object):
 
         :param float tolerance: If the sum of the dosages for a
             genotype differ from 1.0 by more than the tolerance, set
-            the genotype to missing.
+            the genotype to missing. Only applicable if the BGEN files are v1.1.
 
         :param sample_file: Sample file.
         :type sample_file: str or None

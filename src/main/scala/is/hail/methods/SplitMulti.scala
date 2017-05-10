@@ -85,12 +85,12 @@ object SplitMulti {
             }
           }
         } else {
-          val newpx = g.dosage.map { gdx =>
-            val dx = gdx.iterator.zipWithIndex
-              .map { case (d, k) => (splitGT(k, i), d) }
-              .reduceByKeyToArray(3, 0.0)(_ + _)
+          val newpx = g.px.map { gpx =>
+            val splitpx = gpx.iterator.zipWithIndex
+              .map { case (p, k) => (splitGT(k, i), p) }
+              .reduceByKeyToArray(3, 0)(_ + _)
 
-            val px = Genotype.weightsToLinear(dx)
+            val px = Genotype.weightsToLinear(splitpx)
             gb.setPX(px)
             px
           }

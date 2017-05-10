@@ -27,12 +27,16 @@ trait Implicits {
 
   implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble = new RichDenseMatrixDouble(m)
 
+  implicit def toRichDouble(d: Double): RichDouble = new RichDouble(d)
+
   implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] = new RichEnumeration(e)
 
   implicit def toRichHadoopConfiguration(hConf: hadoop.conf.Configuration): RichHadoopConfiguration =
     new RichHadoopConfiguration(hConf)
 
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow = new RichIndexedRow(r)
+
+  implicit def toRichInt(i: Int): RichInt = new RichInt(i)
 
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
 
@@ -46,6 +50,8 @@ trait Implicits {
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def toRichIteratorOfByte(i: Iterator[Byte]): RichIteratorOfByte = new RichIteratorOfByte(i)
+
+  implicit def toRichLong(l: Long): RichLong = new RichLong(l)
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 

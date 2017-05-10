@@ -4,6 +4,7 @@ import is.hail.SparkSuite
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
+import is.hail.io.bgen.BgenProbabilityIterator
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
@@ -25,43 +26,60 @@ class LoadBgenSuite extends SparkSuite {
   @Test def testGavinExample() {
     val gen = "src/test/resources/example.gen"
     val sampleFile = "src/test/resources/example.sample"
-    val bgen = "src/test/resources/example.v11.bgen"
+    val inputs = Array(
+      ("src/test/resources/example.v11.bgen", 1e-6),
+      ("src/test/resources/example.10bits.bgen", 1d / ((1L << 10) - 1))
+    )
 
-    hadoopConf.delete(bgen + ".idx", recursive = true)
+    def testBgen(bgen: String, tolerance: Double = 1e-6): Unit = {
+      hadoopConf.delete(bgen + ".idx", recursive = true)
 
-    val nSamples = getNumberOfLinesInFile(sampleFile) - 2
-    val nVariants = getNumberOfLinesInFile(gen)
+      val nSamples = getNumberOfLinesInFile(sampleFile) - 2
+      val nVariants = getNumberOfLinesInFile(gen)
 
-    hc.indexBgen(bgen)
-    val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
-    assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
+      hc.indexBgen(bgen)
+      val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
+      assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
 
-    val genVDS = hc.importGen(gen, sampleFile)
+      val genVDS = hc.importGen(gen, sampleFile)
 
-    val varidBgenQuery = bgenVDS.vaSignature.query("varid")
-    val rsidBgenQuery = bgenVDS.vaSignature.query("rsid")
+      val varidBgenQuery = bgenVDS.vaSignature.query("varid")
+      val rsidBgenQuery = bgenVDS.vaSignature.query("rsid")
 
-    val varidGenQuery = genVDS.vaSignature.query("varid")
-    val rsidGenQuery = bgenVDS.vaSignature.query("rsid")
+      val varidGenQuery = genVDS.vaSignature.query("varid")
+      val rsidGenQuery = bgenVDS.vaSignature.query("rsid")
 
-    assert(bgenVDS.metadata == genVDS.metadata)
-    assert(bgenVDS.sampleIds == genVDS.sampleIds)
+      assert(bgenVDS.metadata == genVDS.metadata)
+      assert(bgenVDS.sampleIds == genVDS.sampleIds)
 
-    val bgenAnnotations = bgenVDS.variantsAndAnnotations.map { case (v, va) => (varidBgenQuery(va), va) }
-    val genAnnotations = genVDS.variantsAndAnnotations.map { case (v, va) => (varidGenQuery(va), va) }
+      val bgenAnnotations = bgenVDS.variantsAndAnnotations.map { case (v, va) => (varidBgenQuery(va), va) }
+      val genAnnotations = genVDS.variantsAndAnnotations.map { case (v, va) => (varidGenQuery(va), va) }
 
-    assert(genAnnotations.fullOuterJoin(bgenAnnotations).forall { case (varid, (va1, va2)) => if (va1 == va2) true else false })
+      assert(genAnnotations.fullOuterJoin(bgenAnnotations).forall { case (varid, (va1, va2)) => va1 == va2 })
 
-    val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidBgenQuery(va), s), gt) }
-    val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidGenQuery(va), s), gt) }
+      val bgenFull = bgenVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidBgenQuery(va), s), gt) }
+      val genFull = genVDS.expandWithAll().map { case (v, va, s, sa, gt) => ((varidGenQuery(va), s), gt) }
 
-    genFull.fullOuterJoin(bgenFull)
-      .collect()
-      .foreach { case ((v, i), (gt1, gt2)) =>
-        assert(gt1 == gt2)
-      }
+      val isSame = genFull.fullOuterJoin(bgenFull)
+        .collect()
+        .forall { case ((v, i), (gt1, gt2)) =>
+          (gt1, gt2) match {
+            case (Some(x), Some(y)) =>
+              (x.dosage, y.dosage) match {
+                case (Some(dos1), Some(dos2)) => dos1.zip(dos2).forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance }
+                case (None, None) => true
+                case _ => false
+              }
+            case _ => false
+          }
+        }
 
-    hadoopConf.delete(bgen + ".idx", recursive = true)
+      hadoopConf.delete(bgen + ".idx", recursive = true)
+
+      assert(isSame)
+    }
+
+    inputs.foreach { case (file, tolerance) => testBgen(file, tolerance) }
   }
 
   object Spec extends Properties("ImportBGEN") {
@@ -113,9 +131,6 @@ class LoadBgenSuite extends SparkSuite {
         assert(importedVds.countVariants() == vds.countVariants())
         assert(importedVds.sampleIds == vds.sampleIds)
 
-        val importedVariants = importedVds.variants
-        val origVariants = vds.variants
-
         val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
         val originalFull = vds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
 
@@ -136,4 +151,61 @@ class LoadBgenSuite extends SparkSuite {
   @Test def testBgenImportRandom() {
     Spec.check()
   }
+
+  def bitPack(input: Array[UInt], nBitsPerProb: Int): Array[Byte] = {
+    val expectedNBytes = (input.length * nBitsPerProb + 7) / 8
+    val packedInput = new Array[Byte](expectedNBytes)
+
+    val bitMask = (1L << nBitsPerProb) - 1
+    var byteIndex = 0
+    var data = 0L
+    var dataSize = 0
+
+    input.foreach { i =>
+      data |= ((i.toLong & bitMask) << dataSize)
+      dataSize += nBitsPerProb
+
+      while (dataSize >= 8) {
+        packedInput(byteIndex) = (data & 0xffL).toByte
+        data = data >>> 8
+        dataSize -= 8
+        byteIndex += 1
+      }
+    }
+
+    if (dataSize > 0)
+      packedInput(byteIndex) = (data & 0xffL).toByte
+
+    packedInput
+  }
+
+  object TestProbIterator extends Properties("ImportBGEN") {
+    val probIteratorGen = for (nBitsPerProb <- Gen.choose(1, 32);
+      nProbabilities <- Gen.choose(1, 20);
+      size = ((1L << nBitsPerProb) - 1).toUInt;
+      input <- Gen.partition(nProbabilities, size)
+    ) yield (nBitsPerProb, input)
+
+    property("bgen probability iterator gives correct result") =
+      forAll(probIteratorGen) { case (nBitsPerProb, input) =>
+        val packedInput = bitPack(input, nBitsPerProb)
+        val probIterator = new BgenProbabilityIterator(new ByteArrayReader(packedInput), nBitsPerProb)
+        val result = new Array[UInt](input.length)
+
+        for (i <- input.indices) {
+          if (probIterator.hasNext) {
+            result(i) = probIterator.next()
+          } else {
+            fatal(s"Should have at least ${ input.length } probabilities. Found i=$i")
+          }
+        }
+
+        input sameElements result
+      }
+  }
+
+  @Test def testBgenProbabilityIterator() {
+    TestProbIterator.check()
+  }
+
 }
