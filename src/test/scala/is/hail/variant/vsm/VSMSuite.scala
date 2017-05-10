@@ -252,7 +252,7 @@ class VSMSuite extends SparkSuite {
     hc.importVCF("src/test/resources/sample2.vcf")
       .write(f)
 
-    assert(hc.read(f, sitesOnly = true)
+    assert(hc.read(f, dropSamples = true)
       .filterVariantsExpr("va.info.AF[0] < 0.01")
       .countVariants() == 234)
   }
@@ -263,7 +263,7 @@ class VSMSuite extends SparkSuite {
     hc.importVCF("src/test/resources/sample2.vcf")
       .write(f)
 
-    assert(hc.read(f, sitesOnly = true)
+    assert(hc.read(f, dropSamples = true)
       .same(hc.read(f).dropSamples()))
   }
 
