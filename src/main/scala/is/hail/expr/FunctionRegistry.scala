@@ -2578,7 +2578,7 @@ object FunctionRegistry {
   registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(if (i < 0) a.length + i else i, a.length),
     """
     Returns a slice of the array from the i*th* element (0-indexed) to the
-    end. Negative indices are interpreted as offsets from the end of the string.
+    end. Negative indices are interpreted as offsets from the end of the array.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -2598,7 +2598,7 @@ object FunctionRegistry {
 
     Returns a slice of the array from the first element until the j*th* element
     (0-indexed). Negative indices are interpreted as offsets from the end
-    of the string.
+    of the array.
 
     .. code-block:: text
         :emphasize-lines: 2
@@ -2617,7 +2617,7 @@ object FunctionRegistry {
     """
     Returns a slice of the array from the i*th* element until the j*th* element
     (both 0-indexed). Negative indices are interpreted as offsets from the end
-    of the string.
+    of the array.
 
     .. code-block:: text
         :emphasize-lines: 2
