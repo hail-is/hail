@@ -5,9 +5,9 @@ import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
 import scala.collection.mutable
-import scala.math.Ordering.Implicits._
-
 import scala.language.implicitConversions
+import scala.math.Ordering.Implicits._
+import scala.reflect.ClassTag
 
 // interval inclusive of start, exclusive of end: [start, end)
 case class Interval[T](start: T, end: T)(implicit ev: Ordering[T]) extends Ordered[Interval[T]] {
@@ -51,27 +51,40 @@ object Interval {
       }
 }
 
-case class IntervalTree[T: Ordering](root: Option[IntervalTreeNode[T]]) extends Traversable[Interval[T]] with Serializable {
+case class IntervalTree[T: Ordering, U: ClassTag](root: Option[IntervalTreeNode[T, U]]) extends
+  Traversable[Interval[T]] with
+  Serializable {
   def contains(position: T): Boolean = root.exists(_.contains(position))
 
   def overlaps(interval: Interval[T]): Boolean = root.exists(_.overlaps(interval))
 
-  def query(position: T): Set[Interval[T]] = {
-    val b = Set.newBuilder[Interval[T]]
+  def queryIntervals(position: T): Array[Interval[T]] = {
+    val b = Array.newBuilder[Interval[T]]
     root.foreach(_.query(b, position))
     b.result()
   }
 
-  def foreach[U](f: (Interval[T]) => U) {
+  def queryValues(position: T): Array[U] = {
+    val b = Array.newBuilder[U]
+    root.foreach(_.queryValues(b, position))
+    b.result()
+  }
+
+  def foreach[V](f: (Interval[T]) => V) {
     root.foreach(_.foreach(f))
   }
 }
 
 object IntervalTree {
-  def apply[T: Ordering](intervals: Array[Interval[T]], prune: Boolean = false): IntervalTree[T] = {
-    val sorted = if (prune && intervals.nonEmpty) {
+  def annotationTree[T: Ordering, U: ClassTag](values: Array[(Interval[T], U)]): IntervalTree[T, U] = {
+    val sorted = values.sortBy(_._1)
+    new IntervalTree[T, U](fromSorted(sorted, 0, sorted.length))
+  }
+
+  def apply[T: Ordering](intervals: Array[Interval[T]]): IntervalTree[T, Unit] = {
+    val sorted = if (intervals.nonEmpty) {
       val unpruned = intervals.sorted
-      val ab = mutable.ArrayBuilder.make[Interval[T]]
+      val ab = new ArrayBuilder[Interval[T]](intervals.length)
       var tmp = unpruned.head
       var i = 1
       var pruned = 0
@@ -93,40 +106,36 @@ object IntervalTree {
       }
       ab += tmp
 
-      info(s"pruned $pruned redundant intervals")
-
       ab.result()
-    } else intervals.sorted
+    } else intervals
 
-    new IntervalTree[T](fromSorted(sorted, 0, sorted.length))
+    new IntervalTree[T, Unit](fromSorted(sorted.map(i => (i, ())), 0, sorted.length))
   }
 
-  def fromSorted[T: Ordering](intervals: Array[Interval[T]], start: Int, end: Int): Option[IntervalTreeNode[T]] = {
+  def fromSorted[T: Ordering, U](intervals: Array[(Interval[T], U)], start: Int, end: Int): Option[IntervalTreeNode[T, U]] = {
     if (start >= end)
       None
     else {
       val mid = (start + end) / 2
-      val i = intervals(mid)
+      val (i, v) = intervals(mid)
       val lft = fromSorted(intervals, start, mid)
       val rt = fromSorted(intervals, mid + 1, end)
       Some(IntervalTreeNode(i, lft, rt, {
         val max1 = lft.map(_.maximum.max(i.end)).getOrElse(i.end)
         rt.map(_.maximum.max(max1)).getOrElse(max1)
-      }))
+      }, v))
     }
   }
 
-  def gen[T: Ordering](tgen: Gen[T]): Gen[IntervalTree[T]] = {
-    Gen.buildableOf[Array, Interval[T]](Interval.gen(tgen)) map {
-      IntervalTree(_)
-    }
+  def gen[T: Ordering](tgen: Gen[T]): Gen[IntervalTree[T, Unit]] = {
+    Gen.buildableOf[Array, Interval[T]](Interval.gen(tgen)).map(IntervalTree.apply(_))
   }
 }
 
-case class IntervalTreeNode[T: Ordering](i: Interval[T],
-  left: Option[IntervalTreeNode[T]],
-  right: Option[IntervalTreeNode[T]],
-  maximum: T) extends Traversable[Interval[T]] {
+case class IntervalTreeNode[T: Ordering, U](i: Interval[T],
+  left: Option[IntervalTreeNode[T, U]],
+  right: Option[IntervalTreeNode[T, U]],
+  maximum: T, value: U) extends Traversable[Interval[T]] {
 
   def contains(position: T): Boolean = {
     position <= maximum &&
@@ -148,6 +157,17 @@ case class IntervalTreeNode[T: Ordering](i: Interval[T],
         right.foreach(_.query(b, position))
         if (i.contains(position))
           b += i
+      }
+    }
+  }
+
+  def queryValues(b: mutable.Builder[U, _], position: T) {
+    if (position <= maximum) {
+      left.foreach(_.queryValues(b, position))
+      if (position >= i.start) {
+        right.foreach(_.queryValues(b, position))
+        if (i.contains(position))
+          b += value
       }
     }
   }

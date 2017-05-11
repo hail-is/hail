@@ -3,8 +3,8 @@ package is.hail.variant
 import java.io.FileNotFoundException
 
 import is.hail.HailContext
-import is.hail.annotations._
-import is.hail.expr._
+import is.hail.annotations.{Annotation, _}
+import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
 import is.hail.io.plink.ExportBedBimFam
 import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable
@@ -16,11 +16,11 @@ import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
 import org.apache.kudu.spark.kudu._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s._
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.mutable
 import scala.io.Source
@@ -229,7 +229,7 @@ object VariantDataset {
     kt.keyFields.map(_.typ) match {
       case Array(TVariant) =>
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
-        s"but found [ ${arr.mkString(", ")} ]")
+        s"but found [ ${ arr.mkString(", ") } ]")
     }
 
     val rdd = kt.keyedRDD()
@@ -695,7 +695,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
 
-
   def gqByDP(path: String) {
     val nBins = GQByDPBins.nBins
     val binStep = GQByDPBins.binStep
@@ -831,21 +830,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def makeSchemaForKudu(): StructType =
     makeSchema(parquetGenotypes = false).add(StructField("sample_group", StringType, nullable = false))
 
-  /**
-    *
-    * @param pathBase output root filename
-    * @param famFile path to pedigree .fam file
-    */
-  def mendelErrors(pathBase: String, famFile: String) {
+  def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     requireSplit("mendel errors")
 
-    val ped = Pedigree.read(famFile, vds.hc.hadoopConf, vds.sampleIds)
-    val men = MendelErrors(vds, ped.completeTrios)
+    val men = MendelErrors(vds, ped.filterTo(vds.sampleIds.toSet).completeTrios)
 
-    men.writeMendel(pathBase + ".mendel", vds.hc.tmpDir)
-    men.writeMendelL(pathBase + ".lmendel", vds.hc.tmpDir)
-    men.writeMendelF(pathBase + ".fmendel")
-    men.writeMendelI(pathBase + ".imendel")
+    (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
   }
 
   /**
@@ -886,7 +876,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds, root, keepStar)
 
-  def rrm(forceBlock : Boolean = false, forceGramian : Boolean = false): KinshipMatrix = {
+  def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     requireSplit("rrm")
     info(s"rrm: Computing Realized Relationship Matrix...")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
@@ -906,16 +896,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     SplitMulti(vds, propagateGQ, keepStar, maxShift)
   }
 
-  /**
-    *
-    * @param famFile path to .fam file
-    * @param tdtRoot Annotation root, starting in 'va'
-    */
-  def tdt(famFile: String, tdtRoot: String = "va.tdt"): VariantDataset = {
+  def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
     requireSplit("TDT")
 
-    val ped = Pedigree.read(famFile, vds.hc.hadoopConf, vds.sampleIds)
-    TDT(vds, ped.completeTrios,
+    TDT(vds, ped.filterTo(vds.sampleIds.toSet).completeTrios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 
@@ -938,7 +922,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
 
     val genotypeSignature = vds.genotypeSignature
-    require(genotypeSignature == TGenotype, s"Expecting a genotype signature of TGenotype, but found `${genotypeSignature.toPrettyString()}'")
+    require(genotypeSignature == TGenotype, s"Expecting a genotype signature of TGenotype, but found `${ genotypeSignature.toPrettyString() }'")
 
     vds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
       Serialization.write(vds.rdd.orderedPartitioner.toJSON, out)
