@@ -1357,19 +1357,18 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val localSampleIdsBc = sampleIdsBc
 
     rdd
-      .mapPartitions {
-        (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
-          val serializer = SparkEnv.get.serializer.newInstance()
+      .mapPartitions { (it: Iterator[(Variant, (Annotation, Iterable[T]))]) =>
+        val serializer = SparkEnv.get.serializer.newInstance()
 
-          def copyZeroValue() = serializer.deserialize[T](ByteBuffer.wrap(zeroArray))(localtct)
+        def copyZeroValue() = serializer.deserialize[T](ByteBuffer.wrap(zeroArray))(localtct)
 
-          val arrayZeroValue = Array.fill[T](localSampleIdsBc.value.length)(copyZeroValue())
-          localSampleIdsBc.value.iterator
-            .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, (va, gs))) =>
-              for ((g, i) <- gs.iterator.zipWithIndex)
-                acc(i) = combOp(acc(i), g)
-              acc
-            }.iterator)
+        val arrayZeroValue = Array.fill[T](localSampleIdsBc.value.length)(copyZeroValue())
+        localSampleIdsBc.value.iterator
+          .zip(it.foldLeft(arrayZeroValue) { case (acc, (v, (va, gs))) =>
+            for ((g, i) <- gs.iterator.zipWithIndex)
+              acc(i) = combOp(acc(i), g)
+            acc
+          }.iterator)
       }.foldByKey(zeroValue)(combOp)
   }
 
@@ -1481,20 +1480,18 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
           var j = 0
           vEC.setAll(v, va)
-          vf().foreach {
-            x =>
-              a(j) = x
-              j += 1
+          vf().foreach { x =>
+            a(j) = x
+            j += 1
           }
 
           gs.iterator.zipWithIndex.foreach { case (g, i) =>
             val s = localSampleIdsBc.value(i)
             val sa = localSampleAnnotationsBc.value(i)
             gEC.setAll(v, va, s, sa, g)
-            gf().foreach {
-              x =>
-                a(j) = x
-                j += 1
+            gf().foreach { x =>
+              a(j) = x
+              j += 1
             }
           }
 
@@ -1557,9 +1554,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     rdd.mapPartitions { it =>
       f(it.flatMap { case (v, (va, gs)) =>
         localSampleIdsBc.value.lazyMapWith2[Annotation, T, (Variant, Annotation, String, Annotation, T)](
-          localSampleAnnotationsBc.value, gs, { case (s, sa, g) =>
-            (v, va, s, sa, g)
-          })
+          localSampleAnnotationsBc.value, gs, { case (s, sa, g) => (v, va, s, sa, g) })
       })
     }
   }
@@ -1627,12 +1622,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         var i = 0
         ec.set(2, v)
         ec.set(3, va)
-        gs.foreach {
-          g =>
-            ec.set(4, localSampleIdsBc.value(i))
-            ec.set(5, localSampleAnnotationsBc.value(i))
-            seqOp(zv, g)
-            i += 1
+        gs.foreach { g =>
+          ec.set(4, localSampleIdsBc.value(i))
+          ec.set(5, localSampleAnnotationsBc.value(i))
+          seqOp(zv, g)
+          i += 1
         }
       }
       Iterator(zv)
@@ -1776,14 +1770,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       println(
         s"""different va signature:
            |  left:  ${ vaSignature.toPrettyString(compact = true) }
-           |  right: ${ that.vaSignature.toPrettyString(compact = true)}""".stripMargin)
+           |  right: ${ that.vaSignature.toPrettyString(compact = true) }""".stripMargin)
     }
     if (saSignature != that.saSignature) {
       metadataSame = false
       println(
         s"""different sa signature:
            |  left:  ${ saSignature.toPrettyString(compact = true) }
-           |  right: ${ that.saSignature.toPrettyString(compact = true)}""".stripMargin)
+           |  right: ${ that.saSignature.toPrettyString(compact = true) }""".stripMargin)
     }
     if (globalSignature != that.globalSignature) {
       metadataSame = false
@@ -1922,7 +1916,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def setVaAttributes(path: List[String], kv: Map[String, String]): VariantSampleMatrix[T] = {
     vaSignature match {
       case t: TStruct => copy(vaSignature = t.setFieldAttributes(path, kv))
-      case t => fatal(s"Cannot set va attributes to ${ path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot set va attributes to ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -1933,7 +1927,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def deleteVaAttribute(path: List[String], attribute: String): VariantSampleMatrix[T] = {
     vaSignature match {
       case t: TStruct => copy(vaSignature = t.deleteFieldAttribute(path, attribute))
-      case t => fatal(s"Cannot delete va attributes from ${ path.mkString(".")} since va is not a Struct.")
+      case t => fatal(s"Cannot delete va attributes from ${ path.mkString(".") } since va is not a Struct.")
     }
   }
 
@@ -1948,8 +1942,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     if (!globalSignature.typeCheck(globalAnnotation)) {
       warn(
         s"""found violation in global annotation
-           |Schema: ${ globalSignature.toPrettyString()}
-           |Annotation: ${ Annotation.printAnnotation(globalAnnotation)}""".stripMargin)
+           |Schema: ${ globalSignature.toPrettyString() }
+           |Annotation: ${ Annotation.printAnnotation(globalAnnotation) }""".stripMargin)
     }
 
     sampleIdsAndAnnotations.find { case (_, sa) => !saSignature.typeCheck(sa)
@@ -1958,8 +1952,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         foundError = true
         warn(
           s"""found violation in sample annotations for sample $s
-             |Schema: ${ saSignature.toPrettyString()}
-             |Annotation: ${ Annotation.printAnnotation(sa)}""".stripMargin)
+             |Schema: ${ saSignature.toPrettyString() }
+             |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
       }
 
     val localVaSignature = vaSignature
@@ -1969,8 +1963,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         foundError = true
         warn(
           s"""found violation in variant annotations for variant $v
-             |Schema: ${ localVaSignature.toPrettyString()}
-             |Annotation: ${ Annotation.printAnnotation(va)}""".stripMargin)
+             |Schema: ${ localVaSignature.toPrettyString() }
+             |Annotation: ${ Annotation.printAnnotation(va) }""".stripMargin)
       }
 
     if (foundError)
@@ -1980,7 +1974,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   def sampleIdsAndAnnotations: IndexedSeq[(String, Annotation)] = sampleIds.zip(sampleAnnotations)
 
   def variantsAndAnnotations: OrderedRDD[Locus, Variant, Annotation] =
-    rdd.mapValuesWithKey { case (v, (va, gs)) => va}.asOrderedRDD
+    rdd.mapValuesWithKey { case (v, (va, gs)) => va }.asOrderedRDD
 
   def variantEC: EvalContext = {
     val aggregationST = Map(

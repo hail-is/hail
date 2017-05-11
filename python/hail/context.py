@@ -266,7 +266,7 @@ class HailContext(object):
     
         Given this file
 
-        .. code-block: text
+        .. code-block:: text
 
             $ cat data/samples1.tsv
             Sample	Height	Status  Age
@@ -292,7 +292,7 @@ class HailContext(object):
 
         Let's import annotations from a CSV file with missing data and special characters:
 
-        .. code-block: text
+        .. code-block:: text
 
             $ cat data/samples2.tsv
             Batch,PT-ID
@@ -367,16 +367,16 @@ class HailContext(object):
         of an imported table. The default partition size depends on file system and a number of other 
         factors (including the ``min_block_size`` of the hail context), but usually is between 32M and 128M.
         
-        :param paths: files to import.
+        :param paths: Files to import.
         :type paths: str or list of str
 
-        :param key: List of key columns.
+        :param key: Key column(s).
         :type key: str or list of str
 
         :param min_partitions: Minimum number of partitions.
         :type min_partitions: int or None
 
-        :param bool no_header: File has no header and the N columns are named ``_0``, ``_1``, ... ``_N`` (0-indexed)
+        :param bool no_header: File has no header and the N columns are named ``f0``, ``f1``, ... ``fN`` (0-indexed)
         
         :param bool impute: Impute column types from the file
         

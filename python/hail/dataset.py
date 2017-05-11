@@ -10,7 +10,7 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.expr import Type, TGenotype, TVariant
 from hail.representation import Interval, Pedigree
-from hail.utils import Summary
+from hail.utils import Summary, wrap_to_list
 from hail.kinshipMatrix import KinshipMatrix
 
 warnings.filterwarnings(module=__name__, action='once')
@@ -50,7 +50,7 @@ class VariantDataset(object):
     >>> vds = hc.read("data/example.vds")
 
     :ivar hc: Hail Context
-    :vartype hc: :class:`.HailContext`  
+    :vartype hc: :class:`.HailContext`
     """
 
     def __init__(self, hc, jvds):
@@ -717,9 +717,6 @@ class VariantDataset(object):
 
         - Pass the non-default missing value ``.``
 
-        - In ``annotate_samples_table``, add the only useful column using ``expr`` 
-          rather than the ``root`` parameter.
-
         >>> annotations = hc.import_table('data/samples2.tsv', delimiter=',', missing='.').key_by('PT-ID')
         >>> vds_result = vds.annotate_samples_table(annotations, root='sa.batch')
 
@@ -739,15 +736,15 @@ class VariantDataset(object):
         To import it:
 
         >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
-        ...                   .annotate('sample = f0.split("_")[1]')
-        ...                   .key_by('sample'))
+        ...                  .annotate('sample = f0.split("_")[1]')
+        ...                  .key_by('sample'))
         >>> vds_result = vds.annotate_samples_table(annotations,
         ...                             expr='sa.sex = table.f1, sa.batch = table.f0.split("_")[0]')
 
         **Notes** 
 
         This method takes as an argument a :class:`.KeyTable` object. Hail has a default join strategy
-        for tables keyed by String, which joins by sample ID. If the table is keyed by something else, like
+        for tables keyed by String, which is to join by sample ID. If the table is keyed by something else, like
         population or cohort, then the ``vds_key`` argument must be passed to describe the key in the dataset 
         to use for the join. This argument expects a list of Hail expressions whose types match, in order, the 
         table's key types.
@@ -1035,10 +1032,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        if vds_key and not isinstance(vds_key, list):
-            vds_key = [vds_key]
-
-        jvds = self._jvds.annotateVariantsTable(table._jkt, vds_key, root, expr, product)
+        jvds = self._jvds.annotateVariantsTable(table._jkt, wrap_to_list(vds_key), root, expr, product)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2038,15 +2032,14 @@ class VariantDataset(object):
 
         This method performs predicate pushdown when ``keep=True``, meaning that data shards
         that don't overlap any supplied interval will not be loaded at all.  This property
-        enables ``filter_intervals`` to be used for reasonably low-latency queries of one
-        or more variants, even on large datasets. Suppose we are interested in variants on 
+        enables ``filter_intervals`` to be used for reasonably low-latency queries of small ranges
+        of the genome, even on large datasets. Suppose we are interested in variants on 
         chromosome 15 between 100000 and 200000. This implementation with :py:meth:`.filter_variants_expr`
         may come to mind first:
         
         >>> vds_filtered = vds.filter_variants_expr('v.contig == "15" && v.start >= 100000 && v.start < 200000')
         
-        However, this method will touch all the data to do this filter. It will be **much** faster to 
-        filter intervals:
+        However, it is **much** faster (and easier!) to use this method:
         
         >>> vds_filtered = vds.filter_intervals(Interval.parse('15:100000-200000'))
 
@@ -2057,16 +2050,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        if isinstance(intervals, Interval):
-            intervals = [intervals]
-        else:
-            if not isinstance(intervals, list):
-                raise TypeError("argument 'intervals' must be of type Interval or list of Interval, but found '%s'" %
-                                type(intervals))
-            for i in intervals:
-                if not isinstance(i, Interval):
-                    raise TypeError("expected elements of argument 'intervals' to be type Interval, but found '%s'" %
-                                    type(i))
+        intervals = wrap_to_list(intervals)
 
         jvds = self._jvds.filterIntervals([x._jrep for x in intervals], keep)
         return VariantDataset(self.hc, jvds)

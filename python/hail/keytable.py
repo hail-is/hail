@@ -460,10 +460,7 @@ class KeyTable(object):
         elif not isinstance(key, str) and not isinstance(key, unicode):
             raise TypeError("expected str or list of str for parameter 'key', but found %s" % type(key))
 
-        if not isinstance(key, list):
-            key = [key]
-
-        return KeyTable(self.hc, self._jkt.keyBy(key))
+        return KeyTable(self.hc, self._jkt.keyBy(wrap_to_list(key)))
 
     @handle_py4j
     def flatten(self):

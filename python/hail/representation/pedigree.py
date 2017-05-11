@@ -5,6 +5,9 @@ class Trio(object):
     """Class containing information about nuclear family relatedness and sex.
 
     :param str proband: Sample ID of proband.
+    
+    :param fam: Family ID.
+    :type fam: str or None
 
     :param father: Sample ID of father.
     :type father: str or None
@@ -101,7 +104,7 @@ class Trio(object):
 
     @property
     def is_male(self):
-        """Returns True if the proband is a reported male, False if reported female or missing.
+        """Returns True if the proband is a reported male, False if reported female, and None if no sex is defined.
 
         :rtype: bool or None
         """
@@ -116,7 +119,7 @@ class Trio(object):
 
     @property
     def is_female(self):
-        """Returns True if the proband is a reported female, False if reported male or missing.
+        """Returns True if the proband is a reported female, False if reported male, and None if no sex is defined.
 
         :rtype: bool or None
         """
@@ -154,11 +157,6 @@ class Pedigree(object):
 
     @handle_py4j
     def __init__(self, trios):
-        if not isinstance(trios, list):
-            raise TypeError("parameter 'trios' must be of type list, but found '%s'" % type(trios))
-        for t in trios:
-            if not isinstance(t, Trio):
-                raise TypeError("all elements of list 'trios' must be of type Trio, but found '%s'" % type(t))
 
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = trios
