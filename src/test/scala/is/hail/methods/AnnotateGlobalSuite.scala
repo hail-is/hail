@@ -104,7 +104,7 @@ class AnnotateGlobalSuite extends SparkSuite {
     }
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateGlobalTable(out1, "global.genes", config = TextTableConfiguration(impute = true))
+      .annotateGlobalTable(hc.importTable(out1, impute = true), root= "global.genes")
 
     val (t, res) = vds.queryGlobal("global.genes")
 

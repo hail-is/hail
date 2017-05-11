@@ -4,13 +4,14 @@ import is.hail.SparkSuite
 import is.hail.TestUtils._
 import is.hail.annotations.Annotation
 import is.hail.expr.TDouble
+import is.hail.annotations.Querier
+import is.hail.expr.{TDouble, TString}
 import is.hail.io.plink.FamFileConfig
 import is.hail.utils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 
 class LinearRegressionSuite extends SparkSuite {
-
   def assertInt(a: Annotation, value: Int) {
     assert(D_==(a.asInstanceOf[Int], value))
   }
@@ -32,18 +33,17 @@ class LinearRegressionSuite extends SparkSuite {
   val v9 = Variant("1", 9, "C", "T") // x = (., 1, 1, 1, 1, 1)
   val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
 
-
   @Test def testWithTwoCov() {
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
-      .linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
+      .splitMulti()
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
+      .linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
 
     val a = vds.variantsAndAnnotations.collect().toMap
 
@@ -97,16 +97,17 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithTwoCovPhred() {
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
-      .linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), useDosages = true)
+      .splitMulti()
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
+      .linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
+      .linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), useDosages = true)
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -157,16 +158,16 @@ class LinearRegressionSuite extends SparkSuite {
   @Test def testWithTwoCovDosage() {
     // .gen and .sample files created from regressionLinear.vcf
     // dosages are derived from PLs so results should agree with testWithTwoCovPhred
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+
     val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
-      .linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
+      .linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), "va.linreg", useDosages = true, 1, 0.0)
+
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
     val qTstat = vds.queryVA("va.linreg.tstat")._2
@@ -214,12 +215,12 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithNoCov() {
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
-      .linreg("sa.pheno.Pheno", Array.empty[String])
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
+      .linreg("sa.pheno", Array.empty[String])
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -260,11 +261,11 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithImportFamBoolean() {
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
+      .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesFam("src/test/resources/regressionLinear.fam")
       .linreg("sa.fam.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
@@ -310,11 +311,11 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testWithImportFam() {
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
+      .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesFam("src/test/resources/regressionLinear.fam",
         config = FamFileConfig(isQuantitative = true, missingValue = "0"))
       .linreg("sa.fam.qPheno", Array("sa.cov.Cov1", "sa.cov.Cov2"))
@@ -361,47 +362,46 @@ class LinearRegressionSuite extends SparkSuite {
   }
 
   @Test def testNonNumericPheno() {
-    val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(missing = "0"))
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TString), missing = "0").keyBy("Sample")
 
-    interceptFatal("Sample annotation `sa.pheno.Pheno' must be numeric or Boolean, got String") {
-      vds.linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+    val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .splitMulti()
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
+
+    interceptFatal("Sample annotation `sa.pheno' must be numeric or Boolean, got String") {
+      vds.linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
 
   @Test def testNonNumericCov() {
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TString)).keyBy("Sample")
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     interceptFatal("Sample annotation `sa.cov.Cov2' must be numeric or Boolean, got String") {
-      vds.linreg("sa.pheno.Pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      vds.linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
 
   @Test def testFilters() {
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+
     var vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     def a = vds.variantsAndAnnotations.collect().toMap
 
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 4)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 4)
 
     def qBeta = vds.queryVA("va.linreg.beta")._2
 
@@ -409,40 +409,40 @@ class LinearRegressionSuite extends SparkSuite {
     assert(qBeta(a(v2)) != null)
 
     // only 6 samples are included, so 12 alleles total
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.3)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.3)
 
     assertEmpty(qBeta(a(v1)))
     assert(qBeta(a(v2)) != null)
 
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.4)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.4)
 
     assertEmpty(qBeta(a(v1)))
     assertEmpty(qBeta(a(v2)))
 
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.3)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 0.3)
 
     assertEmpty(qBeta(a(v1)))
     assert(qBeta(a(v2)) != null)
 
-    vds = vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 5, 0.1)
+    vds = vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 5, 0.1)
 
     assertEmpty(qBeta(a(v1)))
     assertEmpty(qBeta(a(v2)))
   }
 
   @Test def testFiltersFatals() {
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
     interceptFatal("Minumum alternate allele count must be a positive integer, got 0") {
-      vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 0)
+      vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 0)
     }
 
     interceptFatal("Minumum alternate allele frequency must lie in") {
-      vds.linreg("sa.pheno.Pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 2.0)
+      vds.linreg("sa.pheno", Array.empty[String], "va.linreg", useDosages = false, 1, 2.0)
     }
   }
 }

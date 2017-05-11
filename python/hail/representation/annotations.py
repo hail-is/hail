@@ -57,4 +57,12 @@ class Struct(object):
         return 37 + hash(tuple(sorted(self._attrs.items())))
 
     def get(self, item, default=None):
+        """Get an item, or return a default value if the item is not found.
+        
+        :param str item: Name of attribute.
+        
+        :param default: Default value.
+        
+        :returns: Value of item if found, or default value if not.
+        """
         return self._attrs.get(item, default)
