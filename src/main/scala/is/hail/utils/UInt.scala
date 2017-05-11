@@ -67,7 +67,7 @@ class UInt private(val i: Int) extends AnyVal {
   def *(right: Double): Double = toDouble * right
   def *(right: Long): Long = toLong * right
 
-  def /(right: UInt): UInt = UInt(toLong / right.toLong)
+  def /(right: UInt)(implicit uct: ClassTag[UInt]): UInt = UInt(toLong / right.toLong)
   def /(right: Int): UInt = UInt(toLong / right)
   def /(right: Double): Double = toDouble / right
   def /(right: Long): Long = toLong / right
@@ -93,7 +93,7 @@ class UInt private(val i: Int) extends AnyVal {
   def >(right: Long): Boolean = toLong > right
 
   def ==(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong == right.toLong
-  def ==(right: Int): Boolean = toLong == right
+  def ==(right: Int): Boolean = toLong == right.toLong
   def ==(right: Double): Boolean = toDouble == right
   def ==(right: Long): Boolean = toLong == right
 

@@ -90,7 +90,7 @@ object SplitMulti {
               .map { case (p, k) => (splitGT(k, i), p) }
               .reduceByKeyToArray(3, 0)(_ + _)
 
-            val px = Genotype.weightsToLinear(splitpx)
+            val px = Genotype.weightsToLinear(new ArrayUInt(splitpx))
             gb.setPX(px)
             px
           }
