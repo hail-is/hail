@@ -136,7 +136,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
 
     val sampleProbs = ArrayUInt(nGenotypes)
 
-    val totalProbInt = UInt((1L << nBitsPerProb) - 1)
+    val totalProbInt = ((1L << nBitsPerProb) - 1).toUInt
     val noCall = new DosageGenotype(-1, null)
 
     new Iterable[Genotype] {

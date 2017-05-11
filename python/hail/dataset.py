@@ -1076,7 +1076,7 @@ class VariantDataset(object):
     @typecheck_method(output=strlike,
                       nbits_per_prob=integral)
     def export_bgen(self, output, nbits_per_prob=8):
-        """Export variant dataset as BGEN and SAMPLE file.
+        """Export variant dataset as v1.2 BGEN and SAMPLE file.
 
         .. include:: requireTGenotype.rst
 
@@ -1091,10 +1091,10 @@ class VariantDataset(object):
 
         **Notes**
 
-        Writes out the internal VDS to a BGEN and SAMPLE fileset in the `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
+        Writes out the dataset to a BGEN and SAMPLE fileset in the `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
         The BGEN file is `v1.2 <http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format.html>`__ and the genotype probabilities are unphased and diploid.
         The maximum rounding error is given by :math:`\\frac{1}{2^{B} - 1}` where :math:`B` is specified by the parameter ``nbits_per_prob``. For example, if :math:`B = 8`, the maximum rounding error is 1/255 or 0.0039.
-        Multiallelic variants are allowed.
+        Multiallelic variants are supported.
 
         The information describing each variant is as follows:
 
@@ -1136,7 +1136,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        Writes out the internal VDS to a GEN and SAMPLE fileset in the `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
+        Writes out the dataset to a GEN and SAMPLE fileset in the `Oxford spec <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html>`__.
 
         The first 6 columns of the resulting GEN file are the following:
 

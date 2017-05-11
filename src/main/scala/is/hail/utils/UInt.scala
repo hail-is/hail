@@ -52,7 +52,6 @@ class UInt private(val i: Int) extends AnyVal {
 
   def intRep: Int = i
 
-<<<<<<< HEAD
   def +(right: UInt, dummy: Boolean = false): UInt = UInt(toLong + right.toLong)
   def +(right: Int): UInt = UInt(toLong + right)
   def +(right: Double): Double = toDouble + right

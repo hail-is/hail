@@ -36,10 +36,6 @@ class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[
     size_ += 1
   }
 
-  def ++=(x: Traversable[T]) {
-    x.foreach(t => this.+=(t))
-  }
-
   def result(): Array[T] = {
     val r = new Array[T](size_)
     Array.copy(b, 0, r, 0, size_)

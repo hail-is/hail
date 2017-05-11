@@ -263,9 +263,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val bgenHeader = BgenWriter.emitHeaderBlock(vds)
 
     vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
-      val samplePloidies = Array.ofDim[Byte](nSamples)
       it.map { case (v, (va, gs)) =>
-        BgenWriter.emitVariantBlock(v, va, gs, rsidQuery, varidQuery, samplePloidies, nBitsPerProb, conversionFactor, bitMask)
+        BgenWriter.emitVariantBlock(v, va, gs, rsidQuery, varidQuery, nSamples, nBitsPerProb, conversionFactor, bitMask)
       }
     }.saveFromByteArrays(path + ".bgen", vds.hc.tmpDir, header = Some(bgenHeader))
 
@@ -774,7 +773,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def writeSampleFile(path: String) {
     //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
     vds.hc.hadoopConf.writeTable(path + ".sample",
-      "ID_1 ID_2 missing" :: "0 0 0" :: vds.sampleIds.map(s => s"$s $s 0").toList)
+      "ID_1 ID_2 missing" :: "0 0 0" :: vds.sampleIds.map(s => s"$s $s NA").toList)
   }
 
   def writeKudu(dirname: String, tableName: String,
