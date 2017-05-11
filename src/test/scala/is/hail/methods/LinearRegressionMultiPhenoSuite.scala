@@ -12,16 +12,14 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
   // ensuring that result for one phenotype and hard calls is the same as with linreg
   // and that including the same phenotype a second time gives same result as well.
   @Test def testWithTwoCov() {
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
-      .linregMultiPheno(Array("sa.pheno.Pheno", "sa.pheno.Pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
+      .linregMultiPheno(Array("sa.pheno", "sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
@@ -110,16 +108,15 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
 
   // ensuring that result for one phenotype and dosages is the same as with linreg.
   @Test def testWithTwoCovPhred() {
+
+    val covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+      types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    val phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+      types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .annotateSamplesTable("src/test/resources/regressionLinear.cov",
-        "Sample",
-        root = Some("sa.cov"),
-        config = TextTableConfiguration(types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)))
-      .annotateSamplesTable("src/test/resources/regressionLinear.pheno",
-        "Sample",
-        root = Some("sa.pheno"),
-        config = TextTableConfiguration(types = Map("Pheno" -> TDouble), missing = "0"))
-      .linregMultiPheno(Array("sa.pheno.Pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages = true)
+      .annotateSamplesTable(covariates, root = "sa.cov")
+      .annotateSamplesTable(phenotypes, root = "sa.pheno")
+      .linregMultiPheno(Array("sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages = true)
 
     val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
     val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)

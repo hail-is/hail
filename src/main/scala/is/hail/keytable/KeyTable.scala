@@ -2,11 +2,12 @@ package is.hail.keytable
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr._
+import is.hail.expr.{TStruct, _}
+import is.hail.io.annotators.{BedAnnotator, IntervalList}
+import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -17,8 +18,8 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.reflect.ClassTag
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 sealed abstract class SortOrder
 
@@ -35,7 +36,11 @@ case class SortColumn(field: String, sortOrder: SortOrder)
 object KeyTable {
   final val fileVersion: Int = 1
 
-  def fromDF(hc: HailContext, df: DataFrame, key: Array[String]): KeyTable = {
+  def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): KeyTable = {
+    fromDF(hc, df, key.asScala.toArray)
+  }
+
+  def fromDF(hc: HailContext, df: DataFrame, key: Array[String] = Array.empty[String]): KeyTable = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     KeyTable(hc, df.rdd.map { r =>
       SparkAnnotationImpex.importAnnotation(r, signature).asInstanceOf[Row]
@@ -120,6 +125,31 @@ object KeyTable {
           sc.parallelize(rows.asScala)
       }, signature, keyNames.asScala.toArray)
   }
+
+  def importIntervalList(hc: HailContext, filename: String): KeyTable = {
+    IntervalList.read(hc, filename)
+  }
+
+  def importBED(hc: HailContext, filename: String): KeyTable = {
+    BedAnnotator.apply(hc, filename)
+  }
+
+  def importFam(hc: HailContext, path: String, isQuantitative: Boolean = false,
+    delimiter: String = "\\t",
+    missingValue: String = "NA"): KeyTable = {
+
+    val ffConfig = FamFileConfig(isQuantitative, delimiter, missingValue)
+
+    val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
+
+    val rows = data.map { case (id, values) => Row.fromSeq(Array(id) ++ values.asInstanceOf[Row].toSeq)}.toArray
+    val rdd = hc.sc.parallelize(rows)
+
+    val newFields = List("ID" -> TString) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
+    val struct = TStruct(newFields: _*)
+
+    KeyTable(hc, rdd, struct, Array("ID"))
+  }
 }
 
 case class KeyTable(hc: HailContext, rdd: RDD[Row],
@@ -143,6 +173,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def nFields: Int = fields.length
 
   def nKeys: Int = key.length
+
+  def nPartitions: Int = rdd.partitions.length
 
   def keySignature: TStruct = {
     val keySet = key.toSet
@@ -298,20 +330,20 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     filter(p)
   }
 
-  def keyBy(newKey: String): KeyTable = keyBy(List(newKey))
+  def keyBy(key: String*): KeyTable = keyBy(key)
 
-  def keyBy(newKeys: java.util.ArrayList[String]): KeyTable = keyBy(newKeys.asScala)
+  def keyBy(key: java.util.ArrayList[String]): KeyTable = keyBy(key.asScala)
 
-  def keyBy(newKeys: Iterable[String]): KeyTable = {
+  def keyBy(key: Iterable[String]): KeyTable = {
     val colSet = fieldNames.toSet
-    val badKeys = newKeys.filter(!colSet.contains(_))
+    val badKeys = key.filter(!colSet.contains(_))
 
     if (badKeys.nonEmpty)
       fatal(
         s"""Invalid ${ plural(badKeys.size, "key") }: [ ${ badKeys.map(x => s"'$x'").mkString(", ") } ]
            |  Available columns: [ ${ signature.fields.map(x => s"'${ x.name }'").mkString(", ") } ]""".stripMargin)
 
-    copy(key = newKeys.toArray)
+    copy(key = key.toArray)
   }
 
   def select(fieldsSelect: Array[String], newKeys: Array[String]): KeyTable = {
@@ -454,8 +486,8 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     }
   }
 
-  def export(sc: SparkContext, output: String, typesFile: String) {
-    val hConf = sc.hadoopConfiguration
+  def export(output: String, typesFile: String = null, header: Boolean = true) {
+    val hConf = hc.hadoopConf
     hConf.delete(output, recursive = true)
 
     Option(typesFile).foreach { file =>
@@ -476,7 +508,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
         sb.result()
       }
-    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")))
+    }.writeTable(output, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header))
   }
 
   def aggregate(keyCond: String, aggCond: String): KeyTable = {
@@ -683,5 +715,16 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def exportCassandra(address: String, keyspace: String, table: String,
     blockSize: Int = 100, rate: Int = 1000): Unit = {
     CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
+  }
+
+  def repartition(n: Int): KeyTable = copy(rdd = rdd.repartition(n))
+
+  def union(other: KeyTable): KeyTable = {
+    if (signature != other.signature)
+      fatal("cannot union tables with different schemas")
+    if (!key.sameElements(other.key))
+      fatal("cannot union tables with different key")
+
+    copy(rdd = rdd.union(other.rdd))
   }
 }

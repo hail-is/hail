@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.io.plink.FamFileConfig
+import is.hail.keytable.KeyTable
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -71,7 +72,7 @@ class ExportPlinkSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/mendel.vcf")
       .splitMulti()
       .hardCalls()
-      .annotateSamplesFam("src/test/resources/mendel.fam", config = FamFileConfig(delimiter = "\\\\s+"))
+      .annotateSamplesTable(KeyTable.importFam(hc, "src/test/resources/mendel.fam", delimiter = "\\\\s+"), expr = "sa.fam = table")
       .annotateSamplesExpr("sa = sa.fam")
       .annotateVariantsExpr("va = {rsid: str(v)}")
 

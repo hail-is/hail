@@ -9,19 +9,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-object TextTableConfiguration {
-  def apply(types: String, commentChar: String, separator: String, missing: String, noHeader: Boolean, impute: Boolean): TextTableConfiguration =
-    TextTableConfiguration(Parser.parseAnnotationTypes(Option(types).getOrElse("")), Option(commentChar), separator, missing, noHeader, impute)
-}
-
-case class TextTableConfiguration(
-  types: Map[String, Type] = Map.empty[String, Type],
-  commentChar: Option[String] = None,
-  separator: String = "\t",
-  missing: String = "NA",
-  noHeader: Boolean = false,
-  impute: Boolean = false)
-
 object TextTableReader {
 
   val booleanRegex = """^([Tt]rue)|([Ff]alse)|(TRUE)|(FALSE)$"""
@@ -82,16 +69,14 @@ object TextTableReader {
   }
 
   def read(sc: SparkContext)(files: Array[String],
-    config: TextTableConfiguration = TextTableConfiguration(),
+    types: Map[String, Type] = Map.empty[String, Type],
+    commentChar: Option[String] = None,
+    separator: String = "\t",
+    missing: String = "NA",
+    noHeader: Boolean = false,
+    impute: Boolean = false,
     nPartitions: Int = sc.defaultMinPartitions): (TStruct, RDD[WithContext[Row]]) = {
     require(files.nonEmpty)
-
-    val noHeader = config.noHeader
-    val impute = config.impute
-    val separator = config.separator
-    val commentChar = config.commentChar
-    val missing = config.missing
-    val types = config.types
 
     val firstFile = files.head
     val header = sc.hadoopConfiguration.readLines(firstFile) { lines =>
@@ -110,7 +95,7 @@ object TextTableReader {
       header.split(separator, -1)
         .zipWithIndex
         .map {
-          case (_, i) => s"_$i"
+          case (_, i) => s"f$i"
         }
     } else header.split(separator, -1).map(unescapeString)
 

@@ -376,7 +376,7 @@ class VSMSuite extends SparkSuite {
     forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.bar = va")
       val kt = vds2.variantsKT()
-      val resultVds = vds2.annotateVariantsKeyTable(kt, "va.foo = table.va.bar")
+      val resultVds = vds2.annotateVariantsTable(kt, expr = "va.foo = table.bar")
       val result = resultVds.rdd.collect()
       val (_, getFoo) = resultVds.queryVA("va.foo")
       val (_, getBar) = resultVds.queryVA("va.bar")
@@ -389,12 +389,12 @@ class VSMSuite extends SparkSuite {
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey() {
     forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.annotateVariantsExpr("va.key = pcoin(0.5)")
+      val vds2 = vds.annotateVariantsExpr("va.key = v.start % 2 == 0")
 
       val kt = KeyTable(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
         TStruct(("key", TBoolean), ("value", TInt)), Array("key"))
 
-      val resultVds = vds2.annotateVariantsKeyTable(kt, Seq("va.key"), "va.foo = table.value")
+      val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key"), root = "va.foo")
       val result = resultVds.rdd.collect()
       val (_, getKey) = resultVds.queryVA("va.key")
       val (_, getFoo) = resultVds.queryVA("va.foo")
@@ -413,7 +413,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey2() {
     forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
-      val vds2 = vds.annotateVariantsExpr("va.key1 = pcoin(0.5), va.key2 = pcoin(0.5)")
+      val vds2 = vds.annotateVariantsExpr("va.key1 =  v.start % 2 == 0, va.key2 = v.contig.length() % 2 == 0")
 
       def f(a: Boolean, b: Boolean): Int =
         if (a)
@@ -431,7 +431,8 @@ class VSMSuite extends SparkSuite {
 
       val kt = KeyTable(hc, mapping, TStruct(("key1", TBoolean), ("key2", TBoolean), ("value", TInt)), Array("key1", "key2"))
 
-      val resultVds = vds2.annotateVariantsKeyTable(kt, Seq("va.key1", "va.key2"), "va.foo = table.value")
+      val resultVds = vds2.annotateVariantsTable(kt, vdsKey = Seq("va.key1", "va.key2"),
+        expr = "va.foo = table")
       val result = resultVds.rdd.collect()
       val (_, getKey1) = resultVds.queryVA("va.key1")
       val (_, getKey2) = resultVds.queryVA("va.key2")

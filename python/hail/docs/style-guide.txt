@@ -72,7 +72,7 @@
     ```
     from hail import *
     from hail.representation import *
-    from hail.type import *
+    from hail.expr import *
     from hail.stats import *
     ```
 

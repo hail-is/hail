@@ -25,8 +25,8 @@ class ExportSuite extends SparkSuite {
     sb.tsvAppend(5.124)
     assert(sb.result() == "5.12400e+00")
 
-    val readBackAnnotated = vds.annotateSamplesTable(out, "Sample", code = Some("sa.readBackQC = drop(table, Sample)"),
-      config = TextTableConfiguration(impute = true))
+    val readBackAnnotated = vds.annotateSamplesTable(hc.importTable(out, impute = true).keyBy("Sample"),
+      root = "sa.readBackQC")
 
     val (t, qcQuerier) = readBackAnnotated.querySA("sa.qc")
     val (t2, rbQuerier) = readBackAnnotated.querySA("sa.readBackQC")
@@ -93,9 +93,8 @@ class ExportSuite extends SparkSuite {
     vds.exportVariants(out, "v = v, va = va", typeFile = true)
 
     val types = Parser.parseAnnotationTypes(hadoopConf.readFile(out + ".types")(Source.fromInputStream(_).mkString))
-    val readBack = vds.annotateVariantsTable(out, "v", code = Some("va = table.va"),
-      config = TextTableConfiguration(types = types))
-
+    val readBack = vds.annotateVariantsTable(hc.importTable(out, types=types).keyBy("v"),
+      root = "va")
     assert(vds.same(readBack))
   }
 }
