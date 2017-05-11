@@ -18,12 +18,14 @@ HapMap_genoData <- GenotypeData(HapMap_geno)
 
 mypcair <- pcair(genoData = HapMap_genoData)
 
-print(mypcair$vectors)
+options(digits=18)
+print(mypcair$vectors[,1:2])
 mypcrelate <- pcrelate( genoData = HapMap_genoData
                       , pcMat = mypcair$vectors[,1:2]
                       , correct = FALSE
-                      ## , training.set = mypcair$unrels
+                      , MAF = 0.0
                       )
-foo <- pcrelateReadKinship(pcrelObj = mypcrelate)
+foo <- pcrelateReadKinship( pcrelObj = mypcrelate
+                          )
 
 write.table(foo, paste(fname,".out",sep=""), row.names=FALSE, quote=FALSE)

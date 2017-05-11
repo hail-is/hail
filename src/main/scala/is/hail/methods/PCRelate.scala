@@ -14,21 +14,22 @@ import scala.language.higherKinds
 import scala.language.implicitConversions
 
 object PCRelate {
-  case class Result[M: DistributedMatrix](phiHat: M)
+  case class Result[M: DistributedMatrix](phiHat: M, k0: M, k1: M, k2: M)
 
   def apply[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
-    println(s"Starting pc relate ${System.nanoTime()}")
     val g = vdsToMeanImputedMatrix(vds).cache()
-
-    println(s"mean imputed ${System.nanoTime()}")
 
     val beta = fitBeta(g, pcs)
 
-    println(s"fitted Beta ${System.nanoTime()}")
-    val phihat = phiHat(DistributedMatrix[M].from(g), muHat(pcs, beta))
+    val mu = muHat(pcs, beta)
 
-    println(s"calculated phiHat ${System.nanoTime()}")
-    Result(phihat)
+    val phihat = phiHat(DistributedMatrix[M].from(g), mu)
+
+    val kTwo = k2(f(phihat), DistributedMatrix[M].from(dominance(g)), mu)
+
+    val kZero = k0(phihat, mu, kTwo, ibs0(vds))
+
+    Result(phihat, kZero, k1(kTwo, kZero), kTwo)
   }
 
   def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): RDD[Array[Double]] = {
@@ -69,8 +70,7 @@ object PCRelate {
 
   /**
     *  pcs: Sample x D
-    *  betas: SNP x (D+1)
-    *  beta0: SNP
+    *  beta: SNP x (D+1)
     *
     *  result: SNP x Sample
     */
@@ -106,17 +106,10 @@ object PCRelate {
     val dm = DistributedMatrix[M]
     import dm.ops._
 
-    val gMinusMu = g :-: (muHat * 2.0)
-    val varianceHat = muHat :*: (1.0 - muHat)
+    val gMinusMu = g :- (muHat * 2.0)
+    val varianceHat = muHat :* (1.0 - muHat)
 
-    // println("means")
-    // println(dm.toBlockRdd(muHat * 2.0).take(1)(0))
-    // println("numerator")
-    // println(dm.toBlockRdd(gMinusMu.t * gMinusMu).take(1)(0))
-    // println("denominator")
-    // println(dm.toBlockRdd((varianceHat.t * varianceHat).sqrt).take(1)(0))
-
-    ((gMinusMu.t * gMinusMu) :/: (varianceHat.t * varianceHat).sqrt) / 4.0
+    ((gMinusMu.t * gMinusMu) :/ (varianceHat.t.sqrt * varianceHat.sqrt)) / 4.0
   }
 
   def f[M: DistributedMatrix](phiHat: M): Array[Double] =
@@ -126,19 +119,48 @@ object PCRelate {
     val dm = DistributedMatrix[M]
     import dm.ops._
 
-    val normalizedGD = gD :-: ((mu :*: (1.0 - mu)) --* (f.map(1 + _)))
-    val variance = mu * (1.0 - mu)
+    val normalizedGD = gD :- ((mu :* (1.0 - mu)) --* (f.map(1 + _)))
+    val variance = mu :* (1.0 - mu)
 
-    (normalizedGD.t * normalizedGD) :/: (variance.t * variance)
+    (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
   }
 
-  def k0[M: DistributedMatrix](f: Array[Double], gD: M, mu: M): M =
-    ???
+  /**
+    * muHat: SNP x Sample
+    *
+    **/
+  private def sqr(x: Double): Double = x * x
+  private val cutoff = math.pow(2.0, (-5.0/2.0))
+  private def _k0(phiHat: Double, denom: Double, k2: Double, ibs0: Double) =
+    if (phiHat <= cutoff)
+      1 - 4 * phiHat + k2
+    else
+      ibs0 / denom
+  def k0[M: DistributedMatrix](phiHat: M, mu: M, k2: M, ibs0: M): M = {
+    val dm = DistributedMatrix[M]
+    import dm.ops._
+
+    val mu2 = dm.map(sqr _)(mu)
+    val oneMinusMu2 = dm.map(sqr _)(1.0 - mu)
+
+    val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
+
+    dm.map4(_k0)(phiHat, denom, k2, ibs0)
+  }
 
   def k1[M: DistributedMatrix](k2: M, k0: M): M = {
     val dm = DistributedMatrix[M]
     import dm.ops._
 
-    1.0 - (k2 :-: k0)
+    1.0 - (k2 :+ k0)
+  }
+
+  def ibs0[M: DistributedMatrix](vds: VariantDataset): M =
+    DistributedMatrix[M].from(IBD.ibs(vds)._1)
+
+  // FIXME: fuse with vdsToMeanImputedMatrix somehow, no need to recalculate means
+  def dominance(g: RDD[Array[Double]]): RDD[Array[Double]] = g.map { a =>
+    val p = (a.sum / a.size)
+    a.map(_ - p)
   }
 }

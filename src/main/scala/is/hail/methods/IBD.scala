@@ -7,9 +7,11 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.methods.IBD.generateComputeMaf
 import is.hail.variant.{Genotype, Variant, VariantDataset}
-import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.linalg._
+import org.apache.spark.mllib.linalg.distributed._
 
 import scala.language.higherKinds
 
@@ -149,14 +151,7 @@ object IBD {
 
   final val chunkSize = 1024
 
-  def computeIBDMatrix(vds: VariantDataset, computeMaf: Option[(Variant, Annotation) => Double], bounded: Boolean): RDD[((Int, Int), ExtendedIBDInfo)] = {
-    val unnormalizedIbse = vds.rdd.map { case (v, (va, gs)) => ibsForGenotypes(gs, computeMaf.map(f => f(v, va))) }
-      .fold(IBSExpectations.empty)(_ join _)
-
-    val ibse = unnormalizedIbse.normalized
-
-    val nSamples = vds.nSamples
-
+  private def fusedIbs(vds: VariantDataset): RDD[((Int, Int), Array[Long])] = {
     val chunkedGenotypeMatrix = vds.rdd
       .map { case (v, (va, gs)) => gs.map(_.gt.map(IBSFFI.gtToCRep).getOrElse(IBSFFI.missingGTCRep)).toArray[Byte] }
       .zipWithIndex()
@@ -165,32 +160,70 @@ object IBD {
         gts.grouped(chunkSize)
           .zipWithIndex
           .map { case (gtGroup, i) => ((i, variantId / chunkSize), (vid, gtGroup)) }
-      }
+    }
       .aggregateByKey(Array.tabulate(chunkSize * chunkSize)((i) => IBSFFI.missingGTCRep))({ case (x, (vid, gs)) =>
         for (i <- gs.indices) x(vid * chunkSize + i) = gs(i)
         x
       }, { case (x, y) =>
-        for (i <- y.indices)
-          if (x(i) == IBSFFI.missingGTCRep)
-            x(i) = y(i)
-        x
+          for (i <- y.indices)
+            if (x(i) == IBSFFI.missingGTCRep)
+              x(i) = y(i)
+          x
       })
       .map { case ((s, v), gs) => (v, (s, IBSFFI.pack(chunkSize, chunkSize, gs))) }
 
     chunkedGenotypeMatrix.join(chunkedGenotypeMatrix)
-      // optimization: Ignore chunks below the diagonal
+    // optimization: Ignore chunks below the diagonal
       .filter { case (_, ((i, _), (j, _))) => j >= i }
       .map { case (_, ((s1, gs1), (s2, gs2))) =>
         ((s1, s2), IBSFFI.ibs(chunkSize, chunkSize, gs1, gs2))
-      }
+    }
       .reduceByKey { (a, b) =>
-        var i = 0
-        while (i != a.length) {
-          a(i) += b(i)
-          i += 1
-        }
-        a
+      var i = 0
+      while (i != a.length) {
+        a(i) += b(i)
+        i += 1
       }
+      a
+    }
+  }
+
+  private def selectFromFusedIbs(n: Int)(fused: Array[Long]): Array[Double] = {
+    assert(n >= 0)
+    assert(n <= 2)
+    val arr = new Array[Double](chunkSize * chunkSize)
+    var si = 0
+    var sj = 0
+    while (si != chunkSize * chunkSize) {
+      while (sj != chunkSize) {
+        arr(si + sj) = fused(si * 3 + sj * 3 + n).toDouble
+        sj += 1
+      }
+      sj = 0
+      si += chunkSize
+    }
+    arr
+  }
+
+  def ibs(vds: VariantDataset): (BlockMatrix, BlockMatrix, BlockMatrix) = {
+    def getIbsAsBlockMatrix(n: Int)(fused: RDD[((Int, Int), Array[Long])]): BlockMatrix =
+      new BlockMatrix(fused.mapValues((selectFromFusedIbs(n) _).andThen(x => new DenseMatrix(chunkSize, chunkSize, x, false): Matrix)),
+        chunkSize, chunkSize)
+
+    val fused = fusedIbs(vds).cache()
+
+    (getIbsAsBlockMatrix(0)(fused), getIbsAsBlockMatrix(1)(fused), getIbsAsBlockMatrix(2)(fused))
+  }
+
+  def computeIBDMatrix(vds: VariantDataset, computeMaf: Option[(Variant, Annotation) => Double], bounded: Boolean): RDD[((Int, Int), ExtendedIBDInfo)] = {
+    val unnormalizedIbse = vds.rdd.map { case (v, (va, gs)) => ibsForGenotypes(gs, computeMaf.map(f => f(v, va))) }
+      .fold(IBSExpectations.empty)(_ join _)
+
+    val ibse = unnormalizedIbse.normalized
+
+    val nSamples = vds.nSamples
+
+    fusedIbs(vds)
       .mapValues { ibs =>
         val arr = new Array[ExtendedIBDInfo](chunkSize * chunkSize)
         var si = 0
