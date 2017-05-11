@@ -631,9 +631,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       joinSignature = if (joinSignature == TBoolean) TInt else TArray(joinSignature)
       val innerF = f
       f = if (joinSignature == TBoolean)
-            _.asInstanceOf[IndexedSeq[_]].length
-          else
-            _.asInstanceOf[IndexedSeq[_]].map(innerF)
+        _.asInstanceOf[IndexedSeq[_]].length
+      else
+        _.asInstanceOf[IndexedSeq[_]].map(innerF)
     }
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) = {
@@ -762,7 +762,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       f = if (kt.valueSignature.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
       else
-       _.asInstanceOf[IndexedSeq[_]].map(innerF)
+        _.asInstanceOf[IndexedSeq[_]].map(innerF)
     }
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) = {
@@ -773,7 +773,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
         Annotation.buildInserter(expr, vaSignature, ec, Annotation.VARIANT_HEAD)
       } else insertVA(joinSignature, Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
 
-      (t, (a: Annotation, toIns: Annotation) =>ins(a, f(toIns)))
+      (t, (a: Annotation, toIns: Annotation) => ins(a, f(toIns)))
     }
 
     val keyTypes = kt.keyFields.map(_.typ)
@@ -782,87 +782,87 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       .filter { case (k, v) => k.toSeq.forall(_ != null) }
 
     if (vdsKey != null) {
-        val keyEC = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
-        val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, keyEC)).unzip
+      val keyEC = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
+      val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, keyEC)).unzip
 
-        if (!keyTypes.sameElements(vdsKeyType))
-          fatal(
-            s"""method `annotateVariantsTable' encountered a mismatch between table keys and computed keys.
-               |  Computed keys:  [ ${ vdsKeyType.mkString(", ") } ]
-               |  Key table keys: [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
+      if (!keyTypes.sameElements(vdsKeyType))
+        fatal(
+          s"""method `annotateVariantsTable' encountered a mismatch between table keys and computed keys.
+             |  Computed keys:  [ ${ vdsKeyType.mkString(", ") } ]
+             |  Key table keys: [ ${ keyTypes.mkString(", ") } ]""".stripMargin)
 
-        val thisRdd = rdd.map { case (v, (va, gs)) =>
-          keyEC.setAll(v, va)
-          (Row.fromSeq(vdsKeyFs.map(_ ())), v)
-        }
+      val thisRdd = rdd.map { case (v, (va, gs)) =>
+        keyEC.setAll(v, va)
+        (Row.fromSeq(vdsKeyFs.map(_ ())), v)
+      }
 
-        val joinedRDD = keyedRDD
-          .join(thisRdd)
-          .map { case (_, (table, v)) => (v, table: Annotation) }
-          .orderedRepartitionBy(rdd.orderedPartitioner)
+      val joinedRDD = keyedRDD
+        .join(thisRdd)
+        .map { case (_, (table, v)) => (v, table: Annotation) }
+        .orderedRepartitionBy(rdd.orderedPartitioner)
 
-        annotateVariants(joinedRDD, finalType, inserter, product = product)
+      annotateVariants(joinedRDD, finalType, inserter, product = product)
 
     } else {
-        keyTypes match {
-          case Array(TVariant) =>
-            val ord = keyedRDD
-              .map { case (k, v) => (k.getAs[Variant](0), v: Annotation) }
-              .toOrderedRDD(rdd.orderedPartitioner)
+      keyTypes match {
+        case Array(TVariant) =>
+          val ord = keyedRDD
+            .map { case (k, v) => (k.getAs[Variant](0), v: Annotation) }
+            .toOrderedRDD(rdd.orderedPartitioner)
 
-            annotateVariants(ord, finalType, inserter, product = product)
-          case Array(TLocus) =>
-            import LocusImplicits.orderedKey
-            val ord = keyedRDD
-              .map { case (k, v) => (k.asInstanceOf[Row].get(0).asInstanceOf[Locus], v: Annotation) }
-              .toOrderedRDD(rdd.orderedPartitioner.mapMonotonic[Locus])
+          annotateVariants(ord, finalType, inserter, product = product)
+        case Array(TLocus) =>
+          import LocusImplicits.orderedKey
+          val ord = keyedRDD
+            .map { case (k, v) => (k.asInstanceOf[Row].get(0).asInstanceOf[Locus], v: Annotation) }
+            .toOrderedRDD(rdd.orderedPartitioner.mapMonotonic[Locus])
 
-            annotateLoci(ord, finalType, inserter, product = product)
+          annotateLoci(ord, finalType, inserter, product = product)
 
-          case Array(TInterval) =>
+        case Array(TInterval) =>
 
 
-            val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
-            val partitionKeyedIntervals = keyedRDD
-              .map { case (k, v) => (k.getAs[Interval[Locus]](0), v: Annotation) }
-              .flatMap { case (interval, a) =>
-                val start = partBc.value.getPartitionT(interval.start)
-                val end = partBc.value.getPartitionT(interval.end)
-                (start to end).view.map(i => (i, (interval, a)))
-              }
+          val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
+          val partitionKeyedIntervals = keyedRDD
+            .map { case (k, v) => (k.getAs[Interval[Locus]](0), v: Annotation) }
+            .flatMap { case (interval, a) =>
+              val start = partBc.value.getPartitionT(interval.start)
+              val end = partBc.value.getPartitionT(interval.end)
+              (start to end).view.map(i => (i, (interval, a)))
+            }
 
-            type IntervalT = (Interval[Locus], Annotation)
-            val nParts = rdd.partitions.length
-            val zipRDD = new ShuffledRDD[Int, IntervalT, IntervalT](partitionKeyedIntervals,
-              new Partitioner {
-                def getPartition(key: Any): Int = key.asInstanceOf[Int]
+          type IntervalT = (Interval[Locus], Annotation)
+          val nParts = rdd.partitions.length
+          val zipRDD = new ShuffledRDD[Int, IntervalT, IntervalT](partitionKeyedIntervals,
+            new Partitioner {
+              def getPartition(key: Any): Int = key.asInstanceOf[Int]
 
-                def numPartitions: Int = nParts
-              }).values
+              def numPartitions: Int = nParts
+            }).values
 
-            val res = rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
-              val iTree = IntervalTree.annotationTree[Locus, Annotation](intervals.toArray)
+          val res = rdd.zipPartitions(zipRDD, preservesPartitioning = true) { case (it, intervals) =>
+            val iTree = IntervalTree.annotationTree[Locus, Annotation](intervals.toArray)
 
-              it.map { case (v, (va, gs)) =>
-                val queries = iTree.queryValues(v.locus)
-                val annot = if (product)
-                  queries: IndexedSeq[Annotation]
-                else
-                  queries.headOption.orNull
+            it.map { case (v, (va, gs)) =>
+              val queries = iTree.queryValues(v.locus)
+              val annot = if (product)
+                queries: IndexedSeq[Annotation]
+              else
+                queries.headOption.orNull
 
-                (v, (inserter(va, annot), gs))
-              }
-            }.asOrderedRDD
+              (v, (inserter(va, annot), gs))
+            }
+          }.asOrderedRDD
 
-            copy(rdd = res, vaSignature = finalType)
-          case other =>
-            fatal(
-              s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
-                 |  [ Variant ]
-                 |  [ Locus ]
-                 |  [ Interval ]
-                 |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
-        }
+          copy(rdd = res, vaSignature = finalType)
+        case other =>
+          fatal(
+            s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
+               |  [ Variant ]
+               |  [ Locus ]
+               |  [ Interval ]
+               |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
+      }
     }
   }
 
@@ -872,12 +872,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     import LocusImplicits.orderedKey
     def annotate[S](rdd: RDD[(Locus, ((Variant, (Annotation, Iterable[T])), S))],
       ins: (Annotation, S) => Annotation): OrderedRDD[Locus, Variant, (Annotation, Iterable[T])] = {
-      rdd.mapPartitions({
-          it =>
-            it.map {
-              case (l, ((v, (va, gs)), annotation)) => (v, (ins(va, annotation), gs))
-            }
-        }, preservesPartitioning = true)
+      rdd.mapPartitions({ it =>
+        it.map { case (l, ((v, (va, gs)), annotation)) => (v, (ins(va, annotation), gs))
+        }
+      }, preservesPartitioning = true)
         .asOrderedRDD
     }
 
