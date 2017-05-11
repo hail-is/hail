@@ -267,7 +267,7 @@ class AggregatorSuite extends SparkSuite {
 
     val va = vds.variantsAndAnnotations.map(_._2).collect().head
     assert(qTake(va) == IndexedSeq[Any](11, null, 20))
-    assert(qTakeBy(va) == IndexedSeq[Any](55, null, 11))
+    assert(qTakeBy(va) == IndexedSeq[Any](5, 20, 1))
   }
 
   @Test def testTransformations() {
@@ -326,7 +326,7 @@ class AggregatorSuite extends SparkSuite {
       val fullEquivClasses = equivClasses(full)
 
       val wholeClassesPrefix = prefixEquivClasses.filterKeys(_ != lastKey)
-      val wholeClassesFull = fullEquivClasses.filterKeys(k => prefixEquivClasses.contains(k) && k != lastKey)
+      val wholeClassesFull = fullEquivClasses.filterKeys(k => wholeClassesPrefix.keySet.contains(k))
 
       val wholeClassesSame = wholeClassesFull == wholeClassesPrefix
 
@@ -356,12 +356,12 @@ class AggregatorSuite extends SparkSuite {
     rng.reSeed(Prop.seed)
 
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
-      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])",
+      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => g.gq).map(g => [g.dp, g.gq])",
         "gs.map(g => [g.dp, g.gq]).takeBy(x => x[1], 10)"))
-      val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
+      val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
 
-      if (!prefixModuloDisordering((x: Seq[Int]) => x(1))(takeby, sortby)) {
+      if (!prefixModuloDisordering((x: Seq[java.lang.Integer]) => x(1))(takeby, sortby)) {
         println(s"The first sequence is not a prefix, up to irrelevant disorderings, of the second sequence\n$takeby\n$sortby")
         false
       } else {
@@ -375,12 +375,12 @@ class AggregatorSuite extends SparkSuite {
     rng.reSeed(Prop.seed)
 
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)) { (vds: VariantDataset) =>
-      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => -g.gq).map(g => [g.dp, g.gq])",
+      val Array((a, _), (b, _)) = vds.queryGenotypes(Array("gs.collect().sortBy(g => g.gq).map(g => [g.dp, g.gq])",
         "gs.map(g => [g.dp, g.gq]).takeBy(x => g.gq, 10)"))
-      val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
-      val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[Int]]]
+      val sortby = a.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
+      val takeby = b.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Integer]]]
 
-      if (!prefixModuloDisordering((x: Seq[Int]) => x(1))(takeby, sortby)) {
+      if (!prefixModuloDisordering((x: Seq[java.lang.Integer]) => x(1))(takeby, sortby)) {
         println(s"The first sequence is not a prefix, up to irrelevant disorderings, of the second sequence\n$takeby\n$sortby")
         false
       } else {
@@ -389,4 +389,81 @@ class AggregatorSuite extends SparkSuite {
     } (Parameters(rng, 1000, 100))
   }
 
+  private def runAggregatorExpression(expr: String, aggregableName: String, aggregableElementType: Type, aggregableValue: TraversableOnce[_]): Any = {
+    val ec = EvalContext(Map(aggregableName -> (0, TAggregable(aggregableElementType, Map("x" -> (0, aggregableElementType))))))
+
+    val compiledCode = Parser.parseToAST(expr, ec).compile().run(Seq(), ec)
+    val aggs = ec.aggregations.map { case (_, _, agg0) => agg0.copy() }
+    for (x <- aggregableValue) {
+      ec.a(0) = x
+      for ((_, transform, agg) <- ec.aggregations) {
+        transform(agg.seqOp)
+      }
+    }
+    for ((resultBox, _, agg) <- ec.aggregations) {
+      resultBox.v = agg.result
+    }
+
+    compiledCode()
+  }
+
+  private val na = null
+
+  private def doubleSeqEq(xs: Seq[java.lang.Double], ys: Seq[java.lang.Double]) =
+    xs.zip(ys).forall {
+      case (null, null) => true
+      case (x, null) => false
+      case (null, y) => false
+      case (x, y) if x.isNaN && y.isNaN => true
+      case (x, y) if x.isNaN => false
+      case (x, y) if y.isNaN => false
+      case (x, y) => x == y
+    }
+
+  @Test def takeByNAIsAlwaysLast() {
+    val inf = Double.PositiveInfinity
+    val nan = Double.NaN
+
+    val xs = Array(inf, -1.0, 1.0, 0.0, -inf, na, nan)
+
+    val ascending = runAggregatorExpression("xs.takeBy(x => x, 7)", "xs", TDouble, xs)
+      .asInstanceOf[IndexedSeq[java.lang.Double]]
+
+    assert(doubleSeqEq(ascending, IndexedSeq(-inf, -1.0, 0.0, 1.0, inf, nan, na)),
+      s"expected ascending sequence of `java.lang.Double`s, but got: $ascending")
+
+    val descending = runAggregatorExpression("xs.takeBy(x => -x, 7)", "xs", TDouble, xs)
+      .asInstanceOf[IndexedSeq[java.lang.Double]]
+
+    assert(doubleSeqEq(descending, IndexedSeq(inf, 1.0, 0.0, -1.0, -inf, nan, na)),
+      s"expected descending sequence of `java.lang.Double`s, but got: $descending")
+  }
+
+  @Test def takeByIntExampleFromDocsIsCorrect() {
+    val gs = Array(7, 6, 3, na, 1, 2, na, 4, 5, -1)
+
+    {
+      val result = runAggregatorExpression("gs.takeBy(x => x, 5)", "gs", TInt, gs)
+        .asInstanceOf[IndexedSeq[java.lang.Integer]]
+      assert(result == IndexedSeq(-1, 1, 2, 3, 4))
+    }
+
+    {
+      val result = runAggregatorExpression("gs.takeBy(x => -x, 5)", "gs", TInt, gs)
+        .asInstanceOf[IndexedSeq[java.lang.Integer]]
+      assert(result == IndexedSeq(7, 6, 5, 4, 3))
+    }
+
+    {
+      val result = runAggregatorExpression("gs.takeBy(x => x, 10)", "gs", TInt, gs)
+        .asInstanceOf[IndexedSeq[java.lang.Integer]]
+      assert(result == IndexedSeq(-1, 1, 2, 3, 4, 5, 6, 7, na, na))
+    }
+  }
+
+  @Test def takeByMoreThanExist() {
+    val result = runAggregatorExpression("xs.takeBy(x => x, 10)", "xs", TInt, Array(0,1,2))
+      .asInstanceOf[IndexedSeq[java.lang.Integer]]
+    assert(result == IndexedSeq(0,1,2))
+  }
 }
