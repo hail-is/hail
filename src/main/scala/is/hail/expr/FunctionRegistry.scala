@@ -2065,45 +2065,75 @@ object FunctionRegistry {
     """, "n" -> "Number of items to take.")(
     aggregableHr(TTHr), intHr, arrayHr(TTHr))
 
-  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Int](f, n),
-    """
-    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
+  private val genericTakeByDocs = """
+    Returns the first ``n`` items of an aggregable in ascending order, ordered
+    by the result of ``f``. ``NA`` always appears last. If the aggregable
+    contains less than ``n`` items, then the result will contain as many
+    elements as the aggregable contains.
 
+    """
+
+  private val integralTakeByDocs = genericTakeByDocs ++ """
     **Examples**
 
-    Returns the 10 samples with the largest number of singletons:
+    Consider an aggregable ``gs`` containing these elements::
 
-    >>> [samplesMostSingletons] = (vds
+      7, 6, 3, NA, 1, 2, NA, 4, 5, -1
+
+    The expression ``gs.takeBy(x => x, 5)`` would return the array::
+
+      [-1, 1, 2, 3, 4]
+
+    The expression ``gs.takeBy(x => -x, 5)`` would return the array::
+
+      [7, 6, 5, 4, 3]
+
+    The expression ``gs.takeBy(x => x, 10)`` would return the array::
+
+      [-1, 1, 2, 3, 4, 5, 6, 7, NA, NA]
+
+    Returns the 10 samples with the least number of singletons:
+
+    >>> samplesMostSingletons = (vds
     ...   .sample_qc()
-    ...   .query_samples(['samples.takeBy(s => sa.qc.nSingleton, 10)']))
+    ...   .query_samples('samples.takeBy(s => sa.qc.nSingleton, 10)'))
 
-    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, boxedintHr), intHr, arrayHr(TTHr))
+    """
+
+  registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Int](f, n),
+    integralTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(aggregableHr(TTHr), unaryHr(TTHr, boxedintHr), intHr, arrayHr(TTHr))
   registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Long](f, n),
+    integralTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(aggregableHr(TTHr), unaryHr(TTHr, boxedlongHr), intHr, arrayHr(TTHr))
+
+  private val floatingPointTakeByDocs = genericTakeByDocs ++ """
+    Note that ``NaN`` always appears after any finite or infinite floating-point
+    numbers but before ``NA``. For example, consider an aggregable containing
+    these elements::
+
+      Infinity, -1, 1, 0, -Infinity, NA, NaN
+
+    The expression ``gs.takeBy(x => x, 7)`` would return the array::
+
+      [-Infinity, -1, 0, 1, Infinity, NaN, NA]
+
+    The expression ``gs.takeBy(x => -x, 7)`` would return the array::
+
+      [Infinity, 1, 0, -1, -Infinity, NaN, NA]
+
     """
-    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
-    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, boxedlongHr), intHr, arrayHr(TTHr))
+
   registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Float](f, n),
-    """
-    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
-    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, boxedfloatHr), intHr, arrayHr(TTHr))
+    floatingPointTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(aggregableHr(TTHr), unaryHr(TTHr, boxedfloatHr), intHr, arrayHr(TTHr))
   registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[Double](f, n),
-    """
-    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
-    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, boxeddoubleHr), intHr, arrayHr(TTHr))
+    floatingPointTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(aggregableHr(TTHr), unaryHr(TTHr, boxeddoubleHr), intHr, arrayHr(TTHr))
+
   registerLambdaAggregator("takeBy", (f: (Any) => Any, n: Int) => new TakeByAggregator[String](f, n),
-    """
-    Take the first ``n`` items of an aggregable ordered by the result of ``f``.
-    """, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
-  )(
-    aggregableHr(TTHr), unaryHr(TTHr, stringHr), intHr, arrayHr(TTHr))
+    genericTakeByDocs, "f" -> "Lambda expression for mapping an aggregable to an ordered value.", "n" -> "Number of items to take."
+  )(aggregableHr(TTHr), unaryHr(TTHr, stringHr), intHr, arrayHr(TTHr))
 
   val aggST = Box[SymbolTable]()
 
