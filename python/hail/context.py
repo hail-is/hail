@@ -3,11 +3,11 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
+from hail.expr import Type
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.expr import Type
-from hail.utils import TextTableConfig
-from hail.stats import UniformDist, BetaDist, TruncatedBetaDist
+from hail.stats import UniformDist
+from hail.utils import wrap_to_list
 
 
 class HailContext(object):
@@ -257,38 +257,151 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_keytable(self, path, key=[], npartitions=None, config=TextTableConfig()):
+    def import_table(self, paths, key=[], min_partitions=None, impute=False, no_header=False,
+                     comment=None, delimiter="\t", missing="NA", types={}):
         """Import delimited text file (text table) as key table.
 
         The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
         to specify keys.
+        
+        **Example**
+    
+        Given this file
 
-        :param path: files to import.
-        :type path: str or list of str
+        .. code-block:: text
 
-        :param key: List of key columns.
+            $ cat data/samples1.tsv
+            Sample	Height	Status  Age
+            PT-1234	154.1	ADHD	24
+            PT-1236	160.9	Control	19
+            PT-1238	NA	ADHD	89
+            PT-1239	170.3	Control	55
+
+        The interesting thing about this table is that column ``Height`` is a floating-point number, 
+        and column ``Age`` is an integer. We can either provide have Hail impute these types from 
+        the file, or pass them ourselves:
+        
+        Pass the types ourselves:
+        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TDouble(), 'Age': TInt()})
+        
+        Note that string columns like ``Sample`` and ``Status`` do not need to be typed, because ``String``
+        is the default type.
+        
+        Use type imputation (a bit easier, but requires reading the file twice):
+        >>> table = hc.import_table('data/samples1.tsv', impute=True)
+
+        **Detailed examples**
+
+        Let's import annotations from a CSV file with missing data and special characters:
+
+        .. code-block:: text
+
+            $ cat data/samples2.tsv
+            Batch,PT-ID
+            1kg,PT-0001
+            1kg,PT-0002
+            study1,PT-0003
+            study3,PT-0003
+            .,PT-0004
+            1kg,PT-0005
+            .,PT-0006
+            1kg,PT-0007
+
+        In this case, we should:
+
+        - Pass the non-default delimiter ``,``
+
+        - Pass the non-default missing value ``.``
+
+        >>> table = hc.import_table('data/samples2.tsv', delimiter=',', missing='.')
+
+        Let's import annotations from a file with no header and sample IDs that need to be transformed. 
+        Suppose the vds sample IDs are of the form ``NA#####``. This file has no header line, and the 
+        sample ID is hidden in a field with other information.
+
+        .. code-block: text
+
+            $ cat data/samples3.tsv
+            1kg_NA12345   female
+            1kg_NA12346   male
+            1kg_NA12348   female
+            pgc_NA23415   male
+            pgc_NA23418   male
+
+        To import:
+
+        >>> annotations = (hc.import_table('data/samples3.tsv', no_header=True)
+        ...                   .annotate('sample = f0.split("_")[1]')
+        ...                   .key_by('sample'))
+        
+        **Notes**
+        
+        The ``impute`` option tells Hail to scan the file an extra time to gather
+        information about possible field types. While this is a bit slower for large files, (the 
+        file is parsed twice), the convenience is often worth this cost.
+        
+        The ``delimiter`` parameter is a field separator regex. This regex follows the 
+         `Java regex standard <http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html>`_.
+        
+        .. note::
+        
+            Use ``delimiter='\\s+'`` to specify whitespace delimited files.
+            
+        The ``comment`` is an optional parameter which causes Hail to skip any line that starts in the
+        given pattern. Passing ``comment='#'`` will skip any line beginning in a pound sign, for example.
+        
+        The ``missing`` parameter defines the representation of missing data in the table. 
+        .. note::
+        
+            The ``comment`` and ``missing`` parameters are **NOT** regexes.
+
+        The ``no_header`` option indicates that the file has no header line. If this option is passed, 
+        then the column names will be ``f0``, ``f1``, ... ``fN`` (0-indexed). 
+        
+        The ``types`` option allows the user to pass the types of columns in the table. This is a 
+        dict keyed by ``str``, with :py:class:`~hail.expr.Type` values. See the examples above for
+        a standard usage. Additionally, this option can be used to override type imputation. For example,
+        if a column in a file refers to chromosome and does not contain any sex chromosomes, it will be
+        imputed as an integer, while most Hail methods expect chromosome to be passed as a string. Using
+        the ``impute=True`` mode and passing ``types={'Chromosome': TString()}`` will solve this problem.
+        
+        The ``min_partitions`` option can be used to increase the number of partitions (level of sharding)
+        of an imported table. The default partition size depends on file system and a number of other 
+        factors (including the ``min_block_size`` of the hail context), but usually is between 32M and 128M.
+        
+        :param paths: Files to import.
+        :type paths: str or list of str
+
+        :param key: Key column(s).
         :type key: str or list of str
 
-        :param npartitions: Number of partitions.
-        :type npartitions: int or None
+        :param min_partitions: Minimum number of partitions.
+        :type min_partitions: int or None
 
-        :param config: Configuration options for importing text files
-        :type config: :class:`.TextTableConfig`
-
+        :param bool no_header: File has no header and the N columns are named ``f0``, ``f1``, ... ``fN`` (0-indexed)
+        
+        :param bool impute: Impute column types from the file
+        
+        :param comment: Skip lines beginning with the given pattern
+        :type comment: str or None
+        
+        :param str delimiter: Field delimiter regex
+        
+        :param str missing: Specify identifier to be treated as missing
+        
+        :param types: Define types of fields in annotations files   
+        :type types: dict with str keys and :py:class:`.Type` values
+    
         :return: Key table constructed from text table.
         :rtype: :class:`.KeyTable`
         """
 
-        if not isinstance(key, list):
-            key = [key]
+        key = wrap_to_list(key)
+        paths = wrap_to_list(paths)
+        jtypes = {k: v._jtype for k, v in types.items()}
 
-        if not config:
-            config = TextTableConfig()
-
-        jkt = self._jhc.importKeyTable(jindexed_seq_args(path),
-                                       jarray(self._jvm.java.lang.String, key),
-                                       joption(npartitions),
-                                       config._to_java())
+        jkt = self._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
+                                    no_header, impute)
         return KeyTable(self, jkt)
 
     @handle_py4j
@@ -530,7 +643,7 @@ class HailContext(object):
 
         if generic:
             jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                           joption(npartitions), drop_samples, jset_args(call_fields))
+                                               joption(npartitions), drop_samples, jset_args(call_fields))
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
                                         joption(npartitions), drop_samples, store_gq,
@@ -544,7 +657,7 @@ class HailContext(object):
 
         **Example**
 
-        >>> vds = hc.index_bgen("data/example3.bgen")
+        >>> hc.index_bgen("data/example3.bgen")
 
         .. warning::
 
@@ -555,7 +668,6 @@ class HailContext(object):
 
         :param path: .bgen files to index.
         :type path: str or list of str
-
         """
 
         self._jhc.indexBgen(jindexed_seq_args(path))
@@ -668,36 +780,6 @@ class HailContext(object):
                                              af_dist._jrep(),
                                              seed)
         return VariantDataset(self, jvds)
-
-    @handle_py4j
-    def dataframe_to_keytable(self, df, keys=[]):
-        """Convert Spark SQL DataFrame to key table.
-
-        Spark SQL data types are converted to Hail types in the obvious way as follows:
-
-        .. code-block:: text
-
-          BooleanType => Boolean
-          IntegerType => Int
-          LongType => Long
-          FloatType => Float
-          DoubleType => Double
-          StringType => String
-          BinaryType => Binary
-          ArrayType => Array
-          StructType => Struct
-
-        Unlisted Spark SQL data types are currently unsupported.
-
-        :param keys: List of key column names.
-        :type keys: list of string
-
-        :return: Key table constructed from the Spark SQL DataFrame.
-        :rtype: :class:`.KeyTable`
-        """
-
-        jkeys = jarray(self._jvm.java.lang.String, keys)
-        return KeyTable(self, self._hail.keytable.KeyTable.fromDF(self._jhc, df._jdf, jkeys))
 
     @handle_py4j
     def eval_expr_typed(self, expr):

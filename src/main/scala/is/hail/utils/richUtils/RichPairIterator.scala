@@ -2,6 +2,9 @@ package is.hail.utils.richUtils
 
 import is.hail.utils.AdvanceableOrderedPairIterator
 
+import scala.collection.mutable
+import scala.reflect.ClassTag
+
 class RichPairIterator[K, V](val it: Iterator[(K, V)]) {
 
   def sortedLeftJoinDistinct[V2](right: Iterator[(K, V2)])(implicit kOrd: Ordering[K]): Iterator[(K, (V, Option[V2]))] = {
@@ -36,9 +39,8 @@ class RichPairIterator[K, V](val it: Iterator[(K, V)]) {
 
         bright.advanceTo(k)
         if (bright.hasNext && bright.head._1 == k) {
-          val (k2, v2) = bright.next()
 
-          (k, (v, Some(v2)))
+          (k, (v, Some(bright.head._2)))
         } else
           (k, (v, None))
       }

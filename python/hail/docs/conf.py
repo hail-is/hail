@@ -67,11 +67,12 @@ if not os.path.isdir("output/"):
     os.mkdir("output/")
 
 vds_files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
-for vds in vds_files:
-    if os.path.isdir(vds):
-        shutil.rmtree(vds)
+for f in vds_files:
+    if os.path.isdir(f):
+        shutil.rmtree(f)
 
-hc = HailContext(log="output/hail.log", quiet=True)"""
+hc = HailContext(log="output/hail.log", quiet=True)
+vds = hc.read('data/example.vds')"""
 
 doctest_global_cleanup = """import shutil, os
 
@@ -81,9 +82,9 @@ if os.path.isdir("output/"):
     shutil.rmtree("output/")
 
 vds_files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds"]
-for vds in vds_files:
-    if os.path.isdir(vds):
-        shutil.rmtree(vds)"""
+for f in vds_files:
+    if os.path.isdir(f):
+        shutil.rmtree(f)"""
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:

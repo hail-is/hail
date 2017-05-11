@@ -189,6 +189,7 @@ object OrderedRDD {
   def apply[PK, K, V](rdd: RDD[(K, V)],
     orderedPartitioner: OrderedPartitioner[PK, K])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
+    assert(rdd.partitions.length == orderedPartitioner.numPartitions)
 
     import kOk._
 
@@ -213,7 +214,7 @@ object OrderedRDD {
             val r = it.next()
 
             if (i < rangeBoundsBc.value.length)
-              assert(kOk.project(r._1) <= rangeBoundsBc.value(i), s"key ${ r._1 } greater than partition max ${ rangeBoundsBc.value(i)   }")
+              assert(kOk.project(r._1) <= rangeBoundsBc.value(i), s"key ${ r._1 } greater than partition max ${ rangeBoundsBc.value(i) }")
             if (i > 0)
               assert(rangeBoundsBc.value(i - 1) < kOk.project(r._1),
                 s"key ${ r._1 } >= last max ${ rangeBoundsBc.value(i - 1) } in partition $i")
@@ -338,8 +339,35 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
   override def getPreferredLocations(split: Partition): Seq[String] = rdd.preferredLocations(split)
 
+  def groupByKey(): OrderedRDD[PK, K, Array[V]] = {
+    new OrderedRDD[PK, K, Array[V]](rdd.mapPartitions { it =>
+
+      val bit = it.buffered
+      val builder = new ArrayBuilder[V]()
+
+      new Iterator[(K, Array[V])] {
+        def hasNext: Boolean = bit.hasNext
+
+        def next(): (K, Array[V]) = {
+          builder.clear()
+          val (k, v) = bit.next()
+
+          builder += v
+          while (bit.hasNext && bit.head._1 == k)
+            builder += bit.next()._2
+
+          (k, builder.result())
+        }
+      }
+    }, orderedPartitioner)
+  }
+
+  def orderedLeftJoin[V2](other: OrderedRDD[PK, K, V2])(implicit vct: ClassTag[V2]): RDD[(K, (V, Array[V2]))] = {
+    orderedLeftJoinDistinct(other.groupByKey()).mapValues { case (l, r) => (l, r.getOrElse(Array.empty[V2])) }
+  }
+
   def orderedLeftJoinDistinct[V2](other: OrderedRDD[PK, K, V2]): RDD[(K, (V, Option[V2]))] =
-    new OrderedLeftJoinRDD[PK, K, V, V2](this, other)
+    new OrderedLeftJoinDistinctRDD[PK, K, V, V2](this, other)
 
   def orderedInnerJoinDistinct[V2](other: OrderedRDD[PK, K, V2]): RDD[(K, (V, V2))] =
     orderedLeftJoinDistinct(other)
@@ -439,7 +467,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
     }
   }
 
-  def filterIntervals(intervals: IntervalTree[PK]): OrderedRDD[PK, K, V] = {
+  def filterIntervals(intervals: IntervalTree[PK, _]): OrderedRDD[PK, K, V] = {
 
     import kOk.pkOrd
     import kOk._
@@ -490,6 +518,17 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       val newRDD = new AdjustedPartitionsRDD(this, newPartitionIndices.map(i => Array(Adjustment(i, f))))
       new OrderedRDD(newRDD, OrderedPartitioner(newPartitionIndices.init.map(rangeBounds), newPartitionIndices.length))
     }
+  }
+
+  def subsetPartitions(keep: Array[Int]): OrderedRDD[PK, K, V] = {
+    require(keep.length <= rdd.partitions.length, "tried to subset to more partitions than exist")
+    require(keep.isSorted && keep.forall { i => i >= 0 && i < rdd.partitions.length },
+      "values not sorted or not in range [0, number of partitions)")
+
+    val newRangeBounds = keep.init.map(orderedPartitioner.rangeBounds)
+    val newPartitioner = new OrderedPartitioner(newRangeBounds, keep.length)
+
+    OrderedRDD(rdd.subsetPartitions(keep), newPartitioner)
   }
 }
 

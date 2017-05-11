@@ -33,7 +33,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     catchError {
-      multi.mendelErrors("foo", "foo")
+      multi.mendelErrors(null)
     }
 
     catchError {
@@ -61,7 +61,7 @@ class BiallelicMethodsSuite extends SparkSuite {
     }
 
     catchError {
-      multi.tdt("foo", "foo")
+      multi.tdt(null, "foo")
     }
 
     catchError {

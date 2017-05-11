@@ -3,8 +3,8 @@ package is.hail.variant
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.{TSet, TString}
-import is.hail.io.annotators.IntervalListAnnotator
+import is.hail.expr.{TArray, TSet, TString}
+import is.hail.io.annotators.IntervalList
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -17,7 +17,7 @@ class IntervalSuite extends SparkSuite {
       Locus(contig, end))
 
   @Test def test() {
-    val ilist = IntervalTree(Array(
+    val ilist = IntervalTree.apply[Locus](Array(
       genomicInterval("1", 10, 20),
       genomicInterval("1", 30, 40),
       genomicInterval("2", 40, 50)))
@@ -34,15 +34,19 @@ class IntervalSuite extends SparkSuite {
 
     assert(!ilist.contains(Locus("3", 1)))
 
-    val ex1 = IntervalListAnnotator.read("src/test/resources/example1.interval_list", hadoopConf)
+    val ex1 = IntervalList.read(hc, "src/test/resources/example1.interval_list")
 
     val f = tmpDir.createTempFile("example", extension = ".interval_list")
-    IntervalListAnnotator.write(ex1, f, hadoopConf)
-    val ex1wr = IntervalListAnnotator.read(f, hadoopConf)
-    assert(ex1wr == ex1)
 
-    val ex2 = IntervalListAnnotator.read("src/test/resources/example2.interval_list", hadoopConf)
-    assert(ex1 == ex2)
+    ex1.annotate("""interval = interval.start.contig + ":" + interval.start.position + "-" + interval.end.position""")
+      .export(f)
+
+    val ex1wr = hc.importTable(f).annotate("interval = Interval(interval)").keyBy("interval")
+
+    assert(ex1wr.same(ex1))
+
+    val ex2 = IntervalList.read(hc, "src/test/resources/example2.interval_list")
+    assert(ex1.select(Array("interval"), Array("interval")).same(ex2))
   }
 
   @Test def testAll() {
@@ -58,10 +62,10 @@ class IntervalSuite extends SparkSuite {
       out.write("1\t50\t150\t+\tTHING5")
     }
 
-    assert(vds.annotateVariantsIntervals(intervalFile, "va", all = true)
+    assert(vds.annotateVariantsTable(IntervalList.read(hc, intervalFile), root = "va", product = true)
       .variantsAndAnnotations
       .collect()
-      .head._2 == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
+      .head._2.asInstanceOf[IndexedSeq[_]].toSet == Set("THING1", "THING2", "THING3", "THING4", "THING5"))
   }
 
   @Test def testNew() {
@@ -70,7 +74,7 @@ class IntervalSuite extends SparkSuite {
       genomicInterval("1", 30, 40),
       genomicInterval("2", 40, 50))
 
-    val t = IntervalTree[Locus](a)
+    val t = IntervalTree.apply[Locus](a)
 
     assert(t.contains(Locus("1", 15)))
     assert(t.contains(Locus("1", 30)))
@@ -94,9 +98,9 @@ class IntervalSuite extends SparkSuite {
       genomicInterval("2", 42, 43),
       genomicInterval("2", 1, 10))
 
-    val t2 = IntervalTree[Locus](a2)
+    val t2 = IntervalTree.annotationTree(a2.map(i => (i, ())))
 
-    assert(t2.query(Locus("1", 30)) == Set(
+    assert(t2.queryIntervals(Locus("1", 30)).toSet == Set(
       genomicInterval("1", 30, 40), genomicInterval("1", 30, 50),
       genomicInterval("1", 29, 31), genomicInterval("1", 30, 31)))
 
@@ -114,7 +118,7 @@ class IntervalSuite extends SparkSuite {
       val intervals = it.toSet
 
       val setResults = intervals.filter(_.contains(locus))
-      val treeResults = it.query(locus)
+      val treeResults = it.queryIntervals(locus).toSet
 
       val inSet = intervals.exists(_.contains(locus))
       val inTree = it.contains(locus)
@@ -128,13 +132,15 @@ class IntervalSuite extends SparkSuite {
 
   @Test def testAnnotateIntervalsAll() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsIntervals("src/test/resources/annotinterall.interval_list", "va.annot", all = true)
+      .annotateVariantsTable(IntervalList.read(hc, "src/test/resources/annotinterall.interval_list"),
+        root = "va.annot",
+        product = true)
 
     val (t, q) = vds.queryVA("va.annot")
-    assert(t == TSet(TString))
+    assert(t == TArray(TString))
 
     vds.rdd.foreach { case (v, (va, gs)) =>
-      val a = q(va).asInstanceOf[Set[String]]
+      val a = q(va).asInstanceOf[IndexedSeq[String]].toSet
 
       if (v.start == 17348324)
         simpleAssert(a == Set("A", "B"))
@@ -216,23 +222,31 @@ class IntervalSuite extends SparkSuite {
     val intervalsGen = for (nIntervals <- Gen.choose(0, 10);
       g <- Gen.buildableOfN[Array, Interval[Locus]](nIntervals, intervalGen)) yield g
 
-    Prop.forAll(intervalsGen) { intervals =>
+    Prop.forAll(intervalsGen.filter(_.nonEmpty)) { intervals =>
       hadoopConf.writeTextFile(iList) { out =>
         intervals.foreach { i =>
           out.write(s"22\t${ i.start.position }\t${ i.end.position }\n")
         }
       }
 
-      val vdsKeep = vds.filterIntervals(iList, keep = true)
-      val vdsRemove = vds.filterIntervals(iList, keep = false)
+      val vdsKeep = vds.filterVariantsTable(IntervalList.read(hc, iList), keep = true)
+      val vdsRemove = vds.filterVariantsTable(IntervalList.read(hc, iList), keep = false)
 
       val p1 = vdsKeep.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
-        intervals.exists(_.contains(v.locus))
+          intervals.exists(_.contains(v.locus))
       }.asOrderedRDD))
+
       val p2 = vdsRemove.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
         intervals.forall(!_.contains(v.locus))
       }.asOrderedRDD))
-      p1 && p1
+
+      val p = p1 && p2
+      if (!p)
+        println(
+          s"""ASSERTION FAILED
+            |  p1: $p1
+            |  p2: $p2""".stripMargin)
+      p
     }.check()
   }
 
