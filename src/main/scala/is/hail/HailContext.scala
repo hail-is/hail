@@ -308,7 +308,7 @@ class HailContext private(val sc: SparkContext,
     separator: String,
     missing: String,
     noHeader: Boolean,
-    impute: Boolean): KeyTable = importKeyTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
+    impute: Boolean): KeyTable = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
     types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute)
 
   def importTable(input: String,
@@ -320,10 +320,10 @@ class HailContext private(val sc: SparkContext,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false): KeyTable = {
-    importKeyTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute)
+    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute)
   }
 
-  def importKeyTables(inputs: Seq[String],
+  def importTables(inputs: Seq[String],
     keyNames: Array[String] = Array.empty[String],
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],

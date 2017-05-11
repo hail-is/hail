@@ -374,9 +374,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val intervals = IntervalList.read(hc, intervalList)
       .rdd
-      .map(_.getAs[Interval[Locus]](0))
+      .map(r => (r.getAs[Interval[Locus]](0), ()))
       .collect()
-      .map(i => (i, ()))
 
     val iList = IntervalTree.annotationTree(intervals)
     val iListBc = hc.sc.broadcast(iList)
@@ -629,11 +628,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     if (product) {
       joinSignature = if (joinSignature == TBoolean) TInt else TArray(joinSignature)
-      val innerF = f
       f = if (kt.valueSignature.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
-      else
-        _.asInstanceOf[IndexedSeq[_]].map(innerF)
+      else {
+        val g = f
+        _.asInstanceOf[IndexedSeq[_]].map(g)
+      }
     }
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) = {
@@ -760,11 +760,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     if (product) {
       joinSignature = if (joinSignature == TBoolean) TInt else TArray(joinSignature)
-      val innerF = f
       f = if (kt.valueSignature.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
-      else
-        _.asInstanceOf[IndexedSeq[_]].map(innerF)
+      else {
+        val g = f
+        _.asInstanceOf[IndexedSeq[_]].map(g)
+      }
     }
 
     val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) = {
@@ -822,15 +823,13 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           annotateLoci(ord, finalType, inserter, product = product)
 
         case Array(TInterval) =>
-
-
           val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
           val partitionKeyedIntervals = keyedRDD
-            .map { case (k, v) => (k.getAs[Interval[Locus]](0), v: Annotation) }
-            .flatMap { case (interval, a) =>
+            .flatMap { case (k, v) =>
+              val interval = k.getAs[Interval[Locus]](0)
               val start = partBc.value.getPartitionT(interval.start)
               val end = partBc.value.getPartitionT(interval.end)
-              (start to end).view.map(i => (i, (interval, a)))
+              (start to end).view.map(i => (i, (interval, v)))
             }
 
           type IntervalT = (Interval[Locus], Annotation)
@@ -875,8 +874,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     def annotate[S](rdd: RDD[(Locus, ((Variant, (Annotation, Iterable[T])), S))],
       ins: (Annotation, S) => Annotation): OrderedRDD[Locus, Variant, (Annotation, Iterable[T])] = {
       rdd.mapPartitions({ it =>
-        it.map { case (l, ((v, (va, gs)), annotation)) => (v, (ins(va, annotation), gs))
-        }
+        it.map { case (l, ((v, (va, gs)), annotation)) => (v, (ins(va, annotation), gs)) }
       }, preservesPartitioning = true)
         .asOrderedRDD
     }
@@ -1179,8 +1177,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     table.keyFields.map(_.typ) match {
       case Array(TString) =>
         val sampleSet = table.keyedRDD()
-          .keys
-          .map(r => r.getAs[String](0))
+          .map { case (k, v) => k.getAs[String](0) }
           .filter(_ != null)
           .collectAsSet()
         filterSamplesList(sampleSet.toSet, keep)
@@ -1303,7 +1300,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
           if (overlapPartitions.length < rdd.partitions.length)
             info(s"filtered to ${ overlapPartitions.length } of ${ leftTotalPartitions } partitions")
 
-          val zipRDD = intRDD.shuffleTo(new Partitioner {
+
+          val zipRDD = intRDD.partitionBy(new Partitioner {
             def getPartition(key: Any): Int = partitionMap(key.asInstanceOf[Int])
 
             def numPartitions: Int = overlapPartitions.length
@@ -1315,7 +1313,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
               it.filter { case (v, _) => itree.contains(v.locus) }
             }
         } else {
-          val zipRDD = intRDD.shuffleTo(new Partitioner {
+          val zipRDD = intRDD.partitionBy(new Partitioner {
             def getPartition(key: Any): Int = key.asInstanceOf[Int]
 
             def numPartitions: Int = leftTotalPartitions

@@ -363,7 +363,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
   }
 
   def orderedLeftJoin[V2](other: OrderedRDD[PK, K, V2])(implicit vct: ClassTag[V2]): RDD[(K, (V, Array[V2]))] = {
-    orderedLeftJoinDistinct(other.groupByKey()).mapValues { case (l, r) => (l, r.getOrElse(Array.empty[V2]))}
+    orderedLeftJoinDistinct(other.groupByKey()).mapValues { case (l, r) => (l, r.getOrElse(Array.empty[V2])) }
   }
 
   def orderedLeftJoinDistinct[V2](other: OrderedRDD[PK, K, V2]): RDD[(K, (V, Option[V2]))] =
@@ -522,7 +522,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
   def subsetPartitions(keep: Array[Int]): OrderedRDD[PK, K, V] = {
     require(keep.length <= rdd.partitions.length, "tried to subset to more partitions than exist")
-    require(keep.isSorted && keep.forall{i => i >= 0 && i < rdd.partitions.length},
+    require(keep.isSorted && keep.forall { i => i >= 0 && i < rdd.partitions.length },
       "values not sorted or not in range [0, number of partitions)")
 
     val newRangeBounds = keep.init.map(orderedPartitioner.rangeBounds)
