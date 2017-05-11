@@ -1036,7 +1036,7 @@ class VariantDataset(object):
         if vds_key:
             vds_key = wrap_to_list(vds_key)
 
-        jvds = self._jvds.annotateVariantsTable(table._jkt, wrap_to_list(vds_key), root, expr, product)
+        jvds = self._jvds.annotateVariantsTable(table._jkt, vds_key, root, expr, product)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
