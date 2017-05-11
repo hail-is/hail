@@ -7,8 +7,8 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.ClassTag
 
-case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Array[String],
-  yContigs: Array[String], mtContigs: Array[String], par: Interval[Locus]*) extends Serializable {
+case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
+  yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends Serializable {
 
   def inX(contig: String): Boolean = xContigs.contains(contig)
 
@@ -58,16 +58,16 @@ object GenomeReference {
           case other => fatal(s"Contig schema did not match {'name': String, 'length': Int}. Found $other.")
         }.toArray
 
-      val xContigs = getAndCastJSON[JArray]("x_contigs").arr.map { case JString(s) => s }.toArray
-      val yContigs = getAndCastJSON[JArray]("y_contigs").arr.map { case JString(s) => s }.toArray
-      val mtContigs = getAndCastJSON[JArray]("mt_contigs").arr.map { case JString(s) => s }.toArray
+      val xContigs = getAndCastJSON[JArray]("x_contigs").arr.map { case JString(s) => s }.toSet
+      val yContigs = getAndCastJSON[JArray]("y_contigs").arr.map { case JString(s) => s }.toSet
+      val mtContigs = getAndCastJSON[JArray]("mt_contigs").arr.map { case JString(s) => s }.toSet
 
       val par = getAndCastJSON[JArray]("par")
         .arr
         .map { jv => JSONAnnotationImpex.importAnnotation(jv, TInterval).asInstanceOf[Interval[Locus]] }
         .toArray
 
-      GenomeReference(referenceName, contigs, xContigs, yContigs, mtContigs, par: _*)
+      GenomeReference(referenceName, contigs, xContigs, yContigs, mtContigs, par)
 
     } catch {
       case npe: NullPointerException =>
