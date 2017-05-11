@@ -255,6 +255,7 @@ class HailContext(object):
                                     tolerance)
         return VariantDataset(self, jvds)
 
+    @handle_py4j
     def import_table(self, paths, key=[], min_partitions=None, impute=False, no_header=False,
                      comment=None, delimiter="\t", missing="NA", types={}):
         """Import delimited text file (text table) as key table.

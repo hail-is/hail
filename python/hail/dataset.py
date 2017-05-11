@@ -836,6 +836,8 @@ class VariantDataset(object):
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
+        if vds_key:
+            vds_key = wrap_to_list(vds_key)
 
         return VariantDataset(self.hc, self._jvds.annotateSamplesTable(table._jkt, vds_key, root, expr, product))
 
@@ -1031,6 +1033,8 @@ class VariantDataset(object):
         :return: Annotated variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
+        if vds_key:
+            vds_key = wrap_to_list(vds_key)
 
         jvds = self._jvds.annotateVariantsTable(table._jkt, wrap_to_list(vds_key), root, expr, product)
         return VariantDataset(self.hc, jvds)
