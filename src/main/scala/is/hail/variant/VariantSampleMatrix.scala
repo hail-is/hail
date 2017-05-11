@@ -1776,18 +1776,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       println(
         s"""different va signature:
            |  left:  ${ vaSignature.toPrettyString(compact = true) }
-           |  right: ${
-          that.vaSignature.toPrettyString(compact = true)
-        }""".stripMargin)
+           |  right: ${ that.vaSignature.toPrettyString(compact = true)}""".stripMargin)
     }
     if (saSignature != that.saSignature) {
       metadataSame = false
       println(
         s"""different sa signature:
            |  left:  ${ saSignature.toPrettyString(compact = true) }
-           |  right: ${
-          that.saSignature.toPrettyString(compact = true)
-        }""".stripMargin)
+           |  right: ${ that.saSignature.toPrettyString(compact = true)}""".stripMargin)
     }
     if (globalSignature != that.globalSignature) {
       metadataSame = false
