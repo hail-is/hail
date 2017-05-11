@@ -630,7 +630,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     if (product) {
       joinSignature = if (joinSignature == TBoolean) TInt else TArray(joinSignature)
       val innerF = f
-      f = if (joinSignature == TBoolean)
+      f = if (kt.valueSignature.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
       else
         _.asInstanceOf[IndexedSeq[_]].map(innerF)
@@ -651,6 +651,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
     val keyedRDD = kt.keyedRDD()
       .filter { case (k, v) => k.toSeq.forall(_ != null) }
+
+    val nullValue: IndexedSeq[Annotation] = if (product) IndexedSeq() else null
 
     if (vdsKey != null) {
       val keyEC = EvalContext(Map("s" -> (0, TString), "sa" -> (1, saSignature)))
@@ -675,7 +677,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
       val m = r.collectAsMap()
 
-      annotateSamples(m.getOrElse(_, null), finalType, inserter)
+      annotateSamples(m.getOrElse(_, nullValue), finalType, inserter)
     } else {
       keyTypes match {
         case Array(TString) =>
@@ -687,7 +689,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
 
           val m = r.collectAsMap()
 
-          annotateSamples(m.getOrElse(_, null), finalType, inserter)
+          annotateSamples(m.getOrElse(_, nullValue), finalType, inserter)
         case other =>
           fatal(
             s"""method 'annotate_samples_table' expects a key table keyed by [ String ]

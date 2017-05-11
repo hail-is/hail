@@ -718,4 +718,13 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   }
 
   def repartition(n: Int): KeyTable = copy(rdd = rdd.repartition(n))
+
+  def union(other: KeyTable): KeyTable = {
+    if (signature != other.signature)
+      fatal("cannot union tables with different schemas")
+    if (!key.sameElements(other.key))
+      fatal("cannot union tables with different key")
+
+    copy(rdd = rdd.union(other.rdd))
+  }
 }
