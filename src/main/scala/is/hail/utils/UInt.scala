@@ -116,7 +116,7 @@ class UInt private(val i: Int) extends AnyVal {
   override def toString: String = toLong.toString
 }
 
-class ArrayUInt(a: Array[Int]) {
+class ArrayUInt(val a: Array[Int]) extends AnyVal {
   def apply(i: Int): UInt = UInt.applyUnchecked(a(i))
 
   def update(i: Int, x: UInt) {
