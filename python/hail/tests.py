@@ -436,7 +436,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(kt.num_columns, 3)
         self.assertEqual(kt.key[0], "Sample")
         self.assertEqual(kt.column_names[2], "qPhen")
-        self.assertEqual(kt.count_rows(), 100)
+        self.assertEqual(kt.count(), 100)
         kt.schema
 
         # Export
@@ -449,14 +449,14 @@ class ContextTests(unittest.TestCase):
 
         # Annotate
         (kt.annotate('X = Status')
-         .count_rows())
+         .count())
 
         # Join
-        kt.join(kt2, 'left').count_rows()
+        kt.join(kt2, 'left').count()
 
         # AggregateByKey
         (kt.aggregate_by_key("Status = Status", "Sum = qPhen.sum()")
-         .count_rows())
+         .count())
 
         # Forall, Exists
         self.assertFalse(kt.forall('Status == "CASE"'))
@@ -488,7 +488,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(sample_variants.same(sample_variants2))
 
         # cseed: calculated by hand using sort -n -k 3,3 and inspection
-        self.assertTrue(kt.filter('qPhen < 10000').count_rows() == 23)
+        self.assertTrue(kt.filter('qPhen < 10000').count() == 23)
 
         kt.write('/tmp/sampleAnnotations.kt', overwrite=True)
         kt3 = hc.read_keytable('/tmp/sampleAnnotations.kt')

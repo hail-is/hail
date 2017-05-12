@@ -100,7 +100,7 @@ class KeyTableSuite extends SparkSuite {
     val kt4 = kt1.filter("field1 == 5 && field2 == 9 && field3 == 0", keep = false)
     val kt5 = kt1.filter("field1 < -5 && field3 == 100", keep = true)
 
-    assert(kt1.nRows == 3 && kt2.nRows == 2 && kt3.nRows == 1 && kt4.nRows == 2 && kt5.nRows == 0)
+    assert(kt1.count == 3 && kt2.count == 2 && kt3.count == 1 && kt4.count == 2 && kt5.count == 0)
 
     val outputFile = tmpDir.createTempFile("filter", "tsv")
     kt5.export(outputFile)
@@ -134,7 +134,7 @@ class KeyTableSuite extends SparkSuite {
     val nUnionRows = rightKeys.union(leftKeys).size
     val nExpectedKeys = ktLeft.nKeys
 
-    assert(ktLeftJoin.nRows == ktLeft.nRows &&
+    assert(ktLeftJoin.count == ktLeft.count &&
       ktLeftJoin.nKeys == nExpectedKeys &&
       ktLeftJoin.nFields == nExpectedFields &&
       ktLeftJoin.filter { a =>
@@ -142,18 +142,18 @@ class KeyTableSuite extends SparkSuite {
       }.forall("isMissing(qPhen2) && isMissing(qPhen3)")
     )
 
-    assert(ktRightJoin.nRows == ktRight.nRows &&
+    assert(ktRightJoin.count == ktRight.count &&
       ktRightJoin.nKeys == nExpectedKeys &&
       ktRightJoin.nFields == nExpectedFields &&
       ktRightJoin.filter { a =>
         !leftKeys.contains(Option(rightJoinKeyQuerier(a)).map(_.asInstanceOf[String]))
       }.forall("isMissing(Status) && isMissing(qPhen)"))
 
-    assert(ktOuterJoin.nRows == nUnionRows &&
+    assert(ktOuterJoin.count == nUnionRows &&
       ktOuterJoin.nKeys == ktLeft.nKeys &&
       ktOuterJoin.nFields == nExpectedFields)
 
-    assert(ktInnerJoin.nRows == nIntersectRows &&
+    assert(ktInnerJoin.count == nIntersectRows &&
       ktInnerJoin.nKeys == nExpectedKeys &&
       ktInnerJoin.nFields == nExpectedFields)
 
