@@ -113,32 +113,6 @@ class AnnotateSuite extends SparkSuite {
 
   }
 
-  @Test def testSampleListAnnotator() {
-    var vds = hc.importVCF("src/test/resources/sample.vcf")
-
-    val sampleList1 = Array("foo1", "foo2", "foo3", "foo4")
-    val sampleList2 = Array("C1046::HG02024", "C1046::HG02025", "C1046::HG02026",
-      "C1047::HG00731", "C1047::HG00732", "C1047::HG00733", "C1048::HG02024")
-    val sampleList3 = vds.sampleIds.toArray
-
-    val fileRoot = tmpDir.createTempFile(prefix = "sampleListAnnotator")
-    hadoopConf.writeTable(fileRoot + "file1.txt", sampleList1)
-    hadoopConf.writeTable(fileRoot + "file2.txt", sampleList2)
-    hadoopConf.writeTable(fileRoot + "file3.txt", sampleList3)
-
-    vds = vds.annotateSamplesList(fileRoot + "file1.txt", root = "sa.test1")
-    vds = vds.annotateSamplesList(fileRoot + "file2.txt", root = "sa.test2")
-    vds = vds.annotateSamplesList(fileRoot + "file3.txt", root = "sa.test3")
-
-    val (_, querier1) = vds.querySA("sa.test1")
-    val (_, querier2) = vds.querySA("sa.test2")
-    val (_, querier3) = vds.querySA("sa.test3")
-
-    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier1(sa) == false })
-    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier3(sa) == true })
-    assert(vds.sampleIdsAndAnnotations.forall { case (sample, sa) => querier2(sa) == sampleList2.contains(sample) })
-  }
-
   @Test def testVariantTSVAnnotator() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()

@@ -149,64 +149,6 @@ class IntervalSuite extends SparkSuite {
       else
         simpleAssert(a == Set())
     }
-
-    @Test def testAggregate() {
-      val vds = hc.importVCF("src/test/resources/sample2.vcf", nPartitions = Some(2)).cache()
-        .splitMulti()
-      val iList = tmpDir.createTempFile("input", ".interval_list")
-      val tmp1 = tmpDir.createTempFile("output", ".tsv")
-
-      val startPos = 16050036 - 250000
-      val endPos = 17421565 + 250000
-      val intervalGen = for (start <- Gen.choose(startPos, endPos);
-        end <- Gen.choose(start, endPos))
-        yield Interval(Locus("22", start), Locus("22", end))
-      val intervalsGen = Gen.buildableOfN[Array, Interval[Locus]](500, intervalGen)
-
-      val p = Prop.forAll(intervalsGen) { intervals =>
-
-        hadoopConf.writeTextFile(iList) { out =>
-          intervals.foreach { i =>
-            out.write(s"22\t${ i.start.position }\t${ i.end.position }\n")
-          }
-        }
-
-        vds.aggregateIntervals(iList, "nSNP = variants.filter(v => v.altAllele().isSNP()).count(), " +
-          "nIndel = variants.filter(v => v.altAllele().isIndel()).count(), " +
-          "N = variants.count()", tmp1)
-
-        val variants = vds
-          .variants
-          .collect()
-
-        hadoopConf.readFile(tmp1) { in =>
-
-          val lines = Source.fromInputStream(in)
-            .getLines()
-            .toArray
-
-          assert(lines.head == "Contig\tStart\tEnd\tnSNP\tnIndel\tN")
-
-          lines.tail.forall { line =>
-            val Array(contig, startStr, endStr, nSnpStr, nIndelStr, nStr) = line.split("\t")
-            val start = startStr.toInt
-            val end = endStr.toInt
-            val nSnp = nSnpStr.toInt
-            val nIndel = nIndelStr.toInt
-            val n = nStr.toInt
-
-            val interval = Interval(Locus(contig, start), Locus(contig, end))
-            val inInterval = variants.filter(v => interval.contains(v.locus))
-
-            (nSnp == inInterval.count(_.altAllele.isSNP)) &&
-              (nIndel == inInterval.count(_.altAllele.isIndel)) &&
-              (n == inInterval.length)
-          }
-        }
-      }
-
-      p.check()
-    }
   }
 
   @Test def testFilter() {
