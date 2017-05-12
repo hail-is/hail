@@ -284,7 +284,7 @@ object RegressionUtils {
     }
   }
 
-  // constructs DenseVector of dosage genotypes (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
+  // constructs DenseVector of dosages (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
   def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {
     val nMaskedSamples = y.length
     val valsX = Array.ofDim[Double](nMaskedSamples)
@@ -295,7 +295,7 @@ object RegressionUtils {
     var nMissing = 0
     val missingRowIndices = new ArrayBuilder[Int]()
 
-    val gts = gs.biallelicDosageGenotypeIterator
+    val gts = gs.biallelicDosageIterator
     var i = 0
     var row = 0
     while (gts.hasNext) {

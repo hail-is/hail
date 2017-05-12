@@ -180,18 +180,6 @@ class VariantDataset(object):
         return self._jvds.wasSplit()
 
     @handle_py4j
-    def is_dosage(self):
-        """True if genotype probabilities are dosages.
-
-        The result of ``is_dosage()`` will be True if the variant dataset was imported with :py:meth:`~hail.HailContext.import_gen` or
-        :py:meth:`~hail.HailContext.import_bgen`.
-
-        :rtype: bool
-        """
-
-        return self._jvds.isDosage()
-
-    @handle_py4j
     def file_version(self):
         """File version of variant dataset.
 
@@ -1382,7 +1370,7 @@ class VariantDataset(object):
 
         **Examples**
 
-        Import dosage data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
+        Import genotype probability data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
 
         >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
 
@@ -1402,7 +1390,7 @@ class VariantDataset(object):
         - reference allele (``v.ref``)
         - alternate allele (``v.alt``)
 
-        Probability dosages:
+        Genotype probabilities:
 
         - 3 probabilities per sample ``(pHomRef, pHet, pHomVar)``.
         - Any filtered genotypes will be output as ``(0.0, 0.0, 0.0)``.
@@ -2519,7 +2507,7 @@ class VariantDataset(object):
         as the mean of called genotypes.
 
         By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are given by dosage genotypes, defined by
+        If ``use_dosages=True``, then genotype values are given by dosages, defined by
         :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For any variant, if ``Variant.is_dosage``
         is false, then :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
         calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
@@ -2581,7 +2569,7 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
+        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
 
         :param int min_ac: Minimum alternate allele count.
 
@@ -2812,7 +2800,7 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store result of linear regression.
 
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
+        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
 
         :param int min_ac: Minimum alternate allele count.
 
