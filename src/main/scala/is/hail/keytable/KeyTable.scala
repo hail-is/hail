@@ -168,7 +168,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
   def fieldNames: Array[String] = fields.map(_.name)
 
-  def nRows: Long = rdd.count()
+  def count(): Long = rdd.count()
 
   def nFields: Int = fields.length
 

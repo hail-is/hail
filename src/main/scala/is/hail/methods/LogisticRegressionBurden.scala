@@ -64,7 +64,7 @@ object LogisticRegressionBurden {
     if (!numericType.isInstanceOf[TNumeric])
       fatal(s"aggregate_expr type must be numeric, found $numericType")
 
-    info(s"Running $test logistic regression burden test for ${sampleKT.nRows} keys on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"Running $test logistic regression burden test for ${sampleKT.count} keys on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val sc = sampleKT.hc.sc
     val yBc = sc.broadcast(y)

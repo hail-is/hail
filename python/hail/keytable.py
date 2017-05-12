@@ -151,13 +151,14 @@ class KeyTable(object):
         return self._column_names
 
     @handle_py4j
-    def count_rows(self):
-        """Number of rows.
+    def count(self):
+        """Count the number of rows.
 
-        >>> kt1.count_rows()
-        4L
-
-        :rtype: long
+        **Examples**
+        
+        >>> kt1.count()
+        
+        :rtype: int
         """
 
         return self._jkt.nRows()
