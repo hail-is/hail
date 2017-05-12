@@ -135,7 +135,7 @@ class HailContext(object):
         self._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
     @handle_py4j
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, npartitions=None):
+    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None):
         """Import .bgen file(s) as variant dataset.
 
         **Examples**
@@ -186,19 +186,19 @@ class HailContext(object):
         :param sample_file: Sample file.
         :type sample_file: str or None
 
-        :param npartitions: Number of partitions.
-        :type npartitions: int or None
+        :param min_partitions: Number of partitions.
+        :type min_partitions: int or None
 
         :return: Variant dataset imported from .bgen file.
         :rtype: :class:`.VariantDataset`
         """
 
         jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                     tolerance, joption(npartitions))
+                                     tolerance, joption(min_partitions))
         return VariantDataset(self, jvds)
 
     @handle_py4j
-    def import_gen(self, path, sample_file=None, tolerance=0.2, npartitions=None, chromosome=None):
+    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None):
         """Import .gen file(s) as variant dataset.
 
         **Examples**
@@ -242,8 +242,8 @@ class HailContext(object):
 
         :param float tolerance: If the sum of the genotype probabilities for a genotype differ from 1.0 by more than the tolerance, set the genotype to missing.
 
-        :param npartitions: Number of partitions.
-        :type npartitions: int or None
+        :param min_partitions: Number of partitions.
+        :type min_partitions: int or None
 
         :param chromosome: Chromosome if not listed in the .gen file.
         :type chromosome: str or None
@@ -252,7 +252,7 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(npartitions),
+        jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
                                     tolerance)
         return VariantDataset(self, jvds)
 
@@ -405,7 +405,7 @@ class HailContext(object):
         return KeyTable(self, jkt)
 
     @handle_py4j
-    def import_plink(self, bed, bim, fam, npartitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
+    def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
@@ -457,8 +457,8 @@ class HailContext(object):
 
         :param str fam: PLINK FAM file.
 
-        :param npartitions: Number of partitions.
-        :type npartitions: int or None
+        :param min_partitions: Number of partitions.
+        :type min_partitions: int or None
 
         :param str missing: The string used to denote missing values **only** for the phenotype field. This is in addition to "-9", "0", and "N/A" for case-control phenotypes.
 
@@ -470,7 +470,7 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jhc.importPlink(bed, bim, fam, joption(npartitions), delimiter, missing, quantpheno)
+        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quantpheno)
 
         return VariantDataset(self, jvds)
 
@@ -516,7 +516,7 @@ class HailContext(object):
         self._jhc.writePartitioning(path)
 
     @handle_py4j
-    def import_vcf(self, path, force=False, force_bgz=False, header_file=None, npartitions=None,
+    def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
                    drop_samples=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
                    call_fields=[]):
         """Import VCF file(s) as variant dataset.
@@ -616,8 +616,8 @@ class HailContext(object):
         :param header_file: File to load VCF header from.  If not specified, the first file in path is used.
         :type header_file: str or None
 
-        :param npartitions: Number of partitions.
-        :type npartitions: int or None
+        :param min_partitions: Number of partitions.
+        :type min_partitions: int or None
 
         :param bool drop_samples: If True, create sites-only variant
             dataset.  Don't load sample ids, sample annotations or
@@ -643,10 +643,10 @@ class HailContext(object):
 
         if generic:
             jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                               joption(npartitions), drop_samples, jset_args(call_fields))
+                                               joption(min_partitions), drop_samples, jset_args(call_fields))
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(npartitions), drop_samples, store_gq,
+                                        joption(min_partitions), drop_samples, store_gq,
                                         pp_as_pl, skip_bad_ad)
 
         return VariantDataset(self, jvds)
@@ -673,7 +673,7 @@ class HailContext(object):
         self._jhc.indexBgen(jindexed_seq_args(path))
 
     @handle_py4j
-    def balding_nichols_model(self, populations, samples, variants, npartitions=None,
+    def balding_nichols_model(self, populations, samples, variants, num_partitions=None,
                               pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
                               seed=0):
         """Simulate a variant dataset using the Balding-Nichols model.
@@ -746,7 +746,7 @@ class HailContext(object):
 
         :param int variants: Number of variants.
 
-        :param int npartitions: Number of partitions.
+        :param int num_partitions: Number of partitions.
 
         :param pop_dist: Unnormalized population distribution
         :type pop_dist: array of float or None
@@ -774,7 +774,7 @@ class HailContext(object):
             jvm_fst_opt = joption(jarray(self._jvm.double, fst))
 
         jvds = self._jhc.baldingNicholsModel(populations, samples, variants,
-                                             joption(npartitions),
+                                             joption(num_partitions),
                                              jvm_pop_dist_opt,
                                              jvm_fst_opt,
                                              af_dist._jrep(),

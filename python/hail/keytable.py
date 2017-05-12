@@ -73,12 +73,12 @@ class KeyTable(object):
         return self._jkt.toString()
 
     @staticmethod
-    def from_py(hc, rows_py, schema, key_names=[], npartitions=None):
+    def from_py(hc, rows_py, schema, key_names=[], num_partitions=None):
         return KeyTable(
             hc,
             Env.hail().keytable.KeyTable.parallelize(
                 hc._jhc, [schema._convert_to_j(r) for r in rows_py],
-                schema._jtype, key_names, joption(npartitions)))
+                schema._jtype, key_names, joption(num_partitions)))
 
     @property
     def num_columns(self):
