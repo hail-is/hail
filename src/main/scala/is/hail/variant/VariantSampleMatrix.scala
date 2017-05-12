@@ -334,93 +334,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     aggregateByVariantWithAll(zeroValue)((e, v, va, s, sa, g) => seqOp(e, v, s, g), combOp)
   }
 
-  /**
-    * Aggregate over intervals and export.
-    *
-    * @param intervalList Input interval list file
-    * @param expr         Export expression
-    * @param out          Output file path
-    */
-  def aggregateIntervals(intervalList: String, expr: String, out: String) {
-
-    val vas = vaSignature
-    val sas = saSignature
-    val localGlobalAnnotation = globalAnnotation
-
-    val aggregationST = Map(
-      "global" -> (0, globalSignature),
-      "interval" -> (1, TInterval),
-      "v" -> (2, TVariant),
-      "va" -> (3, vas))
-    val symTab = Map(
-      "global" -> (0, globalSignature),
-      "interval" -> (1, TInterval),
-      "variants" -> (2, TAggregable(TVariant, aggregationST)))
-
-    val ec = EvalContext(symTab)
-    ec.set(1, globalAnnotation)
-
-    val (names, _, f) = Parser.parseExportExprs(expr, ec)
-
-    val definedNames = names match {
-      case Some(arr) => arr
-      case None => fatal("this module requires one or more named export expressions")
-    }
-
-    val (zVals, seqOp, combOp, resultOp) =
-      Aggregators.makeFunctions[(Interval[Locus], Variant, Annotation)](ec, { case (ec, (i, v, va)) =>
-        ec.setAll(localGlobalAnnotation, i, v, va)
-      })
-
-    val intervals = IntervalList.read(hc, intervalList)
-      .rdd
-      .map(r => (r.getAs[Interval[Locus]](0), ()))
-      .collect()
-
-    val iList = IntervalTree.annotationTree(intervals)
-    val iListBc = hc.sc.broadcast(iList)
-
-    val results = variantsAndAnnotations.flatMap { case (v, va) =>
-      iListBc.value.queryIntervals(v.locus).map { i => (i, (i, v, va)) }
-    }
-      .aggregateByKey(zVals)(seqOp, combOp)
-      .collectAsMap()
-
-    hc.hadoopConf.writeTextFile(out) { out =>
-      val sb = new StringBuilder
-      sb.append("Contig")
-      sb += '\t'
-      sb.append("Start")
-      sb += '\t'
-      sb.append("End")
-      definedNames.foreach { col =>
-        sb += '\t'
-        sb.append(col)
-      }
-      sb += '\n'
-
-      iList.toIterator
-        .foreachBetween { interval =>
-
-          sb.append(interval.start.contig)
-          sb += '\t'
-          sb.append(interval.start.position)
-          sb += '\t'
-          sb.append(interval.end.position)
-          val res = results.getOrElse(interval, zVals)
-          resultOp(res)
-
-          ec.setAll(localGlobalAnnotation, interval)
-          f().foreach { field =>
-            sb += '\t'
-            sb.append(field)
-          }
-        }(sb += '\n')
-
-      out.write(sb.result())
-    }
-  }
-
   def annotateGlobal(a: Annotation, t: Type, code: String): VariantSampleMatrix[T] = {
     val (newT, i) = insertGlobal(t, Parser.parseAnnotationRoot(code, Annotation.GLOBAL_HEAD))
     copy(globalSignature = newT, globalAnnotation = i(globalAnnotation, a))
@@ -458,37 +371,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
       globalSignature = finalType)
   }
 
-  /**
-    * Load text file into global annotations as Array[String] or
-    * Set[String].
-    *
-    * @param path  Input text file
-    * @param root  Global annotation path to store text file
-    * @param asSet If true, load text file as Set[String],
-    *              otherwise, load as Array[String]
-    */
-  def annotateGlobalList(path: String, root: String, asSet: Boolean = false): VariantSampleMatrix[T] = {
-    val textList = hc.hadoopConf.readFile(path) { in =>
-      Source.fromInputStream(in)
-        .getLines()
-        .toArray
-    }
-
-    val (sig, toInsert) =
-      if (asSet)
-        (TSet(TString), textList.toSet)
-      else
-        (TArray(TString), textList: IndexedSeq[String])
-
-    val rootPath = Parser.parseAnnotationRoot(root, "global")
-
-    val (newGlobalSig, inserter) = insertGlobal(sig, rootPath)
-
-    copy(
-      globalAnnotation = inserter(globalAnnotation, toInsert),
-      globalSignature = newGlobalSig)
-  }
-
   def globalAnnotation: Annotation = metadata.globalAnnotation
 
   def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
@@ -496,16 +378,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
   def globalSignature: Type = metadata.globalSignature
-
-  def annotateGlobalTable(kt: KeyTable, root: String): VariantSampleMatrix[T] = {
-    val annotationPath = Parser.parseAnnotationRoot(root, Annotation.GLOBAL_HEAD)
-
-    val (finalType, inserter) = insertGlobal(TArray(kt.signature), annotationPath)
-
-    copy(
-      globalAnnotation = inserter(globalAnnotation, kt.collect()),
-      globalSignature = finalType)
-  }
 
   def annotateSamples(signature: Type, path: List[String], annotation: (String) => Annotation): VariantSampleMatrix[T] = {
     val (t, i) = insertSA(signature, path)
@@ -569,45 +441,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     annotateSamples(info.toMap, signature, root)
   }
 
-  def annotateSamplesList(path: String, root: String): VariantSampleMatrix[T] = {
-
-    val samplesInList = hc.hadoopConf.readLines(path) { lines =>
-      if (lines.isEmpty)
-        warn(s"Empty annotation file given: $path")
-
-      lines.map(_.value).toSet
-    }
-
-    val sampleAnnotations = sampleIds.map { s => (s, samplesInList.contains(s)) }.toMap
-    annotateSamples(sampleAnnotations, TBoolean, root)
-  }
-
   def annotateSamples(annotations: Map[String, Annotation], signature: Type, code: String): VariantSampleMatrix[T] = {
     val (t, i) = insertSA(signature, Parser.parseAnnotationRoot(code, Annotation.SAMPLE_HEAD))
     annotateSamples(s => annotations.getOrElse(s, null), t, i)
-  }
-
-  def annotateSamplesVDS(other: VariantSampleMatrix[_],
-    root: Option[String] = None,
-    code: Option[String] = None): VariantSampleMatrix[T] = {
-
-    val (isCode, annotationExpr) = (root, code) match {
-      case (Some(r), None) => (false, r)
-      case (None, Some(c)) => (true, c)
-      case _ => fatal("this module requires one of `root' or 'code', but not both")
-    }
-
-    val (finalType, inserter): (Type, (Annotation, Annotation) => Annotation) =
-      if (isCode) {
-        val ec = EvalContext(Map(
-          "sa" -> (0, saSignature),
-          "vds" -> (1, other.saSignature)))
-        Annotation.buildInserter(annotationExpr, saSignature, ec, Annotation.SAMPLE_HEAD)
-      } else
-        insertSA(other.saSignature, Parser.parseAnnotationRoot(annotationExpr, Annotation.SAMPLE_HEAD))
-
-    val m = other.sampleIdsAndAnnotations.toMap
-    annotateSamples(s => m.getOrElse(s, null), finalType, inserter)
   }
 
   def annotateSamplesTable(kt: KeyTable, vdsKey: java.util.ArrayList[String],
