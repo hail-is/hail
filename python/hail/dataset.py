@@ -235,103 +235,6 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.aggregateByKey(key_exprs, agg_exprs))
 
     @handle_py4j
-    def aggregate_intervals(self, input, expr, output):
-        '''Aggregate over intervals and export.
-
-        **Examples**
-
-        Calculate the total number of SNPs, indels, and variants contained in
-        the intervals specified by *data/capture_intervals.txt*:
-
-        >>> vds_result = vds.aggregate_intervals('data/capture_intervals.txt',
-        ...   'n_SNP = variants.filter(v => v.altAllele().isSNP()).count(), ' +
-        ...   'n_indel = variants.filter(v => v.altAllele().isIndel()).count(), ' +
-        ...   'n_total = variants.count()',
-        ...   'output/out.txt')
-
-        If *data/capture_intervals.txt* contains:
-
-        .. code-block:: text
-
-            4:1500-123123
-            5:1-1000000
-            16:29500000-30200000
-
-        then the previous expression writes something like the following to
-        *out.txt*:
-
-        .. code-block:: text
-
-            Contig    Start       End         n_SNP   n_indel     n_total
-            4         1500        123123      502     51          553
-            5         1           1000000     25024   4500        29524
-            16        29500000    30200000    17222   2021        19043
-
-        The parameter ``expr`` defines the names of the column headers (in
-        the previous case: ``n_SNP``, ``n_indel``, ``n_total``) and how to
-        calculate the value of that column for each interval.
-
-        Count the number of LOF, missense, and synonymous non-reference calls
-        per interval:
-
-        >>> vds_result = (vds.annotate_variants_expr('va.n_calls = gs.filter(g => g.isCalledNonRef()).count()')
-        ...     .aggregate_intervals('data/intervals.txt',
-        ...            'LOF_CALLS = variants.filter(v => va.consequence == "LOF").map(v => va.n_calls).sum(), ' +
-        ...            'MISSENSE_CALLS = variants.filter(v => va.consequence == "missense").map(v => va.n_calls).sum(), ' +
-        ...            'SYN_CALLS = variants.filter(v => va.consequence == "synonymous").map(v => va.n_calls).sum()',
-        ...            'output/out.txt'))
-
-        If *data/intervals.txt* contains:
-
-        .. code-block:: text
-
-            4:1500-123123
-            5:1-1000000
-            16:29500000-30200000
-
-        then the previous expression writes something like the following to
-        *out.txt*:
-
-        .. code-block:: text
-
-            Contig    Start       End         LOF_CALLS   MISSENSE_CALLS   SYN_CALLS
-            4         1500        123123      42          122              553
-            5         1           1000000     3           12               66
-            16        29500000    30200000    17          22               202
-
-        **Notes**
-
-        Intervals are **left inclusive, right exclusive**.  This means that
-        [chr1:1, chr1:3) contains chr1:1 and chr1:2.
-
-        **Designating output with an expression**
-
-        An export expression designates a list of computations to perform, and
-        what these columns are named.  These expressions should take the form
-        ``COL_NAME_1 = <expression>, COL_NAME_2 = <expression>, ...``.
-
-        ``expr`` has the following symbols in scope:
-
-        - ``interval`` (*Interval*): genomic interval
-        - ``global``: global annotations
-        - ``variants`` (*Aggregable[Variant]*): aggregable of :py:class:`~hail.representation.Variant` s Aggregator namespace below.
-
-        The ``variants`` aggregator has the following namespace:
-
-        - ``v`` (*Variant*): :ref:`variant`
-        - ``va``: variant annotations
-        - ``global``: Global annotations
-
-        :param str input: Input interval list file.
-
-        :param str expr: Export expression.
-
-        :param str output: Output file.
-        '''
-
-        self._jvds.aggregateIntervals(input, expr, output)
-
-    @handle_py4j
     @requireTGenotype
     def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
@@ -467,12 +370,14 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def annotate_global_py(self, path, annotation, annotation_type):
-        """Annotate global from Python objects.
+    def annotate_global(self, path, annotation, annotation_type):
+        """Add global annotations from Python objects.
 
-        **Example**
+        **Examples**
 
-        >>> vds_result = vds.annotate_global_py('global.populations',
+        Add populations as a global annotation:
+        
+        >>> vds_result = vds.annotate_global('global.populations',
         ...                                     ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
         ...                                     TArray(TString()))
 
@@ -499,93 +404,6 @@ class VariantDataset(object):
         annotated = self._jvds.annotateGlobal(annotation_type._convert_to_j(annotation), annotation_type._jtype, path)
         assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
         return VariantDataset(self.hc, annotated)
-
-    @handle_py4j
-    def annotate_global_list(self, input, root, as_set=False):
-        """Load text file into global annotations as Array[String] or
-        Set[String].
-
-        **Examples**
-
-        Add a list of genes in a file to global annotations:
-
-        >>> vds_result = vds.annotate_global_list('data/genes.txt', 'global.genes')
-
-        For the gene list
-
-        .. code-block:: text
-
-            $ cat data/genes.txt
-            SCN2A
-            SONIC-HEDGEHOG
-            PRNP
-
-        this adds ``global.genes: Array[String]`` with value ``["SCN2A", "SONIC-HEDGEHOG", "PRNP"]``.
-
-        To filter to those variants in genes listed in *genes.txt* given a variant annotation ``va.gene: String``, annotate as type ``Set[String]`` instead:
-
-        >>> vds_result = (vds.annotate_global_list('data/genes.txt', 'global.genes', as_set=True)
-        ...     .filter_variants_expr('global.genes.contains(va.gene)'))
-
-        :param str input: Input text file.
-
-        :param str root: Global annotation path to store text file.
-
-        :param bool as_set: If true, load text file as Set[String],
-            otherwise, load as Array[String].
-
-        :return: Annotated variant dataset with new global annotation given by the list.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateGlobalList(input, root, as_set)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_global_table(self, table, root):
-        """Collect and store a table in global annotations.
-
-        **Examples**
-
-        Load a file as a global annotation.  Consider the file *data/genes_pli_exac.txt* with contents:
-
-        .. code-block:: text
-
-          GENE    PLI     EXAC_LOF_COUNT
-          Gene1   0.12312 2
-          ...
-
-        >>> tb = hc.import_table('data/genes_pli_exac.txt', types={'PLI': TDouble(), 'EXAC_LOF_COUNTS': TInt()})
-        >>> vds_result = vds.annotate_global_table(tb, 'global.genes')
-
-        creates a new global annotation ``global.genes`` with type:
-
-        .. code-block:: text
-
-          global.genes: Array[Struct {
-              GENE: String,
-              PLI: Double,
-              EXAC_LOF_COUNT: Int
-          }]
-
-        where each line is stored as an element of the array.
-        
-        .. warning::
-        
-            Global annotations are not distributed. Storing large tables as
-            globals can cause Hail to slow down or run out of memory.
-
-        :param table: Key table to be stored as a global annotation.
-        :type table: :py:class:`.KeyTable`
-
-        :param str root: Global annotation path.
-
-        :return: Annotated variant dataset.
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateGlobalTable(table._jkt, root)
-        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     def annotate_samples_expr(self, expr):
@@ -633,36 +451,6 @@ class VariantDataset(object):
             expr = ','.join(expr)
 
         jvds = self._jvds.annotateSamplesExpr(expr)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    def annotate_samples_list(self, input, root):
-        """Annotate samples with a Boolean indicating presence in a list of samples in a text file.
-
-        **Examples**
-
-        Add the sample annotation ``sa.inBatch1: Boolean`` with value true if the sample is in *batch1.txt*:
-
-        >>> vds_result = vds.annotate_samples_list('data/batch1.txt','sa.inBatch1')
-
-        The file must have no header and one sample per line
-
-        .. code-block:: text
-
-            $ cat data/batch1.txt
-            SampleA
-            SampleB
-            ...
-
-        :param str input: Sample list file.
-
-        :param str root: Sample annotation path to store Boolean.
-
-        :return: Annotated variant dataset with a new boolean sample annotation
-        :rtype: :class:`.VariantDataset`
-        """
-
-        jvds = self._jvds.annotateSamplesList(input, root)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
