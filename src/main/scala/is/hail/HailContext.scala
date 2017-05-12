@@ -476,7 +476,7 @@ class HailContext private(val sc: SparkContext,
     gdses(0).copy(rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
   }
 
-  def readKeyTable(path: String): KeyTable =
+  def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
 
   /**

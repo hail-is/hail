@@ -21,10 +21,10 @@ def desc(col):
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
 
-    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_keytable`
-    or :py:meth:`~hail.HailContext.dataframe_to_keytable`, or generated from an existing variant dataset
-    with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_keytable`,
-    :py:meth:`~hail.VariantDataset.samples_keytable`, or :py:meth:`~hail.VariantDataset.variants_keytable`.
+    Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_table`
+    or :py:meth:`~hail.KeyTable.from_dataframe`, generated from a variant dataset
+    with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_table`,
+    :py:meth:`~hail.VariantDataset.samples_table`, or :py:meth:`~hail.VariantDataset.variants_table`.
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
 
@@ -96,11 +96,11 @@ class KeyTable(object):
 
     @property
     def schema(self):
-        """Key table schema.
+        """Table schema.
 
         **Example:**
 
-        Print the key table columns / signatures:
+        Print the table columns / signatures:
 
         >>> print(kt1.schema)
         Struct {
@@ -124,7 +124,7 @@ class KeyTable(object):
 
     @property
     def key(self):
-        """List of key column names.
+        """List of key columns.
 
         >>> kt1.key
         [u'ID']
@@ -137,10 +137,10 @@ class KeyTable(object):
         return self._key
 
     @property
-    def column_names(self):
+    def columns(self):
         """Names of all columns.
 
-        >>> kt1.column_names
+        >>> kt1.columns
         [u'ID', u'HT', u'SEX', u'X', u'Z', u'C1', u'C2', u'C3']
 
         :rtype: list of str
@@ -302,7 +302,7 @@ class KeyTable(object):
 
     @handle_py4j
     def aggregate_by_key(self, key_expr, agg_expr):
-        """Group by key condition and aggregate results.
+        """Aggregate columns programmatically.
 
         **Examples**
 
@@ -347,7 +347,7 @@ class KeyTable(object):
 
     @handle_py4j
     def forall(self, expr):
-        """Test whether a condition is true for all rows.
+        """Evaluate whether a boolean expression is true for all rows.
 
         **Examples**
 
@@ -365,7 +365,7 @@ class KeyTable(object):
 
     @handle_py4j
     def exists(self, expr):
-        """Test whether a condition is true for at least one row.
+        """Evaluate whether a boolean expression is true for at least one row.
 
         **Examples**
 

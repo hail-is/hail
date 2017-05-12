@@ -823,7 +823,7 @@ class HailContext(object):
         Env._hc = None
 
     @handle_py4j
-    def read_keytable(self, path):
+    def read_table(self, path):
         """Read a KT file as key table.
 
         :param str path: KT file to read.
@@ -832,7 +832,7 @@ class HailContext(object):
         :rtype: :class:`.KeyTable`
         """
 
-        jkt = self._jhc.readKeyTable(path)
+        jkt = self._jhc.readTable(path)
         return KeyTable(self, jkt)
 
     @handle_py4j
