@@ -120,7 +120,7 @@ object VEP {
       "gene_pheno" -> TInt,
       "gene_symbol" -> TString,
       "gene_symbol_source" -> TString,
-      "hgnc_id" -> TInt,
+      "hgnc_id" -> TString,
       "hgvsc" -> TString,
       "hgvsp" -> TString,
       "hgvs_offset" -> TInt,
