@@ -59,35 +59,6 @@ class AnnotateGlobalSuite extends SparkSuite {
     assert(crStats == Annotation(crSC.mean, crSC.stdev, crSC.min, crSC.max, crSC.count, crSC.sum))
   }
 
-  @Test def testLists() {
-    val out1 = tmpDir.createTempFile("file1", ".txt")
-    val out2 = tmpDir.createTempFile("file2", ".txt")
-
-    val toWrite1 = Array("Gene1", "Gene2", "Gene3", "Gene4", "Gene5")
-    val toWrite2 = Array("1", "5", "4", "2", "2")
-
-    hadoopConf.writeTextFile(out1) { out =>
-      toWrite1.foreach { line =>
-        out.write(line + "\n")
-      }
-    }
-
-    hadoopConf.writeTextFile(out2) { out =>
-      toWrite2.foreach { line =>
-        out.write(line + "\n")
-      }
-    }
-
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateGlobalList(out1, "global.geneList", asSet = true)
-      .annotateGlobalList(out2, "global.array")
-
-    val (_, anno1) = vds.queryGlobal("global.geneList")
-    val (_, anno2) = vds.queryGlobal("global.array")
-    assert(anno1 == toWrite1.toSet)
-    assert(anno2 == (toWrite2: IndexedSeq[Any]))
-  }
-
   @Test def testTable() {
     val out1 = tmpDir.createTempFile("file1", ".txt")
 
@@ -103,8 +74,9 @@ class AnnotateGlobalSuite extends SparkSuite {
       toWrite1.foreach(line => out.write(line + "\n"))
     }
 
+    val kt = hc.importTable(out1, impute = true)
     val vds = hc.importVCF("src/test/resources/sample.vcf")
-      .annotateGlobalTable(hc.importTable(out1, impute = true), root= "global.genes")
+      .annotateGlobal(kt.collect(), TArray(kt.signature), "global.genes")
 
     val (t, res) = vds.queryGlobal("global.genes")
 
