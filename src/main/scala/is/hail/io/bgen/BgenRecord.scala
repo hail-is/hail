@@ -61,14 +61,14 @@ class BgenRecordV11(compressed: Boolean,
               val gt = Genotype.unboxedGTFromLinear(px)
               new DosageGenotype(gt, px)
             } else {
-              setWarning(dosageGreaterThanTolerance)
+              setWarning(gpSumGreaterThanTolerance)
               noCall
             }
           } else {
             if (dsum == 0)
-              setWarning(dosageNoCall)
+              setWarning(gpNoCall)
             else
-              setWarning(dosageLessThanTolerance)
+              setWarning(gpSumLessThanTolerance)
 
             noCall
           }

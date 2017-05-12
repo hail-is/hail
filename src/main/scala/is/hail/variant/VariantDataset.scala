@@ -450,9 +450,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
 
-    def formatDosage(d: Double): String = d.formatted(s"%.${precision}f")
+    def formatGP(d: Double): String = d.formatted(s"%.${precision}f")
 
-    val emptyDosage = Array(0d, 0d, 0d)
+    val emptyGP = Array(0d, 0d, 0d)
 
     def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
       sb.append(v.contig)
@@ -468,13 +468,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       sb.append(v.alt)
 
       for (gt <- gs) {
-        val dosages = gt.dosage.getOrElse(emptyDosage)
+        val gp = gt.gp.getOrElse(emptyGP)
         sb += ' '
-        sb.append(formatDosage(dosages(0)))
+        sb.append(formatGP(gp(0)))
         sb += ' '
-        sb.append(formatDosage(dosages(1)))
+        sb.append(formatGP(gp(1)))
         sb += ' '
-        sb.append(formatDosage(dosages(2)))
+        sb.append(formatGP(gp(2)))
       }
     }
 

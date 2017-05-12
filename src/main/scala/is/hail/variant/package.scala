@@ -30,13 +30,13 @@ package object variant {
         }
     }
 
-    def biallelicDosageGenotypeIterator: HailIterator[Double] = ig match {
-      case gs: GenotypeStream => gs.gsBiallelicDosageGenotypeIterator
+    def biallelicDosageIterator: HailIterator[Double] = ig match {
+      case gs: GenotypeStream => gs.gsBiallelicDosageIterator
       case _ =>
         new HailIterator[Double] {
           val it: Iterator[Genotype] = ig.iterator
           override def hasNext: Boolean = it.hasNext
-          override def next(): Double = it.next().unboxedBiallelicDosageGenotype
+          override def next(): Double = it.next().unboxedBiallelicDosage
         }
     }
   }

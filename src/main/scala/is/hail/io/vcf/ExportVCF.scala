@@ -150,7 +150,7 @@ object ExportVCF {
 
     (g.ad, g.dp, g.gq,
       if (g.isDosage)
-        g.dosage.map(Left(_))
+        g.gp.map(Left(_))
       else
         g.pl.map(Right(_))) match {
       case (None, None, None, None) =>
@@ -169,7 +169,7 @@ object ExportVCF {
         appendIntOption(sb, dp)
         sb += ':'
         sb.append(gq)
-      case (ad, dp, gq, Some(dosageOrPL)) =>
+      case (ad, dp, gq, Some(gpOrPL)) =>
         sb += ':'
         appendIntArrayOption(sb, ad)
         sb += ':'
@@ -177,8 +177,8 @@ object ExportVCF {
         sb += ':'
         appendIntOption(sb, gq)
         sb += ':'
-        dosageOrPL match {
-          case Left(dosage) => appendDoubleArray(sb, dosage)
+        gpOrPL match {
+          case Left(gp) => appendDoubleArray(sb, gp)
           case Right(pl) => appendIntArray(sb, pl)
         }
     }

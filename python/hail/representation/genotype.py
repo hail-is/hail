@@ -54,7 +54,7 @@ class Genotype(object):
         fake_ref = 'FakeRef=True' if self._jrep.fakeRef() else ''
         if self._jrep.isDosage():
             return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PP=%s%s)' %\
-                   (self.gt, self.ad, self.dp, self.gq, self.dosage(), fake_ref)
+                   (self.gt, self.ad, self.dp, self.gq, self.gp(), fake_ref)
         else:
             return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s%s)' % \
                    (self.gt, self.ad, self.dp, self.gq, self.pl, fake_ref)
@@ -138,10 +138,19 @@ class Genotype(object):
 
         return from_option(self._jrep.od())
 
-    def dosage(self):
+    def gp(self):
         """Returns the linear-scaled genotype probabilities.
 
         :rtype: list of float
+        """
+
+        return from_option(self._jrep.gp())
+
+    def dosage(self):
+        """Returns the expected value of the genotype based on genotype probabilities,
+        :math:`\\mathrm{P}(\\mathrm{Het}) + 2 \\mathrm{P}(\\mathrm{HomVar})`. Genotype must be bi-allelic.
+
+        :rtype: float
         """
 
         return from_option(self._jrep.dosage())

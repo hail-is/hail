@@ -141,8 +141,8 @@ object VSMSubgen {
   val realistic = random.copy(
     tGen = Genotype.genRealistic)
 
-  val dosage = random.copy(
-    tGen = Genotype.genDosage, isDosage = true)
+  val dosageGenotype = random.copy(
+    tGen = Genotype.genDosageGenotype, isDosage = true)
 }
 
 class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,

@@ -241,8 +241,6 @@ class ContextTests(unittest.TestCase):
             dataset.variant_schema
             dataset.sample_schema
 
-            self.assertFalse(dataset.is_dosage())
-
             self.assertEqual(dataset2.num_samples, 100)
             self.assertEqual(dataset2.count_variants(), 735)
 

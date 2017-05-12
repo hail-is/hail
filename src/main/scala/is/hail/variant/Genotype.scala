@@ -78,21 +78,23 @@ abstract class Genotype extends Serializable {
     else
       unboxedPX
 
-  def unboxedDosage: Array[Double] =
+  def unboxedGP: Array[Double] =
     if (unboxedPX == null)
       null
     else if (isDosage)
-      unboxedPX.map(_ * Genotype.dosageNorm)
+      unboxedPX.map(_ * Genotype.gpNorm)
     else
-      Genotype.phredToDosage(unboxedPX)
+      Genotype.plToGP(unboxedPX)
 
-  def unboxedBiallelicDosageGenotype: Double =
+  def unboxedBiallelicDosage: Double =
     if (unboxedPX == null)
       -1d
+    else if (unboxedPX.size != 3)
+      fatal("Genotype dosage is not defined for multi-allelic variants")
     else if (isDosage)
-      (unboxedPX(1) + 2 * unboxedPX(2)) * Genotype.dosageNorm
+      (unboxedPX(1) + 2 * unboxedPX(2)) * Genotype.gpNorm
     else
-      Genotype.phredToBiallelicDosageGenotype(unboxedPX(0), unboxedPX(1), unboxedPX(2))
+      Genotype.phredValsToBiallelicDosage(unboxedPX(0), unboxedPX(1), unboxedPX(2))
 
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
@@ -173,7 +175,13 @@ abstract class Genotype extends Serializable {
 
   def pl: Option[Array[Int]] = Option(unboxedPL)
 
-  def dosage: Option[Array[Double]] = Option(unboxedDosage)
+  def gp: Option[Array[Double]] = Option(unboxedGP)
+
+  def dosage: Option[Double] =
+    if (unboxedBiallelicDosage == -1)
+      None
+    else
+      Some(unboxedBiallelicDosage)
 
   def isHomRef: Boolean = unboxedGT == 0
 
@@ -300,7 +308,7 @@ abstract class Genotype extends Serializable {
     if (!isDosage) {
       b.append("PL=" + pl.map(_.mkString(",")).getOrElse("."))
     } else {
-      b.append("GP=" + dosage.map(_.mkString(",")).getOrElse("."))
+      b.append("GP=" + gp.map(_.mkString(",")).getOrElse("."))
     }
 
     b.result()
@@ -651,7 +659,7 @@ object Genotype {
     Array(l0, l1, l2)
   }
 
-  val dosageNorm: Double = 1 / 32768.0
+  val gpNorm: Double = 1 / 32768.0
 
   lazy val linearToPhredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
 
@@ -667,13 +675,13 @@ object Genotype {
   def phredToLinear(i: Int): Double =
     if (i < maxPhredInTable) phredToLinearConversionTable(i) else math.pow(10, i / -10.0)
 
-  def phredToDosage(a: Array[Int]): Array[Double] = {
+  def plToGP(a: Array[Int]): Array[Double] = {
     val lkhd = a.map(i => phredToLinear(i))
     val s = lkhd.sum
     lkhd.map(_ / s)
   }
 
-  def phredToBiallelicDosageGenotype(px0: Int, px1: Int, px2: Int): Double = {
+  def phredValsToBiallelicDosage(px0: Int, px1: Int, px2: Int): Double = {
     val p0 = phredToLinear(px0)
     val p1 = phredToLinear(px1)
     val p2 = phredToLinear(px2)
@@ -863,7 +871,7 @@ object Genotype {
     gt
   }
 
-  def readBiallelicDosageGenotype(isDosage: Boolean, a: ByteIterator): Double = {
+  def readBiallelicDosage(isDosage: Boolean, a: ByteIterator): Double = {
     val nAlleles = 2
     val isBiallelic = true
 
@@ -920,9 +928,9 @@ object Genotype {
         }
 
         if (isDosage)
-          (px1 + 2 * px2) * Genotype.dosageNorm
+          (px1 + 2 * px2) * Genotype.gpNorm
         else
-          Genotype.phredToBiallelicDosageGenotype(px0, px1, px2)
+          Genotype.phredValsToBiallelicDosage(px0, px1, px2)
       } else
         -1d
 
@@ -932,7 +940,7 @@ object Genotype {
     dosage
   }
 
-  def genDosage(v: Variant): Gen[Genotype] = {
+  def genDosageGenotype(v: Variant): Gen[Genotype] = {
     val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
     for (px <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
@@ -1002,12 +1010,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosage(v)))
+      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosageGenotype(v)))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosage(v)))
+      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosageGenotype(v)))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)

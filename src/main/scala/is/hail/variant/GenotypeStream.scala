@@ -22,12 +22,12 @@ class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIt
   override def next(): Int = Genotype.readHardCallGenotype(nAlleles, isDosage, b)
 }
 
-class BiallelicDosageGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends HailIterator[Double] {
+class BiallelicDosageStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends HailIterator[Double] {
   require(nAlleles == 2)
 
   override def hasNext: Boolean = b.hasNext
 
-  override def next(): Double = Genotype.readBiallelicDosageGenotype(isDosage, b)
+  override def next(): Double = Genotype.readBiallelicDosage(isDosage, b)
 }
 
 class MutableGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
@@ -87,9 +87,9 @@ case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Opt
     new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
   }
 
-  def gsBiallelicDosageGenotypeIterator: BiallelicDosageGenotypeStreamIterator = {
+  def gsBiallelicDosageIterator: BiallelicDosageStreamIterator = {
     val bytes = decompLenOption.map(dl => LZ4Utils.decompress(dl, a)).getOrElse(a)
-    new BiallelicDosageGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
+    new BiallelicDosageStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
   }
 
   override def newBuilder: mutable.Builder[Genotype, GenotypeStream] = {
