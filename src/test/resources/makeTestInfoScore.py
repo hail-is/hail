@@ -19,47 +19,47 @@ def homAlt(maf):
     return maf * maf
 
 def randomGen(missingRate):
-    dosages = []
+    gps = []
     for j in range(nSamples):
         if random.random() < missingRate:
-            dosages += [0, 0, 0]
+            gps += [0, 0, 0]
         else:
             d1 = random.random()
             d2 = random.uniform(0, 1.0 - d1)
-            dosages += [d1, d2, 1.0 - d1 - d2]
-    return dosages
+            gps += [d1, d2, 1.0 - d1 - d2]
+    return gps
 
 def hweGen(maf, missingRate):
     bb = homAlt(maf)
     aa = homRef(maf)
-    dosages = []
+    gps = []
     for j in range(nSamples):
         gt = random.random()
         missing = random.random()
         if missing < missingRate:
-            dosages += [0, 0, 0]
+            gps += [0, 0, 0]
         else:
             d1 = 1.0 - random.uniform(0, 0.01)
             d2 = random.uniform(0, 1.0 - d1)
             d3 = 1.0 - d1 - d2
 
             if gt < aa:
-                dosages += [d1, d2, d3]
+                gps += [d1, d2, d3]
             elif gt >= aa and gt <= 1.0 - bb:
-                dosages += [d2, d1, d3]
+                gps += [d2, d1, d3]
             else:
-                dosages += [d3, d2, d1]
+                gps += [d3, d2, d1]
     
-    return dosages
+    return gps
 
 def constantGen(triple, missingRate):
-    dosages = []
+    gps = []
     for j in range(nSamples):
         if random.random() < missingRate:
-            dosages += [0, 0, 0]
+            gps += [0, 0, 0]
         else:
-            dosages += triple
-    return dosages
+            gps += triple
+    return gps
 
 variants = {}
 for i in range(nVariants * 0, nVariants * 1):
@@ -111,15 +111,15 @@ def transformDosage(dx):
         sys.exit()
     return [l0 / 32768.0, l1 / 32768.0, l2 / 32768.0]
 
-def calcInfoScore(dosages):
+def calcInfoScore(gps):
     nIncluded = 0
     e = []
     f = []
     altAllele = 0.0
     totalDosage = 0.0
 
-    for i in range(0, len(dosages), 3):
-        dx = dosages[i:i+3]
+    for i in range(0, len(gps), 3):
+        dx = gps[i:i + 3]
         if sum(dx) != 0.0:
             dxt = transformDosage(dx)
             nIncluded += 1

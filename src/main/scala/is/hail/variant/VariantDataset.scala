@@ -42,7 +42,7 @@ object VariantDataset {
     val genotypeSignature = metadata.genotypeSignature
     val gRequiresConversion = SparkAnnotationImpex.requiresConversion(genotypeSignature)
     val isGenericGenotype = metadata.isGenericGenotype
-    val isDosage = metadata.isDosage
+    val isLinearScale = metadata.isLinearScale
 
     if (isGenericGenotype)
       fatal("Cannot read datasets with generic genotypes.")
@@ -72,7 +72,7 @@ object VariantDataset {
             val v = row.getVariant(0)
             (v,
               (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getGenotypeStream(v, 2, isDosage): Iterable[Genotype]))
+                row.getGenotypeStream(v, 2, isLinearScale): Iterable[Genotype]))
           }
       }
 
@@ -162,11 +162,11 @@ object VariantDataset {
          """.stripMargin)
 
     val wasSplit = getAndCastJSON[JBool]("split").value
-    val isDosage = fields.get("isDosage") match {
+    val isLinearScale = fields.get("isLinearScale") match {
       case Some(t: JBool) => t.value
       case Some(other) => fatal(
         s"""corrupt VDS: invalid metadata
-           |  Expected `JBool' in field `isDosage', but got `${ other.getClass.getName }'
+           |  Expected `JBool' in field `isLinearScale', but got `${ other.getClass.getName }'
            |  Recreate VDS with current version of Hail.""".stripMargin)
       case _ => false
     }
@@ -222,7 +222,7 @@ object VariantDataset {
     val annotations = sampleInfo.map(_._2)
 
     (VariantMetadata(ids, annotations, globalAnnotation,
-      saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype), parquetGenotypes)
+      saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype), parquetGenotypes)
   }
 
   def fromKeyTable(kt: KeyTable): VariantDataset = {
@@ -255,7 +255,7 @@ object VariantDataset {
 
     val (metadata, _) = readMetadata(hc.hadoopConf, dirname, requireParquetSuccess = false)
     val vaSignature = metadata.vaSignature
-    val isDosage = metadata.isDosage
+    val isLinearScale = metadata.isLinearScale
 
     val df = hc.sqlContext.read.options(
       Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
@@ -275,7 +275,7 @@ object VariantDataset {
       val v = importedRow.getVariant(0)
       (v,
         (importedRow.get(1),
-          importedRow.getGenotypeStream(v, 2, metadata.isDosage)))
+          importedRow.getGenotypeStream(v, 2, metadata.isLinearScale)))
     }.spanByKey().map(kv => {
       // combine variant rows with different sample groups (no shuffle)
       val variant = kv._1
@@ -309,7 +309,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
-    val isDosage = vds.isDosage
+    val isLinearScale = vds.isLinearScale
 
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
@@ -351,7 +351,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
         keepStar = true,
-        isDosage = isDosage,
+        isLinearScale = isLinearScale,
         insertSplitAnnots = { (va, index, wasSplit) =>
           insertSplit(insertIndex(va, index), wasSplit)
         },
@@ -388,9 +388,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def withGenotypeStream(): VariantDataset = {
-    val isDosage = vds.isDosage
+    val isLinearScale = vds.isLinearScale
     vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
-      (va, gs.toGenotypeStream(v, isDosage))
+      (va, gs.toGenotypeStream(v, isLinearScale))
     }.asOrderedRDD)
   }
 
@@ -441,9 +441,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
 
-    def formatDosage(d: Double): String = d.formatted(s"%.${precision}f")
+    def formatGP(d: Double): String = d.formatted(s"%.${precision}f")
 
-    val emptyDosage = Array(0d, 0d, 0d)
+    val emptyGP = Array(0d, 0d, 0d)
 
     def appendRow(sb: StringBuilder, v: Variant, va: Annotation, gs: Iterable[Genotype], rsidQuery: Querier, varidQuery: Querier) {
       sb.append(v.contig)
@@ -459,13 +459,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       sb.append(v.alt)
 
       for (gt <- gs) {
-        val dosages = gt.dosage.getOrElse(emptyDosage)
+        val gp = gt.gp.getOrElse(emptyGP)
         sb += ' '
-        sb.append(formatDosage(dosages(0)))
+        sb.append(formatGP(gp(0)))
         sb += ' '
-        sb.append(formatDosage(dosages(1)))
+        sb.append(formatGP(gp(1)))
         sb += ' '
-        sb.append(formatDosage(dosages(2)))
+        sb.append(formatGP(gp(2)))
       }
     }
 
@@ -490,7 +490,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         case None => a => None
       }
 
-      val isDosage = vds.isDosage
+      val isLinearScale = vds.isLinearScale
 
       vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
         val sb = new StringBuilder
@@ -928,14 +928,14 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       Serialization.write(vds.rdd.orderedPartitioner.toJSON, out)
     }
 
-    val isDosage = vds.isDosage
+    val isLinearScale = vds.isLinearScale
     val rowRDD = vds.rdd.map { case (v, (va, gs)) =>
       Row.fromSeq(Array(v.toRow,
         if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
         if (parquetGenotypes)
           gs.lazyMap(_.toRow).toArray[Row]: IndexedSeq[Row]
         else
-          gs.toGenotypeStream(v, isDosage).toRow))
+          gs.toGenotypeStream(v, isLinearScale).toRow))
     }
     vds.hc.sqlContext.createDataFrame(rowRDD, makeSchema(parquetGenotypes = parquetGenotypes))
       .write.parquet(dirname + "/rdd.parquet")
@@ -963,7 +963,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.writeMetadata(dirname, parquetGenotypes = false)
 
     val vaSignature = vds.vaSignature
-    val isDosage = vds.isDosage
+    val isLinearScale = vds.isLinearScale
 
     val rowType = VariantDataset.kuduRowType(vaSignature)
     val rowRDD = vds.rdd
@@ -971,7 +971,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         KuduAnnotationImpex.exportAnnotation(Annotation(
           v.toRow,
           va,
-          gs.toGenotypeStream(v, isDosage).toRow,
+          gs.toGenotypeStream(v, isLinearScale).toRow,
           sampleGroup), rowType).asInstanceOf[Row]
       }
 

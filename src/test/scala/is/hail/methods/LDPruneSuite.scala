@@ -15,7 +15,7 @@ class LDPruneSuite extends SparkSuite {
   def convertGtsToGs(gts: Array[Int]): Iterable[Genotype] = gts.map(Genotype(_)).toIterable
 
   def correlationMatrix(gts: Array[Iterable[Genotype]], nSamples: Int) = {
-    val bvi = gts.map { gs => LDPrune.toBitPackedVector(gs.hardCallGenotypeIterator, nSamples) }
+    val bvi = gts.map { gs => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples) }
     val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
       (bvi(i), bvi(j)) match {
         case (Some(x), Some(y)) =>
@@ -52,7 +52,7 @@ class LDPruneSuite extends SparkSuite {
     for (gts <- Array(gts1, gts2, gts3)) {
       val n = gts.length
       val gs = convertGtsToGs(gts)
-      assert(LDPrune.toBitPackedVector(gs.hardCallGenotypeIterator, n).forall { bpv =>
+      assert(LDPrune.toBitPackedVector(gs.hardCallIterator, n).forall { bpv =>
         bpv.unpack() sameElements gts
       })
     }
@@ -97,8 +97,8 @@ class LDPruneSuite extends SparkSuite {
     val input = Array(0, 1, 2, 2, 2, 0, -1, -1)
     val gs = convertGtsToGs(input)
     val n = input.length
-    val bvi1 = LDPrune.toBitPackedVector(gs.hardCallGenotypeIterator, n).get
-    val bvi2 = LDPrune.toBitPackedVector(gs.hardCallGenotypeIterator, n).get
+    val bvi1 = LDPrune.toBitPackedVector(gs.hardCallIterator, n).get
+    val bvi2 = LDPrune.toBitPackedVector(gs.hardCallIterator, n).get
 
     assert(D_==(LDPrune.computeR2(bvi1, bvi2), 1d))
   }
@@ -131,13 +131,13 @@ class LDPruneSuite extends SparkSuite {
       forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
         val gs1 = convertGtsToGs(v1)
         val gs2 = convertGtsToGs(v2)
-        val bv1 = LDPrune.toBitPackedVector(gs1.hardCallGenotypeIterator, nSamples)
-        val bv2 = LDPrune.toBitPackedVector(gs2.hardCallGenotypeIterator, nSamples)
+        val bv1 = LDPrune.toBitPackedVector(gs1.hardCallIterator, nSamples)
+        val bv2 = LDPrune.toBitPackedVector(gs2.hardCallIterator, nSamples)
 
         val isSame = (bv1, bv2) match {
           case (Some(x), Some(y)) =>
-            (LDPrune.toBitPackedVector(convertGtsToGs(x.unpack()).hardCallGenotypeIterator, nSamples).get.gs sameElements bv1.get.gs) &&
-              (LDPrune.toBitPackedVector(convertGtsToGs(y.unpack()).hardCallGenotypeIterator, nSamples).get.gs sameElements bv2.get.gs)
+            (LDPrune.toBitPackedVector(convertGtsToGs(x.unpack()).hardCallIterator, nSamples).get.gs sameElements bv1.get.gs) &&
+              (LDPrune.toBitPackedVector(convertGtsToGs(y.unpack()).hardCallIterator, nSamples).get.gs sameElements bv2.get.gs)
           case _ => true
         }
         isSame
@@ -147,8 +147,8 @@ class LDPruneSuite extends SparkSuite {
       forAll(vectorGen) { case (nSamples: Int, v1: Array[Int], v2: Array[Int]) =>
         val gs1 = convertGtsToGs(v1)
         val gs2 = convertGtsToGs(v2)
-        val bv1 = LDPrune.toBitPackedVector(gs1.hardCallGenotypeIterator, nSamples)
-        val bv2 = LDPrune.toBitPackedVector(gs2.hardCallGenotypeIterator, nSamples)
+        val bv1 = LDPrune.toBitPackedVector(gs1.hardCallIterator, nSamples)
+        val bv2 = LDPrune.toBitPackedVector(gs2.hardCallIterator, nSamples)
         val sgs1 = RegressionUtils.toNormalizedGtArray(gs1, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
         val sgs2 = RegressionUtils.toNormalizedGtArray(gs2, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
@@ -233,7 +233,7 @@ class LDPruneSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
       .splitMulti()
     val nSamples = vds.nSamples
-    val filteredVds = vds.filterVariants{ case (v, va, gs) => v.isBiallelic && LDPrune.toBitPackedVector(gs.hardCallGenotypeIterator, nSamples).isDefined }
+    val filteredVds = vds.filterVariants{ case (v, va, gs) => v.isBiallelic && LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples).isDefined }
     val prunedVds = LDPrune(filteredVds, 1, 0, nCores = 4, memoryPerCore = 200000)
     assert(prunedVds.countVariants() == filteredVds.countVariants())
   }

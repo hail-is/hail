@@ -42,7 +42,7 @@ case class VariantMetadata(
   globalSignature: Type,
   genotypeSignature: Type = TGenotype,
   wasSplit: Boolean = false,
-  isDosage: Boolean = false,
+  isLinearScale: Boolean = false,
   isGenericGenotype: Boolean = false) {
 
   assert(sampleIds.areDistinct(), s"Sample ID names are not distinct: ${ sampleIds.duplicates().mkString(", ") }")

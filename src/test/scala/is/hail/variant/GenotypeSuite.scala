@@ -14,12 +14,12 @@ object GenotypeSuite {
   def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
     ab.clear()
 
-    val isDosage = g.isDosage
-    val gb = new GenotypeBuilder(nAlleles, isDosage)
+    val isLinearScale = g.isLinearScale
+    val gb = new GenotypeBuilder(nAlleles, isLinearScale)
 
     gb.set(g)
     gb.write(ab)
-    val g2 = Genotype.read(nAlleles, isDosage, new ByteIterator(ab.result()))
+    val g2 = Genotype.read(nAlleles, isLinearScale, new ByteIterator(ab.result()))
 
     g == g2
   }
@@ -122,37 +122,37 @@ class GenotypeSuite extends TestNGSuite {
       dosageGen = Gen.partition(nGenotype, 32768);
       result <- dosageGen) yield result
 
-    val p = forAll(gen) { dosages =>
-      val gt = Genotype.gtFromLinear(dosages)
-      assert(dosages.sum == 32768)
-      val dMax = dosages.max
+    val p = forAll(gen) { gp =>
+      val gt = Genotype.gtFromLinear(gp)
+      assert(gp.sum == 32768)
+      val dMax = gp.max
 
       val check1 = gt.forall { gt =>
-        val dosageP = dosages(gt)
-        dosageP == dMax && dosages.zipWithIndex.forall { case (d, index) => index == gt || d != dosageP }
+        val dosageP = gp(gt)
+        dosageP == dMax && gp.zipWithIndex.forall { case (d, index) => index == gt || d != dosageP }
       }
 
-      val check2 = dosages.count(_ == dMax) > 1 || gt.contains(dosages.indexOf(dMax))
+      val check2 = gp.count(_ == dMax) > 1 || gt.contains(gp.indexOf(dMax))
 
       check1 && check2
     }
     p.check()
   }
 
-  @Test def testUnboxedBiallelicDosageGenotype() {
-    val g0 = Genotype.apply(gt = Some(0), px = Some(Array(32648, 20, 100)), isDosage = true)
-    val g1 = Genotype.apply(gt = Some(1), px = Some(Array(20, 32648, 100)), isDosage = true)
-    val g2 = Genotype.apply(gt = Some(2), px = Some(Array(20, 100, 32648)), isDosage = true)
+  @Test def testUnboxedDosage() {
+    val g0 = Genotype.apply(gt = Some(0), px = Some(Array(32648, 20, 100)), isLinearScale = true)
+    val g1 = Genotype.apply(gt = Some(1), px = Some(Array(20, 32648, 100)), isLinearScale = true)
+    val g2 = Genotype.apply(gt = Some(2), px = Some(Array(20, 100, 32648)), isLinearScale = true)
 
-    assert(D_==(g0.unboxedBiallelicDosageGenotype, (20 + 2 * 100) / 32768d))
-    assert(D_==(g1.unboxedBiallelicDosageGenotype, (32648 + 2 * 100) / 32768d))
-    assert(D_==(g2.unboxedBiallelicDosageGenotype, (100 + 2 * 32648) / 32768d))
+    assert(D_==(g0.unboxedDosage, (20 + 2 * 100) / 32768d))
+    assert(D_==(g1.unboxedDosage, (32648 + 2 * 100) / 32768d))
+    assert(D_==(g2.unboxedDosage, (100 + 2 * 32648) / 32768d))
   }
 
-  @Test def phredToBiallelicDosageGenotype() {
-    val gt0 = Genotype.phredToBiallelicDosageGenotype(0, 20, 100)
-    val gt1 = Genotype.phredToBiallelicDosageGenotype(20, 0, 100)
-    val gt2 = Genotype.phredToBiallelicDosageGenotype(20, 100, 0)
+  @Test def testPlToDosage() {
+    val gt0 = Genotype.plToDosage(0, 20, 100)
+    val gt1 = Genotype.plToDosage(20, 0, 100)
+    val gt2 = Genotype.plToDosage(20, 100, 0)
 
     assert(D_==(gt0, 0.009900990296049406))
     assert(D_==(gt1, 0.9900990100009803))
