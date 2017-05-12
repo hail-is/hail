@@ -161,7 +161,7 @@ class KeyTable(object):
         :rtype: int
         """
 
-        return self._jkt.nRows()
+        return self._jkt.count()
 
     @handle_py4j
     def same(self, other):
