@@ -44,7 +44,7 @@ class HailContext(object):
     :vartype sc: :class:`.pyspark.SparkContext`
     """
 
-    def __init__(self, sc=None, appName="Hail", master=None, local='local[*]',
+    def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='snappy',
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
 
@@ -67,7 +67,7 @@ class HailContext(object):
         jsc = sc._jsc.sc() if sc else None
 
         self._jhc = scala_object(self._hail, 'HailContext').apply(
-            jsc, appName, joption(master), local, log, quiet, append,
+            jsc, app_name, joption(master), local, log, quiet, append,
             parquet_compression, min_block_size, branching_factor, tmp_dir)
 
         self._jsc = self._jhc.sc()
