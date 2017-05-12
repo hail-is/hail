@@ -2575,37 +2575,68 @@ object FunctionRegistry {
         result: [0, 2, 4, 6]
     """
   )(arrayHr(TTHr), arrayHr(TTHr))
-  registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(i, a.length),
+  registerMethod("[*:]", (a: IndexedSeq[Any], i: Int) => a.slice(if (i < 0) a.length + i else i, a.length),
     """
-    Returns a slice of the array from the i*th* element (0-indexed) to the end.
+    Returns a slice of the array from the i*th* element (0-indexed) to the
+    end. Negative indices are interpreted as offsets from the end of the array.
 
     .. code-block:: text
         :emphasize-lines: 2
 
         let a = [0, 2, 4, 6, 8, 10] in a[3:]
         result: [6, 8, 10]
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6, 8, 10] in a[-5:]
+        result: [2, 4, 6, 8, 10]
     """, "i" -> "Starting index of the slice."
   )(arrayHr(TTHr), intHr, arrayHr(TTHr))
-  registerMethod("[:*]", (a: IndexedSeq[Any], i: Int) => a.slice(0, i),
+  registerMethod("[:*]", (a: IndexedSeq[Any], i: Int) => a.slice(0, if (i < 0) a.length + i else i),
     """
-    Returns a slice of the array from the first element until the j*th* element (0-indexed).
+
+    Returns a slice of the array from the first element until the j*th* element
+    (0-indexed). Negative indices are interpreted as offsets from the end
+    of the array.
 
     .. code-block:: text
         :emphasize-lines: 2
 
         let a = [0, 2, 4, 6, 8, 10] in a[:4]
         result: [0, 2, 4, 6]
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6, 8, 10] in a[:-4]
+        result: [0, 2]
     """, "j" -> "End index of the slice (not included in result)."
   )(arrayHr(TTHr), intHr, arrayHr(TTHr))
-  registerMethod("[*:*]", (a: IndexedSeq[Any], i: Int, j: Int) => a.slice(i, j),
+  registerMethod("[*:*]", (a: IndexedSeq[Any], i: Int, j: Int) => a.slice(if (i < 0) a.length + i else i, if (j < 0) a.length + j else j),
     """
-    Returns a slice of the array from the i*th* element until the j*th* element (both 0-indexed).
+    Returns a slice of the array from the i*th* element until the j*th* element
+    (both 0-indexed). Negative indices are interpreted as offsets from the end
+    of the array.
 
     .. code-block:: text
         :emphasize-lines: 2
 
         let a = [0, 2, 4, 6, 8, 10] in a[2:4]
         result: [4, 6]
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = [0, 2, 4, 6, 8, 10] in a[-3:-1]
+        result: [6, 8]
+
+    A handy way to understand the behavior of negative indicies is to recall
+    this rule:
+
+    .. code-block:: text
+
+        s[-i:-j] == s[s.length - i, s.length - j]
     """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
   )(arrayHr(TTHr), intHr, intHr, arrayHr(TTHr))
 
@@ -2620,37 +2651,71 @@ object FunctionRegistry {
         result: "abcd"
     """
   )
-  registerMethod("[*:]", (a: String, i: Int) => a.slice(i, a.length),
+
+  registerMethod("[*:]", (a: String, i: Int) => a.slice(if (i < 0) a.length + i else i, a.length),
     """
-    Returns a slice of the string from the i*th* unicode-codepoint (0-indexed) to the end.
+    Returns a slice of the string from the i*th* unicode-codepoint (0-indexed)
+    to the end. Negative indices are interpreted as offsets from the end of the
+    string.
 
     .. code-block:: text
         :emphasize-lines: 2
 
         let a = "abcdef" in a[3:]
         result: "def"
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[-5:]
+        result: "bcdef"
     """, "i" -> "Starting index of the slice."
   )
-  registerMethod("[:*]", (a: String, i: Int) => a.slice(0, i),
+
+  registerMethod("[:*]", (a: String, i: Int) => a.slice(0, if (i < 0) a.length + i else i),
     """
-    Returns a slice of the string from the first unicode-codepoint until the j*th* unicode-codepoint (0-indexed).
+    Returns a slice of the string from the first unicode-codepoint until the
+    j*th* unicode-codepoint (0-indexed). Negative indices are interpreted as
+    offsets from the end of the string.
 
     .. code-block:: text
         :emphasize-lines: 2
 
         let a = "abcdef" in a[:4]
         result: "abcd"
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[:-3]
+        result: "abc"
     """, "j" -> "End index of the slice (not included in result)."
   )
-  registerMethod("[*:*]", (a: String, i: Int, j: Int) => a.slice(i, j),
+
+  registerMethod("[*:*]", (a: String, i: Int, j: Int) => a.slice(if (i < 0) a.length + i else i, if (j < 0) a.length + j else j),
     """
-    Returns a slice of the string from the i*th* unicode-codepoint until the j*th* unicode-codepoint (both 0-indexed).
+    Returns a slice of the string from the i*th* unicode-codepoint until the
+    j*th* unicode-codepoint (both 0-indexed). Negative indices are interpreted
+    as offsets from the end of the string instead of the beginning.
 
     .. code-block:: text
         :emphasize-lines: 2
 
         let a = "abcdef" in a[2:4]
         result: "cd"
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        let a = "abcdef" in a[-3:-1]
+        result: "de"
+
+    A handy way to understand the behavior of negative indicies is to recall
+    this rule, which holds for any positive integers i and j:
+
+    .. code-block:: text
+
+        s[-i:-j] == s[s.length - i, s.length - j]
     """, "i" -> "Starting index of the slice.", "j" -> "End index of the slice (not included in result)."
   )
 }
