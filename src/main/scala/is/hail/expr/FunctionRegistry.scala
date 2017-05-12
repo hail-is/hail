@@ -1112,7 +1112,7 @@ object FunctionRegistry {
         or = Option(Double.NegativeInfinity)
       else if ((c1 > 0 && c2 > 0 && c3 > 0 && c4 > 0))
         or = Option((c1 * c4) / (c2 * c3).toDouble)
-        chisqp = Option(chisq.chiSquareTest(Array(Array(c1, c2), Array(c3, c4))))
+      chisqp = Option(chisq.chiSquareTest(Array(Array(c1, c2), Array(c3, c4))))
     }
 
     (chisqp, or)
