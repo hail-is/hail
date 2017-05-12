@@ -101,10 +101,6 @@ class ContextTests(unittest.TestCase):
 
             dataset.count()
 
-            dataset.aggregate_intervals(test_resources + '/annotinterall.interval_list',
-                                        'N = variants.count()',
-                                        '/tmp/annotinter.tsv')
-
             dataset.query_variants(['variants.count()'])
             dataset.query_samples(['samples.count()'])
 
