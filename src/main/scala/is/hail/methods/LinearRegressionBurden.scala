@@ -51,7 +51,7 @@ object LinearRegressionBurden {
     if (!numericType.isInstanceOf[TNumeric])
       fatal(s"aggregate_expr type must be numeric, found $numericType")
 
-    info(s"Running linear regression burden test for ${sampleKT.nRows} keys on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"Running linear regression burden test for ${sampleKT.count} keys on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
     val emptyStats = Annotation.emptyIndexedSeq(LinearRegression.schema.fields.size)
 
