@@ -15,11 +15,11 @@ class LoadGenSuite extends SparkSuite {
       val variant = Variant(arr(0), arr(3).toInt, arr(4), arr(5))
       val annotations = Annotation(arr(2), arr(1))
       //rsid, varid
-      val dosages = arr.drop(6).map {
+      val gp = arr.drop(6).map {
         _.toDouble
       }
 
-      (arr(1), dosages)
+      (arr(1), gp)
     }
   }
 
@@ -41,7 +41,7 @@ class LoadGenSuite extends SparkSuite {
 
       var n = 0
       val result = for {g <- gs1} yield {
-        val dosNew = g.dosage
+        val dosNew = g.gp
 
         dosNew match {
           case Some(x) =>

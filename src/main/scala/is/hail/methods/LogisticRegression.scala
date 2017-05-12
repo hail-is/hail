@@ -62,9 +62,9 @@ object LogisticRegression {
       it.map { case (v, (va, gs)) =>
         val isNotDegenerate =
           if (useDosages)
-            RegressionUtils.setLastColumnToMaskedGts(X, gs.biallelicDosageGenotypeIterator, sampleMaskBc.value, useHardCalls=false)
+            RegressionUtils.setLastColumnToMaskedGts(X, gs.dosageIterator, sampleMaskBc.value, useHardCalls=false)
           else
-            RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallGenotypeIterator, sampleMaskBc.value, useHardCalls=true)
+            RegressionUtils.setLastColumnToMaskedGts(X, gs.hardCallIterator, sampleMaskBc.value, useHardCalls=true)
 
         val logregAnnot =
           if (isNotDegenerate)

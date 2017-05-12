@@ -152,7 +152,7 @@ class GenericDatasetSuite extends SparkSuite {
         (data1, data2) match {
           case (Some((va1, gs1)), Some((va2, gs2))) =>
             gs1.zip(gs2).forall { case (g1, g2) =>
-              (g1.dosage, g2.dosage) match {
+              (g1.gp, g2.gp) match {
                 case (Some(x), Some(y)) => x.zip(y).forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
                 case (None, None) => true
                 case _ => false

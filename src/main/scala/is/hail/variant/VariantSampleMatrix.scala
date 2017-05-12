@@ -90,7 +90,7 @@ case class VSMSubgen[T](
   globalGen: (Type) => Gen[Annotation],
   vGen: Gen[Variant],
   tGen: (Variant) => Gen[T],
-  isDosage: Boolean = false,
+  isLinearScale: Boolean = false,
   wasSplit: Boolean = false,
   isGenericGenotype: Boolean = false) {
 
@@ -115,7 +115,7 @@ case class VSMSubgen[T](
           ts <- Gen.buildableOfN[Array, T](nSamples, tGen(v)).resize(subsubsizes(2)))
           yield (v, (va, ts: Iterable[T]))).resize(l))
       yield {
-        VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isDosage = isDosage, isGenericGenotype = isGenericGenotype),
+        VariantSampleMatrix[T](hc, VariantMetadata(sampleIds, saValues, global, saSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isLinearScale = isLinearScale, isGenericGenotype = isGenericGenotype),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
       }
 }
@@ -141,8 +141,8 @@ object VSMSubgen {
   val realistic = random.copy(
     tGen = Genotype.genRealistic)
 
-  val dosage = random.copy(
-    tGen = Genotype.genDosage, isDosage = true)
+  val dosageGenotype = random.copy(
+    tGen = Genotype.genDosageGenotype, isLinearScale = true)
 }
 
 class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
@@ -1225,7 +1225,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     vaSignature.insert(sig, path)
   }
 
-  def isDosage: Boolean = metadata.isDosage
+  def isLinearScale: Boolean = metadata.isLinearScale
 
   /**
     *
@@ -1725,12 +1725,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     globalSignature: Type = globalSignature,
     genotypeSignature: Type = genotypeSignature,
     wasSplit: Boolean = wasSplit,
-    isDosage: Boolean = isDosage,
+    isLinearScale: Boolean = isLinearScale,
     isGenericGenotype: Boolean = isGenericGenotype)
     (implicit tct: ClassTag[U]): VariantSampleMatrix[U] =
     new VariantSampleMatrix[U](hc,
       VariantMetadata(sampleIds, sampleAnnotations, globalAnnotation,
-        saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype), rdd)
+        saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype), rdd)
 
   def samplesKT(): KeyTable = {
     KeyTable(hc, sparkContext.parallelize(sampleIdsAndAnnotations)
@@ -1897,7 +1897,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
     val json = JObject(
       ("version", JInt(VariantSampleMatrix.fileVersion)),
       ("split", JBool(wasSplit)),
-      ("isDosage", JBool(isDosage)),
+      ("isLinearScale", JBool(isLinearScale)),
       ("isGenericGenotype", JBool(isGenericGenotype)),
       ("parquetGenotypes", JBool(parquetGenotypes)),
       ("sample_annotation_schema", JString(saSchemaString)),

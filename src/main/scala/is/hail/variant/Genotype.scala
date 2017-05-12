@@ -68,31 +68,33 @@ abstract class Genotype extends Serializable {
 
   def fakeRef: Boolean
 
-  def isDosage: Boolean
+  def isLinearScale: Boolean
 
   def unboxedPL: Array[Int] =
     if (unboxedPX == null)
       null
-    else if (isDosage)
+    else if (isLinearScale)
       Genotype.linearToPhred(unboxedPX)
     else
       unboxedPX
 
-  def unboxedDosage: Array[Double] =
+  def unboxedGP: Array[Double] =
     if (unboxedPX == null)
       null
-    else if (isDosage)
-      unboxedPX.map(_ * Genotype.dosageNorm)
+    else if (isLinearScale)
+      unboxedPX.map(_ * Genotype.gpNorm)
     else
-      Genotype.phredToDosage(unboxedPX)
+      Genotype.plToGP(unboxedPX)
 
-  def unboxedBiallelicDosageGenotype: Double =
+  def unboxedDosage: Double =
     if (unboxedPX == null)
       -1d
-    else if (isDosage)
-      (unboxedPX(1) + 2 * unboxedPX(2)) * Genotype.dosageNorm
+    else if (unboxedPX.size != 3)
+      fatal("Genotype dosage is not defined for multi-allelic variants")
+    else if (isLinearScale)
+      (unboxedPX(1) + 2 * unboxedPX(2)) * Genotype.gpNorm
     else
-      Genotype.phredToBiallelicDosageGenotype(unboxedPX(0), unboxedPX(1), unboxedPX(2))
+      Genotype.plToDosage(unboxedPX(0), unboxedPX(1), unboxedPX(2))
 
   def check(nAlleles: Int) {
     val nGenotypes = triangle(nAlleles)
@@ -107,7 +109,7 @@ abstract class Genotype extends Serializable {
     gq: Option[Int] = this.gq,
     px: Option[Array[Int]] = this.px,
     fakeRef: Boolean = this.fakeRef,
-    isDosage: Boolean = this.isDosage): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
+    isLinearScale: Boolean = this.isLinearScale): Genotype = Genotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
 
   override def equals(that: Any): Boolean = that match {
     case g: Genotype =>
@@ -117,7 +119,7 @@ abstract class Genotype extends Serializable {
         gq == g.gq &&
         ((px.isEmpty && g.px.isEmpty) || (px.isDefined && g.px.isDefined && px.get.sameElements(g.px.get))) &&
         fakeRef == g.fakeRef &&
-        isDosage == g.isDosage
+        isLinearScale == g.isLinearScale
 
     case _ => false
   }
@@ -130,7 +132,7 @@ abstract class Genotype extends Serializable {
       .append(gq)
       .append(util.Arrays.hashCode(px.orNull))
       .append(fakeRef)
-      .append(isDosage)
+      .append(isLinearScale)
       .toHashCode
 
   def call: Call =
@@ -173,7 +175,13 @@ abstract class Genotype extends Serializable {
 
   def pl: Option[Array[Int]] = Option(unboxedPL)
 
-  def dosage: Option[Array[Double]] = Option(unboxedDosage)
+  def gp: Option[Array[Double]] = Option(unboxedGP)
+
+  def dosage: Option[Double] =
+    if (unboxedDosage == -1)
+      None
+    else
+      Some(unboxedDosage)
 
   def isHomRef: Boolean = unboxedGT == 0
 
@@ -297,10 +305,10 @@ abstract class Genotype extends Serializable {
     b += ':'
     b.append(gq.map(_.toString).getOrElse("."))
     b += ':'
-    if (!isDosage) {
+    if (!isLinearScale) {
       b.append("PL=" + pl.map(_.mkString(",")).getOrElse("."))
     } else {
-      b.append("GP=" + dosage.map(_.mkString(",")).getOrElse("."))
+      b.append("GP=" + gp.map(_.mkString(",")).getOrElse("."))
     }
 
     b.result()
@@ -326,7 +334,7 @@ abstract class Genotype extends Serializable {
       None
 
   def toRow: Row =
-    Row(gt.orNull, ad.map(_.toSeq).orNull, dp.orNull, gq.orNull, px.map(_.toSeq).orNull, fakeRef, isDosage)
+    Row(gt.orNull, ad.map(_.toSeq).orNull, dp.orNull, gq.orNull, px.map(_.toSeq).orNull, fakeRef, isLinearScale)
 
   def toJSON: JValue = JObject(
     ("gt", gt.map(JInt(_)).getOrElse(JNull)),
@@ -335,7 +343,7 @@ abstract class Genotype extends Serializable {
     ("gq", gq.map(JInt(_)).getOrElse(JNull)),
     ("px", px.map(pxs => JArray(pxs.map(JInt(_)).toList)).getOrElse(JNull)),
     ("fakeRef", JBool(fakeRef)),
-    ("isDosage", JBool(isDosage)))
+    ("isLinearScale", JBool(isLinearScale)))
 }
 
 class RowGenotype(r: Row) extends Genotype {
@@ -372,7 +380,7 @@ class RowGenotype(r: Row) extends Genotype {
   // not nullable
   def fakeRef: Boolean = r.getBoolean(5)
 
-  def isDosage: Boolean = r.getBoolean(6)
+  def isLinearScale: Boolean = r.getBoolean(6)
 }
 
 object Genotype {
@@ -403,7 +411,7 @@ object Genotype {
     val dpx: Int = if (dp == null) -1 else dp
     val gqx: Int = if (gq == null) -1 else gq
 
-    val g = new GenericGenotype(gtx, ad, dpx, gqx, pl, fakeRef = false, isDosage = false)
+    val g = new GenericGenotype(gtx, ad, dpx, gqx, pl, fakeRef = false, isLinearScale = false)
     g.check(nAlleles)
     g
   }
@@ -417,8 +425,8 @@ object Genotype {
     gq: Option[Int] = None,
     px: Option[Array[Int]] = None,
     fakeRef: Boolean = false,
-    isDosage: Boolean = false): Genotype = {
-    new GenericGenotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull, fakeRef, isDosage)
+    isLinearScale: Boolean = false): Genotype = {
+    new GenericGenotype(gt.getOrElse(-1), ad.map(_.toArray).orNull, dp.getOrElse(-1), gq.getOrElse(-1), px.map(_.toArray).orNull, fakeRef, isLinearScale)
   }
 
   def sparkSchema: DataType = StructType(Array(
@@ -428,7 +436,7 @@ object Genotype {
     StructField("gq", IntegerType),
     StructField("px", ArrayType(IntegerType, containsNull = false)),
     StructField("fakeRef", BooleanType, nullable = false),
-    StructField("isDosage", BooleanType, nullable = false)))
+    StructField("isLinearScale", BooleanType, nullable = false)))
 
   def expandedType: TStruct = TStruct(
     "gt" -> TInt,
@@ -437,7 +445,7 @@ object Genotype {
     "gq" -> TInt,
     "px" -> TArray(TInt),
     "fakeRef" -> TBoolean,
-    "isDosage" -> TBoolean)
+    "isLinearScale" -> TBoolean)
 
   final val flagMultiHasGTBit = 0x1
   final val flagMultiGTRefBit = 0x2
@@ -651,7 +659,7 @@ object Genotype {
     Array(l0, l1, l2)
   }
 
-  val dosageNorm: Double = 1 / 32768.0
+  val gpNorm: Double = 1 / 32768.0
 
   lazy val linearToPhredConversionTable: Array[Double] = (0 to 65535).map { i => -10 * math.log10(if (i == 0) .25 else i) }.toArray
 
@@ -667,13 +675,13 @@ object Genotype {
   def phredToLinear(i: Int): Double =
     if (i < maxPhredInTable) phredToLinearConversionTable(i) else math.pow(10, i / -10.0)
 
-  def phredToDosage(a: Array[Int]): Array[Double] = {
+  def plToGP(a: Array[Int]): Array[Double] = {
     val lkhd = a.map(i => phredToLinear(i))
     val s = lkhd.sum
     lkhd.map(_ / s)
   }
 
-  def phredToBiallelicDosageGenotype(px0: Int, px1: Int, px2: Int): Double = {
+  def plToDosage(px0: Int, px1: Int, px2: Int): Double = {
     val p0 = phredToLinear(px0)
     val p1 = phredToLinear(px1)
     val p2 = phredToLinear(px2)
@@ -729,7 +737,7 @@ object Genotype {
       gtIndex(i, j)
   }
 
-  def read(nAlleles: Int, isDosage: Boolean, a: ByteIterator): Genotype = {
+  def read(nAlleles: Int, isLinearScale: Boolean, a: ByteIterator): Genotype = {
     val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
@@ -793,7 +801,7 @@ object Genotype {
             i += 1
           }
 
-          if (isDosage)
+          if (isLinearScale)
             pxa(gt) = 32768 - pxa.sum // original values summed to 32768 or 1.0 in probability
 
         } else {
@@ -817,10 +825,10 @@ object Genotype {
       } else
         -1
 
-    new GenericGenotype(gt, ad, dp, gq, px, flagFakeRef(flags), isDosage)
+    new GenericGenotype(gt, ad, dp, gq, px, flagFakeRef(flags), isLinearScale)
   }
 
-  def readHardCallGenotype(nAlleles: Int, isDosage: Boolean, a: ByteIterator): Int = {
+  def readHardCall(nAlleles: Int, isLinearScale: Boolean, a: ByteIterator): Int = {
     val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
@@ -863,7 +871,7 @@ object Genotype {
     gt
   }
 
-  def readBiallelicDosageGenotype(isDosage: Boolean, a: ByteIterator): Double = {
+  def readDosage(isLinearScale: Boolean, a: ByteIterator): Double = {
     val nAlleles = 2
     val isBiallelic = true
 
@@ -904,25 +912,25 @@ object Genotype {
         if (gt == 0) {
           px1 = a.readULEB128()
           px2 = a.readULEB128()
-          if (isDosage) px0 = 32768 - (px1 + px2)
+          if (isLinearScale) px0 = 32768 - (px1 + px2)
         } else if (gt == 1) {
           px0 = a.readULEB128()
           px2 = a.readULEB128()
-          if (isDosage) px1 = 32768 - (px0 + px2)
+          if (isLinearScale) px1 = 32768 - (px0 + px2)
         } else if (gt == 2) {
           px0 = a.readULEB128()
           px1 = a.readULEB128()
-          if (isDosage) px2 = 32768 - (px0 + px1)
+          if (isLinearScale) px2 = 32768 - (px0 + px1)
         } else {
           px0 = a.readULEB128()
           px1 = a.readULEB128()
           px2 = a.readULEB128()
         }
 
-        if (isDosage)
-          (px1 + 2 * px2) * Genotype.dosageNorm
+        if (isLinearScale)
+          (px1 + 2 * px2) * Genotype.gpNorm
         else
-          Genotype.phredToBiallelicDosageGenotype(px0, px1, px2)
+          Genotype.plToDosage(px0, px1, px2)
       } else
         -1d
 
@@ -932,12 +940,12 @@ object Genotype {
     dosage
   }
 
-  def genDosage(v: Variant): Gen[Genotype] = {
+  def genDosageGenotype(v: Variant): Gen[Genotype] = {
     val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
     for (px <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
       val gt = px.flatMap(gtFromLinear)
-      val g = Genotype(gt = gt, px = px, isDosage = true)
+      val g = Genotype(gt = gt, px = px, isLinearScale = true)
       g.check(nAlleles)
       g
     }
@@ -1002,12 +1010,12 @@ object Genotype {
 
   def genVariantGenotype: Gen[(Variant, Genotype)] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosage(v)))
+      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosageGenotype(v)))
       yield (v, g)
 
   def genArb: Gen[Genotype] =
     for (v <- Variant.gen;
-      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosage(v)))
+      g <- Gen.oneOfGen(genExtreme(v), genRealistic(v), genDosageGenotype(v)))
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
@@ -1041,7 +1049,7 @@ object Genotype {
         val compareFakeRef = a.fakeRef.compare(b.fakeRef)
         if (compareFakeRef != 0) return compareFakeRef
 
-        a.isDosage.compare(b.isDosage)
+        a.isLinearScale.compare(b.isLinearScale)
       }
     }
 }
@@ -1052,12 +1060,12 @@ class GenericGenotype(val unboxedGT: Int,
   val unboxedGQ: Int,
   val unboxedPX: Array[Int],
   val fakeRef: Boolean,
-  val isDosage: Boolean) extends Genotype {
+  val isLinearScale: Boolean) extends Genotype {
 
   require(unboxedGT >= -1, s"invalid _gt value: $unboxedGT")
   require(unboxedDP >= -1, s"invalid _dp value: $unboxedDP")
 
-  if (isDosage) {
+  if (isLinearScale) {
     require(unboxedGQ == -1)
     if (unboxedPX == null)
       require(unboxedGT == -1)
@@ -1077,13 +1085,13 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
   private val _px: Array[Int] = Array.ofDim[Int](triangle(nAlleles))
   private var _hasPX = false
   var fakeRef: Boolean = false
-  var isDosage: Boolean = false
+  var isLinearScale: Boolean = false
 
   def unboxedAD: Array[Int] = if (_hasAD) _ad else null
 
   def unboxedPX: Array[Int] = if (_hasPX) _px else null
 
-  def read(nAlleles: Int, isDosage: Boolean, a: ByteIterator) {
+  def read(nAlleles: Int, isLinearScale: Boolean, a: ByteIterator) {
     val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
@@ -1143,7 +1151,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
           _px(i) = a.readULEB128()
           i += 1
         }
-        if (isDosage)
+        if (isLinearScale)
           _px(unboxedGT) = 32768 - _px.sum // original values summed to 32768 or 1.0 in probability
         else
           _px(unboxedGT) = 0
@@ -1167,7 +1175,7 @@ class MutableGenotype(nAlleles: Int) extends Genotype {
 
     fakeRef = Genotype.flagFakeRef(flags)
 
-    this.isDosage = isDosage
+    this.isLinearScale = isLinearScale
   }
 }
 
@@ -1182,10 +1190,10 @@ class DosageGenotype(var unboxedGT: Int,
 
   def fakeRef: Boolean = false
 
-  def isDosage = true
+  def isLinearScale = true
 }
 
-class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {
+class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
   require(nAlleles > 0, s"tried to create genotype builder with $nAlleles ${ plural(nAlleles, "allele") }")
   val isBiallelic = nAlleles == 2
   val nGenotypes = triangle(nAlleles)
@@ -1266,7 +1274,7 @@ class GenotypeBuilder(nAlleles: Int, isDosage: Boolean = false) {
     val hasGQ = Genotype.flagHasGQ(flags)
     val hasPX = Genotype.flagHasPX(flags)
 
-    if (isDosage) {
+    if (isLinearScale) {
       if (hasPX) {
         Genotype.gtFromLinear(px) match {
           case Some(gt2) => assert(hasGT && gt == gt2)

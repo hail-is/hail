@@ -672,12 +672,15 @@ object FunctionRegistry {
     CM.ret(arrayToWrappedArray(x.invoke[Array[Int]]("unboxedPL")))
   }, """
      phred-scaled normalized genotype likelihood values. The conversion between
-     ``g.pl`` (Phred-scaled likelihoods) and ``g.dosage`` (linear-scaled
+     ``g.pl`` (Phred-scaled likelihoods) and ``g.gp`` (linear-scaled
      probabilities) assumes a uniform prior.
      """)
-  registerFieldCode("dosage", { (x: Code[Genotype]) =>
-    CM.ret(arrayToWrappedArray(x.invoke[Array[Double]]("unboxedDosage")))
+  registerFieldCode("gp", { (x: Code[Genotype]) =>
+    CM.ret(arrayToWrappedArray(x.invoke[Array[Double]]("unboxedGP")))
   }, "the linear-scaled probabilities.")
+  registerFieldCode("dosage", { (x: Code[Genotype]) =>
+    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("unboxedDosage"), boxInt)
+  }, "the expected value of the genotype based on genotype probabilities.")
   registerMethodCode("isHomRef", { (x: Code[Genotype]) =>
     CM.ret(boxBoolean(x.invoke[Boolean]("isHomRef")))
   }, "True if this call is ``0/0``.")
@@ -735,8 +738,8 @@ object FunctionRegistry {
   registerFieldCode("fakeRef",
     { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("fakeRef"))) },
     "True if this genotype was downcoded in :py:meth:`~hail.VariantDataset.split_multi`.  This can happen if a ``1/2`` call is split to ``0/1``, ``0/1``.")
-  registerFieldCode("isDosage",
-    { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("isDosage"))) },
+  registerFieldCode("isLinearScale",
+    { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("isLinearScale"))) },
     "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
   registerFieldCode("contig",
     { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) },
@@ -1860,9 +1863,9 @@ object FunctionRegistry {
 
     Hail will not generate identical results as `QCTOOL <http://www.well.ox.ac.uk/~gav/qctool/#overview>`_ for the following reasons:
 
-      - The floating point number Hail stores for each dosage is slightly different than the original data due to rounding and normalization of probabilities.
-      - Hail automatically removes dosages that do not meet certain requirements on data import with :py:meth:`~hail.HailContext.import_gen` and :py:meth:`~hail.HailContext.import_bgen`.
-      - Hail does not use the population frequency to impute dosages when a dosage has been set to missing.
+      - The floating point number Hail stores for each genotype probability is slightly different than the original data due to rounding and normalization of probabilities.
+      - Hail automatically removes genotype probability distributions that do not meet certain requirements on data import with :py:meth:`~hail.HailContext.import_gen` and :py:meth:`~hail.HailContext.import_bgen`.
+      - Hail does not use the population frequency to impute genotype probabilities when a genotype probability distribution has been set to missing.
       - Hail calculates the same statistic for sex chromosomes as autosomes while QCTOOL incorporates sex information
 
     .. warning::

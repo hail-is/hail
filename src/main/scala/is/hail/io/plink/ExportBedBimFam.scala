@@ -7,7 +7,7 @@ object ExportBedBimFam {
   val gtMap = Array(1, 3, 2, 0)
 
   def makeBedRow(gs: Iterable[Genotype], n: Int): Array[Byte] = {
-    val gts = gs.hardCallGenotypeIterator
+    val gts = gs.hardCallIterator
 
     val nBytes = (n + 3) / 4
     val a = Array.ofDim[Byte](nBytes)
