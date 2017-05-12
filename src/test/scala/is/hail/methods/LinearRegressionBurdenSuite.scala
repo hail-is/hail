@@ -204,8 +204,8 @@ class LinearRegressionBurdenSuite extends SparkSuite {
     val onceSampleMap5 = keyTableBoxedDoubleToMap[String](sampleKT5)
     assert(twiceSampleMap == onceSampleMap5)
 
-    assert(linregKT6.nRows == 0)
-    assert(sampleKT6.nRows == 0)
+    assert(linregKT6.count == 0)
+    assert(sampleKT6.count == 0)
 
     val sampleMap7 = keyTableBoxedDoubleToMap[Int](sampleKT7)
     assert(sampleMap7.size == 10)
