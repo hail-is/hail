@@ -49,7 +49,7 @@ class VariantDataset(object):
 
     >>> vds = hc.read("data/example.vds")
 
-    :ivar hc: Hail Context
+    :ivar hc: Hail Context.
     :vartype hc: :class:`.HailContext`
     """
 
@@ -69,7 +69,7 @@ class VariantDataset(object):
 
     @staticmethod
     @handle_py4j
-    def from_keytable(key_table):
+    def from_keytable(table):
         """Construct a sites-only variant dataset from a key table.
 
         The key table must be keyed by one column of type :py:class:`.TVariant`.
@@ -79,16 +79,16 @@ class VariantDataset(object):
         ``gene`` (*String*) will produce a sites-only variant dataset with a
         ``va.gene`` variant annotation.
 
-        :param key_table: variant-keyed key table
-        :type key_table: :py:class:`.KeyTable`
+        :param table: Variant-keyed table.
+        :type table: :py:class:`.KeyTable`
 
         :return: Sites-only variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
-        if not isinstance(key_table, KeyTable):
-            raise TypeError("parameter `key_table' must be a KeyTable, but found %s" % type(key_table))
-        jvds = scala_object(Env.hail().variant, 'VariantDataset').fromKeyTable(key_table._jkt)
-        return VariantDataset(key_table.hc, jvds)
+        if not isinstance(table, KeyTable):
+            raise TypeError("parameter `table' must be a KeyTable, but found %s" % type(table))
+        jvds = scala_object(Env.hail().variant, 'VariantDataset').fromKeyTable(table._jkt)
+        return VariantDataset(table.hc, jvds)
 
     @property
     def _jvdf(self):
@@ -203,7 +203,7 @@ class VariantDataset(object):
         return self._jvds.fileVersion()
 
     @handle_py4j
-    def aggregate_by_key(self, key_code, agg_code):
+    def aggregate_by_key(self, key_exprs, agg_exprs):
         """Aggregate by user-defined key and aggregation expressions to produce a KeyTable.
         Equivalent to a group-by operation in SQL.
 
@@ -218,21 +218,21 @@ class VariantDataset(object):
 
         This will produce a :class:`KeyTable` with 3 columns (`Sample`, `Gene`, `nHet`).
 
-        :param key_code: Named expression(s) for which fields are keys.
-        :type key_code: str or list of str
+        :param key_exprs: Named expression(s) for which fields are keys.
+        :type key_exprs: str or list of str
 
-        :param agg_code: Named aggregation expression(s).
-        :type agg_code: str or list of str
+        :param agg_exprs: Named aggregation expression(s).
+        :type agg_exprs: str or list of str
 
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(key_code, list):
-            key_code = ",".join(key_code)
-        if isinstance(agg_code, list):
-            agg_code = ",".join(agg_code)
+        if isinstance(key_exprs, list):
+            key_exprs = ",".join(key_exprs)
+        if isinstance(agg_exprs, list):
+            agg_exprs = ",".join(agg_exprs)
 
-        return KeyTable(self.hc, self._jvds.aggregateByKey(key_code, agg_code))
+        return KeyTable(self.hc, self._jvds.aggregateByKey(key_exprs, agg_exprs))
 
     @handle_py4j
     def aggregate_intervals(self, input, expr, output):
@@ -1615,11 +1615,11 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def filter_alleles(self, condition, annotation='va = va', subset=True, keep=True,
+    def filter_alleles(self, expr, annotation='va = va', subset=True, keep=True,
                        filter_altered_genotypes=False, max_shift=100, keep_star=False):
         """Filter a user-defined set of alternate alleles for each variant.
         If all alternate alleles of a variant are filtered, the
-        variant itself is filtered.  The condition expression is
+        variant itself is filtered.  The expr expression is
         evaluated for each alternate allele, but not for
         the reference allele (i.e. ``aIndex`` will never be zero).
 
@@ -1722,7 +1722,7 @@ class VariantDataset(object):
 
         **Expression Variables**
 
-        The following symbols are in scope for ``condition``:
+        The following symbols are in scope for ``expr``:
 
         - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
@@ -1734,7 +1734,8 @@ class VariantDataset(object):
         - ``va``: variant annotations
         - ``aIndices`` (*Array[Int]*): the array of old indices (such that ``aIndices[newIndex] = oldIndex`` and ``aIndices[0] = 0``)
 
-        :param str condition: Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+        :param str expr: Boolean filter expression involving v (variant), va (variant annotations), 
+            and aIndex (allele index)
 
         :param str annotation: Annotation modifying expression involving v (new variant), va (old variant annotations),
             and aIndices (maps from new to old indices)
@@ -1742,7 +1743,7 @@ class VariantDataset(object):
         :param bool subset: If true, subsets PL and AD, otherwise downcodes the PL and AD.
             Genotype and GQ are set based on the resulting PLs.
 
-        :param bool keep: If true, keep variants matching condition
+        :param bool keep: If true, keep variants matching expr
 
         :param bool filter_altered_genotypes: If true, genotypes that contain filtered-out alleles are set to missing.
 
@@ -1757,12 +1758,12 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterAlleles(condition, annotation, filter_altered_genotypes, keep, subset, max_shift,
+        jvds = self._jvdf.filterAlleles(expr, annotation, filter_altered_genotypes, keep, subset, max_shift,
                                         keep_star)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def filter_genotypes(self, condition, keep=True):
+    def filter_genotypes(self, expr, keep=True):
         """Filter genotypes based on expression.
 
         **Examples**
@@ -1776,7 +1777,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        ``condition`` is in genotype context so the following symbols are in scope:
+        ``expr`` is in genotype context so the following symbols are in scope:
 
         - ``s`` (*Sample*): sample
         - ``v`` (*Variant*): :ref:`variant`
@@ -1788,16 +1789,17 @@ class VariantDataset(object):
         the `expression language <exprlang.html>`__.
 
         .. caution::
-            When ``condition`` evaluates to missing, the genotype will be removed regardless of whether ``keep=True`` or ``keep=False``.
+            When ``expr`` evaluates to missing, the genotype will be removed regardless of whether ``keep=True`` or ``keep=False``.
 
-        :param condition: Expression for filter condition.
-        :type condition: str
+        :param str expr: Boolean filter expression.
+        
+        :param bool keep: Keep genotypes where ``expr`` evaluates to true.
 
         :return: Filtered variant dataset.
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterGenotypes(condition, keep)
+        jvds = self._jvdf.filterGenotypes(expr, keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -1833,7 +1835,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.dropSamples())
 
     @handle_py4j
-    def filter_samples_expr(self, condition, keep=True):
+    def filter_samples_expr(self, expr, keep=True):
         """Filter samples with the expression language.
 
         **Examples**
@@ -1854,7 +1856,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        ``condition`` is in sample context so the following symbols are in scope:
+        ``expr`` is in sample context so the following symbols are in scope:
 
         - ``s`` (*Sample*): sample
         - ``sa``: sample annotations
@@ -1865,17 +1867,18 @@ class VariantDataset(object):
         the `expression language <exprlang.html>`__.
 
         .. caution::
-            When ``condition`` evaluates to missing, the sample will be removed regardless of whether ``keep=True`` or ``keep=False``.
+            When ``expr`` evaluates to missing, the sample will be removed regardless of whether ``keep=True`` or ``keep=False``.
 
 
-        :param condition: Expression for filter condition.
-        :type condition: str
+        :param str expr: Boolean filter expression.
+        
+        :param bool keep: Keep samples where ``expr`` evaluates to true.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.filterSamplesExpr(condition, keep)
+        jvds = self._jvds.filterSamplesExpr(expr, keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -1958,7 +1961,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.dropVariants())
 
     @handle_py4j
-    def filter_variants_expr(self, condition, keep=True):
+    def filter_variants_expr(self, expr, keep=True):
         """Filter variants with the expression language.
 
         **Examples**
@@ -1978,7 +1981,7 @@ class VariantDataset(object):
 
         **Notes**
 
-        The following symbols are in scope for ``condition``:
+        The following symbols are in scope for ``expr``:
 
         - ``v`` (*Variant*): :ref:`variant`
         - ``va``: variant annotations
@@ -1988,16 +1991,17 @@ class VariantDataset(object):
         For more information, see the `Overview <overview.html#>`__ and the `Expression Language <exprlang.html>`__.
 
         .. caution::
-           When ``condition`` evaluates to missing, the variant will be removed regardless of whether ``keep=True`` or ``keep=False``.
+           When ``expr`` evaluates to missing, the variant will be removed regardless of whether ``keep=True`` or ``keep=False``.
 
-        :param condition: Expression for filter condition.
-        :type condition: str
+        :param str expr: Boolean filter expression.
 
+        :param bool keep: Keep variants where ``expr`` evaluates to true.
+        
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.filterVariantsExpr(condition, keep)
+        jvds = self._jvds.filterVariantsExpr(expr, keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

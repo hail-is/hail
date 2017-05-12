@@ -200,7 +200,7 @@ class KeyTable(object):
         self._jkt.export(output, types_file, header)
 
     @handle_py4j
-    def filter(self, condition, keep=True):
+    def filter(self, expr, keep=True):
         """Filter rows.
 
         **Examples**
@@ -215,23 +215,23 @@ class KeyTable(object):
 
         **Notes**
 
-        The scope for ``condition`` is all column names in the input :class:`KeyTable`.
+        The scope for ``expr`` is all column names in the input :class:`KeyTable`.
 
         For more information, see the documentation on writing `expressions <../overview.html#expressions>`__
         and using the `Hail Expression Language <exprlang.html>`__.
 
         .. caution::
-           When ``condition`` evaluates to missing, the row will be removed regardless of whether ``keep=True`` or ``keep=False``.
+           When ``expr`` evaluates to missing, the row will be removed regardless of whether ``keep=True`` or ``keep=False``.
 
-        :param str condition: Annotation expression.
+        :param str expr: Boolean filter expression.
 
-        :param bool keep: Keep rows where ``condition`` evaluates to True.
+        :param bool keep: Keep rows where ``expr`` is true.
 
-        :return: Key table whose rows have been filtered by evaluating ``condition``.
+        :return: Filtered key table.
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jkt.filter(condition, keep))
+        return KeyTable(self.hc, self._jkt.filter(expr, keep))
 
     @handle_py4j
     def annotate(self, expr):
@@ -345,7 +345,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.aggregate(key_expr, agg_expr))
 
     @handle_py4j
-    def forall(self, code):
+    def forall(self, expr):
         """Test whether a condition is true for all rows.
 
         **Examples**
@@ -355,15 +355,15 @@ class KeyTable(object):
         >>> if kt1.forall("C1 == 5"):
         ...     print("All rows have C1 equal 5.")
 
-        :param str code: Boolean expression.
+        :param str expr: Boolean expression.
 
         :rtype: bool
         """
 
-        return self._jkt.forall(code)
+        return self._jkt.forall(expr)
 
     @handle_py4j
-    def exists(self, code):
+    def exists(self, expr):
         """Test whether a condition is true for at least one row.
 
         **Examples**
@@ -373,12 +373,12 @@ class KeyTable(object):
         >>> if kt1.exists("C1 == 5"):
         ...     print("At least one row has C1 equal 5.")
 
-        :param str code: Boolean expression.
+        :param str expr: Boolean expression.
 
         :rtype: bool
         """
 
-        return self._jkt.exists(code)
+        return self._jkt.exists(expr)
 
     @handle_py4j
     def rename(self, column_names):
