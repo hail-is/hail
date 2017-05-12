@@ -4733,7 +4733,7 @@ class VariantDataset(object):
                 gene_pheno: Int,
                 gene_symbol: String,
                 gene_symbol_source: String,
-                hgnc_id: Int,
+                hgnc_id: String,
                 hgvsc: String,
                 hgvsp: String,
                 hgvs_offset: Int,
