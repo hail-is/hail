@@ -570,15 +570,15 @@ object Genotype {
     f(1, a(0), 0, 1)
   }
 
-  def weightsToLinear(a: Array[Double]): Array[Int] = {
+  def weightsToLinear(a: ArrayUInt): Array[Int] = {
     val n = a.length
     val r = new Array[Int](a.length)
-    val s = a.sum
+    val s = a.sum.toDouble
     assert(s >= 0)
     var aAcc = 0.0
     var rAcc = 0
     for (i <- 0 until n) {
-      aAcc += a(i)
+      aAcc += a(i).toDouble
       val t = (aAcc * 32768 / s + 0.5).toInt
       r(i) = t - rAcc
       rAcc = t
@@ -587,28 +587,33 @@ object Genotype {
     r
   }
 
-  def weightsToLinear(a: ArrayUInt): Array[Int] = {
+  def weightsToLinear[T: Numeric](a: Array[T]): Array[Int] = {
+    import scala.math.Numeric.Implicits._
+
     val n = a.length
     val r = new Array[Int](a.length)
-
-    var s = UInt(0)
-    var i = 0
-    while (i < a.length) {
-      s += a(i)
-      i += 1
-    }
-
+    val s = a.sum.toDouble
     assert(s >= 0)
     var aAcc = 0.0
     var rAcc = 0
     for (i <- 0 until n) {
       aAcc += a(i).toDouble
-      val t = (aAcc * 32768 / s.toDouble + 0.5).toInt
+      val t = (aAcc * 32768 / s + 0.5).toInt
       r(i) = t - rAcc
       rAcc = t
     }
     assert(rAcc == 32768)
     r
+  }
+
+  def weightsToLinear(w0: Int, w1: Int, w2: Int): Array[Int] = {
+    val sum = w0 + w1 + w2
+    assert(sum > 0)
+
+    val l0 = (w0.toDouble * 32768 / sum + 0.5).toInt
+    val l1 = ((w0 + w1).toDouble * 32768 / sum + 0.5).toInt - l0
+    val l2 = 32768 - l0 - l1
+    Array(l0, l1, l2)
   }
 
   def weightsToLinear(w0: Double, w1: Double, w2: Double): Array[Int] = {
@@ -617,26 +622,6 @@ object Genotype {
 
     val l0 = (w0 * 32768 / sum + 0.5).toInt
     val l1 = ((w0 + w1) * 32768 / sum + 0.5).toInt - l0
-    val l2 = 32768 - l0 - l1
-    Array(l0, l1, l2)
-  }
-
-  def weightsToLinear(w0: Int, w1: Int, w2: Int): Array[Int] = {
-    val sum = w0 + w1 + w2
-    assert(sum > 0)
-
-    val l0 = (w0 * 32768 / sum + 0.5).toInt
-    val l1 = ((w0 + w1) * 32768 / sum + 0.5).toInt - l0
-    val l2 = 32768 - l0 - l1
-    Array(l0, l1, l2)
-  }
-
-  def weightsToLinear(w0: UInt, w1: UInt, w2: UInt)(implicit uct: ClassTag[UInt]): Array[Int] = {
-    val sum = w0 + w1 + w2
-    assert(sum > 0)
-
-    val l0 = (w0 * 32768 / sum.toDouble + 0.5).toInt
-    val l1 = ((w0 + w1) * 32768 / sum.toDouble + 0.5).toInt - l0
     val l2 = 32768 - l0 - l1
     Array(l0, l1, l2)
   }

@@ -124,4 +124,14 @@ class ArrayUInt(val a: Array[Int]) extends AnyVal {
   }
 
   def length: Int = a.length
+
+  def sum: UInt = {
+    var i = 0
+    var s = UInt(0)
+    while (i < length) {
+      s += apply(i)
+      i += 1
+    }
+    s
+  }
 }
