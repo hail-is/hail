@@ -178,6 +178,64 @@ class ImportAnnotationsSuite extends SparkSuite {
     assert(anno1glob.same(anno1))
   }
 
+  @Test def testAnnotateAllelesVDS() {
+
+    def runTest(vds1: VariantDataset, vds2: VariantDataset) {
+
+      val anno1 = vds1.annotateAllelesVDS(
+        vds2,
+        "va.test = range(v.altAlleles.length).map(i => vds[i].alleles[aIndices[i]])"
+      )
+      val (_, qa) = anno1.queryVA("va.alleles")
+      val (_, q) = anno1.queryVA("va.test")
+
+      anno1.variantsAndAnnotations.collect()
+        .foreach {
+          case (v, va) =>
+            assert(q(va) == qa(va))
+        }
+
+      val anno2 = vds1.annotateAllelesVDS(
+        vds2.filterAlleles("va.filterAlleles[aIndex -1]", keep = true, keepStar = true,
+          annotationExpr = "va.alleles = aIndices[1:].map(i => va.alleles[i - 1])"),
+        "va.test = range(v.altAlleles.length).map(i => vds[i].alleles[aIndices[i]])"
+      )
+
+      val (_, qf) = anno2.queryVA("va.filterAlleles")
+      val (_, qa2) = anno2.queryVA("va.alleles")
+      val (_, q2) = anno2.queryVA("va.test")
+
+      anno2.variantsAndAnnotations.collect()
+        .foreach {
+          case (v, va) =>
+            val alleles = qa2(va).asInstanceOf[IndexedSeq[Int]]
+            val kept = qf(va).asInstanceOf[IndexedSeq[Boolean]]
+            val ann = q2(va).asInstanceOf[IndexedSeq[Any]]
+            (0 until alleles.length).foreach {
+              i =>
+                if (kept(i))
+                  assert(ann(i) == alleles(i))
+                else
+                  assert(ann(i) == null)
+            }
+        }
+    }
+
+    val vds = hc.importVCF("src/test/resources/sample2.vcf", sitesOnly = true)
+      .annotateVariantsExpr("va.alleles = range(v.nAltAlleles), " +
+        "va.filterAlleles = range(v.nAltAlleles).map(i => (v.start + i) % 2 == 0)")
+      .persist()
+    val splitVds = vds.splitMulti(keepStar = true)
+      .annotateVariantsExpr("va.alleles = [va.alleles[va.aIndex - 1]], " +
+        "va.filterAlleles = [va.filterAlleles[va.aIndex - 1]]")
+
+    runTest(vds, vds)
+    runTest(vds, splitVds)
+    runTest(splitVds, vds)
+    runTest(splitVds, splitVds)
+
+  }
+
   @Test def testVCFAnnotator() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
       .splitMulti()

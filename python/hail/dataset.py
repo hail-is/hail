@@ -364,6 +364,54 @@ class VariantDataset(object):
         jvds = self._jvdf.annotateAllelesExpr(expr, propagate_gq)
         return VariantDataset(self.hc, jvds)
 
+
+    @handle_py4j
+    def annotate_alleles_vds(self, other, code, match_star = True):
+        """Annotate variants / alleles from another VDS
+
+        **Examples**
+
+        Import a second VDS, ``vd2``, with annotations to merge into ``vds``:
+
+        >>> vds2 = hc.read("data/example2.vds")
+
+        Copy the inbreeding coefficient annotation (``Double``) for each site from ``vds2`` ``va.info.InbreedingCoeff`` to ``vds`` ``va.info.other_InbreedingCoeff``:
+
+        >>> vds1 = vds.annotate_alleles_vds(vds2, 'va.info.other_InbreedingCoeff = vds.find(x => isDefined(x)).info.InbreedingCoeff')
+
+        Copy allele frequencies (``Array[Double]`` containing the allele frequency for each alternative allele) for each allele from
+        ``vds2`` ``va.info.AF`` to ``vds`` ``va.info.other_AF``:
+
+        >>> vds1 = vds.annotate_alleles_vds(vds2, 'va.info.other_AF = range(v.nAltAlleles).map(i => vds[i].info.AF[aIndices[i]])')
+
+        **Notes**
+
+        The ``code`` argument expects an annotation expression whose scope includes ``va``, the variant annotations in the current VDS,
+        and ``vds``, the variant annotations in other (one per allele).
+        This method matches alleles based on their position, allowing to annotate a VDS that is split or non-split with
+        another VDS that is split or non-split, as long as the allele representation is consistently aligned (e.g. GATK HaplotypeCaller alleles are all left-aligned).
+        The alleles at each position are matched between the VDSs.
+
+        ``code`` is in a variant context and the following symbols are in scope:
+
+           - ``v`` (*Variant*): :ref:`variant`
+           - ``va``: variant annotations
+           - ``vds`` (*Array*): variant annotations from ``other``. There is one entry for each allele in ``v``, entries contain ``NA`` if the allele was not found in ``other``.
+           - ``aIndices`` (*Array[Int]*): The mapping from the alt allele index in the VDS and those in ``other``. If the other VDS was split, the entries are ``0`` for alleles that match. There is one entry for each allele in ``v``, entries contain ``NA`` if the allele was not found in ``other``.
+           - ``global``: global annotations
+
+        :param VariantDataset other: Variant dataset to annotate with.
+        :param str code: Annotation expression.
+        :param bool match_star: Should you match star alleles
+        :return: Annotated variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        if isinstance(code, list):
+            code = ",".join(code)
+        jvds = self._jvdf.annotateAllelesVDS(other._jvds, code, match_star)
+        return VariantDataset(self.hc, jvds)
+
     @handle_py4j
     def annotate_genotypes_expr(self, expr):
         """Annotate genotypes with expression.
@@ -1250,6 +1298,9 @@ class VariantDataset(object):
         variants, so ignore any warnings Hail prints if you know that to be the
         case.  Otherwise, run :py:meth:`.split_multi` before
         :py:meth:`.annotate_variants_vds`.
+
+        If you want to annotate a VDS with multi-allelic variants without splitting it,
+        you should use :py:meth:`.annotate_alleles_vds` instead.
 
         :param VariantDataset other: Variant dataset to annotate with.
 

@@ -11,6 +11,7 @@ import is.hail.keytable.KeyTable
 import is.hail.methods._
 import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
 import is.hail.stats.ComputeRRM
+import is.hail.sparkextras.{OrderedKeyFunction, OrderedPartitioner, OrderedRDD}
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
@@ -369,6 +370,98 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       }
 
     }.copy(vaSignature = finalType)
+  }
+
+  def annotateAllelesVDS(other: VariantDataset, code: String, matchStar: Boolean = true): VariantDataset = {
+    import LocusImplicits.orderedKey
+
+    val otherWasSplit = other.wasSplit
+
+    val ec = EvalContext(Map(
+      "global" -> (0, vds.globalSignature),
+      "v" -> (1, TVariant),
+      "va" -> (2, vds.vaSignature),
+      "vds" -> (3, TArray(other.vaSignature)),
+      "aIndices" -> (4, TArray(TInt))
+    ))
+
+    val localGlobalAnnotation = vds.globalAnnotation
+
+    val (paths, types, f) = Parser.parseAnnotationExprs(code, ec, Some(Annotation.VARIANT_HEAD))
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val newSignature = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (ids, signature)) =>
+      val (s, i) = vas.insert(signature, ids)
+      inserterBuilder += i
+      s
+    }
+    val inserters = inserterBuilder.result()
+
+    if (vds.wasSplit) {
+      val otherSplit = if (otherWasSplit) other else other.dropSamples().splitMulti(keepStar = matchStar)
+      val (_, aIndexQuerier) = if (otherWasSplit) (null, null) else otherSplit.queryVA("va.aIndex")
+      val newRDD = vds.rdd.orderedLeftJoinDistinct(otherSplit.variantsAndAnnotations)
+        .mapValuesWithKey { case (v, ((va, gs), annotation)) =>
+          val annotations = IndexedSeq(annotation.getOrElse(null))
+          val aIndices = IndexedSeq(annotation.map {
+            ann =>
+              if (otherWasSplit)
+                0
+              else
+                aIndexQuerier(ann).asInstanceOf[Int] - 1
+          }.getOrElse(null))
+
+          ec.setAll(localGlobalAnnotation, v, va, annotations, aIndices)
+          val newVA = f().zip(inserters).foldLeft(va) { case (va, (ann, inserter)) => inserter(va, ann) }
+          (newVA, gs)
+        }.asOrderedRDD
+      vds.copy(rdd = newRDD, vaSignature = newSignature)
+    }
+    else {
+      val otherLocusRDD = other.rdd.mapMonotonic(OrderedKeyFunction(_.locus), { case (v, (va, gs)) => (v, va) })
+
+      val otherLocusAltAlleleRDD =
+        if (otherWasSplit) {
+          OrderedRDD(otherLocusRDD.mapPartitions { case it =>
+            new SortedCombineLocusIterator(it.map {
+              case (l, (v, va)) => (l, (v.altAllele, va))
+            })
+          }, otherLocusRDD.orderedPartitioner)
+        }
+        else
+          otherLocusRDD.mapValues {
+            case (v, va) =>
+              v.altAlleles.map((_, va))
+          }.asOrderedRDD
+
+      val newRDD = vds.rdd
+        .mapMonotonic(OrderedKeyFunction(_.locus), { case (v, vags) => (v, vags) })
+        .orderedLeftJoinDistinct(otherLocusAltAlleleRDD)
+        .map {
+          case (l, ((v, (va, gs)), altAllelesAndAnnotations)) =>
+            val aIndices = Array.ofDim[Any](v.nAltAlleles)
+            val annotations = Array.ofDim[Annotation](v.nAltAlleles)
+
+            altAllelesAndAnnotations.map(x => x.zipWithIndex.foreach {
+              case ((allele, ann), oldIndex) =>
+                if (matchStar || allele.alt != "*") {
+                  val newIndex = v.altAlleleIndex(allele)
+                  if (newIndex > -1) {
+                    annotations.update(newIndex, ann)
+                    if (otherWasSplit)
+                      aIndices.update(newIndex, 0)
+                    else
+                      aIndices.update(newIndex, oldIndex)
+                  }
+                }
+            })
+            ec.setAll(localGlobalAnnotation, v, va, annotations: IndexedSeq[Annotation], aIndices: IndexedSeq[Annotation])
+            val newVA = f().zip(inserters).foldLeft(va) { case (va, (ann, inserter)) => inserter(va, ann) }
+            (v, (newVA, gs))
+        }
+
+      vds.copy(rdd = OrderedRDD(newRDD, vds.rdd.orderedPartitioner), vaSignature = newSignature)
+    }
   }
 
   def annotateGenotypesExpr(expr: String): GenericDataset = vds.toGDS.annotateGenotypesExpr(expr)
