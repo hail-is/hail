@@ -413,7 +413,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def summarize(): SummaryResult = {
     vds.rdd
-      .aggregate(new SummaryCombiner[Genotype](_.hardCallGenotypeIterator.countNonNegative()))(_.merge(_), _.merge(_))
+      .aggregate(new SummaryCombiner[Genotype](_.hardCallIterator.countNonNegative()))(_.merge(_), _.merge(_))
       .result(vds.nSamples)
   }
 

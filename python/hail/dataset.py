@@ -2281,9 +2281,9 @@ class VariantDataset(object):
         as the mean of called genotypes.
 
         By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are given by dosage genotypes, defined by
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For any variant, if ``Variant.is_dosage``
-        is false, then :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
+        If ``use_dosages=True``, then genotype values are defined by the dosage
+        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
+        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
         calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         Assuming there are sample annotations ``sa.pheno.height``,
@@ -2836,9 +2836,9 @@ class VariantDataset(object):
         defined. For each variant, Hail imputes missing genotypes as the mean of called genotypes.
 
         By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are given by dosage genotypes, defined by
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For any variant, if ``Variant.is_dosage``
-        is false, then :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
+        If ``use_dosages=True``, then genotype values are defined by the dosage
+        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
+        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
         calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         The example above considers a model of the form
