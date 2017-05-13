@@ -13,17 +13,17 @@ import scala.collection.mutable
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))])
 
 object GenReport {
-  final val dosageNoCall = 0
-  final val dosageLessThanTolerance = 1
-  final val dosageGreaterThanTolerance = 2
+  final val gpNoCall = 0
+  final val gpSumLessThanTolerance = 1
+  final val gpSumGreaterThanTolerance = 2
 
   var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
 
   def warningMessage(id: Int, count: Int): String = {
     val desc = (id: @unchecked) match {
-      case `dosageNoCall` => "Dosage triple of (0.0,0.0,0.0)"
-      case `dosageLessThanTolerance` => "Sum of Dosage < (1.0 - tolerance)"
-      case `dosageGreaterThanTolerance` => "Sum of Dosage > (1.0 + tolerance)"
+      case `gpNoCall` => "Genotype probabilities are (0.0,0.0,0.0)"
+      case `gpSumLessThanTolerance` => "Sum of genotype probabilities < (1.0 - tolerance)"
+      case `gpSumGreaterThanTolerance` => "Sum of genotype probabilities > (1.0 + tolerance)"
     }
     s"$count ${ plural(count, "time") }: $desc"
   }
@@ -107,27 +107,27 @@ object GenLoader {
 
     val variant = Variant(recodedChr, start.toInt, ref, alt)
     val nGenotypes = 3
-    val dosages = arr.drop(6 - chrCol).map {
+    val gp = arr.drop(6 - chrCol).map {
       _.toDouble
     }
 
-    if (dosages.length != (3 * nSamples))
-      fatal("Number of dosages does not match number of samples. If no chromosome column is included, use -c to input the chromosome.")
-    
-    val gsb = new GenotypeStreamBuilder(2, isDosage = true)
-    val gb = new GenotypeBuilder(2, isDosage = true)
+    if (gp.length != (3 * nSamples))
+      fatal("Number of genotype probabilities does not match 3 * number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
-    for (i <- dosages.indices by 3) {
+    val gsb = new GenotypeStreamBuilder(2, isLinearScale = true)
+    val gb = new GenotypeBuilder(2, isLinearScale = true)
+
+    for (i <- gp.indices by 3) {
       gb.clear()
 
-      val d0 = dosages(i)
-      val d1 = dosages(i + 1)
-      val d2 = dosages(i + 2)
+      val d0 = gp(i)
+      val d1 = gp(i + 1)
+      val d2 = gp(i + 2)
       val sumDosages = d0 + d1 + d2
       if (sumDosages == 0.0)
-        reportAcc += GenReport.dosageNoCall
+        reportAcc += GenReport.gpNoCall
       else if (math.abs(sumDosages - 1.0) > tolerance)
-        reportAcc += GenReport.dosageLessThanTolerance
+        reportAcc += GenReport.gpSumLessThanTolerance
       else {
         val px = Genotype.weightsToLinear(d0, d1, d2)
         val gt = Genotype.gtFromLinear(px)

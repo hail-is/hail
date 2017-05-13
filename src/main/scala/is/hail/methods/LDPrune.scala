@@ -369,7 +369,7 @@ object LDPrune {
       fatal(s"`memory_per_core' must be greater than ${ minMemoryPerCore / (1024 * 1024) }MB.")
 
     val standardizedRDD: OrderedRDD[Locus, Variant, BitPackedVector] = vds.filterVariants { case (v, va, gs) => v.isBiallelic }.rdd
-      .flatMapValues { case (va, gs) => toBitPackedVector(gs.hardCallGenotypeIterator, nSamples) }.asOrderedRDD
+      .flatMapValues { case (va, gs) => toBitPackedVector(gs.hardCallIterator, nSamples) }.asOrderedRDD
 
     val ((rddLP1, nVariantsLP1, nPartitionsLP1), durationLP1) = time({
       val prunedRDD = pruneLocal(standardizedRDD, r2Threshold, windowSize, Option(maxQueueSize)).persist(StorageLevel.MEMORY_AND_DISK)

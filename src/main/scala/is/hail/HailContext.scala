@@ -295,7 +295,7 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    VariantSampleMatrix(this, VariantMetadata(samples).copy(isDosage = true),
+    VariantSampleMatrix(this, VariantMetadata(samples).copy(isLinearScale = true),
       sc.union(results.map(_.rdd)).toOrderedRDD)
       .copy(vaSignature = signature, wasSplit = true)
   }
