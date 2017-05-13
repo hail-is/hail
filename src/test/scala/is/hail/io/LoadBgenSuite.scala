@@ -65,7 +65,7 @@ class LoadBgenSuite extends SparkSuite {
         .forall { case ((v, i), (gt1, gt2)) =>
           (gt1, gt2) match {
             case (Some(x), Some(y)) =>
-              (x.dosage, y.dosage) match {
+              (x.gp, y.gp) match {
                 case (Some(dos1), Some(dos2)) => dos1.zip(dos2).forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance }
                 case (None, None) => true
                 case _ => false
@@ -84,7 +84,7 @@ class LoadBgenSuite extends SparkSuite {
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- VariantSampleMatrix.gen(hc,
-      VSMSubgen.dosage.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
+      VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
         sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier.filter(_ != "NA"))))
       .filter(_.countVariants > 0)
       .map(_.copy(wasSplit = true));
@@ -98,7 +98,7 @@ class LoadBgenSuite extends SparkSuite {
       forAll(compGen) { case (vds, nPartitions) =>
 
         assert(vds.rdd.forall { case (v, (va, gs)) =>
-          gs.flatMap(_.dosage).flatten.forall(d => d >= 0.0 && d <= 1.0)
+          gs.flatMap(_.gp).flatten.forall(d => d >= 0.0 && d <= 1.0)
         })
 
         val fileRoot = tmpDir.createTempFile("testImportBgen")
@@ -137,7 +137,7 @@ class LoadBgenSuite extends SparkSuite {
         originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (g1, g2)) =>
 
           val r = g1 == g2 ||
-            g1.get.dosage.get.zip(g2.get.dosage.get)
+            g1.get.gp.get.zip(g2.get.gp.get)
               .forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
 
           if (!r)

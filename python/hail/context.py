@@ -158,15 +158,15 @@ class HailContext(object):
 
         To load multiple files at the same time, use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
-        .. _dosagefilters:
+        .. _gpfilters:
 
-        **Dosage representation**:
+        **Genotype probability (``gp``) representation**:
 
-        The following modifications are made to dosages in BGEN v1.1 files:
+        The following modifications are made to genotype probabilities in BGEN v1.1 files:
 
-          - Since dosages are understood as genotype probabilities, :py:meth:`~hail.HailContext.import_bgen` automatically sets to missing those genotypes for which the sum of the dosages is a distance greater than the ``tolerance`` parameter from 1.0.  The default tolerance is 0.2, so a genotype with sum .79 or 1.21 is filtered out, whereas a genotype with sum .8 or 1.2 remains.
+          - Since genotype probabilities are understood to define a probability distribution, :py:meth:`~hail.HailContext.import_bgen` automatically sets to missing those genotypes for which the sum of the probabilities is a distance greater than the ``tolerance`` parameter from 1.0.  The default tolerance is 0.2, so a genotype with sum .79 or 1.21 is filtered out, whereas a genotype with sum .8 or 1.2 remains.
 
-          - :py:meth:`~hail.HailContext.import_bgen` normalizes all dosages to sum to 1.0. Therefore, an input dosage of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
+          - :py:meth:`~hail.HailContext.import_bgen` normalizes all probabilities to sum to 1.0. Therefore, an input distribution of (0.98, 0.0, 0.0) will be stored as (1.0, 0.0, 0.0) in Hail.
 
         **Annotations**
 
@@ -179,7 +179,7 @@ class HailContext(object):
         :param path: .bgen files to import.
         :type path: str or list of str
 
-        :param float tolerance: If the sum of the dosages for a
+        :param float tolerance: If the sum of the probabilities for a
             genotype differ from 1.0 by more than the tolerance, set
             the genotype to missing. Only applicable if the BGEN files are v1.1.
 
@@ -219,13 +219,13 @@ class HailContext(object):
 
         To ensure that the .gen file(s) and .sample file are correctly prepared for import:
 
-        - If there are only 5 columns before the start of the dosage data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
+        - If there are only 5 columns before the start of the genotype probability data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
 
         - No duplicate sample IDs are allowed
 
         The first column in the .sample file is used as the sample ID ``s``.
 
-        Also, see section in :py:meth:`~hail.HailContext.import_bgen` linked :ref:`here <dosagefilters>` for information about Hail's dosage representation.
+        Also, see section in :py:meth:`~hail.HailContext.import_bgen` linked :ref:`here <gpfilters>` for information about Hail's genotype probability representation.
 
         **Annotations**
 
@@ -240,7 +240,7 @@ class HailContext(object):
 
         :param str sample_file: The sample file.
 
-        :param float tolerance: If the sum of the dosages for a genotype differ from 1.0 by more than the tolerance, set the genotype to missing.
+        :param float tolerance: If the sum of the genotype probabilities for a genotype differ from 1.0 by more than the tolerance, set the genotype to missing.
 
         :param npartitions: Number of partitions.
         :type npartitions: int or None

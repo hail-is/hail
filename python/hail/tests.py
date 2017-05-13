@@ -28,6 +28,8 @@ def tearDownModule():
     hc.stop()
     hc = None
 
+def float_eq(x, y, tol=10**-6):
+    return abs(x - y) < tol
 
 class ContextTests(unittest.TestCase):
     def test_context(self):
@@ -231,8 +233,6 @@ class ContextTests(unittest.TestCase):
             dataset.sample_ids[:5]
             dataset.variant_schema
             dataset.sample_schema
-
-            self.assertFalse(dataset.is_dosage())
 
             self.assertEqual(dataset2.num_samples, 100)
             self.assertEqual(dataset2.count_variants(), 735)
@@ -596,6 +596,13 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(g2.gq, None)
         self.assertEqual(g2.pl, None)
 
+        gpNorm = 1 / (10**-4 + 1 + 10**-9.9)
+        self.assertTrue(float_eq(g.gp[0], 10**-4 * gpNorm))
+        self.assertTrue(float_eq(g.gp[1], gpNorm))
+        self.assertTrue(float_eq(g.gp[2], 10**-9.9 * gpNorm))
+        self.assertEqual(g2.gp, None)
+        self.assertTrue(float_eq(g.dosage(), (1 + 2 * 10**-9.9) * gpNorm))
+        self.assertEqual(g2.dosage(), None)
         self.assertEqual(g.od(), 3)
         self.assertFalse(g.is_hom_ref())
         self.assertFalse(g2.is_hom_ref())

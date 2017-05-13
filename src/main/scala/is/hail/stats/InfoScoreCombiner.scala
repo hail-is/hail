@@ -8,7 +8,7 @@ import is.hail.variant.Genotype
 object InfoScoreCombiner {
   def signature = TStruct(Array(
     ("score", TDouble, "IMPUTE info score"),
-    ("nIncluded", TInt, "Number of samples with non-missing dosages")
+    ("nIncluded", TInt, "Number of samples with non-missing genotype probability distribution")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 }
 
@@ -18,10 +18,10 @@ class InfoScoreCombiner extends Serializable {
   var totalDosage = 0d
   var nIncluded = 0
 
-  def expectedVariance(dosage: Array[Double], mean: Double): Double = (dosage(1) + 4 * dosage(2)) - (mean * mean)
+  def expectedVariance(gp: Array[Double], mean: Double): Double = (gp(1) + 4 * gp(2)) - (mean * mean)
 
   def merge(g: Genotype): InfoScoreCombiner = {
-    g.dosage.foreach { dx =>
+    g.gp.foreach { dx =>
       val mean = dx(1) + 2 * dx(2)
       result += expectedVariance(dx, mean)
       expectedAlleleCount += mean

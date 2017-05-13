@@ -202,7 +202,7 @@ object RegressionUtils {
     var nMissing = 0
     var gtSum = 0
     var gtSumSq = 0
-    val gts = gs.hardCallGenotypeIterator
+    val gts = gs.hardCallIterator
 
     var i = 0
     while (i < nSamples) {
@@ -248,7 +248,7 @@ object RegressionUtils {
     val gtVals = Array.ofDim[Double](nSamples)
     var nMissing = 0
     var gtSum = 0
-    val gts = gs.hardCallGenotypeIterator
+    val gts = gs.hardCallIterator
 
     var i = 0
     while (i < nSamples) {
@@ -287,7 +287,7 @@ object RegressionUtils {
     }
   }
 
-  // constructs DenseVector of dosage genotypes (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
+  // constructs DenseVector of dosages (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
   def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {
     val nMaskedSamples = y.length
     val valsX = Array.ofDim[Double](nMaskedSamples)
@@ -298,7 +298,7 @@ object RegressionUtils {
     var nMissing = 0
     val missingRowIndices = new ArrayBuilder[Int]()
 
-    val gts = gs.biallelicDosageGenotypeIterator
+    val gts = gs.dosageIterator
     var i = 0
     var row = 0
     while (gts.hasNext) {
@@ -345,7 +345,7 @@ object RegressionUtils {
   def toLinregHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
     val nMaskedSamples = y.length
     val lrb = new LinRegBuilder(y)
-    val gts = gs.hardCallGenotypeIterator
+    val gts = gs.hardCallIterator
 
     var i = 0
     while (i < mask.length) {
@@ -362,7 +362,7 @@ object RegressionUtils {
   // if all genotypes are missing then all elements are NaN
   def toSparseHardCallStats(gs: Iterable[Genotype], mask: Array[Boolean], nMaskedSamples: Int): Option[(SparseVector[Double], Double)] = {
     val sb = new SparseGtBuilder()
-    val gts = gs.hardCallGenotypeIterator
+    val gts = gs.hardCallIterator
 
     var i = 0
     while (i < mask.length) {

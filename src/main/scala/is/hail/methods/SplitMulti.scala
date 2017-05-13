@@ -18,7 +18,7 @@ object SplitMulti {
     va: Annotation,
     it: Iterable[Genotype],
     propagateGQ: Boolean,
-    isDosage: Boolean,
+    isLinearScale: Boolean,
     keepStar: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation,
     f: (Variant) => Boolean): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
@@ -40,8 +40,8 @@ object SplitMulti {
     if (splitVariants.isEmpty)
       return Iterator()
 
-    val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isDosage) }
-    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isDosage) }
+    val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isLinearScale) }
+    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isLinearScale) }
 
     for (g <- it) {
 
@@ -52,7 +52,7 @@ object SplitMulti {
         val gb = splitGenotypeBuilders(j)
         gb.clear()
 
-        if (!isDosage) {
+        if (!isLinearScale) {
           g.gt.foreach { ggtx =>
             val gtx = splitGT(ggtx, i)
             gb.setGT(gtx)
@@ -133,7 +133,7 @@ object SplitMulti {
       return vds
     }
 
-    val isDosage = vds.isDosage
+    val isLinearScale = vds.isLinearScale
 
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
@@ -156,7 +156,7 @@ object SplitMulti {
         split(v, va, gs,
           propagateGQ = propagateGQ,
           keepStar = keepStar,
-          isDosage = isDosage,
+          isLinearScale = isLinearScale,
           insertSplitAnnots = { (va, index, wasSplit) =>
             insertSplit(insertIndex(va, index), wasSplit)
           },
@@ -170,7 +170,7 @@ object SplitMulti {
         split(v, va, gs,
           propagateGQ = propagateGQ,
           keepStar = keepStar,
-          isDosage = isDosage,
+          isLinearScale = isLinearScale,
           insertSplitAnnots = { (va, index, wasSplit) =>
             insertSplit(insertIndex(va, index), wasSplit)
           },

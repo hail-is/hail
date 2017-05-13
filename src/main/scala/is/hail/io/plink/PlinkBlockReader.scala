@@ -37,8 +37,8 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   val nSamples = job.getInt("nSamples", 0)
   val blockLength = (nSamples + 3) / 4
 
-  val gb = new GenotypeBuilder(2, isDosage = false)
-  val gsb = new GenotypeStreamBuilder(2, isDosage = false)
+  val gb = new GenotypeBuilder(2, isLinearScale = false)
+  val gsb = new GenotypeStreamBuilder(2, isLinearScale = false)
 
   seekToFirstBlockInSplit(split.getStart)
 
