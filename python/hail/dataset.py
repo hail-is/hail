@@ -2363,7 +2363,7 @@ class VariantDataset(object):
             {\\rho}_{x,y} = \\frac{\\mathrm{Cov}(X,Y)}{\\sigma_X \\sigma_Y}
             
             
-        Also note that variants with zero variance (..math::`{\\sigma = 0}`) will be dropped from the matrix. 
+        Also note that variants with zero variance (:math:`{\\sigma = 0}`) will be dropped from the matrix. 
 
         .. caution::
 
