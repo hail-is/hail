@@ -151,7 +151,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             }.toIndexedSeq
         case TGenotype =>
           val g = a.asInstanceOf[Genotype]
-          Row(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.px.map(_.toSeq).orNull, g.fakeRef, g.isDosage)
+          g.toRow
         case TAltAllele =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
@@ -185,9 +185,9 @@ case class JSONExtractGenotype(
   gq: Option[Int],
   px: Option[Array[Int]],
   fakeRef: Boolean,
-  isDosage: Boolean) {
+  isLinearScale: Boolean) {
   def toGenotype =
-    Genotype(gt, ad, dp, gq, px, fakeRef, isDosage)
+    Genotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
 }
 
 case class JSONExtractVariant(contig: String,

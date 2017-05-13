@@ -105,7 +105,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
     val gb = new GenotypeBuilder(v.nAlleles, false) // FIXME: make dependent on fields in genotypes; for now, assumes PLs
 
     val noCall = Genotype()
-    val gsb = new GenotypeStreamBuilder(v.nAlleles, isDosage = false)
+    val gsb = new GenotypeStreamBuilder(v.nAlleles, isLinearScale = false)
 
     vc.getGenotypes.iterator.asScala.foreach { g =>
 

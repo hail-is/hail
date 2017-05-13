@@ -21,7 +21,7 @@ class HardCallsSuite extends SparkSuite {
             g.dp.isEmpty &&
             g.gq.isEmpty &&
             g.pl.isEmpty &&
-            !g.isDosage
+            !g.isLinearScale
         }
       } && gtTriples(vds) == gtTriples(vds)
     }

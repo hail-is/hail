@@ -88,7 +88,7 @@ object BgenLoader {
       vaSignature = signature,
       globalSignature = TStruct.empty,
       wasSplit = true,
-      isDosage = true), rdd)
+      isLinearScale = true), rdd)
   }
 
   def index(hConf: org.apache.hadoop.conf.Configuration, file: String) {

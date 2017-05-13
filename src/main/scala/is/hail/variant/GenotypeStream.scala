@@ -10,33 +10,33 @@ import org.apache.spark.sql.types.{StructType, _}
 
 import scala.collection.mutable
 
-class GenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
+class GenotypeStreamIterator(nAlleles: Int, isLinearScale: Boolean, b: ByteIterator) extends Iterator[Genotype] {
   override def hasNext: Boolean = b.hasNext
 
-  override def next(): Genotype = Genotype.read(nAlleles, isDosage, b)
+  override def next(): Genotype = Genotype.read(nAlleles, isLinearScale, b)
 }
 
-class HardCallGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends HailIterator[Int] {
+class HardCallStreamIterator(nAlleles: Int, isLinearScale: Boolean, b: ByteIterator) extends HailIterator[Int] {
   override def hasNext: Boolean = b.hasNext
 
-  override def next(): Int = Genotype.readHardCallGenotype(nAlleles, isDosage, b)
+  override def next(): Int = Genotype.readHardCall(nAlleles, isLinearScale, b)
 }
 
-class BiallelicDosageGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends HailIterator[Double] {
+class DosageStreamIterator(nAlleles: Int, isLinearScale: Boolean, b: ByteIterator) extends HailIterator[Double] {
   require(nAlleles == 2)
 
   override def hasNext: Boolean = b.hasNext
 
-  override def next(): Double = Genotype.readBiallelicDosageGenotype(isDosage, b)
+  override def next(): Double = Genotype.readDosage(isLinearScale, b)
 }
 
-class MutableGenotypeStreamIterator(nAlleles: Int, isDosage: Boolean, b: ByteIterator) extends Iterator[Genotype] {
+class MutableGenotypeStreamIterator(nAlleles: Int, isLinearScale: Boolean, b: ByteIterator) extends Iterator[Genotype] {
   private val mutableGenotype = new MutableGenotype(nAlleles)
 
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = {
-    mutableGenotype.read(nAlleles, isDosage, b)
+    mutableGenotype.read(nAlleles, isLinearScale, b)
     mutableGenotype
   }
 }
@@ -65,41 +65,41 @@ object LZ4Utils {
   }
 }
 
-case class GenotypeStream(nAlleles: Int, isDosage: Boolean, decompLenOption: Option[Int], a: Array[Byte])
+case class GenotypeStream(nAlleles: Int, isLinearScale: Boolean, decompLenOption: Option[Int], a: Array[Byte])
   extends Iterable[Genotype] {
 
   override def iterator: GenotypeStreamIterator = {
     decompLenOption match {
       case Some(decompLen) =>
-        new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
+        new GenotypeStreamIterator(nAlleles, isLinearScale, new ByteIterator(LZ4Utils.decompress(decompLen, a)))
       case None =>
-        new GenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(a))
+        new GenotypeStreamIterator(nAlleles, isLinearScale, new ByteIterator(a))
     }
   }
 
   def mutableIterator: MutableGenotypeStreamIterator = {
     val bytes = decompLenOption.map(dl => LZ4Utils.decompress(dl, a)).getOrElse(a)
-    new MutableGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
+    new MutableGenotypeStreamIterator(nAlleles, isLinearScale, new ByteIterator(bytes))
   }
 
-  def gsHardCallGenotypeIterator: HardCallGenotypeStreamIterator = {
+  def gsHardCallIterator: HardCallStreamIterator = {
     val bytes = decompLenOption.map(dl => LZ4Utils.decompress(dl, a)).getOrElse(a)
-    new HardCallGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
+    new HardCallStreamIterator(nAlleles, isLinearScale, new ByteIterator(bytes))
   }
 
-  def gsBiallelicDosageGenotypeIterator: BiallelicDosageGenotypeStreamIterator = {
+  def gsDosageIterator: DosageStreamIterator = {
     val bytes = decompLenOption.map(dl => LZ4Utils.decompress(dl, a)).getOrElse(a)
-    new BiallelicDosageGenotypeStreamIterator(nAlleles, isDosage, new ByteIterator(bytes))
+    new DosageStreamIterator(nAlleles, isLinearScale, new ByteIterator(bytes))
   }
 
   override def newBuilder: mutable.Builder[Genotype, GenotypeStream] = {
-    new GenotypeStreamBuilder(nAlleles, isDosage)
+    new GenotypeStreamBuilder(nAlleles, isLinearScale)
   }
 
   def decompressed: GenotypeStream = {
     decompLenOption match {
       case Some(decompLen) =>
-        GenotypeStream(nAlleles, isDosage, None, LZ4Utils.decompress(decompLen, a))
+        GenotypeStream(nAlleles, isLinearScale, None, LZ4Utils.decompress(decompLen, a))
       case None => this
     }
   }
@@ -123,7 +123,7 @@ object GenotypeStream {
   def t: Type = TStruct("decompLen" -> TInt,
     "bytes" -> TBinary)
 
-  def fromRow(nAlleles: Int, isDosage: Boolean, row: Row): GenotypeStream = {
+  def fromRow(nAlleles: Int, isLinearScale: Boolean, row: Row): GenotypeStream = {
 
     val bytes: Array[Byte] = row.get(1) match {
       case ab: Array[Byte] =>
@@ -137,19 +137,19 @@ object GenotypeStream {
     }
 
     GenotypeStream(nAlleles,
-      isDosage,
+      isLinearScale,
       row.getAsOption[Int](0),
       bytes)
   }
 }
 
-class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false)
+class GenotypeStreamBuilder(nAlleles: Int, isLinearScale: Boolean = false)
   extends mutable.Builder[Genotype, GenotypeStream] {
 
   val b: ArrayBuilder[Byte] = new ArrayBuilder[Byte]()
 
   override def +=(g: Genotype): GenotypeStreamBuilder.this.type = {
-    val gb = new GenotypeBuilder(nAlleles, isDosage)
+    val gb = new GenotypeBuilder(nAlleles, isLinearScale)
     gb.set(g)
     gb.write(b)
     this
@@ -171,6 +171,6 @@ class GenotypeStreamBuilder(nAlleles: Int, isDosage: Boolean = false)
 
   override def result(): GenotypeStream = {
     val a = b.result()
-    GenotypeStream(nAlleles, isDosage, Some(a.length), LZ4Utils.compress(a))
+    GenotypeStream(nAlleles, isLinearScale, Some(a.length), LZ4Utils.compress(a))
   }
 }
