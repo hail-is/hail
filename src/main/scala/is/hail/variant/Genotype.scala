@@ -333,8 +333,14 @@ abstract class Genotype extends Serializable {
     else
       None
 
-  def toRow: Row =
-    Row(gt.orNull, ad.map(_.toSeq).orNull, dp.orNull, gq.orNull, px.map(_.toSeq).orNull, fakeRef, isLinearScale)
+  def toRow: Row = Row(
+    if (unboxedGT == -1) null else unboxedGT,
+    if (unboxedAD == null) null else unboxedAD: IndexedSeq[Int],
+    if (unboxedDP == -1) null else unboxedDP,
+    if (unboxedGQ == -1) null else unboxedGQ,
+    if (unboxedPX == null) null else unboxedPX: IndexedSeq[Int],
+    fakeRef,
+    isLinearScale)
 
   def toJSON: JValue = JObject(
     ("gt", gt.map(JInt(_)).getOrElse(JNull)),

@@ -151,7 +151,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             }.toIndexedSeq
         case TGenotype =>
           val g = a.asInstanceOf[Genotype]
-          Row(g.gt.orNull, g.ad.map(_.toSeq).orNull, g.dp.orNull, g.gq.orNull, g.px.map(_.toSeq).orNull, g.fakeRef, g.isLinearScale)
+          g.toRow
         case TAltAllele =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
