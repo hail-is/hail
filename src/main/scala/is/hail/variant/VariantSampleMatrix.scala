@@ -7,7 +7,6 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr._
 import is.hail.io._
-import is.hail.io.annotators.IntervalList
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.keytable.KeyTable
 import is.hail.methods.Aggregators.SampleFunctions
@@ -26,8 +25,8 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.io.Source
-import scala.language.implicitConversions
-import scala.reflect.ClassTag
+import scala.language.{implicitConversions, existentials}
+import scala.reflect.{classTag, ClassTag}
 
 object VariantSampleMatrix {
   final val fileVersion: Int = 4
@@ -75,62 +74,49 @@ object VariantSampleMatrix {
       else
         fileMetadata.localValue
 
-    if (isGenericGenotype) {
-      val orderedRDD = if (dropVariants)
-        OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Annotation])](sc)
-      else {
-        val rdd = if (dropSamples)
-          sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
-            .map(row => (row.getVariant(0),
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                Iterable.empty[Annotation])))
-        else {
-          val rdd = sqlContext.readParquetSorted(parquetFile)
-          rdd.map { row =>
-            (row.getVariant(0),
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getSeq[Any](2).lazyMap { g => if (gRequiresConversion) SparkAnnotationImpex.importAnnotation(g, genotypeSignature) else g }
-              ))
-          }
-        }
-
-        OrderedRDD(rdd, partitioner)
+    type ImportGT = ((Variant, Row) => Iterable[T], ClassTag[T]) forSome {type T}
+    val genotypeImporter =
+      if (isGenericGenotype) {
+        ((v: Variant, r: Row) => r.getSeq[Any](2).lazyMap(
+          if (gRequiresConversion)
+            (g: Any) => SparkAnnotationImpex.importAnnotation(g, genotypeSignature)
+          else
+            (g: Any) => g: Annotation), classTag[Annotation]): ImportGT
+      } else {
+        (if (parquetGenotypes)
+          (v: Variant, r: Row) => r.getSeq[Row](2).lazyMap(new RowGenotype(_))
+        else
+          (v: Variant, r: Row) => r.getGenotypeStream(v, 2, isLinearScale), classTag[Genotype]): ImportGT
       }
 
-      new VariantSampleMatrix[Annotation](hc, metadata, localValue, orderedRDD)
-    } else {
-      val orderedRDD = if (dropVariants)
-        OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
-      else {
-        val rdd = if (dropSamples)
-          sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
-            .map(row => (row.getVariant(0),
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                Iterable.empty[Genotype])))
-        else {
-          val rdd = sqlContext.readParquetSorted(parquetFile)
-          if (parquetGenotypes)
-            rdd.map { row =>
-              val v = row.getVariant(0)
-              (v,
-                (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                  row.getSeq[Row](2).lazyMap { rg =>
-                    new RowGenotype(rg): Genotype
-                  }))
-            } else
-            rdd.map { row =>
-              val v = row.getVariant(0)
-              (v,
-                (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                  row.getGenotypeStream(v, 2, isLinearScale): Iterable[Genotype]))
-            }
-        }
+    // Scala is bad with existentials, so we use a universally quantified function instead
+    def doRead[T](genotypeImporter: ((Variant, Row) => Iterable[T], ClassTag[T])): VariantSampleMatrix[T] = {
+      val (importGenotypes, tct) = genotypeImporter
 
-        OrderedRDD(rdd, partitioner)
+      def importVa(r: Row): Annotation =
+        if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(r.get(1), vaSignature) else r.get(1)
+
+      def importRow(r: Row) = {
+        val v = r.getVariant(0)
+        (v, (importVa(r),
+          if (dropSamples)
+            Iterable.empty[T]
+          else
+            importGenotypes(v, r)))
       }
 
-      new VariantSampleMatrix[Genotype](hc, metadata, localValue, orderedRDD)
+      val orderedRDD =
+        if (dropVariants)
+          OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[T])](sc)
+        else {
+          val columns = someIf(dropSamples, Array("variant", "annotations"))
+          OrderedRDD[Locus, Variant, (Annotation, Iterable[T])](sqlContext.readParquetSorted(parquetFile, columns).map(importRow), partitioner)
+        }
+
+      new VariantSampleMatrix[T](hc, metadata, localValue, orderedRDD)(tct)
     }
+
+    doRead(genotypeImporter)
   }
 
   def readFileMetadata(hConf: hadoop.conf.Configuration, dirname: String,
