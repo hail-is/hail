@@ -111,8 +111,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
       Array[Double](1,2,3,4),
       Array[Double](5,6,7,8),
       Array[Double](9,10,11,12),
-      Array[Double](13,14,15,16)
-    ))
+      Array[Double](13,14,15,16)))
 
     val r = Array[Double](1,2,3,4)
 
@@ -211,5 +210,4 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     BlockMatrixIsDistributedMatrix.from(sc, sparkLocal, numRows - 1, numCols - 1).blocks.count()
   }
 
-  // FIXME: row-wise multiplication random matrices compare with breeze
 }

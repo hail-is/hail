@@ -70,7 +70,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }._2
   }
 
-  def multiply(l: M, r: M): M = l.multiply(r)
   def multiply(l: M, r: DenseMatrix): M = {
     require(l.numCols() == r.numRows,
       s"incompatible matrix dimensions: ${l.numRows()}x${l.numCols()} and ${r.numRows}x${r.numCols}")
