@@ -8,6 +8,7 @@ import is.hail.distributedmatrix.DistributedMatrix
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
+import is.hail.stats.{SparseGtVectorAndStats, SparseGtBuilder}
 
 import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
@@ -16,6 +17,67 @@ import scala.language.implicitConversions
 object PCRelate {
   case class Result[M: DistributedMatrix](phiHat: M, k0: M, k1: M, k2: M)
 
+  def maybefast[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
+    val dm = DistributedMatrix[M]
+    import dm.ops._
+
+    val g = vdsToMeanImputedMatrix(vds).cache()
+
+    val beta = fitBeta(g, pcs)
+
+    val pcsArray = pcs.toArray
+    val pcsWithInterceptArray = new Array[Double](pcs.numRows * (pcs.numCols + 1))
+
+    var i = 0
+    while (i < pcs.numRows) {
+      pcsWithInterceptArray(i) = 1
+      i += 1
+    }
+
+    i = 0
+    while (i < pcs.numRows * pcs.numCols) {
+      pcsWithInterceptArray(pcs.numRows + i) = pcsArray(i)
+      i += 1
+    }
+
+    val pcsWithIntercept =
+      new DenseMatrix(pcs.numRows, pcs.numCols + 1, pcsWithInterceptArray)
+
+    val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0).cache()
+
+    val blockedG = DistributedMatrix[M].from(sparseGtVectorAndStatsToBlockMatrix(g)).cache()
+    val gMinusMu = (blockedG :- (mu * 2.0)).cache()
+    val variance = (mu :* (1.0 - mu)).cache()
+
+    val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0).cache()
+
+    val gD = DistributedMatrix[M].map2({
+      case (g, mu) =>
+        if (g == 0.0) mu
+        else if (g == 1.0) 0.0
+        else if (g == 2.0) 1.0 - mu
+        else g
+    })(blockedG, mu)
+
+    val normalizedGD = (gD :- (variance --* (f(phi).map(1 + _)))).cache()
+
+    val kTwo = ((normalizedGD.t * normalizedGD) :/ (variance.t * variance)).cache()
+
+    val mu2 = dm.map(sqr _)(mu).cache()
+    val oneMinusMu2 = dm.map(sqr _)(1.0 - mu).cache()
+
+    val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
+
+    def _k0(phiHat: Double, denom: Double, k2: Double, ibs0: Double) =
+      if (phiHat <= cutoff)
+        1 - 4 * phiHat + k2
+      else
+        ibs0 / denom
+    val kZero = dm.map4(_k0)(phi, denom, kTwo, ibs0(vds)).cache()
+
+    Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
+  }
+
   def apply[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
     val g = vdsToMeanImputedMatrix(vds).cache()
 
@@ -23,26 +85,39 @@ object PCRelate {
 
     val mu = muHat(pcs, beta)
 
-    val phihat = phiHat(DistributedMatrix[M].from(g), mu)
+    val blockedG = DistributedMatrix[M].from(sparseGtVectorAndStatsToBlockMatrix(g))
+    val phihat = phiHat(blockedG, mu)
 
-    val kTwo = k2(f(phihat), DistributedMatrix[M].from(dominance(g)), mu)
+    val kTwo = k2(f(phihat), DistributedMatrix[M].map2({ case (g, mu) => if (g == 0.0) mu else if (g == 1.0) 0.0 else if (g == 2.0) 1.0 - mu else g })(blockedG, mu), mu)
 
     val kZero = k0(phihat, mu, kTwo, ibs0(vds))
+
+    // println(DistributedMatrix[M].toLocalMatrix(kTwo))
 
     Result(phihat, kZero, k1(kTwo, kZero), kTwo)
   }
 
-  def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): RDD[Array[Double]] = {
+  def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): RDD[SparseGtVectorAndStats] = {
+    val nSamples = vds.nSamples
     val rdd = vds.rdd.mapPartitions { part =>
       part.map { case (v, (va, gs)) =>
-        val goptions = gs.map(_.gt.map(_.toDouble)).toArray
-        val defined = goptions.flatMap(x => x)
-        val mean = defined.sum / defined.length
-        goptions.map(_.getOrElse(mean))
+        val b = new SparseGtBuilder()
+        val it = gs.hardCallGenotypeIterator
+        while (it.hasNext) {
+          b.merge(it.next())
+        }
+        b.stats(nSamples)
       }
     }
     rdd
   }
+
+  private def breezeToSpark(sv: breeze.linalg.SparseVector[Double]): SparseVector =
+    new SparseVector(sv.length, sv.index, sv.data)
+
+  def sparseGtVectorAndStatsToBlockMatrix(r: RDD[SparseGtVectorAndStats]): BlockMatrix =
+    (new IndexedRowMatrix(r.zipWithIndex.map { case (svas, i) => new IndexedRow(i, breezeToSpark(svas.x)) }))
+      .toBlockMatrix()
 
   /**
     *  g: SNP x Sample
@@ -50,11 +125,11 @@ object PCRelate {
     *
     *  result: (SNP x (D+1))
     */
-  def fitBeta[M: DistributedMatrix](g: RDD[Array[Double]], pcs: DenseMatrix): M = {
+  def fitBeta[M: DistributedMatrix](g: RDD[SparseGtVectorAndStats], pcs: DenseMatrix): M = {
     val aa = g.sparkContext.broadcast(pcs.rowIter.map(_.toArray).toArray)
-    val rdd = g.map { row =>
+    val rdd = g.map { svas =>
       val ols = new OLSMultipleLinearRegression()
-      ols.newSampleData(row, aa.value)
+      ols.newSampleData(svas.x.toArray, aa.value)
       ols.estimateRegressionParameters()
     }
     DistributedMatrix[M].from(rdd)
@@ -80,6 +155,7 @@ object PCRelate {
 
     val pcsArray = pcs.toArray
     val pcsWithInterceptArray = new Array[Double](pcs.numRows * (pcs.numCols + 1))
+
     var i = 0
     while (i < pcs.numRows) {
       pcsWithInterceptArray(i) = 1
@@ -94,6 +170,9 @@ object PCRelate {
 
     val pcsWithIntercept =
       new DenseMatrix(pcs.numRows, pcs.numCols + 1, pcsWithInterceptArray)
+
+    // println(pcsWithIntercept)
+    // println(dm.toLocalMatrix(beta))
 
     dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0)
   }
@@ -119,8 +198,24 @@ object PCRelate {
     val dm = DistributedMatrix[M]
     import dm.ops._
 
+    // println("mu")
+    // println(dm.toLocalMatrix(mu))
+    // println("gD")
+    // println(dm.toLocalMatrix(gD))
+    // println("f.map(1 + _)")
+    // println(f.map(1 + _): IndexedSeq[Double])
+    // println("mu :* (1.0 - mu)")
+    // println(dm.toLocalMatrix(mu :* (1.0 - mu)))
+    // println("(mu :* (1.0 - mu)) --* f.map(1 + _)")
+    // println(dm.toLocalMatrix((mu :* (1.0 - mu)) --* (f.map(1 + _))))
+
     val normalizedGD = gD :- ((mu :* (1.0 - mu)) --* (f.map(1 + _)))
     val variance = mu :* (1.0 - mu)
+
+    // println("numer")
+    // println(dm.toLocalMatrix(normalizedGD.t * normalizedGD))
+    // println("denom")
+    // println(dm.toLocalMatrix(variance.t * variance))
 
     (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
   }
@@ -158,9 +253,4 @@ object PCRelate {
   def ibs0[M: DistributedMatrix](vds: VariantDataset): M =
     DistributedMatrix[M].from(IBD.ibs(vds)._1)
 
-  // FIXME: fuse with vdsToMeanImputedMatrix somehow, no need to recalculate means
-  def dominance(g: RDD[Array[Double]]): RDD[Array[Double]] = g.map { a =>
-    val p = (a.sum / a.size)
-    a.map(_ - p)
-  }
 }
