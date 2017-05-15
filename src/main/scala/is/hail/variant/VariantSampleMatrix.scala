@@ -210,7 +210,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VariantMetadata,
   }
 
 
-  def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
+  def aggregateBySampleAndVariantKey(keyName: String, variantKeysVA: String, singleKey: Boolean = false, aggExpr: String): KeyTable = {
 
     val (keysType, keysQuerier) = queryVA(variantKeysVA)
 

@@ -40,7 +40,7 @@ object LinearRegressionBurden {
       fatal(s"Key name '$keyName' clashes with reserved linreg columns $linregFields")
 
     def sampleKT = vds.filterSamples((s, sa) => completeSamplesSet(s))
-      .aggregateBySamplePerVariantKey(keyName, variantKeys, aggExpr, singleKey)
+      .aggregateBySampleAndVariantKey(keyName, variantKeys, singleKey, aggExpr)
       .cache()
 
     val keyType = sampleKT.fields(0).typ
