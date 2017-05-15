@@ -195,27 +195,32 @@ object IBD {
     }
   }
 
-  private def selectFromFusedIbs(n: Int)(fused: Array[Long]): Array[Double] = {
+  private def selectFromFusedIbs(n: Int)(rows: Int, cols: Int, fused: Array[Long]): Array[Double] = {
     assert(n >= 0)
     assert(n <= 2)
-    val arr = new Array[Double](chunkSize * chunkSize)
+    val arr = new Array[Double](rows * cols)
     var si = 0
     var sj = 0
-    while (si != chunkSize * chunkSize) {
-      while (sj != chunkSize) {
+    while (si != rows * cols) {
+      while (sj != cols) {
         arr(si + sj) = fused(si * 3 + sj * 3 + n).toDouble
         sj += 1
       }
       sj = 0
-      si += chunkSize
+      si += cols
     }
     arr
   }
-
   def ibs(vds: VariantDataset): (BlockMatrix, BlockMatrix, BlockMatrix) = {
+    val lastBlock = (vds.nSamples - 1) / chunkSize
+    val extras = vds.nSamples % chunkSize
     def getIbsAsBlockMatrix(n: Int)(fused: RDD[((Int, Int), Array[Long])]): BlockMatrix =
-      new BlockMatrix(fused.mapValues((selectFromFusedIbs(n) _).andThen(x => new DenseMatrix(chunkSize, chunkSize, x, false): Matrix)),
-        chunkSize, chunkSize)
+      new BlockMatrix(fused.map { case ((i, j), x) =>
+        val rows = if (i == lastBlock) extras else chunkSize
+        val cols = if (j == lastBlock) extras else chunkSize
+        val ibsn = selectFromFusedIbs(n)(rows, cols, x)
+        ((i, j), new DenseMatrix(rows, cols, ibsn, false): Matrix)
+      }, chunkSize, chunkSize)
 
     val fused = fusedIbs(vds).cache()
 
