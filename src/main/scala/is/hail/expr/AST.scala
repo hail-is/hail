@@ -199,6 +199,20 @@ object AST extends Positional {
       Code(stb, bc.ifNull(Code._null,
         Code(stc, cc.ifNull(Code._null,
           Code(std, dc.ifNull(Code._null, gc))))))))
+  def evalComposeCodeM[T, U, V, W, X](a: AST, b: AST, c: AST, d: AST, e:AST)(g: (Code[T], Code[U], Code[V], Code[W], Code[X]) => CM[Code[AnyRef]]): CM[Code[AnyRef]] = for (
+    (sta, ac) <- CM.memoize(a.compile());
+    (stb, bc) <- CM.memoize(b.compile());
+    (stc, cc) <- CM.memoize(c.compile());
+    (std, dc) <- CM.memoize(d.compile());
+    (ste, ec) <- CM.memoize(e.compile());
+    gc <- g(ac.asInstanceOf[Code[T]], bc.asInstanceOf[Code[U]], cc.asInstanceOf[Code[V]], dc.asInstanceOf[Code[W]], ec.asInstanceOf[Code[X]])
+  ) yield
+    Code(sta, ac.ifNull(Code._null,
+      Code(stb, bc.ifNull(Code._null,
+        Code(stc, cc.ifNull(Code._null,
+          Code(std, dc.ifNull(Code._null,
+            Code(ste, ec.ifNull(Code._null,gc)
+        )))))))))
 }
 
 case class Positioned[T](x: T) extends Positional
