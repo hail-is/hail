@@ -17,11 +17,13 @@ object LDMatrix {
     */
   def apply(vds : VariantDataset): LDMatrix = {
     val nSamples = vds.nSamples
-    val originalVariants = vds.variants.collect().sorted
+    val originalVariants = vds.variants.collect()
+    assert(originalVariants.isSorted, "Array of variants is not sorted. This is a bug.")
 
     val normalizedIRM = ToNormalizedIndexedRowMatrix(vds)
     normalizedIRM.rows.persist()
-    val variantKeptIndices = normalizedIRM.rows.map{case IndexedRow(idx, _) => idx.toInt}.collect().sorted
+    val variantKeptIndices = normalizedIRM.rows.map{case IndexedRow(idx, _) => idx.toInt}.collect()
+    assert(variantKeptIndices.isSorted, "Array of kept variants is not sorted. This is a bug.")
     val variantsKept = variantKeptIndices.map(idx => originalVariants(idx))
 
     val nVariantsKept = variantsKept.length
