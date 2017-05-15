@@ -192,12 +192,12 @@ class ContextTests(unittest.TestCase):
             dataset._typecheck()
 
             dataset.export_variants('/tmp/variants.tsv', 'v = v, va = va')
-            self.assertTrue((dataset.variants_keytable()
+            self.assertTrue((dataset.variants_table()
                              .annotate('va = json(va)'))
                             .same(hc.import_table('/tmp/variants.tsv', impute=True).key_by('v')))
 
             dataset.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
-            self.assertTrue((dataset.samples_keytable()
+            self.assertTrue((dataset.samples_table()
                              .annotate('s = s, sa = json(sa)'))
                             .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
 
@@ -237,9 +237,9 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(dataset2.num_samples, 100)
             self.assertEqual(dataset2.count_variants(), 735)
 
-            dataset.annotate_variants_table(dataset.variants_keytable(), root="va")
+            dataset.annotate_variants_table(dataset.variants_table(), root="va")
 
-            kt = (dataset.variants_keytable()
+            kt = (dataset.variants_table()
                   .annotate("v2 = v")
                   .key_by(["v", "v2"]))
 
@@ -247,12 +247,12 @@ class ContextTests(unittest.TestCase):
 
             self.assertEqual(kt.query('v.fraction(x => x == v2)'), 1.0)
 
-            dataset.genotypes_keytable()
+            dataset.genotypes_table()
 
             ## This is very slow!!!
             variants_py = (dataset
                            .annotate_variants_expr('va.hets = gs.filter(g => {0}.isHet()).collect()'.format(gt))
-                           .variants_keytable()
+                           .variants_table()
                            .filter('pcoin(0.1)')
                            .collect())
 
@@ -359,12 +359,12 @@ class ContextTests(unittest.TestCase):
         sample2_split.variant_qc().variant_schema
 
         sample2.export_variants('/tmp/variants.tsv', 'v = v, va = va')
-        self.assertTrue((sample2.variants_keytable()
+        self.assertTrue((sample2.variants_table()
                          .annotate('va = json(va)'))
                         .same(hc.import_table('/tmp/variants.tsv', impute=True).key_by('v')))
 
         sample2.export_samples('/tmp/samples.tsv', 's = s, sa = sa')
-        self.assertTrue((sample2.samples_keytable()
+        self.assertTrue((sample2.samples_table()
                          .annotate('s = s, sa = json(sa)'))
                         .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
 
@@ -400,7 +400,7 @@ class ContextTests(unittest.TestCase):
         gds.annotate_genotypes_expr('g = g.GT.toGenotype()').split_multi()
 
         sample_split.ld_prune().export_variants("/tmp/testLDPrune.tsv", "v")
-        kt = (sample2.variants_keytable()
+        kt = (sample2.variants_table()
               .annotate("v2 = v")
               .key_by(["v", "v2"]))
         sample2.annotate_variants_table(kt, root="va.foo", vds_key=["v", "v"])
@@ -409,7 +409,7 @@ class ContextTests(unittest.TestCase):
 
         variants_py = (sample
                        .annotate_variants_expr('va.hets = gs.filter(g => g.isHet).collect()')
-                       .variants_keytable()
+                       .variants_table()
                        .collect())
 
     def test_keytable(self):
@@ -423,7 +423,7 @@ class ContextTests(unittest.TestCase):
         # Variables
         self.assertEqual(kt.num_columns, 3)
         self.assertEqual(kt.key[0], "Sample")
-        self.assertEqual(kt.column_names[2], "qPhen")
+        self.assertEqual(kt.columns[2], "qPhen")
         self.assertEqual(kt.count(), 100)
         kt.schema
 
@@ -452,7 +452,7 @@ class ContextTests(unittest.TestCase):
 
         kt.rename({"Sample": "ID"})
         kt.rename(["Field1", "Field2", "Field3"])
-        kt.rename([name + "_a" for name in kt.column_names])
+        kt.rename([name + "_a" for name in kt.columns])
 
         kt.select(["Sample"])
         kt.select(["Sample", "Status"])
@@ -468,7 +468,7 @@ class ContextTests(unittest.TestCase):
         kt.annotate("newField = [0, 1, 2]").explode(["newField"])
 
         sample = hc.import_vcf(test_resources + '/sample.vcf')
-        sample_variants = (sample.variants_keytable()
+        sample_variants = (sample.variants_table()
                            .annotate('v = str(v), va.filters = va.filters.toArray()')
                            .flatten())
 
@@ -479,7 +479,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(kt.filter('qPhen < 10000').count() == 23)
 
         kt.write('/tmp/sampleAnnotations.kt', overwrite=True)
-        kt3 = hc.read_keytable('/tmp/sampleAnnotations.kt')
+        kt3 = hc.read_table('/tmp/sampleAnnotations.kt')
         self.assertTrue(kt.same(kt3))
 
         # test order_by
@@ -489,7 +489,7 @@ class ContextTests(unittest.TestCase):
                 {'a': -1, 'b': 'quam'},
                 {'b': 'foo'},
                 {'a': 7, 'b': 'baz'}]
-        kt4 = KeyTable.from_py(hc, rows, schema, npartitions=3)
+        kt4 = KeyTable.from_py(hc, rows, schema, num_partitions=3)
 
         bya = [r.get('a') for r in kt4.order_by('a').collect()]
         self.assertEqual(bya, [-1, 5, 5, 7, None])
