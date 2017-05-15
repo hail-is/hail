@@ -56,6 +56,6 @@ package object hail {
   val HAIL_SPARK_VERSION = HailBuildInfo.hail_spark_version
 
   // FIXME: probably should use tags or something to choose English name
-  val HAIL_PRETTY_VERSION = "devel-" + HAIL_REVISION.substring(0, 7)
+  val HAIL_PRETTY_VERSION = "0.1-" + HAIL_REVISION.substring(0, 7)
 
 }
