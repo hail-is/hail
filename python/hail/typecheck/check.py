@@ -22,38 +22,20 @@ class TypeChecker(object):
         raise NotImplementedError
 
 
-class LambdaChecker(TypeChecker):
-    def __init__(self, f, s):
-        self.f = f
-        self.s = s
-        super(LambdaChecker, self).__init__()
-
-    def check(self, x):
-        return self.f(x)
-
-    def expects(self):
-        return self.s
-
-
 class MultipleTypeChecker(TypeChecker):
     def __init__(self, checkers):
         flat_checkers = []
         for c in checkers:
-
             if isinstance(c, MultipleTypeChecker):
                 for cc in c.checkers:
                     flat_checkers.append(cc)
             else:
                 flat_checkers.append(c)
-
         self.checkers = flat_checkers
         super(MultipleTypeChecker, self).__init__()
 
     def check(self, x):
-        any_pass = False
-        for c in self.checkers:
-            any_pass = any_pass or c.check(x)
-        return any_pass
+        return any(c.check(x) for c in self.checkers)
 
     def expects(self):
         return '(' + ' or '.join([c.expects() for c in self.checkers]) + ')'
@@ -67,10 +49,7 @@ class CollectionChecker(TypeChecker):
 
     def check(self, x):
         passes = self.cc.check(x)
-        if passes:
-            for elt in x:
-                passes = passes and self.ec.check(elt)
-        return passes
+        return passes and all(self.ec.check(elt) for elt in x)
 
     def expects(self):
         return '%s[%s]' % (self.cc.expects(), self.ec.expects())
@@ -94,9 +73,32 @@ class DictChecker(TypeChecker):
         return 'dict[%s, %s]' % (self.kc.expects(), self.vc.expects())
 
 
+class AnyChecker(TypeChecker):
+    def __init__(self):
+        super(AnyChecker, self).__init__()
+
+    def check(self, x):
+        return True
+
+    def expects(self):
+        return 'any'
+
+
+class LiteralChecker(TypeChecker):
+    def __init__(self, t):
+        self.t = t
+        super(LiteralChecker, self).__init__()
+
+    def check(self, x):
+        return isinstance(x, self.t)
+
+    def expects(self):
+        return extract(self.t)
+
+
 def only(t):
     if isinstance(t, type) or type(t) is ClassType:
-        return LambdaChecker(lambda x: isinstance(x, t), extract(t))
+        return LiteralChecker(t)
     elif isinstance(t, TypeChecker):
         return t
     else:
@@ -121,13 +123,14 @@ def dictof(k, v):
 
 none = only(NoneType)
 
-anytype = LambdaChecker(lambda x: True, 'Any')
+anytype = AnyChecker()
 
 strlike = oneof(str, unicode)
 
 integral = oneof(int, long)
 
 numeric = oneof(int, long, float)
+
 
 def check_all(name, args, spec, checks):
     assert len(args) == len(spec)
@@ -148,6 +151,7 @@ def check_all(name, args, spec, checks):
                        ', '.join(["'%s'" % k for k in unmatched_f])
             raise RuntimeError('%s: invalid typecheck signature: %s' % (name, msg))
 
+    # check function arguments
     for i, arg in enumerate(args):
         argname = spec[i]
 
@@ -156,7 +160,6 @@ def check_all(name, args, spec, checks):
         if not tc.check(arg):
             raise TypeError("%s: parameter '%s': expected %s, found %s: '%s'" %
                             (name, argname, tc.expects(), extract(type(arg)), str(arg)))
-
 
 
 def typecheck_method(**kw):
@@ -176,13 +179,13 @@ def typecheck_method(**kw):
 
     return decorator(_typecheck)
 
-def typecheck(**kw):
 
+def typecheck(**kw):
     def _typecheck(f, *args, **kwargs):
         argspec = getargspec(f)
 
         if argspec.varkw or argspec.varargs:
-            raise RuntimeError('%s: cannot typecheck functions that accept var args or var keyword args' % f.__name__)
+            raise RuntimeError('%s: cannot typecheck functions that accept var args or var kwargs' % f.__name__)
 
         check_all(f.__name__, args, argspec.args, kw)
 
