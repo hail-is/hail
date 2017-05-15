@@ -8,7 +8,6 @@ import is.hail.distributedmatrix.DistributedMatrix
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
-import is.hail.stats.{SparseGtVectorAndStats, SparseGtBuilder}
 
 import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
@@ -45,7 +44,7 @@ object PCRelate {
 
     val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0).cache()
 
-    val blockedG = DistributedMatrix[M].from(sparseGtVectorAndStatsToBlockMatrix(g)).cache()
+    val blockedG = DistributedMatrix[M].from(g).cache()
     val gMinusMu = (blockedG :- (mu * 2.0)).cache()
     val variance = (mu :* (1.0 - mu)).cache()
 
@@ -85,7 +84,7 @@ object PCRelate {
 
     val mu = muHat(pcs, beta)
 
-    val blockedG = DistributedMatrix[M].from(sparseGtVectorAndStatsToBlockMatrix(g))
+    val blockedG = DistributedMatrix[M].from(g)
     val phihat = phiHat(blockedG, mu)
 
     val kTwo = k2(f(phihat), DistributedMatrix[M].map2({ case (g, mu) => if (g == 0.0) mu else if (g == 1.0) 0.0 else if (g == 2.0) 1.0 - mu else g })(blockedG, mu), mu)
@@ -97,27 +96,40 @@ object PCRelate {
     Result(phihat, kZero, k1(kTwo, kZero), kTwo)
   }
 
-  def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): RDD[SparseGtVectorAndStats] = {
+  def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): RDD[Array[Double]] = {
     val nSamples = vds.nSamples
     val rdd = vds.rdd.mapPartitions { part =>
       part.map { case (v, (va, gs)) =>
-        val b = new SparseGtBuilder()
+        var sum = 0
+        var nNonMissing = 0
+        val missingIndices = new ArrayBuilder[Int]()
+        val a = new Array[Double](nSamples)
+
+        var i = 0
         val it = gs.hardCallIterator
         while (it.hasNext) {
-          b.merge(it.next())
+          val gt = it.next()
+          if (gt == -1) {
+            missingIndices += i
+          } else {
+            sum += gt
+            a(i) = gt
+            nNonMissing += 1
+          }
+          i += 1
         }
-        b.stats(nSamples)
+
+        val mean = sum.toDouble / nNonMissing
+
+        for (i <- missingIndices.result()) {
+          a(i) = mean
+        }
+
+        a
       }
     }
     rdd
   }
-
-  private def breezeToSpark(sv: breeze.linalg.SparseVector[Double]): SparseVector =
-    new SparseVector(sv.length, sv.index, sv.data)
-
-  def sparseGtVectorAndStatsToBlockMatrix(r: RDD[SparseGtVectorAndStats]): BlockMatrix =
-    (new IndexedRowMatrix(r.zipWithIndex.map { case (svas, i) => new IndexedRow(i, breezeToSpark(svas.x)) }))
-      .toBlockMatrix()
 
   /**
     *  g: SNP x Sample
@@ -125,11 +137,11 @@ object PCRelate {
     *
     *  result: (SNP x (D+1))
     */
-  def fitBeta[M: DistributedMatrix](g: RDD[SparseGtVectorAndStats], pcs: DenseMatrix): M = {
+  def fitBeta[M: DistributedMatrix](g: RDD[Array[Double]], pcs: DenseMatrix): M = {
     val aa = g.sparkContext.broadcast(pcs.rowIter.map(_.toArray).toArray)
-    val rdd = g.map { svas =>
+    val rdd = g.map { a =>
       val ols = new OLSMultipleLinearRegression()
-      ols.newSampleData(svas.x.toArray, aa.value)
+      ols.newSampleData(a, aa.value)
       ols.estimateRegressionParameters()
     }
     DistributedMatrix[M].from(rdd)
