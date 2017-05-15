@@ -282,12 +282,14 @@ class HailContext(object):
         the file, or pass them ourselves:
         
         Pass the types ourselves:
+        
         >>> table = hc.import_table('data/samples1.tsv', types={'Height': TDouble(), 'Age': TInt()})
         
         Note that string columns like ``Sample`` and ``Status`` do not need to be typed, because ``String``
         is the default type.
         
         Use type imputation (a bit easier, but requires reading the file twice):
+        
         >>> table = hc.import_table('data/samples1.tsv', impute=True)
 
         **Detailed examples**
@@ -351,6 +353,7 @@ class HailContext(object):
         given pattern. Passing ``comment='#'`` will skip any line beginning in a pound sign, for example.
         
         The ``missing`` parameter defines the representation of missing data in the table. 
+        
         .. note::
         
             The ``comment`` and ``missing`` parameters are **NOT** regexes.
