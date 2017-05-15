@@ -102,7 +102,7 @@ object PCRelate {
     val rdd = vds.rdd.mapPartitions { part =>
       part.map { case (v, (va, gs)) =>
         val b = new SparseGtBuilder()
-        val it = gs.hardCallGenotypeIterator
+        val it = gs.hardCallIterator
         while (it.hasNext) {
           b.merge(it.next())
         }
