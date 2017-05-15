@@ -5,6 +5,7 @@ import is.hail.expr._
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder, Variant, VariantDataset}
+import org.apache.spark.storage.StorageLevel
 
 object SplitMulti {
 
@@ -163,6 +164,7 @@ object SplitMulti {
           f = (v: Variant) => partitionerBc.value.getPartition(v) != i)
       }
     }.orderedRepartitionBy(vds.rdd.orderedPartitioner)
+      .persist(StorageLevel.MEMORY_AND_DISK)
 
     val localMaxShift = maxShift
     val staticVariants = vds.rdd.mapPartitionsWithIndex { case (i, it) =>
