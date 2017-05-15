@@ -2354,7 +2354,7 @@ class VariantDataset(object):
         
         **Notes**
         
-        Each entry (i, j) in the LD Matrix gives the :math:`r` value between variants i and j,  defined as 
+        Each entry (i, j) in the LD matrix gives the :math:`r` value between variants i and j, defined as 
         `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__ 
         :math:`{\\rho}_{x_i,x_j}` between the two genotype vectors :math:`{\\mathbf{x_i}}` and :math:`{\\mathbf{x_j}}`.
 
@@ -2367,10 +2367,10 @@ class VariantDataset(object):
 
         .. caution::
 
-          This is an expensive computation, involving multiplying the entire genotype matrix by its transpose. Before using
-          this, filter down to a reasonably small number of variants. 
+          The matrix returned by this function can easily be very large. Most likely you'll want to downsample or filter variants 
+          in some way before calling this unless your dataset is very small.
 
-        :return: The matrix of r values between pairs of variants.
+        :return: Matrix of r values between pairs of variants.
         :rtype: :py:class:`LDMatrix`
         """
 

@@ -24,10 +24,10 @@ object LDMatrix {
     val variantKeptIndices = normalizedIRM.rows.map{case IndexedRow(idx, _) => idx.toInt}.collect().sorted
     val variantsKept = variantKeptIndices.map(idx => originalVariants(idx))
 
-    val numVariantsKept = variantsKept.length
-    val numVariantsDropped = originalVariants.length - numVariantsKept
+    val nVariantsKept = variantsKept.length
+    val nVariantsDropped = originalVariants.length - nVariantsKept
 
-    info(s"Computing LDMatrix with ${variantsKept.length} variants using $nSamples samples. $numVariantsDropped variants were dropped.")
+    info(s"Computing LD Matrix with ${variantsKept.length} variants using $nSamples samples. $nVariantsDropped variants were dropped.")
 
     //The indices can be expected to be correct from the zip since the VDS is backed by an OrderedRDD of variants.
     val normalizedFilteredRows = normalizedIRM.rows.zipWithIndex()
