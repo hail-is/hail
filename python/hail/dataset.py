@@ -41,7 +41,7 @@ class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
     Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods,
-    constructed from a variant-keyed :py:class:`KeyTable` using :py:meth:`.VariantDataset.from_keytable`,
+    constructed from a variant-keyed :py:class:`KeyTable` using :py:meth:`.VariantDataset.from_table`,
     and simulated using :py:meth:`~hail.HailContext.balding_nichols_model`.
 
     Once a variant dataset has been written to disk with :py:meth:`~hail.VariantDataset.write`,
@@ -69,7 +69,7 @@ class VariantDataset(object):
 
     @staticmethod
     @handle_py4j
-    def from_keytable(table):
+    def from_table(table):
         """Construct a sites-only variant dataset from a key table.
 
         The key table must be keyed by one column of type :py:class:`.TVariant`.
@@ -959,7 +959,7 @@ class VariantDataset(object):
              
         The two key tables produced by the concordance method can be queried with :py:meth:`.KeyTable.query`, 
         exported to text with :py:meth:`.KeyTable.export`, and used to annotate a variant dataset with
-        :py:meth:`.VariantDataset.annotate_variants_keytable`, among other things.
+        :py:meth:`.VariantDataset.annotate_variants_table`, among other things.
         
         In these tables, the column **nDiscordant** is provided as a convenience, because this is often one
         of the most useful concordance statistics. This value is the number of genotypes 
@@ -4555,7 +4555,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def variants_keytable(self):
+    def variants_table(self):
         """Convert variants and variant annotations to a KeyTable.
 
         The resulting KeyTable has schema:
@@ -4576,7 +4576,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.variantsKT())
 
     @handle_py4j
-    def samples_keytable(self):
+    def samples_table(self):
         """Convert samples and sample annotations to KeyTable.
 
         The resulting KeyTable has schema:
@@ -4597,12 +4597,12 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
-    def genotypes_keytable(self):
+    def genotypes_table(self):
         """Generate a fully expanded genotype table.
 
         **Examples**
 
-        >>> gs = vds.genotypes_keytable()
+        >>> gs = vds.genotypes_table()
 
         **Notes**
 
