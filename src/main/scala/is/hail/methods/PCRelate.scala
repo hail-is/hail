@@ -87,6 +87,7 @@ object PCRelate {
     val blockedG = DistributedMatrix[M].from(g)
     val phihat = phiHat(blockedG, mu)
 
+    // FIXME: what should I do if the genotype is missing?
     val kTwo = k2(f(phihat), DistributedMatrix[M].map2({ case (g, mu) => if (g == 0.0) mu else if (g == 1.0) 0.0 else if (g == 2.0) 1.0 - mu else g })(blockedG, mu), mu)
 
     val kZero = k0(phihat, mu, kTwo, ibs0(vds))
