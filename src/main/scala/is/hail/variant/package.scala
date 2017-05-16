@@ -15,9 +15,13 @@ package object variant {
       ig match {
         case gs: GenotypeStream => gs
         case _ =>
-          val b: GenotypeStreamBuilder = new GenotypeStreamBuilder(v.nAlleles, isLinearScale = isLinearScale)
-          b ++= ig
-          b.result()
+          if (ig.isEmpty)
+            GenotypeStream.empty(v.nAlleles)
+          else {
+            val b: GenotypeStreamBuilder = new GenotypeStreamBuilder(v.nAlleles, isLinearScale = isLinearScale)
+            b ++= ig
+            b.result()
+          }
       }
 
     def hardCallIterator: HailIterator[Int] = ig match {
