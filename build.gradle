@@ -194,7 +194,12 @@ test {
 
 test.dependsOn(checkSettings)
 
-task testPython(type: Exec, dependsOn: shadowJar) {
+task testTypecheck(type: Exec) {
+    commandLine 'python', '-m', 'unittest', 'hail.typecheck.tests'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+}
+
+task testPython(type: Exec, dependsOn: ['shadowJar', 'testTypecheck']) {
      commandLine 'python', '-m', 'unittest', 'hail.tests'
 
      environment SPARK_HOME: sparkHome
