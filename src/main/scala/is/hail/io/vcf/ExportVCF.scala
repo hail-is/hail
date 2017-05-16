@@ -87,27 +87,45 @@ object ExportVCF {
       }
   }
 
-  def infoType(t: Type): String = t match {
-    case TArray(elementType) => infoType(elementType)
-    case TInt => "Integer"
-    case TLong => "Integer"
-    case TDouble => "Float"
-    case TFloat => "Float"
-    case TString => "String"
-    case TBoolean => "Flag"
-    case _ => fatal(s"Cannot export type `$t' to VCF INFO field.")
+  def infoType(t: Type): Option[String] = t match {
+    case TInt | TLong => Some("Integer")
+    case TDouble | TFloat => Some("Float")
+    case TString => Some("String")
+    case TBoolean => Some("Flag")
+    case _ => None
   }
 
-  def formatType(t: Type): String = t match {
-    case TArray(elementType) => formatType(elementType)
-    case TSet(elementType) => formatType(elementType)
-    case TInt => "Integer"
-    case TLong => "Integer"
-    case TDouble => "Float"
-    case TFloat => "Float"
-    case TString => "String"
-    case TCall => "String"
-    case _ => fatal(s"Cannot export type `$t' to VCF FORMAT field.")
+  def infoType(f: Field): String = {
+    val tOption = f.typ match {
+      case TArray(elt) => infoType(elt)
+      case TSet(elt) => infoType(elt)
+      case t => infoType(t)
+    }
+    tOption match {
+      case Some(s) => s
+      case _ => fatal(s"INFO field '${ f.name }': VCF does not support type `${ f.typ }'.")
+    }
+  }
+
+  def formatType(t: Type): Option[String] = t match {
+    case TInt | TLong => Some("Integer")
+    case TDouble | TFloat => Some("Float")
+    case TString => Some("String")
+    case TCall => Some("String")
+    case _ => None
+  }
+
+  def formatType(f: Field): String = {
+    val tOption = f.typ match {
+      case TArray(elt) => formatType(elt)
+      case TSet(elt) => formatType(elt)
+      case t => formatType(t)
+    }
+
+    tOption match {
+      case Some(s) => s
+      case _ => fatal(s"FORMAT field '${ f.name }': VCF does not support type `${ f.typ }'.")
+    }
   }
 
   def appendIntArrayOption(sb: StringBuilder, toAppend: Option[Array[Int]]): Unit = {
@@ -276,7 +294,7 @@ object ExportVCF {
             sb.append(",Number=")
             sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
             sb.append(",Type=")
-            sb.append(formatType(f.typ))
+            sb.append(formatType(f))
             sb.append(",Description=\"")
             sb.append(f.attr("Description").getOrElse(""))
             sb.append("\">")
@@ -298,7 +316,7 @@ object ExportVCF {
         sb.append(",Number=")
         sb.append(f.attr("Number").getOrElse(infoNumber(f.typ)))
         sb.append(",Type=")
-        sb.append(infoType(f.typ))
+        sb.append(infoType(f))
         sb.append(",Description=\"")
         sb.append(f.attr("Description").getOrElse(""))
         sb.append("\">\n")
