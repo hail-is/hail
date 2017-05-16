@@ -33,7 +33,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
   def phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
     types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
-  val vdsBurden: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
+  lazy val vdsBurden: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
     .annotateVariantsTable(intervals, root="va.genes", product=true)
     .annotateVariantsExpr("va.weight = v.start.toDouble")
     .annotateSamplesTable(covariates, root = "sa.cov")
