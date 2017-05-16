@@ -145,20 +145,24 @@ class ContextTests(unittest.TestCase):
         class Foo:
             @typecheck_method(a=int, b=str)
             def __init__(self, a, b):
-                self.a = a
-                self.b = b
+                pass
 
             @typecheck_method(x=int, y=int)
-            def bar(self, x, y):
+            def a(self, x, y):
                 pass
 
             @staticmethod
             @typecheck(x=int, y=int)
-            def baz(x, y):
+            def b(x, y):
                 pass
 
+            # error because it should be typecheck_method
             @typecheck(x=int, y=int)
-            def qux(self, x, y):
+            def c(self, x, y):
+                pass
+
+            @typecheck_method(x=int, y=int, args=tupleof(str), kwargs=dictof(str, int))
+            def d(self, x, y, *args, **kwargs):
                 pass
 
         Foo(2, '2')
@@ -167,11 +171,16 @@ class ContextTests(unittest.TestCase):
 
         f = Foo(2, '2')
 
-        f.bar(2, 2)
-        f.baz(2, 2)
-        Foo.baz(2, 2)
+        f.a(2, 2)
+        f.b(2, 2)
+        Foo.b(2, 2)
+        f.d(1, 2)
+        f.d(1, 2, '3')
+        f.d(1, 2, '3', z=5)
 
-        self.assertRaises(TypeError, lambda: f.bar('2', '2'))
-        self.assertRaises(TypeError, lambda: f.baz('2', '2'))
-        self.assertRaises(TypeError, lambda: Foo.baz('2', '2'))
-        self.assertRaises(RuntimeError, lambda: f.qux(2, 2))
+        self.assertRaises(TypeError, lambda: f.a('2', '2'))
+        self.assertRaises(TypeError, lambda: f.b('2', '2'))
+        self.assertRaises(TypeError, lambda: Foo.b('2', '2'))
+        self.assertRaises(RuntimeError, lambda: f.c(2, 2))
+        self.assertRaises(TypeError, lambda: f.d(2, 2, 3))
+        self.assertRaises(TypeError, lambda: f.d(2, 2, z='2'))

@@ -156,7 +156,7 @@ def check_all(f, args, kwargs, checks, is_method):
 
     # if f has varargs, tuple any unnamed args and pass that as a regular argument to the checker
     if spec.varargs:
-        n_named_args = len(spec.args)
+        n_named_args = len(spec.args) - (1 if is_method else 0)
         tupled_varargs = tuple(named_args[n_named_args:])
         named_args = named_args[:n_named_args]
         named_args.append(tupled_varargs)
