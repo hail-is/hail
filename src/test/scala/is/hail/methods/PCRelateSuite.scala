@@ -22,7 +22,7 @@ import is.hail.expr.{TDouble, TInt, TString}
 import is.hail.variant.VariantDataset
 import is.hail.variant.VSMSubgen
 import is.hail.stats._
-import is.hail.utils.{TextTableConfiguration, TextTableReader, _}
+import is.hail.utils.{TextTableReader, _}
 import scala.sys.process._
 import is.hail.distributedmatrix.DistributedMatrix
 import is.hail.distributedmatrix.DistributedMatrix.implicits._
@@ -53,14 +53,19 @@ class PCRelateSuite extends SparkSuite {
 
     s"Rscript $rFile ${uriPath(localTmpfile)}" !
 
-    val genomeFormat = TextTableConfiguration(
-      types = Map(
-        ("ID1", TString), ("ID2", TString), ("nsnp", TDouble), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble)),
-      separator = " +")
+    val columns = Map(
+      ("ID1", TString),
+      ("ID2", TString),
+      ("nsnp", TDouble),
+      ("kin", TDouble),
+      ("k0", TDouble),
+      ("k1", TDouble),
+      ("k2", TDouble))
+    val separator = " +"
 
     hadoopConf.copy(localTmpfile + ".out", tmpfile + ".out")
 
-    val (_, rdd) = TextTableReader.read(sc)(Array(tmpfile + ".out"), genomeFormat)
+    val (_, rdd) = TextTableReader.read(sc)(Array(tmpfile + ".out"), columns, separator=separator)
     rdd.collect()
       .map(_.value)
       .map { ann =>
@@ -95,21 +100,6 @@ class PCRelateSuite extends SparkSuite {
 
   def compareDoubleQuartuplets(cmp: (Double, Double) => Boolean)(x: (Double, Double, Double, Double), y: (Double, Double, Double, Double)): Boolean =
     cmp(x._1, y._1) && cmp(x._2, y._2) && cmp(x._3, y._3) && cmp(x._4, y._4)
-    // if (!cmp(x._1, y._1)) {
-    //   println(s"${x._1} and ${y._1} failed")
-    //   false
-    // } else if (!cmp(x._2, y._2)) {
-    //   println(s"${x._2} and ${y._2} failed")
-    //   false
-    // } else if (!cmp(x._3, y._3)) {
-    //   println(s"${x._3} and ${y._3} failed")
-    //   false
-    // } else if (!cmp(x._4, y._4)) {
-    //   println(s"${x._4} and ${y._4} failed")
-    //   false
-    // } else {
-    //   true
-    // }
 
   @Test def compareToPCRelateRSamePCs() {
     // from pcrelate
@@ -224,14 +214,14 @@ class PCRelateSuite extends SparkSuite {
       .collect()
       .toMap
 
-    assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+    assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.001)))
   }
 
   @Test def compareToPCRelateR() {
     for {
-      n <- Seq(50, 100, 500, 1000)
+      n <- Seq(50, 100, 500)
       seed <- Seq(0, 1, 2)
-      nVariants <- Seq(1000, 10000, 50000, 100000)
+      nVariants <- Seq(1000, 10000, 50000)
     } {
       val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
 
@@ -242,7 +232,7 @@ class PCRelateSuite extends SparkSuite {
         .collect()
         .toMap
 
-      assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+      assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
     }
   }
 
@@ -255,6 +245,7 @@ class PCRelateSuite extends SparkSuite {
       .collect()
       .toMap
     println(us)
+    vds.exportPlink("/tmp/trivial-dataset")
     val truth = runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
     assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
   }
@@ -276,16 +267,18 @@ class PCRelateSuite extends SparkSuite {
 
     val secondOrder = Array("HG01936", "HG01983")
 
-    def underStudy(s: String) =
-      trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
-
     val r = scala.util.Random
 
     val profile225 = hc.read("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
     for (fraction <- Seq(0.0625// , 0.125, 0.25, 0.5
     )) {
+      val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
+
+      def underStudy(s: String) =
+        subset.contains(s) || trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
+
       val vds = profile225
-        .filterSamples((s, sa) => underStudy(s) || (r.nextDouble() < fraction))
+        .filterSamples((s, sa) => underStudy(s))
         .cache()
 
       val (truth, pcRelateTime) = time(runPcRelateR(vds))
