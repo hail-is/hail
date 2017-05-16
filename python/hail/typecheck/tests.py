@@ -3,7 +3,7 @@ from check import *
 
 
 class ContextTests(unittest.TestCase):
-    def test_errors(self):
+    def test_varargs(self):
         @typecheck(x=int, y=int)
         def f1(x, y):
             return x + y
@@ -13,17 +13,16 @@ class ContextTests(unittest.TestCase):
 
         self.assertRaises(TypeError, lambda: f1('2', 3))
 
-        # ensure that functions with args and kwargs raise exceptions
-        @typecheck()
+        @typecheck(x=int, y=int)
         def bad_signature_1(x, y, *args):
             pass
 
-        @typecheck()
+        @typecheck(x=int, y=int)
         def bad_signature_2(x, y, **kwargs):
             pass
 
-        @typecheck()
-        def bad_signature_3(*args, **kwargs):
+        @typecheck(x=int)
+        def bad_signature_3(x, *args, **kwargs):
             pass
 
         for f in [bad_signature_1, bad_signature_2, bad_signature_3]:
@@ -35,8 +34,58 @@ class ContextTests(unittest.TestCase):
 
         f()
 
-    def test_helpers(self):
+        @typecheck(x=int, y=int, args=tupleof(int))
+        def good_signature_1(x, y, *args):
+            pass
 
+        good_signature_1(1, 2)
+        good_signature_1(1, 2, 3)
+        good_signature_1(1, 2, 3, 4, 5)
+
+        self.assertRaises(TypeError, lambda: good_signature_1(1, 2, 3, '4'))
+        self.assertRaises(TypeError, lambda: good_signature_1(1, 2, '4'))
+
+        @typecheck(x=int, y=int, kwargs=dictof(strlike, int))
+        def good_signature_2(x, y, **kwargs):
+            pass
+
+        good_signature_2(1, 2, a=5, z=2)
+        good_signature_2(1, 2)
+        good_signature_2(1, 2, a=5)
+
+        self.assertRaises(TypeError, lambda: good_signature_2(1, 2, a='2'))
+        self.assertRaises(TypeError, lambda: good_signature_2(1, 2, a='2', b=5, c=10))
+
+        @typecheck(x=int, y=int, args=tupleof(int), kwargs=dictof(strlike, int))
+        def good_signature_3(x, y, *args, **kwargs):
+            pass
+
+        good_signature_3(1, 2)
+        good_signature_3(1, 2, 3)
+        good_signature_3(1, 2, a=3)
+        good_signature_3(1, 2, 3, a=4)
+
+        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, a='2'))
+        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, '3', b=5, c=10))
+        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, '3', b='5', c=10))
+
+        @typecheck(x=int, y=int, args=tupleof(int), kwargs=dictof(strlike, oneof(listof(int), strlike)))
+        def good_signature_4(x, y, *args, **kwargs):
+            pass
+
+        good_signature_4(1, 2)
+        good_signature_4(1, 2, 3)
+        good_signature_4(1, 2, a='1')
+        good_signature_4(1, 2, 3, a=[1, 2, 3])
+        good_signature_4(1, 2, 3, a=[1, 2, 3], b='5')
+        good_signature_4(1, 2, a=[1, 2, 3], b='5')
+
+        self.assertRaises(TypeError, lambda: good_signature_4(1, 2, a=2))
+        self.assertRaises(TypeError, lambda: good_signature_4(1, 2, '3', b='5', c=10))
+
+
+
+    def test_helpers(self):
         # check nullable
         @typecheck(x=nullable(int))
         def f(x):
@@ -93,7 +142,7 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: f(2, 2))
 
     def test_class_methods(self):
-        class Foo(object):
+        class Foo:
             @typecheck_method(a=int, b=str)
             def __init__(self, a, b):
                 self.a = a
@@ -126,4 +175,3 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: f.baz('2', '2'))
         self.assertRaises(TypeError, lambda: Foo.baz('2', '2'))
         self.assertRaises(RuntimeError, lambda: f.qux(2, 2))
-

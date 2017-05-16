@@ -1,5 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
+from hail.typecheck import *
+from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
@@ -8,9 +10,6 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
 from hail.utils import wrap_to_list
-
-from hail.typecheck import *
-from pyspark import SparkContext, sql
 
 
 class HailContext(object):

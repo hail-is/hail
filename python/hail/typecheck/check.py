@@ -1,5 +1,5 @@
 from decorator import decorator, getargspec
-from types import ClassType, NoneType
+from types import ClassType, NoneType, InstanceType
 import re
 
 
@@ -117,6 +117,10 @@ def listof(t):
     return CollectionChecker(only(list), only(t))
 
 
+def tupleof(t):
+    return CollectionChecker(only(tuple), only(t))
+
+
 def dictof(k, v):
     return DictChecker(only(k), only(v))
 
@@ -132,29 +136,53 @@ integral = oneof(int, long)
 numeric = oneof(int, long, float)
 
 
-def check_all(name, args, spec, checks):
-    assert len(args) == len(spec)
+def check_all(f, args, kwargs, checks, is_method):
+    spec = getargspec(f)
+    name = f.__name__
+
+    named_argspec = []
+    named_args = []
+
+    # strip the first argument if is_method is true (this is the self parameter)
+    if is_method:
+        if not (len(args) > 0 and isinstance(args[0], object)):
+            raise RuntimeError(
+                '%s: no class found as first argument. Use typecheck instead of typecheck_method?' % name)
+        named_argspec.extend(spec.args[1:])
+        named_args.extend(args[1:])
+    else:
+        named_argspec.extend(spec.args)
+        named_args.extend(args)
+
+    # if f has varargs, tuple any unnamed args and pass that as a regular argument to the checker
+    if spec.varargs:
+        n_named_args = len(spec.args)
+        tupled_varargs = tuple(named_args[n_named_args:])
+        named_args = named_args[:n_named_args]
+        named_args.append(tupled_varargs)
+        named_argspec.append(spec.varargs)
+
+    # if f has varkw, pass them as a dict to the checker.
+    if spec.varkw:
+        named_args.append(kwargs)
+        named_argspec.append(spec.varkw)
 
     # ensure that the typecheck signature is appropriate and matches the function signature
-    if set(spec) != set(checks.keys()):
-        unmatched_tc = [k for k in checks if k not in spec]
-        unmatched_f = [k for k in spec if k not in checks]
+    if set(named_argspec) != set(checks.keys()):
+        unmatched_tc = [k for k in checks if k not in named_argspec]
+        unmatched_f = [k for k in named_argspec if k not in checks]
         if unmatched_f or unmatched_tc:
             msg = ''
             if unmatched_tc:
-                msg += 'unmatched typecheck arguments: [ %s ]' % \
-                       ', '.join(["'%s'" % k for k in unmatched_tc])
+                msg += 'unmatched typecheck arguments: %s' % unmatched_tc
             if unmatched_f:
                 if msg:
                     msg += ', and '
-                msg += 'function parameters with no defined type: [ %s ]' % \
-                       ', '.join(["'%s'" % k for k in unmatched_f])
+                msg += 'function parameters with no defined type: %s' % unmatched_f
             raise RuntimeError('%s: invalid typecheck signature: %s' % (name, msg))
 
-    # check function arguments
-    for i, arg in enumerate(args):
-        argname = spec[i]
-
+    # type check the function arguments
+    for argname, arg in zip(named_argspec, named_args):
         tc = only(checks[argname])
 
         if not tc.check(arg):
@@ -162,33 +190,17 @@ def check_all(name, args, spec, checks):
                             (name, argname, tc.expects(), extract(type(arg)), str(arg)))
 
 
-def typecheck_method(**kw):
+def typecheck_method(**checkers):
     def _typecheck(f, *args, **kwargs):
-        argspec = getargspec(f)
-
-        if not len(args) > 0 and isinstance(args[0], ClassType):
-            raise RuntimeError('%s: no class found as first argument. Use typecheck instead of typecheck_method' %
-                               f.__name__)
-
-        if argspec.varkw or argspec.varargs:
-            raise RuntimeError('%s: cannot typecheck methods that accept var args or var kwargs' % f.__name__)
-
-        check_all(f.__name__, args[1:], argspec.args[1:], kw)
-
+        check_all(f, args, kwargs, checkers, is_method=True)
         return f(*args, **kwargs)
 
     return decorator(_typecheck)
 
 
-def typecheck(**kw):
+def typecheck(**checkers):
     def _typecheck(f, *args, **kwargs):
-        argspec = getargspec(f)
-
-        if argspec.varkw or argspec.varargs:
-            raise RuntimeError('%s: cannot typecheck functions that accept var args or var kwargs' % f.__name__)
-
-        check_all(f.__name__, args, argspec.args, kw)
-
+        check_all(f, args, kwargs, checkers, is_method=False)
         return f(*args, **kwargs)
 
     return decorator(_typecheck)
