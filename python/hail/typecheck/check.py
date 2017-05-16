@@ -63,11 +63,7 @@ class DictChecker(TypeChecker):
 
     def check(self, x):
         passes = isinstance(x, dict)
-        if passes:
-            for k, v in x.iteritems():
-                passes = passes and self.kc.check(k)
-                passes = passes and self.vc.check(v)
-        return passes
+        return passes and all(self.kc.check(k) and self.vc.check(v) for k, v in x.iteritems())
 
     def expects(self):
         return 'dict[%s, %s]' % (self.kc.expects(), self.vc.expects())
@@ -140,37 +136,37 @@ def check_all(f, args, kwargs, checks, is_method):
     spec = getargspec(f)
     name = f.__name__
 
-    named_argspec = []
-    named_args = []
+    arg_names = []
+    args_to_check = []
 
     # strip the first argument if is_method is true (this is the self parameter)
     if is_method:
         if not (len(args) > 0 and isinstance(args[0], object)):
             raise RuntimeError(
                 '%s: no class found as first argument. Use typecheck instead of typecheck_method?' % name)
-        named_argspec.extend(spec.args[1:])
-        named_args.extend(args[1:])
+        arg_names.extend(spec.args[1:])
+        args_to_check.extend(args[1:])
     else:
-        named_argspec.extend(spec.args)
-        named_args.extend(args)
+        arg_names.extend(spec.args)
+        args_to_check.extend(args)
 
     # if f has varargs, tuple any unnamed args and pass that as a regular argument to the checker
     if spec.varargs:
         n_named_args = len(spec.args) - (1 if is_method else 0)
-        tupled_varargs = tuple(named_args[n_named_args:])
-        named_args = named_args[:n_named_args]
-        named_args.append(tupled_varargs)
-        named_argspec.append(spec.varargs)
+        tupled_varargs = tuple(args_to_check[n_named_args:])
+        args_to_check = args_to_check[:n_named_args]
+        args_to_check.append(tupled_varargs)
+        arg_names.append(spec.varargs)
 
     # if f has varkw, pass them as a dict to the checker.
     if spec.varkw:
-        named_args.append(kwargs)
-        named_argspec.append(spec.varkw)
+        args_to_check.append(kwargs)
+        arg_names.append(spec.varkw)
 
     # ensure that the typecheck signature is appropriate and matches the function signature
-    if set(named_argspec) != set(checks.keys()):
-        unmatched_tc = [k for k in checks if k not in named_argspec]
-        unmatched_f = [k for k in named_argspec if k not in checks]
+    if set(arg_names) != set(checks.keys()):
+        unmatched_tc = [k for k in checks if k not in arg_names]
+        unmatched_f = [k for k in arg_names if k not in checks]
         if unmatched_f or unmatched_tc:
             msg = ''
             if unmatched_tc:
@@ -182,7 +178,7 @@ def check_all(f, args, kwargs, checks, is_method):
             raise RuntimeError('%s: invalid typecheck signature: %s' % (name, msg))
 
     # type check the function arguments
-    for argname, arg in zip(named_argspec, named_args):
+    for argname, arg in zip(arg_names, args_to_check):
         tc = only(checks[argname])
 
         if not tc.check(arg):

@@ -1989,7 +1989,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def ibd(self, maf=None, bounded=True, min=None, max=None):
+    def ibd(self, maf=None, boundedc=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
         .. include:: requireTGenotype.rst
