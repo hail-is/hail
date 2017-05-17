@@ -339,13 +339,13 @@
             "length": 547496
         }
     ],
-    "x_contigs": [
+    "xContigs": [
         "X"
     ],
-    "y_contigs": [
+    "yContigs": [
         "Y"
     ],
-    "mt_contigs": [
+    "mtContigs": [
         "MT"
     ],
     "par": [

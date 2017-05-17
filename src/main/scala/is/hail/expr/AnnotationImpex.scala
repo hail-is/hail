@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.annotations.Annotation
 import is.hail.utils.{Interval, _}
-import is.hail.variant.{AltAllele, Genotype, Locus, Sample, Variant}
+import is.hail.variant.{AltAllele, Contig, GenomeReference, Genotype, Locus, Sample, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.json4s._
@@ -200,6 +200,12 @@ case class JSONExtractVariant(contig: String,
 
 case class JSONExtractInterval(start: Locus, end: Locus) {
   def toInterval = Interval(start, end)
+}
+
+case class JSONExtractGenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
+  yContigs: Set[String], mtContigs: Set[String], par: Array[JSONExtractInterval]) {
+
+  def toGenomeReference: GenomeReference = GenomeReference(name, contigs, xContigs, yContigs, mtContigs, par.map(_.toInterval))
 }
 
 object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {

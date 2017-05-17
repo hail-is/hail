@@ -1,11 +1,9 @@
 package is.hail.variant
 
-import is.hail.expr.{JSONAnnotationImpex, TInterval}
+import is.hail.expr.JSONExtractGenomeReference
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
-
-import scala.reflect.ClassTag
 
 case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
   yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends Serializable {
@@ -34,40 +32,7 @@ object GenomeReference {
 
       val json = JsonMethods.parse(resourceStream)
 
-      val fields = json.asInstanceOf[JObject].obj.toMap
-
-      def getAndCastJSON[T <: JValue](fname: String)(implicit tct: ClassTag[T]): T =
-        fields.get(fname) match {
-          case Some(t: T) => t
-          case Some(other) =>
-            fatal(
-              s"""corrupt json: invalid metadata
-               |  Expected `${ tct.runtimeClass.getName }' in field `$fname', but got `${ other.getClass.getName }'.""".stripMargin)
-          case None =>
-            fatal(
-              s"""corrupt json: invalid metadata
-               |  Missing field `$fname'.""".stripMargin)
-        }
-
-      val referenceName = getAndCastJSON[JString]("name").s
-
-      val contigs = getAndCastJSON[JArray]("contigs")
-        .arr
-        .map {
-          case JObject(List(("name", JString(name)), ("length", JInt(length)))) => Contig(name, length.toInt)
-          case other => fatal(s"Contig schema did not match {'name': String, 'length': Int}. Found $other.")
-        }.toArray
-
-      val xContigs = getAndCastJSON[JArray]("x_contigs").arr.map { case JString(s) => s }.toSet
-      val yContigs = getAndCastJSON[JArray]("y_contigs").arr.map { case JString(s) => s }.toSet
-      val mtContigs = getAndCastJSON[JArray]("mt_contigs").arr.map { case JString(s) => s }.toSet
-
-      val par = getAndCastJSON[JArray]("par")
-        .arr
-        .map { jv => JSONAnnotationImpex.importAnnotation(jv, TInterval).asInstanceOf[Interval[Locus]] }
-        .toArray
-
-      GenomeReference(referenceName, contigs, xContigs, yContigs, mtContigs, par)
+      json.extract[JSONExtractGenomeReference].toGenomeReference
 
     } catch {
       case npe: NullPointerException =>
