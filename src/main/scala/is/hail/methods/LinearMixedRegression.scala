@@ -140,13 +140,20 @@ object LinearMixedRegression {
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       vds2.mapAnnotations { case (v, va, gs) =>
-        val optStats = RegressionUtils.toSparseHardCallStats(gs, sampleMaskBc.value, n)
+        val (x0, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, Some(sampleMaskBc.value))
 
-        val lmmregAnnot = optStats.map { case (x0, af) =>
-          val x: Vector[Double] = if (af <= sparsityThreshold) x0 else x0.toDenseVector
-
-          scalerLMMBc.value.likelihoodRatioTest(TBc.value * x)
-        }.orNull
+        val lmmregAnnot =
+          if (nMissing < n) {
+            val x: Vector[Double] = {
+              val sparsity = (nHet + nHomVar + nMissing) / (n - nMissing)
+              if (sparsity <= sparsityThreshold)
+                x0
+              else
+                x0.toDenseVector
+            }
+            scalerLMMBc.value.likelihoodRatioTest(TBc.value * x)
+          } else
+            null
 
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))

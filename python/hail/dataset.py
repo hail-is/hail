@@ -2798,7 +2798,7 @@ class VariantDataset(object):
         :param delta: Fixed delta value to use in the global model, overrides fitting delta.
         :type delta: float or None
 
-        :param float sparsity_threshold: AF threshold above which to use dense genotype vectors in rotation (advanced).
+        :param float sparsity_threshold: Genotype vector sparsity below which to use sparse genotype vector in rotation (advanced).
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`

@@ -51,18 +51,22 @@ object LinearRegression {
 
     vds.mapAnnotations { case (v, va, gs) =>
 
-      val optStats: Option[(Vector[Double], Double, Double)] =
-        if (useDosages)
-          RegressionUtils.toLinregDosageStats(gs, yBc.value, sampleMaskBc.value, combinedMinAC)
-        else
-          RegressionUtils.toLinregHardCallStats(gs, yBc.value, sampleMaskBc.value, combinedMinAC)
+      val (x: Vector[Double], isValid: Boolean) =
+        if (useDosages) {
+          val (x, mean) = RegressionUtils.dosageStats(gs, Some(sampleMaskBc.value), n)
+          (x, n * mean >= combinedMinAC)
+        }
+        else {
+          val (x, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, Some(sampleMaskBc.value))
+          val ac = nHet + 2 * nHomVar
+          (x, !(ac < combinedMinAC || ac == 2 * (n - nMissing) || (ac == (n - nMissing) && x.forall(_ == 1))))
+        }
 
-      val linregAnnot = optStats.map { case (x, xx, xy) =>
-
+      val linregAnnot = if (isValid) {
         val qtx = QtBc.value * x
         val qty = QtyBc.value
-        val xxp: Double = xx - (qtx dot qtx)
-        val xyp: Double = xy - (qtx dot qty)
+        val xxp: Double = (x dot x) - (qtx dot qtx)
+        val xyp: Double = (x dot y) - (qtx dot qty)
         val yyp: Double = yypBc.value
 
         val b = xyp / xxp
@@ -71,7 +75,8 @@ object LinearRegression {
         val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 
         Annotation(b, se, t, p)
-      }.orNull
+      } else
+        null
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))
