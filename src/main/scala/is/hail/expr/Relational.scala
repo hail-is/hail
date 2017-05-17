@@ -68,7 +68,7 @@ object NewAST {
   def genericRewriteTopDown(ast: NewAST, rule: PartialFunction[NewAST, NewAST]): NewAST = {
     def rewrite(ast: NewAST): NewAST = {
       rule.lift(ast) match {
-        case Some(newAST) if newAST ne ast =>
+        case Some(newAST) if newAST != ast =>
           rewrite(newAST)
         case None =>
           val newChildren = ast.children.map(rewrite)
@@ -100,7 +100,7 @@ object NewAST {
           ast.copy(newChildren)
 
       rule.lift(rewritten) match {
-        case Some(newAST) if newAST ne rewritten =>
+        case Some(newAST) if newAST != rewritten =>
           rewrite(newAST)
         case None =>
           rewritten
