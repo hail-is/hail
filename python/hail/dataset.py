@@ -2360,15 +2360,15 @@ class VariantDataset(object):
 
         .. math::
 
-            {\\rho}_{x,y} = \\frac{\\mathrm{Cov}(X,Y)}{\\sigma_X \\sigma_Y}
+            {\\rho}_{x_i,x_j} = \\frac{\\mathrm{Cov}(X_i,X_j)}{\\sigma_{X_i} \\sigma_{X_j}}
             
             
         Also note that variants with zero variance (:math:`{\\sigma = 0}`) will be dropped from the matrix. 
 
         .. caution::
 
-          The matrix returned by this function can easily be very large. Most likely you'll want to downsample or filter variants 
-          in some way before calling this unless your dataset is very small.
+          The matrix returned by this function can easily be very large with most entries near zero (for example, entries between variants on different chromosomes in a homogenous population).
+          Most likely you'll want to use :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, :py:meth:`.ld_prune`, or something similar before calling this unless your dataset is very small.
 
         :return: Matrix of r values between pairs of variants.
         :rtype: :py:class:`LDMatrix`

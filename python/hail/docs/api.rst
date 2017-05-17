@@ -21,6 +21,7 @@ introduction to using this API to analyze genetic data.
     hail.VariantDataset
     hail.KeyTable
     hail.KinshipMatrix
+    hail.LDMatrix
 
 
 .. rubric:: Modules
