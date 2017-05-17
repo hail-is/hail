@@ -53,8 +53,6 @@ object LinearRegressionBurden {
 
     info(s"Running linear regression burden test for ${sampleKT.count} keys on $n samples with $k ${ plural(k, "covariate") } including intercept...")
 
-    val emptyStats = Annotation.emptyIndexedSeq(LinearRegression.schema.fields.size)
-
     val Qt = qr.reduced.justQ(cov).t
     val Qty = Qt * y
 
@@ -66,24 +64,18 @@ object LinearRegressionBurden {
 
     val linregRDD = sampleKT.mapAnnotations { keyedRow =>
       val key = keyedRow.get(0)
+      val x = RegressionUtils.keyedRowToVectorDouble(keyedRow)
+      val qtx = QtBc.value * x
+      val xxp: Double = (x dot x) - (qtx dot qtx)
+      val xyp: Double = (x dot y) - (qtx dot QtyBc.value)
+      val yyp: Double = yypBc.value
 
-      RegressionUtils.statsKeyedRow(keyedRow, y) match {
-        case Some((x, xx, xy)) =>
-          val qtx = QtBc.value * x
-          val qty = QtyBc.value
-          val xxp: Double = xx - (qtx dot qtx)
-          val xyp: Double = xy - (qtx dot qty)
-          val yyp: Double = yypBc.value
+      val b = xyp / xxp
+      val se = math.sqrt((yyp / xxp - b * b) / d)
+      val t = b / se
+      val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 
-          val b = xyp / xxp
-          val se = math.sqrt((yyp / xxp - b * b) / d)
-          val t = b / se
-          val p = 2 * T.cumulative(-math.abs(t), d, true, false)
-
-          Row(key, b, se, t, p)
-        case None =>
-          Row(key +: emptyStats)
-      }
+      Row(key, b, se, t, p)
     }
 
     val linregSignature = TStruct(keyName -> keyType).merge(LinearRegression.schema)._1

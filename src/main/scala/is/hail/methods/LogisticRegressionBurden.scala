@@ -73,21 +73,12 @@ object LogisticRegressionBurden {
     val logRegTestBc = sc.broadcast(logRegTest)
 
     val (logregSignature, merger) = TStruct(keyName -> keyType).merge(logRegTest.schema.asInstanceOf[TStruct])
-    val emptyStats = logRegTest.emptyStats
 
     val logregRDD = sampleKT.rdd.mapPartitions({ it =>
       val X = XBc.value.copy
       it.map { keyedRow =>
-        val key = Row(keyedRow.get(0))
-        val isNotDegenerate =  RegressionUtils.setLastColumnToKeyedRow(X, keyedRow)
-
-        val logregAnnot =
-          if (isNotDegenerate)
-            merger(key, logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation)
-          else
-            merger(key, emptyStats)
-
-        logregAnnot.asInstanceOf[Row]
+        X(::, -1) := RegressionUtils.keyedRowToVectorDouble(keyedRow)
+        merger(Row(keyedRow.get(0)), logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation).asInstanceOf[Row]
       }
     })
 

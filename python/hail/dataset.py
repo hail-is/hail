@@ -2438,16 +2438,16 @@ class VariantDataset(object):
         such as when all genotypes are homozygous reference. One can further
         restrict computation to those variants with at least :math:`k` observed
         alternate alleles (AC) or alternate allele frequency (AF) at least
-        :math:`p` in the included samples using the options ``minac=k`` or
-        ``minaf=p``, respectively. Unlike the :py:meth:`.filter_variants_expr`
+        :math:`p` in the included samples using the options ``min_ac=k`` or
+        ``min_af=p``, respectively. Unlike the :py:meth:`.filter_variants_expr`
         method, these filters do not remove variants from the underlying
-        variant dataset. Adding both filters is equivalent to applying the more
-        stringent of the two, as AF equals AC over twice the number of included
-        samples.
+        variant dataset; rather the linear regression annotations for variants with
+        low AC or AF are set to missing. Adding both filters is equivalent to applying
+        the more stringent of the two.
 
         Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`__ without identifiers, such as:
 
-        >>> vds_result = vds.linreg('if (sa.pheno.isFemale) sa.pheno.age else (2 * sa.pheno.age + 10)', covariates=[])
+        >>> vds_result = vds.linreg('if (sa.pheno.isFemale) sa.pheno.age else (2 * sa.pheno.age + 10)')
 
         For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
 
@@ -2819,7 +2819,8 @@ class VariantDataset(object):
         | ``va.lmmreg.pval``     | Double | :math:`p`-value                                                         |
         +------------------------+--------+-------------------------------------------------------------------------+
 
-        Those variants that don't vary across the included samples (e.g., all genotypes are HomRef) will have missing annotations.
+        :py:meth:`.lmmreg` skips variants that don't vary across the included samples,
+        such as when all genotypes are homozygous reference.
 
         The simplest way to export all resulting annotations is:
 
@@ -3067,6 +3068,9 @@ class VariantDataset(object):
         The Firth test reduces bias from small counts and resolves the issue of separation by penalizing maximum likelihood estimation by the `Jeffrey's invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This test is slower, as both the null and full model must be fit per variant, and convergence of the modified Newton method is linear rather than quadratic. For Firth, 100 iterations are attempted for the null model and, if that is successful, for the full model as well. In testing we find 20 iterations nearly always suffices. If the null model fails to converge, then the ``sa.lmmreg.fit`` annotations reflect the null model; otherwise, they reflect the full model.
 
         See `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__ for an empirical comparison of the logistic Wald, LRT, score, and Firth tests. The theoretical foundations of the Wald, likelihood ratio, and score tests may be found in Chapter 3 of Gesine Reinert's notes `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`__.  Firth introduced his approach in `Bias reduction of maximum likelihood estimates, 1993 <http://www2.stat.duke.edu/~scs/Courses/Stat376/Papers/GibbsFieldEst/BiasReductionMLE.pdf>`__. Heinze and Schemper further analyze Firth's approach in `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
+
+        :py:meth:`.logreg` skips variants that don't vary across the included samples,
+        such as when all genotypes are homozygous reference.
 
         Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`__ without identifiers, such as:
 

@@ -149,8 +149,8 @@ class LDPruneSuite extends SparkSuite {
         val gs2 = convertGtsToGs(v2)
         val bv1 = LDPrune.toBitPackedVector(gs1.hardCallIterator, nSamples)
         val bv2 = LDPrune.toBitPackedVector(gs2.hardCallIterator, nSamples)
-        val sgs1 = RegressionUtils.toNormalizedGtArray(gs1, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
-        val sgs2 = RegressionUtils.toNormalizedGtArray(gs2, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs1 = RegressionUtils.normalizedHardCalls(gs1, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs2 = RegressionUtils.normalizedHardCalls(gs2, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {
           case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>

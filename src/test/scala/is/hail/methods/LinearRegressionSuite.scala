@@ -3,8 +3,6 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.TestUtils._
 import is.hail.annotations.Annotation
-import is.hail.expr.TDouble
-import is.hail.annotations.Querier
 import is.hail.expr.{TDouble, TString}
 import is.hail.io.plink.FamFileConfig
 import is.hail.keytable.KeyTable
