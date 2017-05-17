@@ -1,4 +1,3 @@
-from decorator import decorator
 from hail.typecheck import *
 
 from pyspark.mllib.linalg.distributed import IndexedRowMatrix
@@ -61,7 +60,7 @@ class KinshipMatrix:
         self._jkm.exportGctaGrm(output)
 
     @typecheck_method(output=strlike,
-                      opt_n_file=oneof(none, strlike))
+                      opt_n_file=nullable(strlike))
     def export_gcta_grm_bin(self, output, opt_n_file=None):
         """
         Export kinship matrix as .grm.bin file or as .grm.N.bin file, depending on whether an N file is specified. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
