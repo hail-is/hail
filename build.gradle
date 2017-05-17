@@ -194,20 +194,22 @@ test {
 
 test.dependsOn(checkSettings)
 
-task testTypecheck(type: Exec) {
-    commandLine 'python', '-m', 'unittest', 'hail.typecheck.tests'
-    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-}
-
-task testPython(type: Exec, dependsOn: ['shadowJar', 'testTypecheck']) {
-     commandLine 'python', '-m', 'unittest', 'hail.tests'
-
+task testPython(type: Exec, dependsOn: shadowJar) {
+     commandLine 'python', '-m', 'unittest', 'hail.typecheck.tests', 'hail.tests.tests', 'hail.tests.tests_v0_1_cf0e0137a'
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-task testAll(dependsOn: ['testPython', 'test'])
+task doctest_v0_1(type: Exec, dependsOn: shadowJar) {
+    workingDir 'python/hail/docs/'
+    commandLine 'python', 'scripts/doctest_v0_1_cf0e0137a.py'
+    environment SPARK_HOME: sparkHome
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
+}
+
+task testAll(dependsOn: ['testPython', 'test', 'doctest_v0_1'])
 
 tasks.withType(ShadowJar) {
     manifest {
