@@ -133,7 +133,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
 
     val probabilityIterator = new BgenProbabilityIterator(reader, nBitsPerProb)
 
-    val sampleProbs = new ArrayUInt(new Array[Int](nGenotypes))
+    val sampleProbs = ArrayUInt(nGenotypes)
 
     val totalProbInt = ((1L << nBitsPerProb) - 1).toUInt
     val noCall = new DosageGenotype(-1, null)
@@ -150,13 +150,13 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
           while (i < nGenotypes - 1) {
             assert(probabilityIterator.hasNext, "Did not decode bytes correctly. Ran out of probabilities.")
             val p = probabilityIterator.next()
-            sampleProbs.update(i, p)
+            sampleProbs(i) = p
             i += 1
             sumProbInt += p
           }
 
           assert(sumProbInt <= totalProbInt, "Sum of probabilities is greater than 1.")
-          sampleProbs.update(i, totalProbInt - sumProbInt)
+          sampleProbs(i) = totalProbInt - sumProbInt
 
           val gt = if (samplePloidy(sampleIndex) < 0)
             noCall

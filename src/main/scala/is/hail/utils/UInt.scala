@@ -13,7 +13,7 @@ object UInt {
     new UInt(l.toInt)
   }
 
-  def applyUnchecked(i: Int): UInt = new UInt(i)
+  def uintFromRep(i: Int): UInt = new UInt(i)
 
   implicit val numeric: Numeric[UInt] = new Numeric[UInt] {
     override def plus(x: UInt, y: UInt): UInt = x + y
@@ -52,52 +52,52 @@ class UInt private(val i: Int) extends AnyVal {
 
   def intRep: Int = i
 
-  def +(right: UInt)(implicit uct: ClassTag[UInt]): UInt = UInt(toLong + right.toLong)
+  def +(right: UInt, dummy: Boolean = false): UInt = UInt(toLong + right.toLong)
   def +(right: Int): UInt = UInt(toLong + right)
   def +(right: Double): Double = toDouble + right
   def +(right: Long): Long = toLong + right
 
-  def -(right: UInt)(implicit uct: ClassTag[UInt]): UInt = UInt(toLong - right.toLong)
+  def -(right: UInt, dummy: Boolean = false): UInt = UInt(toLong - right.toLong)
   def -(right: Int): UInt = UInt(toLong - right)
   def -(right: Double): Double = toDouble - right
   def -(right: Long): Long = toLong - right
 
-  def *(right: UInt)(implicit uct: ClassTag[UInt]): UInt = UInt(toLong * right.toLong)
+  def *(right: UInt, dummy: Boolean = false): UInt = UInt(toLong * right.toLong)
   def *(right: Int): UInt = UInt(toLong * right)
   def *(right: Double): Double = toDouble * right
   def *(right: Long): Long = toLong * right
 
-  def /(right: UInt)(implicit uct: ClassTag[UInt]): UInt = UInt(toLong / right.toLong)
+  def /(right: UInt, dummy: Boolean = false): UInt = UInt(toLong / right.toLong)
   def /(right: Int): UInt = UInt(toLong / right)
   def /(right: Double): Double = toDouble / right
   def /(right: Long): Long = toLong / right
 
-  def <=(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong <= right.toLong
+  def <=(right: UInt, dummy: Boolean = false): Boolean = toLong <= right.toLong
   def <=(right: Int): Boolean = toLong <= right
   def <=(right: Double): Boolean = toDouble <= right
   def <=(right: Long): Boolean = toLong <= right
 
-  def >=(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong >= right.toLong
+  def >=(right: UInt, dummy: Boolean = false): Boolean = toLong >= right.toLong
   def >=(right: Int): Boolean = toLong >= right
   def >=(right: Double): Boolean = toDouble >= right
   def >=(right: Long): Boolean = toLong >= right
 
-  def <(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong < right.toLong
+  def <(right: UInt, dummy: Boolean = false): Boolean = toLong < right.toLong
   def <(right: Int): Boolean = toLong < right
   def <(right: Double): Boolean = toDouble < right
   def <(right: Long): Boolean = toLong < right
 
-  def >(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong > right.toLong
+  def >(right: UInt, dummy: Boolean = false): Boolean = toLong > right.toLong
   def >(right: Int): Boolean = toLong > right
   def >(right: Double): Boolean = toDouble > right
   def >(right: Long): Boolean = toLong > right
 
-  def ==(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong == right.toLong
-  def ==(right: Int): Boolean = toLong == right.toLong
+  def ==(right: UInt, dummy: Boolean = false): Boolean = toLong == right.toLong
+  def ==(right: Int): Boolean = toLong == right
   def ==(right: Double): Boolean = toDouble == right
   def ==(right: Long): Boolean = toLong == right
 
-  def !=(right: UInt)(implicit uct: ClassTag[UInt]): Boolean = toLong != right.toLong
+  def !=(right: UInt, dummy: Boolean = false): Boolean = toLong != right.toLong
   def !=(right: Int): Boolean = toLong != right
   def !=(right: Double): Boolean = toDouble != right
   def !=(right: Long): Boolean = toLong != right
@@ -116,8 +116,15 @@ class UInt private(val i: Int) extends AnyVal {
   override def toString: String = toLong.toString
 }
 
+object ArrayUInt {
+  def apply(n: Int): ArrayUInt = {
+    val a = new Array[Int](n)
+    new ArrayUInt(a)
+  }
+}
+
 class ArrayUInt(val a: Array[Int]) extends AnyVal {
-  def apply(i: Int): UInt = UInt.applyUnchecked(a(i))
+  def apply(i: Int): UInt = UInt.uintFromRep(a(i))
 
   def update(i: Int, x: UInt) {
     a(i) = x.intRep
