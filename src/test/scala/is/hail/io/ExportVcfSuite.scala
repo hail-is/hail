@@ -1,6 +1,6 @@
 package is.hail.io
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
@@ -150,6 +150,21 @@ class ExportVcfSuite extends SparkSuite {
     intercept[HailException] {
       val sb = new StringBuilder()
       ExportVCF.strVCF(sb, TLong, 3147483647L)
+    }
+  }
+
+  @Test def testErrors() {
+    val out = tmpDir.createLocalTempFile("foo", "vcf")
+    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
+      hc.importVCF("src/test/resources/sample2.vcf")
+        .annotateVariantsExpr("va.info.foo = [[1]]")
+        .exportVCF(out)
+    }
+
+    TestUtils.interceptFatal("INFO field 'foo': VCF does not support type") {
+      hc.importVCF("src/test/resources/sample2.vcf")
+        .annotateVariantsExpr("va.info.foo = v")
+        .exportVCF(out)
     }
   }
 }
