@@ -365,6 +365,7 @@ class VSMSuite extends SparkSuite {
 
     interceptFatal("missing partitioner") {
       hc.readVDS(path)
+        .countVariants() // force execution
     }
 
     hc.writePartitioning(path)
