@@ -44,6 +44,9 @@ class Env:
 
 
 def jarray(jtype, lst):
+    if not isinstance(lst, list):
+        raise FatalError(str(lst) + ' is not an array')
+        
     jarr = Env.gateway().new_array(jtype, len(lst))
     for i, s in enumerate(lst):
         jarr[i] = s
