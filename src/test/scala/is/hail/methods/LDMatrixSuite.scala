@@ -54,19 +54,15 @@ class LDMatrixSuite extends SparkSuite {
     val genotypes: DenseMatrix[Int] = DenseMatrix((0, 2, 1),
                                                   (1, 0, 0))
 
-
-    //Normalize genotype matrix
     def localLDCompute(G: DenseMatrix[Int]): DenseMatrix[Double] = {
-      val W = convert(G, Double)
+      val W = convert(G, Double).t
 
-      // each row has mean 0, norm sqrt(n), variance 1
       for (i <- 0 until W.cols) {
         W(::, i) -= mean(W(::, i))
         W(::, i) *= math.sqrt(n) / norm(W(::, i))
       }
 
-      val nSamples = W.cols
-      val ld = (W * W.t) / nSamples.toDouble
+      val ld = (W.t * W) / n.toDouble
       ld
     }
 
@@ -76,10 +72,6 @@ class LDMatrixSuite extends SparkSuite {
     val distLdSpark = vds.ldMatrix().matrix.toBlockMatrix().toLocalMatrix()
     println(distLdSpark.numRows)
     val distLDBreeze = new DenseMatrix[Double](distLdSpark.numRows, distLdSpark.numCols, distLdSpark.toArray)
-
-    println(distLDBreeze)
-    println()
-    println(localLD)
 
     TestUtils.assertMatrixEqualityDouble(distLDBreeze, localLD, tolerance = 1)
 
