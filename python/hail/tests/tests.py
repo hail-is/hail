@@ -412,7 +412,7 @@ class ContextTests(unittest.TestCase):
                        .variants_table()
                        .collect())
 
-        VariantDataset.from_table(sample.variants_table)
+        VariantDataset.from_table(sample.variants_table())
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
