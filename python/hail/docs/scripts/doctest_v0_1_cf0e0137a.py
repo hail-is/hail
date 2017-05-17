@@ -29,6 +29,34 @@ vds = hc.balding_nichols_model(4, 40, 150, 10,
                                af_dist=TruncatedBetaDist(a=0.01, b=2.0, minVal=0.05, maxVal=1.0),
                                seed=1)
 
+hc.grep('hello','data/file.txt')
+
+hc.grep('\d', ['data/file1.txt','data/file2.txt'])
+
+vds = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
+
+(hc.import_gen('data/example.gen', sample_file='data/example.sample')
+   .write('output/gen_example1.vds'))
+
+(hc.import_gen('data/example.chr*.gen', sample_file='data/example.sample')
+   .write('output/gen_example2.vds'))
+
+vds = hc.import_plink(bed="data/test.bed",
+                      bim="data/test.bim",
+                      fam="data/test.fam")
+
+table = hc.import_table('data/samples2.tsv', delimiter=',', missing='.')
+
+annotations = (hc.import_table('data/samples3.tsv', no_header=True)
+                  .annotate('sample = f0.split("_")[1]')
+                  .key_by('sample'))
+
+vds = hc.import_vcf('data/example2.vcf.bgz')
+
+pass_vds = vds.filter_variants_expr('va.filters.isEmpty()', keep=True)
+
+hc.index_bgen("data/example3.bgen")
+
 import shutil, os
 
 hc.stop()
@@ -284,6 +312,35 @@ kt_result = kt1.key_by([])
 
 kt1.num_columns
 
+mean_value = kt1.query('C1.stats().mean')
+
+[hist, counter] = kt1.query(['HT.hist(50, 80, 10)', 'SEX.counter()'])
+
+fraction_tall_male = kt1.query('HT.filter(x => SEX == "M").fraction(x => x > 70)')
+
+ids = kt1.query('ID.filter(x => C2 < C3).collect()')
+
+mean_value, t = kt1.query_typed('C1.stats().mean')
+
+[hist, counter], [t1, t2] = kt1.query_typed(['HT.hist(50, 80, 10)', 'SEX.counter()'])
+
+kt2.rename(['newColumn1', 'newColumn2', 'newColumn3'])
+
+kt2.rename({'A' : 'C1'})
+
+if kt1.same(kt2):
+    print("KeyTables are the same!")
+
+print(kt1.schema)
+
+kt_result = kt1.select(['C1'])
+
+kt_result = kt1.select(['C3', 'C1', 'C2'])
+
+kt_result = kt1.select([])
+
+kt1.write('output/kt1.kt')
+
 import shutil, os
 
 hc.stop()
@@ -537,6 +594,35 @@ from hail import *
 hc = HailContext()
 
 hc.import_vcf('../../../src/test/resources/sample.vcf').write('sample.vds')
+
+vds = (hc.read('sample.vds')
+    .split_multi()
+    .sample_qc()
+    .variant_qc())
+
+vds.export_variants('variantqc.tsv', 'Variant = v, va.qc.*')
+
+vds.write('sample.qc.vds')
+
+vds.count()
+
+vds.summarize().report()
+
+print('sample annotation schema:')
+
+print(vds.sample_schema)
+
+print('\nvariant annotation schema:')
+
+print(vds.variant_schema)
+
+(vds.filter_variants_expr('v.altAllele().isSNP() && va.qc.gqMean >= 20')
+    .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15')
+    .filter_genotypes('let ab = g.ad[1] / g.ad.sum() in '
+                      '((g.isHomRef() && ab <= 0.1) || '
+                      ' (g.isHet() && ab >= 0.25 && ab <= 0.75) || '
+                      ' (g.isHomVar() && ab >= 0.9))')
+    .write('sample.filtered.vds'))
 
 import shutil, os
 
@@ -975,6 +1061,98 @@ vds_result = vds.pca('sa.scores')
 vds_result = vds.pca('sa.scores', 'va.loadings', 'global.evals', 5, as_array=True)
 
 vds_result = vds.persist()
+
+gq_hist = vds.query_genotypes('gs.map(g => g.gq).hist(0, 100, 100)')
+
+call_rate = vds.query_genotypes('gs.fraction(g => g.isCalled)')
+
+[gq_hist, dp_hist] = vds.query_genotypes(['gs.map(g => g.gq).hist(0, 100, 100)',
+                                                    'gs.map(g => g.dp).hist(0, 60, 60)'])
+
+gq_hist, t = vds.query_genotypes_typed('gs.map(g => g.gq).hist(0, 100, 100)')
+
+[gq_hist, dp_hist], [t1, t2] = vds.query_genotypes_typed(['gs.map(g => g.gq).hist(0, 100, 100)',
+                                                          'gs.map(g => g.dp).hist(0, 60, 60)'])
+
+result1 = vds.query_genotypes('gs.count()')
+
+result2 = vds.query_genotypes('gs.filter(g => v.altAllele.isSNP() && g.isHet).count()')
+
+exprs = ['gs.count()', 'gs.filter(g => v.altAllele.isSNP() && g.isHet).count()']
+
+[geno_count, snp_hets] = vds.query_genotypes(exprs)
+
+low_callrate_samples = vds.query_samples('samples.filter(s => sa.qc.callRate < 0.95).collect()')
+
+low_callrate_samples, t = vds.query_samples_typed(
+   'samples.filter(s => sa.qc.callRate < 0.95).collect()')
+
+lof_variant_count = vds.query_variants('variants.filter(v => va.consequence == "LOF").count()')
+
+[lof_variant_count, missense_count] = vds.query_variants([
+    'variants.filter(v => va.consequence == "LOF").count()',
+    'variants.filter(v => va.consequence == "Missense").count()'])
+
+exprs = ['variants.count()', 'variants.filter(v => v.altAllele.isSNP()).count()']
+
+[num_variants, num_snps] = vds.query_variants(exprs)
+
+result1 = vds.query_variants('variants.count()')
+
+result2 = vds.query_variants('variants.filter(v => v.altAllele.isSNP()).count()')
+
+lof_variant_count, t = vds.query_variants_typed(
+    'variants.filter(v => va.consequence == "LOF").count()')
+
+[lof_variant_count, missense_count], [t1, t2] = vds.query_variants_typed([
+    'variants.filter(v => va.consequence == "LOF").count()',
+    'variants.filter(v => va.consequence == "Missense").count()'])
+
+vds_result = vds.rename_samples({'ID1': 'id1', 'ID2': 'id2'})
+
+vds_result = vds.repartition(500)
+
+kinship_matrix = vds.rrm()
+
+vds.same(vds)
+
+print(vds.sample_schema)
+
+small_vds = vds.sample_variants(0.01)
+
+annotated_vds = vds.annotate_variants_expr([
+'va.info.AC_HC = gs.filter(g => g.dp >= 10 && g.gq >= 20).callStats(g => v).AC[1:]',
+'va.filters = if((v.altAllele.isSNP && (va.info.QD < 2.0 || va.info.FS < 60 || va.info.MQ < 40 || ' +
+'va.info.MQRankSum < -12.5 || va.info.ReadPosRankSum < -8.0)) || ' +
+'(va.info.QD < 2.0 || va.info.FS < 200.0 || va.info.ReadPosRankSum < 20.0)) va.filters.add("HardFilter") else va.filters'])
+
+vds.split_multi().write('output/split.vds')
+
+vds_result = (vds.split_multi()
+    .filter_variants_expr('va.info.AC[va.aIndex - 1] < 10', keep = False))
+
+(vds.split_multi()
+    .annotate_variants_expr('va.info.AC = va.info.AC[va.aIndex - 1]')
+    .export_vcf('output/export.vcf'))
+
+s = vds.summarize()
+
+print(s.contigs)
+
+print('call rate is %.2f' % s.call_rate)
+
+s.report()
+
+pedigree = Pedigree.read('data/trios.fam')
+
+(vds.tdt(pedigree)
+    .export_variants("output/tdt_results.tsv", "Variant = v, va.tdt.*"))
+
+vds_result = vds.variant_qc()
+
+print(vds.variant_schema)
+
+vds.write("output/sample.vds")
 
 import shutil, os
 
