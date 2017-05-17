@@ -141,11 +141,14 @@ object LinearMixedRegression {
 
       vds2.mapAnnotations { case (v, va, gs) =>
         val (x0, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, Some(sampleMaskBc.value))
+        val ac = nHet + 2 * nHomVar
+        val nPresent = n - nMissing
+        val isValid = !(ac == 0 || ac == 2 * nPresent || (ac == nPresent && x0.forall(_ == 1)))
 
         val lmmregAnnot =
-          if (nMissing < n) {
+          if (isValid) {
             val x: Vector[Double] = {
-              val sparsity = (nHet + nHomVar + nMissing) / (n - nMissing)
+              val sparsity = (nHet + nHomVar + nMissing).toDouble / n
               if (sparsity <= sparsityThreshold)
                 x0
               else
