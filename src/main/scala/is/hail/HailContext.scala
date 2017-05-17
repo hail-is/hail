@@ -435,10 +435,10 @@ class HailContext private(val sc: SparkContext,
       VariantSampleMatrix.read(this, input, dropSamples = dropSamples, dropVariants = dropVariants)
     }
 
-    checkDatasetSchemasCompatible(vsms, inputs)
-
     if (vsms.length == 1)
       return vsms(0)
+
+    checkDatasetSchemasCompatible(vsms, inputs)
 
     // I can't figure out how to write this with existentials -cs
     if (vsms(0).isGenericGenotype) {

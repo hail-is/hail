@@ -378,28 +378,20 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) =
     this(hc, fileMetadata.metadata, fileMetadata.localValue, rdd)
 
-  lazy val value = {
+  val VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype) = metadata
+
+  lazy val value: MatrixValue[T] = {
     val opt = MatrixAST.optimize(ast)
     opt.execute(hc)
   }
 
-  def globalAnnotation: Annotation = value.localValue.globalAnnotation
-
-  def sampleIds: IndexedSeq[String] = value.localValue.sampleIds
-
-  def sampleAnnotations: IndexedSeq[Annotation] = value.localValue.sampleAnnotations
-
-  def rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])] = value.rdd
+  lazy val MatrixValue(VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd) = value
 
   type RowT = (Variant, (Annotation, Iterable[T]))
 
   lazy val sampleIdsBc = sparkContext.broadcast(sampleIds)
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
-
-  def genotypeSignature = metadata.genotypeSignature
-
-  def isGenericGenotype: Boolean = metadata.isGenericGenotype
 
   /**
     * Aggregate by user-defined key and aggregation expressions.
@@ -648,8 +640,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
   def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
     globalSignature.insert(sig, path)
   }
-
-  def globalSignature: Type = metadata.globalSignature
 
   def annotateSamples(signature: Type, path: List[String], annotation: (String) => Annotation): VariantSampleMatrix[T] = {
     val (t, i) = insertSA(signature, path)
@@ -1470,8 +1460,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     vaSignature.insert(sig, path)
   }
 
-  def isLinearScale: Boolean = metadata.isLinearScale
-
   /**
     *
     * @param right right-hand dataset with which to join
@@ -1795,8 +1783,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     (t, f2)
   }
 
-  def vaSignature: Type = metadata.vaSignature
-
   def queryVariants(expr: String): (Annotation, Type) = {
     val qv = queryVariants(Array(expr))
     assert(qv.length == 1)
@@ -1940,10 +1926,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       "sa" -> (2, saSignature),
       "gs" -> (3, TAggregable(genotypeSignature, aggregationST))))
   }
-
-  def saSignature: Type = metadata.saSignature
-
-  def wasSplit: Boolean = metadata.wasSplit
 
   def sampleAnnotationsSimilar(that: VariantSampleMatrix[T], tolerance: Double = utils.defaultTolerance): Boolean = {
     require(saSignature == that.saSignature)
