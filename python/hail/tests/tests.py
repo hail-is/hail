@@ -5,7 +5,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext, KeyTable
+from hail import HailContext, KeyTable, VariantDataset
 from hail.representation import *
 
 from hail.expr import *
@@ -411,6 +411,8 @@ class ContextTests(unittest.TestCase):
                        .annotate_variants_expr('va.hets = gs.filter(g => g.isHet).collect()')
                        .variants_table()
                        .collect())
+
+        VariantDataset.from_table(sample.variants_table())
 
     def test_keytable(self):
         test_resources = 'src/test/resources'
