@@ -146,6 +146,22 @@ class AggregatorSuite extends SparkSuite {
     assert(ktMin.collect() == IndexedSeq(Row("a", -1, -2, 1, -2, -1, 1, 1, null, -1l, -1f, -1d)))
   }
 
+  @Test def testProduct() {
+    val rdd = sc.parallelize(Seq(
+      Row("a",  0, null,    1, 1, null, null, 10, null,  0l,  2f,  0d),
+      Row("a", -1,   -1, null, 2, null,    1,  4, null, -1l, -1f, -1d),
+      Row("a",  1,   -2,    2, 3,   -1,   -3,  2, null,  1l,  2f,  1d)), numSlices = 2)
+
+    val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt))
+      ++ IndexedSeq("s8" -> TLong, "s9" -> TFloat, "s10" -> TDouble): _*)
+
+    val ktProduct = new KeyTable(hc, rdd, signature)
+      .aggregate("group = group", ((0 until 11).map(i => s"s$i = s$i.product()") :+ ("empty = s10.filter(x => false).product()")).mkString(","))
+
+    assert(ktProduct.collect() == IndexedSeq(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4 d, 0d, 1d)))
+
+  }
+
   @Test def testHist() {
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
 
