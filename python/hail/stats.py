@@ -1,9 +1,12 @@
 from hail.java import Env
+from hail.typecheck import *
 
 class BetaDist:
     """
     Represents a beta distribution with parameters a and b.
     """
+    @typecheck_method(a=numeric,
+                      b=numeric)
     def __init__(self, a, b):
         self.a = a
         self.b = b
@@ -17,6 +20,8 @@ class UniformDist:
     """
     Represents a uniform distribution on the interval [minVal, maxVal].
     """
+    @typecheck_method(minVal=numeric,
+                      maxVal=numeric)
     def __init__(self, minVal, maxVal):
         if minVal >= maxVal:
             raise ValueError("min must be less than max")
@@ -31,6 +36,10 @@ class TruncatedBetaDist:
     Represents a truncated beta distribution with parameters a and b and support [minVal, maxVal]. Draws are made
     via rejection sampling, which may be slow if the probability mass of Beta(a,b) over [minVal, maxVal] is small.
     """
+    @typecheck_method(a=numeric,
+                      b=numeric,
+                      minVal=numeric,
+                      maxVal=numeric)
     def __init__(self, a, b, minVal, maxVal):
         if minVal >= maxVal:
             raise ValueError("min must be less than max")

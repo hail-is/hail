@@ -1,6 +1,7 @@
 import io
 
 from hail.java import Env, handle_py4j, jiterable_to_list
+from hail.typecheck import *
 
 
 class Summary(object):
@@ -88,6 +89,8 @@ class FunctionDocumentation(object):
 
 
 @handle_py4j
+@typecheck(path=strlike,
+           buffer_size=integral)
 def hadoop_read(path, buffer_size=8192):
     """Open a readable file through the Hadoop filesystem API. 
     Supports distributed file systems like hdfs, gs, and s3.
@@ -127,6 +130,8 @@ def hadoop_read(path, buffer_size=8192):
 
 
 @handle_py4j
+@typecheck(path=strlike,
+           buffer_size=integral)
 def hadoop_write(path, buffer_size=8192):
     """Open a writable file through the Hadoop filesystem API. 
     Supports distributed file systems like hdfs, gs, and s3.
@@ -164,6 +169,8 @@ def hadoop_write(path, buffer_size=8192):
 
 
 @handle_py4j
+@typecheck(src=strlike,
+           dest=strlike)
 def hadoop_copy(src, dest):
     """Copy a file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
