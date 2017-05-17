@@ -813,6 +813,12 @@ object FunctionRegistry {
   registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Float]) => x.sum }, sumDocstring)
   registerUnaryNAFilteredCollectionMethod("sum", { (x: TraversableOnce[Double]) => x.sum }, sumDocstring)
 
+  val productDocstring = "Product of all elements in the collection (returns 1 if empty)."
+  registerUnaryNAFilteredCollectionMethod("product", { (x: TraversableOnce[Int]) => x.product }, productDocstring)
+  registerUnaryNAFilteredCollectionMethod("product", { (x: TraversableOnce[Long]) => x.product }, productDocstring)
+  registerUnaryNAFilteredCollectionMethod("product", { (x: TraversableOnce[Float]) => x.product }, productDocstring)
+  registerUnaryNAFilteredCollectionMethod("product", { (x: TraversableOnce[Double]) => x.product }, productDocstring)
+
   val minDocstring = "Smallest element in the collection."
   registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Int]) => if (x.nonEmpty) box(x.min) else null }, minDocstring)(intHr, boxedintHr)
   registerUnaryNAFilteredCollectionMethod("min", { (x: TraversableOnce[Long]) => if (x.nonEmpty) box(x.min) else null }, minDocstring)(longHr, boxedlongHr)
@@ -1883,6 +1889,11 @@ object FunctionRegistry {
   registerAggregator[IndexedSeq[Double], IndexedSeq[Double]]("sum", () => new SumArrayAggregator[Double](),
     "Compute the sum by index. All elements in the aggregable must have the same length."
   )(aggregableHr(arrayHr(doubleHr)), arrayHr(doubleHr))
+
+  val productAggDocstring = """Compute the product of all non-missing elements. The empty product is one."""
+  registerAggregator[Long, Long]("product", () => new ProductAggregator[Long](), productAggDocstring)(aggregableHr(longHr), longHr)
+
+  registerAggregator[Double, Double]("product", () => new ProductAggregator[Double](), productAggDocstring)(aggregableHr(doubleHr), doubleHr)
 
   val maxAggDocstring = """Compute the maximum of all non-missing elements. The empty max is missing."""
   registerAggregator[Int, java.lang.Integer]("max", () => new MaxAggregator[Int, java.lang.Integer](), maxAggDocstring)(aggregableHr(intHr), boxedintHr)

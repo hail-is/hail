@@ -402,6 +402,24 @@ class SumAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregat
   def copy() = new SumAggregator()
 }
 
+class ProductAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggregator[T] {
+
+  import scala.math.Numeric.Implicits._
+
+  var _state: T = ev.one
+
+  def result = _state
+
+  def seqOp(x: Any) {
+    if (x != null)
+       _state *= x.asInstanceOf[T]
+  }
+
+  def combOp(agg2: this.type) = _state *= agg2._state
+
+  def copy() = new ProductAggregator()
+}
+
 class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
   extends TypedAggregator[IndexedSeq[T]] {
 
