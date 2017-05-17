@@ -23,7 +23,7 @@ class LDMatrixSuite extends SparkSuite {
     val nSamples = vds.nSamples
 
     val variantsTable = vds.rdd.map { case (v, (_, gs)) =>
-      (v, LDPrune.toBitPackedVector(gs.hardCallGenotypeIterator, nSamples))}.collectAsMap()
+      (v, LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples))}.collectAsMap()
 
 
     val indexToBPV = ldMatrix.variants.map(v => variantsTable(v).get)
@@ -73,7 +73,7 @@ class LDMatrixSuite extends SparkSuite {
     println(distLdSpark.numRows)
     val distLDBreeze = new DenseMatrix[Double](distLdSpark.numRows, distLdSpark.numCols, distLdSpark.toArray)
 
-    TestUtils.assertMatrixEqualityDouble(distLDBreeze, localLD, tolerance = 1)
+    TestUtils.assertMatrixEqualityDouble(distLDBreeze, localLD)
 
   }
 

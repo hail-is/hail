@@ -3,7 +3,6 @@ package is.hail.methods
 import is.hail.utils._
 import is.hail.stats.ToNormalizedIndexedRowMatrix
 import is.hail.variant.{Variant, VariantDataset}
-import is.hail.utils.richUtils.RichIndexedRowMatrix._
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.storage.StorageLevel
 
