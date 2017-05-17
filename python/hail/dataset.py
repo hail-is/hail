@@ -70,7 +70,7 @@ class VariantDataset(object):
 
     @staticmethod
     @handle_py4j
-    @typecheck_method(table=KeyTable)
+    @typecheck(table=KeyTable)
     def from_table(table):
         """Construct a sites-only variant dataset from a key table.
 
