@@ -214,6 +214,9 @@ class SphinxDocTestRunner(doctest.DocTestRunner):
                 continue
 
             self.code.append(example.source)
+            
+        # Restore the option flags (in case they were modified)
+        self.optionflags = original_optionflags
 
         return doctest.DocTestRunner.run(self, test, compileflags, out, clear_globs)
 
