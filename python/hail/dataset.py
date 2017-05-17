@@ -13,6 +13,7 @@ from hail.expr import Type, TGenotype, TVariant
 from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list
 from hail.kinshipMatrix import KinshipMatrix
+from hail.ldMatrix import LDMatrix
 
 warnings.filterwarnings(module=__name__, action='once')
 
@@ -2341,6 +2342,40 @@ class VariantDataset(object):
 
         jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
         return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @requireTGenotype
+    def ld_matrix(self):
+        """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
+        
+        **Examples**
+        
+        >>> ld_mat = vds.ld_matrix()
+        
+        **Notes**
+        
+        Each entry (i, j) in the LD matrix gives the :math:`r` value between variants i and j, defined as 
+        `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__ 
+        :math:`{\\rho}_{x_i,x_j}` between the two genotype vectors :math:`{\\mathbf{x_i}}` and :math:`{\\mathbf{x_j}}`.
+
+        .. math::
+
+            {\\rho}_{x_i,x_j} = \\frac{\\mathrm{Cov}(X_i,X_j)}{\\sigma_{X_i} \\sigma_{X_j}}
+            
+            
+        Also note that variants with zero variance (:math:`{\\sigma = 0}`) will be dropped from the matrix. 
+
+        .. caution::
+
+          The matrix returned by this function can easily be very large with most entries near zero (for example, entries between variants on different chromosomes in a homogenous population).
+          Most likely you'll want to use :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, :py:meth:`.ld_prune`, or something similar before calling this unless your dataset is very small.
+
+        :return: Matrix of r values between pairs of variants.
+        :rtype: :py:class:`LDMatrix`
+        """
+
+        jldm = self._jvdf.ldMatrix()
+        return LDMatrix(jldm)
 
     @handle_py4j
     @requireTGenotype
