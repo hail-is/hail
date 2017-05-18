@@ -1,3 +1,5 @@
+from hail.typecheck import *
+
 class Struct(object):
     """
     Nested annotation structure.

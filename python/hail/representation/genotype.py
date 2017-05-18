@@ -1,5 +1,5 @@
 from hail.java import *
-
+from hail.typecheck import *
 
 class Genotype(object):
     """

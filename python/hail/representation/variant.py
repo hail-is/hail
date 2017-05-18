@@ -1,5 +1,5 @@
 from hail.java import scala_object, Env, handle_py4j
-
+from hail.typecheck import *
 
 class Variant(object):
     """
