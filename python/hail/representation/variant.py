@@ -446,7 +446,7 @@ class Locus(object):
 
     @staticmethod
     @handle_py4j
-    @typecheck_method(string=strlike)
+    @typecheck(string=strlike)
     def parse(string):
         """Parses a locus object from a CHR:POS string.
 
