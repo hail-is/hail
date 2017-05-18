@@ -295,35 +295,20 @@ object RegressionUtils {
     var row = 0
     val gts = gs.dosageIterator
 
-    optMask match {
-      case Some(mask) =>
-        var i = 0
-        while (gts.hasNext) {
-          val gt = gts.next()
-          if (mask(i)) {
-            if (gt != -1) {
-              valsX(row) = gt
-              sumX += gt
-            } else {
-              nMissing += 1
-              missingRowIndices += row
-            }
-            row += 1
-          }
-          i += 1
+    var i = 0
+    while (gts.hasNext) {
+      val gt = gts.next()
+      if (optMask.isEmpty || optMask.get(i)) {
+        if (gt != -1) {
+          valsX(row) = gt
+          sumX += gt
+        } else {
+          nMissing += 1
+          missingRowIndices += row
         }
-      case None =>
-        while (gts.hasNext) {
-          val gt = gts.next()
-          if (gt != -1) {
-            valsX(row) = gt
-            sumX += gt
-          } else {
-            nMissing += 1
-            missingRowIndices += row
-          }
-          row += 1
-        }
+        row += 1
+      }
+      i += 1
     }
     assert(row == nKept)
 
@@ -331,7 +316,7 @@ object RegressionUtils {
     val meanX = if (nPresent > 0) sumX / nPresent else Double.NaN
     val missingRowIndicesArray = missingRowIndices.result()
 
-    var i = 0
+    i = 0
     while (i < missingRowIndicesArray.length) {
       valsX(missingRowIndicesArray(i)) = meanX
       i += 1
