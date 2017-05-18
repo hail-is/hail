@@ -1,8 +1,13 @@
 package is
 
+import scala.tools.nsc.interpreter.InputStream
+
 package object hail {
+
   private object HailBuildInfo {
+
     import java.util.Properties
+    import is.hail.utils._
 
     val (
       hail_build_user: String,
@@ -12,38 +17,19 @@ package object hail {
       hail_repo_url: String,
       hail_spark_version: String) = {
 
-      val resourceStream = Thread.currentThread().getContextClassLoader.
-        getResourceAsStream("build-info.properties")
-
-      try {
-        if (resourceStream == null) {
-          throw new RuntimeException("Could not read properties file build-info.properties")
-        }
-        val unknownProp = "<unknown>"
-        val props = new Properties()
-        props.load(resourceStream)
-        (
-          props.getProperty("user", unknownProp),
-          props.getProperty("revision", unknownProp),
-          props.getProperty("branch", unknownProp),
-          props.getProperty("date", unknownProp),
-          props.getProperty("url", unknownProp),
-          props.getProperty("sparkVersion", unknownProp)
-        )
-      } catch {
-        case npe: NullPointerException =>
-          throw new RuntimeException("Error while locating file build-info.properties", npe)
-        case e: Exception =>
-          throw new RuntimeException("Error loading properties from build-info.properties", e)
-      } finally {
-        if (resourceStream != null) {
-          try {
-            resourceStream.close()
-          } catch {
-            case e: Exception =>
-              throw new RuntimeException("Error closing hail build info resource stream", e)
-          }
-        }
+      loadFromResource[(String, String, String, String, String, String)]("build-info.properties") {
+        (is: InputStream) =>
+          val unknownProp = "<unknown>"
+          val props = new Properties()
+          props.load(is)
+          (
+            props.getProperty("user", unknownProp),
+            props.getProperty("revision", unknownProp),
+            props.getProperty("branch", unknownProp),
+            props.getProperty("date", unknownProp),
+            props.getProperty("url", unknownProp),
+            props.getProperty("sparkVersion", unknownProp)
+            )
       }
     }
   }

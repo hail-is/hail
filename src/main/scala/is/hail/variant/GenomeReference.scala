@@ -1,5 +1,7 @@
 package is.hail.variant
 
+import java.io.InputStream
+
 import is.hail.expr.JSONExtractGenomeReference
 import is.hail.utils._
 import org.json4s._
@@ -22,33 +24,10 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
 object GenomeReference {
   def GRCh37 = fromResource("reference/human_g1k_v37.json")
 
-  def fromResource(file: String): GenomeReference = {
-    val resourceStream = Thread.currentThread().getContextClassLoader.getResourceAsStream(file)
+  def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
 
-    try {
-      if (resourceStream == null) {
-        throw new RuntimeException(s"Could not read genome reference file `$file'.")
-      }
-
-      val json = JsonMethods.parse(resourceStream)
-
-      json.extract[JSONExtractGenomeReference].toGenomeReference
-
-    } catch {
-      case npe: NullPointerException =>
-        throw new RuntimeException(s"Error while locating file $file", npe)
-      case e: Exception =>
-        throw new RuntimeException(s"Error loading data from $file", e)
-    } finally {
-      if (resourceStream != null) {
-        try {
-          resourceStream.close()
-        } catch {
-          case e: Exception =>
-            throw new RuntimeException("Error closing hail genome reference resource stream", e)
-        }
-      }
-    }
+  def fromResource(file: String): GenomeReference = loadFromResource[GenomeReference](file) {
+    (is: InputStream) => fromJSON(JsonMethods.parse(is))
   }
 }
 
