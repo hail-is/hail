@@ -287,7 +287,9 @@ object RegressionUtils {
     }
   }
 
-  def dosageStats(gs: Iterable[Genotype], optMask: Option[Array[Boolean]], nKept: Int): (DenseVector[Double], Double) = {
+  // constructs DenseVector x of hard calls with missing values mean-imputed
+  // mask == null implies no mask
+  def dosageStats(gs: Iterable[Genotype], mask: Array[Boolean], nKept: Int): (DenseVector[Double], Double) = {
     val valsX = Array.ofDim[Double](nKept)
     val missingRowIndices = new ArrayBuilder[Int]()
     var sumX = 0d
@@ -298,7 +300,7 @@ object RegressionUtils {
     var i = 0
     while (gts.hasNext) {
       val gt = gts.next()
-      if (optMask.isEmpty || optMask.get(i)) {
+      if (mask == null || mask(i)) {
         if (gt != -1) {
           valsX(row) = gt
           sumX += gt
@@ -326,26 +328,19 @@ object RegressionUtils {
   }
 
   // constructs SparseVector x of hard calls with missing values mean-imputed
+  // mask == null implies no mask
   // returns (x, nHet, nHomVar, nMissing)
-  def hardCallStats(
-    gs: Iterable[Genotype],
-    optMask: Option[Array[Boolean]] = None): (SparseVector[Double], Int, Int, Int) = {
+  def hardCallStats(gs: Iterable[Genotype], mask: Array[Boolean]): (SparseVector[Double], Int, Int, Int) = {
 
     val sb = new HardCallBuilder()
     val gts = gs.hardCallIterator
 
-    optMask match {
-      case Some(mask) =>
-        var i = 0
-        while (gts.hasNext) {
-          val gt = gts.next()
-          if (mask(i))
-            sb.merge(gt)
-          i += 1
-        }
-      case None =>
-        while (gts.hasNext)
-          sb.merge(gts.next())
+    var i = 0
+    while (gts.hasNext) {
+      val gt = gts.next()
+      if (mask == null || mask(i))
+        sb.merge(gt)
+      i += 1
     }
 
     sb.toHardCallStats

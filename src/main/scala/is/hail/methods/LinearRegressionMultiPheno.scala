@@ -57,10 +57,10 @@ object LinearRegressionMultiPheno {
 
       val (x: Vector[Double], isValid: Boolean) =
         if (useDosages) {
-          val (x, mean) = RegressionUtils.dosageStats(gs, Some(sampleMaskBc.value), n)
+          val (x, mean) = RegressionUtils.dosageStats(gs, sampleMaskBc.value, n)
           (x, n * mean >= combinedMinAC)
         } else {
-          val (x, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, Some(sampleMaskBc.value))
+          val (x, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, sampleMaskBc.value)
           val ac = nHet + 2 * nHomVar
           (x, !(ac < combinedMinAC || ac == 2 * (n - nMissing) || (ac == (n - nMissing) && x.forall(_ == 1))))
         }

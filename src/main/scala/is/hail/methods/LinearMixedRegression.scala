@@ -140,7 +140,7 @@ object LinearMixedRegression {
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       vds2.mapAnnotations { case (v, va, gs) =>
-        val (x0, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, Some(sampleMaskBc.value))
+        val (x0, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, sampleMaskBc.value)
         val ac = nHet + 2 * nHomVar
         val nPresent = n - nMissing
         val isValid = !(ac == 0 || ac == 2 * nPresent || (ac == nPresent && x0.forall(_ == 1)))
