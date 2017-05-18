@@ -63,6 +63,16 @@ object Parser extends JavaTokenParsers {
     (t.`type`, thunk)
   }
 
+  def evalTypedExpr[T](ast: AST, ec: EvalContext)(implicit hr: HailRep[T]): () => T = {
+    val (t, f) = evalExpr(ast, ec)
+    if (t != hr.typ)
+      fatal(s"expression has wrong type: expected `${ hr.typ }', got $t")
+
+    () => f().asInstanceOf[T]
+  }
+
+  def evalExpr(ast: AST, ec: EvalContext): (Type, () => Any) = eval(ast, ec)
+
   def parseExpr(code: String, ec: EvalContext): (Type, () => Any) = {
     eval(expr.parse(code), ec)
   }

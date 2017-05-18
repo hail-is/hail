@@ -24,6 +24,7 @@ class FilterSuite extends SparkSuite {
 
     TestUtils.interceptFatal("out-of-place expression") {
       vds.filterVariantsExpr("x => v.altAllele.isSNP()")
+        .countVariants() // force evaluation
     }
 
     assert(vds.filterVariantsExpr("""va.filters.contains("VQSRTrancheSNP99.60to99.80")""").countVariants() == 3)

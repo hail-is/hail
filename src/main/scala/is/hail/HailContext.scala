@@ -12,15 +12,16 @@ import is.hail.keytable.KeyTable
 import is.hail.methods.DuplicateReport
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, Genotype, VSMSubgen, Variant, VariantDataset, VariantMetadata, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
+import scala.language.existentials
 
 object HailContext {
 
@@ -295,9 +296,9 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    VariantSampleMatrix(this, VariantMetadata(samples).copy(isLinearScale = true),
+    new VariantSampleMatrix(this,
+      VSMFileMetadata(samples, vaSignature = signature, isLinearScale = true, wasSplit = true),
       sc.union(results.map(_.rdd)).toOrderedRDD)
-      .copy(vaSignature = signature, wasSplit = true)
   }
 
   def importTable(inputs: java.util.ArrayList[String],
@@ -366,7 +367,7 @@ class HailContext private(val sc: SparkContext,
       nPartitions, delimiter, missing, quantPheno)
   }
 
-  def checkDatasetSchemasCompatible[T](datasets: Array[VariantSampleMatrix[T]], inputs: Array[String]) {
+  def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[_]], inputs: Array[String]) {
     val sampleIds = datasets.head.sampleIds
     val vaSchema = datasets.head.vaSignature
     val wasSplit = datasets.head.wasSplit
@@ -422,58 +423,55 @@ class HailContext private(val sc: SparkContext,
       info(s"Using sample and global annotations from ${ inputs(0) }")
   }
 
-  def readMetadata(file: String): (VariantMetadata, Boolean) = VariantDataset.readMetadata(hadoopConf, file)
+  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_] =
+    readAll(List(file), dropSamples, dropVariants)
 
-  def readAllMetadata(files: Seq[String]): Array[(VariantMetadata, Boolean)] = files.map(readMetadata).toArray
-
-  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false,
-    metadata: Option[Array[(VariantMetadata, Boolean)]] = None): VariantDataset =
-    readAll(List(file), dropSamples, dropVariants, metadata)
-
-  def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false,
-    metadata: Option[Array[(VariantMetadata, Boolean)]] = None): VariantDataset = {
+  def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_] = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
 
-    val (mdArray, pqgtArray) = metadata match {
-      case Some(data) => data.unzip
-      case _ => inputs.map(VariantDataset.readMetadata(sc.hadoopConfiguration, _)).unzip
+    val vsms = inputs.map { input =>
+      VariantSampleMatrix.read(this, input, dropSamples = dropSamples, dropVariants = dropVariants)
     }
 
-    val vdses = inputs.zipWithIndex.map { case (input, i) =>
-      VariantDataset.read(this, input, mdArray(i), pqgtArray(i),
-        dropSamples = dropSamples, dropVariants = dropVariants)
+    if (vsms.length == 1)
+      return vsms(0)
+
+    checkDatasetSchemasCompatible(vsms, inputs)
+
+    // I can't figure out how to write this with existentials -cs
+    if (vsms(0).isGenericGenotype) {
+      val gdses = vsms.asInstanceOf[Array[GenericDataset]]
+      gdses(0).copy(
+        rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
+    } else {
+      val vdses = vsms.asInstanceOf[Array[VariantDataset]]
+      vdses(0).copy(
+        rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
     }
-
-    checkDatasetSchemasCompatible(vdses, inputs)
-
-    vdses(0).copy(rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
   }
 
-  def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false,
-    metadata: Option[Array[(VariantMetadata, Boolean)]] = None): GenericDataset =
-    readAllGDS(List(file), dropSamples, dropVariants, metadata)
+  def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset =
+    readVDSAll(List(file), dropSamples, dropVariants)
 
-  def readAllGDS(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false,
-    metadata: Option[Array[(VariantMetadata, Boolean)]] = None): GenericDataset = {
-    val inputs = hadoopConf.globAll(files)
-    if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+  def readVDSAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset = {
+    val vds = readAll(files, dropSamples, dropVariants)
 
-    val (mdArray, pqgtArray) = metadata match {
-      case Some(data) => data.unzip
-      case _ => inputs.map(VariantDataset.readMetadata(sc.hadoopConfiguration, _)).unzip
-    }
+    if (vds.isGenericGenotype)
+      fatal("Cannot read datasets with generic genotypes as VDS.  Read as GDS.")
+    vds.asInstanceOf[VariantDataset]
+  }
 
-    val gdses = inputs.zipWithIndex.map { case (input, i) =>
-      GenericDataset.read(this, input, mdArray(i), pqgtArray(i),
-        dropSamples = dropSamples, dropVariants = dropVariants)
-    }
+  def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset =
+    readAllGDS(List(file), dropSamples, dropVariants)
 
-    checkDatasetSchemasCompatible(gdses, inputs)
+  def readAllGDS(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset = {
+    val vds = readAll(files, dropSamples, dropVariants)
 
-    gdses(0).copy(rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
+    if (!vds.isGenericGenotype)
+      fatal("Cannot read dataset without generic genotypes as GDS.  Read as VDS.")
+    vds.asInstanceOf[GenericDataset]
   }
 
   def readTable(path: String): KeyTable =
@@ -481,8 +479,8 @@ class HailContext private(val sc: SparkContext,
 
   /**
     *
-    * @param path path to Kudu database
-    * @param table table name
+    * @param path   path to Kudu database
+    * @param table  table name
     * @param master Kudu master address
     */
   def readKudu(path: String, table: String, master: String): VariantDataset = {

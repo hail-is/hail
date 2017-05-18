@@ -1,51 +1,59 @@
 package is.hail.variant
 
-import is.hail.annotations._
+import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
 
-object VariantMetadata {
-  def apply(sampleIds: Array[String]): VariantMetadata = new VariantMetadata(
-    sampleIds,
-    Annotation.emptyIndexedSeq(sampleIds.length),
-    Annotation.empty,
-    TStruct.empty,
-    TStruct.empty,
-    TStruct.empty)
+object VSMLocalValue {
+  def apply(sampleIds: IndexedSeq[String]): VSMLocalValue =
+    VSMLocalValue(Annotation.empty,
+      sampleIds,
+      Annotation.emptyIndexedSeq(sampleIds.length))
+}
 
-  def apply(sampleIds: Array[String], wasSplit: Boolean): VariantMetadata = new VariantMetadata(
-    sampleIds,
-    Annotation.emptyIndexedSeq(sampleIds.length),
-    Annotation.empty,
-    TStruct.empty,
-    TStruct.empty,
-    TStruct.empty,
-    wasSplit = wasSplit)
+case class VSMLocalValue(
+  globalAnnotation: Annotation,
+  sampleIds: IndexedSeq[String],
+  sampleAnnotations: IndexedSeq[Annotation]) {
+  assert(sampleIds.areDistinct(), s"Sample ID names are not distinct: ${ sampleIds.duplicates().mkString(", ") }")
+  assert(sampleIds.length == sampleAnnotations.length)
 
-  def apply(
-    sampleIds: Array[String],
-    sa: IndexedSeq[Annotation],
-    globalAnnotation: Annotation,
-    sas: Type,
-    vas: Type,
-    globalSignature: Type): VariantMetadata = {
-    new VariantMetadata(sampleIds, sa, globalAnnotation, sas, vas, globalSignature)
+  def nSamples: Int = sampleIds.length
+
+  def dropSamples(): VSMLocalValue = VSMLocalValue(globalAnnotation,
+    IndexedSeq.empty[String],
+    IndexedSeq.empty[Annotation])
+}
+
+object VSMFileMetadata {
+  def apply(sampleIds: IndexedSeq[String],
+    sampleAnnotations: IndexedSeq[Annotation] = null,
+    globalAnnotation: Annotation = Annotation.empty,
+    saSignature: Type = TStruct.empty,
+    vaSignature: Type = TStruct.empty,
+    globalSignature: Type = TStruct.empty,
+    genotypeSignature: Type = TGenotype,
+    wasSplit: Boolean = false,
+    isLinearScale: Boolean = false): VSMFileMetadata = {
+    VSMFileMetadata(
+      VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale),
+      VSMLocalValue(globalAnnotation, sampleIds,
+        if (sampleAnnotations == null)
+          Annotation.emptyIndexedSeq(sampleIds.length)
+        else
+          sampleAnnotations))
   }
 }
 
-case class VariantMetadata(
-  sampleIds: IndexedSeq[String],
-  sampleAnnotations: IndexedSeq[Annotation],
-  globalAnnotation: Annotation,
-  saSignature: Type,
-  vaSignature: Type,
-  globalSignature: Type,
+case class VSMFileMetadata(
+  metadata: VSMMetadata,
+  localValue: VSMLocalValue)
+
+case class VSMMetadata(
+  saSignature: Type = TStruct.empty,
+  vaSignature: Type = TStruct.empty,
+  globalSignature: Type = TStruct.empty,
   genotypeSignature: Type = TGenotype,
   wasSplit: Boolean = false,
   isLinearScale: Boolean = false,
-  isGenericGenotype: Boolean = false) {
-
-  assert(sampleIds.areDistinct(), s"Sample ID names are not distinct: ${ sampleIds.duplicates().mkString(", ") }")
-
-  def nSamples: Int = sampleIds.length
-}
+  isGenericGenotype: Boolean = false)

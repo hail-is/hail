@@ -50,7 +50,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testAll() {
-    val vds = VariantSampleMatrix(hc, VariantMetadata(Array.empty[String]),
+    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array.empty[String]),
       sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Genotype])))).toOrderedRDD)
 
     val intervalFile = tmpDir.createTempFile("intervals")

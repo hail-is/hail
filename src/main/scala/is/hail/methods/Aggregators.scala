@@ -2,11 +2,13 @@ package is.hail.methods
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
+import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.SparkContext
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable
@@ -15,16 +17,21 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregations[T](vsm: VariantSampleMatrix[T], ec: EvalContext): Option[(Variant, Annotation, Iterable[T]) => Unit] = {
+  def buildVariantAggregations[T](vsm: VariantSampleMatrix[T], ec: EvalContext): Option[(Variant, Annotation, Iterable[T]) => Unit] =
+    buildVariantAggregations(vsm.sparkContext, vsm.value.localValue, ec)
+
+  def buildVariantAggregations[T](sc: SparkContext,
+    localValue: VSMLocalValue,
+    ec: EvalContext): Option[(Variant, Annotation, Iterable[T]) => Unit] = {
 
     val aggregations = ec.aggregations
     if (aggregations.isEmpty)
       return None
 
     val localA = ec.a
-    val localSamplesBc = vsm.sampleIdsBc
-    val localAnnotationsBc = vsm.sampleAnnotationsBc
-    val localGlobalAnnotations = vsm.globalAnnotation
+    val localSamplesBc = sc.broadcast(localValue.sampleIds)
+    val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
+    val localGlobalAnnotations = localValue.globalAnnotation
 
     Some({ (v: Variant, va: Annotation, gs: Iterable[T]) =>
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
@@ -57,7 +64,7 @@ object Aggregators {
     })
   }
 
-  def buildSampleAggregations[T](vsm: VariantSampleMatrix[T], ec: EvalContext): Option[(String) => Unit] = {
+  def buildSampleAggregations[T](hc: HailContext, value: MatrixValue[T], ec: EvalContext): Option[(String) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -65,21 +72,21 @@ object Aggregators {
       return None
 
     val localA = ec.a
-    val localNSamples = vsm.nSamples
-    val localGlobalAnnotations = vsm.globalAnnotation
-    val localSamplesBc = vsm.sampleIdsBc
-    val localSampleAnnotationsBc = vsm.sampleAnnotationsBc
+    val localNSamples = value.nSamples
+    val localGlobalAnnotations = value.globalAnnotation
+    val localSamplesBc = value.sampleIdsBc
+    val localSampleAnnotationsBc = value.sampleAnnotationsBc
 
     val nAggregations = aggregations.length
-    val nSamples = vsm.nSamples
-    val depth = treeAggDepth(vsm.hc, vsm.nPartitions)
+    val nSamples = value.nSamples
+    val depth = treeAggDepth(hc, value.nPartitions)
 
     val baseArray = MultiArray2.fill[Aggregator](nSamples, nAggregations)(null)
     for (i <- 0 until nSamples; j <- 0 until nAggregations) {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
-    val result = vsm.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
+    val result = value.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
       localA(0) = localGlobalAnnotations
       localA(4) = v
       localA(5) = va
@@ -107,7 +114,7 @@ object Aggregators {
       arr1
     }, depth = depth)
 
-    val sampleIndex = vsm.sampleIds.zipWithIndex.toMap
+    val sampleIndex = value.sampleIds.zipWithIndex.toMap
     Some((s: String) => {
       val i = sampleIndex(s)
       for (j <- 0 until nAggregations) {
@@ -189,14 +196,14 @@ object Aggregators {
     SampleFunctions(zVal, seqOp, combOp, resultOp, resultType)
   }
 
-case class SampleFunctions[T](
-  zero: MultiArray2[Aggregator],
-  seqOp: (MultiArray2[Aggregator], (Variant, Annotation, Iterable[T])) => MultiArray2[Aggregator],
-  combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
-  resultOp: (MultiArray2[Aggregator] => Array[Annotation]),
-  resultType: Type)
+  case class SampleFunctions[T](
+    zero: MultiArray2[Aggregator],
+    seqOp: (MultiArray2[Aggregator], (Variant, Annotation, Iterable[T])) => MultiArray2[Aggregator],
+    combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
+    resultOp: (MultiArray2[Aggregator] => Array[Annotation]),
+    resultType: Type)
 
-def makeFunctions[T](ec: EvalContext, setEC: (EvalContext, T) => Unit): (Array[Aggregator],
+  def makeFunctions[T](ec: EvalContext, setEC: (EvalContext, T) => Unit): (Array[Aggregator],
     (Array[Aggregator], T) => Array[Aggregator],
     (Array[Aggregator], Array[Aggregator]) => Array[Aggregator],
     (Array[Aggregator] => Unit)) = {
@@ -438,7 +445,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
         if (r.length != _state.length)
           fatal(
             s"""cannot aggregate arrays of unequal length with `sum'
-                |Found conflicting arrays of size (${ _state.length }) and (${ r.length })""".stripMargin)
+               |Found conflicting arrays of size (${ _state.length }) and (${ r.length })""".stripMargin)
         else {
           var i = 0
           while (i < _state.length) {
@@ -459,7 +466,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
       if (_state.length != agg2state.length)
         fatal(
           s"""cannot aggregate arrays of unequal length with `sum'
-              |  Found conflicting arrays of size (${ _state.length }) and (${ agg2state.length })""".
+             |  Found conflicting arrays of size (${ _state.length }) and (${ agg2state.length })""".
             stripMargin)
       for (i <- _state.indices)
         _state(i) += agg2state(i)

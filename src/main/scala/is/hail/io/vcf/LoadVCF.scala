@@ -327,14 +327,16 @@ object LoadVCF {
 
     justVariants.unpersist()
 
-    VariantSampleMatrix[T](hc, VariantMetadata(sampleIds,
-      Annotation.emptyIndexedSeq(sampleIds.length),
-      Annotation.empty,
+    new VariantSampleMatrix[T](hc, VSMMetadata(
       TStruct.empty,
       variantAnnotationSignatures,
       TStruct.empty,
       genotypeSignature,
       isGenericGenotype = reader.genericGenotypes,
-      wasSplit = noMulti), rdd)
+      wasSplit = noMulti),
+      VSMLocalValue(Annotation.empty,
+        sampleIds,
+        Annotation.emptyIndexedSeq(sampleIds.length)),
+      rdd)
   }
 }

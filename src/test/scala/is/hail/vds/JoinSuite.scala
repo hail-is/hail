@@ -16,6 +16,6 @@ class JoinSuite extends SparkSuite {
     // make sure joined VDS writes
     left.join(right).write(joinedPath)
 
-    assert(joined.same(hc.read(joinedPath)))
+    assert(joined.same(hc.readVDS(joinedPath)))
   }
 }
