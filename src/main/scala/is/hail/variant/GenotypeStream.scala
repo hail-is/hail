@@ -113,6 +113,8 @@ case class GenotypeStream(nAlleles: Int, isLinearScale: Boolean, decompLenOption
 }
 
 object GenotypeStream {
+  def empty(n: Int) = GenotypeStream(n, false, None, Array.emptyByteArray)
+
   def schema: StructType = {
     StructType(Array(
       StructField("decompLen", IntegerType, nullable = true),
