@@ -297,7 +297,7 @@ class Genotype(object):
         return jiterable_to_list(from_option(self._jrep.oneHotGenotype(num_genotypes)))
 
     @handle_py4j
-    @typecheck_method(theta=nullable(numeric))
+    @typecheck_method(theta=numeric)
     def p_ab(self, theta=0.5):
         """Returns the p-value associated with finding the given allele depth ratio.
 
@@ -306,7 +306,7 @@ class Genotype(object):
         This function returns None if the allelic depth (ad) is missing.
 
         :param float theta: null reference probability for binomial model
-        :rtype: float or None
+        :rtype: float
         """
 
         return from_option(self._jrep.pAB(theta))

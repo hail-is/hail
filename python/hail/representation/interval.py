@@ -124,7 +124,7 @@ class Interval(object):
         return self._jrep.contains(locus._jrep)
 
     @handle_py4j
-    @typecheck_method(interval=Interval)
+    @typecheck_method(interval=anytype)
     def overlaps(self, interval):
         """True if the the supplied interval contains any locus in common with this one.
 
