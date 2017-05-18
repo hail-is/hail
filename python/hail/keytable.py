@@ -2,6 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
 from hail.expr import Type, TArray, TStruct
+from hail.typecheck import *
 from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
 
@@ -1076,3 +1077,25 @@ class KeyTable(object):
         hc = Env.hc()
         jkt = Env.hail().keytable.KeyTable.importFam(hc._jhc, path, quantitative, delimiter, missing)
         return KeyTable(hc, jkt)
+
+    def union(self, *kts):
+        """Union the rows of multiple tables.
+        
+        **Examples**
+        
+        Take the union of rows from two tables:
+        
+        >>> other = hc.import_table('data/kt_example1.tsv', impute=True)
+        >>> union_kt = kt1.union(other)
+        
+        If a row appears in both tables identically, it is duplicated in
+        the result. The left and right tables must have the same schema
+        and key.
+        
+        :param kts: Tables to merge.
+        :type kts: args of type :class:`.KeyTable`
+        
+        :return: A table with all rows from the left and right tables. 
+        """
+
+        return KeyTable(self.hc, self._jkt.union([kt._jkt for kt in kts]))

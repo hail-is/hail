@@ -719,12 +719,16 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
   def repartition(n: Int): KeyTable = copy(rdd = rdd.repartition(n))
 
-  def union(other: KeyTable): KeyTable = {
-    if (signature != other.signature)
-      fatal("cannot union tables with different schemas")
-    if (!key.sameElements(other.key))
-      fatal("cannot union tables with different key")
+  def union(kts: java.util.ArrayList[KeyTable]): KeyTable = union(kts.asScala.toArray: _*)
 
-    copy(rdd = rdd.union(other.rdd))
+  def union(kts: KeyTable*): KeyTable = {
+    kts.foreach { kt =>
+      if (signature != kt.signature)
+        fatal("cannot union tables with different schemas")
+      if (!key.sameElements(kt.key))
+        fatal("cannot union tables with different key")
+    }
+
+    copy(rdd = hc.sc.union(rdd, kts.map(_.rdd): _*))
   }
 }
