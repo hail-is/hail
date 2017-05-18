@@ -288,9 +288,6 @@ object RegressionUtils {
   }
 
   def dosageStats(gs: Iterable[Genotype], optMask: Option[Array[Boolean]], nKept: Int): (DenseVector[Double], Double) = {
-    val noMask = optMask.isEmpty
-    val mask = if (noMask) null else optMask.get
-
     val valsX = Array.ofDim[Double](nKept)
     val missingRowIndices = new ArrayBuilder[Int]()
     var sumX = 0d
@@ -298,20 +295,35 @@ object RegressionUtils {
     var row = 0
     val gts = gs.dosageIterator
 
-    var i = 0
-    while (gts.hasNext) {
-      val gt = gts.next()
-      if (noMask || mask(i)) {
-        if (gt != -1) {
-          valsX(row) = gt
-          sumX += gt
-        } else {
-          nMissing += 1
-          missingRowIndices += row
+    optMask match {
+      case Some(mask) =>
+        var i = 0
+        while (gts.hasNext) {
+          val gt = gts.next()
+          if (mask(i)) {
+            if (gt != -1) {
+              valsX(row) = gt
+              sumX += gt
+            } else {
+              nMissing += 1
+              missingRowIndices += row
+            }
+            row += 1
+          }
+          i += 1
         }
-        row += 1
-      }
-      i += 1
+      case None =>
+        while (gts.hasNext) {
+          val gt = gts.next()
+          if (gt != -1) {
+            valsX(row) = gt
+            sumX += gt
+          } else {
+            nMissing += 1
+            missingRowIndices += row
+          }
+          row += 1
+        }
     }
     assert(row == nKept)
 
@@ -319,7 +331,7 @@ object RegressionUtils {
     val meanX = if (nPresent > 0) sumX / nPresent else Double.NaN
     val missingRowIndicesArray = missingRowIndices.result()
 
-    i = 0
+    var i = 0
     while (i < missingRowIndicesArray.length) {
       valsX(missingRowIndicesArray(i)) = meanX
       i += 1

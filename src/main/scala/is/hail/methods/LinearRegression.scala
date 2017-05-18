@@ -55,8 +55,7 @@ object LinearRegression {
         if (useDosages) {
           val (x, mean) = RegressionUtils.dosageStats(gs, Some(sampleMaskBc.value), n)
           (x, n * mean >= combinedMinAC)
-        }
-        else {
+        } else {
           val (x, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, Some(sampleMaskBc.value))
           val ac = nHet + 2 * nHomVar
           (x, !(ac < combinedMinAC || ac == 2 * (n - nMissing) || (ac == (n - nMissing) && x.forall(_ == 1))))
