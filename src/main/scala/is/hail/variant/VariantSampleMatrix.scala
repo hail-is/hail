@@ -2145,4 +2145,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
     hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))
   }
+
+  def unpersist() {
+    rdd.unpersist()
+  }
 }
