@@ -492,14 +492,16 @@ object Genotype {
     StructField("fakeRef", BooleanType, nullable = false),
     StructField("isLinearScale", BooleanType, nullable = false)))
 
-  def expandedType: TStruct = TStruct(
-    "gt" -> TInt,
-    "ad" -> TArray(TInt),
-    "dp" -> TInt,
-    "gq" -> TInt,
-    "px" -> TArray(TInt),
-    "fakeRef" -> TBoolean,
-    "isLinearScale" -> TBoolean)
+  def fromRow(r: Row): Genotype = {
+    new GenericGenotype(
+      if (r.isNullAt(0)) -1 else r.getInt(0),
+      if (r.isNullAt(1)) null else r.getAs[IndexedSeq[Int]](1).toArray,
+      if (r.isNullAt(2)) -1 else r.getInt(2),
+      if (r.isNullAt(3)) -1 else r.getInt(3),
+      if (r.isNullAt(4)) null else r.getAs[IndexedSeq[Int]](4).toArray,
+      r.getBoolean(5),
+      r.getBoolean(6))
+  }
 
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99

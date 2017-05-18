@@ -38,7 +38,7 @@ object WaldTest extends LogisticRegressionTest {
     ("pval", TDouble),
     ("fit", LogisticRegressionFit.schema))
 
-  val emptyStats = Annotation.emptyIndexedSeq(schema.children.size - 1)
+  val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
 
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit): LogisticRegressionTestResultWithFit[WaldStats] = {
     require(nullFit.fisher.isDefined)
@@ -77,7 +77,7 @@ object LikelihoodRatioTest extends LogisticRegressionTest {
     ("pval", TDouble),
     ("fit", LogisticRegressionFit.schema))
 
-  val emptyStats = Annotation.emptyIndexedSeq(schema.children.size - 1)
+  val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
 
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit):
     LogisticRegressionTestResultWithFit[LikelihoodRatioStats] = {
@@ -113,7 +113,7 @@ object FirthTest extends LogisticRegressionTest {
     ("pval", TDouble),
     ("fit", LogisticRegressionFit.schema))
 
-  val emptyStats = Annotation.emptyIndexedSeq(schema.children.size - 1)
+  val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
 
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit):
     LogisticRegressionTestResultWithFit[FirthStats] = {
@@ -155,7 +155,7 @@ object ScoreTest extends LogisticRegressionTest {
     ("chi2", TDouble),
     ("pval", TDouble))
 
-  val emptyStats = Annotation.emptyIndexedSeq(schema.children.size)
+  val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size)
 
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: LogisticRegressionFit):
     LogisticRegressionTestResult[ScoreStats] = {
