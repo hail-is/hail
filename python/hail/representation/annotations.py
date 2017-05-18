@@ -1,3 +1,5 @@
+from hail.typecheck import *
+
 class Struct(object):
     """
     Nested annotation structure.
@@ -56,6 +58,8 @@ class Struct(object):
     def __hash__(self):
         return 37 + hash(tuple(sorted(self._attrs.items())))
 
+    @typecheck_method(item=strlike,
+                      default=anytype)
     def get(self, item, default=None):
         """Get an item, or return a default value if the item is not found.
         

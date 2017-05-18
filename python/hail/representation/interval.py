@@ -1,6 +1,6 @@
 from hail.java import *
 from hail.representation.variant import Locus
-
+from hail.typecheck import *
 
 class Interval(object):
     """
@@ -49,6 +49,7 @@ class Interval(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck(string=strlike)
     def parse(string):
         """Parses a genomic interval from string representation.
 
@@ -109,6 +110,7 @@ class Interval(object):
         return Locus._from_java(self._jrep.end())
 
     @handle_py4j
+    @typecheck_method(locus=Locus)
     def contains(self, locus):
         """True if the supplied locus is contained within the interval.
 
@@ -122,6 +124,7 @@ class Interval(object):
         return self._jrep.contains(locus._jrep)
 
     @handle_py4j
+    @typecheck_method(interval=anytype)
     def overlaps(self, interval):
         """True if the the supplied interval contains any locus in common with this one.
 
