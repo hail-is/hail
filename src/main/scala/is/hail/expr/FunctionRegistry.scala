@@ -702,8 +702,8 @@ object FunctionRegistry {
     CM.ret(arrayToWrappedArray(x.invoke[Array[Double]]("unboxedGP")))
   }, "the linear-scaled probabilities.")
   registerFieldCode("dosage", { (x: Code[Genotype]) =>
-    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("unboxedDosage"), boxInt)
-  }, "the expected value of the genotype based on genotype probabilities.")
+    nonceToNullable[Double, java.lang.Double](_.ceq(-1d), x.invoke[Double]("unboxedDosage"), boxDouble)
+  }, "the expected number of non-reference alleles based on genotype probabilities.")
   registerMethodCode("isHomRef", { (x: Code[Genotype]) =>
     CM.ret(boxBoolean(x.invoke[Boolean]("isHomRef")))
   }, "True if this call is ``0/0``.")
