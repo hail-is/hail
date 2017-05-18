@@ -1088,6 +1088,8 @@ class KeyTable(object):
         >>> other = hc.import_table('data/kt_example1.tsv', impute=True)
         >>> union_kt = kt1.union(other)
         
+        **Notes**
+        
         If a row appears in both tables identically, it is duplicated in
         the result. The left and right tables must have the same schema
         and key.
@@ -1095,7 +1097,31 @@ class KeyTable(object):
         :param kts: Tables to merge.
         :type kts: args of type :class:`.KeyTable`
         
-        :return: A table with all rows from the left and right tables. 
+        :return: A table with all rows from the left and right tables.
+        :rtype: :class:`.KeyTable`
         """
 
         return KeyTable(self.hc, self._jkt.union([kt._jkt for kt in kts]))
+
+    @typecheck_method(n=integral)
+    def take(self, n):
+        """Take a given number of rows from the head of the table.
+        
+        **Examples**
+        
+        Take the first ten rows:
+        
+        >>> first10 = kt1.take(10)
+        
+        **Notes**
+        
+        This method does not need to look at all the data, and 
+        allows for fast queries of the start of the table.
+        
+        :param int n: Number of rows to take.
+        
+        :return: Rows from the start of the table.
+        :rtype: list of :class:`.~hail.representation.Struct`
+        """
+
+        return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]

@@ -731,4 +731,6 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     copy(rdd = hc.sc.union(rdd, kts.map(_.rdd): _*))
   }
+
+  def take(n: Int): Array[Row] = rdd.take(n)
 }
