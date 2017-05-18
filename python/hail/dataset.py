@@ -3546,7 +3546,7 @@ class VariantDataset(object):
         a VDS when you are done with it.
          
         """
-        self._jvdf.unpersist()
+        self._jvds.unpersist()
 
     @property
     def global_schema(self):

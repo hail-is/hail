@@ -387,10 +387,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     wgs.copy(rdd = wgs.rdd.persist(level))
   }
 
-  def unpersist() {
-    vds.rdd.unpersist()
-  }
-
   def withGenotypeStream(): VariantDataset = {
     val isLinearScale = vds.isLinearScale
     vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
