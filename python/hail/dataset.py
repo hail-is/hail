@@ -2356,19 +2356,21 @@ class VariantDataset(object):
         
         Each entry (i, j) in the LD matrix gives the :math:`r` value between variants i and j, defined as 
         `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__ 
-        :math:`{\\rho}_{x_i,x_j}` between the two genotype vectors :math:`{\\mathbf{x_i}}` and :math:`{\\mathbf{x_j}}`.
+        :math:`\\rho_{x_i,x_j}` between the two genotype vectors :math:`x_i` and :math:`x_j`.
 
         .. math::
 
-            {\\rho}_{x_i,x_j} = \\frac{\\mathrm{Cov}(X_i,X_j)}{\\sigma_{X_i} \\sigma_{X_j}}
-            
-            
-        Also note that variants with zero variance (:math:`{\\sigma = 0}`) will be dropped from the matrix. 
+            \\rho_{x_i,x_j} = \\frac{\\mathrm{Cov}(X_i,X_j)}{\\sigma_{X_i} \\sigma_{X_j}}
+        
+        Also note that variants with zero variance (:math:`\\sigma = 0`) will be dropped from the matrix. 
 
         .. caution::
 
-          The matrix returned by this function can easily be very large with most entries near zero (for example, entries between variants on different chromosomes in a homogenous population).
-          Most likely you'll want to use :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, :py:meth:`.ld_prune`, or something similar before calling this unless your dataset is very small.
+          The matrix returned by this function can easily be very large with most entries near zero
+          (for example, entries between variants on different chromosomes in a homogenous population).
+          Most likely you'll want to reduce the number of variants with methods like
+          :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, or :py:meth:`.ld_prune` before
+          calling this unless your dataset is very small.
 
         :return: Matrix of r values between pairs of variants.
         :rtype: :py:class:`LDMatrix`
