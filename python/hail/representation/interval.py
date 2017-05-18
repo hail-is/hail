@@ -49,7 +49,7 @@ class Interval(object):
 
     @staticmethod
     @handle_py4j
-    @typecheck_method(string=strlike)
+    @typecheck(string=strlike)
     def parse(string):
         """Parses a genomic interval from string representation.
 

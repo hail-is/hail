@@ -55,6 +55,7 @@ class Variant(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck(string=strlike)
     def parse(string):
         """Parses a variant object from a string.
 
