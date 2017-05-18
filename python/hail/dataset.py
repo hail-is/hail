@@ -3534,6 +3534,20 @@ class VariantDataset(object):
 
         return VariantDataset(self.hc, self._jvdf.persist(storage_level))
 
+    def unpersist(self):
+        """
+        Unpersists this VDS from memory/disk.
+        
+        **Notes**
+        This function will have no effect on a VDS that was not previously persisted.
+        
+        There's nothing stopping you from continuing to use a VDS that has been unpersisted, but doing so will result in
+        all previous steps taken to compute the VDS being performed again since the VDS must be recomputed. Only unpersist
+        a VDS when you are done with it.
+         
+        """
+        self._jvdf.unpersist()
+
     @property
     def global_schema(self):
         """
