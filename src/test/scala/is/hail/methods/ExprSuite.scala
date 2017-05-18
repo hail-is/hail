@@ -510,7 +510,7 @@ class ExprSuite extends SparkSuite {
     forAll(Gen.choose(5, 10), Gen.choose(5, 10)) { (i: Int, j: Int) =>
       eval[String](s""" "abcd"[-$i:-$j] """).contains("")
     }.check()
-    
+
     forAll(Gen.choose(-5, 5)) { (i: Int) =>
       eval[String](s""" "abcd"[$i:] """) == eval[String](s""" "abcd"[$i:4] """)
     }.check()
@@ -909,6 +909,11 @@ class ExprSuite extends SparkSuite {
     TestUtils.interceptFatal("Cannot compare arguments") {
       eval("str(1) == 1")
     }
+
+    assert(D_==(
+      eval[Double]("""Genotype(Variant("1", 1, "A", "T"), [0.01, 0.95, 0.04]).dosage()""").get,
+      eval[Double]("""([0.01, 0.95, 0.04] * [0, 1, 2]).sum()""").get,
+      tolerance = 0.01))
   }
 
   @Test def testParseTypes() {
