@@ -46,7 +46,6 @@ class HailContext(object):
     :vartype sc: :class:`.pyspark.SparkContext`
     """
 
-    @handle_py4j
     @typecheck_method(sc=nullable(SparkContext),
                       app_name=strlike,
                       master=nullable(strlike),
