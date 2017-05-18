@@ -508,6 +508,9 @@ class ContextTests(unittest.TestCase):
 
         KeyTable.import_fam(test_resources + '/sample.fam')._typecheck()
 
+        self.assertEqual(kt.union(kt).count(), kt.count() * 2)
+        self.assertEqual(kt.union(kt, kt).count(), kt.count() * 3)
+
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
 
