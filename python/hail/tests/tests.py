@@ -269,6 +269,8 @@ class ContextTests(unittest.TestCase):
                  .same(dataset)))
 
             print(dataset.storage_level())
+            dataset.unpersist()
+            dataset2.unpersist()
 
         sample = hc.import_vcf(test_resources + '/sample.vcf')
         sample.cache()
