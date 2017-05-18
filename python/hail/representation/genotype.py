@@ -231,6 +231,7 @@ class Genotype(object):
         return from_option(self._jrep.nNonRefAlleles())
 
     @handle_py4j
+    @typecheck_method(num_alleles=integral)
     def one_hot_alleles(self, num_alleles):
         """Returns a list containing the one-hot encoded representation of the called alleles.
 
@@ -263,6 +264,7 @@ class Genotype(object):
         return jiterable_to_list(from_option(self._jrep.oneHotAlleles(num_alleles)))
 
     @handle_py4j
+    @typecheck_method(num_genotypes=integral)
     def one_hot_genotype(self, num_genotypes):
         """Returns a list containing the one-hot encoded representation of the genotype call.
 
@@ -295,6 +297,7 @@ class Genotype(object):
         return jiterable_to_list(from_option(self._jrep.oneHotGenotype(num_genotypes)))
 
     @handle_py4j
+    @typecheck_method(theta=nullable(numeric))
     def p_ab(self, theta=0.5):
         """Returns the p-value associated with finding the given allele depth ratio.
 
@@ -447,6 +450,7 @@ class Call(object):
         return self._jcall.nNonRefAlleles(self._jrep)
 
     @handle_py4j
+    @typecheck_method(num_alleles=integral)
     def one_hot_alleles(self, num_alleles):
         """Returns a list containing the one-hot encoded representation of the called alleles.
 
@@ -479,6 +483,7 @@ class Call(object):
         return jiterable_to_list(self._jcall.oneHotAlleles(self._jrep, num_alleles))
 
     @handle_py4j
+    @typecheck_method(num_genotypes=integral)
     def one_hot_genotype(self, num_genotypes):
         """Returns a list containing the one-hot encoded representation of the genotype call.
 

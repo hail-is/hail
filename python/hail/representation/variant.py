@@ -152,6 +152,7 @@ class Variant(object):
         return self._jrep.nAlleles()
 
     @handle_py4j
+    @typecheck_method(i=integral)
     def allele(self, i):
         """Returns the string allele representation for the ith allele.
 
@@ -445,6 +446,7 @@ class Locus(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck_method(string=strlike)
     def parse(string):
         """Parses a locus object from a CHR:POS string.
 
