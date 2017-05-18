@@ -28,7 +28,9 @@ object Contig {
   }
 }
 
-case class Contig(name: String, length: Int)
+case class Contig(name: String, length: Int) {
+  def toJSON: JValue = JObject(("name", JString(name)), ("length", JInt(length)))
+}
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value

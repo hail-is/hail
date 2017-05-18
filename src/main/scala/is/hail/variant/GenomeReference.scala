@@ -19,6 +19,24 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
   def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
 
   def inYPar(locus: Locus): Boolean = inY(locus.contig) && par.exists(_.contains(locus))
+
+  def toJSON: JValue = JObject(
+    ("name", JString(name)),
+    ("contigs", JArray(contigs.map(_.toJSON).toList)),
+    ("xContigs", JArray(xContigs.map(JString(_)).toList)),
+    ("yContigs", JArray(yContigs.map(JString(_)).toList)),
+    ("mtContigs", JArray(mtContigs.map(JString(_)).toList)),
+    ("par", JArray(par.map(_.toJSON(_.toJSON)).toList))
+  )
+
+  def same(other: GenomeReference): Boolean = {
+    name == other.name &&
+      contigs.sameElements(other.contigs) &&
+      xContigs == other.xContigs &&
+      yContigs == other.yContigs &&
+      mtContigs == other.mtContigs &&
+      par.sameElements(other.par)
+  }
 }
 
 object GenomeReference {

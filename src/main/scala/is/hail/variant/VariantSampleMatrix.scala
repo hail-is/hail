@@ -50,6 +50,9 @@ object VariantSampleMatrix {
     val isGenericGenotype = metadata.isGenericGenotype
     val isLinearScale = metadata.isLinearScale
 
+    if (!metadata.genomeReference.same(GenomeReference.genomeReference))
+      fatal(s"VDS genome reference `${ metadata.genomeReference.name }' does not match the global genome reference `${ GenomeReference.genomeReference.name }'.")
+
     if (!parquetGenotypes && !isGenericGenotype) {
       return new VariantDataset(hc,
         metadata,
@@ -224,6 +227,17 @@ object VariantSampleMatrix {
 
     assert(!isGenericGenotype || !parquetGenotypes)
 
+    val genomeReference = fields.get("genome_reference") match {
+      case Some(jo: JObject) => GenomeReference.fromJSON(jo)
+      case Some(other) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JObject' in field `genome_reference', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case _ =>
+        warn("VDS does not have a genome reference set. Defaulting to GRCh37.")
+        GenomeReference.GRCh37
+    }
+
     val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
     val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
     val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
@@ -247,7 +261,7 @@ object VariantSampleMatrix {
     val ids = sampleInfo.map(_._1)
     val annotations = sampleInfo.map(_._2)
 
-    (VSMFileMetadata(VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype),
+    (VSMFileMetadata(VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype, genomeReference),
       VSMLocalValue(globalAnnotation, ids, annotations)), parquetGenotypes)
   }
 
@@ -378,7 +392,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) =
     this(hc, fileMetadata.metadata, fileMetadata.localValue, rdd)
 
-  val VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype) = metadata
+  val VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype, genomeReference) = metadata
 
   lazy val value: MatrixValue[T] = {
     val opt = MatrixAST.optimize(ast)
@@ -1414,7 +1428,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (Variant, Annotation, Iterable[T]) => TraversableOnce[(Variant, (Annotation, Iterable[T]))]): VariantSampleMatrix[T] =
-    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def foldBySample(zeroValue: T)(combOp: (T, T) => T): RDD[(String, T)] = {
 
@@ -2140,7 +2154,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       ("global_annotation_schema", JString(globalSchemaString)),
       ("genotype_schema", JString(genotypeSchemaString)),
       ("sample_annotations", sampleInfoJson),
-      ("global_annotation", JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature))
+      ("global_annotation", JSONAnnotationImpex.exportAnnotation(globalAnnotation, globalSignature)),
+      ("genome_reference", GenomeReference.genomeReference.toJSON)
     )
 
     hConf.writeTextFile(dirname + "/metadata.json.gz")(Serialization.writePretty(json, _))

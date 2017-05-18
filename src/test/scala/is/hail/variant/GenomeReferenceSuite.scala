@@ -20,5 +20,12 @@ class GenomeReferenceSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     assert(vds.filterVariants { case (v, va, gs) => v.isMitochondrial }.countVariants() == 0)
+
+    val f = tmpDir.createTempFile(extension = "vds")
+    vds.write(f)
+
+    hc.read(f).countVariants()
+
+    hc.read("src/test/resources/sample.vds").countVariants() // Make sure can still read old VDS
   }
 }
