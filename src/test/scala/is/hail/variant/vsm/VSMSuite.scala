@@ -171,7 +171,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testWriteRead() {
-    val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f)
       hc.readVDS(f).same(vds)
@@ -181,7 +181,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testWriteParquetRead() {
-    val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
       val f = tmpDir.createTempFile(extension = "vds")
       vds.write(f, parquetGenotypes = true)
       hc.readVDS(f).same(vds)
@@ -270,7 +270,7 @@ class VSMSuite extends SparkSuite {
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
     val minimumRSquareValue = 0.7
 
-    def vsmOfSize(size: Int): VariantSampleMatrix[Genotype] = {
+    def vsmOfSize(size: Int): VariantDataset = {
       val parameters = Parameters.default.copy(size = size, count = 1)
       VariantSampleMatrix.gen(hc, VSMSubgen.random).apply(parameters)
     }
@@ -304,7 +304,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testCoalesce() {
     val g = for (
-      vsm <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random);
+      vsm <- VariantSampleMatrix.gen(hc, VSMSubgen.random);
       k <- Gen.choose(1, math.max(1, vsm.nPartitions)))
       yield (vsm, k)
 
@@ -316,7 +316,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testUnionRead() {
-    val g = for (vds <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random);
+    val g = for (vds <- VariantSampleMatrix.gen(hc, VSMSubgen.random);
       variants <- Gen.const(vds.variants.collect());
       groups <- Gen.buildableOfN[Array, Int](variants.length, Gen.choose(1, 3)).map(groups => variants.zip(groups).toMap)
     ) yield (vds, groups)
@@ -374,7 +374,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTable() {
-    forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.bar = va")
       val kt = vds2.variantsKT()
       val resultVds = vds2.annotateVariantsTable(kt, expr = "va.foo = table.bar")
@@ -389,7 +389,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey() {
-    forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.key = v.start % 2 == 0")
 
       val kt = KeyTable(hc, sc.parallelize(Array(Row(true, 1), Row(false, 2))),
@@ -413,7 +413,7 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testAnnotateVariantsKeyTableWithComputedKey2() {
-    forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds =>
+    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.key1 =  v.start % 2 == 0, va.key2 = v.contig.length() % 2 == 0")
 
       def f(a: Boolean, b: Boolean): Int =

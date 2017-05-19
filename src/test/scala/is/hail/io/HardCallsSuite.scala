@@ -8,8 +8,8 @@ import org.testng.annotations.Test
 
 class HardCallsSuite extends SparkSuite {
   def gtTriples(vds: VariantDataset): Set[(Variant, String, (Option[Int], Boolean))] =
-    vds.mapValues { g => (g.gt, g.fakeRef) }
-      .expand()
+    vds.expand()
+      .map { case (v, s, g) => (v, s, (g.gt, g.fakeRef)) }
       .collect()
       .toSet
 

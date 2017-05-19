@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.utils._
-import is.hail.variant.{VSMSubgen, Variant, VariantSampleMatrix}
+import is.hail.variant.{GenotypeMatrixT, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkContext
 import org.testng.annotations.Test
 
@@ -30,7 +30,7 @@ class ConcordanceSuite extends SparkSuite {
         if (scrambledVariants1.hasNext && p.rng.nextUniform(0, 1) < .5) (v, scrambledVariants1.next()) else (v, v)
       }.toMap)
     }
-  ) yield (vds1, vds2.copy(sampleIds = newIds2,
+  ) yield (vds1, vds2.copy[GenotypeMatrixT](sampleIds = newIds2,
     rdd = vds2.rdd.map { case (v, (vaGS)) => (newVariantMapping(v), vaGS) }.toOrderedRDD))
 
   //FIXME use SnpSift when it's fixed

@@ -4,6 +4,7 @@ import is.hail.expr._
 import is.hail.io.annotators.IntervalList
 import is.hail.utils._
 import is.hail.utils.TestRDDBuilder
+import is.hail.variant.GenotypeMatrixT
 import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
@@ -153,7 +154,7 @@ class FilterSuite extends SparkSuite {
     val (sigs, i) = vds.insertVA(TInt, "weird name \t test")
     vds = vds
       .mapAnnotations((v, va, gs) => i(va, 1000))
-      .copy(vaSignature = sigs)
+      .copy[GenotypeMatrixT](vaSignature = sigs)
     assert(vds.filterVariantsExpr("va.`weird name \\t test` > 500").countVariants() == vds.countVariants)
 
     TestUtils.interceptFatal("invalid escape character.*backtick identifier.*\\\\i")(

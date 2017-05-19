@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
-import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder, Variant, VariantDataset}
+import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeMatrixT, GenotypeStreamBuilder, Variant, VariantDataset}
 
 object SplitMulti {
 
@@ -180,6 +180,6 @@ object SplitMulti {
 
     val newRDD = OrderedRDD.partitionedSortedUnion(staticVariants, shuffledVariants, vds.rdd.orderedPartitioner)
 
-    vds.copy(rdd = newRDD, vaSignature = vas4, wasSplit = true)
+    vds.copy[GenotypeMatrixT](rdd = newRDD, vaSignature = vas4, wasSplit = true)
   }
 }

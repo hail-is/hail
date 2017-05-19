@@ -50,7 +50,7 @@ object VariantDataset {
       vaSignature = kt.valueSignature,
       globalSignature = TStruct.empty)
 
-    new VariantSampleMatrix[Genotype](kt.hc, metadata,
+    new VariantSampleMatrix[GenotypeMatrixT](kt.hc, metadata,
       VSMLocalValue(Annotation.empty, Array.empty[String], Array.empty[Annotation]), rdd)
   }
 
@@ -88,7 +88,7 @@ object VariantDataset {
       val genotypes = kv._2.flatMap(_._2) // combine genotype streams
       (variant, (annotations, genotypes))
     })
-    new VariantSampleMatrix[Genotype](hc, fileMetadata, rdd.toOrderedRDD)
+    new VariantSampleMatrix[GenotypeMatrixT](hc, fileMetadata, rdd.toOrderedRDD)
   }
 
   def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.expandedType,
@@ -105,7 +105,8 @@ object VariantDataset {
     ))
 }
 
-class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) extends AnyVal {
+class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
+  type M = GenotypeMatrixT
 
   private def requireSplit(methodName: String) {
     if (!vds.wasSplit)
@@ -172,7 +173,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
           inserter(va, annotations.map(_ (i)).toArray[Any]: IndexedSeq[Any])
       }
 
-    }.copy(vaSignature = finalType)
+    }.copy[M](vaSignature = finalType)
   }
 
   def annotateGenotypesExpr(expr: String): GenericDataset = vds.toGDS.annotateGenotypesExpr(expr)
@@ -188,12 +189,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
     val wgs = vds.withGenotypeStream()
-    wgs.copy(rdd = wgs.rdd.persist(level))
+    wgs.copy[M](rdd = wgs.rdd.persist(level))
   }
 
   def withGenotypeStream(): VariantDataset = {
     val isLinearScale = vds.isLinearScale
-    vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
+    vds.copy[M](rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
       (va, gs.toGenotypeStream(v, isLinearScale))
     }.asOrderedRDD)
   }
@@ -203,7 +204,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       withGenotypeStream()
     else vds
 
-    start.copy(rdd = start.rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
+    start.copy[M](rdd = start.rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
@@ -224,9 +225,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   def eraseSplit(): VariantDataset = {
     if (vds.wasSplit) {
       val (newSignatures1, f1) = vds.deleteVA("wasSplit")
-      val vds1 = vds.copy(vaSignature = newSignatures1)
+      val vds1 = vds.copy[M](vaSignature = newSignatures1)
       val (newSignatures2, f2) = vds1.deleteVA("aIndex")
-      vds1.copy(wasSplit = false,
+      vds1.copy[M](wasSplit = false,
         vaSignature = newSignatures2,
         rdd = vds1.rdd.mapValuesWithKey { case (v, (va, gs)) =>
           (f2(f1(va)), gs.lazyMap(g => g.copy(fakeRef = false)))
@@ -494,7 +495,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     } else {
       vds.filterVariants {
         case (v, va, gs) => v.isBiallelic
-      }.copy(wasSplit = true)
+      }.copy[M](wasSplit = true)
     }
   }
 
@@ -532,7 +533,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def hardCalls(): VariantDataset = {
-    vds.mapValues { g => Genotype(g.gt, g.fakeRef) }
+    vds.mapValues[GenotypeMatrixT] { g => Genotype(g.gt, g.fakeRef) }
   }
 
   /**
@@ -821,5 +822,5 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     info("Written to Kudu")
   }
 
-  def toGDS: GenericDataset = vds.mapValues(g => g: Any).copy(isGenericGenotype = true)
+  def toGDS: GenericDataset = vds.mapValues[GenericMatrixT](g => g: Any).copy[GenericMatrixT](isGenericGenotype = true)
 }

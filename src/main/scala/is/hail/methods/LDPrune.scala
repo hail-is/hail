@@ -405,7 +405,7 @@ object LDPrune {
     val ((globalPrunedRDD, nVariantsFinal), globalDuration) = time(pruneGlobal(rddLP2, r2Threshold, windowSize))
     info(s"LD prune step 3 of 3: nVariantsKept=$nVariantsFinal, time=${ formatTime(globalDuration) }")
 
-    vds.copy(rdd = vds.rdd.orderedInnerJoinDistinct(globalPrunedRDD)
+    vds.copy[GenotypeMatrixT](rdd = vds.rdd.orderedInnerJoinDistinct(globalPrunedRDD)
       .mapValues { case ((va, gs), _) => (va, gs) }
       .asOrderedRDD)
   }

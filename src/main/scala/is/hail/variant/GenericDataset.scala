@@ -17,7 +17,8 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.mutable
 
-class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) extends AnyVal {
+class GenericDatasetFunctions(private val gds: GenericDataset) extends AnyVal {
+  type M = GenericMatrixT
 
   def annotateGenotypesExpr(expr: String): GenericDataset = {
     val symTab = Map(
@@ -46,20 +47,20 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
              |  Original: ${gds.genotypeSignature.toPrettyString(compact = true)}
              |  New: ${finalType.toPrettyString(compact = true)}""".stripMargin)
 
-    gds.mapValuesWithAll(
+    gds.mapValuesWithAll[M](
       (v: Variant, va: Annotation, s: String, sa: Annotation, g: Annotation) => {
         ec.setAll(v, va, s, sa, g)
         f().zip(inserters)
           .foldLeft(g) { case (ga, (a, inserter)) =>
             inserter(ga, a)
           }
-      }).copy(genotypeSignature = finalType)
+      }).copy[M](genotypeSignature = finalType)
   }
 
   def cache(): GenericDataset = persist("MEMORY_ONLY")
 
   def coalesce(k: Int, shuffle: Boolean = true): GenericDataset =
-    gds.copy(rdd = gds.rdd.coalesce(k, shuffle = shuffle)(null).toOrderedRDD)
+    gds.copy[M](rdd = gds.rdd.coalesce(k, shuffle = shuffle)(null).toOrderedRDD)
 
   def exportGenotypes(path: String, expr: String, typeFile: Boolean, printMissing: Boolean = false) {
     val localPrintMissing = printMissing
@@ -120,7 +121,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
         fatal(s"unknown StorageLevel `$storageLevel'")
     }
 
-    gds.copy(rdd = gds.rdd.persist(level))
+    gds.copy[M](rdd = gds.rdd.persist(level))
   }
 
   def queryGA(code: String): (Type, Querier) = {
@@ -143,7 +144,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
     if (gds.genotypeSignature != TGenotype)
       fatal(s"Cannot convert a GDS to a VDS with signature `${ gds.genotypeSignature.toPrettyString() }'")
 
-    gds.mapValues(a => a.asInstanceOf[Genotype]).copy(isGenericGenotype = false)
+    gds.mapValues[GenotypeMatrixT](a => a.asInstanceOf[Genotype]).copy[GenotypeMatrixT](isGenericGenotype = false)
   }
 
   def write(dirname: String, overwrite: Boolean = false): Unit = {

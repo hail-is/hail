@@ -133,7 +133,7 @@ object PlinkLoader {
         (v, (Annotation(rsId), vr.getValue))
     }.toOrderedRDD(fastKeys)
 
-    new VariantSampleMatrix(hc, VSMMetadata(
+    new VariantSampleMatrix[GenotypeMatrixT](hc, VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
       globalSignature = TStruct.empty,

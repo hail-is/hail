@@ -87,7 +87,7 @@ class LoadBgenSuite extends SparkSuite {
       VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
         sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier.filter(_ != "NA"))))
       .filter(_.countVariants > 0)
-      .map(_.copy(wasSplit = true));
+      .map(_.copy[GenotypeMatrixT](wasSplit = true));
       nPartitions <- choose(1, 10))
       yield (vds, nPartitions)
 

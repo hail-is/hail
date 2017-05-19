@@ -6,7 +6,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.{GenotypeMatrixT, VariantDataset}
 import org.apache.commons.math3.analysis.UnivariateFunction
 import org.apache.commons.math3.optim.MaxEval
 import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
@@ -161,7 +161,7 @@ object LinearMixedRegression {
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         newAnnotation
-      }.copy(vaSignature = newVAS)
+      }.copy[GenotypeMatrixT](vaSignature = newVAS)
     }
     else
       vds2

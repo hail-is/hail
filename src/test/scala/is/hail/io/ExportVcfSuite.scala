@@ -7,7 +7,7 @@ import is.hail.check.Prop._
 import is.hail.expr.{TLong, TStruct}
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
-import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
+import is.hail.variant.{Genotype, GenotypeMatrixT, VSMSubgen, Variant, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -74,7 +74,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val out = tmpDir.createTempFile("foo", ".vcf.bgz")
     val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
-    val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random), Gen.choose(1, 10),
+    val p = forAll(VariantSampleMatrix.gen[GenotypeMatrixT](hc, VSMSubgen.random), Gen.choose(1, 10),
       Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
       hadoopConf.delete(out, recursive = true)
       hadoopConf.delete(out2, recursive = true)

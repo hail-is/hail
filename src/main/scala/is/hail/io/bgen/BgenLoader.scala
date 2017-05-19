@@ -80,7 +80,7 @@ object BgenLoader {
       (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
     })).toOrderedRDD[Locus](fastKeys)
 
-    new VariantSampleMatrix(hc, VSMMetadata(
+    new VariantSampleMatrix[GenotypeMatrixT](hc, VSMMetadata(
       saSignature = TStruct.empty,
       vaSignature = signature,
       globalSignature = TStruct.empty,

@@ -6,8 +6,8 @@ import is.hail.utils.HailIterator
 import scala.language.implicitConversions
 
 package object variant {
-  type VariantDataset = VariantSampleMatrix[Genotype]
-  type GenericDataset = VariantSampleMatrix[Annotation]
+  type VariantDataset = VariantSampleMatrix[GenotypeMatrixT]
+  type GenericDataset = VariantSampleMatrix[GenericMatrixT]
   type Call = java.lang.Integer
 
   class RichIterableGenotype(val ig: Iterable[Genotype]) extends AnyVal {

@@ -39,9 +39,9 @@ class ImputeSexSuite extends SparkSuite {
       .filter(vds => vds.countVariants > 2 && vds.nSamples >= 2)
 
     property("hail generates same results as PLINK v1.9") =
-      forAll(plinkSafeBiallelicVDS) { case (vds: VariantSampleMatrix[Genotype]) =>
+      forAll(plinkSafeBiallelicVDS) { case (vds: VariantDataset) =>
 
-        var mappedVDS = vds.copy(rdd =
+        var mappedVDS = vds.copy[GenotypeMatrixT](rdd =
           vds.rdd.map { case (v, (va, gs)) => (v.copy(contig = "X"), (va, gs)) }
             .toOrderedRDD)
           .variantQC()
