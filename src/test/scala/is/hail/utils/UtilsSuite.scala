@@ -230,7 +230,7 @@ class UtilsSuite extends SparkSuite {
 
     assert(UInt(2147483647) / UInt(2) == UInt(1073741823L))
     assert(UInt(2147483647) / 2 == UInt(1073741823L))
-    assert(UInt(2147483647) / 2.0 == 1073741823.0)
+    assert(UInt(2147483647) / 2.0 == 1073741823.5)
     assert(UInt(2147483647) / 2L == 1073741823L)
 
     assert(UInt(2147483647) == UInt(2147483647))
