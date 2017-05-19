@@ -4,12 +4,10 @@ import warnings
 
 from decorator import decorator
 
-from hail.expr import TVariant
-from hail.expr import Type, TGenotype, TString
+from hail.expr import Type, TGenotype, TString, TVariant
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.expr import Type, TGenotype, TVariant
 from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list
 from hail.kinshipMatrix import KinshipMatrix

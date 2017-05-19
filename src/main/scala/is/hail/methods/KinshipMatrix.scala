@@ -5,6 +5,7 @@ import java.io.DataOutputStream
 import breeze.linalg.SparseVector
 import is.hail.HailContext
 import is.hail.annotations.Annotation
+import is.hail.expr.Type
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -14,7 +15,7 @@ import scala.collection.Searching._
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-case class KinshipMatrix(hc: HailContext, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) {
+case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   /**
@@ -35,10 +36,10 @@ case class KinshipMatrix(hc: HailContext, matrix: IndexedRowMatrix, sampleIds: A
       val index = ir.index - numBelowToDelete
       val vecArray = ir.vector.toArray
       val filteredArray = sampleIndicesToTakeArray.map(i => vecArray(i))
-      new IndexedRow(index, Vectors.dense(filteredArray))
+      IndexedRow(index, Vectors.dense(filteredArray))
     })
 
-    new KinshipMatrix(hc, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds, numVariantsUsed)
+    KinshipMatrix(hc, sampleSignature, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds, numVariantsUsed)
   }
 
   /**

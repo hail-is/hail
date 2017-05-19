@@ -663,7 +663,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     info(s"rrm: Computing Realized Relationship Matrix...")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants.")
-    new KinshipMatrix(vds.hc, rrm, vds.stringSampleIds.toArray, m)
+    KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.stringSampleIds.toArray, m)
   }
 
 

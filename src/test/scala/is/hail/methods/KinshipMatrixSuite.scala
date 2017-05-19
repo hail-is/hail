@@ -5,6 +5,7 @@ import is.hail.utils._
 import scala.io.Source
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
+import is.hail.expr.TString
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.testng.annotations.Test
@@ -38,7 +39,7 @@ class KinshipMatrixSuite extends SparkSuite {
     val irdd = sc.parallelize(data)
     val irm = new IndexedRowMatrix(irdd)
     val samples = (0 to 3).map(i => s"S$i")
-    val km = new KinshipMatrix(hc, irm, samples.toArray, 10)
+    val km = KinshipMatrix(hc, TString, irm, samples.toArray, 10)
 
     val kmOneEntry = km.filterSamples(s => s == "S2")
     assert(kmOneEntry.matrix.toBlockMatrix().toLocalMatrix()(0, 0) == 11)
@@ -51,7 +52,7 @@ class KinshipMatrixSuite extends SparkSuite {
     val irdd = sc.parallelize(data)
     val irm = new IndexedRowMatrix(irdd)
     val samples = (0 to 3).map(i => s"S$i")
-    val km = new KinshipMatrix(hc, irm, samples.toArray, 10)
+    val km = KinshipMatrix(hc, TString, irm, samples.toArray, 10)
 
     val out = tmpDir.createTempFile("kinshipMatrixExportTSVTest", ".tsv")
 
