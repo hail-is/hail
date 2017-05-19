@@ -675,6 +675,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     this
   }
 
+  def unpersist() {
+    rdd.unpersist()
+  }
+
   def orderBy(fields: SortColumn*): KeyTable =
     orderBy(fields.toArray)
 

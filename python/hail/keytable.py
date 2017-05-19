@@ -844,6 +844,19 @@ class KeyTable(object):
 
         return KeyTable(self.hc, self._jkt.persist(storage_level))
 
+    def unpersist(self):
+        """
+        Unpersists this table from memory/disk.
+        
+        **Notes**
+        This function will have no effect on a table that was not previously persisted.
+        
+        There's nothing stopping you from continuing to use a table that has been unpersisted, but doing so will result in
+        all previous steps taken to compute the table being performed again since the table must be recomputed. Only unpersist
+        a table when you are done with it.
+        """
+        self._jkt.unpersist()
+
     def order_by(self, *cols):
         """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
 
