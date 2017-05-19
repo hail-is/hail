@@ -7,6 +7,7 @@ import is.hail.expr.TDouble
 import is.hail.annotations.Querier
 import is.hail.expr.{TDouble, TString}
 import is.hail.io.plink.FamFileConfig
+import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
@@ -266,7 +267,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateSamplesTable(covariates, root = "sa.cov")
-      .annotateSamplesFam("src/test/resources/regressionLinear.fam")
+      .annotateSamplesTable(KeyTable.importFam(hc, "src/test/resources/regressionLinear.fam"), root = "sa.fam")
       .linreg("sa.fam.isCase", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
@@ -316,8 +317,7 @@ class LinearRegressionSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateSamplesTable(covariates, root = "sa.cov")
-      .annotateSamplesFam("src/test/resources/regressionLinear.fam",
-        config = FamFileConfig(isQuantitative = true, missingValue = "0"))
+      .annotateSamplesTable(KeyTable.importFam(hc, "src/test/resources/regressionLinear.fam", isQuantitative = true, missingValue = "0"), root = "sa.fam")
       .linreg("sa.fam.qPheno", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2

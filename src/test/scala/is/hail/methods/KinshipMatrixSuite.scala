@@ -1,8 +1,10 @@
 package is.hail.methods
 
 import is.hail.utils._
+
 import scala.io.Source
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.testng.annotations.Test
@@ -21,7 +23,10 @@ class KinshipMatrixSuite extends SparkSuite {
 
   @Test def testFilterSamplesDimensions() {
     val km = hc.baldingNicholsModel(1, 15, 15).rrm()
-    val kmFilt = km.filterSamples(s => s.toInt < 7 && s.toInt > 3)
+    val kmFilt = km.filterSamples { s =>
+      val n = s.asInstanceOf[String].toInt
+      n < 7 && n > 3
+    }
     val kmFiltLocalMatrix = kmFilt.matrix.toBlockMatrix().toLocalMatrix()
 
     assert(kmFilt.sampleIds.length == 3)
@@ -35,10 +40,10 @@ class KinshipMatrixSuite extends SparkSuite {
     val samples = (0 to 3).map(i => s"S$i")
     val km = new KinshipMatrix(hc, irm, samples.toArray, 10)
 
-    val kmOneEntry = km.filterSamples(Set("S2").contains)
+    val kmOneEntry = km.filterSamples(s => s == "S2")
     assert(kmOneEntry.matrix.toBlockMatrix().toLocalMatrix()(0, 0) == 11)
 
-    val kmTwoByTwo = km.filterSamples(Set("S1", "S3").contains)
+    val kmTwoByTwo = km.filterSamples(s => s == "S1" || s == "S3")
     assert(kmTwoByTwo.matrix.toBlockMatrix().toLocalMatrix().toArray.toSeq == Seq(6.0, 14.0, 8.0, 16.0))
   }
 

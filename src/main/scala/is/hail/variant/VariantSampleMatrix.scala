@@ -246,7 +246,7 @@ object VariantSampleMatrix {
     val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
     val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
 
-    val sampleInfoSchema = TStruct(("id", TString), ("annotation", saSignature))
+    val sampleInfoSchema = TStruct(("id", sSignature), ("annotation", saSignature))
     val sampleInfo = getAndCastJSON[JArray]("sample_annotations")
       .arr
       .map {
@@ -429,9 +429,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
   def aggregateByKey(keyExpr: String, aggExpr: String): KeyTable = {
     val aggregationST = Map(
       "global" -> (0, globalSignature),
-      "v" -> (1, TVariant),
+      "v" -> (1, vSignature),
       "va" -> (2, vaSignature),
-      "s" -> (3, TString),
+      "s" -> (3, sSignature),
       "sa" -> (4, saSignature),
       "g" -> (5, genotypeSignature))
 
@@ -439,9 +439,9 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
     val keyEC = EvalContext(Map(
       "global" -> (0, globalSignature),
-      "v" -> (1, TVariant),
+      "v" -> (1, vSignature),
       "va" -> (2, vaSignature),
-      "s" -> (3, TString),
+      "s" -> (3, sSignature),
       "sa" -> (4, saSignature),
       "g" -> (5, genotypeSignature)))
 
@@ -631,37 +631,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       globalSignature = finalType)
   }
 
-  /**
-    * Load text file into global annotations as Array[String] or
-    * Set[String].
-    *
-    * @param path  Input text file
-    * @param root  Global annotation path to store text file
-    * @param asSet If true, load text file as Set[String],
-    *              otherwise, load as Array[String]
-    */
-  def annotateGlobalList(path: String, root: String, asSet: Boolean = false): VariantSampleMatrix[T] = {
-    val textList = hc.hadoopConf.readFile(path) { in =>
-      Source.fromInputStream(in)
-        .getLines()
-        .toArray
-    }
-
-    val (sig, toInsert) =
-      if (asSet)
-        (TSet(TString), textList.toSet)
-      else
-        (TArray(TString), textList: IndexedSeq[String])
-
-    val rootPath = Parser.parseAnnotationRoot(root, "global")
-
-    val (newGlobalSig, inserter) = insertGlobal(sig, rootPath)
-
-    copy(
-      globalAnnotation = inserter(globalAnnotation, toInsert),
-      globalSignature = newGlobalSig)
-  }
-
   def insertGlobal(sig: Type, path: List[String]): (Type, Inserter) = {
     globalSignature.insert(sig, path)
   }
@@ -701,31 +670,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       sampleAnnotations = newAnnotations,
       saSignature = finalType
     )
-  }
-
-  /**
-    * Import PLINK .fam file into sample annotations.
-    *
-    * @param path   Path to .fam file
-    * @param root   Sample annotation path at which to store .fam file
-    * @param config .fam file configuration options
-    */
-  def annotateSamplesFam(path: String, root: String = "sa.fam",
-    config: FamFileConfig = FamFileConfig()): VariantSampleMatrix[T] = {
-    if (!path.endsWith(".fam"))
-      fatal("input file must end in .fam")
-
-    val (info, signature) = PlinkLoader.parseFam(path, config, hc.hadoopConf)
-
-    val duplicateIds = info.map(_._1).duplicates().toArray
-    if (duplicateIds.nonEmpty) {
-      val n = duplicateIds.length
-      fatal(
-        s"""found $n duplicate sample ${ plural(n, "id") }:
-           |  @1""".stripMargin, duplicateIds)
-    }
-
-    annotateSamples(info.map { case (s, i) => (s: Annotation, i) }.toMap, signature, root)
   }
 
   def annotateSamples(annotations: Map[Annotation, Annotation], signature: Type, code: String): VariantSampleMatrix[T] = {
@@ -908,7 +852,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       .filter { case (k, v) => k.toSeq.forall(_ != null) }
 
     if (vdsKey != null) {
-      val keyEC = EvalContext(Map("v" -> (0, TVariant), "va" -> (1, vaSignature)))
+      val keyEC = EvalContext(Map("v" -> (0, vSignature), "va" -> (1, vaSignature)))
       val (vdsKeyType, vdsKeyFs) = vdsKey.map(Parser.parseExpr(_, keyEC)).unzip
 
       if (!keyTypes.sameElements(vdsKeyType))
@@ -931,7 +875,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
     } else {
       keyTypes match {
-        case Array(TVariant) =>
+        case Array(`vSignature`) =>
           val ord = keyedRDD
             .map { case (k, v) => (k.getAs[Variant](0), v: Annotation) }
             .toOrderedRDD(rdd.orderedPartitioner)
@@ -1336,7 +1280,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
   def filterVariantsTable(kt: KeyTable, keep: Boolean = true): VariantSampleMatrix[T] = {
     val keyFields = kt.keyFields.map(_.typ)
     val filt = keyFields match {
-      case Array(TVariant) =>
+      case Array(`vSignature`) =>
         val variantRDD = kt.keyedRDD()
           .map { case (k, v) => (k.getAs[Variant](0), ()) }
           .filter(_._1 != null)
@@ -1503,7 +1447,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
   def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String] = Array.empty, seperator: String = "."): KeyTable = {
     val vSymTab = Map(
-      "v" -> (0, TVariant),
+      "v" -> (0, vSignature),
       "va" -> (1, vaSignature))
     val vEC = EvalContext(vSymTab)
     val vA = vEC.a
@@ -1741,7 +1685,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
   def querySamples(exprs: Array[String]): Array[(Annotation, Type)] = {
     val aggregationST = Map(
       "global" -> (0, globalSignature),
-      "s" -> (1, TString),
+      "s" -> (1, sSignature),
       "sa" -> (2, saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
@@ -1788,11 +1732,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
     val aggregationST = Map(
       "global" -> (0, globalSignature),
-      "v" -> (1, TVariant),
+      "v" -> (1, vSignature),
       "va" -> (2, vaSignature))
     val ec = EvalContext(Map(
       "global" -> (0, globalSignature),
-      "variants" -> (1, TAggregable(TVariant, aggregationST))))
+      "variants" -> (1, TAggregable(vSignature, aggregationST))))
 
     val ts = exprs.map(e => Parser.parseExpr(e, ec))
 
@@ -2074,7 +2018,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     KeyTable(hc,
       expandWithAll().map { case (v, va, s, sa, g) => Row(v, va, s, sa, g) },
       TStruct(
-        "v" -> TVariant,
+        "v" -> vSignature,
         "va" -> vaSignature,
         "s" -> sSignature,
         "sa" -> saSignature,

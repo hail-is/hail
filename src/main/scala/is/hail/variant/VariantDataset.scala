@@ -498,33 +498,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
   }
 
-
-  def gqByDP(path: String) {
-    val nBins = GQByDPBins.nBins
-    val binStep = GQByDPBins.binStep
-    val firstBinLow = GQByDPBins.firstBinLow
-    val gqbydp = GQByDPBins(vds)
-
-    vds.hadoopConf.writeTextFile(path) { s =>
-      s.write("sample")
-      for (b <- 0 until nBins)
-        s.write("\t" + GQByDPBins.binLow(b) + "-" + GQByDPBins.binHigh(b))
-
-      s.write("\n")
-
-      for (sample <- vds.stringSampleIds) {
-        s.write(sample)
-        for (b <- 0 until GQByDPBins.nBins) {
-          gqbydp.get((sample, b)) match {
-            case Some(percentGQ) => s.write("\t" + percentGQ)
-            case None => s.write("\tNA")
-          }
-        }
-        s.write("\n")
-      }
-    }
-  }
-
   def grm(): KinshipMatrix = {
     requireSplit("GRM")
     info("Computing GRM...")

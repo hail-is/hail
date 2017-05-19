@@ -4,6 +4,7 @@ import java.io.DataOutputStream
 
 import breeze.linalg.SparseVector
 import is.hail.HailContext
+import is.hail.annotations.Annotation
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -13,14 +14,14 @@ import scala.collection.Searching._
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-case class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val sampleIds: Array[String], val numVariantsUsed: Long) {
+case class KinshipMatrix(hc: HailContext, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   /**
     * Filters list of samples based on predicate, and removes corresponding rows and columns from the matrix.
     * @param pred The predicate that decides whether a sample is kept.
     */
-  def filterSamples(pred: (String => Boolean)): KinshipMatrix = {
+  def filterSamples(pred: (Annotation => Boolean)): KinshipMatrix = {
     val (samplesWithIndicesToKeep, samplesWithIndicesToDrop) = sampleIds.zipWithIndex.partition(pair => pred(pair._1))
 
     val filteredSamplesIds = samplesWithIndicesToKeep.map(_._1)
@@ -122,9 +123,9 @@ case class KinshipMatrix(val hc: HailContext, val matrix: IndexedRowMatrix, val 
   def exportIdFile(idFile: String) {
     hc.sc.hadoopConfiguration.writeTextFile(idFile) { s =>
       for (id <- sampleIds) {
-        s.write(id)
+        s.write(id.asInstanceOf[String])
         s.write("\t")
-        s.write(id)
+        s.write(id.asInstanceOf[String])
         s.write("\n")
       }
     }

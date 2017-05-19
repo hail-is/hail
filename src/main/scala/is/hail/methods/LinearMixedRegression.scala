@@ -39,7 +39,7 @@ object LinearMixedRegression {
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
     val completeSamplesSet = completeSamples.toSet
-    val sampleMask = assocVds.stringSampleIds.map(s => completeSamplesSet(s)).toArray
+    val sampleMask = assocVds.sampleIds.map(s => completeSamplesSet(s)).toArray
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
