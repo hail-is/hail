@@ -846,14 +846,14 @@ class KeyTable(object):
 
     def unpersist(self):
         """
-        Unpersists this keytable from memory/disk.
+        Unpersists this table from memory/disk.
         
         **Notes**
-        This function will have no effect on a keytable that was not previously persisted.
+        This function will have no effect on a table that was not previously persisted.
         
-        There's nothing stopping you from continuing to use a keytable that has been unpersisted, but doing so will result in
-        all previous steps taken to compute the keytable being performed again since the VDS must be recomputed. Only unpersist
-        a keytable when you are done with it.
+        There's nothing stopping you from continuing to use a table that has been unpersisted, but doing so will result in
+        all previous steps taken to compute the table being performed again since the table must be recomputed. Only unpersist
+        a table when you are done with it.
         """
         self._jkt.unpersist()
 
