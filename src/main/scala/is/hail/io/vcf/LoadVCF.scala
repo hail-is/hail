@@ -193,12 +193,12 @@ object LoadVCF {
     else None
   }
 
-  def apply[T](hc: HailContext,
-    reader: HtsjdkRecordReader[T],
+  def apply[M <: MatrixT](hc: HailContext,
+    reader: HtsjdkRecordReader[M#T],
     file1: String,
     files: Array[String] = null,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
+    dropSamples: Boolean = false)(implicit mt: MatrixTag[M]): VariantSampleMatrix[M] = {
     val hConf = hc.hadoopConf
     val sc = hc.sc
     val headerLines = hConf.readFile(file1) { s =>
@@ -327,7 +327,7 @@ object LoadVCF {
 
     justVariants.unpersist()
 
-    new VariantSampleMatrix[T](hc, VSMMetadata(
+    new VariantSampleMatrix[M](hc, VSMMetadata(
       TStruct.empty,
       variantAnnotationSignatures,
       TStruct.empty,

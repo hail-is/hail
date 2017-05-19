@@ -12,7 +12,7 @@ class SplitSuite extends SparkSuite {
 
   object Spec extends Properties("MultiSplit") {
     property("fakeRef implies wasSplit") =
-      forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random).map(_.splitMulti())) { (vds: VariantDataset) =>
+      forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random).map(_.splitMulti())) { (vds: VariantDataset) =>
         val wasSplitQuerier = vds.vaSignature.query("wasSplit")
         vds.mapWithAll((v: Variant, va: Annotation, _: String, _: Annotation, g: Genotype) =>
           !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Boolean])
@@ -28,7 +28,7 @@ class SplitSuite extends SparkSuite {
       alts <- Gen.distinctBuildableOf[Array, AltAllele](Gen.choose(1, 10).map(motif * _).filter(_ != ref).map(a => AltAllele(ref, a)))
     } yield Variant(contig, start, ref, alts)
 
-    property("splitMulti maintains variants") = forAll(VariantSampleMatrix.gen[Genotype](hc,
+    property("splitMulti maintains variants") = forAll(VariantSampleMatrix.gen(hc,
       VSMSubgen.random.copy(vGen = splittableVariantGen))) { vds =>
       val method1 = vds.splitMulti().variants.collect().toSet
       val method2 = vds.variants.flatMap { v =>

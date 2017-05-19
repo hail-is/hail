@@ -17,7 +17,7 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregations[T](vsm: VariantSampleMatrix[T], ec: EvalContext): Option[(Variant, Annotation, Iterable[T]) => Unit] =
+  def buildVariantAggregations[M <: MatrixT](vsm: VariantSampleMatrix[M], ec: EvalContext): Option[(Variant, Annotation, Iterable[M#T]) => Unit] =
     buildVariantAggregations(vsm.sparkContext, vsm.value.localValue, ec)
 
   def buildVariantAggregations[T](sc: SparkContext,
@@ -123,7 +123,9 @@ object Aggregators {
     })
   }
 
-  def makeSampleFunctions[T](vsm: VariantSampleMatrix[T], aggExpr: String): SampleFunctions[T] = {
+  def makeSampleFunctions[M <: MatrixT](vsm: VariantSampleMatrix[M], aggExpr: String): SampleFunctions[M] = {
+    type T = M#T
+
     val ec = vsm.sampleEC
 
     val (resultType, aggF) = Parser.parseExpr(aggExpr, ec)
@@ -196,9 +198,9 @@ object Aggregators {
     SampleFunctions(zVal, seqOp, combOp, resultOp, resultType)
   }
 
-  case class SampleFunctions[T](
+  case class SampleFunctions[M <: MatrixT](
     zero: MultiArray2[Aggregator],
-    seqOp: (MultiArray2[Aggregator], (Variant, Annotation, Iterable[T])) => MultiArray2[Aggregator],
+    seqOp: (MultiArray2[Aggregator], (M#RK, Annotation, Iterable[M#T])) => MultiArray2[Aggregator],
     combOp: (MultiArray2[Aggregator], MultiArray2[Aggregator]) => MultiArray2[Aggregator],
     resultOp: (MultiArray2[Aggregator] => Array[Annotation]),
     resultType: Type)

@@ -76,6 +76,6 @@ object LinearRegression {
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))
       newAnnotation
-    }.copy(vaSignature = newVAS)
+    }.copy[GenotypeMatrixT](vaSignature = newVAS)
   }
 }

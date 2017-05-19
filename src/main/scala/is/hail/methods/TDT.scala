@@ -83,7 +83,7 @@ object TDT {
 
     val (newVA, inserter) = vds.insertVA(schema, path)
 
-    vds.copy(rdd = vds.rdd.mapPartitions({ it =>
+    vds.copy[GenotypeMatrixT](rdd = vds.rdd.mapPartitions({ it =>
 
       val arr = MultiArray2.fill(nTrio, 3)(NoCall)
       it.map { case (v, (va, gs)) =>
@@ -115,6 +115,7 @@ object TDT {
           (v, (inserter(va, tdtAnnotation), gs))
         }
       }
-    }, preservesPartitioning = true).asOrderedRDD).copy(vaSignature = newVA)
+    }, preservesPartitioning = true).asOrderedRDD,
+      vaSignature = newVA)
   }
 }

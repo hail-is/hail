@@ -12,7 +12,7 @@ import is.hail.keytable.KeyTable
 import is.hail.methods.DuplicateReport
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, GenericMatrixT, GenotypeMatrixT, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -296,7 +296,7 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    new VariantSampleMatrix(this,
+    new VariantSampleMatrix[GenotypeMatrixT](this,
       VSMFileMetadata(samples, vaSignature = signature, isLinearScale = true, wasSplit = true),
       sc.union(results.map(_.rdd)).toOrderedRDD)
   }
@@ -443,11 +443,11 @@ class HailContext private(val sc: SparkContext,
     // I can't figure out how to write this with existentials -cs
     if (vsms(0).isGenericGenotype) {
       val gdses = vsms.asInstanceOf[Array[GenericDataset]]
-      gdses(0).copy(
+      gdses(0).copy[GenericMatrixT](
         rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
     } else {
       val vdses = vsms.asInstanceOf[Array[VariantDataset]]
-      vdses(0).copy(
+      vdses(0).copy[GenotypeMatrixT](
         rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
     }
   }
@@ -524,7 +524,7 @@ class HailContext private(val sc: SparkContext,
 
     val settings = VCFSettings(storeGQ, dropSamples, ppAsPL, skipBadAD)
     val reader = new GenotypeRecordReader(settings)
-    val vds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
+    val vds = LoadVCF[GenotypeMatrixT](this, reader, header, inputs, nPartitions, dropSamples)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
@@ -558,7 +558,7 @@ class HailContext private(val sc: SparkContext,
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
     val reader = new GenericRecordReader(callFields)
-    val gds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
+    val gds = LoadVCF[GenericMatrixT](this, reader, header, inputs, nPartitions, dropSamples)
 
     hadoopConf.set("io.compression.codecs", codecs)
 

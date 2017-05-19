@@ -50,7 +50,7 @@ class IntervalSuite extends SparkSuite {
   }
 
   @Test def testAll() {
-    val vds = new VariantSampleMatrix(hc, VSMFileMetadata(Array.empty[String]),
+    val vds = new VariantSampleMatrix[GenotypeMatrixT](hc, VSMFileMetadata(Array.empty[String]),
       sc.parallelize(Seq((Variant("1", 100, "A", "T"), (Annotation.empty, Iterable.empty[Genotype])))).toOrderedRDD)
 
     val intervalFile = tmpDir.createTempFile("intervals")
@@ -174,11 +174,11 @@ class IntervalSuite extends SparkSuite {
       val vdsKeep = vds.filterVariantsTable(IntervalList.read(hc, iList), keep = true)
       val vdsRemove = vds.filterVariantsTable(IntervalList.read(hc, iList), keep = false)
 
-      val p1 = vdsKeep.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
+      val p1 = vdsKeep.same(vds.copy[GenotypeMatrixT](rdd = vds.rdd.filter { case (v, _) =>
           intervals.exists(_.contains(v.locus))
       }.asOrderedRDD))
 
-      val p2 = vdsRemove.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
+      val p2 = vdsRemove.same(vds.copy[GenotypeMatrixT](rdd = vds.rdd.filter { case (v, _) =>
         intervals.forall(!_.contains(v.locus))
       }.asOrderedRDD))
 

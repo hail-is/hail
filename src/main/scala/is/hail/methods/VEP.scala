@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantSampleMatrix}
+import is.hail.variant.{MatrixT, MatrixTag, Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -214,8 +214,8 @@ object VEP {
     alleleMap
   }
 
-  def annotate[T](vsm: VariantSampleMatrix[T], config: String, root: String = "va.vep", csq: Boolean,
-    blockSize: Int)(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
+  def annotate[M <: MatrixT](vsm: VariantSampleMatrix[M], config: String, root: String = "va.vep", csq: Boolean,
+    blockSize: Int)(implicit mt: MatrixTag[M]): VariantSampleMatrix[M] = {
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 
@@ -392,14 +392,14 @@ object VEP {
 
     val newRDD = vsm.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
-        new Iterator[(Variant, (Annotation, Iterable[T]))] {
+        new Iterator[(Variant, (Annotation, Iterable[M#T]))] {
           def hasNext: Boolean = {
             val r = left.hasNext
             assert(r == right.hasNext)
             r
           }
 
-          def next(): (Variant, (Annotation, Iterable[T])) = {
+          def next(): (Variant, (Annotation, Iterable[M#T])) = {
             val (lv, (va, gs)) = left.next()
             val (rv, vaVep) = right.next()
             assert(lv == rv)
@@ -409,9 +409,9 @@ object VEP {
       }.asOrderedRDD
 
     (csq, newVASignature) match {
-      case (true, t: TStruct) => vsm.copy(rdd = newRDD,
+      case (true, t: TStruct) => vsm.copy[M](rdd = newRDD,
         vaSignature = t.setFieldAttributes(parsedRoot, Map("Description" -> csqHeader)))
-      case _ => vsm.copy(rdd = newRDD, vaSignature = newVASignature)
+      case _ => vsm.copy[M](rdd = newRDD, vaSignature = newVASignature)
     }
   }
 }

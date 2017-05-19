@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Inserter}
 import is.hail.expr.{EvalContext, Parser, TArray, TInt, TVariant}
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
-import is.hail.variant.{GTPair, Genotype, Variant, VariantDataset}
+import is.hail.variant.{GTPair, Genotype, GenotypeMatrixT, Variant, VariantDataset}
 
 import scala.collection.mutable
 import scala.math.min
@@ -173,6 +173,6 @@ object FilterAlleles {
 
     val newRDD = OrderedRDD.partitionedSortedUnion(staticVariants, shuffledVariants, vds.rdd.orderedPartitioner)
 
-    vds.copy(rdd = newRDD, vaSignature = finalType)
+    vds.copy[GenotypeMatrixT](rdd = newRDD, vaSignature = finalType)
   }
 }
