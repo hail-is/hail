@@ -500,7 +500,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
         Row.fromSeq(results)
       }
 
-    val signature = TStruct((keyName -> keyType) +: sampleIds.map(id => id.asInstanceOf[String] -> resultType): _*)
+    val signature = TStruct((keyName -> keyType) +: stringSampleIds.map(id => id -> resultType): _*)
 
     new KeyTable(hc, ktRDD, signature, key = Array(keyName))
   }
@@ -1522,12 +1522,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     val (gNames, gTypes, gf) = Parser.parseNamedExprs(genotypeCondition, gEC)
 
     val sig = TStruct(((vNames, vTypes).zipped ++
-      sampleIds.flatMap { s =>
+      stringSampleIds.flatMap { s =>
         (gNames, gTypes).zipped.map { case (n, t) =>
           (if (n.isEmpty)
-            s.asInstanceOf[String]
+            s
           else
-            s.asInstanceOf[String] + seperator + n, t)
+            s + seperator + n, t)
         }
       }).toSeq: _*)
 

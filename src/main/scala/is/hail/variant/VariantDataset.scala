@@ -376,7 +376,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
     val spaceRegex = """\s+""".r
-    // FIXME require sample = string
     val badSampleIds = vds.stringSampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
     if (badSampleIds.nonEmpty) {
       fatal(

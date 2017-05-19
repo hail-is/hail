@@ -100,7 +100,7 @@ object MendelErrors {
       a
     }
 
-    new MendelErrors(vds.hc, trios, vds.sampleIds.map(_.asInstanceOf[String]),
+    new MendelErrors(vds.hc, trios, vds.stringSampleIds,
       vds
         .aggregateByVariantWithKeys(zeroVal)(
           (a, v, s, g) => seqOp(a, s, g),

@@ -38,9 +38,8 @@ object LinearMixedRegression {
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
-    // FIXME require Samples = String
     val completeSamplesSet = completeSamples.toSet
-    val sampleMask = assocVds.sampleIds.map(s => completeSamplesSet(s.asInstanceOf[String])).toArray
+    val sampleMask = assocVds.stringSampleIds.map(s => completeSamplesSet(s)).toArray
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
