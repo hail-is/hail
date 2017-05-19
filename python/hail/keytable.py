@@ -2,6 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
 from hail.expr import Type, TArray, TStruct
+from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
@@ -74,6 +75,12 @@ class KeyTable(object):
         return self._jkt.toString()
 
     @staticmethod
+    @handle_py4j
+    @typecheck(hc=anytype,
+               rows_py=oneof(listof(Struct), listof(dictof(strlike, anytype))),
+               schema=TStruct,
+               key_names=listof(strlike),
+               num_partitions=nullable(integral))
     def from_py(hc, rows_py, schema, key_names=[], num_partitions=None):
         return KeyTable(
             hc,
@@ -82,6 +89,7 @@ class KeyTable(object):
                 schema._jtype, key_names, joption(num_partitions)))
 
     @property
+    @handle_py4j
     def num_columns(self):
         """Number of columns.
 
@@ -96,6 +104,7 @@ class KeyTable(object):
         return self._num_columns
 
     @property
+    @handle_py4j
     def schema(self):
         """Table schema.
 
@@ -124,6 +133,7 @@ class KeyTable(object):
         return self._schema
 
     @property
+    @handle_py4j
     def key(self):
         """List of key columns.
 
@@ -138,6 +148,7 @@ class KeyTable(object):
         return self._key
 
     @property
+    @handle_py4j
     def columns(self):
         """Names of all columns.
 
@@ -165,6 +176,7 @@ class KeyTable(object):
         return self._jkt.count()
 
     @handle_py4j
+    @typecheck_method(other=anytype)
     def same(self, other):
         """Test whether two key tables are identical.
 
@@ -182,6 +194,9 @@ class KeyTable(object):
         return self._jkt.same(other._jkt)
 
     @handle_py4j
+    @typecheck_method(output=strlike,
+                      types_file=nullable(strlike),
+                      header=bool)
     def export(self, output, types_file=None, header=True):
         """Export to a TSV file.
 
@@ -202,6 +217,8 @@ class KeyTable(object):
         self._jkt.export(output, types_file, header)
 
     @handle_py4j
+    @typecheck_method(expr=strlike,
+                      keep=bool)
     def filter(self, expr, keep=True):
         """Filter rows.
 
@@ -236,6 +253,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.filter(expr, keep))
 
     @handle_py4j
+    @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate(self, expr):
         """Add new columns computed from existing columns.
 
@@ -265,6 +283,9 @@ class KeyTable(object):
 
         return KeyTable(self.hc, self._jkt.annotate(expr))
 
+    @handle_py4j
+    @typecheck_method(right=anytype,
+                      how=strlike)
     def join(self, right, how='inner'):
         """Join two key tables together.
 
@@ -302,6 +323,8 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.join(right._jkt, how))
 
     @handle_py4j
+    @typecheck_method(key_expr=oneof(strlike, listof(strlike)),
+                      agg_expr=oneof(strlike, listof(strlike)))
     def aggregate_by_key(self, key_expr, agg_expr):
         """Aggregate columns programmatically.
 
@@ -347,6 +370,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.aggregate(key_expr, agg_expr))
 
     @handle_py4j
+    @typecheck_method(expr=strlike)
     def forall(self, expr):
         """Evaluate whether a boolean expression is true for all rows.
 
@@ -365,6 +389,7 @@ class KeyTable(object):
         return self._jkt.forall(expr)
 
     @handle_py4j
+    @typecheck_method(expr=strlike)
     def exists(self, expr):
         """Evaluate whether a boolean expression is true for at least one row.
 
@@ -383,6 +408,7 @@ class KeyTable(object):
         return self._jkt.exists(expr)
 
     @handle_py4j
+    @typecheck_method(column_names=oneof(listof(strlike), dictof(strlike, strlike)))
     def rename(self, column_names):
         """Rename columns of key table.
 
@@ -430,6 +456,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.expandTypes())
 
     @handle_py4j
+    @typecheck_method(key=oneof(strlike, listof(strlike)))
     def key_by(self, key):
         """Change which columns are keys.
 
@@ -515,6 +542,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.flatten())
 
     @handle_py4j
+    @typecheck_method(column_names=listof(strlike))
     def select(self, column_names):
         """Select a subset of columns.
 
@@ -546,6 +574,8 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.select(column_names, new_key))
 
     @handle_py4j
+    @typecheck_method(expand=bool,
+                      flatten=bool)
     def to_dataframe(self, expand=True, flatten=True):
         """Converts this key table to a Spark DataFrame.
 
@@ -567,6 +597,8 @@ class KeyTable(object):
         return DataFrame(jkt.toDF(self.hc._jsql_context), self.hc._sql_context)
 
     @handle_py4j
+    @typecheck_method(expand=bool,
+                      flatten=bool)
     def to_pandas(self, expand=True, flatten=True):
         """Converts this key table into a Pandas DataFrame.
 
@@ -584,6 +616,7 @@ class KeyTable(object):
         return self.to_dataframe(expand, flatten).toPandas()
 
     @handle_py4j
+    @typecheck_method(mode=strlike)
     def export_mongodb(self, mode='append'):
         """Export to MongoDB
 
@@ -597,6 +630,9 @@ class KeyTable(object):
          .exportMongoDB(self.hc._jsql_context, self._jkt, mode))
 
     @handle_py4j
+    @typecheck_method(zk_host=strlike,
+                      collection=strlike,
+                      block_size=integral)
     def export_solr(self, zk_host, collection, block_size=100):
         """Export to Solr.
         
@@ -609,6 +645,11 @@ class KeyTable(object):
         self._jkt.exportSolr(zk_host, collection, block_size)
 
     @handle_py4j
+    @typecheck_method(address=strlike,
+                      keyspace=strlike,
+                      table=strlike,
+                      block_size=integral,
+                      rate=integral)
     def export_cassandra(self, address, keyspace, table, block_size=100, rate=1000):
         """Export to Cassandra.
 
@@ -621,6 +662,7 @@ class KeyTable(object):
         self._jkt.exportCassandra(address, keyspace, table, block_size, rate)
 
     @handle_py4j
+    @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def explode(self, column_names):
         """Explode columns of this key table.
 
@@ -685,6 +727,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.explode(column_names))
 
     @handle_py4j
+    @typecheck_method(exprs=oneof(strlike, listof(strlike)))
     def query_typed(self, exprs):
         """Performs aggregation queries over columns of the table, and returns Python object(s) and types.
 
@@ -714,6 +757,7 @@ class KeyTable(object):
             return t._convert_to_py(result._1()), t
 
     @handle_py4j
+    @typecheck_method(exprs=oneof(strlike, listof(strlike)))
     def query(self, exprs):
         """Performs aggregation queries over columns of the table, and returns Python object(s).
 
@@ -786,6 +830,8 @@ class KeyTable(object):
         self._jkt.typeCheck()
 
     @handle_py4j
+    @typecheck_method(output=strlike,
+                      overwrite=bool)
     def write(self, output, overwrite=False):
         """Write as KT file.
 
@@ -804,6 +850,7 @@ class KeyTable(object):
 
         self._jkt.write(output, overwrite)
 
+    @handle_py4j
     def cache(self):
         """Mark this key table to be cached in memory.
 
@@ -814,6 +861,8 @@ class KeyTable(object):
         """
         return KeyTable(self.hc, self._jkt.cache())
 
+    @handle_py4j
+    @typecheck_method(storage_level=strlike)
     def persist(self, storage_level="MEMORY_AND_DISK"):
         """Persist this key table to memory and/or disk.
 
@@ -844,6 +893,7 @@ class KeyTable(object):
 
         return KeyTable(self.hc, self._jkt.persist(storage_level))
 
+    @handle_py4j
     def unpersist(self):
         """
         Unpersists this table from memory/disk.
@@ -857,6 +907,7 @@ class KeyTable(object):
         """
         self._jkt.unpersist()
 
+    @handle_py4j
     def order_by(self, *cols):
         """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
 
@@ -871,6 +922,7 @@ class KeyTable(object):
         return KeyTable(self.hc,
                         self._jkt.orderBy(jarray(Env.hail().keytable.SortColumn, jsort_columns)))
 
+    @handle_py4j
     def num_partitions(self):
         """Returns the number of partitions in the key table.
         
@@ -880,6 +932,7 @@ class KeyTable(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck(path=strlike)
     def import_interval_list(path):
         """Import an interval list file in the GATK standard format.
         
@@ -930,6 +983,7 @@ class KeyTable(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck(path=strlike)
     def import_bed(path):
         """Import a UCSC .bed file as a key table.
 
@@ -995,6 +1049,8 @@ class KeyTable(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck(df=DataFrame,
+               key=oneof(strlike, listof(strlike)))
     def from_dataframe(df, key=[]):
         """Convert Spark SQL DataFrame to key table.
 
@@ -1026,6 +1082,8 @@ class KeyTable(object):
 
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
+    @handle_py4j
+    @typecheck_method(n=integral)
     def repartition(self, n):
         """Change the number of distributed partitions.
         
@@ -1040,6 +1098,10 @@ class KeyTable(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck(path=strlike,
+               quantitative=bool,
+               delimiter=strlike,
+               missing=strlike)
     def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
         """Import PLINK .fam file into a key table.
 
