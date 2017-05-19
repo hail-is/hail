@@ -19,7 +19,7 @@ class AggregateByKeySuite extends SparkSuite {
     val (_, saHetQuerier) = vds.querySA("sa.nHet")
 
     val ktSampleResults = kt.rdd.map { a =>
-      (Option(ktSampleQuerier(a)).map(_.asInstanceOf[String]), Option(ktHetQuerier(a)).map(_.asInstanceOf[Int]))
+      (Option(ktSampleQuerier(a)), Option(ktHetQuerier(a)).map(_.asInstanceOf[Int]))
     }.collectAsMap()
 
     assert(vds.sampleIdsAndAnnotations.forall { case (sid, sa) => Option(saHetQuerier(sa)) == ktSampleResults(Option(sid)) })

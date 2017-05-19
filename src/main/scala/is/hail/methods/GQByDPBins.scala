@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.annotations.Annotation
 import is.hail.variant.VariantDataset
 
 object GQByDPBins {
@@ -30,7 +31,7 @@ object GQByDPBins {
   }
 
   // ((sample, bin), %GQ)
-  def apply(vds: VariantDataset): Map[(String, Int), Double] = {
+  def apply(vds: VariantDataset): Map[(Annotation, Int), Double] = {
     vds
       .flatMapWithKeys((v, s, g) => {
         val bin = g.dp.flatMap(dpBin)

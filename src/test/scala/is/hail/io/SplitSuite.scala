@@ -14,7 +14,7 @@ class SplitSuite extends SparkSuite {
     property("fakeRef implies wasSplit") =
       forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random).map(_.splitMulti())) { (vds: VariantDataset) =>
         val wasSplitQuerier = vds.vaSignature.query("wasSplit")
-        vds.mapWithAll((v: Variant, va: Annotation, _: String, _: Annotation, g: Genotype) =>
+        vds.mapWithAll((v: Variant, va: Annotation, _: Annotation, _: Annotation, g: Genotype) =>
           !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Boolean])
           .collect()
           .forall(identity)

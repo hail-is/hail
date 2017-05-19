@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.HailContext
+import is.hail.annotations.Annotation
 import is.hail.expr.{TInt, TString, TStruct, TVariant}
 import is.hail.keytable.KeyTable
 import is.hail.utils.{MultiArray2, _}
@@ -87,8 +88,8 @@ object MendelErrors {
 
     val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length, 3)(NoCall)
 
-    def seqOp(a: MultiArray2[GenotypeType], s: String, g: Genotype): MultiArray2[GenotypeType] = {
-      sampleTrioRolesBc.value.get(s).foreach(l => l.foreach { case (ti, ri) => a.update(ti, ri, g.gtType) })
+    def seqOp(a: MultiArray2[GenotypeType], s: Annotation, g: Genotype): MultiArray2[GenotypeType] = {
+      sampleTrioRolesBc.value.get(s.asInstanceOf[String]).foreach(l => l.foreach { case (ti, ri) => a.update(ti, ri, g.gtType) })
       a
     }
 
@@ -99,7 +100,7 @@ object MendelErrors {
       a
     }
 
-    new MendelErrors(vds.hc, trios, vds.sampleIds,
+    new MendelErrors(vds.hc, trios, vds.sampleIds.map(_.asInstanceOf[String]),
       vds
         .aggregateByVariantWithKeys(zeroVal)(
           (a, v, s, g) => seqOp(a, s, g),

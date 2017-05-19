@@ -229,7 +229,7 @@ object IBD {
     computeMafExpr: Option[String],
     bounded: Boolean,
     min: Option[Double],
-    max: Option[Double]): RDD[((String, String), ExtendedIBDInfo)] = {
+    max: Option[Double]): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
 
     min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
     max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
@@ -249,7 +249,7 @@ object IBD {
     computeMaf: Option[(Variant, Annotation) => Double] = None,
     bounded: Boolean = true,
     min: Option[Double] = None,
-    max: Option[Double] = None): RDD[((String, String), ExtendedIBDInfo)] = {
+    max: Option[Double] = None): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
 
     val sampleIds = vds.sampleIds
 
@@ -263,7 +263,7 @@ object IBD {
 
 
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString), ("j", TString)).merge(ExtendedIBDInfo.signature)
-  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((String, String), ExtendedIBDInfo)]): KeyTable = {
+  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): KeyTable = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }
     KeyTable(sc, ktRdd, ibdSignature, Array("i", "j"))
   }
@@ -298,7 +298,7 @@ object IBDPrune {
 
     val sc = vds.sparkContext
 
-    val sampleIDs: IndexedSeq[String] = vds.sampleIds
+    val sampleIDs: IndexedSeq[Annotation] = vds.sampleIds
     val sampleAnnotations = sc.broadcast(vds.sampleAnnotations)
 
     val computeMaf = computeMafExpr.map(generateComputeMaf(vds, _))
@@ -322,8 +322,8 @@ object IBDPrune {
 
     info("Performing IBD Prune")
 
-    val setToKeep: Set[String] = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size, optCompareFunc)
-      .map(id =>sampleIDs(id.toInt))
+    val setToKeep = MaximalIndependentSet.ofIBDMatrix(computedIBDs, threshold, 0 until sampleIDs.size, optCompareFunc)
+      .map(id => sampleIDs(id.toInt))
 
     info("Pruning Complete")
 

@@ -19,6 +19,6 @@ object GRM {
     assert(grm.numCols == nSamples
       && grm.numRows == nSamples)
 
-    new KinshipMatrix(vds.hc, grm.toIndexedRowMatrix, vds.sampleIds.toArray, vds.countVariants())
+    new KinshipMatrix(vds.hc, grm.toIndexedRowMatrix, vds.sampleIds.map(_.asInstanceOf[String]).toArray, vds.countVariants())
   }
 }

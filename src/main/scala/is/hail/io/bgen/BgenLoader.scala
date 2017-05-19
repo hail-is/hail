@@ -81,7 +81,9 @@ object BgenLoader {
     })).toOrderedRDD[Locus](fastKeys)
 
     new VariantSampleMatrix(hc, VSMMetadata(
+      TString,
       saSignature = TStruct.empty,
+      TVariant,
       vaSignature = signature,
       globalSignature = TStruct.empty,
       wasSplit = true,

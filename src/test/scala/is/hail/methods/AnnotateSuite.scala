@@ -46,7 +46,7 @@ class AnnotateSuite extends SparkSuite {
     assert(anno1.sampleIdsAndAnnotations
       .forall {
         case (id, sa) =>
-          fileMap.get(id).forall { case (status, qphen) =>
+          fileMap.get(id.asInstanceOf[String]).forall { case (status, qphen) =>
             status.liftedZip(Option(q1(sa))).exists { case (v1, v2) => v1 == v2 } &&
               (qphen.isEmpty && Option(q2(sa)).isEmpty || qphen.liftedZip(Option(q2(sa))).exists { case (v1, v2) => v1 == v2 })
           }
@@ -61,7 +61,7 @@ class AnnotateSuite extends SparkSuite {
     List("0", "0.0", ".0", "-01", "1e5", "1e10", "1.1e10", ".1E-10").foreach(assertNumeric)
     List("", "a", "1.", ".1.", "1e", "e", "E0", "1e1.", "1e.1", "1e1.1").foreach(assertNonNumeric)
 
-    def qMap(query: String, vds: VariantDataset): Map[String, Option[Any]] = {
+    def qMap(query: String, vds: VariantDataset): Map[Annotation, Option[Any]] = {
       val q = vds.querySA(query)._2
       vds.sampleIds
         .zip(vds.sampleAnnotations)

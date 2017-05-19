@@ -31,7 +31,7 @@ object ImputeSexPlink {
     includePar: Boolean,
     fMaleThreshold: Double,
     fFemaleThreshold: Double,
-    popFrequencyExpr: Option[String]): Map[String, Annotation] = {
+    popFrequencyExpr: Option[String]): Map[Annotation, Annotation] = {
 
     val query = popFrequencyExpr.map { code =>
       val (t, f) = vds.queryVA(code)

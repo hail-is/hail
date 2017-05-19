@@ -5,7 +5,7 @@ import is.hail.expr._
 import is.hail.utils._
 
 object VSMLocalValue {
-  def apply(sampleIds: IndexedSeq[String]): VSMLocalValue =
+  def apply(sampleIds: IndexedSeq[Annotation]): VSMLocalValue =
     VSMLocalValue(Annotation.empty,
       sampleIds,
       Annotation.emptyIndexedSeq(sampleIds.length))
@@ -13,7 +13,7 @@ object VSMLocalValue {
 
 case class VSMLocalValue(
   globalAnnotation: Annotation,
-  sampleIds: IndexedSeq[String],
+  sampleIds: IndexedSeq[Annotation],
   sampleAnnotations: IndexedSeq[Annotation]) {
   assert(sampleIds.areDistinct(), s"Sample ID names are not distinct: ${ sampleIds.duplicates().mkString(", ") }")
   assert(sampleIds.length == sampleAnnotations.length)
@@ -21,7 +21,7 @@ case class VSMLocalValue(
   def nSamples: Int = sampleIds.length
 
   def dropSamples(): VSMLocalValue = VSMLocalValue(globalAnnotation,
-    IndexedSeq.empty[String],
+    IndexedSeq.empty[Annotation],
     IndexedSeq.empty[Annotation])
 }
 
@@ -29,14 +29,16 @@ object VSMFileMetadata {
   def apply(sampleIds: IndexedSeq[String],
     sampleAnnotations: IndexedSeq[Annotation] = null,
     globalAnnotation: Annotation = Annotation.empty,
+    sSignature: Type = TString,
     saSignature: Type = TStruct.empty,
+    vSignature: Type = TVariant,
     vaSignature: Type = TStruct.empty,
     globalSignature: Type = TStruct.empty,
     genotypeSignature: Type = TGenotype,
     wasSplit: Boolean = false,
     isLinearScale: Boolean = false): VSMFileMetadata = {
     VSMFileMetadata(
-      VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale),
       VSMLocalValue(globalAnnotation, sampleIds,
         if (sampleAnnotations == null)
           Annotation.emptyIndexedSeq(sampleIds.length)
@@ -50,7 +52,9 @@ case class VSMFileMetadata(
   localValue: VSMLocalValue)
 
 case class VSMMetadata(
+  sSignature: Type = TString,
   saSignature: Type = TStruct.empty,
+  vSignature: Type = TVariant,
   vaSignature: Type = TStruct.empty,
   globalSignature: Type = TStruct.empty,
   genotypeSignature: Type = TGenotype,
