@@ -74,7 +74,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val out = tmpDir.createTempFile("foo", ".vcf.bgz")
     val out2 = tmpDir.createTempFile("foo2", ".vcf.bgz")
-    val p = forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random), Gen.choose(1, 10),
+    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random), Gen.choose(1, 10),
       Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
       hadoopConf.delete(out, recursive = true)
       hadoopConf.delete(out2, recursive = true)

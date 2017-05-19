@@ -53,6 +53,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         }: _*)
   }
 
+  def annotationImporter(t: Type): (Any) => Annotation = {
+    if (requiresConversion(t))
+      (a: Any) => importAnnotation(a, t)
+    else
+      (a: Any) => a
+  }
+
   def importAnnotation(a: Any, t: Type): Annotation = {
     if (a == null)
       null
@@ -133,6 +140,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         StructType(fields
           .map(f =>
             StructField(escapeColumnName(f.name), f.typ.schema)))
+  }
+
+  def annotationExporter(t: Type): (Annotation) => Any = {
+    if (requiresConversion(t))
+      (a: Annotation) => exportAnnotation(a, t)
+    else
+      (a: Annotation) => a
   }
 
   def exportAnnotation(a: Annotation, t: Type): Any = {

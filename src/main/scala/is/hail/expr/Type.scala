@@ -3,6 +3,7 @@ package is.hail.expr
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
+import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
 import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
@@ -54,7 +55,7 @@ object Type {
   def parseMap(s: String): Map[String, Type] = Parser.parseAnnotationTypes(s)
 }
 
-sealed abstract class Type {
+sealed abstract class Type extends Serializable { self =>
 
   def children: Seq[Type] = Seq()
 
@@ -153,6 +154,29 @@ sealed abstract class Type {
   def canCompare(other: Type): Boolean = this == other
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation]
+
+  val partitionKey: Type = this
+
+  def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
+    def project(key: Annotation): Annotation = key
+
+    val kOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+
+    val pkOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+
+    val kct: ClassTag[Annotation] = classTag[Annotation]
+
+    val pkct: ClassTag[Annotation] = classTag[Annotation]
+  }
+
+  def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
+    def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)
+  }
+
+  def jsonWriter: JSONWriter[Annotation] = new JSONWriter[Annotation] {
+    def toJSON(pk: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(pk, self)
+  }
+
 }
 
 case object TBinary extends Type {
@@ -615,11 +639,11 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     Gen.buildableOf2[Map, Annotation, Annotation](Gen.zip(keyType.genValue, valueType.genValue))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
-    a1 == a2 || (a1 != null && a2 != null) ||
+    a1 == a2 || (a1 != null && a2 != null &&
       a1.asInstanceOf[Map[Any, _]].outerJoin(a2.asInstanceOf[Map[Any, _]])
         .forall { case (_, (o1, o2)) =>
           o1.liftedZip(o2).exists { case (v1, v2) => valueType.valuesSimilar(v1, v2, tolerance) }
-        }
+        })
 
   override def desc: String =
     """
@@ -632,8 +656,8 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     extendOrderingToNull(missingGreatest)(
       Ordering.Iterable(
         Ordering.Tuple2(
-          elementType.ordering(missingGreatest),
-          elementType.ordering(missingGreatest))))
+          keyType.ordering(missingGreatest),
+          valueType.ordering(missingGreatest))))
   }
 }
 
@@ -705,6 +729,20 @@ case object TVariant extends Type {
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]])
+
+  override val partitionKey: Type = TLocus
+
+  override def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
+    def project(key: Annotation): Annotation = key.asInstanceOf[Variant].locus
+
+    val kOrd: Ordering[Annotation] = ordering(missingGreatest = true)
+
+    val pkOrd: Ordering[Annotation] = TLocus.ordering(missingGreatest = true)
+
+    val kct: ClassTag[Annotation] = classTag[Annotation]
+
+    val pkct: ClassTag[Annotation] = classTag[Annotation]
+  }
 }
 
 case object TLocus extends Type {

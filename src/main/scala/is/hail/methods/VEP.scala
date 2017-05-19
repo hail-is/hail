@@ -6,7 +6,7 @@ import java.util.Properties
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
-import is.hail.variant.{Variant, VariantSampleMatrix}
+import is.hail.variant.{Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
@@ -214,8 +214,8 @@ object VEP {
     alleleMap
   }
 
-  def annotate[T](vsm: VariantSampleMatrix[T], config: String, root: String = "va.vep", csq: Boolean,
-    blockSize: Int)(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
+  def annotate[T](vsm: VariantSampleMatrix[Locus, Variant, T], config: String, root: String = "va.vep", csq: Boolean,
+    blockSize: Int)(implicit tct: ClassTag[T]): VariantSampleMatrix[Locus, Variant, T] = {
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
 

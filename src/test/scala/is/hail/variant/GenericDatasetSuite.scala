@@ -15,7 +15,7 @@ class GenericDatasetSuite extends SparkSuite {
     assert(!vds.isGenericGenotype)
 
     val gds = vds.toGDS
-    assert(gds.isGenericGenotype && gds.genotypeSignature == TGenotype)
+    assert(gds.isGenericGenotype)
 
     gds.write(path)
 
@@ -58,14 +58,14 @@ class GenericDatasetSuite extends SparkSuite {
   }
 
   @Test def testExportVCF() {
-    val gds_exportvcf_path = tmpDir.createTempFile(extension = ".vcf")
+    val gds_exportvcf_path = tmpDir.createTempFile(extension = "vcf")
     val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz", nPartitions = Some(4))
     gds.exportVCF(gds_exportvcf_path)
     assert(gds.same(hc.importVCFGeneric(gds_exportvcf_path)))
 
     // not TGenotype or TStruct signature
     intercept[HailException] {
-      val path = tmpDir.createTempFile(extension = ".vcf")
+      val path = tmpDir.createTempFile(extension = "vcf")
       gds
         .annotateGenotypesExpr("g = 5")
         .exportVCF(path)
@@ -106,18 +106,6 @@ class GenericDatasetSuite extends SparkSuite {
     hc.importVCF(path).write(path2)
   }
 
-  @Test def testSummarize() {
-    val vcf = "src/test/resources/sample.vcf.bgz"
-    val vds = hc.importVCF(vcf)
-    val gds = hc.importVCFGeneric(vcf).annotateGenotypesExpr("g = g.GT")
-    assert(vds.summarize() == gds.summarize())
-
-    assert(gds
-      .filterGenotypes("false")
-      .summarize()
-      .callRate.get == 0)
-  }
-
   @Test def testPersistCoalesce() {
     val vcf = "src/test/resources/sample.vcf.bgz"
 
@@ -130,21 +118,12 @@ class GenericDatasetSuite extends SparkSuite {
       gds_coalesce.nPartitions == 5)
   }
 
-  @Test def testExportGenotypes() {
-    val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz").annotateGenotypesExpr("g = g.GT")
-    val path = tmpDir.createTempFile("testExportGenotypes", ".tsv")
-    gds.exportGenotypes(path, "s, v, g", false)
-    val summary = gds.summarize()
-    val nNotMissing = summary.callRate.get * summary.variants * summary.samples
-    assert(sc.textFile(path).count() == nNotMissing)
-  }
-
   @Test def testAnnotate2() {
     val vcf = "src/test/resources/sample.vcf.bgz"
     val vds = hc.importVCF(vcf)
-    val result = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.ad, g.dp, g.gq, g.pl)").toVDS
-    val result2 = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.gp)").toVDS
-    val result3 = vds.annotateGenotypesExpr("g = Genotype(v, g.gp)").toVDS
+    val result = vds.toGDS.annotateGenotypesExpr("g = Genotype(v, g.gt, g.ad, g.dp, g.gq, g.pl)").toVDS
+    val result2 = vds.toGDS.annotateGenotypesExpr("g = Genotype(v, g.gt, g.gp)").toVDS
+    val result3 = vds.toGDS.annotateGenotypesExpr("g = Genotype(v, g.gp)").toVDS
     assert(vds.same(result))
 
     def compareDosages(vds1: VariantDataset, vds2: VariantDataset): Boolean = {

@@ -4,9 +4,9 @@ import java.io.FileNotFoundException
 
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.methods.{Aggregators, Filter}
-import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
-import is.hail.variant.{Genotype, Locus, VSMLocalValue, VSMMetadata, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.methods.Aggregators
+import is.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
+import is.hail.variant.{Genotype, Locus, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
@@ -86,10 +86,10 @@ object NewAST {
     rewrite(ast)
   }
 
-  def rewriteTopDown[T](ast: MatrixAST[T], rule: PartialFunction[NewAST, NewAST]): MatrixAST[T] =
-    genericRewriteTopDown(ast, rule).asInstanceOf[MatrixAST[T]]
+  def rewriteTopDown[RPK, RK, T](ast: MatrixAST[RPK, RK, T], rule: PartialFunction[NewAST, NewAST]): MatrixAST[RPK, RK, T] =
+    genericRewriteTopDown(ast, rule).asInstanceOf[MatrixAST[RPK, RK, T]]
 
-  def rewriteTopDown[T](ast: KeyTableAST, rule: PartialFunction[NewAST, NewAST]): KeyTableAST =
+  def rewriteTopDown(ast: KeyTableAST, rule: PartialFunction[NewAST, NewAST]): KeyTableAST =
     genericRewriteTopDown(ast, rule).asInstanceOf[KeyTableAST]
 
   def genericRewriteBottomUp(ast: NewAST, rule: PartialFunction[NewAST, NewAST]): NewAST = {
@@ -114,10 +114,10 @@ object NewAST {
     rewrite(ast)
   }
   
-  def rewriteBottomUp[T](ast: MatrixAST[T], rule: PartialFunction[NewAST, NewAST]): MatrixAST[T] =
-    genericRewriteBottomUp(ast, rule).asInstanceOf[MatrixAST[T]]
+  def rewriteBottomUp[RPK, RK, T](ast: MatrixAST[RPK, RK, T], rule: PartialFunction[NewAST, NewAST]): MatrixAST[RPK, RK, T] =
+    genericRewriteBottomUp(ast, rule).asInstanceOf[MatrixAST[RPK, RK, T]]
 
-  def rewriteBottomUp[T](ast: KeyTableAST, rule: PartialFunction[NewAST, NewAST]): KeyTableAST =
+  def rewriteBottomUp(ast: KeyTableAST, rule: PartialFunction[NewAST, NewAST]): KeyTableAST =
     genericRewriteBottomUp(ast, rule).asInstanceOf[KeyTableAST]
 }
 
@@ -131,9 +131,13 @@ abstract class NewAST {
   }
 }
 
-case class MatrixValue[T](
+case class MatrixValue[RPK, RK, T](
   localValue: VSMLocalValue,
-  rdd: OrderedRDD[Locus, Variant, (Any, Iterable[T])])(implicit tct: ClassTag[T]) {
+  rdd: OrderedRDD[RPK, RK, (Any, Iterable[T])])(implicit tct: ClassTag[T]) {
+  implicit val kOk: OrderedKey[RPK, RK] = rdd.kOk
+
+  import kOk._
+
   def sparkContext: SparkContext = rdd.sparkContext
 
   def nPartitions: Int = rdd.partitions.length
@@ -152,7 +156,7 @@ case class MatrixValue[T](
 
   def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
 
-  def filterSamples(p: (Annotation, Annotation) => Boolean): MatrixValue[T] = {
+  def filterSamples(p: (Annotation, Annotation) => Boolean): MatrixValue[RPK, RK, T] = {
     val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }
     val maskBc = sparkContext.broadcast(mask)
     val localtct = tct
@@ -171,16 +175,16 @@ case class MatrixValue[T](
 }
 
 object MatrixAST {
-  def optimize[T](ast: MatrixAST[T]): MatrixAST[T] = {
+  def optimize[RPK, RK, T](ast: MatrixAST[RPK, RK, T]): MatrixAST[RPK, RK, T] = {
     NewAST.rewriteTopDown(ast, {
       case FilterVariants(
-      MatrixRead(hc, path, metadata, dropSamples, _, typ),
+      MatrixRead(hc, path, metadata, dropSamples, _, typ, kOk),
       Const(_, false, TBoolean)) =>
-        MatrixRead(hc, path, metadata, dropSamples, dropVariants = true, typ)
+        MatrixRead(hc, path, metadata, dropSamples, dropVariants = true, typ, kOk)
       case FilterSamples(
-      MatrixRead(hc, path, metadata, _, dropVariants, typ),
+      MatrixRead(hc, path, metadata, _, dropVariants, typ, kOk),
       Const(_, false, TBoolean)) =>
-        MatrixRead(hc, path, metadata, dropSamples = true, dropVariants, typ)
+        MatrixRead(hc, path, metadata, dropSamples = true, dropVariants, typ, kOk)
 
       case FilterVariants(m, Const(_, true, TBoolean)) =>
         m
@@ -200,21 +204,24 @@ object MatrixAST {
   }
 }
 
-abstract sealed class MatrixAST[T] extends NewAST {
+abstract sealed class MatrixAST[RPK, RK, T] extends NewAST {
+  implicit val kOk: OrderedKey[RPK, RK]
+
   def typ: MatrixType
 
-  def execute(hc: HailContext): MatrixValue[T]
+  def execute(hc: HailContext): MatrixValue[RPK, RK, T]
 }
 
-case class MatrixLiteral[T](
+case class MatrixLiteral[RPK, RK, T](
   typ: MatrixType,
-  value: MatrixValue[T]) extends MatrixAST[T] {
+  value: MatrixValue[RPK, RK, T]) extends MatrixAST[RPK, RK, T] {
+  implicit val kOk: OrderedKey[RPK, RK] = value.kOk
 
   def children: IndexedSeq[NewAST] = Array.empty[NewAST]
 
-  def execute(hc: HailContext): MatrixValue[T] = value
+  def execute(hc: HailContext): MatrixValue[RPK, RK, T] = value
 
-  def copy(newChildren: IndexedSeq[NewAST]): MatrixLiteral[T] = {
+  def copy(newChildren: IndexedSeq[NewAST]): MatrixLiteral[RPK, RK, T] = {
     assert(newChildren.isEmpty)
     this
   }
@@ -222,22 +229,23 @@ case class MatrixLiteral[T](
   override def toString: String = "MatrixLiteral(...)"
 }
 
-case class MatrixRead[T](
+case class MatrixRead[RPK, RK, T](
   hc: HailContext,
   path: String,
   metadata: VSMMetadata,
   dropSamples: Boolean,
   dropVariants: Boolean,
-  typ: MatrixType)(implicit ev: T =:= Genotype) extends MatrixAST[T] {
+  typ: MatrixType,
+  kOk: OrderedKey[RPK, RK])(implicit ev: T =:= Genotype) extends MatrixAST[RPK, RK, T] {
 
   def children: IndexedSeq[NewAST] = Array.empty[NewAST]
 
-  def copy(newChildren: IndexedSeq[NewAST]): MatrixRead[T] = {
+  def copy(newChildren: IndexedSeq[NewAST]): MatrixRead[RPK, RK, T] = {
     assert(newChildren.isEmpty)
     this
   }
 
-  def execute(hc: HailContext): MatrixValue[T] = {
+  def execute(hc: HailContext): MatrixValue[RPK, RK, T] = {
     val sc = hc.sc
     val hConf = sc.hadoopConfiguration
     val sqlContext = hc.sqlContext
@@ -289,25 +297,27 @@ case class MatrixRead[T](
       else
         localValue,
       orderedRDD)
-      .asInstanceOf[MatrixValue[T]]
+      .asInstanceOf[MatrixValue[RPK, RK, T]]
   }
 
   override def toString: String = s"MatrixRead($path, dropSamples = $dropSamples, dropVariants = $dropVariants)"
 }
 
-case class FilterSamples[T](
-  child: MatrixAST[T],
-  pred: AST) extends MatrixAST[T] {
+case class FilterSamples[RPK, RK, T](
+  child: MatrixAST[RPK, RK, T],
+  pred: AST) extends MatrixAST[RPK, RK, T] {
+  implicit val kOk: OrderedKey[RPK, RK] = child.kOk
+
   def children: IndexedSeq[NewAST] = Array(child)
 
-  def copy(newChildren: IndexedSeq[NewAST]): FilterSamples[T] = {
+  def copy(newChildren: IndexedSeq[NewAST]): FilterSamples[RPK, RK, T] = {
     assert(newChildren.length == 1)
-    FilterSamples(newChildren(0).asInstanceOf[MatrixAST[T]], pred)
+    FilterSamples(newChildren(0).asInstanceOf[MatrixAST[RPK, RK, T]], pred)
   }
 
   def typ: MatrixType = child.typ
 
-  def execute(hc: HailContext): MatrixValue[T] = {
+  def execute(hc: HailContext): MatrixValue[RPK, RK, T] = {
     val prev = child.execute(hc)
 
     val localGlobalAnnotation = prev.localValue.globalAnnotation
@@ -327,19 +337,22 @@ case class FilterSamples[T](
   }
 }
 
-case class FilterVariants[T](
-  child: MatrixAST[T],
-  pred: AST)(implicit tct: ClassTag[T]) extends MatrixAST[T] {
+case class FilterVariants[RPK, RK, T](
+  child: MatrixAST[RPK, RK, T],
+  pred: AST)(implicit tct: ClassTag[T]) extends MatrixAST[RPK, RK, T] {
+  implicit val kOk: OrderedKey[RPK, RK] = child.kOk
+  import kOk._
+
   def children: IndexedSeq[NewAST] = Array(child)
 
-  def copy(newChildren: IndexedSeq[NewAST]): FilterVariants[T] = {
+  def copy(newChildren: IndexedSeq[NewAST]): FilterVariants[RPK, RK, T] = {
     assert(newChildren.length == 1)
-    FilterVariants(newChildren(0).asInstanceOf[MatrixAST[T]], pred)
+    FilterVariants(newChildren(0).asInstanceOf[MatrixAST[RPK, RK, T]], pred)
   }
 
   def typ: MatrixType = child.typ
 
-  def execute(hc: HailContext): MatrixValue[T] = {
+  def execute(hc: HailContext): MatrixValue[RPK, RK, T] = {
     val prev = child.execute(hc)
 
     val localGlobalAnnotation = prev.localValue.globalAnnotation
@@ -350,7 +363,7 @@ case class FilterVariants[T](
     val aggregatorOption = Aggregators.buildVariantAggregations(
       prev.rdd.sparkContext, prev.localValue, ec)
 
-    val p = (v: Variant, va: Annotation, gs: Iterable[T]) => {
+    val p = (v: RK, va: Annotation, gs: Iterable[T]) => {
       aggregatorOption.foreach(f => f(v, va, gs))
 
       ec.setAll(localGlobalAnnotation, v, va)

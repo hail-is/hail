@@ -171,7 +171,7 @@ class ImportVCFSuite extends SparkSuite {
 
     val (_, qGT) = gds.queryGA("g.GT")
     val callVDS = vds.expand().map { case (v, s, g) => ((v, s), g.call) }
-    val callGDS = gds.expand().map { case (v, s, g) => ((v, s), qGT(g).asInstanceOf[Call]) }
+    val callGDS = gds.expand().map { case (v, s, g) => ((v.asInstanceOf[Variant], s), qGT(g).asInstanceOf[Call]) }
 
     assert(callVDS.fullOuterJoin(callGDS).forall { case ((v, s), (c1, c2)) => c1 == c2 })
 

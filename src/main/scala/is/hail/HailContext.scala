@@ -9,10 +9,10 @@ import is.hail.io.gen.{GenLoader, GenReport}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
-import is.hail.methods.DuplicateReport
+import is.hail.sparkextras.OrderedPartitioner
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, Genotype, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantKeyDataset, VariantSampleMatrix}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -367,7 +367,7 @@ class HailContext private(val sc: SparkContext,
       nPartitions, delimiter, missing, quantPheno)
   }
 
-  def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[_]], inputs: Array[String]) {
+  def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[_, _, _]], inputs: Array[String]) {
     val sampleIds = datasets.head.sampleIds
     val vaSchema = datasets.head.vaSignature
     val wasSplit = datasets.head.wasSplit
@@ -423,10 +423,10 @@ class HailContext private(val sc: SparkContext,
       info(s"Using sample and global annotations from ${ inputs(0) }")
   }
 
-  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_] =
+  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] =
     readAll(List(file), dropSamples, dropVariants)
 
-  def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_] = {
+  def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
@@ -443,10 +443,12 @@ class HailContext private(val sc: SparkContext,
     // I can't figure out how to write this with existentials -cs
     if (vsms(0).isGenericGenotype) {
       val gdses = vsms.asInstanceOf[Array[GenericDataset]]
+      implicit val kOk = gdses(0).kOk
       gdses(0).copy(
         rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
     } else {
       val vdses = vsms.asInstanceOf[Array[VariantDataset]]
+      implicit val kOk = vdses(0).kOk
       vdses(0).copy(
         rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
     }
@@ -476,16 +478,6 @@ class HailContext private(val sc: SparkContext,
 
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
-
-  /**
-    *
-    * @param path   path to Kudu database
-    * @param table  table name
-    * @param master Kudu master address
-    */
-  def readKudu(path: String, table: String, master: String): VariantDataset = {
-    VariantDataset.readKudu(this, path, table, master)
-  }
 
   def writePartitioning(path: String) {
     VariantSampleMatrix.writePartitioning(sqlContext, path)
@@ -536,7 +528,7 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String]): GenericDataset = {
+    callFields: Set[String] = Set.empty[String]): VariantKeyDataset = {
     importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields)
   }
 
@@ -545,7 +537,7 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String]): GenericDataset = {
+    callFields: Set[String] = Set.empty[String]): VariantKeyDataset = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
@@ -558,11 +550,12 @@ class HailContext private(val sc: SparkContext,
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
     val reader = new GenericRecordReader(callFields)
-    val gds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
+    val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
+    assert(vkds.isGenericGenotype)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
-    gds
+    vkds
   }
 
   def indexBgen(file: String) {
@@ -611,7 +604,6 @@ class HailContext private(val sc: SparkContext,
   def report() {
     VCFReport.report()
     GenReport.report()
-    DuplicateReport.report()
   }
 
   def stop() {

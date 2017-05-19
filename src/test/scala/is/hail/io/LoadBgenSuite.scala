@@ -84,8 +84,9 @@ class LoadBgenSuite extends SparkSuite {
 
   object Spec extends Properties("ImportBGEN") {
     val compGen = for (vds <- VariantSampleMatrix.gen(hc,
-      VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
-        sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier.filter(_ != "NA"))))
+      VSMSubgen.dosageGenotype.copy(
+        vGen = _ => VariantSubgen.biallelic.gen.map(v => v.copy(contig = "01")),
+        sGen = _ => Gen.identifier.filter(_ != "NA")))
       .filter(_.countVariants > 0)
       .map(_.copy(wasSplit = true));
       nPartitions <- choose(1, 10))

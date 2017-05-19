@@ -128,9 +128,9 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testMaxMin() {
     val rdd = sc.parallelize(Seq(
-      Row("a",  0, null,    1,   -1, null, null,    1, null,  0l,  0f,  0d),
-      Row("a", -1,   -1, null,   -2, null,    1, null, null, -1l, -1f, -1d),
-      Row("a",  1,   -2,    2, null,   -1, null, null, null,  1l,  1f,  1d)), numSlices = 2)
+      Row("a", 0, null, 1, -1, null, null, 1, null, 0l, 0f, 0d),
+      Row("a", -1, -1, null, -2, null, 1, null, null, -1l, -1f, -1d),
+      Row("a", 1, -2, 2, null, -1, null, null, null, 1l, 1f, 1d)), numSlices = 2)
 
     val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt))
       ++ IndexedSeq("s8" -> TLong, "s9" -> TFloat, "s10" -> TDouble): _*)
@@ -148,9 +148,9 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testProduct() {
     val rdd = sc.parallelize(Seq(
-      Row("a",  0, null,    1, 1, null, null, 10, null,  0l,  2f,  0d),
-      Row("a", -1,   -1, null, 2, null,    1,  4, null, -1l, -1f, -1d),
-      Row("a",  1,   -2,    2, 3,   -1,   -3,  2, null,  1l,  2f,  1d)), numSlices = 2)
+      Row("a", 0, null, 1, 1, null, null, 10, null, 0l, 2f, 0d),
+      Row("a", -1, -1, null, 2, null, 1, 4, null, -1l, -1f, -1d),
+      Row("a", 1, -2, 2, 3, -1, -3, 2, null, 1l, 2f, 1d)), numSlices = 2)
 
     val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt))
       ++ IndexedSeq("s8" -> TLong, "s9" -> TFloat, "s10" -> TDouble): _*)
@@ -287,22 +287,31 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testTransformations() {
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random.copy(sampleIdGen = Gen.const(Array("a", "b"))))) { vds =>
-      assert(vds.querySamples("samples.map(id => if (id == \"b\") (NA : Sample) else id).map(x => 1).sum()")._1 == 2)
-      assert(vds.querySamples("samples.filter(id => true).map(id => 1).sum()")._1 == 2)
-      assert(vds.querySamples("samples.filter(id => false).map(id => 1).sum()")._1 == 0)
-      assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == 2)
-      assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
-      assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 6)
-      assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 4)
-      assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 4)
+    val p = Prop.forAll(
+      for {
+        vds <- VariantSampleMatrix.gen(hc, VSMSubgen.random
+          .copy(sGen = _ => Gen.oneOf("a", "b")))
+          .filter(vds => vds.nSamples > 0);
+        s <- Gen.choose(0, vds.nSamples - 1)
+      } yield {
+        val s1 = vds.sampleIds(0)
+        assert(vds.querySamples(s"""samples.map(id => if (id == "$s1") (NA : Sample) else id).map(x => 1).sum()""")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.filter(id => true).map(id => 1).sum()")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.filter(id => false).map(id => 1).sum()")._1 == 0)
+        assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
+        assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 3 * vds.nSamples)
+        assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
+        assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
 
-      vds.annotateVariantsExpr("""va = gs.filter(g => s == "a").map(g => 1).sum()""")
-        .rdd
-        .collect()
-        .foreach { case (_, (va, _)) => assert(va == 1) }
-      true
-    }.check()
+        vds.annotateVariantsExpr(s"""va = gs.filter(g => s == "$s1").map(g => 1).sum()""")
+          .rdd
+          .collect()
+          .foreach { case (_, (va, _)) => assert(va == 1) }
+        true
+      })
+
+    p.check()
   }
 
   @Test def testQueryGenotypes() {
@@ -323,11 +332,11 @@ class AggregatorSuite extends SparkSuite {
     }.check()
   }
 
-  private def isLensedPrefix[T,K](lens: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+  private def isLensedPrefix[T, K](lens: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
     prefix.zip(full).forall { case (x, y) => lens(x) == lens(y) }
   }
 
-  private def prefixModuloDisordering[T,K](sortBy: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+  private def prefixModuloDisordering[T, K](sortBy: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
     def equivClasses(ts: Seq[T]): Map[K, Set[T]] =
       ts.groupBy(sortBy).mapValues(_.toSet)
 
@@ -353,7 +362,7 @@ class AggregatorSuite extends SparkSuite {
           if (lastKeySubset) {
             true
           } else {
-            println(s"The values at the last key in the prefix, $lastKey, were not a subset of those in the full list: ${prefixEquivClasses(lastKey)} ${fullEquivClasses(lastKey)}")
+            println(s"The values at the last key in the prefix, $lastKey, were not a subset of those in the full list: ${ prefixEquivClasses(lastKey) } ${ fullEquivClasses(lastKey) }")
             false
           }
         } else {
@@ -383,7 +392,7 @@ class AggregatorSuite extends SparkSuite {
       } else {
         true
       }
-    } (Parameters(rng, 1000, 100))
+    }(Parameters(rng, 1000, 100))
   }
 
   @Test def takeByAndSortByAgreeUsingLatentEnvironment() {
@@ -402,7 +411,7 @@ class AggregatorSuite extends SparkSuite {
       } else {
         true
       }
-    } (Parameters(rng, 1000, 100))
+    }(Parameters(rng, 1000, 100))
   }
 
   private def runAggregatorExpression(expr: String, aggregableName: String, aggregableElementType: Type, aggregableValue: TraversableOnce[_]): Any = {
@@ -478,8 +487,8 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def takeByMoreThanExist() {
-    val result = runAggregatorExpression("xs.takeBy(x => x, 10)", "xs", TInt, Array(0,1,2))
+    val result = runAggregatorExpression("xs.takeBy(x => x, 10)", "xs", TInt, Array(0, 1, 2))
       .asInstanceOf[IndexedSeq[java.lang.Integer]]
-    assert(result == IndexedSeq(0,1,2))
+    assert(result == IndexedSeq(0, 1, 2))
   }
 }

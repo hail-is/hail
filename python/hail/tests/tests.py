@@ -269,6 +269,7 @@ class ContextTests(unittest.TestCase):
                  .same(dataset)))
 
             print(dataset.storage_level())
+
             dataset.unpersist()
             dataset2.unpersist()
 

@@ -199,13 +199,13 @@ object Variant {
     new OrderedKey[Locus, Variant] {
       def project(key: Variant): Locus = key.locus
 
-      def kOrd: Ordering[Variant] = implicitly[Ordering[Variant]]
+      val kOrd: Ordering[Variant] = Variant.order
 
-      def pkOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
+      val pkOrd: Ordering[Locus] = Locus.order
 
-      def kct: ClassTag[Variant] = implicitly[ClassTag[Variant]]
+      val kct: ClassTag[Variant] = implicitly[ClassTag[Variant]]
 
-      def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
+      val pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
     }
 
   def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
@@ -223,7 +223,7 @@ object Variant {
         }.value
       }
 
-  implicit def variantOrder: Ordering[Variant] = new Ordering[Variant] {
+  implicit def order: Ordering[Variant] = new Ordering[Variant] {
     def compare(x: Variant, y: Variant): Int = x.compare(y)
   }
 }
