@@ -287,92 +287,63 @@ object RegressionUtils {
     }
   }
 
-  // constructs DenseVector of dosages (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
-  def toLinregDosageStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(DenseVector[Double], Double, Double)] = {
-    val nMaskedSamples = y.length
-    val valsX = Array.ofDim[Double](nMaskedSamples)
-    var sumX = 0d
-    var sumXX = 0d
-    var sumXY = 0d
-    var sumYMissing = 0d
-    var nMissing = 0
+  // constructs DenseVector x of hard calls with missing values mean-imputed
+  // mask == null implies no mask
+  def dosageStats(gs: Iterable[Genotype], mask: Array[Boolean], nKept: Int): (DenseVector[Double], Double) = {
+    val valsX = Array.ofDim[Double](nKept)
     val missingRowIndices = new ArrayBuilder[Int]()
-
-    val gts = gs.dosageIterator
-    var i = 0
+    var sumX = 0d
+    var nMissing = 0
     var row = 0
+    val gts = gs.dosageIterator
+
+    var i = 0
     while (gts.hasNext) {
       val gt = gts.next()
-      if (mask(i)) {
+      if (mask == null || mask(i)) {
         if (gt != -1) {
           valsX(row) = gt
           sumX += gt
-          sumXX += gt * gt
-          sumXY += gt * y(row)
         } else {
           nMissing += 1
           missingRowIndices += row
-          sumYMissing += y(row)
         }
         row += 1
       }
       i += 1
     }
+    assert(row == nKept)
 
-    val nPresent = nMaskedSamples - nMissing
+    val nPresent = nKept - nMissing
+    val meanX = if (nPresent > 0) sumX / nPresent else Double.NaN
+    val missingRowIndicesArray = missingRowIndices.result()
 
-    if (sumX < minAC)
-      None
-    else {
-      val meanX = sumX / nPresent
-      val missingRowIndicesArray = missingRowIndices.result()
-
-      var i = 0
-      while (i < missingRowIndicesArray.length) {
-        valsX(missingRowIndicesArray(i)) = meanX
-        i += 1
-      }
-
-      val x = DenseVector(valsX)
-      val xx = sumXX + meanX * meanX * nMissing
-      val xy = sumXY + meanX * sumYMissing
-
-      Some(x, xx, xy)
-    }
-  }
-
-  // constructs SparseVector of hard call genotypes (with missing values mean-imputed) in parallel with other statistics sufficient for linear regression
-  def toLinregHardCallStats(gs: Iterable[Genotype], y: DenseVector[Double], mask: Array[Boolean], minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
-    val nMaskedSamples = y.length
-    val lrb = new LinRegBuilder(y)
-    val gts = gs.hardCallIterator
-
-    var i = 0
-    while (i < mask.length) {
-      val gt = gts.next()
-      if (mask(i))
-        lrb.merge(gt)
+    i = 0
+    while (i < missingRowIndicesArray.length) {
+      valsX(missingRowIndicesArray(i)) = meanX
       i += 1
     }
 
-    lrb.stats(y, nMaskedSamples, minAC)
+    (DenseVector(valsX), meanX)
   }
 
-  // constructs SparseVector of hard call genotypes (with missing values mean-imputed) in parallel with other summary statistics
-  // if all genotypes are missing then all elements are NaN
-  def toSparseHardCallStats(gs: Iterable[Genotype], mask: Array[Boolean], nMaskedSamples: Int): Option[(SparseVector[Double], Double)] = {
-    val sb = new SparseGtBuilder()
+  // constructs SparseVector x of hard calls with missing values mean-imputed
+  // mask == null implies no mask
+  // returns (x, nHet, nHomVar, nMissing)
+  def hardCallStats(gs: Iterable[Genotype], mask: Array[Boolean]): (SparseVector[Double], Int, Int, Int) = {
+
+    val sb = new HardCallBuilder()
     val gts = gs.hardCallIterator
 
     var i = 0
-    while (i < mask.length) {
+    while (gts.hasNext) {
       val gt = gts.next()
-      if (mask(i))
+      if (mask == null || mask(i))
         sb.merge(gt)
       i += 1
     }
 
-    sb.stats(nMaskedSamples)
+    sb.toHardCallStats
   }
 
   //keyedRow consists of row key followed by numeric data (passed with key to avoid copying, key is ignored here)
@@ -427,99 +398,28 @@ object RegressionUtils {
   }
 }
 
-class LinRegBuilder(y: DenseVector[Double]) extends Serializable {
-  private val missingRowIndices = new ArrayBuilder[Int]()
-  private val rowsX = new ArrayBuilder[Int]()
-  private val valsX = new ArrayBuilder[Double]()
-  private var row = 0
-  private var sparseLength = 0 // length of rowsX and valsX, used to track missingRowIndices
-  private var sumX = 0
-  private var sumXX = 0
-  private var sumXY = 0.0
-  private var sumYMissing = 0.0
-
-  def merge(gt: Int): LinRegBuilder = {
-    (gt: @unchecked) match {
-      case 0 =>
-      case 1 =>
-        rowsX += row
-        valsX += 1
-        sparseLength += 1
-        sumX += 1
-        sumXX += 1
-        sumXY += y(row)
-      case 2 =>
-        rowsX += row
-        valsX += 2
-        sparseLength += 1
-        sumX += 2
-        sumXX += 4
-        sumXY += 2 * y(row)
-      case -1 =>
-        missingRowIndices += sparseLength
-        rowsX += row
-        valsX += 0 // placeholder for meanX
-        sparseLength += 1
-        sumYMissing += y(row)
-    }
-    row += 1
-
-    this
-  }
-
-  def stats(y: DenseVector[Double], nSamples: Int, minAC: Int): Option[(SparseVector[Double], Double, Double)] = {
-    require(minAC > 0)
-
-    val missingRowIndicesArray = missingRowIndices.result()
-    val nMissing = missingRowIndicesArray.size
-    val nPresent = nSamples - nMissing
-
-    if (sumX < minAC || sumX == 2 * nPresent || sumX == nPresent && sumXX == nPresent)
-      None
-    else {
-      val rowsXArray = rowsX.result()
-      val valsXArray = valsX.result()
-      val meanX = sumX.toDouble / nPresent
-
-      var i = 0
-      while (i < missingRowIndicesArray.length) {
-        valsXArray(missingRowIndicesArray(i)) = meanX
-        i += 1
-      }
-
-      // variant is atomic => combOp merge not called => rowsXArray is sorted (as expected by SparseVector constructor)
-      // assert(rowsXArray.isIncreasing)
-
-      val x = new SparseVector[Double](rowsXArray, valsXArray, nSamples)
-      val xx = sumXX + meanX * meanX * nMissing
-      val xy = sumXY + meanX * sumYMissing
-
-      Some((x, xx, xy))
-    }
-  }
-}
-
-class SparseGtBuilder extends Serializable {
+class HardCallBuilder extends Serializable {
   private val missingRowIndices = new ArrayBuilder[Int]()
   private val rowsX = new ArrayBuilder[Int]()
   private val valsX = new ArrayBuilder[Double]()
   private var row = 0
   private var sparseLength = 0 // current length of rowsX and valsX, used to track missingRowIndices
-  private var sumX = 0
+  private var nHet = 0
+  private var nHomVar = 0
 
-  def merge(gt: Int): SparseGtBuilder = {
+  def merge(gt: Int): HardCallBuilder = {
     (gt: @unchecked) match {
       case 0 =>
       case 1 =>
         rowsX += row
         valsX += 1
         sparseLength += 1
-        sumX += 1
+        nHet += 1
       case 2 =>
         rowsX += row
         valsX += 2
         sparseLength += 1
-        sumX += 2
+        nHomVar += 1
       case -1 =>
         missingRowIndices += sparseLength
         rowsX += row
@@ -531,26 +431,23 @@ class SparseGtBuilder extends Serializable {
     this
   }
 
-  def stats(nSamples: Int): Option[(SparseVector[Double], Double)] = {
+  def toHardCallStats: (SparseVector[Double], Int, Int, Int) = {
+    val nSamples = row
     val rowsXArray = rowsX.result()
     val valsXArray = valsX.result()
     val missingRowIndicesArray = missingRowIndices.result()
-    val nPresent = nSamples - missingRowIndicesArray.size
+    val nMissing = missingRowIndicesArray.size
 
-    if (sumX == 0 || sumX == 2 * nPresent || (sumX == nPresent && valsXArray.forall(_ == 1d)))
-      None
-    else {
-      val meanX = if (nPresent > 0) sumX.toDouble / nPresent else Double.NaN
+    val meanX = (nHet + 2 * nHomVar).toDouble / (nSamples - nMissing)
 
-      var i = 0
-      while (i < missingRowIndicesArray.length) {
-        valsXArray(i) = meanX
-        i += 1
-      }
-
-      val x = new SparseVector[Double](rowsXArray, valsXArray, nSamples)
-
-      Some(x, meanX / 2)
+    var i = 0
+    while (i < nMissing) {
+      valsXArray(missingRowIndicesArray(i)) = meanX
+      i += 1
     }
+
+    val x = new SparseVector[Double](rowsXArray, valsXArray, nSamples)
+
+    (x, nHet, nHomVar, nMissing)
   }
 }

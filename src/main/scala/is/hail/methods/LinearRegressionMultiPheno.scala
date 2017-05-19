@@ -55,17 +55,20 @@ object LinearRegressionMultiPheno {
 
     vds.mapAnnotations { case (v, va, gs) =>
 
-      val optStats: Option[(Vector[Double], Double, Double)] =
-        if (useDosages)
-          RegressionUtils.toLinregDosageStats(gs, yDummyBc.value, sampleMaskBc.value, combinedMinAC)
-        else
-          RegressionUtils.toLinregHardCallStats(gs, yDummyBc.value, sampleMaskBc.value, combinedMinAC)
+      val (x: Vector[Double], isValid: Boolean) =
+        if (useDosages) {
+          val (x, mean) = RegressionUtils.dosageStats(gs, sampleMaskBc.value, n)
+          (x, n * mean >= combinedMinAC)
+        } else {
+          val (x, nHet, nHomVar, nMissing) = RegressionUtils.hardCallStats(gs, sampleMaskBc.value)
+          val ac = nHet + 2 * nHomVar
+          (x, !(ac < combinedMinAC || ac == 2 * (n - nMissing) || (ac == (n - nMissing) && x.forall(_ == 1))))
+        }
 
-      val linregAnnot = optStats.map { case (x, xx, _) =>
-
+      val linregAnnot = if (isValid) {
         val qtx: DenseVector[Double] = QtBc.value * x
         val qty: DenseMatrix[Double] = QtyBc.value
-        val xxpRec: Double = 1 / (xx - (qtx dot qtx))
+        val xxpRec: Double = 1 / ((x dot x) - (qtx dot qtx))
         val xyp: DenseVector[Double] = (yBc.value.t * x) - (qty.t * qtx)
         val yyp: DenseVector[Double] = yypBc.value
 
@@ -79,7 +82,8 @@ object LinearRegressionMultiPheno {
           se.toArray: IndexedSeq[Double],
           t.toArray: IndexedSeq[Double],
           p.toArray: IndexedSeq[Double])
-      }.orNull
+      } else
+        null
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))

@@ -40,7 +40,6 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
-      .splitMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
@@ -61,7 +60,6 @@ class LinearRegressionSuite extends SparkSuite {
     df = data.frame(y, x, c1, c2)
     fit <- lm(y ~ x + c1 + c2, data=df)
     summary(fit)["coefficients"]
-
     */
 
     assertDouble(qBeta(a(v1)), -0.28589421)
