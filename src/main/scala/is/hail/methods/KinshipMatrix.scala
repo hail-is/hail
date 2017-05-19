@@ -5,7 +5,7 @@ import java.io.DataOutputStream
 import breeze.linalg.SparseVector
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.expr.Type
+import is.hail.expr.{TString, Type}
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -17,6 +17,11 @@ import scala.collection.Searching._
   */
 case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
+
+  def requireSampleTString(method: String) {
+    if (sampleSignature != TString)
+      fatal(s"in $method: key (sample) schema must be String, but found: $sampleSignature")
+  }
 
   /**
     * Filters list of samples based on predicate, and removes corresponding rows and columns from the matrix.
@@ -122,6 +127,8 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
   }
 
   def exportIdFile(idFile: String) {
+    requireSampleTString("export id file")
+
     hc.sc.hadoopConfiguration.writeTextFile(idFile) { s =>
       for (id <- sampleIds) {
         s.write(id.asInstanceOf[String])

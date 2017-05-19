@@ -17,13 +17,6 @@ warnings.filterwarnings(module=__name__, action='once')
 
 
 @decorator
-def requireSampleTString(func, vds, *args, **kwargs):
-    if vds.colkey_schema != TString():
-        raise TypeError("column key (sample) schema must be String, but found '%s'" % str(vds.rowkey_schema))
-
-    return func(vds, *args, **kwargs)
-
-@decorator
 def requireTGenotype(func, vds, *args, **kwargs):
     if vds._is_generic_genotype:
         if vds.genotype_schema != TGenotype:
@@ -1171,7 +1164,6 @@ class VariantDataset(object):
             self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing)
 
     @handle_py4j
-    @requireSampleTString
     @requireTGenotype
     @typecheck_method(output=strlike,
                       fam_expr=strlike)
@@ -2492,7 +2484,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireSampleTString
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
@@ -3102,7 +3093,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireSampleTString
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
@@ -3221,7 +3211,6 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    @requireSampleTString
     @typecheck_method(pedigree=Pedigree)
     def mendel_errors(self, pedigree):
         """Find Mendel errors; count per variant, individual and nuclear
@@ -3889,7 +3878,6 @@ class VariantDataset(object):
         return r
 
     @handle_py4j
-    @requireSampleTString
     @typecheck_method(mapping=dictof(strlike, strlike))
     def rename_samples(self, mapping):
         """Rename samples.
@@ -4385,7 +4373,6 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    @requireSampleTString
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)
     def tdt(self, pedigree, root='va.tdt'):
@@ -4870,7 +4857,6 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.genotypeKT())
 
     @handle_py4j
-    @requireSampleTString
     @typecheck_method(variant_expr=oneof(strlike, listof(strlike)),
                       genotype_expr=oneof(strlike, listof(strlike)),
                       key=oneof(strlike, listof(strlike)),

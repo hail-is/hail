@@ -6,13 +6,6 @@ from pyspark.mllib.linalg.distributed import IndexedRowMatrix
 from hail.java import *
 from hail.expr import Type, TString
 
-@decorator
-def requireSampleTString(func, km, *args, **kwargs):
-    if km.key_schema != TString():
-        raise TypeError("key (sample) schema must be String, but found '%s'" % str(km.key_schema))
-
-    return func(km, *args, **kwargs)
-
 class KinshipMatrix:
     """
     Represents a symmetric matrix encoding the relatedness of each pair of samples in the accompanying sample list.
@@ -93,7 +86,6 @@ class KinshipMatrix:
         """
         self._jkm.exportGctaGrmBin(output, joption(opt_n_file))
 
-    @requireSampleTString
     @typecheck_method(output=strlike)
     def export_id_file(self, output):
         """

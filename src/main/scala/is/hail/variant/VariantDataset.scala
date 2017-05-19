@@ -324,6 +324,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def exportPlink(path: String, famExpr: String = "id = s") {
     requireSplit("export plink")
+    vds.requireSampleTString("export plink")
 
     val ec = EvalContext(Map(
       "s" -> (0, TString),
@@ -571,6 +572,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
     requireSplit("linear burden regression")
+    vds.requireSampleTString("linear burden regression")
     LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
   }
 
@@ -606,6 +608,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
     requireSplit("linear burden regression")
+    vds.requireSampleTString("linear burden regression")
     LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 
@@ -614,6 +617,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     requireSplit("mendel errors")
+    vds.requireSampleTString("mendel errors")
 
     val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
 
@@ -680,6 +684,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
     requireSplit("TDT")
+    vds.requireSampleTString("TDT")
 
     TDT(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))

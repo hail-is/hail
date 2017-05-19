@@ -7,7 +7,6 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr._
 import is.hail.io._
-import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.keytable.KeyTable
 import is.hail.methods.Aggregators.SampleFunctions
 import is.hail.methods.{Aggregators, DuplicateReport, Filter, VEP}
@@ -24,7 +23,6 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.io.Source
 import scala.language.{implicitConversions, existentials}
 import scala.reflect.{classTag, ClassTag}
 
@@ -208,7 +206,7 @@ object VariantSampleMatrix {
       case Some(t: JString) => Parser.parseType(t.s)
       case Some(other) => fatal(
         s"""corrupt VDS: invalid metadata
-           |  Expected `JString' in field `genotype_schema', but got `${ other.getClass.getName }'
+           |  Expected `JString' in field `sample_schema', but got `${ other.getClass.getName }'
            |  Recreate VDS with current version of Hail.""".stripMargin)
       case _ => TString
     }
@@ -217,7 +215,7 @@ object VariantSampleMatrix {
       case Some(t: JString) => Parser.parseType(t.s)
       case Some(other) => fatal(
         s"""corrupt VDS: invalid metadata
-           |  Expected `JString' in field `genotype_schema', but got `${ other.getClass.getName }'
+           |  Expected `JString' in field `variant_schema', but got `${ other.getClass.getName }'
            |  Recreate VDS with current version of Hail.""".stripMargin)
       case _ => TVariant
     }
@@ -395,6 +393,11 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
   def this(hc: HailContext, fileMetadata: VSMFileMetadata,
     rdd: OrderedRDD[Locus, Variant, (Annotation, Iterable[T])])(implicit tct: ClassTag[T]) =
     this(hc, fileMetadata.metadata, fileMetadata.localValue, rdd)
+
+  def requireSampleTString(method: String) {
+    if (sSignature != TString)
+      fatal(s"in $method: column key (sample) schema must be String, but found: $sSignature")
+  }
 
   val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype) = metadata
 
@@ -759,7 +762,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
           annotateSamples(m.getOrElse(_, nullValue), finalType, inserter)
         case other =>
           fatal(
-            s"""method 'annotate_samples_table' expects a key table keyed by [ String ]
+            s"""method 'annotate_samples_table' expects a key table keyed by [ $sSignature ]
                |  Found key [ ${ other.mkString(", ") } ] instead.""".stripMargin)
       }
     }
@@ -925,7 +928,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
         case other =>
           fatal(
             s"""method 'annotate_variants_table' expects a key table keyed by one of the following:
-               |  [ Variant ]
+               |  [ $vSignature ]
                |  [ Locus ]
                |  [ Interval ]
                |  Found key [ ${ keyTypes.mkString(", ") } ] instead.""".stripMargin)
@@ -1224,7 +1227,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
         filterSamplesList(sampleSet.toSet, keep)
 
       case other => fatal(
-        s"""method 'filterSamplesTable' requires a table with key [ String ]
+        s"""method 'filterSamplesTable' requires a table with key [ $sSignature ]
            |  Found key [ ${ other.mkString(", ") } ]""".stripMargin)
     }
   }
@@ -1355,7 +1358,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
       case _ => fatal(
         s"""method 'filterVariantsTable' requires a table with one of the following keys:
-           |  [ Variant ]
+           |  [ $vSignature ]
            |  [ Locus ]
            |  [ Interval ]
            |  Found [ ${ keyFields.mkString(", ") } ]""".stripMargin)
@@ -1446,6 +1449,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
   }
 
   def makeKT(variantCondition: String, genotypeCondition: String, keyNames: Array[String] = Array.empty, seperator: String = "."): KeyTable = {
+    requireSampleTString("make table")
+
     val vSymTab = Map(
       "v" -> (0, vSignature),
       "va" -> (1, vaSignature))
@@ -1757,6 +1762,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     renameSamples(mapping.asScala.toMap)
 
   def renameSamples(mapping: Map[Annotation, Annotation]): VariantSampleMatrix[T] = {
+    requireSampleTString("rename samples")
+
     val newSamples = mutable.Set.empty[Annotation]
     val newSampleIds = sampleIds
       .map { s =>
