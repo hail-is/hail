@@ -31,7 +31,7 @@ class AnnotateSuite extends SparkSuite {
             case "NA" => None
             case x => Some(x.toInt)
           }
-          (split(0), (Some(split(1)), f3))
+          (split(0): Annotation, (Some(split(1)), f3))
         })
         .toMap
     }
@@ -44,9 +44,8 @@ class AnnotateSuite extends SparkSuite {
     val q2 = anno1.querySA("sa.`my phenotype`.qPhen")._2
 
     assert(anno1.sampleIdsAndAnnotations
-      .forall {
-        case (id, sa) =>
-          fileMap.get(id.asInstanceOf[String]).forall { case (status, qphen) =>
+      .forall { case (id, sa) =>
+          fileMap.get(id).forall { case (status, qphen) =>
             status.liftedZip(Option(q1(sa))).exists { case (v1, v2) => v1 == v2 } &&
               (qphen.isEmpty && Option(q2(sa)).isEmpty || qphen.liftedZip(Option(q2(sa))).exists { case (v1, v2) => v1 == v2 })
           }

@@ -73,7 +73,7 @@ object TDT {
       sampleTrioRolesMap += (t.knownMom -> ((tidx, 2) :: sampleTrioRolesMap.getOrElse(t.knownMom, Nil)))
     }
 
-    val sampleTrioRolesArray = vds.sampleIds.map(s => sampleTrioRolesMap.getOrElse(s.asInstanceOf[String], Nil))
+    val sampleTrioRolesArray = vds.stringSampleIds.map(s => sampleTrioRolesMap.getOrElse(s, Nil))
 
     val sc = vds.sparkContext
     val sampleTrioRolesBc = vds.sparkContext.broadcast(sampleTrioRolesArray)

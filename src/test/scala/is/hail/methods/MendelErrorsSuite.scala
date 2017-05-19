@@ -9,7 +9,7 @@ class MendelErrorsSuite extends SparkSuite {
   @Test def test() {
     val vds = hc.importVCF("src/test/resources/mendel.vcf")
     val ped = Pedigree.read("src/test/resources/mendel.fam", sc.hadoopConfiguration)
-    val men = MendelErrors(vds, ped.filterTo(vds.sampleIds.toSet[Annotation].map(_.asInstanceOf[String])).completeTrios)
+    val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
 
     val nPerFam = men.nErrorPerNuclearFamily.collectAsMap()
     val nPerIndiv = men.nErrorPerIndiv.collectAsMap()
