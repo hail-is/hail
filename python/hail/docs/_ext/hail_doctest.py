@@ -198,25 +198,22 @@ class SphinxDocTestRunner(doctest.DocTestRunner):
         return self.code
 
     def run(self, test, compileflags=None, out=None, clear_globs=True):
-        original_optionflags = self.optionflags
         for examplenum, example in enumerate(test.examples):
             # Merge in the example's options.
-            self.optionflags = original_optionflags
+            example_optionflags = self.optionflags
+
             if example.options:
                 for (optionflag, val) in example.options.items():
                     if val:
-                        self.optionflags |= optionflag
+                        example_optionflags |= optionflag
                     else:
-                        self.optionflags &= ~optionflag
+                        example_optionflags &= ~optionflag
 
             # If 'SKIP' is set, then skip this example.
-            if self.optionflags & doctest.SKIP:
+            if example_optionflags & doctest.SKIP:
                 continue
 
             self.code.append(example.source)
-            
-        # Restore the option flags (in case they were modified)
-        self.optionflags = original_optionflags
 
         return doctest.DocTestRunner.run(self, test, compileflags, out, clear_globs)
 
