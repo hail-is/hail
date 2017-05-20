@@ -1155,7 +1155,7 @@ class KeyTable(object):
         This method returns a table with a new column whose name is
         given by the ``name`` parameter, with type ``Long``. The value
         of this column is the numerical index of each row, starting
-        from 0. Methods that respect ordering (like :py:meth`.KeyTable.take`
+        from 0. Methods that respect ordering (like :py:meth:`.KeyTable.take`
         or :py:meth:`.KeyTable.export` will return rows in order.
 
         This method is helpful for creating a unique integer index for rows
