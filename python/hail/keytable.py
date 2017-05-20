@@ -1091,31 +1091,33 @@ class KeyTable(object):
         jkt = Env.hail().keytable.KeyTable.importFam(hc._jhc, path, quantitative, delimiter, missing)
         return KeyTable(hc, jkt)
 
+    @handle_py4j
     def union(self, *kts):
         """Union the rows of multiple tables.
-        
+
         **Examples**
-        
+
         Take the union of rows from two tables:
-        
+
         >>> other = hc.import_table('data/kt_example1.tsv', impute=True)
         >>> union_kt = kt1.union(other)
-        
+
         **Notes**
-        
+
         If a row appears in both tables identically, it is duplicated in
         the result. The left and right tables must have the same schema
         and key.
-        
+
         :param kts: Tables to merge.
         :type kts: args of type :class:`.KeyTable`
-        
+
         :return: A table with all rows from the left and right tables.
         :rtype: :class:`.KeyTable`
         """
 
         return KeyTable(self.hc, self._jkt.union([kt._jkt for kt in kts]))
 
+    @handle_py4j
     @typecheck_method(n=integral)
     def take(self, n):
         """Take a given number of rows from the head of the table.
@@ -1138,3 +1140,65 @@ class KeyTable(object):
         """
 
         return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]
+
+    @handle_py4j
+    @typecheck_method(name=strlike)
+    def indexed(self, name='index'):
+        """Add the numerical index of each row as a new column.
+
+        **Examples**
+
+        >>> ind_kt = kt1.indexed()
+
+        **Notes**
+
+        This method returns a table with a new column whose name is
+        given by the ``name`` parameter, with type ``Long``. The value
+        of this column is the numerical index of each row, starting
+        from 0. Methods that respect ordering (like :py:meth`.KeyTable.take`
+        or :py:meth:`.KeyTable.export` will return rows in order.
+
+        This method is helpful for creating a unique integer index for rows
+        of a table, so that more complex types can be encoded as a simple
+        number.
+
+        :param str name: Name of index column.
+
+        :return: Table with a new index column.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.indexed(name))
+
+    @staticmethod
+    @handle_py4j
+    @typecheck(n=integral,
+               num_partitions=nullable(integral))
+    def range(n, num_partitions=None):
+        """Construct a table with rows from 0 until ``n``.
+
+        **Examples**
+
+        Construct a table with 100 rows:
+
+        >>> range_kt = KeyTable.range(100)
+
+        Construct a table with one million rows and twenty partitions:
+
+        >>> range_kt = KeyTable.range(1000000, num_partitions=20)
+
+        **Notes**
+
+        The resulting table has one column:
+
+         - **index** (*Int*) -- Unique row index from 0 until ``n``
+
+        :param int n: Number of rows.
+
+        :param num_partitions: Number of partitions.
+        :type num_partitions: int or None
+
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))

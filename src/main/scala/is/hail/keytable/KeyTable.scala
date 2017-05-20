@@ -36,6 +36,15 @@ case class SortColumn(field: String, sortOrder: SortOrder)
 object KeyTable {
   final val fileVersion: Int = 1
 
+  def range(hc: HailContext, n: Int, partitions: Option[Int] = None): KeyTable = {
+    val range = Range(0, n).view.map(Row(_))
+    val rdd = partitions match {
+      case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
+      case None => hc.sc.parallelize(range)
+    }
+    KeyTable(hc, rdd, TStruct("index" -> TInt), Array("index"))
+  }
+
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): KeyTable = {
     fromDF(hc, df, key.asScala.toArray)
   }
@@ -142,7 +151,7 @@ object KeyTable {
 
     val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
 
-    val rows = data.map { case (id, values) => Row.fromSeq(Array(id) ++ values.asInstanceOf[Row].toSeq)}.toArray
+    val rows = data.map { case (id, values) => Row.fromSeq(Array(id) ++ values.asInstanceOf[Row].toSeq) }.toArray
     val rdd = hc.sc.parallelize(rows)
 
     val newFields = List("ID" -> TString) ++ typ.asInstanceOf[TStruct].fields.map(f => (f.name, f.typ))
@@ -737,4 +746,15 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   }
 
   def take(n: Int): Array[Row] = rdd.take(n)
+
+  def indexed(name: String = "index"): KeyTable = {
+    if (fieldNames.contains(name))
+      fatal(s"name collision: cannot index table, because column '$name' already exists")
+
+    val (newSignature, ins) = signature.insert(TLong, name)
+
+    val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
+
+    copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
+  }
 }

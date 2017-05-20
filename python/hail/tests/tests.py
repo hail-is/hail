@@ -522,6 +522,9 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(first3[2].Sample, 'HG00099')
         self.assertTrue(all(x.Status == 'CASE' for x in first3))
 
+        self.assertEqual(range(100), [x.index for x in KeyTable.range(100).collect()])
+        self.assertTrue(KeyTable.range(200).indexed('foo').forall('index == foo'))
+
     def test_representation(self):
         v = Variant.parse('1:100:A:T')
 
