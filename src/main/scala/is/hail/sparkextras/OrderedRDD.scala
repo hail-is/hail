@@ -64,13 +64,7 @@ object OrderedRDD {
         return (ORDERED_PARTITIONER, ordd.asInstanceOf[OrderedRDD[PK, K, V]])
       case _ =>
     }
-
-    rdd.partitioner match {
-      case Some(op: OrderedPartitioner[_, _]) =>
-        return (ORDERED_PARTITIONER, new OrderedRDD[PK, K, V](rdd, op.asInstanceOf[OrderedPartitioner[PK, K]]))
-      case _ =>
-    }
-
+    
     val keys = fastKeys.getOrElse(rdd.map(_._1))
 
     val keyInfo = keys.mapPartitionsWithIndex { case (i, it) =>
