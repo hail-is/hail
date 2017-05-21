@@ -968,14 +968,14 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     inserter: Inserter, product: Boolean): VariantSampleMatrix[T] = {
 
     import LocusImplicits.orderedKey
-    def annotate[S](rdd: RDD[(Locus, ((Variant, (Annotation, Iterable[T])), S))],
+    def annotate[S](joinedRDD: RDD[(Locus, ((Variant, (Annotation, Iterable[T])), S))],
       ins: (Annotation, S) => Annotation): OrderedRDD[Locus, Variant, (Annotation, Iterable[T])] = {
-      rdd.mapPartitions({ it =>
+      OrderedRDD(joinedRDD.mapPartitions({ it =>
         it.map { case (l, ((v, (va, gs)), annotation)) => (v, (ins(va, annotation), gs)) }
-      }, preservesPartitioning = true)
-        .asOrderedRDD
+      }, preservesPartitioning = true),
+        rdd.orderedPartitioner)
     }
-
+    
     val locusKeyedRDD = rdd
       .mapMonotonic(OrderedKeyFunction(_.locus), { case (v, vags) => (v, vags) })
 
