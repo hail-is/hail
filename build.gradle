@@ -459,7 +459,7 @@ task createDocs(dependsOn: createWebsite)
 
 task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocsNoTest', 'copyPythonDirToTmp'])
 
-task assemblePackage(type: Copy, dependsOn: ['createDocsNoTest' , 'shadowJar']) {
+task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('python') {
         into 'python'
     }
