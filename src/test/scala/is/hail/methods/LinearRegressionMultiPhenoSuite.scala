@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.Querier
 import is.hail.expr.TDouble
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant}
+import is.hail.variant.Variant
 import org.testng.annotations.Test
 
 class LinearRegressionMultiPhenoSuite extends SparkSuite {
