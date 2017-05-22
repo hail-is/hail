@@ -908,6 +908,7 @@ class KeyTable(object):
         self._jkt.unpersist()
 
     @handle_py4j
+    @typecheck_method(cols=tupleof(oneof(strlike, anytype)))
     def order_by(self, *cols):
         """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
 
@@ -1154,6 +1155,7 @@ class KeyTable(object):
         return KeyTable(hc, jkt)
 
     @handle_py4j
+    @typecheck_method(kts=tupleof(anytype))
     def union(self, *kts):
         """Union the rows of multiple tables.
 
