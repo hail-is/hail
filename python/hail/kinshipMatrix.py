@@ -37,7 +37,7 @@ class KinshipMatrix:
         """
         Export kinship matrix to tab-delimited text file with sample list as header.
         
-        :param string output: The file path to output the matrix to. 
+        :param str output: The file path to output the matrix to. 
         """
         self._jkm.exportTSV(output)
 
@@ -46,7 +46,7 @@ class KinshipMatrix:
         """
         Export kinship matrix as .rel file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
         
-        :param output: The file path to output to. 
+        :param str output: The file path to output to. 
         """
         self._jkm.exportRel(output)
 
@@ -55,7 +55,7 @@ class KinshipMatrix:
         """
         Export kinship matrix as .grm file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
         
-        :param output: The file path to output to.
+        :param str output: The file path to output to.
         """
         self._jkm.exportGctaGrm(output)
 
@@ -65,9 +65,9 @@ class KinshipMatrix:
         """
         Export kinship matrix as .grm.bin file or as .grm.N.bin file, depending on whether an N file is specified. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
         
-        :param output: The file path to output to. 
+        :param str output: The file path to output to. 
         
-        :param opt_n_file: The file path to the N file. 
+        :param str opt_n_file: The file path to the N file. 
         """
         self._jkm.exportGctaGrmBin(output, joption(opt_n_file))
 
@@ -76,6 +76,6 @@ class KinshipMatrix:
         """
         Export samples as .id file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
         
-        :param output: The file to output to.
+        :param str output: The file path to output to.
         """
         self._jkm.exportIdFile(output)
