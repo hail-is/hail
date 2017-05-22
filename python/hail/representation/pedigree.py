@@ -1,5 +1,5 @@
 from hail.java import *
-
+from hail.typecheck import *
 
 class Trio(object):
     """Class containing information about nuclear family relatedness and sex.
@@ -20,6 +20,11 @@ class Trio(object):
     """
 
     @handle_py4j
+    @typecheck_method(proband=strlike,
+                      fam=nullable(strlike),
+                      father=nullable(strlike),
+                      mother=nullable(strlike),
+                      is_female=nullable(bool))
     def __init__(self, proband, fam=None, father=None, mother=None, is_female=None):
         jobject = Env.hail().variant.Sex
         if is_female is not None:
@@ -188,6 +193,8 @@ class Pedigree(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck(fam_path=strlike,
+               delimiter=strlike)
     def read(fam_path, delimiter='\\s+'):
         """Read a .fam file and return a pedigree object.
 
@@ -231,6 +238,7 @@ class Pedigree(object):
         return filter(lambda t: t.is_complete(), self._trios)
 
     @handle_py4j
+    @typecheck_method(samples=listof(strlike))
     def filter_to(self, samples):
         """Filter the pedigree to a given list of sample IDs.
 
@@ -251,6 +259,7 @@ class Pedigree(object):
         return Pedigree._from_java(self._jrep.filterTo(jset(samples)))
 
     @handle_py4j
+    @typecheck_method(path=strlike)
     def write(self, path):
         """Write a .fam file to the given path.
 
@@ -270,7 +279,8 @@ class Pedigree(object):
             Use the key table method :py:meth:`~hail.KeyTable.import_fam` to manipulate this
             information.
 
-        :param str path: output path
+        :param path: output path
+        :type path: str
         """
 
         self._jrep.write(path, Env.hc()._jhc.hadoopConf())
