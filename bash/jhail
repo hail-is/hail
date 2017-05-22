@@ -13,7 +13,7 @@ server_extension_validated=$?
 
 if [[ $nb_extension_enabled -ne 0 ]]
 then
-    echo "It seems that jupyter_spark is not an enabled nbextension, you may not Spark progress bars. Consider installing https://github.com/mozilla/jupyter-spark" >&2
+    echo "It seems that jupyter_spark is not an enabled nbextension, you may not see Spark progress bars. Consider installing https://github.com/mozilla/jupyter-spark" >&2
 fi
 if [[ $nb_extension_validated -ne 0 ]]
 then
@@ -21,7 +21,7 @@ then
 fi
 if [[ $server_extension_enabled -ne 0 ]]
 then
-    echo "It seems that jupyter_spark is not an enabled serverextension, you may not Spark progress bars. Consider installing https://github.com/mozilla/jupyter-spark" >&2
+    echo "It seems that jupyter_spark is not an enabled serverextension, you may not see Spark progress bars. Consider installing https://github.com/mozilla/jupyter-spark" >&2
 fi
 if [[ $server_extension_validated -ne 0 ]]
 then
