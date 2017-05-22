@@ -972,7 +972,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       ins: (Annotation, S) => Annotation): OrderedRDD[Locus, Variant, (Annotation, Iterable[T])] = {
       OrderedRDD(joinedRDD.mapPartitions({ it =>
         it.map { case (l, ((v, (va, gs)), annotation)) => (v, (ins(va, annotation), gs)) }
-      }, preservesPartitioning = true),
+      }),
         rdd.orderedPartitioner)
     }
 
