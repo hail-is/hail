@@ -1,5 +1,5 @@
 from hail.java import *
-
+from hail.typecheck import *
 
 class Trio(object):
     """Class containing information about nuclear family relatedness and sex.
@@ -20,6 +20,11 @@ class Trio(object):
     """
 
     @handle_py4j
+    @typecheck_method(proband=strlike,
+                      fam=nullable(strlike),
+                      father=nullable(strlike),
+                      mother=nullable(strlike),
+                      is_female=nullable(bool))
     def __init__(self, proband, fam=None, father=None, mother=None, is_female=None):
         jobject = Env.hail().variant.Sex
         if is_female is not None:
@@ -145,7 +150,7 @@ class Trio(object):
         """Returns True if the trio has a defined mother, father, and sex.
 
         The considered fields are ``mother``, ``father``, and ``sex``.
-        Recall that ``proband`` may never be missing. The ``fam`` field 
+        Recall that ``proband`` may never be missing. The ``fam`` field
         may be missing in a complete trio.
 
         :rtype: bool
@@ -188,13 +193,15 @@ class Pedigree(object):
 
     @staticmethod
     @handle_py4j
+    @typecheck(fam_path=strlike,
+               delimiter=strlike)
     def read(fam_path, delimiter='\\s+'):
         """Read a .fam file and return a pedigree object.
-        
+
         **Examples**
-        
+
         >>> ped = Pedigree.read('data/test.fam')
-        
+
         **Notes**
 
         This method reads a `PLINK .fam file <https://www.cog-genomics.org/plink2/formats#fam>`_.
@@ -202,7 +209,7 @@ class Pedigree(object):
         Hail expects a file in the same spec as PLINK outlines.
 
         :param str fam_path: path to .fam file.
-        
+
         :param str delimiter: Field delimiter.
 
         :rtype: :class:`.Pedigree`
@@ -231,11 +238,12 @@ class Pedigree(object):
         return filter(lambda t: t.is_complete(), self._trios)
 
     @handle_py4j
+    @typecheck_method(samples=listof(strlike))
     def filter_to(self, samples):
         """Filter the pedigree to a given list of sample IDs.
-        
+
         **Notes**
-        
+
         For any trio, the following steps will be applied:
 
          - If the proband is not in the list of samples provided, the trio is removed.
@@ -251,26 +259,28 @@ class Pedigree(object):
         return Pedigree._from_java(self._jrep.filterTo(jset(samples)))
 
     @handle_py4j
+    @typecheck_method(path=strlike)
     def write(self, path):
         """Write a .fam file to the given path.
 
         **Examples**
-        
+
         >>> ped = Pedigree.read('data/test.fam')
         >>> ped.write('out.fam')
-        
+
         **Notes**
 
         This method writes a `PLINK .fam file <https://www.cog-genomics.org/plink2/formats#fam>`_.
 
         .. caution::
-        
+
             Phenotype information is not preserved in the Pedigree data structure in Hail.
             Reading and writing a PLINK .fam file will result in loss of this information.
-            Use the key table method :py:meth:`~hail.KeyTable.import_fam` to manipulate this 
+            Use the key table method :py:meth:`~hail.KeyTable.import_fam` to manipulate this
             information.
 
-        :param str path: output path
+        :param path: output path
+        :type path: str
         """
 
         self._jrep.write(path, Env.hc()._jhc.hadoopConf())
