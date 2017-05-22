@@ -67,7 +67,8 @@ class KinshipMatrix:
         
         :param str output: The file path to output to. 
         
-        :param str opt_n_file: The file path to the N file. 
+        :param opt_n_file: The file path to the N file. 
+        :type opt_n_file: str or None
         """
         self._jkm.exportGctaGrmBin(output, joption(opt_n_file))
 
