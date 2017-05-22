@@ -804,6 +804,7 @@ object FunctionRegistry {
   registerMethod("isComplex", { (x: AltAllele) => x.isComplex }, "True if not a SNP, MNP, star, insertion, or deletion.")
   registerMethod("isTransition", { (x: AltAllele) => x.isTransition }, "True if a purine-purine or pyrimidine-pyrimidine SNP.")
   registerMethod("isTransversion", { (x: AltAllele) => x.isTransversion }, "True if a purine-pyrimidine SNP.")
+  registerMethod("altAlleleType", { (x: AltAllele) => x.altAlleleType.toString }, "the alt allele type")
 
   registerMethod("length", { (x: String) => x.length }, "Length of the string.")
 

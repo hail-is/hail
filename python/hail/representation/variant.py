@@ -403,6 +403,18 @@ class AltAllele(object):
 
         return self._jrep.isTransversion()
 
+    def alt_allele_type(self):
+        """Returns the type of alt, i.e one of
+            SNP,
+            Insertion,
+            Deletion,
+            Star,
+            MNP,
+            Complex
+
+        :rtype: string
+        """
+        return self._jrep.altAlleleType()
 
 class Locus(object):
     """
