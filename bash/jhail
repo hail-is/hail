@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source setup_env
+source "$(dirname $0)"/setup_env
 
 nb_extension_enabled=jupyter nbextension list 2>&1 | grep 'jupyter_spark *enabled'
 nb_extension_validated=jupyter nbextension list 2>&1 | grep 'jupyter_spark *OK'
