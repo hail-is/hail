@@ -5,7 +5,7 @@ class Trio(object):
     """Class containing information about nuclear family relatedness and sex.
 
     :param str proband: Sample ID of proband.
-    
+
     :param fam: Family ID.
     :type fam: str or None
 
