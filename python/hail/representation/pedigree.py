@@ -5,7 +5,7 @@ class Trio(object):
     """Class containing information about nuclear family relatedness and sex.
 
     :param str proband: Sample ID of proband.
-    
+
     :param fam: Family ID.
     :type fam: str or None
 
@@ -56,10 +56,12 @@ class Trio(object):
         else:
             return self._jrep == other._jrep
 
+    @handle_py4j
     def __hash__(self):
         return self._jrep.hashCode()
 
     @property
+    @handle_py4j
     def proband(self):
         """ID of proband in trio, never missing.
 
@@ -70,6 +72,7 @@ class Trio(object):
         return self._proband
 
     @property
+    @handle_py4j
     def father(self):
         """ID of father in trio, may be missing.
 
@@ -81,6 +84,7 @@ class Trio(object):
         return self._father
 
     @property
+    @handle_py4j
     def mother(self):
         """ID of mother in trio, may be missing.
 
@@ -92,6 +96,7 @@ class Trio(object):
         return self._mother
 
     @property
+    @handle_py4j
     def fam(self):
         """Family ID.
 
@@ -103,6 +108,7 @@ class Trio(object):
         return self._fam
 
     @property
+    @handle_py4j
     def is_male(self):
         """Returns True if the proband is a reported male, False if reported female, and None if no sex is defined.
 
@@ -118,6 +124,7 @@ class Trio(object):
         return self._is_female is False
 
     @property
+    @handle_py4j
     def is_female(self):
         """Returns True if the proband is a reported female, False if reported male, and None if no sex is defined.
 
@@ -133,6 +140,7 @@ class Trio(object):
                 self._is_female = j_female
         return self._is_female is True
 
+    @handle_py4j
     def is_complete(self):
         """Returns True if the trio has a defined mother, father, and sex.
 
@@ -174,6 +182,7 @@ class Pedigree(object):
         else:
             return self._jrep == other._jrep
 
+    @handle_py4j
     def __hash__(self):
         return self._jrep.hashCode()
 
@@ -203,6 +212,7 @@ class Pedigree(object):
         return Pedigree._from_java(jrep)
 
     @property
+    @handle_py4j
     def trios(self):
         """List of trio objects in this pedigree.
 
