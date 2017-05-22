@@ -64,7 +64,7 @@ class DeNovoSuite extends SparkSuite {
           } yield if (isMissing) Genotype() else new GenericGenotype(gt, ad, dp, math.min(gq, 99), pls, false, false)
         }
       )).filter(vds => vds.countVariants() > 0 && vds.nSamples > 0)
-      ped <- Pedigree.gen(vds.sampleIds)
+      ped <- Pedigree.gen(vds.stringSampleIds)
     } yield (vds, ped)
   }
 

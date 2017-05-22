@@ -175,7 +175,7 @@ object DeNovo {
     // it's okay to cast null to 0.0 here because missing is treated as 0.0
     val popFreqQuery: (Annotation) => Double = popFrequencyF(_).asInstanceOf[Double]
 
-    val trios = ped.filterTo(vds.sampleIds.toSet).completeTrios
+    val trios = ped.filterTo(vds.stringSampleIds.toSet).completeTrios
     val nSamplesDiscarded = ped.trios.length - trios.length
     val nTrios = trios.size
 
@@ -190,11 +190,11 @@ object DeNovo {
       sampleTrioRoles += (t.knownMom -> ((ti, 2) :: sampleTrioRoles.getOrElse(t.knownMom, List.empty[(Int, Int)])))
     }
 
-    val idMapping = vds.sampleIds.zipWithIndex.toMap
+    val idMapping = vds.stringSampleIds.zipWithIndex.toMap
 
     val sc = vds.sparkContext
     val trioIndexBc = sc.broadcast(trios.map(t => (idMapping(t.kid), idMapping(t.knownDad), idMapping(t.knownMom))))
-    val sampleTrioRolesBc = sc.broadcast(vds.sampleIds.map(sampleTrioRoles.getOrElse(_, Nil)).toArray)
+    val sampleTrioRolesBc = sc.broadcast(vds.stringSampleIds.map(sampleTrioRoles.getOrElse(_, Nil)).toArray)
     val triosBc = sc.broadcast(trios)
     val trioSexBc = sc.broadcast(trios.map(_.sex.orNull).toArray)
 
