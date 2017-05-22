@@ -145,7 +145,7 @@ class Trio(object):
         """Returns True if the trio has a defined mother, father, and sex.
 
         The considered fields are ``mother``, ``father``, and ``sex``.
-        Recall that ``proband`` may never be missing. The ``fam`` field 
+        Recall that ``proband`` may never be missing. The ``fam`` field
         may be missing in a complete trio.
 
         :rtype: bool
@@ -190,11 +190,11 @@ class Pedigree(object):
     @handle_py4j
     def read(fam_path, delimiter='\\s+'):
         """Read a .fam file and return a pedigree object.
-        
+
         **Examples**
-        
+
         >>> ped = Pedigree.read('data/test.fam')
-        
+
         **Notes**
 
         This method reads a `PLINK .fam file <https://www.cog-genomics.org/plink2/formats#fam>`_.
@@ -202,7 +202,7 @@ class Pedigree(object):
         Hail expects a file in the same spec as PLINK outlines.
 
         :param str fam_path: path to .fam file.
-        
+
         :param str delimiter: Field delimiter.
 
         :rtype: :class:`.Pedigree`
@@ -233,9 +233,9 @@ class Pedigree(object):
     @handle_py4j
     def filter_to(self, samples):
         """Filter the pedigree to a given list of sample IDs.
-        
+
         **Notes**
-        
+
         For any trio, the following steps will be applied:
 
          - If the proband is not in the list of samples provided, the trio is removed.
@@ -255,19 +255,19 @@ class Pedigree(object):
         """Write a .fam file to the given path.
 
         **Examples**
-        
+
         >>> ped = Pedigree.read('data/test.fam')
         >>> ped.write('out.fam')
-        
+
         **Notes**
 
         This method writes a `PLINK .fam file <https://www.cog-genomics.org/plink2/formats#fam>`_.
 
         .. caution::
-        
+
             Phenotype information is not preserved in the Pedigree data structure in Hail.
             Reading and writing a PLINK .fam file will result in loss of this information.
-            Use the key table method :py:meth:`~hail.KeyTable.import_fam` to manipulate this 
+            Use the key table method :py:meth:`~hail.KeyTable.import_fam` to manipulate this
             information.
 
         :param str path: output path
