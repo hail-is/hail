@@ -975,7 +975,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
       }, preservesPartitioning = true),
         rdd.orderedPartitioner)
     }
-    
+
     val locusKeyedRDD = rdd
       .mapMonotonic(OrderedKeyFunction(_.locus), { case (v, vags) => (v, vags) })
 
