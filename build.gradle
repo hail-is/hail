@@ -458,3 +458,19 @@ task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDoc
 task createDocs(dependsOn: createWebsite)
 
 task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocsNoTest', 'copyPythonDirToTmp'])
+
+task assemblePackage(type: Copy, dependsOn: ['createDocsNoTest' , 'shadowJar']) {
+    from('python') {
+        into 'python'
+    }
+    from('build/www/hail') {
+        into 'docs'
+    }
+    from 'build/libs/hail-all-spark.jar'
+    into 'build/package'
+}
+
+task createPackage(type: Zip, dependsOn: ['assemblePackage']) {
+    from 'build/package'
+    baseName 'hail'
+}
