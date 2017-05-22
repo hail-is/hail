@@ -579,6 +579,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     minChildAB: Double = 0.20,
     minDepthRatio: Double = 0.10): KeyTable = {
     requireSplit("de novo")
+    vds.requireSampleTString("de novo")
 
     DeNovo(vds, ped, referenceAF, minGQ, minPDeNovo, maxParentAB, minChildAB, minDepthRatio)
   }
