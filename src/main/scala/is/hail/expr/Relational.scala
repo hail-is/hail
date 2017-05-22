@@ -20,30 +20,34 @@ case class MatrixType(
   metadata: VSMMetadata) {
   def globalType: Type = metadata.globalSignature
 
+  def sType: Type = metadata.sSignature
+
   def saType: Type = metadata.saSignature
+
+  def vType: Type = metadata.vSignature
 
   def vaType: Type = metadata.vaSignature
 
   def genotypeType: Type = metadata.genotypeSignature
 
   def typ = TStruct(
-    "v" -> TVariant,
+    "v" -> vType,
     "va" -> vaType,
-    "s" -> TString,
+    "s" -> sType,
     "sa" -> saType,
     "g" -> genotypeType)
 
   def sampleEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),
-      "s" -> (1, TString),
+      "s" -> (1, sType),
       "sa" -> (2, saType),
       "g" -> (3, genotypeType),
-      "v" -> (4, TVariant),
+      "v" -> (4, vType),
       "va" -> (5, vaType))
     EvalContext(Map(
       "global" -> (0, globalType),
-      "s" -> (1, TString),
+      "s" -> (1, sType),
       "sa" -> (2, saType),
       "gs" -> (3, TAggregable(genotypeType, aggregationST))))
   }
@@ -54,11 +58,11 @@ case class MatrixType(
       "v" -> (1, TVariant),
       "va" -> (2, vaType),
       "g" -> (3, genotypeType),
-      "s" -> (4, TString),
+      "s" -> (4, sType),
       "sa" -> (5, saType))
     EvalContext(Map(
       "global" -> (0, globalType),
-      "v" -> (1, TVariant),
+      "v" -> (1, vType),
       "va" -> (2, vaType),
       "gs" -> (3, TAggregable(genotypeType, aggregationST))))
   }
@@ -138,17 +142,17 @@ case class MatrixValue[T](
 
   def globalAnnotation: Annotation = localValue.globalAnnotation
 
-  def sampleIds: IndexedSeq[String] = localValue.sampleIds
+  def sampleIds: IndexedSeq[Annotation] = localValue.sampleIds
 
   def sampleAnnotations: IndexedSeq[Annotation] = localValue.sampleAnnotations
 
-  lazy val sampleIdsBc: Broadcast[IndexedSeq[String]] = sparkContext.broadcast(sampleIds)
+  lazy val sampleIdsBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(sampleIds)
 
   lazy val sampleAnnotationsBc: Broadcast[IndexedSeq[Annotation]] = sparkContext.broadcast(sampleAnnotations)
 
-  def sampleIdsAndAnnotations: IndexedSeq[(String, Annotation)] = sampleIds.zip(sampleAnnotations)
+  def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
 
-  def filterSamples(p: (String, Annotation) => Boolean): MatrixValue[T] = {
+  def filterSamples(p: (Annotation, Annotation) => Boolean): MatrixValue[T] = {
     val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }
     val maskBc = sparkContext.broadcast(mask)
     val localtct = tct
@@ -314,7 +318,7 @@ case class FilterSamples[T](
 
     val sampleAggregationOption = Aggregators.buildSampleAggregations(hc, prev, ec)
 
-    val p = (s: String, sa: Annotation) => {
+    val p = (s: Annotation, sa: Annotation) => {
       sampleAggregationOption.foreach(f => f.apply(s))
       ec.setAll(localGlobalAnnotation, s, sa)
       f() == true

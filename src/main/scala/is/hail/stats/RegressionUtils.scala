@@ -1,6 +1,7 @@
 package is.hail.stats
 
 import breeze.linalg.{DenseMatrix, DenseVector, SparseVector}
+import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{Genotype, VariantDataset}
@@ -41,7 +42,7 @@ object RegressionUtils {
   def getPhenoCovCompleteSamples(
     vds: VariantDataset,
     yExpr: String,
-    covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[String]) = {
+    covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[Annotation]) = {
 
     val nCovs = covExpr.size + 1 // intercept
 
@@ -80,7 +81,7 @@ object RegressionUtils {
   def getPhenosCovCompleteSamples(
     vds: VariantDataset,
     yExpr: Array[String],
-    covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[String]) = {
+    covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[Annotation]) = {
 
     val nPhenos = yExpr.size
     val nCovs = covExpr.size + 1 // intercept

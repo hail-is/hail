@@ -47,7 +47,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
              |  New: ${finalType.toPrettyString(compact = true)}""".stripMargin)
 
     gds.mapValuesWithAll(
-      (v: Variant, va: Annotation, s: String, sa: Annotation, g: Annotation) => {
+      (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Annotation) => {
         ec.setAll(v, va, s, sa, g)
         f().zip(inserters)
           .foldLeft(g) { case (ga, (a, inserter)) =>
@@ -102,7 +102,7 @@ class GenericDatasetFunctions(private val gds: VariantSampleMatrix[Annotation]) 
 
     val localKeep = keep
     gds.mapValuesWithAll(
-      (v: Variant, va: Annotation, s: String, sa: Annotation, g: Annotation) => {
+      (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Annotation) => {
         ec.setAll(v, va, s, sa, g)
 
         if (Filter.boxedKeepThis(f(), localKeep))

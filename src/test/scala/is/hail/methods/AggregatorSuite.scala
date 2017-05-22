@@ -158,7 +158,7 @@ class AggregatorSuite extends SparkSuite {
     val ktProduct = new KeyTable(hc, rdd, signature)
       .aggregate("group = group", ((0 until 11).map(i => s"s$i = s$i.product()") :+ ("empty = s10.filter(x => false).product()")).mkString(","))
 
-    assert(ktProduct.collect() == IndexedSeq(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4 d, 0d, 1d)))
+    assert(ktProduct.collect() == IndexedSeq(Row("a", 0l, 2l, 2l, 6l, -1l, -3l, 80l, 1l, 0l, -4d, 0d, 1d)))
 
   }
 

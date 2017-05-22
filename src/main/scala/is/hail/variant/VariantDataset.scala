@@ -51,7 +51,7 @@ object VariantDataset {
       globalSignature = TStruct.empty)
 
     new VariantSampleMatrix[Genotype](kt.hc, metadata,
-      VSMLocalValue(Annotation.empty, Array.empty[String], Array.empty[Annotation]), rdd)
+      VSMLocalValue(Annotation.empty, Array.empty[Annotation], Array.empty[Annotation]), rdd)
   }
 
   def readKudu(hc: HailContext, dirname: String, tableName: String,
@@ -324,6 +324,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def exportPlink(path: String, famExpr: String = "id = s") {
     requireSplit("export plink")
+    vds.requireSampleTString("export plink")
 
     val ec = EvalContext(Map(
       "s" -> (0, TString),
@@ -376,7 +377,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     }
 
     val spaceRegex = """\s+""".r
-    val badSampleIds = vds.sampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
+    val badSampleIds = vds.stringSampleIds.filter(id => spaceRegex.findFirstIn(id).isDefined)
     if (badSampleIds.nonEmpty) {
       fatal(
         s"""Found ${ badSampleIds.length } sample IDs with whitespace
@@ -472,7 +473,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val noCall = Genotype()
     val localKeep = keep
     vds.mapValuesWithAll(
-      (v: Variant, va: Annotation, s: String, sa: Annotation, g: Genotype) => {
+      (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Genotype) => {
         ec.setAll(v, va, s, sa, g)
 
         if (Filter.boxedKeepThis(f(), localKeep))
@@ -495,33 +496,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       vds.filterVariants {
         case (v, va, gs) => v.isBiallelic
       }.copy(wasSplit = true)
-    }
-  }
-
-
-  def gqByDP(path: String) {
-    val nBins = GQByDPBins.nBins
-    val binStep = GQByDPBins.binStep
-    val firstBinLow = GQByDPBins.firstBinLow
-    val gqbydp = GQByDPBins(vds)
-
-    vds.hadoopConf.writeTextFile(path) { s =>
-      s.write("sample")
-      for (b <- 0 until nBins)
-        s.write("\t" + GQByDPBins.binLow(b) + "-" + GQByDPBins.binHigh(b))
-
-      s.write("\n")
-
-      for (sample <- vds.sampleIds) {
-        s.write(sample)
-        for (b <- 0 until GQByDPBins.nBins) {
-          gqbydp.get((sample, b)) match {
-            case Some(percentGQ) => s.write("\t" + percentGQ)
-            case None => s.write("\tNA")
-          }
-        }
-        s.write("\n")
-      }
     }
   }
 
@@ -598,6 +572,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
     requireSplit("linear burden regression")
+    vds.requireSampleTString("linear burden regression")
     LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
   }
 
@@ -633,6 +608,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
     requireSplit("linear burden regression")
+    vds.requireSampleTString("linear burden regression")
     LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 
@@ -641,8 +617,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     requireSplit("mendel errors")
+    vds.requireSampleTString("mendel errors")
 
-    val men = MendelErrors(vds, ped.filterTo(vds.sampleIds.toSet).completeTrios)
+    val men = MendelErrors(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios)
 
     (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
   }
@@ -690,7 +667,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     info(s"rrm: Computing Realized Relationship Matrix...")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants.")
-    new KinshipMatrix(vds.hc, rrm, vds.sampleIds.toArray, m)
+    KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.stringSampleIds.toArray, m)
   }
 
 
@@ -707,8 +684,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def tdt(ped: Pedigree, tdtRoot: String = "va.tdt"): VariantDataset = {
     requireSplit("TDT")
+    vds.requireSampleTString("TDT")
 
-    TDT(vds, ped.filterTo(vds.sampleIds.toSet).completeTrios,
+    TDT(vds, ped.filterTo(vds.stringSampleIdSet).completeTrios,
       Parser.parseAnnotationRoot(tdtRoot, Annotation.VARIANT_HEAD))
   }
 

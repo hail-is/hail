@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.utils.{HailException, _}
 import org.testng.annotations.Test
@@ -16,7 +17,7 @@ class RenameSamplesSuite extends SparkSuite {
   @Test def testCollision() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
 
-    val m = mutable.Map[String, String](
+    val m = mutable.Map[Annotation, String](
       vds.sampleIds(0) -> "a",
       vds.sampleIds(1) -> "a"
     )
@@ -31,8 +32,8 @@ class RenameSamplesSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
 
     val samples = vds.sampleIds.toSet
-    val newSamples = mutable.Set[String](samples.toArray: _*)
-    val m = mutable.Map.empty[String, String]
+    val newSamples = mutable.Set[Annotation](samples.toArray: _*)
+    val m = mutable.Map.empty[Annotation, Annotation]
     val genNewSample = Gen.identifier.filter(newS => !newSamples.contains(newS))
     for (s <- vds.sampleIds) {
       Gen.option(genNewSample, 0.5).sample() match {

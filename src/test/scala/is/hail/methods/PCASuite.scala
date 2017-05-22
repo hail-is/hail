@@ -19,7 +19,8 @@ class PCASuite extends SparkSuite {
     val arrayT = TArray(TDouble)
     val structT = TStruct("PC1" -> TDouble, "PC2" -> TDouble, "PC3" -> TDouble)
 
-    val pyScores = Map("C1046::HG02024" -> IndexedSeq(-0.55141958610810227, 0.6480766747061064, -0.3559869584014231),
+    val pyScores = Map[Annotation, IndexedSeq[Double]](
+      "C1046::HG02024" -> IndexedSeq(-0.55141958610810227, 0.6480766747061064, -0.3559869584014231),
       "C1046::HG02025" -> IndexedSeq(-0.6916959815105279, -0.7626843185339386, -0.13868806289543628),
       "C1046::HG02026" -> IndexedSeq(1.487286902938744, -0.08212707761864713, -0.09901636248685303),
       "C1047::HG00731" -> IndexedSeq(-0.2441713353201146, 0.19673472144647947, 0.5936913837837123))

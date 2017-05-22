@@ -4,12 +4,10 @@ import warnings
 
 from decorator import decorator
 
-from hail.expr import TVariant
-from hail.expr import Type, TGenotype
+from hail.expr import Type, TGenotype, TString, TVariant
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
-from hail.expr import Type, TGenotype, TVariant
 from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list
 from hail.kinshipMatrix import KinshipMatrix
@@ -21,11 +19,11 @@ warnings.filterwarnings(module=__name__, action='once')
 @decorator
 def requireTGenotype(func, vds, *args, **kwargs):
     if vds._is_generic_genotype:
-        if isinstance(vds.genotype_schema, TGenotype):
+        if vds.genotype_schema != TGenotype:
             coerced_vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
             return func(coerced_vds, *args, **kwargs)
         else:
-            raise TypeError("Genotype signature must be of type TGenotype, but found '%s'" % type(vds.genotype_schema))
+            raise TypeError("genotype signature must be Genotype, but found '%s'" % type(vds.genotype_schema))
 
     return func(vds, *args, **kwargs)
 
@@ -61,7 +59,9 @@ class VariantDataset(object):
 
         self._globals = None
         self._sample_annotations = None
+        self._colkey_schema = None
         self._sa_schema = None
+        self._rowkey_schema = None
         self._va_schema = None
         self._global_schema = None
         self._genotype_schema = None
@@ -3568,6 +3568,20 @@ class VariantDataset(object):
         return self._global_schema
 
     @property
+    def colkey_schema(self):
+        """
+        Returns the signature of the column key (sample) contained in this VDS.
+
+        >>> print(vds.colkey_schema)
+
+        :rtype: :class:`.Type`
+        """
+
+        if self._colkey_schema is None:
+            self._colkey_schema = Type._from_java(self._jvds.sSignature())
+        return self._colkey_schema
+
+    @property
     def sample_schema(self):
         """
         Returns the signature of the sample annotations contained in this VDS.
@@ -3580,6 +3594,20 @@ class VariantDataset(object):
         if self._sa_schema is None:
             self._sa_schema = Type._from_java(self._jvds.saSignature())
         return self._sa_schema
+
+    @property
+    def rowkey_schema(self):
+        """
+        Returns the signature of the row key (variant) contained in this VDS.
+
+        >>> print(vds.rowkey_schema)
+
+        :rtype: :class:`.Type`
+        """
+
+        if self._rowkey_schema is None:
+            self._rowkey_schema = Type._from_java(self._jvds.vSignature())
+        return self._rowkey_schema
 
     @property
     def variant_schema(self):

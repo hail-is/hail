@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.{TDouble, TInt, TString}
@@ -46,7 +47,7 @@ class IBDSuite extends SparkSuite {
 
   private def runPlinkIBD(vds: VariantDataset,
     min: Option[Double] = None,
-    max: Option[Double] = None): Map[(String, String), ExtendedIBDInfo] = {
+    max: Option[Double] = None): Map[(Annotation, Annotation), ExtendedIBDInfo] = {
 
     val tmpdir = tmpDir.createTempFile(prefix = "plinkIBD")
     val localTmpdir = tmpDir.createLocalTempFile(prefix = "plinkIBD")
@@ -79,8 +80,8 @@ class IBDSuite extends SparkSuite {
       .map { ann =>
         // _, fid1, iid1, fid2, iid2, rt, ez, z0, z1, z2, pihat, phe, dst, ppc, ratio, ibs0, ibs1, ibs2, homhom, hethet
         val row = ann.asInstanceOf[Row]
-        val iid1 = toS(row(2))
-        val iid2 = toS(row(4))
+        val iid1 = toS(row(2)): Annotation
+        val iid2 = toS(row(4)): Annotation
         val z0 = toD(row(7))
         val z1 = toD(row(8))
         val z2 = toD(row(9))

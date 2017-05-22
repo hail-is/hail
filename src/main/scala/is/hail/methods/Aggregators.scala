@@ -64,7 +64,7 @@ object Aggregators {
     })
   }
 
-  def buildSampleAggregations[T](hc: HailContext, value: MatrixValue[T], ec: EvalContext): Option[(String) => Unit] = {
+  def buildSampleAggregations[T](hc: HailContext, value: MatrixValue[T], ec: EvalContext): Option[(Annotation) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -115,7 +115,7 @@ object Aggregators {
     }, depth = depth)
 
     val sampleIndex = value.sampleIds.zipWithIndex.toMap
-    Some((s: String) => {
+    Some((s: Annotation) => {
       val i = sampleIndex(s)
       for (j <- 0 until nAggregations) {
         aggregations(j)._1.v = result(i, j).result

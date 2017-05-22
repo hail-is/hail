@@ -24,7 +24,7 @@ object SamplePCA {
 
 
   def apply(vds: VariantDataset, k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean,
-    asArray: Boolean): (Map[String, Annotation], Option[RDD[(Variant, Annotation)]], Option[Annotation]) = {
+    asArray: Boolean): (Map[Annotation, Annotation], Option[RDD[(Variant, Annotation)]], Option[Annotation]) = {
 
     val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vds)
     val sc = vds.sparkContext

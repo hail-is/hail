@@ -4,7 +4,7 @@ import breeze.linalg.{DenseVector, sum, _}
 import breeze.stats.distributions._
 import is.hail.HailContext
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TDouble, TInt, TString, TStruct}
+import is.hail.expr.{TArray, TDouble, TInt, TString, TStruct, TVariant}
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset}
 import org.apache.commons.math3.random.JDKRandomGenerator
@@ -138,7 +138,7 @@ object BaldingNicholsModel {
       "ancestralAFDist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt)
     new VariantDataset(hc,
-      VSMMetadata(saSignature, vaSignature, globalSignature, wasSplit = true),
+      VSMMetadata(TString, saSignature, TVariant, vaSignature, globalSignature, wasSplit = true),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
   }
 }

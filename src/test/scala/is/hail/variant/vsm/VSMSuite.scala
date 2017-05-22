@@ -215,7 +215,7 @@ class VSMSuite extends SparkSuite {
 
     val samples = vds.sampleIds
     for (n <- 0 until 20) {
-      val keep = mutable.Set.empty[String]
+      val keep = mutable.Set.empty[Annotation]
 
       // n == 0: none
       if (n == 1) {

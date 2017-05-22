@@ -227,7 +227,7 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
 }
 
 object SampleQC {
-  def results(vds: VariantDataset, keepStar: Boolean): Map[String, SampleQCCombiner] = {
+  def results(vds: VariantDataset, keepStar: Boolean): Map[Annotation, SampleQCCombiner] = {
     val depth = treeAggDepth(vds.hc, vds.nPartitions)
     vds.sampleIds.iterator
       .zip(
@@ -259,7 +259,7 @@ object SampleQC {
 
     val r = results(vds, keepStar)
     vds.annotateSamples(SampleQCCombiner.signature,
-      Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), { (x: String) =>
+      Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), { (x: Annotation) =>
         r.get(x).map(_.asAnnotation).orNull
       })
   }

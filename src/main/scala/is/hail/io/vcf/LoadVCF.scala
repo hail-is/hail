@@ -328,7 +328,9 @@ object LoadVCF {
     justVariants.unpersist()
 
     new VariantSampleMatrix[T](hc, VSMMetadata(
+      TString,
       TStruct.empty,
+      TVariant,
       variantAnnotationSignatures,
       TStruct.empty,
       genotypeSignature,

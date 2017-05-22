@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.io.annotators.IntervalList
 import is.hail.utils._
@@ -104,7 +105,7 @@ class FilterSuite extends SparkSuite {
     val vds = TestRDDBuilder.buildRDD(8, 8, hc)
       .splitMulti()
 
-    val sampleList = hadoopConf.readLines("src/test/resources/filter.sample_list")(_.map(_.value).toSet)
+    val sampleList = hadoopConf.readLines("src/test/resources/filter.sample_list")(_.map(_.value: Annotation).toSet)
     assert(vds.filterSamplesList(sampleList).nSamples == 3)
 
     assert(vds.filterSamplesList(sampleList, keep = false).nSamples == 5)

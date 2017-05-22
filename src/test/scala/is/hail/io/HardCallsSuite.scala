@@ -1,13 +1,14 @@
 package is.hail.io
 
 import is.hail.SparkSuite
+import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.utils._
 import is.hail.variant.{VSMSubgen, VariantSampleMatrix, _}
 import org.testng.annotations.Test
 
 class HardCallsSuite extends SparkSuite {
-  def gtTriples(vds: VariantDataset): Set[(Variant, String, (Option[Int], Boolean))] =
+  def gtTriples(vds: VariantDataset): Set[(Variant, Annotation, (Option[Int], Boolean))] =
     vds.mapValues { g => (g.gt, g.fakeRef) }
       .expand()
       .collect()

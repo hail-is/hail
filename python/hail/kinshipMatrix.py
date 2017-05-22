@@ -1,8 +1,10 @@
+from decorator import decorator
+
 from hail.typecheck import *
 
 from pyspark.mllib.linalg.distributed import IndexedRowMatrix
 from hail.java import *
-
+from hail.expr import Type, TString
 
 class KinshipMatrix:
     """
@@ -12,7 +14,20 @@ class KinshipMatrix:
 
     """
     def __init__(self, jkm):
+        self._key_schema = None
         self._jkm = jkm
+
+    @property
+    def key_schema(self):
+        """
+        Returns the signature of the key indexing this matrix.
+
+        :rtype: :class:`.Type`
+        """
+
+        if self._key_schema is None:
+            self._key_schema = Type._from_java(self._jkm.sampleSignature())
+        return self._key_schema
 
     def sample_list(self):
         """
@@ -21,7 +36,7 @@ class KinshipMatrix:
         :return: List of samples.
         :rtype: list of str
         """
-        return list(self._jkm.samples())
+        return [self.key_schema._convert_to_py(s) for s in self._jkm.sampleIds()]
 
     def matrix(self):
         """

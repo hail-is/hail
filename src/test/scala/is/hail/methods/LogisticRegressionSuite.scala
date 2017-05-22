@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.SparkSuite
 import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.{TBoolean, TDouble}
+import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
@@ -345,7 +346,7 @@ class LogisticRegressionSuite extends SparkSuite {
       types = Map("PC1" -> TDouble, "PC2" -> TDouble), missing = "0").keyBy("IND_ID")
 
     val vds = hc.importVCF("src/test/resources/regressionLogisticEpacts.vcf")
-      .annotateSamplesFam("src/test/resources/regressionLogisticEpacts.fam")
+      .annotateSamplesTable(KeyTable.importFam(hc, "src/test/resources/regressionLogisticEpacts.fam"), root = "sa.fam")
       .annotateSamplesTable(covariates, root = "sa.pc")
       .logreg("wald", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.wald")
       .logreg("lrt", "sa.fam.isCase", Array("sa.fam.isFemale", "sa.pc.PC1", "sa.pc.PC2"), "va.lrt")
