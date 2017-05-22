@@ -403,7 +403,8 @@ class AltAllele(object):
 
         return self._jrep.isTransversion()
 
-    def alt_allele_type(self):
+    @handle_py4j
+    def category(self):
         """Returns the type of alt, i.e one of
             SNP,
             Insertion,
@@ -412,7 +413,7 @@ class AltAllele(object):
             MNP,
             Complex
 
-        :rtype: string
+        :rtype: str
         """
         return self._jrep.altAlleleType()
 
