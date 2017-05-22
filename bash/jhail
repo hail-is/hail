@@ -2,10 +2,14 @@
 
 source "$(dirname $0)"/setup_env
 
-nb_extension_enabled=jupyter nbextension list 2>&1 | grep 'jupyter_spark *enabled'
-nb_extension_validated=jupyter nbextension list 2>&1 | grep 'jupyter_spark *OK'
-server_extension_enabled=jupyter serverextension list 2>&1 | grep 'jupyter_spark *enabled'
-server_extension_validated=jupyter serverextension list 2>&1 | grep 'jupyter_spark *OK'
+jupyter nbextension list 2>&1 | grep 'jupyter_spark *enabled'
+nb_extension_enabled=$?
+jupyter nbextension list 2>&1 | grep 'jupyter_spark *OK'
+nb_extension_validated=$?
+jupyter serverextension list 2>&1 | grep 'jupyter_spark *enabled'
+server_extension_enabled=$?
+jupyter serverextension list 2>&1 | grep 'jupyter_spark *OK'
+server_extension_validated=$?
 
 if [[ $nb_extension_enabled -ne 0 ]]
 then
