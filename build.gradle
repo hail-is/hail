@@ -466,6 +466,9 @@ task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('build/www/hail') {
         into 'docs'
     }
+    from('bash') {
+        into 'bin'
+    }
     from 'build/libs/hail-all-spark.jar'
     into 'build/package'
 }

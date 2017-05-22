@@ -1,0 +1,27 @@
+#!/bin/bash
+
+source setup_env
+
+nb_extension_enabled=jupyter nbextension list 2>&1 | grep 'jupyter_spark *enabled'
+nb_extension_validated=jupyter nbextension list 2>&1 | grep 'jupyter_spark *OK'
+server_extension_enabled=jupyter serverextension list 2>&1 | grep 'jupyter_spark *enabled'
+server_extension_validated=jupyter serverextension list 2>&1 | grep 'jupyter_spark *OK'
+
+if [[ $nb_extension_enabled -ne 0 ]]
+then
+    echo "It seems that jupyter_spark is not an enabled nbextension, you may not Spark progress bars. Consider installed https://github.com/mozilla/jupyter-spark" >&2
+fi
+if [[ $nb_extension_validated -ne 0 ]]
+then
+    echo "It seems that jupyter_spark is not a validated nbextension, you may not see Spark progress bars. Consider installed https://github.com/mozilla/jupyter-spark" >&2
+fi
+if [[ $server_extension_enabled -ne 0 ]]
+then
+    echo "It seems that jupyter_spark is not an enabled serverextension, you may not Spark progress bars. Consider installed https://github.com/mozilla/jupyter-spark" >&2
+fi
+if [[ $server_extension_validated -ne 0 ]]
+then
+    echo "It seems that jupyter_spark is not a validated serverextension, you may not see Spark progress bars. Consider installed https://github.com/mozilla/jupyter-spark" >&2
+fi
+
+jupyter notebook "$@"
