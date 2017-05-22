@@ -12,7 +12,7 @@ import is.hail.keytable.KeyTable
 import is.hail.methods.DuplicateReport
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix, GenomeReference}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -182,6 +182,8 @@ object HailContext {
         s"$k=$v"
       }.mkString(", ")
     }")
+
+    GenomeReference.setReference(GenomeReference.GRCh37)
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)

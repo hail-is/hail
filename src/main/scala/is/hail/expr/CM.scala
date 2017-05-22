@@ -1,6 +1,7 @@
 package is.hail.expr
 
 import is.hail.asm4s.{Code, _}
+import is.hail.variant.GenomeReference
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -45,7 +46,12 @@ case class CM[+T](mt: (E, S) => (T, S)) {
     val (code, s2) = mt(e, emptyS(ec))
     val primitiveFunctionArray = s2.fa.reverse
     e.fb.emit(Code._return(code))
-    val f = e.fb.result()
+
+    val localReference = GenomeReference.genomeReference
+    val initf = () => {
+      GenomeReference.setReference(localReference)
+    }
+    val f = e.fb.result(initf)
 
     { () =>
       try {
@@ -75,7 +81,13 @@ case class CM[+T](mt: (E, S) => (T, S)) {
     val (code, s2) = mt(e2, emptyS(ec))
     val primitiveFunctionArray = s2.fa.reverse
     e2.fb.emit(Code._return(code))
-    val f = e2.fb.result()
+
+    val localReference = GenomeReference.genomeReference
+    val initf = () => {
+      GenomeReference.setReference(localReference)
+    }
+
+    val f = e2.fb.result(initf)
 
     { (x: mutable.ArrayBuffer[AnyRef]) =>
       try {

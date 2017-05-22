@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.utils.TempDir
+import is.hail.variant.GenomeReference
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext

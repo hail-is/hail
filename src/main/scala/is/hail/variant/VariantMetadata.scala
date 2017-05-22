@@ -34,9 +34,10 @@ object VSMFileMetadata {
     globalSignature: Type = TStruct.empty,
     genotypeSignature: Type = TGenotype,
     wasSplit: Boolean = false,
-    isLinearScale: Boolean = false): VSMFileMetadata = {
+    isLinearScale: Boolean = false,
+    genomeReference: GenomeReference = GenomeReference.GRCh37): VSMFileMetadata = {
     VSMFileMetadata(
-      VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale),
+      VSMMetadata(saSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, genomeReference = genomeReference),
       VSMLocalValue(globalAnnotation, sampleIds,
         if (sampleAnnotations == null)
           Annotation.emptyIndexedSeq(sampleIds.length)
@@ -56,4 +57,5 @@ case class VSMMetadata(
   genotypeSignature: Type = TGenotype,
   wasSplit: Boolean = false,
   isLinearScale: Boolean = false,
-  isGenericGenotype: Boolean = false)
+  isGenericGenotype: Boolean = false,
+  genomeReference: GenomeReference = GenomeReference.GRCh37)
