@@ -3,9 +3,13 @@ package is.hail.methods
 import is.hail.utils._
 import is.hail.stats.ToNormalizedIndexedRowMatrix
 import is.hail.variant.{Variant, VariantDataset}
+import org.apache.spark.Partitioner
 import org.apache.spark.mllib.linalg.Matrix
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
+
+import scala.reflect.classTag
 
 
 object LDMatrix {
@@ -48,6 +52,73 @@ object LDMatrix {
       map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
 
     LDMatrix(scaledIndexedRowMatrix, variantsKept, vds.nSamples)
+  }
+
+  def apply2(vds: VariantDataset): LDMatrix = {
+    val nSamples = vds.nSamples
+    //TODO This line sucks, also need to collect variantsKeptArray.
+    val bpvs = vds.rdd.flatMap{ case(v, (_, gs)) => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples)}.zipWithIndex().map{ case(a, b) => (b, a)}
+
+    // Chunk out BPVs with block id's also, use grid partitioner to identify destinations, then map destinations over to
+    // send vectors there, and then use Jackie method to smash individual BPV's together.
+
+    val groupSize = 5 * nSamples / vds.rdd.getNumPartitions
+
+    val grouped = bpvs.map{case(vIdx, bpv) => (vIdx / groupSize, (vIdx, bpv))}.groupByKey()
+    val numberOfGroups = Math.ceil(grouped.count() / groupSize.toDouble).toInt
+
+    val groupDestinations = simulateLDMatrix(numberOfGroups)
+
+    grouped.flatMap{ case(groupID: Long, itr: Iterable[(Long, LDPrune.BitPackedVector)]) =>
+      //Get the set of places this group is needed.
+      val destinations = groupDestinations.getOrElse(groupID.toInt, Set.empty)
+      destinations.map(dest => (dest, itr))
+    }
+
+
+    //At some point, end up with RDD of blocks
+    val computedBlocks: RDD[((Int, Int), Matrix)] = ???
+
+    //Realize I've only computed upper triangle of blocks, so need to transpose to get rest of it.
+    val allBlocks = computedBlocks.flatMap{ case((i, j), mat) =>
+      if (i == j) List(((i, j), mat)) else List(((i, j), mat), ((j, i), mat.transpose))
+    }
+
+    //Construct block matrix and convert to IndexedRowMatrix
+
+
+
+    //Make LD Matrix
+    ???
+  }
+
+  //Create a Map from chunk number to Set of partitions where this chunk is needed.
+  private def simulateLDMatrix(numberOfGroups: Int): Map[Int, Set[Int]] = {
+    // Generate all possible combos
+    val range = (0 until numberOfGroups)
+    val combos: Set[(Int, Int)] = range.combinations(2).map(seq => (seq(0), seq(1))).toSet ++ (range zip range).toSet
+
+    // Now, use grid partitioner to assign these block coordinates to partitions
+
+
+    ???
+  }
+
+  /**
+    * Gets a GridPartitioner instance from spark mllib using reflection, since the constructor is private.
+    */
+  private def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, suggestedNumPartitions: Int): Partitioner = {
+    val intClass = classTag[Int].runtimeClass
+    val gpObjectClass = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner$")
+    val gpApply = gpObjectClass.getMethod("apply", intClass, intClass, intClass)
+
+    try {
+      gpApply.setAccessible(true)
+      gpApply.invoke(gpObjectClass.getField("MODULE$").get(null), nRowBlocks: java.lang.Integer,
+        nColBlocks: java.lang.Integer, suggestedNumPartitions: java.lang.Integer).asInstanceOf[Partitioner]
+    } finally {
+      gpApply.setAccessible(false)
+    }
   }
 }
 

@@ -22,7 +22,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
   }
 
   /**
-    * Gets a GridParitioner instance from spark mllib using reflection, since the constructor is private.
+    * Gets a GridPartitioner instance from spark mllib using reflection, since the constructor is private.
     */
   private def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, suggestedNumPartitions: Int): Partitioner = {
     val intClass = classTag[Int].runtimeClass
