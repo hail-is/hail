@@ -180,6 +180,7 @@ class HailDocTestOutputChecker(doctest.OutputChecker):
 
 class SphinxDocTestRunner(doctest.DocTestRunner):
     def __init__(self, verbose=None, optionflags=0):
+        self.code = []
         doctest.DocTestRunner.__init__(self, checker=HailDocTestOutputChecker(), verbose=verbose, optionflags=optionflags)
 
     def summarize(self, out, verbose=None):
@@ -192,6 +193,29 @@ class SphinxDocTestRunner(doctest.DocTestRunner):
             sys.stdout = old_stdout
         out(string_io.getvalue())
         return res
+
+    def get_code(self):
+        return self.code
+
+    def run(self, test, compileflags=None, out=None, clear_globs=True):
+        for examplenum, example in enumerate(test.examples):
+            # Merge in the example's options.
+            example_optionflags = self.optionflags
+
+            if example.options:
+                for (optionflag, val) in example.options.items():
+                    if val:
+                        example_optionflags |= optionflag
+                    else:
+                        example_optionflags &= ~optionflag
+
+            # If 'SKIP' is set, then skip this example.
+            if example_optionflags & doctest.SKIP:
+                continue
+
+            self.code.append(example.source)
+
+        return doctest.DocTestRunner.run(self, test, compileflags, out, clear_globs)
 
     def _DocTestRunner__patched_linecache_getlines(self, filename,
                                                    module_globals=None):
@@ -240,6 +264,7 @@ class DocTestBuilder(Builder):
         self.setup_tries = 0
         self.cleanup_failures = 0
         self.cleanup_tries = 0
+        self.code = []
 
         date = time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -249,6 +274,9 @@ class DocTestBuilder(Builder):
 Results of doctest builder run on %s
 ==================================%s
 ''' % (date, '='*len(date)))
+
+
+        self.script_from_code = codecs.open(path.join(self.outdir, 'test_hail_docs.py'), 'w', encoding='utf-8')
 
     def _out(self, text):
         self.info(text, nonl=True)
@@ -286,6 +314,9 @@ Doctest summary
 %5d failure%s in cleanup code
 ''' % repl)
         self.outfile.close()
+
+        self.script_from_code.write("\n".join(self.code))
+        self.script_from_code.close()
 
         if self.total_failures or self.setup_failures or self.cleanup_failures:
             self.app.statuscode = 1
@@ -356,21 +387,28 @@ Doctest summary
 
         self._out('\nDocument: %s\n----------%s\n' %
                   (docname, '-'*len(docname)))
+
+        self.code.append("# %s\n" % docname)
+
         for group in itervalues(groups):
             self.test_group(group, self.env.doc2path(docname, base=None))
+
         # Separately count results from setup code
         res_f, res_t = self.setup_runner.summarize(self._out, verbose=False)
         self.setup_failures += res_f
         self.setup_tries += res_t
+        self.code.extend(self.setup_runner.get_code())
         if self.test_runner.tries:
             res_f, res_t = self.test_runner.summarize(self._out, verbose=True)
             self.total_failures += res_f
             self.total_tries += res_t
+            self.code.extend(self.test_runner.get_code())
         if self.cleanup_runner.tries:
             res_f, res_t = self.cleanup_runner.summarize(self._out,
                                                          verbose=True)
             self.cleanup_failures += res_f
             self.cleanup_tries += res_t
+            self.code.extend(self.cleanup_runner.get_code())
 
     def compile(self, code, name, type, flags, dont_inherit):
         return compile(code, name, self.type, flags, dont_inherit)
