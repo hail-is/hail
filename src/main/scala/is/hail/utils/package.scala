@@ -3,7 +3,7 @@ package is.hail
 import java.io._
 import java.lang.reflect.Method
 import java.net.URI
-import java.util.zip.Inflater
+import java.util.zip.{Deflater, Inflater}
 
 import is.hail.check.Gen
 import org.apache.commons.io.output.TeeOutputStream
@@ -472,6 +472,29 @@ package object utils extends Logging
       off += inflater.inflate(expansion, off, expansion.length - off)
     }
     expansion
+  }
+
+  def compress(input: Array[Byte]): Array[Byte] = {
+    val compressor = new Deflater()
+    compressor.setInput(input)
+    compressor.finish()
+
+    var compressedData = new Array[Byte](1024)
+    val buffer = new Array[Byte](1024)
+    var compressedOffset = 0
+
+    while (!compressor.finished()) {
+      val nBytesCompressed = compressor.deflate(buffer)
+
+      while (nBytesCompressed > compressedData.length - compressedOffset) {
+        compressedData = java.util.Arrays.copyOf(compressedData, compressedData.length << 1)
+      }
+
+      System.arraycopy(buffer, 0, compressedData, compressedOffset, nBytesCompressed)
+      compressedOffset += nBytesCompressed
+    }
+
+    compressedData
   }
 
   def loadFromResource[T](file: String)(reader: (InputStream) => T): T = {

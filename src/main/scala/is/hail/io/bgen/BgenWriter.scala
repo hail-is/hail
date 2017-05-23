@@ -1,8 +1,5 @@
 package is.hail.io.bgen
 
-import java.io.ByteArrayOutputStream
-import java.util.zip.Deflater
-
 import is.hail.annotations._
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
@@ -121,8 +118,6 @@ object BgenWriter {
   def emitGenotypeData(gs: Iterable[Genotype], nSamples: Int,
     nAlleles: Int, nBitsPerProb: Int, conversionFactor: Double, bitMask: Long): (Array[Byte], Int, Int) = {
     val byteBuffer = new ArrayBuilder[Byte]
-    val compressor = new Deflater()
-
     val sampleProbs = new ArrayBuilder[Int]
     val nGenotypes = triangle(nAlleles)
     val noCall = new Array[Int](nGenotypes - 1)
@@ -149,23 +144,7 @@ object BgenWriter {
     bitPack(byteBuffer, sampleProbs.result(), nBitsPerProb)
 
     val uncompressedData = byteBuffer.result()
-    compressor.setInput(uncompressedData)
-    compressor.finish()
-
-    var compressedData = new Array[Byte](1024)
-    val buffer = new Array[Byte](1024)
-    var compressedOffset = 0
-
-    while (!compressor.finished()) {
-      val nBytesCompressed = compressor.deflate(buffer)
-
-      while (nBytesCompressed > compressedData.length - compressedOffset) {
-        compressedData = java.util.Arrays.copyOf(compressedData, compressedData.length << 1)
-      }
-
-      System.arraycopy(buffer, 0, compressedData, compressedOffset, nBytesCompressed)
-      compressedOffset += nBytesCompressed
-    }
+    val compressedData = compress(uncompressedData)
 
     (compressedData, compressedData.length, uncompressedData.length)
   }
