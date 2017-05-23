@@ -95,9 +95,6 @@ class BgenSuite extends SparkSuite {
 
   object TestBgen extends Properties("BGEN Import/Export") {
     val convFactor = ((1L << 32) - 1) / 32768d
-    println(s"resized=${BgenWriter.resizeProbInts(Array(0, 32768, 0), convFactor).mkString(",")}")
-    println(s"anticipated=${Array(UInt(0).intRep, UInt(4294967295L).intRep, UInt(0).intRep).mkString(",")}")
-
     assert(BgenWriter.resizeProbInts(Array(0, 32768, 0), convFactor) sameElements Array(UInt(0).intRep, UInt(4294967295L).intRep, UInt(0).intRep))
 
     val bitPackedIteratorGen = for {
@@ -188,7 +185,7 @@ class BgenSuite extends SparkSuite {
 
     property("bgen probability iterator gives correct result") =
       forAll(probIteratorGen) { case (nBitsPerProb, input) =>
-        val packedInput = BgenWriter.bitPack(input.map(_.toInt), nBitsPerProb)
+        val packedInput = BgenWriter.bitPack(input.map(_.intRep), nBitsPerProb)
         val probIterator = new BgenProbabilityIterator(new ByteArrayReader(packedInput), nBitsPerProb)
         val result = new Array[UInt](input.length)
 

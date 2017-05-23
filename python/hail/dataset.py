@@ -1108,7 +1108,7 @@ class VariantDataset(object):
         The sample file has 3 columns:
 
         - ID_1 and ID_2 are identical and set to the sample ID (``s``).
-        - The third column ("missing") is set to 0 for all samples.
+        - The third column ("missing") is set to NA for all samples.
 
         :param str output: Output file base.  Will write BGEN and SAMPLE files.
         :param int nbits_per_prob: Number of bits per probability. Must be between 1 and 32 inclusive.
@@ -1157,7 +1157,7 @@ class VariantDataset(object):
         The sample file has 3 columns:
 
         - ID_1 and ID_2 are identical and set to the sample ID (``s``).
-        - The third column ("missing") is set to 0 for all samples.
+        - The third column ("missing") is set to NA for all samples.
 
         :param str output: Output file base.  Will write GEN and SAMPLE files.
         :param int precision: Number of digits after the decimal point each probability is truncated to.

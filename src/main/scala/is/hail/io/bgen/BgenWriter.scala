@@ -50,7 +50,7 @@ object BgenWriter {
     var dataSize = 0
 
     input.foreach { i =>
-      data |= ((i.toUIntNoCheck.toLong & bitMask) << dataSize)
+      data |= ((i.toUIntFromRep.toLong & bitMask) << dataSize)
       dataSize += nBitsPerProb
 
       while (dataSize >= 8) {
@@ -66,7 +66,7 @@ object BgenWriter {
   }
 
   def resizeProbInts(input: Array[Int], conversionFactor: Double): Array[Int] = {
-    val resized = input.map(i => i.toUIntNoCheck * conversionFactor).zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
+    val resized = input.map(i => i.toUIntFromRep * conversionFactor).zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
     val totalFractional = resized.map(d => d._2 - d._3).sum
 
     resized.sortBy(d => -(d._2 - d._3)).zipWithIndex.map { case (r, i) =>
@@ -152,16 +152,21 @@ object BgenWriter {
     compressor.setInput(uncompressedData)
     compressor.finish()
 
-    val outputStream = new ByteArrayOutputStream(uncompressedData.length)
-
+    var compressedData = new Array[Byte](1024)
     val buffer = new Array[Byte](1024)
+    var compressedOffset = 0
+
     while (!compressor.finished()) {
       val nBytesCompressed = compressor.deflate(buffer)
-      outputStream.write(buffer, 0, nBytesCompressed)
-    }
-    outputStream.close()
 
-    val compressedData = outputStream.toByteArray
+      while (nBytesCompressed > compressedData.length - compressedOffset) {
+        compressedData = java.util.Arrays.copyOf(compressedData, compressedData.length << 1)
+      }
+
+      System.arraycopy(buffer, 0, compressedData, compressedOffset, nBytesCompressed)
+      compressedOffset += nBytesCompressed
+    }
+
     (compressedData, compressedData.length, uncompressedData.length)
   }
 
