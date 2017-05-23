@@ -370,17 +370,13 @@ task copyWebsiteContent(type: Copy, dependsOn: setupDocsDirs) {
 }
 
 task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
-    commandLine 'pandoc', 'README.md', '-f', 'markdown', '-t', 'html', '--mathjax',
+    commandLine 'pandoc', '-s', 'README.md', '-f', 'markdown', '-t', 'html', '--mathjax',
             '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/docs/README.html'
 }
 
 task buildIndex(type: Exec, dependsOn: ['runPandoc']) {
-    args('docs/readme-to-index.xslt', 'README.html')
+    args('--html', '-o', 'build/tmp/docs/index.html', 'docs/readme-to-index.xslt', 'build/tmp/docs/README.html')
     executable 'xsltproc'
-
-    doFirst {
-        standardOutput = new FileOutputStream('build/tmp/docs/index.html')
-    }
 }
 
 task copyPythonDirToTmp(type: Copy, dependsOn: setupDocsDirs) {

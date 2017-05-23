@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-15"?>
-<xsl:stylesheet version="1.0"
-    xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-<xsl:output encoding="ISO-8859-15"/>
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<xsl:output method="html" encoding="utf-8" indent="yes" />
 
 <xsl:template match="h1[@id='hail']">
 </xsl:template>
@@ -23,6 +22,8 @@ Hail
 </xsl:template>
 
 <xsl:template match="html">
+  <xsl:text disable-output-escaping='yes'>&lt;!DOCTYPE html&gt;
+</xsl:text>
   <html lang="en">
     <head>
       <meta charset="utf-8" />
