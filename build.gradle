@@ -359,16 +359,6 @@ task setupDocsDirs(type: Exec, dependsOn: cleanHailDocs) {
     commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/', 'build/tmp/python/'
 }
 
-task copyHtml(type: Copy, dependsOn: setupDocsDirs) {
-    from 'docs/html'
-    into 'build/tmp/docs'
-}
-
-task copyJavascript(type: Copy, dependsOn: setupDocsDirs) {
-    from 'docs/javascript'
-    into 'build/tmp/docs'
-}
-
 task copyPDF(type: Copy, dependsOn: setupDocsDirs) {
     from 'docs/LeveneHaldane.pdf'
     into 'build/www'
@@ -384,25 +374,13 @@ task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
             '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/docs/README.html'
 }
 
-task prepareJavascript(type: Exec, dependsOn: 'copyJavascript') {
-    workingDir 'build/tmp/docs'
-    commandLine 'npm', 'install'
+task buildIndex(type: Exec, dependsOn: ['runPandoc']) {
+    args('docs/readme-to-index.xslt', 'README.html')
+    executable 'xsltproc'
 
-
-    standardOutput = new ByteArrayOutputStream()
-    errorOutput = standardOutput
-    ignoreExitValue = true
-    doLast {
-        if (execResult.exitValue != 0) {
-            println(standardOutput.toString())
-            throw new GradleException("exec failed; see output above")
-        }
+    doFirst {
+        standardOutput = new FileOutputStream('build/tmp/docs/index.html')
     }
-}
-
-task buildIndex(type: Exec, dependsOn: ['runPandoc', 'prepareJavascript', 'copyHtml']) {
-    args('template.html', 'README.html')
-    executable 'build/tmp/docs/buildIndex.js'
 }
 
 task copyPythonDirToTmp(type: Copy, dependsOn: setupDocsDirs) {
