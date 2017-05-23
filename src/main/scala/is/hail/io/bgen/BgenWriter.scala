@@ -81,7 +81,7 @@ object BgenWriter {
 
     val magicNumbers = Array("b", "g", "e", "n").flatMap(_.getBytes)
     val flags = 0x01 | (0x02 << 2) | (0x01 << 31)
-    val sampleIdentifierBlock = emitSampleIdentifierBlock(vds.sampleIds.toArray)
+    val sampleIdentifierBlock = emitSampleIdentifierBlock(vds.stringSampleIds.toArray)
     val headerLength = 20
     val sampleIdentifierLength = sampleIdentifierBlock.length
     val offset = headerLength + sampleIdentifierLength
