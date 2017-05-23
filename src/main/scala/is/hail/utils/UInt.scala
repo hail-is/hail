@@ -1,5 +1,7 @@
 package is.hail.utils
 
+import scala.reflect.ClassTag
+
 object UInt {
   def apply(i: Int): UInt = {
     assert(i >= 0, s"UInt cannot be constructed from negative integers. Found $i.")
@@ -10,6 +12,8 @@ object UInt {
     assert((l >>> 32) == 0, s"Long value does not fit in UInt. Found $l.")
     new UInt(l.toInt)
   }
+
+  def uintFromRep(i: Int): UInt = new UInt(i)
 
   implicit val numeric: Numeric[UInt] = new Numeric[UInt] {
     override def plus(x: UInt, y: UInt): UInt = x + y
@@ -46,25 +50,57 @@ class UInt private(val i: Int) extends AnyVal {
     if (l == r) 0 else if (l > r) 1 else -1
   }
 
-  def +(right: UInt): UInt = UInt(toLong + right.toLong)
+  def intRep: Int = i
 
-  def -(right: UInt): UInt = UInt(toLong - right.toLong)
+  def +(right: UInt, dummy: Boolean = false): UInt = UInt(toLong + right.toLong)
+  def +(right: Int): UInt = UInt(toLong + right)
+  def +(right: Double): Double = toDouble + right
+  def +(right: Long): Long = toLong + right
 
-  def *(right: UInt): UInt = UInt(toLong * right.toLong)
+  def -(right: UInt, dummy: Boolean = false): UInt = UInt(toLong - right.toLong)
+  def -(right: Int): UInt = UInt(toLong - right)
+  def -(right: Double): Double = toDouble - right
+  def -(right: Long): Long = toLong - right
 
-  def /(right: UInt): UInt = UInt(toLong / right.toLong)
+  def *(right: UInt, dummy: Boolean = false): UInt = UInt(toLong * right.toLong)
+  def *(right: Int): UInt = UInt(toLong * right)
+  def *(right: Double): Double = toDouble * right
+  def *(right: Long): Long = toLong * right
 
-  def <=(right: UInt): Boolean = toLong <= right.toLong
+  def /(right: UInt, dummy: Boolean = false): UInt = UInt(toLong / right.toLong)
+  def /(right: Int): UInt = UInt(toLong / right)
+  def /(right: Double): Double = toDouble / right
+  def /(right: Long): Long = toLong / right
 
-  def >=(right: UInt): Boolean = toLong >= right.toLong
+  def <=(right: UInt, dummy: Boolean = false): Boolean = toLong <= right.toLong
+  def <=(right: Int): Boolean = toLong <= right
+  def <=(right: Double): Boolean = toDouble <= right
+  def <=(right: Long): Boolean = toLong <= right
 
-  def <(right: UInt): Boolean = toLong < right.toLong
+  def >=(right: UInt, dummy: Boolean = false): Boolean = toLong >= right.toLong
+  def >=(right: Int): Boolean = toLong >= right
+  def >=(right: Double): Boolean = toDouble >= right
+  def >=(right: Long): Boolean = toLong >= right
 
-  def >(right: UInt): Boolean = toLong > right.toLong
+  def <(right: UInt, dummy: Boolean = false): Boolean = toLong < right.toLong
+  def <(right: Int): Boolean = toLong < right
+  def <(right: Double): Boolean = toDouble < right
+  def <(right: Long): Boolean = toLong < right
 
-  def ==(right: UInt): Boolean = toLong == right.toLong
+  def >(right: UInt, dummy: Boolean = false): Boolean = toLong > right.toLong
+  def >(right: Int): Boolean = toLong > right
+  def >(right: Double): Boolean = toDouble > right
+  def >(right: Long): Boolean = toLong > right
 
-  def !=(right: UInt): Boolean = toLong != right.toLong
+  def ==(right: UInt, dummy: Boolean = false): Boolean = toLong == right.toLong
+  def ==(right: Int): Boolean = toLong == right
+  def ==(right: Double): Boolean = toDouble == right
+  def ==(right: Long): Boolean = toLong == right
+
+  def !=(right: UInt, dummy: Boolean = false): Boolean = toLong != right.toLong
+  def !=(right: Int): Boolean = toLong != right
+  def !=(right: Double): Boolean = toDouble != right
+  def !=(right: Long): Boolean = toLong != right
 
   def toInt: Int = {
     assert(i >= 0)
@@ -78,4 +114,31 @@ class UInt private(val i: Int) extends AnyVal {
   def toFloat: Float = toLong.toFloat
 
   override def toString: String = toLong.toString
+}
+
+object ArrayUInt {
+  def apply(n: Int): ArrayUInt = {
+    val a = new Array[Int](n)
+    new ArrayUInt(a)
+  }
+}
+
+class ArrayUInt(val a: Array[Int]) extends AnyVal {
+  def apply(i: Int): UInt = UInt.uintFromRep(a(i))
+
+  def update(i: Int, x: UInt) {
+    a(i) = x.intRep
+  }
+
+  def length: Int = a.length
+
+  def sum: UInt = {
+    var i = 0
+    var s = UInt(0)
+    while (i < length) {
+      s += apply(i)
+      i += 1
+    }
+    s
+  }
 }

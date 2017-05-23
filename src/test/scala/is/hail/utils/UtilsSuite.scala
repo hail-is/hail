@@ -208,22 +208,62 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testUInt() {
-    assert(UInt((1L << 32) - 1).toLong == 4294967295L)
-    assert(UInt(4294967295L).toLong == 4294967295L)
-    assert(UInt(327886).toInt == 327886)
-    assert(UInt(4294967295L).toDouble == 4294967295d)
+    assert(UInt((1L << 32) - 1) == 4294967295L)
+    assert(UInt(4294967295L) == 4294967295L)
+    assert(UInt(327886) == 327886)
+    assert(UInt(4294967295L) == 4294967295d)
 
     assert(UInt(2147483647) + UInt(5) == UInt(2147483652L))
+    assert(UInt(2147483647) + 5 == UInt(2147483652L))
+    assert(UInt(2147483647) + 0.5 == 2147483647.5)
+    assert(UInt(2147483647) + 5L == 2147483652L)
+
     assert(UInt(2147483647) - UInt(5) == UInt(2147483642L))
+    assert(UInt(2147483647) - 1 == UInt(2147483646L))
+    assert(UInt(2147483647) - 0.5 == 2147483646.5)
+    assert(UInt(2147483647) - 1L == 2147483646L)
+
     assert(UInt(2147483647) * UInt(2) == UInt(4294967294L))
+    assert(UInt(2147483647) * 2 == UInt(4294967294L))
+    assert(UInt(2147483647) * 1.2 == 2.5769803764E9)
+    assert(UInt(2147483647) * 2L == 4294967294L)
+
     assert(UInt(2147483647) / UInt(2) == UInt(1073741823L))
+    assert(UInt(2147483647) / 2 == UInt(1073741823L))
+    assert(UInt(2147483647) / 2.0 == 1073741823.5)
+    assert(UInt(2147483647) / 2L == 1073741823L)
+
+    assert(UInt(2147483647) == UInt(2147483647))
+    assert(UInt(2147483647) == 2147483647)
+    assert(UInt(2147483647) == 2147483647d)
+    assert(UInt(2147483647) == 2147483647L)
+
+    assert(UInt(4294967295L) != UInt(0))
+    assert(UInt(4294967295L) != -1)
+    assert(UInt(4294967295L) != 0.5)
+    assert(UInt(4294967295L) != -1L)
 
     assert(UInt(4294967295L) > UInt(0))
+    assert(UInt(4294967295L) > -1)
+    assert(UInt(5) > 4.5)
+    assert(UInt(5) > -1L)
+
     assert(UInt(4294967295L) >= UInt(0))
+    assert(UInt(5) >= -1)
+    assert(UInt(5) >= 4.5)
+    assert(UInt(5) >= -1L)
+
     assert(UInt(0) < UInt(4294967295L))
+    assert(UInt(5000L) < 5500)
+    assert(UInt(4294967295L) < 4294967299.5)
+    assert(UInt(4294967295L) < 4294967299L)
+
     assert(UInt(0) <= UInt(4294967295L))
+    assert(UInt(5000L) <= 5500)
+    assert(UInt(4294967295L) <= 4294967299.5)
+    assert(UInt(4294967295L) <= 4294967299L)
+
     assert(UInt(4294967295L) == (UInt(4294967295L) + UInt(0)))
-    assert(UInt(4294967295L) != UInt(0))
 
     intercept[AssertionError](UInt(-5).toInt)
     intercept[AssertionError](UInt(5L) - UInt(4294967295L))
