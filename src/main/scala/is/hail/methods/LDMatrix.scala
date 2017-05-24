@@ -54,7 +54,7 @@ object LDMatrix {
     LDMatrix(scaledIndexedRowMatrix, variantsKept, vds.nSamples)
   }
 
-  def apply2(vds: VariantDataset): LDMatrix = {
+  def apply2(vds: VariantDataset, groupSize: Int, numRowBlocks: Int, numColBlocks: Int): LDMatrix = {
     val nSamples = vds.nSamples
     //TODO This line sucks, also need to collect variantsKeptArray.
     val bpvs = vds.rdd.flatMap{ case(v, (_, gs)) => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples)}.zipWithIndex().map{ case(a, b) => (b, a)}
@@ -62,18 +62,23 @@ object LDMatrix {
     // Chunk out BPVs with block id's also, use grid partitioner to identify destinations, then map destinations over to
     // send vectors there, and then use Jackie method to smash individual BPV's together.
 
-    val groupSize = 5 * nSamples / vds.rdd.getNumPartitions
+    //val groupSize = 5 * nSamples / vds.rdd.getNumPartitions
 
     val grouped = bpvs.map{case(vIdx, bpv) => (vIdx / groupSize, (vIdx, bpv))}.groupByKey()
     val numberOfGroups = Math.ceil(grouped.count() / groupSize.toDouble).toInt
 
-    val groupDestinations = simulateLDMatrix(numberOfGroups)
+    val partitioner = sneakyGridPartitioner(numRowBlocks, numColBlocks, vds.rdd.getNumPartitions)
 
-    grouped.flatMap{ case(groupID: Long, itr: Iterable[(Long, LDPrune.BitPackedVector)]) =>
+    val groupDestinations = simulateLDMatrix(numberOfGroups, partitioner)
+
+    val destinationRDD = grouped.flatMap{ case(groupID: Long, itr: Iterable[(Long, LDPrune.BitPackedVector)]) =>
       //Get the set of places this group is needed.
       val destinations = groupDestinations.getOrElse(groupID.toInt, Set.empty)
       destinations.map(dest => (dest, itr))
     }
+
+    //Now with destination RDD created, I have to send groups to their partitions and do the local
+    //matrix computation. 
 
 
     //At some point, end up with RDD of blocks
@@ -93,7 +98,7 @@ object LDMatrix {
   }
 
   //Create a Map from chunk number to Set of partitions where this chunk is needed.
-  private def simulateLDMatrix(numberOfGroups: Int): Map[Int, Set[Int]] = {
+  private def simulateLDMatrix(numberOfGroups: Int, partitioner: Partitioner): Map[Int, Set[Int]] = {
     // Generate all possible combos
     val range = (0 until numberOfGroups)
     val combos: Set[(Int, Int)] = range.combinations(2).map(seq => (seq(0), seq(1))).toSet ++ (range zip range).toSet
