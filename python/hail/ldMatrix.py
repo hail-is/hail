@@ -32,9 +32,9 @@ class LDMatrix:
         """
         Converts the LD matrix to a local Spark matrix.
         
-        **Notes**
+        .. caution::
         
-        Only call this method when the LD matrix is small enough to fit in local memory on the driver. 
+            Only call this method when the LD matrix is small enough to fit in local memory on the driver. 
         
         :return: Matrix of Pearson correlation values.
         :rtype: `Matrix <https://spark.apache.org/docs/2.1.0/api/python/pyspark.mllib.html#pyspark.mllib.linalg.Matrix>`__
