@@ -1,0 +1,42 @@
+#!/bin/sh
+
+spark_version_default=2.0.2
+gradle_properties_file="gradle.properties"
+
+if [[ -e "${gradle_properties_file}" ]]
+then
+    printf "${gradle_properties_file} already exists, should I overwrite it? (y/n)  "
+    read -r prompt
+    if [[ "${prompt}" == "y" ]]
+    then
+        rm -rf "${gradle_properties_file}"
+    else
+        printf "${gradle_properties_file} already exists, should I append to it? (y/n)  "
+        read -r prompt
+        if [[ ! "${prompt}" == "y" ]]
+        then
+            printf "We must either overwrite or append.\n"
+            exit 1
+        fi
+    fi
+fi
+
+
+printf "With what version of Spark will you run Hail? (default: ${spark_version_default})\n"
+read -r spark_version
+
+if [[ -z "${spark_version}" ]]
+then
+    printf "using default version: ${spark_version_default}\n"
+    spark_version=${spark_version_default}
+elif [[ ! $spark_version =~ ^[0-9]+.[0-9]+.[0-9]+$ ]]
+then
+    printf "error: version has invalid formatting: $spark_version\n"
+    exit -1
+fi
+
+write_gradle_properties () {
+    printf "sparkVersion=${spark_version}\n"
+}
+
+write_gradle_properties >> gradle.properties
