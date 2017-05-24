@@ -47,9 +47,6 @@ class Struct(object):
     def __str__(self):
         return 'Struct' + str(self._attrs)
 
-    def __repr__(self):
-        return 'Struct' + repr(self._attrs)
-
     def __eq__(self, other):
         if isinstance(other, Struct):
             return self._attrs == other._attrs

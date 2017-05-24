@@ -27,9 +27,6 @@ class Type(object):
     def __init__(self, jtype):
         self._jtype = jtype
 
-    def __repr__(self):
-        return self._jtype.toPrettyString(0, True, False)
-
     def __str__(self):
         return self._jtype.toPrettyString(0, True, False)
 
