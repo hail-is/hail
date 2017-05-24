@@ -6,7 +6,6 @@ import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
-import net.sourceforge.jdistlib.T
 
 object LinearRegression {
   val schema = TStruct(
@@ -68,7 +67,7 @@ object LinearRegression {
 
       val linregAnnot =
         if (ac >= combinedMinAC && nonConstant)
-          LinearRegressionModel.fit(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d)
+          LinearRegressionModel.fit(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d).toAnnotation
         else
           null
 
