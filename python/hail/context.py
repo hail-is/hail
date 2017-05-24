@@ -843,6 +843,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @typecheck_method(expr=strlike)
     def eval_expr_typed(self, expr):
         """Evaluate an expression and return the result as well as its type.
 

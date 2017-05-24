@@ -12,7 +12,7 @@ import is.hail.keytable.KeyTable
 import is.hail.methods.DuplicateReport
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, VSMFileMetadata, VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, Genotype, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -603,7 +603,51 @@ class HailContext private(val sc: SparkContext,
   def genDataset(): VariantDataset = VSMSubgen.realistic.gen(this).sample()
 
   def eval(expr: String): (Annotation, Type) = {
-    val ec = EvalContext()
+    val ec = EvalContext(
+      "v" -> TVariant,
+      "s" -> TString,
+      "g" -> TGenotype,
+      "sa" -> TStruct(
+        "cohort" -> TString,
+        "covariates" -> TStruct(
+          "PC1" -> TDouble,
+          "PC2" -> TDouble,
+          "PC3" -> TDouble,
+          "age" -> TInt,
+          "isFemale" -> TBoolean
+        )),
+      "va" -> TStruct(
+        "info" -> TStruct(
+          "AC" -> TArray(TInt),
+          "AN" -> TInt,
+          "AF" -> TArray(TDouble)),
+        "transcripts" -> TArray(TStruct(
+          "gene" -> TString,
+          "isoform" -> TString,
+          "canonical" -> TBoolean,
+          "consequence" -> TString))))
+
+    val v = Variant("16", 19200405, "C", Array("G", "CCC"))
+    val s = "NA12878"
+    val g = Genotype(3, 1, Array(14, 0, 12), 26, 60, Array(60, 65, 126, 0, 67, 65))
+    val sa = Annotation("1KG", Annotation(0.102312, -0.61512, 0.3166666, 34, true))
+    val va = Annotation(
+      Annotation(IndexedSeq(40, 1), 5102, IndexedSeq(0.00784, 0.000196)),
+      IndexedSeq(
+        Annotation("GENE1", "GENE1.1", false, "SYN"),
+        Annotation("GENE1", "GENE1.2", true, "LOF"),
+        Annotation("GENE2", "GENE2.1", false, "MIS"),
+        Annotation("GENE2", "GENE2.2", false, "MIS"),
+        Annotation("GENE2", "GENE2.3", false, "MIS"),
+        Annotation("GENE3", "GENE3.1", false, "SYN"),
+        Annotation("GENE3", "GENE3.2", false, "SYN")))
+
+    ec.set(0, v)
+    ec.set(1, s)
+    ec.set(2, g)
+    ec.set(3, sa)
+    ec.set(4, va)
+
     val (t, f) = Parser.parseExpr(expr, ec)
     (f(), t)
   }

@@ -987,6 +987,14 @@ object FunctionRegistry {
     "alts" -> "Array of alternate allele sequences."
   )
 
+  register("Dict", { (keys: IndexedSeq[Annotation], values: IndexedSeq[Annotation]) =>
+    if (keys.length != values.length)
+      fatal(s"mismatch between length of keys (${ keys.length }) and values (${ values.length })")
+    keys.zip(values).toMap
+  }, "Construct a Dict from an array of keys and an array of values.",
+    "keys" -> "Keys of Dict.",
+    "values" -> "Values of Dict.")(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
+
   val combineVariantsStruct = TStruct(Array(("variant", TVariant, "Resulting combined variant."),
     ("laIndices", TDict(TInt, TInt), "Mapping from new to old allele index for the left variant."),
     ("raIndices", TDict(TInt, TInt), "Mapping from new to old allele index for the right variant.")

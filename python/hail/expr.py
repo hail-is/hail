@@ -28,16 +28,28 @@ class Type(object):
         self._jtype = jtype
 
     def __repr__(self):
-        return self._jtype.toString()
+        return self._jtype.toPrettyString(0, True, False)
 
     def __str__(self):
-        return self._jtype.toPrettyString(0, False, False)
+        return self._jtype.toPrettyString(0, True, False)
 
     def __eq__(self, other):
         return self._jtype.equals(other._jtype)
 
     def __hash__(self):
         return self._jtype.hashCode()
+
+    def pretty(self, indent=0, attrs=False):
+        """Returns a prettily formatted string representation of the type.
+
+        :param int indent: Number of spaces to indent.
+
+        :param bool attrs: Print struct field attributes.
+
+        :rtype: str
+        """
+
+        return self._jtype.toPrettyString(indent, False, attrs)
 
     @classmethod
     def _from_java(cls, jtype):
@@ -722,3 +734,17 @@ __singletons__ = {'is.hail.expr.TInt$': TInt,
                   'is.hail.expr.TGenotype$': TGenotype,
                   'is.hail.expr.TCall$': TCall,
                   'is.hail.expr.TInterval$': TInterval}
+
+import pprint
+
+_old_printer = pprint.PrettyPrinter
+
+class TypePrettyPrinter(pprint.PrettyPrinter):
+    def _format(self, object, stream, indent, allowance, context, level):
+        if isinstance(object, Type):
+            stream.write(object.pretty(self._indent_per_level))
+        else:
+            return _old_printer._format(self, object, stream, indent, allowance, context, level)
+
+
+pprint.PrettyPrinter = TypePrettyPrinter  # monkey-patch pprint

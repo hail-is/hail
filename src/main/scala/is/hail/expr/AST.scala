@@ -301,17 +301,15 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
         t.selfField(rhs) match {
           case Some(f) => f.typ
           case None => parseError(
-            s"""`$t' has no field `$rhs'
-               |  Available fields: [ ${ t.fields.map(x => prettyIdentifier(x.name)).mkString("\n  ") } ]""".stripMargin)
+            s"""Struct has no field `$rhs'
+               |  Available fields:
+               |    ${ t.fields.map(x => s"${prettyIdentifier(x.name)}: ${x.typ}").mkString("\n    ") }""".stripMargin)
         }
 
       case (t, name) => FunctionRegistry.lookupFieldReturnType(t, Seq(), name)
         .valueOr {
           case FunctionRegistry.NotFound(name, typ) =>
-            parseError(
-              s"""`$t' has no field `$rhs'
-                 |  Hint: Don't forget empty-parentheses in a method call, e.g.
-                 |    gs.filter(g => g.isCalledHomVar()).collect()""".stripMargin)
+            parseError(s"""`$t' has no field or method `$rhs'""".stripMargin)
           case otherwise => parseError(otherwise.message)
         }
     }
@@ -332,7 +330,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
       .valueOr {
         case FunctionRegistry.NotFound(name, typ) =>
-          ParserUtils.error(localPos, 
+          ParserUtils.error(localPos,
             s"""`$t' has neither a field nor a method named `$name'
                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
                |    counts.sum""".stripMargin)
@@ -668,10 +666,11 @@ case class SymRef(posn: Position, symbol: String) extends AST(posn) {
     ec.st.get(symbol) match {
       case Some((_, t)) => t
       case None =>
+        val symbols = ec.st.toArray.sortBy(_._2._1).map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }
         parseError(
           s"""symbol `$symbol' not found
              |  Available symbols:
-             |    ${ ec.st.map { case (id, (_, t)) => s"${ prettyIdentifier(id) }: $t" }.mkString("\n    ") } """.stripMargin)
+             |    ${ symbols.mkString("\n    ") }""".stripMargin)
     }
   }
 
