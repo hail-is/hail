@@ -78,7 +78,9 @@ object LogisticRegressionBurden {
       val X = XBc.value.copy
       it.map { keyedRow =>
         X(::, -1) := RegressionUtils.keyedRowToVectorDouble(keyedRow)
-        merger(Row(keyedRow.get(0)), logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation).asInstanceOf[Row]
+        merger(
+          Row(keyedRow.get(0)),
+          logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation).asInstanceOf[Row]
       }
     })
 

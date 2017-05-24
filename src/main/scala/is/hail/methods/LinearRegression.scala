@@ -48,7 +48,7 @@ object LinearRegression {
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
     val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
-
+    
     vds.mapAnnotations { case (v, va, gs) =>
       val (x: Vector[Double], ac) =
         if (!useDosages) // replace by hardCalls in 0.2, with ac post-imputation
@@ -59,23 +59,13 @@ object LinearRegression {
         }
 
       // constant checking to be removed in 0.2
-      val nonConstant = useDosages || !RegressionUtils.constantHardCalls(x)
+      val nonConstant = useDosages || !RegressionUtils.constantVector(x)
       
-      val linregAnnot = if (ac >= combinedMinAC && nonConstant) {
-        val qtx = QtBc.value * x
-        val qty = QtyBc.value
-        val xxp: Double = (x dot x) - (qtx dot qtx)
-        val xyp: Double = (x dot y) - (qtx dot qty)
-        val yyp: Double = yypBc.value
-
-        val b = xyp / xxp
-        val se = math.sqrt((yyp / xxp - b * b) / d)
-        val t = b / se
-        val p = 2 * T.cumulative(-math.abs(t), d, true, false)
-
-        Annotation(b, se, t, p)
-      } else
-        null
+      val linregAnnot =
+        if (ac >= combinedMinAC && nonConstant)
+          LinearRegressionModel.fit(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d)
+        else
+          null
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))

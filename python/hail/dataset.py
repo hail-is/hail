@@ -2434,8 +2434,8 @@ class VariantDataset(object):
         is coded as :math:`1` for true (female) and :math:`0` for false (male). The null
         model sets :math:`\beta_1 = 0`.
 
-        :py:meth:`.linreg` skips variants that don't vary across the included samples,
-        such as when all genotypes are homozygous reference. One can further
+        Those variants that don't vary across the included samples (e.g., all genotypes
+        are HomRef) will have missing annotations. One can further
         restrict computation to those variants with at least :math:`k` observed
         alternate alleles (AC) or alternate allele frequency (AF) at least
         :math:`p` in the included samples using the options ``min_ac=k`` or
@@ -2819,8 +2819,8 @@ class VariantDataset(object):
         | ``va.lmmreg.pval``     | Double | :math:`p`-value                                                         |
         +------------------------+--------+-------------------------------------------------------------------------+
 
-        :py:meth:`.lmmreg` skips variants that don't vary across the included samples,
-        such as when all genotypes are homozygous reference.
+        Those variants that don't vary across the included samples (e.g., all genotypes
+        are HomRef) will have missing annotations.
 
         The simplest way to export all resulting annotations is:
 
@@ -3069,8 +3069,8 @@ class VariantDataset(object):
 
         See `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__ for an empirical comparison of the logistic Wald, LRT, score, and Firth tests. The theoretical foundations of the Wald, likelihood ratio, and score tests may be found in Chapter 3 of Gesine Reinert's notes `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`__.  Firth introduced his approach in `Bias reduction of maximum likelihood estimates, 1993 <http://www2.stat.duke.edu/~scs/Courses/Stat376/Papers/GibbsFieldEst/BiasReductionMLE.pdf>`__. Heinze and Schemper further analyze Firth's approach in `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
 
-        :py:meth:`.logreg` skips variants that don't vary across the included samples,
-        such as when all genotypes are homozygous reference.
+        Those variants that don't vary across the included samples (e.g., all genotypes
+        are HomRef) will have missing annotations.
 
         Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`__ without identifiers, such as:
 

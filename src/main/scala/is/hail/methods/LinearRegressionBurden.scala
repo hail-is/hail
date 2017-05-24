@@ -62,23 +62,14 @@ object LinearRegressionBurden {
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
 
+    val (linregSignature, merger) = TStruct(keyName -> keyType).merge(LinearRegression.schema)
+    
     val linregRDD = sampleKT.mapAnnotations { keyedRow =>
-      val key = keyedRow.get(0)
       val x = RegressionUtils.keyedRowToVectorDouble(keyedRow)
-      val qtx = QtBc.value * x
-      val xxp: Double = (x dot x) - (qtx dot qtx)
-      val xyp: Double = (x dot y) - (qtx dot QtyBc.value)
-      val yyp: Double = yypBc.value
-
-      val b = xyp / xxp
-      val se = math.sqrt((yyp / xxp - b * b) / d)
-      val t = b / se
-      val p = 2 * T.cumulative(-math.abs(t), d, true, false)
-
-      Row(key, b, se, t, p)
+      merger(
+        Row(keyedRow.get(0)),
+        LinearRegressionModel.fit(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d)).asInstanceOf[Row]
     }
-
-    val linregSignature = TStruct(keyName -> keyType).merge(LinearRegression.schema)._1
     val linregKT = new KeyTable(sampleKT.hc, linregRDD, signature = linregSignature, key = Array(keyName))
 
     (linregKT, sampleKT)

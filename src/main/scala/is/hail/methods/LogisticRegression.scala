@@ -69,7 +69,7 @@ object LogisticRegression {
         X(::, -1) := x
 
         // constant checking to be removed in 0.2
-        val nonConstant = useDosages || !RegressionUtils.constantHardCalls(x)
+        val nonConstant = useDosages || !RegressionUtils.constantVector(x)
         
         val logregAnnot = if (nonConstant) logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation else null
         val newAnnotation = inserter(va, logregAnnot)

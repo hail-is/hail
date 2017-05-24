@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.expr.{TDouble, TString}
+import is.hail.expr.TDouble
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.io.annotators.IntervalList

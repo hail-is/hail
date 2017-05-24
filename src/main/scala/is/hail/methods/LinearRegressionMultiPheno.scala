@@ -61,7 +61,7 @@ object LinearRegressionMultiPheno {
         }
 
       // constant checking to be removed in 0.2
-      val nonConstant = useDosages || !RegressionUtils.constantHardCalls(x)
+      val nonConstant = useDosages || !RegressionUtils.constantVector(x)
       
       val linregAnnot = if (ac >= combinedMinAC && nonConstant) {
         val qtx: DenseVector[Double] = QtBc.value * x

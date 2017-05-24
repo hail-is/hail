@@ -143,12 +143,11 @@ object LinearMixedRegression {
         val x = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
 
         // constant checking to be removed in 0.2
-        val nonConstant = !RegressionUtils.constantHardCalls(x)
+        val nonConstant = !RegressionUtils.constantVector(x)
         
         val x0 = if (x.used <= sparsityThreshold * n) x else x.toDenseVector
         
         val lmmregAnnot = if (nonConstant) scalerLMMBc.value.likelihoodRatioTest(TBc.value * x0) else null
-        println(v, lmmregAnnot)
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         newAnnotation

@@ -282,7 +282,7 @@ object RegressionUtils {
   }
 
   // Retrofitting for 0.1, will be removed at 2.0 when constant checking is dropped (unless otherwise useful)
-  def constantHardCalls(x: Vector[Double]): Boolean = {
+  def constantVector(x: Vector[Double]): Boolean = {
     require(x.size > 0)
     var curr = x(0)
     var i = 1
