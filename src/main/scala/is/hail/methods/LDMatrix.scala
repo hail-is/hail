@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.utils._
 import is.hail.stats.ToNormalizedIndexedRowMatrix
 import is.hail.variant.{Variant, VariantDataset}
+import org.apache.spark.mllib.linalg.Matrix
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.storage.StorageLevel
 
@@ -56,4 +57,8 @@ object LDMatrix {
   * @param variants Array of variants indexing the rows and columns of the matrix.
   * @param nSamples Number of samples used to compute this matrix.
   */
-case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int)
+case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) {
+  def toLocalMatrix(): Matrix = {
+    matrix.toBlockMatrixDense().toLocalMatrix()
+  }
+}
