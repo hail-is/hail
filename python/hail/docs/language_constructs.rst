@@ -4,9 +4,9 @@
 Language Constructs
 ===================
 
- - **v = e**
+ - **va.foo = 5 + va.bar**
 
-    Bind variable name ``v`` to the result of evaluating ``e``.
+    Annotation expression. Bind variable ``va.foo`` to the result of evaluating ``5 + va.bar``.
 
  - **if (p) a else b**
 
@@ -15,8 +15,15 @@ Language Constructs
     .. code-block:: text
         :emphasize-lines: 2
 
-        if (5 % 2 == 0) true else false
-        result: false
+        if (5 % 2 == 0) 5 else 7
+        7
+
+    .. code-block:: text
+        :emphasize-lines: 2
+
+        if (5 > NA: Int) 5 else 7
+        NA: Int
+
 
  - **let v1 = e1 and v2 = e2 and ... and vn = en in b**
 
@@ -26,4 +33,4 @@ Language Constructs
         :emphasize-lines: 2
 
         let v1 = 5 and v2 = 7 and v3 = 2 in v1 * v2 * v3
-        result: 70
+        70
