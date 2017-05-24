@@ -188,13 +188,7 @@ object OrderedRDD {
     import kOk._
 
     import Ordering.Implicits._
-
-    rdd.partitioner match {
-      /* if we verified rdd is K-sorted, it won't necessarily be partitioned */
-      case Some(p) => assert(p eq orderedPartitioner)
-      case _ =>
-    }
-
+    
     val rangeBoundsBc = rdd.sparkContext.broadcast(orderedPartitioner.rangeBounds)
     new OrderedRDD(
       rdd.mapPartitionsWithIndex { case (i, it) =>
