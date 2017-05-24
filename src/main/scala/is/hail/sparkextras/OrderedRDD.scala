@@ -183,7 +183,7 @@ object OrderedRDD {
   def apply[PK, K, V](rdd: RDD[(K, V)],
     orderedPartitioner: OrderedPartitioner[PK, K])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
-    assert(rdd.partitions.length == orderedPartitioner.numPartitions)
+    assert(rdd.partitions.length == orderedPartitioner.numPartitions, s"${rdd.partitions.length} != ${orderedPartitioner.numPartitions}")
 
     import kOk._
 
