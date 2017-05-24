@@ -13,7 +13,7 @@ class LDMatrixSuite extends SparkSuite {
   val n = 100
   val seed = scala.util.Random.nextInt()
   val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val ldMatrix = vds.ldMatrix()
+  val ldMatrix = LDMatrix.apply2(vds, 12, 7)//vds.ldMatrix()
 
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests

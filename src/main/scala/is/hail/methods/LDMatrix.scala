@@ -4,8 +4,8 @@ import is.hail.utils._
 import is.hail.stats.ToNormalizedIndexedRowMatrix
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.Partitioner
-import org.apache.spark.mllib.linalg.Matrix
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
@@ -54,59 +54,109 @@ object LDMatrix {
     LDMatrix(scaledIndexedRowMatrix, variantsKept, vds.nSamples)
   }
 
-  def apply2(vds: VariantDataset, groupSize: Int, numRowBlocks: Int, numColBlocks: Int): LDMatrix = {
+  //TODO Try to replace longs with Int's where possible
+  //TODO Variant Index doesn't have to be carried all the way down maybe.
+  def apply2(vds: VariantDataset, groupSize: Int, numBlocksOnDimension: Int): LDMatrix = {
     val nSamples = vds.nSamples
-    //TODO This line sucks, also need to collect variantsKeptArray.
-    val bpvs = vds.rdd.flatMap{ case(v, (_, gs)) => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples)}.zipWithIndex().map{ case(a, b) => (b, a)}
+
+    val bitPackedOpts = vds.rdd.map { case (v, (_, gs)) => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples)}
+    val filterArray = bitPackedOpts.map(!_.isEmpty).collect()
+    val originalVariants = vds.variants.collect()
+    val variantsKeptArray = originalVariants.zip(filterArray).filter(_._2).map(_._1)
+    val bpvs = bitPackedOpts.flatMap(x => x).zipWithIndex().map { case (a, b) => (b, a) }
 
     // Chunk out BPVs with block id's also, use grid partitioner to identify destinations, then map destinations over to
     // send vectors there, and then use Jackie method to smash individual BPV's together.
 
-    //val groupSize = 5 * nSamples / vds.rdd.getNumPartitions
-
-    val grouped = bpvs.map{case(vIdx, bpv) => (vIdx / groupSize, (vIdx, bpv))}.groupByKey()
+    //(GroupID, Iterable(VariantID, BPV))
+    val grouped: RDD[(Long, Iterable[(Long, LDPrune.BitPackedVector)])] = bpvs.map { case (vIdx, bpv) => (vIdx / groupSize, (vIdx, bpv)) }.groupByKey()
     val numberOfGroups = Math.ceil(grouped.count() / groupSize.toDouble).toInt
 
-    val partitioner = sneakyGridPartitioner(numRowBlocks, numColBlocks, vds.rdd.getNumPartitions)
+    val partitioner = sneakyGridPartitioner(numBlocksOnDimension, numBlocksOnDimension, vds.rdd.getNumPartitions)
 
-    val groupDestinations = simulateLDMatrix(numberOfGroups, partitioner)
+    val (groupDestinations: Map[Int, Set[Int]], partitionToPairsMap: Map[Int, Set[(Int, Int)]]) = simulateLDMatrix(numberOfGroups, partitioner)
+    val partitionToPairsMapBc = vds.hc.sc.broadcast(partitionToPairsMap)
 
-    val destinationRDD = grouped.flatMap{ case(groupID: Long, itr: Iterable[(Long, LDPrune.BitPackedVector)]) =>
+    //(PartitionID, (GroupID, Iterable(VariantID, BPV)))
+    val destinationRDD: RDD[(Int, (Long, Iterable[(Long, LDPrune.BitPackedVector)]))] = grouped.flatMap { case (groupID: Long, itr: Iterable[(Long, LDPrune.BitPackedVector)]) =>
       //Get the set of places this group is needed.
       val destinations = groupDestinations.getOrElse(groupID.toInt, Set.empty)
-      destinations.map(dest => (dest, itr))
+      destinations.map(dest => (dest, (groupID, itr)))
     }
 
     //Now with destination RDD created, I have to send groups to their partitions and do the local
-    //matrix computation. 
+    //matrix computation.
 
+    //Steps:
+    // 1. GroupBy to get everything associated with its partition number
+    // 2. Make it such that any BPV group can be accessed in constant time by its groupID.
+    // 3. Using the task list, construct the specified blocks.
 
-    //At some point, end up with RDD of blocks
-    val computedBlocks: RDD[((Int, Int), Matrix)] = ???
+    //Consider reduceByKey vs groupByKey
+    val computedBlocks: RDD[((Int, Int), Matrix)] = destinationRDD.groupByKey(partitioner).flatMap { case (partitionID, groups: Iterable[(Long, Iterable[(Long, LDPrune.BitPackedVector)])]) =>
+      val groupMap = groups.toMap
+      val blocksToConstruct = partitionToPairsMapBc.value.get(partitionID).get
+
+      val blocks = blocksToConstruct.map { case (group1, group2) =>
+        // 1. Get variants that make up group 1 and group 2, sorted by variant number
+        // 2. Since they're sorted, it should be safe to build matrix where entry i, j is computeR(g1Vars(i), g2Vars(j))
+
+        val g1Variants = groupMap.get(group1).get.map(_._2).toArray
+        val g2Variants = groupMap.get(group2).get.map(_._2).toArray
+
+        //TODO verify that g1 and g2 Variants are definitely sorted.
+
+        val dataLength = g1Variants.length * g2Variants.length
+
+        val data = new Array[Double](dataLength)
+
+        var i = 0
+        while (i < g2Variants.length) {
+          var j = 0
+          while (j < g1Variants.length) {
+            data(j + i * g2Variants.length) = LDPrune.computeR(g1Variants(j), g2Variants(i))
+            j += 1
+          }
+          i += 1
+        }
+
+        ((group1, group2), new DenseMatrix(g1Variants.length, g2Variants.length, data))
+      }
+
+      blocks
+    }
+
 
     //Realize I've only computed upper triangle of blocks, so need to transpose to get rest of it.
-    val allBlocks = computedBlocks.flatMap{ case((i, j), mat) =>
+    val allBlocks = computedBlocks.flatMap { case ((i, j), mat) =>
       if (i == j) List(((i, j), mat)) else List(((i, j), mat), ((j, i), mat.transpose))
-    }
+     }
 
     //Construct block matrix and convert to IndexedRowMatrix
 
-
+    val blockMatrix: BlockMatrix = new BlockMatrix(allBlocks, groupSize, groupSize)
+    val irm = blockMatrix.toIndexedRowMatrix()
 
     //Make LD Matrix
-    ???
+    LDMatrix(irm, variantsKeptArray, nSamples)
+
   }
 
-  //Create a Map from chunk number to Set of partitions where this chunk is needed.
-  private def simulateLDMatrix(numberOfGroups: Int, partitioner: Partitioner): Map[Int, Set[Int]] = {
+  //Create a Map from group number to Set of partitions where this chunk is needed.
+  private def simulateLDMatrix(numberOfGroups: Int, partitioner: Partitioner): (Map[Int, Set[Int]], Map[Int, Set[(Int, Int)]]) = {
     // Generate all possible combos
     val range = (0 until numberOfGroups)
     val combos: Set[(Int, Int)] = range.combinations(2).map(seq => (seq(0), seq(1))).toSet ++ (range zip range).toSet
 
     // Now, use grid partitioner to assign these block coordinates to partitions
+    //TODO: Don't get partition twice for no reason.
+    val groupToPartitionSet = combos.flatMap(pair => List((pair._1, partitioner.getPartition(pair)), (pair._2, partitioner.getPartition(pair))))
+    val groupToPartitionsMap = groupToPartitionSet.groupBy{ case(group, partition) => group}.map{ case(group, set) => (group, set.map(pair => pair._2))}
 
+    //And also get the table that specifies which pairs make up a partition.
+    val partitionToPairMap: Map[Int, Set[(Int, Int)]] = combos.groupBy(partitioner.getPartition)
 
-    ???
+    return (groupToPartitionsMap, partitionToPairMap)
   }
 
   /**
