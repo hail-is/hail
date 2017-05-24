@@ -35,7 +35,9 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-String sparkVersion = System.getProperty("spark.version","2.0.2")
+String sparkVersion = System.getProperty("spark.version")
+if (sparkVersion == null)
+    ant.fail('Hail now requires an explicit spark version. This version *must* match the version of the spark installed on the machine or cluster that will execute hail. You can specify this on the command line like: `./gradlew -Dspark.version=2.0.2 shadowJar`. The previous implicit default was 2.0.2.')
 
 if (!(sparkVersion ==~ /^2\..*/))
     ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.0.2.')
