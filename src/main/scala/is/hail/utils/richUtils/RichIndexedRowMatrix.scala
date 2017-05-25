@@ -45,7 +45,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         .map{ case (values, blockColumn) =>
           ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
         }
-    }.groupByKey(LDMatrix.sneakyGridPartitioner(numRowBlocks, numColBlocks, indexedRowMatrix.rows.getNumPartitions)).mapValuesWithKey{
+    }.groupByKey(LDMatrix.reflectGridPartitioner(numRowBlocks, numColBlocks, indexedRowMatrix.rows.getNumPartitions)).mapValuesWithKey{
       case ((blockRow, blockColumn), itr) =>
         val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else rowsPerBlock
         val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else colsPerBlock

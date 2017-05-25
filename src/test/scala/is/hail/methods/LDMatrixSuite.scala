@@ -13,7 +13,7 @@ class LDMatrixSuite extends SparkSuite {
   val n = 100
   val seed = scala.util.Random.nextInt()
   val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val ldMatrix = vds.ldMatrix(300)
+  val ldMatrix = vds.ldMatrix(17)
 
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests
@@ -43,6 +43,7 @@ class LDMatrixSuite extends SparkSuite {
     */
   @Test def testDimensions() {
     assert(ldMatrix.matrix.numRows().toInt == ldMatrix.matrix.numCols())
+    assert(ldMatrix.matrix.numRows().toInt == ldMatrix.variants.length)
   }
 
   /**

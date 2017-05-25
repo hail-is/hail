@@ -27,20 +27,20 @@ object LDMatrix {
     val variantsKeptArray = originalVariants.zip(filterArray).filter(_._2).map(_._1)
     val nVariantsDropped = originalVariants.length - variantsKeptArray.length
 
-    val bpvs = bitPackedOpts.flatMap(x => x).zipWithIndex().map { case (a, b) => (b, a) }
+    val bpvs = bitPackedOpts.flatMap(x => x).zipWithIndex()
 
     info(s"Computing LD Matrix with ${variantsKeptArray.length} variants using $nSamples samples. $nVariantsDropped variants were dropped.")
 
     val trueBlockSize = math.min(blockSize, variantsKeptArray.length)
 
-    val grouped = bpvs.map { case (vIdx, bpv) => (vIdx / trueBlockSize, (vIdx, bpv)) }
+    val grouped = bpvs.map { case (bpv, vIdx) => (vIdx / trueBlockSize, (vIdx, bpv)) }
       .groupByKey()
-      .map{ case (groupID, itr) => (groupID, itr.toArray.sortBy{ case (vIdx, bpv) => vIdx }.map(_._2)) }
+      .map{ case (groupID, it) => (groupID, it.toArray.sortBy{ case (vIdx, bpv) => vIdx }.map(_._2)) }
 
     val numberOfGroups = Math.ceil(grouped.count() / trueBlockSize.toDouble).toInt
 
     val numBlocksOnDimension = math.ceil(variantsKeptArray.length.toDouble / trueBlockSize).toInt
-    val partitioner = sneakyGridPartitioner(numBlocksOnDimension, numBlocksOnDimension, vds.rdd.getNumPartitions)
+    val partitioner = reflectGridPartitioner(numBlocksOnDimension, numBlocksOnDimension, vds.rdd.getNumPartitions)
 
     val (groupDestinations, partitionToPairsMap) = simulateLDMatrix(numberOfGroups, partitioner)
     val partitionToPairsMapBc = vds.hc.sc.broadcast(partitionToPairsMap)
@@ -56,25 +56,24 @@ object LDMatrix {
 
       blocksToConstruct.map { case (group1, group2) =>
 
-        // These ought to be sorted by variant number from time of construction of grouped RDD.
+        // These are variants are in correct sorted order from time of construction of grouped RDD.
         // Since they're sorted, it is safe to build matrix where entry i, j is computeR(g1Vars(i), g2Vars(j))
         val g1Variants = groupMap.get(group1).get
         val g2Variants = groupMap.get(group2).get
 
-        val dataLength = g1Variants.length * g2Variants.length
-        val data = new Array[Double](dataLength)
+        val matrixEntries = new Array[Double](g1Variants.length * g2Variants.length)
 
         var i = 0
         while (i < g2Variants.length) {
           var j = 0
           while (j < g1Variants.length) {
-            data(j + i * g2Variants.length) = LDPrune.computeR(g1Variants(j), g2Variants(i))
+            matrixEntries(j + i * g2Variants.length) = LDPrune.computeR(g1Variants(j), g2Variants(i))
             j += 1
           }
           i += 1
         }
 
-        ((group1, group2), new DenseMatrix(g1Variants.length, g2Variants.length, data))
+        ((group1, group2), new DenseMatrix(g1Variants.length, g2Variants.length, matrixEntries))
       }
     }
 
@@ -83,9 +82,8 @@ object LDMatrix {
     }
 
     val blockMatrix: BlockMatrix = new BlockMatrix(allBlocks, trueBlockSize, trueBlockSize)
-    val irm = blockMatrix.toIndexedRowMatrix()
 
-    LDMatrix(irm, variantsKeptArray, nSamples)
+    LDMatrix(blockMatrix.toIndexedRowMatrix(), variantsKeptArray, nSamples)
   }
 
   /**
@@ -114,10 +112,10 @@ object LDMatrix {
   }
 
   /**
-    * Gets a GridPartitioner instance from spark mllib using reflection, since the constructor is private.
+    * Gets a GridPartitioner instance from spark MLLib using reflection, since the constructor is private.
     * This should probably go on some kind of MLLib Utils object.
     */
-  def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, suggestedNumPartitions: Int): Partitioner = {
+  def reflectGridPartitioner(nRowBlocks: Int, nColBlocks: Int, suggestedNumPartitions: Int): Partitioner = {
     val intClass = classTag[Int].runtimeClass
     val gpObjectClass = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner$")
     val gpApply = gpObjectClass.getMethod("apply", intClass, intClass, intClass)
