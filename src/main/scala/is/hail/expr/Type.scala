@@ -1136,7 +1136,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       Gen.const(Annotation.empty)
     else
       Gen.size.flatMap(fuel =>
-        if (size < fuel) Gen.const(Annotation.empty)
+        if (size > fuel) Gen.const(Annotation.empty)
         else Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
 
