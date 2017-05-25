@@ -9,11 +9,11 @@ import org.testng.annotations.Test
 
 class LDMatrixSuite extends SparkSuite {
 
-  val m = 100
+  val m = 200
   val n = 100
   val seed = scala.util.Random.nextInt()
   val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val ldMatrix = vds.ldMatrix(10)
+  val ldMatrix = vds.ldMatrix(300)
 
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests
@@ -36,6 +36,13 @@ class LDMatrixSuite extends SparkSuite {
 
       Assert.assertEquals(computedR, matrixR, .000001)
     }
+  }
+
+  /**
+    * Test that LD Matrix is square.
+    */
+  @Test def testDimensions() {
+    assert(ldMatrix.matrix.numRows().toInt == ldMatrix.matrix.numCols())
   }
 
   /**

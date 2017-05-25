@@ -2350,7 +2350,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def ld_matrix(self, groupSize):
+    def ld_matrix(self, groupSize=1000):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
         
         **Examples**

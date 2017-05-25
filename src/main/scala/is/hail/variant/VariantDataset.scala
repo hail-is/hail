@@ -555,7 +555,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     vds.annotateSamples(result, signature, "sa.imputesex")
   }
 
-  def ldMatrix(groupSize: Int): LDMatrix = {
+  def ldMatrix(groupSize: Int = 1000): LDMatrix = {
     requireSplit("LD Matrix")
     LDMatrix.apply(vds, groupSize)
   }
