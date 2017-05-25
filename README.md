@@ -17,6 +17,8 @@ Hail is used in [published research](http://biorxiv.org/content/early/2016/06/06
 
 Want to get involved in development? Check out the [Github repo](https://github.com/hail-is/hail), chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev), view our keynote at [Spark Summit East 2017](https://spark-summit.org/east-2017/events/scaling-genetic-data-analysis-with-apache-spark/), or connect with us June 6-7 at [Spark Summit West 2017](https://spark-summit.org/2017/events/scaling-genetic-data-analysis-with-apache-spark/).
 
+Or **come join us full-time** at the [Broad Institute of MIT and Harvard](https://www.broadinstitute.org/)! We are founding a new Initiative in Scalable Analytics and recruiting **software engineers** at multiple levels of experience. Details [here](https://www.linkedin.com/jobs/view/316818823/).
+
 #### Getting Started
 
 To get started using Hail on your data or [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
