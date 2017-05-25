@@ -91,10 +91,6 @@ class VariantDataset(object):
         return self._jgdf_cache
     
     @property
-    def _is_generic_genotype(self):
-        return self._jvds.isGenericGenotype()
-
-    @property
     def sample_ids(self):
         """Return sampleIDs.
 
@@ -1105,7 +1101,7 @@ class VariantDataset(object):
                       types=bool,
                       export_ref=bool,
                       export_missing=bool)
-    def export_genotypes(self, output, expr, types=False, export_ref=False, export_missing=False):
+    def export_genotypes(self, output, expr, types=False):
         """Export genotype-level information to delimited text file.
 
         **Examples**
@@ -1120,14 +1116,9 @@ class VariantDataset(object):
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default if the genotype schema is equal to :py:class:`~hail.expr.TGenotype`. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
+        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per non-missing cell (genotype) in the data set.
 
         The ``expr`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
-
-        .. warning::
-
-            If the genotype schema does not have the type :py:class:`~hail.expr.TGenotype`, all genotypes will be exported unless the value of ``g`` is missing.
-            Use :py:meth:`~hail.VariantDataset.filter_genotypes` to filter out genotypes based on an expression before exporting.
 
         :param str output: Output path.
 
@@ -1140,10 +1131,7 @@ class VariantDataset(object):
         :param bool export_missing: If true, export missing genotypes.
         """
 
-        if self._is_generic_genotype:
-            self._jgdf.exportGenotypes(output, expr, types, export_missing)
-        else:
-            self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing)
+        self._jgdf.exportGenotypes(output, expr, types, export_missing)
 
     @handle_py4j
     @typecheck_method(output=strlike,

@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.{Field, TArray, TBoolean, TCall, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TSet, TString, TStruct, Type}
 import is.hail.utils._
-import is.hail.variant.{Call, GenericDataset, Genotype, Locus, Variant, VariantKeyDataset, VariantSampleMatrix}
+import is.hail.variant.{Call, GenericDataset, Genotype, Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 
 import scala.io.Source
@@ -224,7 +224,7 @@ object ExportVCF {
     }
   }
 
-  def apply[T](vkds: VariantSampleMatrix[Locus, Variant, T], path: String, append: Option[String] = None, exportPP: Boolean = false,
+  def apply[T >: Null](vkds: VariantSampleMatrix[Locus, Variant, T], path: String, append: Option[String] = None, exportPP: Boolean = false,
     parallel: Boolean = false) {
     val vas = vkds.vaSignature
 

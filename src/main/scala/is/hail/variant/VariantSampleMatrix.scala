@@ -9,7 +9,7 @@ import is.hail.expr._
 import is.hail.io._
 import is.hail.keytable.KeyTable
 import is.hail.methods.Aggregators.SampleFunctions
-import is.hail.methods.{Aggregators, Filter, VEP}
+import is.hail.methods.{Aggregators, Filter}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -29,7 +29,7 @@ import scala.language.{existentials, implicitConversions}
 import scala.reflect.{ClassTag, classTag}
 
 object VariantSampleMatrix {
-  final val fileVersion: Int = 4
+  final val fileVersion: Int = 0x101
 
   def read(hc: HailContext, dirname: String,
     dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
@@ -43,11 +43,11 @@ object VariantSampleMatrix {
     val metadata = fileMetadata.metadata
 
     val vSignature = metadata.vSignature
+    val genotypeSignature = metadata.genotypeSignature
 
-    val isGenericGenotype = metadata.isGenericGenotype
     val isLinearScale = metadata.isLinearScale
 
-    if (!parquetGenotypes && !isGenericGenotype) {
+    if (genotypeSignature == TGenotype && !parquetGenotypes) {
       return new VariantDataset(hc,
         metadata,
         MatrixRead[Locus, Variant, Genotype](hc, dirname, metadata, dropSamples = dropSamples, dropVariants = dropVariants,
@@ -64,7 +64,7 @@ object VariantSampleMatrix {
 
     val vaImporter = SparkAnnotationImpex.annotationImporter(metadata.vaSignature)
 
-    if (isGenericGenotype) {
+    if (vSignature != TVariant || genotypeSignature != TGenotype) {
       implicit val kOk = vSignature.orderedKey
 
       val vImporter = SparkAnnotationImpex.annotationImporter(metadata.vSignature)
@@ -245,17 +245,6 @@ object VariantSampleMatrix {
       case _ => TGenotype
     }
 
-    val isGenericGenotype = fields.get("isGenericGenotype") match {
-      case Some(t: JBool) => t.value
-      case Some(other) => fatal(
-        s"""corrupt VDS: invalid metadata
-           |  Expected `JBool' in field `isGenericGenotype', but got `${ other.getClass.getName }'
-           |  Recreate VDS with current version of Hail.""".stripMargin)
-      case _ => false
-    }
-
-    assert(!isGenericGenotype || !parquetGenotypes)
-
     val saSignature = Parser.parseType(getAndCastJSON[JString]("sample_annotation_schema").s)
     val vaSignature = Parser.parseType(getAndCastJSON[JString]("variant_annotation_schema").s)
     val globalSignature = Parser.parseType(getAndCastJSON[JString]("global_annotation_schema").s)
@@ -280,7 +269,7 @@ object VariantSampleMatrix {
     val ids = sampleInfo.map(_._1)
     val annotations = sampleInfo.map(_._2)
 
-    (VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage, isGenericGenotype),
+    (VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isDosage),
       VSMLocalValue(globalAnnotation, ids, annotations)), parquetGenotypes)
   }
 
@@ -306,7 +295,7 @@ object VariantSampleMatrix {
     }
   }
 
-  def gen[RPK, RK, T](hc: HailContext,
+  def gen[RPK, RK, T >: Null](hc: HailContext,
     gen: VSMSubgen[RPK, RK, T])(implicit tct: ClassTag[T], kOk: OrderedKey[RPK, RK]): Gen[VariantSampleMatrix[RPK, RK, T]] =
     gen.gen(hc)
 
@@ -324,12 +313,11 @@ object VariantSampleMatrix {
       globalGen = (t: Type) => t.genValue,
       vGen = (t: Type) => t.genNonmissingValue,
       tGen = (t: Type, v: Annotation) => t.genValue.resize(20),
-      isGenericGenotype = true,
       makeKOk = (vSig: Type) => vSig.orderedKey)
       .gen(hc)
 }
 
-case class VSMSubgen[RPK, RK, T](
+case class VSMSubgen[RPK, RK, T >: Null](
   sSigGen: Gen[Type],
   saSigGen: Gen[Type],
   vSigGen: Gen[Type],
@@ -344,7 +332,6 @@ case class VSMSubgen[RPK, RK, T](
   tGen: (Type, RK) => Gen[T],
   isLinearScale: Boolean = false,
   wasSplit: Boolean = false,
-  isGenericGenotype: Boolean = false,
   makeKOk: (Type) => OrderedKey[RPK, RK]) {
 
   def gen(hc: HailContext)(implicit tct: ClassTag[T]): Gen[VariantSampleMatrix[RPK, RK, T]] =
@@ -377,7 +364,7 @@ case class VSMSubgen[RPK, RK, T](
         import kOk._
 
         new VariantSampleMatrix[RPK, RK, T](hc,
-          VSMMetadata(sSig, saSig, vSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isLinearScale = isLinearScale, isGenericGenotype = isGenericGenotype),
+          VSMMetadata(sSig, saSig, vSig, vaSig, globalSig, tSig, wasSplit = wasSplit, isLinearScale = isLinearScale),
           VSMLocalValue(global, sampleIds, saValues),
           hc.sc.parallelize(rows, nPartitions).toOrderedRDD)
           .deduplicate()
@@ -412,7 +399,7 @@ object VSMSubgen {
     tGen = (t: Type, v: Variant) => Genotype.genDosageGenotype(v), isLinearScale = true)
 }
 
-class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMetadata,
+class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata: VSMMetadata,
   val ast: MatrixAST[RPK, RK, T])(implicit val tct: ClassTag[T]) extends JoinAnnotator {
   implicit val kOk: OrderedKey[RPK, RK] = ast.kOk
 
@@ -436,7 +423,7 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
       fatal(s"in $method: column key (sample) schema must be String, but found: $sSignature")
   }
 
-  val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype) = metadata
+  val VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale) = metadata
 
   lazy val value: MatrixValue[RPK, RK, T] = {
     val opt = MatrixAST.optimize(ast)
@@ -1084,7 +1071,7 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
       }
   }
 
-  def exportGenotypes(path: String, expr: String, typeFile: Boolean, filterF: T => Boolean) {
+  def exportGenotypes(path: String, expr: String, typeFile: Boolean) {
     val symTab = Map(
       "v" -> (0, vSignature),
       "va" -> (1, vaSignature),
@@ -1111,8 +1098,7 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
     mapPartitionsWithAll { it =>
       val sb = new StringBuilder()
       it
-        .filter { case (v, va, s, sa, g) => filterF(g)
-        }
+        .filter { case (v, va, s, sa, g) => g != null }
         .map { case (v, va, s, sa, g) =>
           ec.setAll(v, va, s, sa, g)
           sb.clear()
@@ -1121,6 +1107,42 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
           sb.result()
         }
     }.writeTable(path, hc.tmpDir, names.map(_.mkString("\t")))
+  }
+
+  def annotateGenotypesExpr(expr: String): VariantSampleMatrix[RPK, RK, Annotation] = {
+    val symTab = Map(
+      "v" -> (0, vSignature),
+      "va" -> (1, vaSignature),
+      "s" -> (2, sSignature),
+      "sa" -> (3, saSignature),
+      "g" -> (4, genotypeSignature),
+      "global" -> (5, globalSignature))
+    val ec = EvalContext(symTab)
+
+    ec.set(5, globalAnnotation)
+
+    val (paths, types, f) = Parser.parseAnnotationExprs(expr, ec, Some(Annotation.GENOTYPE_HEAD))
+
+    val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
+    val finalType = (paths, types).zipped.foldLeft(genotypeSignature) { case (gsig, (ids, signature)) =>
+      val (s, i) = gsig.insert(signature, ids)
+      inserterBuilder += i
+      s
+    }
+    val inserters = inserterBuilder.result()
+
+    info(
+      s"""Modified the genotype schema with annotateGenotypesExpr.
+         |  Original: ${ genotypeSignature.toPrettyString(compact = true) }
+         |  New: ${ finalType.toPrettyString(compact = true) }""".stripMargin)
+
+    mapValuesWithAll { (v: RK, va: Annotation, s: Annotation, sa: Annotation, g: T) =>
+      ec.setAll(v, va, s, sa, g)
+      f().zip(inserters)
+        .foldLeft(g: Annotation) { case (ga, (a, inserter)) =>
+          inserter(ga, a)
+        }
+    }.copy(genotypeSignature = finalType)
   }
 
   def exportSamples(path: String, expr: String, typeFile: Boolean = false) {
@@ -1582,16 +1604,16 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
     }
   }
 
-  def mapValues[U](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
+  def mapValues[U >: Null](f: (T) => U)(implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
     mapValuesWithAll((v, va, s, sa, g) => f(g))
   }
 
-  def mapValuesWithKeys[U](f: (RK, Annotation, T) => U)
+  def mapValuesWithKeys[U >: Null](f: (RK, Annotation, T) => U)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
     mapValuesWithAll((v, va, s, sa, g) => f(v, s, g))
   }
 
-  def mapValuesWithAll[U](f: (RK, Annotation, Annotation, Annotation, T) => U)
+  def mapValuesWithAll[U >: Null](f: (RK, Annotation, Annotation, Annotation, T) => U)
     (implicit uct: ClassTag[U]): VariantSampleMatrix[RPK, RK, U] = {
     val localSampleIdsBc = sampleIdsBc
     val localSampleAnnotationsBc = sampleAnnotationsBc
@@ -1760,6 +1782,22 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
     ts.map { case (t, f) => (f(), t) }
   }
 
+
+  def queryGA(code: String): (Type, Querier) = {
+    val st = Map(Annotation.GENOTYPE_HEAD -> (0, genotypeSignature))
+    val ec = EvalContext(st)
+    val a = ec.a
+
+    val (t, f) = Parser.parseExpr(code, ec)
+
+    val f2: Annotation => Any = { annotation =>
+      a(0) = annotation
+      f()
+    }
+
+    (t, f2)
+  }
+
   def renameSamples(mapping: java.util.Map[Annotation, Annotation]): VariantSampleMatrix[RPK, RK, T] =
     renameSamples(mapping.asScala.toMap)
 
@@ -1908,7 +1946,7 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
     copy(rdd = rdd.sample(withReplacement = false, fraction, seed).asOrderedRDD)
   }
 
-  def copy[RPK2, RK2, T2](rdd: OrderedRDD[RPK2, RK2, (Annotation, Iterable[T2])] = rdd,
+  def copy[RPK2, RK2, T2 >: Null](rdd: OrderedRDD[RPK2, RK2, (Annotation, Iterable[T2])] = rdd,
     sampleIds: IndexedSeq[Annotation] = sampleIds,
     sampleAnnotations: IndexedSeq[Annotation] = sampleAnnotations,
     globalAnnotation: Annotation = globalAnnotation,
@@ -1919,14 +1957,13 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
     globalSignature: Type = globalSignature,
     genotypeSignature: Type = genotypeSignature,
     wasSplit: Boolean = wasSplit,
-    isLinearScale: Boolean = isLinearScale,
-    isGenericGenotype: Boolean = isGenericGenotype)
+    isLinearScale: Boolean = isLinearScale)
     (implicit tct: ClassTag[T2]): VariantSampleMatrix[RPK2, RK2, T2] =
     new VariantSampleMatrix[RPK2, RK2, T2](hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
 
-  def copyAST[RPK2, RK2, T2](ast: MatrixAST[RPK2, RK2, T2] = ast,
+  def copyAST[RPK2, RK2, T2 >: Null](ast: MatrixAST[RPK2, RK2, T2] = ast,
     sSignature: Type = sSignature,
     saSignature: Type = saSignature,
     vSignature: Type = vSignature,
@@ -1934,10 +1971,9 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
     globalSignature: Type = globalSignature,
     genotypeSignature: Type = genotypeSignature,
     wasSplit: Boolean = wasSplit,
-    isLinearScale: Boolean = isLinearScale,
-    isGenericGenotype: Boolean = isGenericGenotype)(implicit tct: ClassTag[T2]): VariantSampleMatrix[RPK2, RK2, T2] =
+    isLinearScale: Boolean = isLinearScale)(implicit tct: ClassTag[T2]): VariantSampleMatrix[RPK2, RK2, T2] =
     new VariantSampleMatrix[RPK2, RK2, T2](hc,
-      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale, isGenericGenotype),
+      VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit, isLinearScale),
       ast)
 
   def samplesKT(): KeyTable = {
@@ -2103,7 +2139,6 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
       ("version", JInt(VariantSampleMatrix.fileVersion)),
       ("split", JBool(wasSplit)),
       ("isLinearScale", JBool(isLinearScale)),
-      ("isGenericGenotype", JBool(isGenericGenotype)),
       ("parquetGenotypes", JBool(parquetGenotypes)),
       ("sample_schema", JString(sSchemaString)),
       ("sample_annotation_schema", JString(saSchemaString)),
@@ -2119,14 +2154,13 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
   }
 
   def withGenotypeStream(): VariantSampleMatrix[RPK, RK, T] = {
-    if (isGenericGenotype)
-      this
-    else {
+    if (vSignature == TGenotype) {
       val localIsLinearScale = isLinearScale
       copy(rdd = rdd.mapValuesWithKey[(Annotation, Iterable[T])] { case (v, (va, gs)) =>
         (va, gs.asInstanceOf[Iterable[Genotype]].toGenotypeStream(v.asInstanceOf[Variant], localIsLinearScale).asInstanceOf[Iterable[T]])
       }.asOrderedRDD)
-    }
+    } else
+      this
   }
 
   def coalesce(k: Int, shuffle: Boolean = true): VariantSampleMatrix[RPK, RK, T] = {
@@ -2155,54 +2189,82 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
     rdd.unpersist()
   }
 
-  def makeVariantGeneric(): VariantSampleMatrix[Annotation, Annotation, T] = {
-    implicit val kOk = vSignature.orderedKey
-    copy(
-      rdd = rdd.mapKeysMonotonic((k: RK) => k: Annotation, (pk: RPK) => pk: Annotation))
-  }
+  /**
+    * @param filterExpr filter expression involving v (Variant), va (variant annotations), s (sample),
+    * sa (sample annotations), and g (genotype annotation), which returns a boolean value
+    * @param keep keep genotypes where filterExpr evaluates to true
+    */
+  def filterGenotypes(filterExpr: String, keep: Boolean = true): VariantSampleMatrix[RPK, RK, T] = {
 
-  def makeGenotypeGeneric(): VariantSampleMatrix[RPK, RK, Annotation] = {
-    implicit val kOk = vSignature.orderedKey
-    copy(
-      rdd = rdd.mapValues { case (va, gs) =>
-        (va, gs.map(g => g: Annotation))
-      })
+    val symTab = Map(
+      "v" -> (0, vSignature),
+      "va" -> (1, vaSignature),
+      "s" -> (2, sSignature),
+      "sa" -> (3, saSignature),
+      "g" -> (4, genotypeSignature),
+      "global" -> (5, globalSignature))
+
+
+    val ec = EvalContext(symTab)
+    ec.set(5, globalAnnotation)
+    val f: () => java.lang.Boolean = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, ec)
+
+    val localKeep = keep
+    mapValuesWithAll { (v: RK, va: Annotation, s: Annotation, sa: Annotation, g: T) =>
+      ec.setAll(v, va, s, sa, g)
+      if (Filter.boxedKeepThis(f(), localKeep))
+        g
+      else
+        null
+    }
   }
 
   def makeVariantConcrete(): VariantSampleMatrix[Locus, Variant, T] = {
     if (vSignature != TVariant)
       fatal(s"variant signature `Variant' required, found: ${ vSignature.toPrettyString() }")
 
-    implicit val kOk = Variant.orderedKey
-    copy(
-      rdd = rdd.mapKeysMonotonic[Locus, Variant]((k: Annotation) => k.asInstanceOf[Variant],
-        (pk: Annotation) => pk.asInstanceOf[Locus])(kOk))
+    if (kOk == Variant.orderedKey)
+      this.asInstanceOf[VariantSampleMatrix[Locus, Variant, T]]
+    else {
+      copy(
+        rdd = rdd.mapKeysMonotonic[Locus, Variant]((k: Annotation) => k.asInstanceOf[Variant],
+          (pk: Annotation) => pk.asInstanceOf[Locus])(Variant.orderedKey))
+    }
   }
 
   def makeGenotypeConcrete(): VariantSampleMatrix[RPK, RK, Genotype] = {
     if (genotypeSignature != TGenotype)
       fatal(s"genotype signature `Genotype' required, found: `${ genotypeSignature.toPrettyString() }'")
 
-    implicit val kOk = Variant.orderedKey
-    copy(
-      rdd = rdd.mapValues { case (va, gs) =>
-        (va, gs.map(_.asInstanceOf[Genotype]))
-      })
+    if (tct == classTag[Genotype])
+      this.asInstanceOf[VariantSampleMatrix[RPK, RK, Genotype]]
+    else {
+      copy(
+        rdd = rdd.mapValues { case (va, gs) =>
+          (va, gs.asInstanceOf[Iterable[Genotype]])
+        })
+    }
   }
 
-  def toGDS: GenericDataset = makeVariantGeneric().makeGenotypeGeneric()
-
-  def toVKDS: VariantKeyDataset = makeVariantConcrete().makeGenotypeGeneric()
+  def toVKDS: VariantSampleMatrix[Locus, Variant, T] = makeVariantConcrete()
 
   def toVDS: VariantDataset = makeVariantConcrete().makeGenotypeConcrete()
 
+  def toGDS: GenericDataset = {
+    if (kOk.kct == classTag[Annotation] &&
+      kOk.pkct == classTag[Annotation] &&
+      tct == classTag[Annotation])
+      this.asInstanceOf[VariantSampleMatrix[Annotation, Annotation, Annotation]]
+    else {
+      copy(
+        rdd = rdd
+          .mapValues { case (va, gs) => (va, gs: Iterable[Annotation]) }
+          .mapKeysMonotonic[Annotation, Annotation]((k: RK) => k: Annotation, (pk: Annotation) => pk: Annotation)(vSignature.orderedKey))
+    }
+  }
+
   def write(dirname: String, overwrite: Boolean = false, parquetGenotypes: Boolean = false): Unit = {
     require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
-
-    if (!isGenericGenotype) {
-      require(vSignature == TVariant, s"invalid non-generic vSignature: $vSignature")
-      require(genotypeSignature == TGenotype, s"invalid non-generic vSignature: $genotypeSignature")
-    }
 
     if (overwrite)
       hadoopConf.delete(dirname, recursive = true)
@@ -2222,7 +2284,7 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
     }
 
     val rowRDD =
-      if (isGenericGenotype || parquetGenotypes) {
+      if (genotypeSignature != TGenotype || parquetGenotypes) {
         val gExporter = SparkAnnotationImpex.annotationExporter(genotypeSignature)
 
         rdd.map { case (v, (va, gs)) =>
@@ -2246,13 +2308,11 @@ class VariantSampleMatrix[RPK, RK, T](val hc: HailContext, val metadata: VSMMeta
   }
 
   def makeSchema(parquetGenotypes: Boolean): StructType = {
-    if (isGenericGenotype)
-      require(!parquetGenotypes)
     StructType(Array(
       StructField("variant", vSignature.schema, nullable = false),
       StructField("annotations", vaSignature.schema),
       StructField("gs",
-        if (isGenericGenotype || parquetGenotypes)
+        if (genotypeSignature != TGenotype || parquetGenotypes)
           ArrayType(genotypeSignature.schema, containsNull = false)
         else
           GenotypeStream.schema,

@@ -62,8 +62,8 @@ class FilterSuite extends SparkSuite {
       .expand()
       .collect()
 
-    assert(!highGQ.exists { case (v, s, g) => g.gq.exists(_ < 20) })
-    assert(highGQ.count { case (v, s, g) => g.gq.exists(_ >= 20) } == 30889)
+    assert(!highGQ.exists { case (v, s, g) => g != null && g.gq.exists(_ < 20) })
+    assert(highGQ.count { case (v, s, g) => g != null && g.gq.exists(_ >= 20) } == 30889)
 
     val highGQorMidQGAndLowFS = vds.filterGenotypes("g.gq < 20 || (g.gq < 30 && va.info.FS > 30)", keep = false)
       .expand()
@@ -73,31 +73,33 @@ class FilterSuite extends SparkSuite {
       .cache()
       .splitMulti()
 
-    assert(vds2.filterGenotypes("g.ad[0] < 30").expand().collect().count(_._3.isCalled) == 3)
+    assert(vds2.filterGenotypes("g.ad[0] < 30").expand().collect().count { case (v, va, g) => g != null && g.isCalled } == 3)
 
-    assert(vds2.filterGenotypes("g.ad[1].toDouble() / g.dp > 0.05").expand().collect().count(_._3.isCalled) == 3)
+    assert(vds2.filterGenotypes("g.ad[1].toDouble() / g.dp > 0.05")
+      .expand().collect()
+      .count { case (v, va, g) => g != null && g.isCalled } == 3)
 
     val highGQ2 = vds2.filterGenotypes("g.gq < 20", keep = false)
 
-    assert(!highGQ2.expand().collect().exists { case (v, s, g) => g.gq.exists(_ < 20) })
+    assert(!highGQ2.expand().collect().exists { case (v, s, g) => g != null && g.gq.exists(_ < 20) })
 
     val chr1 = vds2.filterVariantsExpr("v.contig == \"1\"")
 
     assert(chr1.rdd.count == 9)
 
-    assert(chr1.expand().collect().count(_._3.isCalled) == 9 * 11 - 2)
+    assert(chr1.expand().collect().count { case (v, va, g) => g != null && g.isCalled } == 9 * 11 - 2)
 
     val hetOrHomVarOnChr1 = chr1.filterGenotypes("g.isHomRef()", keep = false)
       .expand()
       .collect()
 
-    assert(hetOrHomVarOnChr1.count(_._3.isCalled) == 9 + 3 + 3) // remove does not retain the 2 missing genotypes
+    assert(hetOrHomVarOnChr1.count { case (v, va, g) => g != null && g.isCalled } == 9 + 3 + 3) // remove does not retain the 2 missing genotypes
 
     val homRefOnChr1 = chr1.filterGenotypes("g.isHomRef()")
       .expand()
       .collect()
 
-    assert(homRefOnChr1.count(_._3.isCalled) == 9 * 11 - (9 + 3 + 3) - 2) // keep does not retain the 2 missing genotypes
+    assert(homRefOnChr1.count { case (v, va, g) => g != null && g.isCalled } == 9 * 11 - (9 + 3 + 3) - 2) // keep does not retain the 2 missing genotypes
   }
 
   @Test def filterFromFileTest() {
@@ -168,7 +170,7 @@ class FilterSuite extends SparkSuite {
       .expand()
       .collect()
       .foreach { case (v, s, g) =>
-        assert(!g.isHet || g.pAB().forall(_ > 0.0005))
+        assert(g == null || !g.isHet || g.pAB().forall(_ > 0.0005))
       }
   }
 }

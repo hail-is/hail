@@ -303,7 +303,7 @@ case class MatrixRead[RPK, RK, T](
   override def toString: String = s"MatrixRead($path, dropSamples = $dropSamples, dropVariants = $dropVariants)"
 }
 
-case class FilterSamples[RPK, RK, T](
+case class FilterSamples[RPK, RK, T >: Null](
   child: MatrixAST[RPK, RK, T],
   pred: AST) extends MatrixAST[RPK, RK, T] {
   implicit val kOk: OrderedKey[RPK, RK] = child.kOk
@@ -337,7 +337,7 @@ case class FilterSamples[RPK, RK, T](
   }
 }
 
-case class FilterVariants[RPK, RK, T](
+case class FilterVariants[RPK, RK, T >: Null](
   child: MatrixAST[RPK, RK, T],
   pred: AST)(implicit tct: ClassTag[T]) extends MatrixAST[RPK, RK, T] {
   implicit val kOk: OrderedKey[RPK, RK] = child.kOk
@@ -360,7 +360,7 @@ case class FilterVariants[RPK, RK, T](
 
     val f: () => java.lang.Boolean = Parser.evalTypedExpr[java.lang.Boolean](pred, ec)
 
-    val aggregatorOption = Aggregators.buildVariantAggregations(
+    val aggregatorOption = Aggregators.buildVariantAggregations[RPK, RK, T](
       prev.rdd.sparkContext, prev.localValue, ec)
 
     val p = (v: RK, va: Annotation, gs: Iterable[T]) => {

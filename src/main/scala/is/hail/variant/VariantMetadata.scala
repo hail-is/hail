@@ -59,5 +59,4 @@ case class VSMMetadata(
   globalSignature: Type = TStruct.empty,
   genotypeSignature: Type = TGenotype,
   wasSplit: Boolean = false,
-  isLinearScale: Boolean = false,
-  isGenericGenotype: Boolean = false)
+  isLinearScale: Boolean = false)

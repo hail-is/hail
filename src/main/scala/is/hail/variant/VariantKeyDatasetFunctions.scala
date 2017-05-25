@@ -8,7 +8,7 @@ import scala.collection.JavaConverters._
 import scala.language.existentials
 import scala.reflect.ClassTag
 
-class VariantKeyDatasetFunctions[T](private val vsm: VariantSampleMatrix[Locus, Variant, T]) {
+class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix[Locus, Variant, T]) {
   implicit val tct: ClassTag[T] = vsm.tct
 
   /**

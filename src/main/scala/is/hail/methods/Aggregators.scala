@@ -17,10 +17,10 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregations[RPK, RK, T](vsm: VariantSampleMatrix[RPK, RK, T], ec: EvalContext): Option[(RK, Annotation, Iterable[T]) => Unit] =
+  def buildVariantAggregations[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], ec: EvalContext): Option[(RK, Annotation, Iterable[T]) => Unit] =
     buildVariantAggregations(vsm.sparkContext, vsm.value.localValue, ec)
 
-  def buildVariantAggregations[RPK, RK, T](sc: SparkContext,
+  def buildVariantAggregations[RPK, RK, T >: Null](sc: SparkContext,
     localValue: VSMLocalValue,
     ec: EvalContext): Option[(RK, Annotation, Iterable[T]) => Unit] = {
 
@@ -64,7 +64,7 @@ object Aggregators {
     })
   }
 
-  def buildSampleAggregations[RPK, RK, T](hc: HailContext, value: MatrixValue[RPK, RK, T], ec: EvalContext): Option[(Annotation) => Unit] = {
+  def buildSampleAggregations[RPK, RK, T >: Null](hc: HailContext, value: MatrixValue[RPK, RK, T], ec: EvalContext): Option[(Annotation) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -123,7 +123,7 @@ object Aggregators {
     })
   }
 
-  def makeSampleFunctions[RPK, RK, T](vsm: VariantSampleMatrix[RPK, RK, T], aggExpr: String): SampleFunctions[RPK, RK, T] = {
+  def makeSampleFunctions[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], aggExpr: String): SampleFunctions[RPK, RK, T] = {
     val ec = vsm.sampleEC
 
     val (resultType, aggF) = Parser.parseExpr(aggExpr, ec)

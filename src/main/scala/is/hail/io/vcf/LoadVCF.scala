@@ -193,7 +193,7 @@ object LoadVCF {
     else None
   }
 
-  def apply[T](hc: HailContext,
+  def apply[T >: Null](hc: HailContext,
     reader: HtsjdkRecordReader[T],
     file1: String,
     files: Array[String] = null,
@@ -334,7 +334,6 @@ object LoadVCF {
       variantAnnotationSignatures,
       TStruct.empty,
       genotypeSignature,
-      isGenericGenotype = reader.genericGenotypes,
       wasSplit = noMulti),
       VSMLocalValue(Annotation.empty,
         sampleIds,

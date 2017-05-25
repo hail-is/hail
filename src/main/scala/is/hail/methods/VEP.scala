@@ -214,7 +214,7 @@ object VEP {
     alleleMap
   }
 
-  def annotate[T](vsm: VariantSampleMatrix[Locus, Variant, T], config: String, root: String = "va.vep", csq: Boolean,
+  def annotate[T >: Null](vsm: VariantSampleMatrix[Locus, Variant, T], config: String, root: String = "va.vep", csq: Boolean,
     blockSize: Int)(implicit tct: ClassTag[T]): VariantSampleMatrix[Locus, Variant, T] = {
 
     val parsedRoot = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)

@@ -213,18 +213,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     writeGenFile()
   }
 
-  def exportGenotypes(path: String, expr: String, typeFile: Boolean,
-    printRef: Boolean = false, printMissing: Boolean = false) {
-
-    val localPrintRef = printRef
-    val localPrintMissing = printMissing
-
-    val filterF: Genotype => Boolean =
-      g => (!g.isHomRef || localPrintRef) && (!g.isNotCalled || localPrintMissing)
-
-    vds.exportGenotypes(path, expr, typeFile, filterF)
-  }
-
   def exportPlink(path: String, famExpr: String = "id = s") {
     requireSplit("export plink")
     vds.requireSampleTString("export plink")

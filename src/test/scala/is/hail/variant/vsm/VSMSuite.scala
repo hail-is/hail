@@ -429,13 +429,8 @@ class VSMSuite extends SparkSuite {
     }.check()
   }
 
-  @Test def testImportOldVDS() {
-    val vds = hc.readVDS("src/test/resources/sample.vds")
-    vds.countVariants()
-  }
-
   @Test def testQueryGenotypes() {
-    val vds = hc.readVDS("src/test/resources/sample.vds")
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
     vds.queryGenotypes("gs.map(g => g.gq).hist(0, 100, 100)")
   }
 }

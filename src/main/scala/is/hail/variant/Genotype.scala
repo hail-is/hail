@@ -464,6 +464,7 @@ object Genotype {
   final val flagSimpleDPBit = 0x80
   final val flagSimpleGQBit = 0x100
   final val flagFakeRefBit = 0x200
+  final val flagMissing = 0x400
 
   def flagHasGT(isBiallelic: Boolean, flags: Int): Boolean =
     if (isBiallelic)
@@ -526,7 +527,11 @@ object Genotype {
 
   def flagFakeRef(flags: Int): Boolean = (flags & flagFakeRefBit) != 0
 
+  def flagMissing(flags: Int): Boolean = (flags & flagMissing) != 0
+
   def flagSetFakeRef(flags: Int): Int = flags | flagFakeRefBit
+
+  def flagSetMissing(flags: Int): Int = flags | flagMissing
 
   def flagUnsetFakeRef(flags: Int): Int = flags ^ flagFakeRefBit
 
@@ -722,6 +727,8 @@ object Genotype {
     val isBiallelic = nAlleles == 2
 
     val flags = a.readULEB128()
+    if (flagMissing(flags))
+      return null
 
     val gt: Int =
       if (flagHasGT(isBiallelic, flags)) {
@@ -1237,18 +1244,32 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
     flags = Genotype.flagSetFakeRef(flags)
   }
 
-  def set(g: Genotype) {
-    g.gt.foreach(setGT)
-    g.ad.foreach(setAD)
-    g.dp.foreach(setDP)
-    g.gq.foreach(setGQ)
-    g.px.foreach(setPX)
+  def setMissing() {
+    flags = Genotype.flagSetMissing(flags)
+  }
 
-    if (g.fakeRef)
-      setFakeRef()
+  def set(g: Genotype) {
+    if (g == null) {
+      setMissing()
+    } else {
+      g.gt.foreach(setGT)
+      g.ad.foreach(setAD)
+      g.dp.foreach(setDP)
+      g.gq.foreach(setGQ)
+      g.px.foreach(setPX)
+
+      if (g.fakeRef)
+        setFakeRef()
+    }
   }
 
   def write(b: ArrayBuilder[Byte]) {
+    val missing = Genotype.flagMissing(flags)
+    if (missing) {
+      b.writeULEB128(flags)
+      return
+    }
+
     val hasGT = Genotype.flagHasGT(isBiallelic, flags)
     val hasAD = Genotype.flagHasAD(flags)
     val hasDP = Genotype.flagHasDP(flags)

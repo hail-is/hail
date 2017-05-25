@@ -7,7 +7,6 @@ import scala.language.implicitConversions
 
 package object variant {
   type VariantDataset = VariantSampleMatrix[Locus, Variant, Genotype]
-  type VariantKeyDataset = VariantSampleMatrix[Locus, Variant, Annotation]
   type GenericDataset = VariantSampleMatrix[Annotation, Annotation, Annotation]
   type Call = java.lang.Integer
 
@@ -49,6 +48,5 @@ package object variant {
   implicit def toRichIterableGenotype(ig: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(ig)
 
   implicit def toVDSFunctions(vds: VariantDataset): VariantDatasetFunctions = new VariantDatasetFunctions(vds)
-  implicit def toVKDSFunctions[T](vkds: VariantSampleMatrix[Locus, Variant, T]): VariantKeyDatasetFunctions[T] = new VariantKeyDatasetFunctions(vkds)
-  implicit def toGDSFunctions[RPK, RK](gds: VariantSampleMatrix[RPK, RK, Annotation]): GenericDatasetFunctions[RPK, RK] = new GenericDatasetFunctions(gds)
+  implicit def toVKDSFunctions[T >: Null](vkds: VariantSampleMatrix[Locus, Variant, T]): VariantKeyDatasetFunctions[T] = new VariantKeyDatasetFunctions(vkds)
 }

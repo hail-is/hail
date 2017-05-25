@@ -9,21 +9,7 @@ import org.testng.annotations.Test
 class GenericDatasetSuite extends SparkSuite {
 
   @Test def testReadWrite() {
-    val path = tmpDir.createTempFile(extension = ".vds")
-
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Some(4))
-    assert(!vds.isGenericGenotype)
-
-    val gds = vds.toGDS
-    assert(gds.isGenericGenotype)
-
-    gds.write(path)
-
-    intercept[HailException] {
-      hc.readVDS(path)
-    }
-
-    assert(gds same hc.readGDS(path))
+    val path = tmpDir.createTempFile(extension = "vds")
 
     val p = forAll(VariantSampleMatrix.genGeneric(hc)) { gds =>
       val f = tmpDir.createTempFile(extension = "vds")
