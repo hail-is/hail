@@ -14,5 +14,5 @@ then
 fi
 
 export HAIL_HOME="$(dirname "$(cd "$(dirname $0)" && pwd)")"
-export PYTHONPATH="$HAIL_HOME/python:$SPARK_HOME/python:$(echo ${SPARK_HOME}/python/lib/py4j-0.10.3-src.zip | tr '\n' ':')$PYTHONPATH"
+export PYTHONPATH="$HAIL_HOME/python:$SPARK_HOME/python:$(echo ${SPARK_HOME}/python/lib/py4j-*-src.zip | tr '\n' ':')$PYTHONPATH"
 export SPARK_CLASSPATH=$HAIL_HOME/jars/hail-all-spark.jar
