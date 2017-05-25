@@ -55,8 +55,7 @@ object LDMatrix {
       val blocksToConstruct = partitionToPairsMapBc.value.get(partitionID).get
 
       blocksToConstruct.map { case (group1, group2) =>
-
-        // These are variants are in correct sorted order from time of construction of grouped RDD.
+        // These variants are in correct sorted order from time of construction of grouped RDD.
         // Since they're sorted, it is safe to build matrix where entry i, j is computeR(g1Vars(i), g2Vars(j))
         val g1Variants = groupMap.get(group1).get
         val g2Variants = groupMap.get(group2).get
