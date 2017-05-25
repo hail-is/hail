@@ -9,4 +9,3 @@ python/**/*.pyc
 python/hail/docs/_build/*
 src/main/c/libsimdpp-2.0-rc2.tar.gz
 src/main/c/libsimdpp-2.0-rc2
-src/main/c/lib
