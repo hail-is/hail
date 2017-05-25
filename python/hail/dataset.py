@@ -48,7 +48,6 @@ class VariantDataset(object):
         self._num_samples = None
         self._jvdf_cache = None
         self._jvkdf_cache = None
-        self._jgdf_cache = None
 
     @staticmethod
     @handle_py4j
@@ -84,12 +83,6 @@ class VariantDataset(object):
             self._jvkdf_cache = Env.hail().variant.VariantKeyDatasetFunctions(self._jvds.toVKDS())
         return self._jvkdf_cache
 
-    @property
-    def _jgdf(self):
-        if self._jgdf_cache is None:
-            self._jgdf_cache = Env.hail().variant.GenericDatasetFunctions(self._jvds.toGDS())
-        return self._jgdf_cache
-    
     @property
     def sample_ids(self):
         """Return sampleIDs.
@@ -308,7 +301,7 @@ class VariantDataset(object):
         if isinstance(expr, list):
             expr = ",".join(expr)
 
-        return VariantDataset(self.hc, self._jgdf.annotateGenotypesExpr(expr))
+        return VariantDataset(self.hc, self._jvds.annotateGenotypesExpr(expr))
 
     @handle_py4j
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
@@ -1131,7 +1124,7 @@ class VariantDataset(object):
         :param bool export_missing: If true, export missing genotypes.
         """
 
-        self._jgdf.exportGenotypes(output, expr, types, export_missing)
+        self._jvds.exportGenotypes(output, expr, types, export_missing)
 
     @handle_py4j
     @typecheck_method(output=strlike,
@@ -1600,11 +1593,7 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        if self._is_generic_genotype:
-            jvds = self._jgdf.filterGenotypes(expr, keep)
-        else:
-            jvds = self._jvdf.filterGenotypes(expr, keep)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, self._jvds.filterGenotypes(expr, keep))
 
     @handle_py4j
     def filter_multi(self):
