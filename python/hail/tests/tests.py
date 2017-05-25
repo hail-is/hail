@@ -91,10 +91,10 @@ class ContextTests(unittest.TestCase):
 
         for (dataset, dataset2) in [(vds, vds2), (gds, gds2)]:
 
-            if dataset._is_generic_genotype:
-                gt = 'g.GT'
-            else:
+            if dataset.genotype_schema == TGenotype():
                 gt = 'g'
+            else:
+                gt = 'g.GT'
 
             dataset.cache()
             dataset2.persist()
@@ -201,12 +201,12 @@ class ContextTests(unittest.TestCase):
                              .annotate('s = s, sa = json(sa)'))
                             .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
 
-            if dataset._is_generic_genotype:
-                gt_string = 'gt = g.GT, gq = g.GQ'
-                gt_string2 = 'gt: g.GT, gq: g.GQ'
-            else:
+            if dataset.genotype_schema == TGenotype():
                 gt_string = 'gt = g.gt, gq = g.gq'
                 gt_string2 = 'gt: g.gt, gq: g.gq'
+            else:
+                gt_string = 'gt = g.GT, gq = g.GQ'
+                gt_string2 = 'gt: g.GT, gq: g.GQ'
 
             cols = ['v = v, info = va.info']
             for s in dataset.sample_ids:
@@ -256,10 +256,10 @@ class ContextTests(unittest.TestCase):
                            .filter('pcoin(0.1)')
                            .collect())
 
-            if dataset._is_generic_genotype:
-                expr = 'g.GT.isHet() && g.GQ > 20'
-            else:
+            if dataset.genotype_schema == TGenotype():
                 expr = 'g.isHet() && g.gq > 20'
+            else:
+                expr = 'g.GT.isHet() && g.GQ > 20'
 
             (dataset.filter_genotypes(expr)
              .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, {0}.nNonRefAlleles()'.format(gt)))

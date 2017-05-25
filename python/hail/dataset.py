@@ -1091,9 +1091,7 @@ class VariantDataset(object):
     @handle_py4j
     @typecheck_method(output=strlike,
                       expr=strlike,
-                      types=bool,
-                      export_ref=bool,
-                      export_missing=bool)
+                      types=bool)
     def export_genotypes(self, output, expr, types=False):
         """Export genotype-level information to delimited text file.
 
@@ -1119,12 +1117,9 @@ class VariantDataset(object):
 
         :param bool types: Write types of exported columns to a file at (output + ".types")
 
-        :param bool export_ref: If true, export reference genotypes. Only applicable if the genotype schema is :py:class:`~hail.expr.TGenotype`.
-
-        :param bool export_missing: If true, export missing genotypes.
         """
 
-        self._jvds.exportGenotypes(output, expr, types, export_missing)
+        self._jvds.exportGenotypes(output, expr, types)
 
     @handle_py4j
     @typecheck_method(output=strlike,
