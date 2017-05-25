@@ -15,7 +15,7 @@ object LDMatrix {
   /**
     * Computes the LD matrix for the given VDS.
     * @param vds VDS on which to compute Pearson correlation between pairs of variants.
-    * @param blockSize Size of groups to make in LD matrix computation.
+    * @param blockSize Size of blocks to make in LD matrix computation.
     * @return An LDMatrix.
     */
   def apply(vds: VariantDataset, blockSize: Int): LDMatrix = {
