@@ -14,12 +14,8 @@ import scala.reflect.classTag
 
 object LDMatrix {
 
-  /**
-    * Computes the LD matrix for the given VDS.
-    * @param vds VDS on which to compute Pearson correlation between pairs of variants.
-    * @return An LDMatrix.
-    */
-  def apply(vds : VariantDataset): LDMatrix = {
+
+  /*def apply(vds : VariantDataset): LDMatrix = {
     val nSamples = vds.nSamples
     val originalVariants = vds.variants.collect()
     assert(originalVariants.isSorted, "Array of variants is not sorted. This is a bug.")
@@ -52,11 +48,17 @@ object LDMatrix {
       map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
 
     LDMatrix(scaledIndexedRowMatrix, variantsKept, vds.nSamples)
-  }
+  }*/
 
   //TODO Try to replace longs with Int's where possible
   //TODO Variant Index doesn't have to be carried all the way down maybe.
-  def apply2(vds: VariantDataset, groupSize: Int, numBlocksOnDimension: Int): LDMatrix = {
+  /**
+    * Computes the LD matrix for the given VDS.
+    * @param vds VDS on which to compute Pearson correlation between pairs of variants.
+    * @param groupSize Size of groups to make in LD matrix computation.
+    * @return An LDMatrix.
+    */
+  def apply(vds: VariantDataset, groupSize: Int): LDMatrix = {
     val nSamples = vds.nSamples
 
     val bitPackedOpts = vds.rdd.map { case (v, (_, gs)) => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples)}
@@ -64,17 +66,18 @@ object LDMatrix {
     val originalVariants = vds.variants.collect()
     val variantsKeptArray = originalVariants.zip(filterArray).filter(_._2).map(_._1)
     val bpvs = bitPackedOpts.flatMap(x => x).zipWithIndex().map { case (a, b) => (b, a) }
+    val nVariantsDropped = originalVariants.length - variantsKeptArray.length
 
-    // Chunk out BPVs with block id's also, use grid partitioner to identify destinations, then map destinations over to
-    // send vectors there, and then use Jackie method to smash individual BPV's together.
+    info(s"Computing LD Matrix with ${variantsKeptArray.length} variants using $nSamples samples. $nVariantsDropped variants were dropped.")
 
     //(GroupID, Iterable(VariantID, BPV))
     val grouped: RDD[(Long, Iterable[(Long, LDPrune.BitPackedVector)])] = bpvs.map { case (vIdx, bpv) => (vIdx / groupSize, (vIdx, bpv)) }.groupByKey()
     val numberOfGroups = Math.ceil(grouped.count() / groupSize.toDouble).toInt
 
+    val numBlocksOnDimension = math.ceil(variantsKeptArray.length.toDouble / groupSize).toInt
     val partitioner = sneakyGridPartitioner(numBlocksOnDimension, numBlocksOnDimension, vds.rdd.getNumPartitions)
 
-    val (groupDestinations: Map[Int, Set[Int]], partitionToPairsMap: Map[Int, Set[(Int, Int)]]) = simulateLDMatrix(numberOfGroups, partitioner)
+    val (groupDestinations, partitionToPairsMap) = simulateLDMatrix(numberOfGroups, partitioner)
     val partitionToPairsMapBc = vds.hc.sc.broadcast(partitionToPairsMap)
 
     //(PartitionID, (GroupID, Iterable(VariantID, BPV)))
@@ -86,11 +89,6 @@ object LDMatrix {
 
     //Now with destination RDD created, I have to send groups to their partitions and do the local
     //matrix computation.
-
-    //Steps:
-    // 1. GroupBy to get everything associated with its partition number
-    // 2. Make it such that any BPV group can be accessed in constant time by its groupID.
-    // 3. Using the task list, construct the specified blocks.
 
     //Consider reduceByKey vs groupByKey
     val computedBlocks: RDD[((Int, Int), Matrix)] = destinationRDD.groupByKey(partitioner).flatMap { case (partitionID, groups: Iterable[(Long, Iterable[(Long, LDPrune.BitPackedVector)])]) =>
@@ -104,8 +102,7 @@ object LDMatrix {
         val g1Variants = groupMap.get(group1).get.map(_._2).toArray
         val g2Variants = groupMap.get(group2).get.map(_._2).toArray
 
-        //TODO verify that g1 and g2 Variants are definitely sorted.
-
+        //TODO verify that g1 and g2 Variants are definitely sorted (they should be).
         val dataLength = g1Variants.length * g2Variants.length
 
         val data = new Array[Double](dataLength)
@@ -126,31 +123,34 @@ object LDMatrix {
       blocks
     }
 
-
-    //Realize I've only computed upper triangle of blocks, so need to transpose to get rest of it.
     val allBlocks = computedBlocks.flatMap { case ((i, j), mat) =>
       if (i == j) List(((i, j), mat)) else List(((i, j), mat), ((j, i), mat.transpose))
      }
 
-    //Construct block matrix and convert to IndexedRowMatrix
-
     val blockMatrix: BlockMatrix = new BlockMatrix(allBlocks, groupSize, groupSize)
     val irm = blockMatrix.toIndexedRowMatrix()
 
-    //Make LD Matrix
     LDMatrix(irm, variantsKeptArray, nSamples)
 
   }
 
-  //Create a Map from group number to Set of partitions where this chunk is needed.
+  /**
+    * Computes two maps. The first map specifies which partitions a given group is needed on. The second map
+    * specifies which pairs must be computed by a given partition.
+    * @param numberOfGroups The total number of groups.
+    * @param partitioner The partitioner used to divide up the blocks that need to be computed.
+    * @return
+    */
   private def simulateLDMatrix(numberOfGroups: Int, partitioner: Partitioner): (Map[Int, Set[Int]], Map[Int, Set[(Int, Int)]]) = {
     // Generate all possible combos
     val range = (0 until numberOfGroups)
     val combos: Set[(Int, Int)] = range.combinations(2).map(seq => (seq(0), seq(1))).toSet ++ (range zip range).toSet
 
     // Now, use grid partitioner to assign these block coordinates to partitions
-    //TODO: Don't get partition twice for no reason.
-    val groupToPartitionSet = combos.flatMap(pair => List((pair._1, partitioner.getPartition(pair)), (pair._2, partitioner.getPartition(pair))))
+    val groupToPartitionSet = combos.flatMap{pair =>
+      val partition = partitioner.getPartition(pair)
+      List((pair._1, partition), (pair._2, partition))
+    }
     val groupToPartitionsMap = groupToPartitionSet.groupBy{ case(group, partition) => group}.map{ case(group, set) => (group, set.map(pair => pair._2))}
 
     //And also get the table that specifies which pairs make up a partition.

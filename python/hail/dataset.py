@@ -2350,12 +2350,12 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def ld_matrix(self):
+    def ld_matrix(self, groupSize):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
         
         **Examples**
         
-        >>> ld_mat = vds.ld_matrix()
+        >>> ld_mat = vds.ld_matrix(10)
         
         **Notes**
         
@@ -2381,7 +2381,7 @@ class VariantDataset(object):
         :rtype: :py:class:`LDMatrix`
         """
 
-        jldm = self._jvdf.ldMatrix()
+        jldm = self._jvdf.ldMatrix(groupSize)
         return LDMatrix(jldm)
 
     @handle_py4j

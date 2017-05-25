@@ -13,7 +13,7 @@ class LDMatrixSuite extends SparkSuite {
   val n = 100
   val seed = scala.util.Random.nextInt()
   val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val ldMatrix = LDMatrix.apply2(vds, 12, 7)//vds.ldMatrix()
+  val ldMatrix = vds.ldMatrix(10)
 
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests
@@ -69,7 +69,7 @@ class LDMatrixSuite extends SparkSuite {
     val localLD = localLDCompute(genotypes)
 
     val vds = stats.vdsFromMatrix(hc)(genotypes.t)
-    val distLdSpark = vds.ldMatrix().matrix.toBlockMatrix().toLocalMatrix()
+    val distLdSpark = vds.ldMatrix(1).matrix.toBlockMatrix().toLocalMatrix()
     val distLDBreeze = new DenseMatrix[Double](distLdSpark.numRows, distLdSpark.numCols, distLdSpark.toArray)
 
     TestUtils.assertMatrixEqualityDouble(distLDBreeze, localLD)
