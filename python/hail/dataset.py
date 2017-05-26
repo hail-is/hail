@@ -2350,12 +2350,14 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def ld_matrix(self, groupSize=1000):
+    def ld_matrix(self, block_size=1000):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
         
         **Examples**
         
-        >>> ld_mat = vds.ld_matrix(10)
+        Computes the LD matrix in 100 by 100 blocks.
+        
+        >>> ld_mat = vds.ld_matrix(100)
         
         **Notes**
         
@@ -2368,6 +2370,11 @@ class VariantDataset(object):
             \\rho_{x_i,x_j} = \\frac{\\mathrm{Cov}(X_i,X_j)}{\\sigma_{X_i} \\sigma_{X_j}}
         
         Also note that variants with zero variance (:math:`\\sigma = 0`) will be dropped from the matrix. 
+        
+        The algorithm to compute the LD matrix works by computing the square "blocks" that make up the matrix independently. The algorithm computes
+        many blocks in parallel, but the actual computation of each individual block is done serially. The block_size parameter
+        determines the dimensions of the blocks. For example, if the LD matrix being computed was of total size 100 by 100, 
+        a block size of 50 would result in the matrix being broken up into 4 blocks. 
 
         .. caution::
 
@@ -2376,12 +2383,14 @@ class VariantDataset(object):
           Most likely you'll want to reduce the number of variants with methods like
           :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, or :py:meth:`.ld_prune` before
           calling this unless your dataset is very small.
+          
+        :param int block_size: The size of the blocks used to compute the LD matrix. 
 
         :return: Matrix of r values between pairs of variants.
         :rtype: :py:class:`LDMatrix`
         """
 
-        jldm = self._jvdf.ldMatrix(groupSize)
+        jldm = self._jvdf.ldMatrix(block_size)
         return LDMatrix(jldm)
 
     @handle_py4j

@@ -19,6 +19,13 @@ object LDMatrix {
     * @return An LDMatrix.
     */
   def apply(vds: VariantDataset, blockSize: Int): LDMatrix = {
+    /*
+    This works by first breaking the set of all variants into "groups". Then simulateLDMatrix determines the partitions
+    where each group is needed. Finally, the groups are sent to their partitions, where they are combined in pairs with other
+    groups to form the "blocks" of a BlockMatrix. The dimensions of the blocks are the same as the sizes of the groups that
+    form them. The ids of the two groups that formed a block specify the block's coordinates in the block matrix.
+     */
+
     val nSamples = vds.nSamples
 
     val bitPackedOpts = vds.rdd.map { case (_, (_, gs)) => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples)}
