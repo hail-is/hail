@@ -55,15 +55,15 @@ object ComputeRRM {
 
     val mRec = 1d / rowCount
 
-    (new IndexedRowMatrix(computedGramian.rows.map(ir => new IndexedRow(ir.index, ir.vector.map(_ * mRec)))), rowCount)
+    (new IndexedRowMatrix(computedGramian.rows.map(ir => IndexedRow(ir.index, ir.vector.map(_ * mRec)))), rowCount)
   }
 }
 
 object LocalDenseMatrixToIndexedRowMatrix {
   def apply(dm: DenseMatrix[Double], sc: SparkContext): IndexedRowMatrix = {
     //TODO Is there a better Breeze to Spark conversion?
-    val range = (0 until dm.rows)
-    val numberedDVs = range.map(rowNum => IndexedRow(rowNum.toLong, (dm(rowNum, ::).t)))
+    val range = 0 until dm.rows
+    val numberedDVs = range.map(rowNum => IndexedRow(rowNum.toLong, dm(rowNum, ::).t))
     new IndexedRowMatrix(sc.parallelize(numberedDVs))
   }
 }
@@ -73,7 +73,7 @@ object ToNormalizedRowMatrix {
   def apply(vds: VariantDataset): RowMatrix = {
     require(vds.wasSplit)
     val n = vds.nSamples
-    val rows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.toNormalizedGtArray(gs, n) }.map(Vectors.dense)
+    val rows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, n) }.map(Vectors.dense)
     val m = rows.count()
     new RowMatrix(rows, m, n)
   }
@@ -86,8 +86,8 @@ object ToNormalizedIndexedRowMatrix {
     val n = vds.nSamples
     val variants = vds.variants.collect()
     val variantIdxBc = vds.sparkContext.broadcast(variants.index)
-    val indexedRows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.toNormalizedGtArray(gs, n).map(a => IndexedRow(variantIdxBc.value(v), Vectors.dense(a))) }
-    new IndexedRowMatrix(indexedRows, variants.length, n)
+    val indexedRows = vds.rdd.flatMap { case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, n).map(a => IndexedRow(variantIdxBc.value(v), Vectors.dense(a))) }
+    new IndexedRowMatrix(indexedRows, variants.size, n)
   }
 }
 
@@ -102,10 +102,10 @@ object ToHWENormalizedIndexedRowMatrix {
 
     val mat = vds.rdd.map { case (v, (va, gs)) =>
       IndexedRow(variantIdxBc.value(v), Vectors.dense(
-        RegressionUtils.toHWENormalizedGtArray(gs, n, variants.length).getOrElse(Array.ofDim[Double](n))))
+        RegressionUtils.normalizedHardCalls(gs, n, useHWE = true, variants.size).getOrElse(Array.ofDim[Double](n))))
     }
 
-    (variants, new IndexedRowMatrix(mat.cache(), variants.length, n))
+    (variants, new IndexedRowMatrix(mat.cache(), variants.size, n))
   }
 
 }

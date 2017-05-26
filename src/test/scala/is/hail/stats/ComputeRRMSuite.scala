@@ -23,7 +23,7 @@ class ComputeRRMSuite extends SparkSuite {
     val vds = stats.vdsFromMatrix(hc)(G0)
 
     val n = vds.nSamples
-    val gtVects = vds.rdd.collect().flatMap { case (v, (va, gs)) => RegressionUtils.toNormalizedGtArray(gs, n) }.map(DenseVector(_))
+    val gtVects = vds.rdd.collect().flatMap { case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, n) }.map(DenseVector(_))
 
     for (gts <- gtVects) {
       assert(math.abs(mean(gts)) < 1e-6)
@@ -35,7 +35,7 @@ class ComputeRRMSuite extends SparkSuite {
       W(::, i) *= math.sqrt(n) / norm(W(::, i))
     }
     val Klocal = (W * W.t) / W.cols.toDouble
-    val KwithoutBlock = ComputeRRM(vds, forceBlock = false)._1
+    val KwithoutBlock = ComputeRRM(vds)._1
     val KwithBlock = ComputeRRM(vds, forceBlock = true)._1
 
 
@@ -70,7 +70,7 @@ class ComputeRRMSuite extends SparkSuite {
     }
 
     val K1local = (W1 * W1.t) / W1.cols.toDouble
-    val K1withoutBlock = ComputeRRM(vds1, forceBlock = false)._1
+    val K1withoutBlock = ComputeRRM(vds1)._1
     val K1withBlock = ComputeRRM(vds1, forceBlock = true)._1
 
     TestUtils.assertMatrixEqualityDouble(K1local, convertToBreeze(K1withoutBlock))
