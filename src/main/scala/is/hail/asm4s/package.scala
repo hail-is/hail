@@ -245,24 +245,13 @@ package object asm4s {
   }
 
   object HailClassLoader extends ClassLoader {
-    val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[HailClassLoader.type]
-
     def loadOrDefineClass(name: String, b: Array[Byte]): Class[_] = {
       getClassLoadingLock(name).synchronized {
         try {
-          val clazz = defineClass(name, b, 0, b.length)
-          clazz
+          loadClass(name)
         } catch {
-          case e: java.lang.Throwable => {
-            try {
-              loadClass(name)
-            } catch {
-              case e2: java.lang.Throwable => {
-                e.printStackTrace(new PrintWriter(stderrAndLoggerErrorOS))
-                throw new RuntimeException("Failed to define or load class, check logs for the exception from defineClass.", e2)
-              }
-            }
-          }
+          case e: java.lang.ClassNotFoundException =>
+            defineClass(name, b, 0, b.length)
         }
       }
     }
