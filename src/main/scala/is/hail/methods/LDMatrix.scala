@@ -31,14 +31,14 @@ object LDMatrix {
     val bitPackedOpts = vds.rdd.map { case (_, (_, gs)) => LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples)}
     val filterArray = bitPackedOpts.map(!_.isEmpty).collect()
     val originalVariants = vds.variants.collect()
-    val variantsKeptArray = originalVariants.zip(filterArray).filter(_._2).map(_._1)
-    val nVariantsDropped = originalVariants.length - variantsKeptArray.length
+    val keptVariants = originalVariants.zip(filterArray).filter(_._2).map(_._1)
+    val nDroppedVariants = originalVariants.length - keptVariants.length
 
     val bpvs = bitPackedOpts.flatMap(x => x).zipWithIndex()
 
-    info(s"Computing LD Matrix with ${variantsKeptArray.length} variants using $nSamples samples. $nVariantsDropped variants were dropped.")
+    info(s"Computing LD Matrix with ${keptVariants.length} variants using $nSamples samples. $nDroppedVariants variants were dropped.")
 
-    val trueBlockSize = math.min(blockSize, variantsKeptArray.length)
+    val trueBlockSize = math.min(blockSize, keptVariants.length)
 
     val grouped = bpvs.map { case (bpv, vIdx) => (vIdx / trueBlockSize, (vIdx, bpv)) }
       .groupByKey()
@@ -46,7 +46,7 @@ object LDMatrix {
 
     val numberOfGroups = Math.ceil(grouped.count() / trueBlockSize.toDouble).toInt
 
-    val numBlocksOnDimension = math.ceil(variantsKeptArray.length.toDouble / trueBlockSize).toInt
+    val numBlocksOnDimension = math.ceil(keptVariants.length.toDouble / trueBlockSize).toInt
     val partitioner = reflectGridPartitioner(numBlocksOnDimension, numBlocksOnDimension, vds.rdd.getNumPartitions)
 
     val (groupDestinations, partitionToPairsMap) = simulateLDMatrix(numberOfGroups, partitioner)
@@ -89,7 +89,7 @@ object LDMatrix {
 
     val blockMatrix: BlockMatrix = new BlockMatrix(allBlocks, trueBlockSize, trueBlockSize)
 
-    LDMatrix(blockMatrix.toIndexedRowMatrix(), variantsKeptArray, nSamples)
+    LDMatrix(blockMatrix.toIndexedRowMatrix(), keptVariants, nSamples)
   }
 
   /**
