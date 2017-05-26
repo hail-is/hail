@@ -71,46 +71,49 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
 
   def merge(v: Variant, ACs: Array[Int], g: Genotype): SampleQCCombiner = {
 
-    g.gt match {
+    if (g == null)
+      nNotCalled += 1
+    else
+      g.gt match {
 
-      case Some(0) =>
-        nHomRef += 1
+        case Some(0) =>
+          nHomRef += 1
 
-      case Some(gt) =>
-        val nonRefAlleleIndices = Genotype.gtPair(gt).alleleIndices.filter(i => i > 0 && (keepStar || !v.altAlleles(i - 1).isStar))
+        case Some(gt) =>
+          val nonRefAlleleIndices = Genotype.gtPair(gt).alleleIndices.filter(i => i > 0 && (keepStar || !v.altAlleles(i - 1).isStar))
 
-        if (!nonRefAlleleIndices.isEmpty) {
-          nonRefAlleleIndices.foreach({
-            ai =>
-              val altAllele = v.altAlleles(ai - 1)
-              if (altAllele.isSNP) {
-                nSNP += 1
-                if (altAllele.isTransition)
-                  nTi += 1
-                else {
-                  assert(altAllele.isTransversion)
-                  nTv += 1
-                }
-              } else if (altAllele.isInsertion)
-                nIns += 1
-              else if (altAllele.isDeletion)
-                nDel += 1
+          if (!nonRefAlleleIndices.isEmpty) {
+            nonRefAlleleIndices.foreach({
+              ai =>
+                val altAllele = v.altAlleles(ai - 1)
+                if (altAllele.isSNP) {
+                  nSNP += 1
+                  if (altAllele.isTransition)
+                    nTi += 1
+                  else {
+                    assert(altAllele.isTransversion)
+                    nTv += 1
+                  }
+                } else if (altAllele.isInsertion)
+                  nIns += 1
+                else if (altAllele.isDeletion)
+                  nDel += 1
 
-              if (ACs(ai - 1) == 1)
-                nSingleton += 1
-          })
+                if (ACs(ai - 1) == 1)
+                  nSingleton += 1
+            })
 
-          if (nonRefAlleleIndices.length == 1 || nonRefAlleleIndices(0) != nonRefAlleleIndices(1))
-            nHet += 1
-          else
-            nHomVar += 1
-        }
-      case None =>
-        nNotCalled += 1
+            if (nonRefAlleleIndices.length == 1 || nonRefAlleleIndices(0) != nonRefAlleleIndices(1))
+              nHet += 1
+            else
+              nHomVar += 1
+          }
+        case None =>
+          nNotCalled += 1
 
-    }
+      }
 
-    if (g.isCalled) {
+    if (g != null && g.isCalled) {
       g.dp.foreach { v =>
         dpSC.merge(v)
       }
@@ -118,6 +121,7 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
         gqSC.merge(v)
       }
     }
+
     this
   }
 
