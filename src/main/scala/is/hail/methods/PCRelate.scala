@@ -44,7 +44,7 @@ object PCRelate {
 
     val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0)
 
-    val blockedG = DistributedMatrix[M].from(g, vds.nVariants, vds.nSamples)
+    val blockedG = DistributedMatrix[M].from(g, vds.countVariants(), vds.nSamples)
     val gMinusMu = (blockedG :- (mu * 2.0))
     val variance = (mu :* (1.0 - mu))
 
@@ -84,7 +84,7 @@ object PCRelate {
 
     val mu = muHat(pcs, beta)
 
-    val blockedG = DistributedMatrix[M].from(g, vds.nVariants, vds.nSamples)
+    val blockedG = DistributedMatrix[M].from(g, vds.countVariants(), vds.nSamples)
     val phihat = phiHat(blockedG, mu)
 
     // FIXME: what should I do if the genotype is missing?
