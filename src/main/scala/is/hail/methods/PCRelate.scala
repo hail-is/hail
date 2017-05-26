@@ -20,7 +20,7 @@ object PCRelate {
     val dm = DistributedMatrix[M]
     import dm.ops._
 
-    val g = vdsToMeanImputedMatrix(vds).cache()
+    val g = vdsToMeanImputedMatrix(vds)
 
     val beta = fitBeta(g, pcs)
 
@@ -42,9 +42,9 @@ object PCRelate {
     val pcsWithIntercept =
       new DenseMatrix(pcs.numRows, pcs.numCols + 1, pcsWithInterceptArray)
 
-    val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0).cache()
+    val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0)
 
-    val blockedG = DistributedMatrix[M].from(g).cache()
+    val blockedG = DistributedMatrix[M].from(g, vds.nVariants, vds.nSamples)
     val gMinusMu = (blockedG :- (mu * 2.0))
     val variance = (mu :* (1.0 - mu))
 
@@ -72,7 +72,7 @@ object PCRelate {
         1 - 4 * phiHat + k2
       else
         ibs0 / denom
-    val kZero = dm.map4(_k0)(phi, denom, kTwo, ibs0(vds)).cache()
+    val kZero = dm.map4(_k0)(phi, denom, kTwo, ibs0(vds))
 
     Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
   }
@@ -84,7 +84,7 @@ object PCRelate {
 
     val mu = muHat(pcs, beta)
 
-    val blockedG = DistributedMatrix[M].from(g)
+    val blockedG = DistributedMatrix[M].from(g, vds.nVariants, vds.nSamples)
     val phihat = phiHat(blockedG, mu)
 
     // FIXME: what should I do if the genotype is missing?
