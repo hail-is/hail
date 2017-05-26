@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import org.testng.annotations.Test
 
 class GenomeReferenceSuite extends SparkSuite {
-  @Test def test() {
+  @Test def testGRCh37() {
     val grch37 = GenomeReference.GRCh37
 
     assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))
@@ -17,8 +17,9 @@ class GenomeReferenceSuite extends SparkSuite {
 
     assert(parXLocus37.forall(grch37.inXPar) && parYLocus37.forall(grch37.inYPar))
     assert(!nonParXLocus37.forall(grch37.inXPar) && !nonParYLocus37.forall(grch37.inYPar))
+  }
 
-
+  @Test def testGRCh38() {
     val grch38 = GenomeReference.GRCh38
 
     assert(grch38.inX("chrX") && grch38.inY("chrY") && grch38.isMitochondrial("chrM"))
@@ -31,7 +32,9 @@ class GenomeReferenceSuite extends SparkSuite {
 
     assert(parXLocus38.forall(grch38.inXPar) && parYLocus38.forall(grch38.inYPar))
     assert(!nonParXLocus38.forall(grch38.inXPar) && !nonParYLocus38.forall(grch38.inYPar))
+  }
 
+  @Test def testReadWrite() {
     val localGenomeReference = hc.genomeReference
     val vds = hc.importVCF("src/test/resources/sample.vcf")
     assert(vds.filterVariants { case (v, va, gs) => v.isMitochondrial(localGenomeReference) }.countVariants() == 0)
@@ -40,7 +43,13 @@ class GenomeReferenceSuite extends SparkSuite {
     vds.write(f)
 
     hc.read(f).countVariants()
-
     hc.read("src/test/resources/sample.vds").countVariants() // Make sure can still read old VDS
+  }
+
+  @Test def testAssertions() {
+    intercept[AssertionError](GenomeReference("test", Array(Contig("1", 5), Contig("2", 5), Contig("3", 5)), Set("X"), Set.empty[String], Set.empty[String]))
+    intercept[AssertionError](GenomeReference("test", Array(Contig("1", 5), Contig("2", 5), Contig("3", 5)), Set.empty[String], Set("Y"), Set.empty[String]))
+    intercept[AssertionError](GenomeReference("test", Array(Contig("1", 5), Contig("2", 5), Contig("3", 5)), Set.empty[String], Set.empty[String], Set("MT")))
+    intercept[AssertionError](GenomeReference("test", Array.empty[Contig], Set.empty[String], Set.empty[String], Set.empty[String]))
   }
 }

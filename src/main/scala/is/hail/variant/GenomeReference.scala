@@ -22,9 +22,9 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
   val yNotInRef = yContigs.diff(contigNames.toSet)
   val mtNotInRef = mtContigs.diff(contigNames.toSet)
 
-  assert(xNotInRef.isEmpty, s"The following provided X contigs were not found in the reference: `${xNotInRef.mkString(", ")}'.")
-  assert(yNotInRef.isEmpty, s"The following provided Y contigs were not found in the reference: `${yNotInRef.mkString(", ")}'.")
-  assert(mtNotInRef.isEmpty, s"The following provided MT contigs were not found in the reference: `${mtNotInRef.mkString(", ")}'.")
+  assert(xNotInRef.isEmpty, s"The following X contig names were not found in the reference: `${xNotInRef.mkString(", ")}'.")
+  assert(yNotInRef.isEmpty, s"The following Y contig names were not found in the reference: `${yNotInRef.mkString(", ")}'.")
+  assert(mtNotInRef.isEmpty, s"The following MT contig names were not found in the reference: `${mtNotInRef.mkString(", ")}'.")
 
   val xContigIndices = xContigs.map(contigIndex)
   val yContigIndices = yContigs.map(contigIndex)

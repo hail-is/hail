@@ -82,9 +82,9 @@ class VSMSuite extends SparkSuite {
     assert(mdata2 != mdata4)
     assert(mdata3 != mdata4)
 
-    val v1 = Variant(0, 1, "A", "T")
-    val v2 = Variant(0, 2, "T", "G")
-    val v3 = Variant(0, 2, "T", "A")
+    val v1 = Variant("1", 1, "A", "T")
+    val v2 = Variant("1", 2, "T", "G")
+    val v3 = Variant("1", 2, "T", "A")
 
     val r1 = Annotation(Annotation("yes"), "yes")
     val r2 = Annotation(Annotation("yes"), "no")

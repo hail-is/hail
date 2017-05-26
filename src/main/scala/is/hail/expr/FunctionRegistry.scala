@@ -765,7 +765,7 @@ object FunctionRegistry {
   registerFieldCode("isLinearScale",
     { (x: Code[Genotype]) => CM.ret(boxBoolean(x.invoke[Boolean]("isLinearScale"))) },
     "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
-  registerMethod("contig",
+  registerField("contig",
     { (x: Variant) => x.contigStr(gr) },
     "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")
   registerFieldCode("start",
