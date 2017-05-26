@@ -11,26 +11,32 @@ import org.json4s.jackson.JsonMethods
 case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
   yContigs: Set[String], mtContigs: Set[String]) extends Serializable {
 
-  assert(contigs.length > 0, "Must have at least one contig in genome reference.")
+  assert(contigs.length > 0, "Must have at least one contig in the genome reference.")
 
   var par: Array[Interval[Locus]] = _
 
   val contigIndex: Map[String, Int] = contigs.map(_.name).zipWithIndex.toMap
   val contigNames: Array[String] = contigs.map(_.name)
 
-  assert(xContigs.forall(contigNames.contains) && yContigs.forall(contigNames.contains) && mtContigs.forall(contigNames.contains))
+  val xNotInRef = xContigs.diff(contigNames.toSet)
+  val yNotInRef = yContigs.diff(contigNames.toSet)
+  val mtNotInRef = mtContigs.diff(contigNames.toSet)
+
+  assert(xNotInRef.isEmpty, s"The following provided X contigs were not found in the reference: `${xNotInRef.mkString(", ")}'.")
+  assert(yNotInRef.isEmpty, s"The following provided Y contigs were not found in the reference: `${yNotInRef.mkString(", ")}'.")
+  assert(mtNotInRef.isEmpty, s"The following provided MT contigs were not found in the reference: `${mtNotInRef.mkString(", ")}'.")
 
   val xContigIndices = xContigs.map(contigIndex)
   val yContigIndices = yContigs.map(contigIndex)
   val mtContigIndices = mtContigs.map(contigIndex)
 
-  def inX(contig: Int): Boolean = xContigIndices.contains(contig)
+  def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
   def inX(contig: String): Boolean = xContigs.contains(contig)
 
-  def inY(contig: Int): Boolean = yContigIndices.contains(contig)
+  def inY(contigIdx: Int): Boolean = yContigIndices.contains(contigIdx)
   def inY(contig: String): Boolean = yContigs.contains(contig)
 
-  def isMitochondrial(contig: Int): Boolean = mtContigIndices.contains(contig)
+  def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
   def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
 
   def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
@@ -62,7 +68,8 @@ object GenomeReference {
   def setReference(gr: GenomeReference) {
     if (genomeReference == null) {
       synchronized {
-        genomeReference = gr
+        if (genomeReference == null)
+          genomeReference = gr
       }
     }
   }
