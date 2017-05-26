@@ -77,7 +77,7 @@ class LDMatrixSuite extends SparkSuite {
     val localLD = localLDCompute(genotypes)
 
     val vds = stats.vdsFromMatrix(hc)(genotypes.t)
-    val distLdSpark = vds.ldMatrix(1).matrix.toBlockMatrix().toLocalMatrix()
+    val distLDSpark = vds.ldMatrix(1).matrix.toBlockMatrix().toLocalMatrix()
     val distLDBreeze = new DenseMatrix[Double](distLdSpark.numRows, distLdSpark.numCols, distLdSpark.toArray)
 
     TestUtils.assertMatrixEqualityDouble(distLDBreeze, localLD)
