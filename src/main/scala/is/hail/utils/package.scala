@@ -478,14 +478,9 @@ package object utils extends Logging
     val resourceStream = Thread.currentThread().getContextClassLoader.getResourceAsStream(file)
     assert(resourceStream != null, s"Error while locating file `$file'")
 
-    try {
+    try
       reader(resourceStream)
-    } finally {
-      try {
-        resourceStream.close()
-      } catch {
-        case e: Exception =>
-      }
-    }
+    finally
+      resourceStream.close()
   }
 }
