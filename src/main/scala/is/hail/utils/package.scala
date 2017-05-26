@@ -480,13 +480,11 @@ package object utils extends Logging
 
     try {
       reader(resourceStream)
-    } catch {
-      case e: Exception => throw new RuntimeException(s"Error loading data from file `$file'", e)
     } finally {
       try {
         resourceStream.close()
       } catch {
-        case e: Exception => throw new RuntimeException(s"Error closing resource stream from file `$file'", e)
+        case e: Exception =>
       }
     }
   }
