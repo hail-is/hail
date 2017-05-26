@@ -45,10 +45,10 @@ object PCRelate {
     val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0).cache()
 
     val blockedG = DistributedMatrix[M].from(g).cache()
-    val gMinusMu = (blockedG :- (mu * 2.0)).cache()
-    val variance = (mu :* (1.0 - mu)).cache()
+    val gMinusMu = (blockedG :- (mu * 2.0))
+    val variance = (mu :* (1.0 - mu))
 
-    val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0).cache()
+    val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0)
 
     val gD = DistributedMatrix[M].map2({
       case (g, mu) =>
@@ -58,12 +58,12 @@ object PCRelate {
         else g
     })(blockedG, mu)
 
-    val normalizedGD = (gD :- (variance --* (f(phi).map(1 + _)))).cache()
+    val normalizedGD = (gD :- (variance --* (f(phi).map(1 + _))))
 
-    val kTwo = ((normalizedGD.t * normalizedGD) :/ (variance.t * variance)).cache()
+    val kTwo = ((normalizedGD.t * normalizedGD) :/ (variance.t * variance))
 
-    val mu2 = dm.map(sqr _)(mu).cache()
-    val oneMinusMu2 = dm.map(sqr _)(1.0 - mu).cache()
+    val mu2 = dm.map(sqr _)(mu)
+    val oneMinusMu2 = dm.map(sqr _)(1.0 - mu)
 
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
 
