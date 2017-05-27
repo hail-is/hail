@@ -20,7 +20,7 @@ class ComputeRRMSuite extends SparkSuite {
                         (2.0, 1.5),
                         (0.0, 2.0))
 
-    val vds = stats.vdsFromMatrix(hc)(G0)
+    val vds = stats.vdsFromGtMatrix(hc)(G0)
 
     val n = vds.nSamples
     val gtVects = vds.rdd.collect().flatMap { case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, n) }.map(DenseVector(_))

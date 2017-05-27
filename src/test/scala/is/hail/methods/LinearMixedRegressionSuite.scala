@@ -13,6 +13,10 @@ import org.testng.annotations.Test
 
 class LinearMixedRegressionSuite extends SparkSuite {
 
+  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
+    assert(D_==(a.asInstanceOf[Double], value, tol))
+  }
+  
   @Test def lmmSmallExampleTest() {
 
     val y = DenseVector(0d, 0d, 1d, 1d, 1d, 1d)
@@ -55,10 +59,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val V = rrm + DenseMatrix.eye[Double](n) * delta
 
     val invChol = inv(cholesky(V))
-
     val yc = invChol * y
     val Cc = invChol * C
-
     val beta = (Cc.t * Cc) \ (Cc.t * yc)
     val res = norm(yc - Cc * beta)
     val sg2 = (res * res) / (n - c)
@@ -82,29 +84,27 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
-
-    // Now testing association per variant
-    // First solve directly with Cholesky
-    val directResult = (0 until mG).map { j =>
-      val xIntArray = G(::, j).toArray
-      val x = convert(G(::, j to j), Double)
+    
+    def lmmfit(x: DenseMatrix[Double]): (Double, Double, Double, Double) = {
       val xC = DenseMatrix.horzcat(x, C)
+      val yc = invChol * y
       val xCc = invChol * xC
       val beta = (xCc.t * xCc) \ (xCc.t * yc)
       val res = norm(yc - xCc * beta)
       val sg2 = (res * res) / (n - c)
       val chi2 = n * (model.logNullS2 - math.log(sg2))
       val pval = chiSquaredTail(1d, chi2)
-      val nHomRef = xIntArray.count(_ == 0)
-      val nHet = xIntArray.count(_ == 1)
-      val nHomVar = xIntArray.count(_ == 2)
-      val nMissing = xIntArray.count(_ == -1)
-      val af = (nHet + 2 * nHomVar).toDouble / (2 * (n - nMissing))
-      (Variant("1", j + 1, "A", "C"), (beta(0), sg2, chi2, pval, af, nHomRef, nHet, nHomVar, nMissing))
-    }.toMap
+      
+      (beta(0), sg2, chi2, pval)
+    }
+
+    // Now testing association per variant
+    // Solve directly with Cholesky
+    val directResult = (0 until mG).map { j => 
+      (Variant("1", j + 1, "A", "C"), lmmfit(convert(G(::, j to j), Double))) }.toMap
 
     // Then solve with LinearMixeModel and compare
-    val vds0 = vdsFromMatrix(hc)(G)
+    val vds0 = vdsFromGtMatrix(hc)(G)
     val pheno = y.toArray
     val cov1 = C(::, 1).toArray
     val cov2 = C(::, 2).toArray
@@ -115,31 +115,58 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TDouble, "sa.cov2")
     val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= 2)
 
-    val vds = LinearMixedRegression(assocVds, kinshipVds.rrm(), "sa.pheno", covExpr = Array("sa.cov1", "sa.cov2"),
-      useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = true, optDelta = Some(delta),
-      sparsityThreshold = 1.0)
+    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
     val qChi2 = vds.queryVA("va.lmmreg.chi2")._2
     val qPval = vds.queryVA("va.lmmreg.pval")._2
 
-    val annotationMap = vds.variantsAndAnnotations.collect().toMap
-
-    def assertInt(q: Querier, v: Variant, value: Int) = q(annotationMap(v)).asInstanceOf[Int] == value
-
-    def assertDouble(q: Querier, v: Variant, value: Double) = {
-      val x = q(annotationMap(v)).asInstanceOf[Double]
-      assert(D_==(x, value))
-    }
+    val a = vds.variantsAndAnnotations.collect().toMap
 
     (0 until mG).foreach { j =>
       val v = Variant("1", j + 1, "A", "C")
-      val (beta, sg2, chi2, pval, af, nHomRef, nHet, nHomVar, nMissing) = directResult(v)
-      assertDouble(qBeta, v, beta)
-      assertDouble(qSg2, v, sg2)
-      assertDouble(qChi2, v, chi2)
-      assertDouble(qPval, v, pval)
+      val (beta, sg2, chi2, pval) = directResult(v)
+      assertDouble(qBeta(a(v)), beta)
+      assertDouble(qSg2(a(v)), sg2)
+      assertDouble(qChi2(a(v)), chi2)
+      assertDouble(qPval(a(v)), pval)
+    }
+    
+    // test dosages
+    val PX = DenseMatrix(
+      (Array(0.1, 0.2, 0.7), null),
+      (Array(0.0, 0.2, 0.8), Array(1.0, 0.0, 0.0)),
+      (Array(0.5, 0.2, 0.3), Array(0.4, 0.3, 0.3)),
+      (Array(0.6, 0.2, 0.2), Array(0.2, 0.2, 0.6)),
+      (Array(1.0, 0.0, 0.0), Array(0.1, 0.2, 0.7)),
+      (Array(0.0, 1.0, 0.0), Array(0.9, 0.1, 0.0)))
+    
+    val dosageMat = PX.map(a => if (a != null) a(1) + 2 * a(2) else 0)
+    dosageMat.update(0, 1, (sum(dosageMat(::, 1)) - dosageMat(0, 1)) / 5) // mean impute missing value
+    
+    val vds1 = vdsFromPxMatrix(hc)(nAlleles = 2, PX)
+      .annotateSamples(vds0.sampleIds.zip(pheno).toMap, TDouble, "sa.pheno")
+      .annotateSamples(vds0.sampleIds.zip(cov1).toMap, TDouble, "sa.cov1")
+      .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TDouble, "sa.cov2")
+      .lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), useDosages = true)
+    
+    val directResult1 = (0 until 2).map { j => (Variant("1", j + 1, "A", "C"), lmmfit(dosageMat(::, j to j))) }.toMap
+    
+    val qBeta1 = vds1.queryVA("va.lmmreg.beta")._2
+    val qSg21 = vds1.queryVA("va.lmmreg.sigmaG2")._2
+    val qChi21 = vds1.queryVA("va.lmmreg.chi2")._2
+    val qPval1 = vds1.queryVA("va.lmmreg.pval")._2
+
+    val a1 = vds1.variantsAndAnnotations.collect().toMap
+    
+    (0 until 2).foreach { j =>
+      val v = Variant("1", j + 1, "A", "C")
+      val (beta, sg2, chi2, pval) = directResult1(v)
+      assertDouble(qBeta1(a1(v)), beta, 1e-3)
+      assertDouble(qSg21(a1(v)), sg2, 1e-3)
+      assertDouble(qChi21(a1(v)), chi2, 1e-3)
+      assertDouble(qPval1(a1(v)), pval, 1e-3)
     }
   }
 
@@ -178,7 +205,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val W = convert(G(::, 0 until mW), Double)
 
     // each row has mean 0, norm sqrt(n), variance 1
-    // each row has mean 0, norm sqrt(n), variance 1
     for (i <- 0 until mW) {
       W(::, i) -= mean(W(::, i))
       W(::, i) *= math.sqrt(n) / norm(W(::, i))
@@ -192,17 +218,13 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val V = rrm + DenseMatrix.eye[Double](n) * delta
 
     val invChol = inv(cholesky(V))
-
     val yc = invChol * y
     val Cc = invChol * C
-
     val beta = (Cc.t * Cc) \ (Cc.t * yc)
     val res = norm(yc - Cc * beta)
     val sg2 = (res * res) / (n - c)
     val se2 = delta * sg2
     val h2 = sg2 / (se2 + sg2)
-
-    // println(beta, sg2, se2, h2)
 
     // Then solve with DiagLMM and compare
     val eigRRM = eigSymD(rrm)
@@ -235,7 +257,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     }.toMap
 
     // Then solve with LinearMixedModel and compare
-
     val pheno = y.toArray
     val covExpr = (1 until c).map(i => s"sa.covs.cov$i").toArray
     val covSchema = TStruct((1 until c).map(i => (s"cov$i", TDouble)): _*)
@@ -247,26 +268,18 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(covData, covSchema, "sa.covs")
     val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= mW)
 
-    val vds = LinearMixedRegression(assocVds, kinshipVds.rrm(), "sa.pheno", covExpr = covExpr,
-      useML = false, rootGA = "global.lmmreg", rootVA = "va.lmmreg", runAssoc = true, optDelta = Some(delta),
-      sparsityThreshold = 1.0)
+    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = covExpr, delta = Some(delta))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
 
-    val annotationMap = vds.variantsAndAnnotations.collect().toMap
-
-    def assertDouble(q: Querier, v: Variant, value: Double) = {
-      val x = q(annotationMap(v)).asInstanceOf[Double]
-      // println(x, value, v)
-      assert(D_==(x, value))
-    }
+    val a = vds.variantsAndAnnotations.collect().toMap
 
     (0 until mG).foreach { j =>
       val v = Variant("1", j + 1, "A", "C")
       val (beta, sg2) = directResult(v)
-      assertDouble(qBeta, v, beta)
-      assertDouble(qSg2, v, sg2)
+      assertDouble(qBeta(a(v)), beta)
+      assertDouble(qSg2(a(v)), sg2)
     }
   }
 

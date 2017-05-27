@@ -2743,9 +2743,10 @@ class VariantDataset(object):
                       run_assoc=bool,
                       use_ml=bool,
                       delta=nullable(numeric),
-                      sparsity_threshold=numeric)
+                      sparsity_threshold=numeric,
+                      use_dosages=bool)
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0):
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
@@ -2826,6 +2827,12 @@ class VariantDataset(object):
 
         >>> lmm_vds.export_variants('output/lmmreg.tsv.bgz', 'variant = v, va.lmmreg.*')
         >>> lmmreg_results = lmm_vds.globals['lmmreg']
+        
+        By default, genotypes values are given by hard call genotypes (``g.gt``).
+        If ``use_dosages=True``, then genotype values for per-variant association are defined by the dosage
+        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
+        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
+        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
 
         **Performance**
 
@@ -2954,13 +2961,15 @@ class VariantDataset(object):
 
         :param float sparsity_threshold: Genotype vector sparsity at or below which to use sparse genotype vector in rotation (advanced).
 
+        :param bool use_dosages: If true, use genotype dosage rather than hard call.
+
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
         jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc,
-                                 joption(delta), sparsity_threshold)
+                                 joption(delta), sparsity_threshold, use_dosages)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
