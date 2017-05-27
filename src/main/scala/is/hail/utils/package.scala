@@ -473,4 +473,14 @@ package object utils extends Logging
     }
     expansion
   }
+
+  def loadFromResource[T](file: String)(reader: (InputStream) => T): T = {
+    val resourceStream = Thread.currentThread().getContextClassLoader.getResourceAsStream(file)
+    assert(resourceStream != null, s"Error while locating file `$file'")
+
+    try
+      reader(resourceStream)
+    finally
+      resourceStream.close()
+  }
 }

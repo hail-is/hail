@@ -28,6 +28,8 @@ object Contig {
   }
 }
 
+case class Contig(name: String, length: Int)
+
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
   val SNP, MNP, Insertion, Deletion, Complex, Star = Value
