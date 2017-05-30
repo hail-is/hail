@@ -12,8 +12,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--name', '-n', required=True, type=str, help='Name of cluster.')
 
 # arguments with default parameters
-parser.add_argument('--image-version', default='1.1', type=str, help='Google dataproc image version.')
 parser.add_argument('--hash', default='latest', type=str, help='Hail build to use for notebook initialization.')
+parser.add_argument('--spark', default='2.0.2', type=str, choices=['2.0.2', '2.1.0'], help='Spark version used to build Hail.')
 parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str, help='Master machine type.')
 parser.add_argument('--master-boot-disk-size', default='100GB', type=str, help='Disk size of master machine.')
 parser.add_argument('--num-master-local-ssds', default='0', type=str, help='Number of local SSDs to attach to the master machine.')
@@ -33,13 +33,20 @@ parser.add_argument('--vep', action='store_true')
 # parse arguments
 args = parser.parse_args()
 
+# Google dataproc image version to use
+if args.spark == '2.0.2':
+    image_version = '1.1'
+elif args.spark == '2.1.0':
+    image_version = 'preview'
+
+# default to highmem machines if using VEP
 if not args.worker_machine_type:
     if args.vep:
         args.worker_machine_type = 'n1-highmem-8'
     else:
         args.worker_machine_type = 'n1-standard-8' # default
 
-# master machine type to memory map, to set spark.driver.memory property
+# master machine type to memory map, used for setting spark.driver.memory property
 machine_mem = {
     'n1-standard-1': 3.75,
     'n1-standard-2': 7.5,
@@ -84,14 +91,17 @@ if args.hash == 'latest':
     hail_hash = subprocess.Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash.txt'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].strip()
 else:
     hail_hash = args.hash
+
+# prepare metadata values
+metadata = 'HASH={0},SPARK={1}'.format(hail_hash, args.spark)
     
 # command to start cluster
 cmd = ' '.join([
     'gcloud dataproc clusters create',
     args.name,
-    '--image-version={}'.format(args.image_version),
+    '--image-version={}'.format(image_version),
     '--master-machine-type={}'.format(args.master_machine_type),
-    '--metadata "HASH={}"'.format(hail_hash),
+    '--metadata {}'.format(metadata),
     '--master-boot-disk-size={}'.format(args.master_boot_disk_size),
     '--num-master-local-ssds={}'.format(args.num_master_local_ssds),
     '--num-preemptible-workers={}'.format(args.num_preemptible_workers),
