@@ -13,6 +13,7 @@ parser.add_argument('--name', '-n', required=True, type=str, help='Name of clust
 
 # arguments with default parameters
 parser.add_argument('--image-version', default='1.1', type=str, help='Google dataproc image version.')
+parser.add_argument('--hash', default='latest', type=str, help='Hail build to use for notebook initialization.')
 parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str, help='Master machine type.')
 parser.add_argument('--master-boot-disk-size', default='100GB', type=str, help='Disk size of master machine.')
 parser.add_argument('--num-master-local-ssds', default='0', type=str, help='Number of local SSDs to attach to the master machine.')
@@ -26,6 +27,7 @@ parser.add_argument('--zone', default='us-central1-b', type=str, help='Compute z
 parser.add_argument('--properties', default='', type=str, help='Additional configuration properties for the cluster.')
 
 # initialization action flags
+parser.add_argument('--init', default='gs://hail-common/init_notebook.py', help='comma-separated list of init scripts to run.')
 parser.add_argument('--vep', action='store_true')
 
 # parse arguments
@@ -72,11 +74,16 @@ properties = ','.join([
 ])
 
 # default initialization script to start up cluster with
-init_actions = 'gs://hail-common/init_notebook.py'
+init_actions = args.init
 
 # add VEP action
 if args.vep:
-    init_actions = init_actions + ',' + 'gs://hail-common/vep/vep/vep85-init.sh'
+    init_actions = args.init + ',' + 'gs://hail-common/vep/vep/vep85-init.sh'
+
+if args.hash == 'latest':
+    hail_hash = subprocess.Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash.txt'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].strip()
+else:
+    hail_hash = args.hash
     
 # command to start cluster
 cmd = ' '.join([
@@ -84,6 +91,7 @@ cmd = ' '.join([
     args.name,
     '--image-version={}'.format(args.image_version),
     '--master-machine-type={}'.format(args.master_machine_type),
+    '--metadata "HASH={}"'.format(hail_hash),
     '--master-boot-disk-size={}'.format(args.master_boot_disk_size),
     '--num-master-local-ssds={}'.format(args.num_master_local_ssds),
     '--num-preemptible-workers={}'.format(args.num_preemptible_workers),

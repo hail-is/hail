@@ -30,7 +30,7 @@ if role == 'Master':
         call(['/home/anaconda2/bin/pip', 'install', pkg])
 
     # get latest Hail hash
-    hash = Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash.txt'], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
+    hash = Popen('/usr/share/google/get_metadata_value attributes/HASH', shell=True, stdout=PIPE).communicate()[0].strip()
 
     # Hail jar and zip names
     hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hash)
