@@ -29,11 +29,12 @@ if role == 'Master':
     for pkg in pkgs:
         call(['/home/anaconda2/bin/pip', 'install', pkg])
 
-    # get latest Hail hash
+    # get Hail hash and Spark version to use for Jupyter notebook
     hash = Popen('/usr/share/google/get_metadata_value attributes/HASH', shell=True, stdout=PIPE).communicate()[0].strip()
+    spark = Popen('/usr/share/google/get_metadata_value attributes/SPARK', shell=True, stdout=PIPE).communicate()[0].strip() 
 
     # Hail jar and zip names
-    hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hash)
+    hail_jar = 'hail-hail-is-master-all-spark{0}-{1}.jar'.format(spark, hash)
     hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
 
     # make directory for Hail and Jupyter notebook related files
@@ -58,6 +59,7 @@ if role == 'Master':
         'env': {
             'PYTHONHASHSEED': '0',
             'SPARK_HOME': '/usr/lib/spark/',
+            'SPARK_CONF_DIR': '/home/hail/conf/',
             'PYTHONPATH': '/usr/lib/spark/python/:/usr/lib/spark/python/lib/py4j-0.10.3-src.zip:/home/hail/pyhail-hail-is-master-{}.zip'.format(hash)
         }
     }    
@@ -67,19 +69,27 @@ if role == 'Master':
     with open('/home/anaconda2/share/jupyter/kernels/hail/kernel.json', 'wb') as f:
         json.dump(kernel, f)
 
-    # modify default Spark config file to reference Hail jar and zip
-    with open('/etc/spark/conf/spark-defaults.conf', 'ab') as f:
+    # make directory for custom Spark conf
+    os.mkdir('/home/hail/conf')
+
+    # copy conf files to custom directory
+    call(['cp', '/etc/spark/conf/spark-defaults.conf', '/home/hail/conf/spark-defaults.conf'])
+    call(['cp', '/etc/spark/conf/spark-env.sh', '/home/hail/conf/spark-env.sh'])
+
+    # modify custom Spark conf file to reference Hail jar and zip
+    with open('/home/hail/conf/spark-defaults.conf', 'ab') as f:
         opts = [
             'spark.files=/home/hail/{}'.format(hail_jar),
             'spark.submit.pyFiles=/home/hail/{}'.format(hail_zip),
-            'spark.driver.extraClassPath=./{0}:/home/hail/{0}'.format(hail_jar),
-            'spark.executor.extraClassPath=./{0}:/home/hail/{0}'.format(hail_jar)
+            'spark.driver.extraClassPath=./{}'.format(hail_jar),
+            'spark.executor.extraClassPath=./{}'.format(hail_jar)
         ]
         f.write('\n'.join(opts))
 
-    # add Spark variable designating Anaconda Python executable as the default on driver
-    with open('/etc/spark/conf/spark-env.sh', 'ab') as f:
-        f.write('PYSPARK_DRIVER_PYTHON=/home/anaconda2/bin/python' + '\n')
+    # add Spark variable designating Anaconda Python executable as the default on driver, in both custom and default conf files
+    with open('/home/hail/conf/spark-env.sh', 'ab') as f_custom, open('/etc/spark/conf/spark-env.sh', 'ab') as f_default:
+        f_custom.write('PYSPARK_DRIVER_PYTHON=/home/anaconda2/bin/python' + '\n')
+        f_default.write('PYSPARK_DRIVER_PYTHON=/home/anaconda2/bin/python' + '\n')
 
     # create Jupyter configuration file
     call(['mkdir', '-p', '/home/anaconda2/etc/jupyter/'])
@@ -126,4 +136,3 @@ if role == 'Master':
 
     # sleep for 30 seconds to allow Jupyter notebook server to start
     time.sleep(30)
-

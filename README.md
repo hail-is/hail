@@ -1,14 +1,14 @@
 # cloud-tools
 This is a small collection of scripts for working with Hail on Google Cloud Dataproc service from your local machine.
 
-To use the scripts here, you'll also need the Google Cloud SDK -- see quickstart instructions for Mac OS X [here](https://cloud.google.com/sdk/docs/quickstart-mac-os-x). The scripts in this repository are wrappers around the functionality in the SDK.
+To use the scripts here, you'll also need the Google Cloud SDK -- see quickstart instructions for Mac OS X [here](https://cloud.google.com/sdk/docs/quickstart-mac-os-x). (Tip: to determine if your Mac type is x86 or x86_64, type `set | grep MACHTYPE` in the terminal.) The scripts in this repository are wrappers around the functionality in the SDK.
 
 To get started, clone this repository:
 ```
 $ git clone https://github.com/Nealelab/cloud-tools.git
 ```
 
-If you'd like command line shortcuts to these scripts, add these lines to `~/.bash_profile` or `~/.bashrc`: 
+If you'd like command line shortcuts to these scripts, add these lines to `~/.bash_profile` or `~/.bashrc`, changing the paths to reflect the directory to which you've cloned the repository on your local machine: 
 ```
 alias start-cluster=/path/to/cloud-tools/start_cluster.py
 alias submit-cluster=/path/to/cloud-tools/submit_cluster.py
@@ -38,6 +38,21 @@ Job [...] finished successfully.
 This snippet starts a cluster with the defaults included in `start_cluster.py` and submits a Hail Python script as a job. 
 
 The notebook initialization script installs an Anaconda Python2.7 distribution on the cluster's master machine, so you'll have access to pandas, numpy, etc. in your scripts.
+
+To setup your cluster with VEP annotation capabilities, add the flag `--vep` to the command:
+```
+$ start-cluster --name mycluster --vep
+```
+
+By default, `submit_cluster.py` will use the latest Hail build in `gs://hail-common/`. To use a previous build found in that bucket, specify the build hash using the `--hash` flag:
+```
+$ submit-cluster --name mycluster --hash some_other_hash myhailscript.py
+```
+
+You can also use custom Hail jar and zip files located in Google Storage buckets with the `--jar` and `--zip` flags:
+```
+$ submit-cluster --name mycluster --jar gs://mybucket/hail-all-spark.jar --zip gs://mybucket/hail-python.zip myhailscript.py
+```
 
 While your job is running, you can monitor its progress through the Spark Web UI running on the cluster's master machine. To connect to the SparkUI from your local machine, use:
 ```
@@ -79,3 +94,8 @@ with hail.hadoop_read('gs://mybucket/mydata.tsv') as f:
 ```
 
 When you save your notebooks using either `File -> Save and Checkpoint` or `command + s`, they'll be saved automatically to the bucket you're working in.
+
+By default, the Jupyter notebook will use the latest Hail build found in `gs://hail-common/`. To use a previous build found in that bucket, you'll need to indicate the hash of the build you'd like to use when starting your cluster:
+```
+$ start-cluster --name mycluster --hash some_other_hash
+```
