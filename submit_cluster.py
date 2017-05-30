@@ -23,7 +23,7 @@ if args.jar:
     hail_jar = args.jar.rsplit('/')[-1]
     jar_path = args.jar
 else:
-    hail_jar = 'hail-hail-is-master-all-2.0.2-{}.jar'.format(hail_hash)
+    hail_jar = 'hail-hail-is-master-all-spark2.0.2-{}.jar'.format(hail_hash)
     jar_path = 'gs://hail-common/' + hail_jar
 
 # Hail archive
