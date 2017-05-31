@@ -136,7 +136,9 @@ object Gen {
   def chooseWithWeights(weights: Array[Double]): Gen[Int] =
     frequency(weights.zipWithIndex.map { case (w, i) => (w, Gen.const(i)) }: _*)
 
-  def frequency[T, U](wxs: (T, Gen[U])*)(implicit ev: T => scala.math.Numeric[T]#Ops): Gen[U] = {
+  def frequency[T, U](wxs: (T, Gen[U])*)(implicit ev: scala.math.Numeric[T]): Gen[U] = {
+    import Numeric.Implicits._
+
     assert(wxs.nonEmpty)
 
     val running = Array.fill[Double](wxs.length)(0d)

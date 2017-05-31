@@ -117,7 +117,7 @@ class GenericDatasetSuite extends SparkSuite {
         (data1, data2) match {
           case (Some((va1, gs1)), Some((va2, gs2))) =>
             gs1.zip(gs2).forall { case (g1, g2) =>
-              (g1.gp, g2.gp) match {
+              (Genotype.gp(g1), Genotype.gp(g2)) match {
                 case (Some(x), Some(y)) => x.zip(y).forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
                 case (None, None) => true
                 case _ => false
@@ -132,7 +132,9 @@ class GenericDatasetSuite extends SparkSuite {
     def compareGenotypes(vds1: VariantDataset, vds2: VariantDataset): Boolean = {
       vds1.rdd.fullOuterJoin(vds2.rdd).forall { case (v, (data1, data2)) =>
         (data1, data2) match {
-          case (Some((va1, gs1)), Some((va2, gs2))) => gs1.zip(gs2).forall { case (g1, g2) => g1.unboxedGT == g2.unboxedGT }
+          case (Some((va1, gs1)), Some((va2, gs2))) =>
+            gs1.zip(gs2).forall { case (g1, g2) =>
+              Genotype.unboxedGT(g1) == Genotype.unboxedGT(g2) }
           case _ => false
         }
       }

@@ -132,7 +132,7 @@ class GRMSuite extends SparkSuite {
     Prop.check(forAll(
       VSMSubgen.realistic.copy(
         vGen = _ => VariantSubgen.plinkCompatible.gen,
-        tGen = (t: Type, v: Variant) => VSMSubgen.realistic.tGen(t, v).filter(_.isCalled))
+        tGen = (t: Type, v: Variant) => VSMSubgen.realistic.tGen(t, v).filter(g => Genotype.isCalled(g)))
         .gen(hc)
         // plink fails with fewer than 2 samples, no variants
         .filter(vsm => vsm.nSamples > 1 && vsm.countVariants > 0)

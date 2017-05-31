@@ -4,7 +4,7 @@ import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{Genotype, VSMSubgen, VariantDataset, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
@@ -50,8 +50,8 @@ class AggregatorSuite extends SparkSuite {
         })
 
         val gqSC = gs.aggregate(new StatCounter())({ case (s, g) =>
-          if (g.isHet)
-            g.gq.foreach(x => s.merge(x))
+          if (Genotype.isHet(g))
+            Genotype.gq(g).foreach(x => s.merge(x))
           s
         }, { case (s1, s2) => s1.merge(s2) })
 
@@ -62,7 +62,7 @@ class AggregatorSuite extends SparkSuite {
           case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
         })
 
-        val lowGqGtsData = gs.filter(_.gq.exists(_ < 60))
+        val lowGqGtsData = gs.filter(Genotype.gq(_).exists(_ < 60))
         assert(Option(lowGqGts(va)).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
 
       }
@@ -85,8 +85,8 @@ class AggregatorSuite extends SparkSuite {
     val gqStatsHetStDev = vds.querySA("sa.test.gqhetstats.stdev")._2
 
     val gqHetMap = vds.aggregateBySample(new StatCounter())({ case (s, g) =>
-      if (g.isHet)
-        g.gq.foreach(x => s.merge(x))
+      if (Genotype.isHet(g))
+        Genotype.gq(g).foreach(x => s.merge(x))
       s
     }, { case (s1, s2) => s1.merge(s2) })
       .collect().toMap
@@ -171,7 +171,7 @@ class AggregatorSuite extends SparkSuite {
 
       val frequencies = r.getAs[IndexedSeq[Long]](1)
 
-      val definedGq = gs.flatMap(_.gq)
+      val definedGq = gs.flatMap(Genotype.gq)
 
       assert(frequencies(0) == definedGq.count(gq => gq < 5))
       assert(frequencies(1) == definedGq.count(gq => gq >= 5 && gq < 10))
@@ -184,7 +184,7 @@ class AggregatorSuite extends SparkSuite {
       val nLess = r.getAs[Long](2)
       val nGreater = r.getAs[Long](3)
 
-      val definedGq = gs.flatMap(_.gq)
+      val definedGq = gs.flatMap(Genotype.gq)
 
       assert(nLess == definedGq.count(_ < 22))
       assert(nGreater == definedGq.count(_ > 80))
@@ -322,7 +322,7 @@ class AggregatorSuite extends SparkSuite {
         countResult.exists(x => D_==(x, queryResult.asInstanceOf[Double]))
       val filterCountResult = Some(vds.expand().count()).flatMap { r =>
         if (r == 0) None else Some(vds.expand().filter { case (v, _, g) =>
-          (v.start % 2 == 1) && g.isCalled
+          (v.start % 2 == 1) && g != null && Genotype.isCalled(g)
         }.count().toDouble / r)
       }
       val queryResult2 = vds.queryGenotypes("gs.fraction(g => (v.start % 2 == 1) && g.isCalled)")._1

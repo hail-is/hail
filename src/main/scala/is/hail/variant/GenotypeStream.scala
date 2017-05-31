@@ -36,8 +36,10 @@ class MutableGenotypeStreamIterator(nAlleles: Int, isLinearScale: Boolean, b: By
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = {
-    mutableGenotype.read(nAlleles, isLinearScale, b)
-    mutableGenotype
+    if (mutableGenotype.read(nAlleles, isLinearScale, b))
+      mutableGenotype
+    else
+      null
   }
 }
 

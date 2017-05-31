@@ -65,7 +65,7 @@ class LoadBgenSuite extends SparkSuite {
         .forall { case ((v, i), (gt1, gt2)) =>
           (gt1, gt2) match {
             case (Some(x), Some(y)) =>
-              (x.gp, y.gp) match {
+              (Genotype.gp(x), Genotype.gp(y)) match {
                 case (Some(dos1), Some(dos2)) => dos1.zip(dos2).forall { case (d1, d2) => math.abs(d1 - d2) <= tolerance }
                 case (None, None) => true
                 case _ => false
@@ -99,7 +99,9 @@ class LoadBgenSuite extends SparkSuite {
       forAll(compGen) { case (vds, nPartitions) =>
 
         assert(vds.rdd.forall { case (v, (va, gs)) =>
-          gs.flatMap(_.gp).flatten.forall(d => d >= 0.0 && d <= 1.0)
+          gs.forall { g =>
+            Genotype.gp(g).forall(_.forall(d => d >= 0.0 && d <= 1.0))
+          }
         })
 
         val fileRoot = tmpDir.createTempFile("testImportBgen")
@@ -137,10 +139,13 @@ class LoadBgenSuite extends SparkSuite {
 
         originalFull.fullOuterJoin(importedFull).forall { case ((v, i), (g1, g2)) =>
 
-          val r = g1 == g2 ||
-            g1.get.gp.get.zip(g2.get.gp.get)
+          // FIXME compare fail if 1 is null and other is all null
+          val r = g1 == g2 || {
+            val gp1 = Genotype.unboxedGP(g1.get)
+            val gp2 = Genotype.unboxedGP(g2.get)
+            gp1 == gp2 || gp1.zip(gp2)
               .forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
-
+          }
           if (!r)
             println(g1, g2)
 

@@ -21,7 +21,7 @@ class InfoScoreCombiner extends Serializable {
   def expectedVariance(gp: Array[Double], mean: Double): Double = (gp(1) + 4 * gp(2)) - (mean * mean)
 
   def merge(g: Genotype): InfoScoreCombiner = {
-    g.gp.foreach { dx =>
+    Genotype.gp(g).foreach { dx =>
       val mean = dx(1) + 2 * dx(2)
       result += expectedVariance(dx, mean)
       expectedAlleleCount += mean

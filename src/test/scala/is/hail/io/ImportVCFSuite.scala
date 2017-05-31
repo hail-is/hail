@@ -44,7 +44,7 @@ class ImportVCFSuite extends SparkSuite {
     var vds = hc.importVCF("src/test/resources/store_gq.vcf", storeGQ = true)
 
     val gqs = vds.flatMapWithKeys { case (v, s, g) =>
-      g.gq.map { gqx => ((v.start, s), gqx) }
+      Genotype.gq(g).map { gqx => ((v.start, s), gqx) }
     }.collectAsMap()
     val expectedGQs = Map(
       (16050612, "S") -> 27,
@@ -170,7 +170,7 @@ class ImportVCFSuite extends SparkSuite {
     val vds = hc.importVCF(vcf)
 
     val (_, qGT) = gds.queryGA("g.GT")
-    val callVDS = vds.expand().map { case (v, s, g) => ((v, s), g.call) }
+    val callVDS = vds.expand().map { case (v, s, g) => ((v, s), Genotype.call(g)) }
     val callGDS = gds.expand().map { case (v, s, g) => ((v.asInstanceOf[Variant], s), qGT(g).asInstanceOf[Call]) }
 
     assert(callVDS.fullOuterJoin(callGDS).forall { case ((v, s), (c1, c2)) => c1 == c2 })

@@ -5,6 +5,7 @@ import java.lang.reflect.Method
 import java.net.URI
 import java.util.zip.Inflater
 
+import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.hadoop.fs.PathIOException
@@ -233,9 +234,15 @@ package object utils extends Logging
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
-  def extendOrderingToNull[T](missingGreatest: Boolean)(implicit ord: Ordering[T]): Ordering[Any] = {
-    new Ordering[Any] {
-      def compare(a: Any, b: Any): Int =
+  def annotationOrdering[T](ord: Ordering[T]): Ordering[Annotation] = {
+    new Ordering[Annotation] {
+      def compare(a: Annotation, b: Annotation): Int = ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
+    }
+  }
+
+  def extendOrderingToNull[T](missingGreatest: Boolean)(implicit ord: Ordering[T]): Ordering[T] = {
+    new Ordering[T] {
+      def compare(a: T, b: T): Int =
         if (a == null) {
           if (b == null)
             0 // null, null
@@ -248,7 +255,7 @@ package object utils extends Logging
             // _, null
             if (missingGreatest) -1 else 1
           } else
-            ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
+            ord.compare(a, b)
         }
     }
   }

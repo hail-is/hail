@@ -74,7 +74,7 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
     if (g == null)
       nNotCalled += 1
     else
-      g.gt match {
+      Genotype.gt(g) match {
 
         case Some(0) =>
           nHomRef += 1
@@ -113,11 +113,11 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
 
       }
 
-    if (g != null && g.isCalled) {
-      g.dp.foreach { v =>
+    if (Genotype.isCalled(g)) {
+      Genotype.dp(g).foreach { v =>
         dpSC.merge(v)
       }
-      g.gq.foreach { v =>
+      Genotype.gq(g).foreach { v =>
         gqSC.merge(v)
       }
     }
@@ -241,7 +241,7 @@ object SampleQC {
 
             val ACs = gs.foldLeft(Array.fill(v.nAltAlleles)(0))({
               case (acc, g) =>
-                g.gt
+                Genotype.gt(g)
                   .filter(_ > 0)
                   .foreach(call => Genotype.gtPair(call).alleleIndices.filter(_ > 0).foreach(x => acc(x - 1) += 1)
                   )

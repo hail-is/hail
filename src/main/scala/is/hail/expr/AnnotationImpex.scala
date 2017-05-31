@@ -164,8 +164,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
               Row.fromSeq(Seq(exportAnnotation(k, keyType), exportAnnotation(v, valueType)))
             }.toIndexedSeq
         case TGenotype =>
-          val g = a.asInstanceOf[Genotype]
-          g.toRow
+          Genotype.toRow(a.asInstanceOf[Genotype])
         case TAltAllele =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
@@ -293,7 +292,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
             "value" -> exportAnnotation(v, valueType))
           }.toList)
         case TCall => JInt(a.asInstanceOf[Int])
-        case TGenotype => a.asInstanceOf[Genotype].toJSON
+        case TGenotype => Genotype.toJSON(a.asInstanceOf[Genotype])
         case TAltAllele => a.asInstanceOf[AltAllele].toJSON
         case TVariant => a.asInstanceOf[Variant].toJSON
         case TLocus => a.asInstanceOf[Locus].toJSON

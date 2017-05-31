@@ -160,16 +160,23 @@ object ExportVCF {
   }
 
   def writeGenotype(sb: StringBuilder, g: Genotype) {
-    sb.append(g.gt.map { gt =>
+    if (g == null) {
+      sb.append("./.")
+      return
+    }
+
+    sb.append(Genotype.gt(g).map { gt =>
       val p = Genotype.gtPair(gt)
       s"${ p.j }/${ p.k }"
     }.getOrElse("./."))
 
-    (g.ad, g.dp, g.gq,
-      if (g.isLinearScale)
-        g.gp.map(Left(_))
+    (Genotype.ad(g),
+      Genotype.dp(g),
+      Genotype.gq(g),
+      if (g._isLinearScale)
+        Genotype.gp(g).map(Left(_))
       else
-        g.pl.map(Right(_))) match {
+        Genotype.pl(g).map(Right(_))) match {
       case (None, None, None, None) =>
       case (Some(ad), None, None, None) =>
         sb += ':'

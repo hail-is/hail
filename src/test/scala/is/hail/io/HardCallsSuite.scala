@@ -8,8 +8,8 @@ import is.hail.variant.{VSMSubgen, VariantSampleMatrix, _}
 import org.testng.annotations.Test
 
 class HardCallsSuite extends SparkSuite {
-  def gtTriples(vds: VariantDataset): Set[(Variant, Annotation, (Option[Int], Boolean))] =
-    vds.mapValues { g => (g.gt, g.fakeRef) }
+  def gtTriples(vds: VariantDataset): Set[(Variant, Annotation, (Option[Int], Option[Boolean]))] =
+    vds.mapValues { g => (Genotype.gt(g), Genotype.fakeRef(g)) }
       .expand()
       .collect()
       .toSet
@@ -18,11 +18,11 @@ class HardCallsSuite extends SparkSuite {
     val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random).map(_.hardCalls())) { vds =>
       vds.rdd.forall { case (v, (va, gs)) =>
         gs.forall { g =>
-          g.ad.isEmpty &&
-            g.dp.isEmpty &&
-            g.gq.isEmpty &&
-            g.pl.isEmpty &&
-            !g.isLinearScale
+          Genotype.ad(g).isEmpty &&
+            Genotype.dp(g).isEmpty &&
+            Genotype.gq(g).isEmpty &&
+            Genotype.pl(g).isEmpty &&
+            !Genotype.isLinearScale(g).getOrElse(false)
         }
       } && gtTriples(vds) == gtTriples(vds)
     }

@@ -14,8 +14,9 @@ class SplitSuite extends SparkSuite {
     property("fakeRef implies wasSplit") =
       forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random).map(_.splitMulti())) { (vds: VariantDataset) =>
         val wasSplitQuerier = vds.vaSignature.query("wasSplit")
-        vds.mapWithAll((v: Variant, va: Annotation, _: Annotation, _: Annotation, g: Genotype) =>
-          !g.fakeRef || wasSplitQuerier(va).asInstanceOf[Boolean])
+        vds.mapWithAll { (v: Variant, va: Annotation, _: Annotation, _: Annotation, g: Genotype) =>
+          g == null || wasSplitQuerier(va).asInstanceOf[Boolean] || !Genotype.fakeRef(g).get
+        }
           .collect()
           .forall(identity)
       }
@@ -38,6 +39,7 @@ class SplitSuite extends SparkSuite {
           }
       }.collect().toSet
 
+      println(method1, method2)
       method1 == method2
     }
   }
@@ -68,7 +70,7 @@ class SplitSuite extends SparkSuite {
       }
 
     // test for fakeRef
-    assert(vds1.mapWithKeys((v, s, g) => ((v.start, v.alt, s), g.fakeRef)).filter(_._2).map(_._1.toString).collect.toSet
+    assert(vds1.mapWithKeys((v, s, g) => ((v.start, v.alt, s), g._fakeRef)).filter(_._2).map(_._1.toString).collect.toSet
       == Set("(2167,AAAAC,HG00097)", "(2167,A,HG00100)", "(2167,AAAACAAAC,HG00103)", "(1183,C,HG00100)", "(2167,A,HG00103)", "(2167,AAAAC,HG00099)",
       "(2167,AAAAC,HG00104)", "(2167,AAAACAAAC,HG00104)", "(1783,TA,HG00100)", "(2167,A,HG00101)", "(2167,A,HG00099)", "(1183,C,HG00103)",
       "(2167,AAAAC,HG00103)", "(1183,C,HG00104)", "(1783,TA,HG00101)", "(2167,AAAACAAAC,HG00101)", "(2167,AAAAC,HG00101)", "(1783,T,HG00099)",

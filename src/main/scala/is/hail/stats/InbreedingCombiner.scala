@@ -21,13 +21,13 @@ class InbreedingCombiner extends Serializable {
   var observedHoms = 0L
   var total = 0L
 
-  def merge(gt:Genotype, af: Double): InbreedingCombiner = {
+  def merge(g: Genotype, af: Double): InbreedingCombiner = {
     total += 1
-    if (gt.isCalled) {
+    if (Genotype.isCalled(g)) {
       nCalled += 1
       expectedHoms += 1 - (2 * af * (1 - af))
 
-      if (gt.isHomRef || gt.isHomVar)
+      if (Genotype.isHomRef(g) || Genotype.isHomVar(g))
         observedHoms += 1
     }
     this

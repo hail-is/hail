@@ -34,10 +34,7 @@ package object variant {
 
           override def next(): Int = {
             val g = it.next()
-            if (g == null)
-              -1
-            else
-              g.unboxedGT
+            Genotype.unboxedGT(g)
           }
         }
     }
@@ -55,7 +52,7 @@ package object variant {
             if (g == null)
               -1d
             else
-              it.next().unboxedDosage
+              Genotype.unboxedDosage(it.next())
           }
         }
     }

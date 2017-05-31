@@ -3,7 +3,7 @@ package is.hail
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.{Genotype, VariantDataset}
 import org.apache.spark.sql.Row
 
 object TestUtils {
@@ -54,14 +54,14 @@ object TestUtils {
     new DenseMatrix[Int](
       vds.nSamples,
       vds.countVariants.toInt,
-      vds.rdd.map(_._2._2.map(_.unboxedGT)).collect().flatten)
+      vds.rdd.map(_._2._2.map(g => Genotype.unboxedGT(g))).collect().flatten)
 
   // missing is Double.NaN
   def vdsToMatrixDouble(vds: VariantDataset): DenseMatrix[Double] =
     new DenseMatrix[Double](
       vds.nSamples,
       vds.countVariants.toInt,
-      vds.rdd.map(_._2._2.map(_.gt.map(_.toDouble).getOrElse(Double.NaN))).collect().flatten)
+      vds.rdd.map(_._2._2.map(x => Genotype.gt(x).map(_.toDouble).getOrElse(Double.NaN))).collect().flatten)
 
   def indexedSeqBoxedDoubleEquals(tol: Double)
     (xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]): Boolean =

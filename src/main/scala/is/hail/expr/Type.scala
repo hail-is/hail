@@ -191,10 +191,10 @@ case object TBinary extends Type {
   def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
     val ord = Ordering.Iterable[Byte]
 
-    extendOrderingToNull(missingGreatest)(
+    annotationOrdering(extendOrderingToNull(missingGreatest)(
       new Ordering[Array[Byte]] {
         def compare(a: Array[Byte], b: Array[Byte]): Int = ord.compare(a, b)
-      })
+      }))
   }
 }
 
@@ -210,7 +210,8 @@ case object TBoolean extends Type {
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]]))
 }
 
 object TNumeric {
@@ -248,7 +249,8 @@ case object TInt extends TIntegral {
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
 
 }
 
@@ -264,7 +266,8 @@ case object TLong extends TIntegral {
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Long]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Long]]))
 }
 
 case object TFloat extends TNumeric {
@@ -284,7 +287,8 @@ case object TFloat extends TNumeric {
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Float]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Float]]))
 }
 
 case object TDouble extends TNumeric {
@@ -304,7 +308,8 @@ case object TDouble extends TNumeric {
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]]))
 }
 
 case object TString extends Type {
@@ -317,7 +322,8 @@ case object TString extends Type {
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]]))
 }
 
 case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -496,8 +502,8 @@ abstract class TIterable extends TContainer {
   }
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
-    extendOrderingToNull(missingGreatest)(
-      Ordering.Iterable(elementType.ordering(missingGreatest)))
+    annotationOrdering(extendOrderingToNull(missingGreatest)(
+      Ordering.Iterable(elementType.ordering(missingGreatest))))
   }
 }
 
@@ -653,11 +659,12 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
-    extendOrderingToNull(missingGreatest)(
-      Ordering.Iterable(
-        Ordering.Tuple2(
-          keyType.ordering(missingGreatest),
-          valueType.ordering(missingGreatest))))
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(
+        Ordering.Iterable(
+          Ordering.Tuple2(
+            keyType.ordering(missingGreatest),
+            valueType.ordering(missingGreatest)))))
   }
 }
 
@@ -673,7 +680,8 @@ case object TGenotype extends Type {
   override def scalaClassTag: ClassTag[Genotype] = classTag[Genotype]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Genotype]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Genotype]]))
 }
 
 case object TCall extends Type {
@@ -688,7 +696,8 @@ case object TCall extends Type {
   override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
 }
 
 case object TAltAllele extends Type {
@@ -703,7 +712,8 @@ case object TAltAllele extends Type {
   override def scalaClassTag: ClassTag[AltAllele] = classTag[AltAllele]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 }
 
 case object TVariant extends Type {
@@ -728,7 +738,8 @@ case object TVariant extends Type {
   override def scalaClassTag: ClassTag[Variant] = classTag[Variant]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]]))
 
   override val partitionKey: Type = TLocus
 
@@ -757,7 +768,8 @@ case object TLocus extends Type {
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]]))
 }
 
 case object TInterval extends Type {
@@ -772,7 +784,8 @@ case object TInterval extends Type {
   override def scalaClassTag: ClassTag[Interval[Locus]] = classTag[Interval[Locus]]
 
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
-    extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]])
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]]))
 }
 
 case class Field(name: String, typ: Type,
@@ -1206,20 +1219,21 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
     val fieldOrderings = fields.map(f => f.typ.ordering(missingGreatest))
 
-    extendOrderingToNull(missingGreatest)(new Ordering[Row] {
-      def compare(a: Row, b: Row): Int = {
-        var i = 0
-        while (i < a.size) {
-          val c = fieldOrderings(i).compare(a.get(i), b.get(i))
-          if (c != 0)
-            return c
+    annotationOrdering(
+      extendOrderingToNull(missingGreatest)(new Ordering[Row] {
+        def compare(a: Row, b: Row): Int = {
+          var i = 0
+          while (i < a.size) {
+            val c = fieldOrderings(i).compare(a.get(i), b.get(i))
+            if (c != 0)
+              return c
 
-          i += 1
+            i += 1
+          }
+
+          // equal
+          0
         }
-
-        // equal
-        0
-      }
-    })
+      }))
   }
 }
