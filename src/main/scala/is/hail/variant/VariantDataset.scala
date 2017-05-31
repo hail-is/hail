@@ -279,9 +279,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         case Some(_) => val (t, q) = vds.queryVA("va.varid")
           t match {
             case TString => q
-            case _ => a => None
+            case _ => a => null
           }
-        case None => a => None
+        case None => a => null
       }
 
       val rsidSignature = vds.vaSignature.getOption("rsid")
@@ -289,12 +289,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
         case Some(_) => val (t, q) = vds.queryVA("va.rsid")
           t match {
             case TString => q
-            case _ => a => None
+            case _ => a => null
           }
-        case None => a => None
+        case None => a => null
       }
-
-      val isLinearScale = vds.isLinearScale
 
       vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
         val sb = new StringBuilder

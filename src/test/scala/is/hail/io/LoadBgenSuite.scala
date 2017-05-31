@@ -44,10 +44,7 @@ class LoadBgenSuite extends SparkSuite {
       val genVDS = hc.importGen(gen, sampleFile)
 
       val varidBgenQuery = bgenVDS.vaSignature.query("varid")
-      val rsidBgenQuery = bgenVDS.vaSignature.query("rsid")
-
       val varidGenQuery = genVDS.vaSignature.query("varid")
-      val rsidGenQuery = bgenVDS.vaSignature.query("rsid")
 
       assert(bgenVDS.metadata == genVDS.metadata)
       assert(bgenVDS.sampleIds == genVDS.sampleIds)
@@ -130,6 +127,11 @@ class LoadBgenSuite extends SparkSuite {
         assert(importedVds.nSamples == vds.nSamples)
         assert(importedVds.countVariants() == vds.countVariants())
         assert(importedVds.sampleIds == vds.sampleIds)
+
+        val varidQuery = importedVds.vaSignature.query("varid")
+        val rsidQuery = importedVds.vaSignature.query("rsid")
+
+        assert(importedVds.variantsAndAnnotations.forall { case (v, va) => varidQuery(va) == v.toString && rsidQuery(va) == "." })
 
         val importedFull = importedVds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
         val originalFull = vds.expandWithAll().map { case (v, va, s, sa, g) => ((v, s), g) }
