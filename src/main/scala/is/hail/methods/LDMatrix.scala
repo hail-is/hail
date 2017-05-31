@@ -44,7 +44,7 @@ object LDMatrix {
       .groupByKey()
       .map{ case (groupID, it) => (groupID, it.toArray.sortBy{ case (vIdx, bpv) => vIdx }.map(_._2)) }
 
-    val numberOfGroups = Math.ceil(grouped.count() / trueBlockSize.toDouble).toInt
+    val numberOfGroups = grouped.count().toInt
 
     val numBlocksOnDimension = math.ceil(keptVariants.length.toDouble / trueBlockSize).toInt
     val partitioner = reflectGridPartitioner(numBlocksOnDimension, numBlocksOnDimension, vds.rdd.getNumPartitions)
@@ -73,7 +73,7 @@ object LDMatrix {
         while (i < g2Variants.length) {
           var j = 0
           while (j < g1Variants.length) {
-            matrixEntries(j + i * g2Variants.length) = LDPrune.computeR(g1Variants(j), g2Variants(i))
+            matrixEntries(j + i * g1Variants.length) = LDPrune.computeR(g1Variants(j), g2Variants(i))
             j += 1
           }
           i += 1
