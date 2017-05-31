@@ -21,7 +21,7 @@ class LDMatrixSuite extends SparkSuite {
     val numVariants = ldMatrix.variants.length
 
     for(i <- 0 until numVariants; j <- 0 to i) {
-      Assert.assertEquals(localMatrix(i, j), localMatrix(j, i))
+      Assert.assertEquals(localMatrix(i, j), localMatrix(j, i), 0.0000001, s"Failed on seed $seed.")
     }
   }
   /**
