@@ -474,27 +474,19 @@ package object utils extends Logging
     expansion
   }
 
-  def compress(input: Array[Byte]): Array[Byte] = {
+  def compress(bb: ArrayBuilder[Byte], input: Array[Byte]): Int = {
     val compressor = new Deflater()
     compressor.setInput(input)
     compressor.finish()
 
-    var compressedData = new Array[Byte](1024)
     val buffer = new Array[Byte](1024)
-    var compressedOffset = 0
-
+    var compressedLength = 0
     while (!compressor.finished()) {
-      val nBytesCompressed = compressor.deflate(buffer)
-
-      while (nBytesCompressed > compressedData.length - compressedOffset) {
-        compressedData = java.util.Arrays.copyOf(compressedData, compressedData.length << 1)
-      }
-
-      System.arraycopy(buffer, 0, compressedData, compressedOffset, nBytesCompressed)
-      compressedOffset += nBytesCompressed
+      val nCompressedBytes = compressor.deflate(buffer)
+      bb ++= (buffer, nCompressedBytes)
+      compressedLength += nCompressedBytes
     }
-
-    compressedData
+    compressedLength
   }
 
   def loadFromResource[T](file: String)(reader: (InputStream) => T): T = {

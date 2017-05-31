@@ -237,8 +237,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def exportBgen(path: String, nBitsPerProb: Int = 8) {
-    val bitMask = (1L << nBitsPerProb) - 1
-    val conversionFactor = bitMask / 32768d
+    requireSplit("export bgen")
 
     val nSamples = vds.nSamples
 
@@ -264,7 +263,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
       it.map { case (v, (va, gs)) =>
-        BgenWriter.emitVariantBlock(v, va, gs, rsidQuery, varidQuery, nSamples, nBitsPerProb, conversionFactor, bitMask)
+        BgenWriter.emitVariantBlock(v, va, gs, rsidQuery, varidQuery, nSamples, nBitsPerProb)
       }
     }.saveFromByteArrays(path + ".bgen", vds.hc.tmpDir, header = Some(bgenHeader))
 

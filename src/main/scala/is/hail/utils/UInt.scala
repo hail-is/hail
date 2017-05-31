@@ -141,4 +141,6 @@ class ArrayUInt(val a: Array[Int]) extends AnyVal {
     }
     s
   }
+
+  def intArrayRep: Array[Int] = a
 }

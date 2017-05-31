@@ -25,6 +25,24 @@ class BgenSuite extends SparkSuite {
     }.toLong
   }
 
+  def bitPack(input: Array[Int], nBitsPerProb: Int): Array[Byte] = {
+    val bb = new ArrayBuilder[Byte]
+    BgenWriter.bitPack(bb, input, nBitsPerProb)
+    bb.result()
+  }
+
+  def resizeWeights(input: Array[Int], newSize: Long): ArrayUInt = {
+    val n = input.length
+    val resized = new Array[Double](n)
+    val index = new Array[Int](n)
+    val output = new ArrayBuilder[Int]
+
+    BgenWriter.resizeWeights(input, output, resized, index, newSize)
+    val result = new ArrayUInt(output.result())
+    assert(result.length == n - 1)
+    result
+  }
+
   def isGPSame(vds1: VariantDataset, vds2: VariantDataset, tolerance: Double): Boolean = {
     val vds1Expanded = vds1.expandWithAll().map { case (v, va, s, sa, g) => ((v.toString, s), g) }
     val vds2Expanded = vds2.expandWithAll().map { case (v, va, s, sa, g) => ((v.toString, s), g) }
@@ -94,8 +112,7 @@ class BgenSuite extends SparkSuite {
   }
 
   object TestBgen extends Properties("BGEN Import/Export") {
-    val convFactor = ((1L << 32) - 1) / 32768d
-    assert(BgenWriter.resizeProbInts(Array(0, 32768, 0), convFactor) sameElements Array(UInt(0).intRep, UInt(4294967295L).intRep, UInt(0).intRep))
+    assert(resizeWeights(Array(0, 32768, 0), (1L << 32) - 1).intArrayRep sameElements Array(0, UInt(4294967295L).intRep))
 
     val bitPackedIteratorGen = for {
       v <- Gen.buildableOf[Array, Double](Gen.choose(0d, 1d)).resize(10)
@@ -153,8 +170,10 @@ class BgenSuite extends SparkSuite {
       }
 
     val compGen2 = for {vds <- VariantSampleMatrix.gen(hc,
-      VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.random.gen,
-        sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier.filter(_ != "NA")))).filter(_.countVariants > 0)
+      VSMSubgen.dosageGenotype.copy(vGen = VariantSubgen.biallelic.gen,
+        sampleIdGen = Gen.distinctBuildableOf[Array, String](Gen.identifier.filter(_ != "NA"))))
+      .filter(_.countVariants > 0)
+      .map(vds => vds.splitMulti())
       nBitsPerProb <- choose(1, 32)
     } yield (vds, nBitsPerProb)
 
@@ -185,7 +204,7 @@ class BgenSuite extends SparkSuite {
 
     property("bgen probability iterator gives correct result") =
       forAll(probIteratorGen) { case (nBitsPerProb, input) =>
-        val packedInput = BgenWriter.bitPack(input.map(_.intRep), nBitsPerProb)
+        val packedInput = bitPack(input.map(_.intRep), nBitsPerProb)
         val probIterator = new BgenProbabilityIterator(new ByteArrayReader(packedInput), nBitsPerProb)
         val result = new Array[UInt](input.length)
 
