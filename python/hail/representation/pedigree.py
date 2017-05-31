@@ -235,7 +235,7 @@ class Pedigree(object):
 
         :rtype: list of :class:`.Trio`
         """
-        return filter(lambda t: t.is_complete(), self._trios)
+        return filter(lambda t: t.is_complete(), self.trios)
 
     @handle_py4j
     @typecheck_method(samples=listof(strlike))
