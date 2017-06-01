@@ -42,7 +42,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, dm.numRows, dm.numCols)
   }
 
-  def transpose(m: M): M = m.transpose
+  def transpose(m: M): M =
+    BetterBlockMatrix.transpose(m)
   def diagonal(m: M): Array[Double] = {
     val rowsPerBlock = m.rowsPerBlock
     val colsPerBlock = m.colsPerBlock
@@ -70,6 +71,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }._2
   }
 
+  def multiply(l: M, r: M): M =
+    BetterBlockMatrix.multiply(l, r)
   def multiply(l: M, r: DenseMatrix): M = {
     require(l.numCols() == r.numRows,
       s"incompatible matrix dimensions: ${l.numRows()}x${l.numCols()} and ${r.numRows}x${r.numCols}")
