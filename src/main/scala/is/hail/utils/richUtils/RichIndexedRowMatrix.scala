@@ -1,11 +1,8 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.Partitioner
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-
-import scala.reflect.classTag
 
 import is.hail.utils._
 
