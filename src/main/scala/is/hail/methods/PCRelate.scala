@@ -23,7 +23,7 @@ object PCRelate {
   def maybefast(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result = {
     val g = vdsToMeanImputedMatrix(vds)
 
-    val beta = fitBeta(g, pcs)
+    val beta = fitBeta(g, pcs, blockSize)
 
     val pcsArray = pcs.toArray
     val pcsWithInterceptArray = new Array[Double](pcs.numRows * (pcs.numCols + 1))
@@ -73,7 +73,7 @@ object PCRelate {
         1 - 4 * phiHat + k2
       else
         ibs0 / denom
-    val kZero = dm.map4(_k0)(phi, denom, kTwo, ibs0(vds))
+    val kZero = dm.map4(_k0)(phi, denom, kTwo, ibs0(vds, blockSize))
 
     Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
   }
@@ -81,7 +81,7 @@ object PCRelate {
   def apply(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result = {
     val g = vdsToMeanImputedMatrix(vds).cache()
 
-    val beta = fitBeta(g, pcs)
+    val beta = fitBeta(g, pcs, blockSize)
 
     val mu = muHat(pcs, beta)
 
@@ -91,7 +91,7 @@ object PCRelate {
     // FIXME: what should I do if the genotype is missing?
     val kTwo = k2(f(phihat), dm.map2({ case (g, mu) => if (g == 0.0) mu else if (g == 1.0) 0.0 else if (g == 2.0) 1.0 - mu else g })(blockedG, mu), mu)
 
-    val kZero = k0(phihat, mu, kTwo, ibs0(vds))
+    val kZero = k0(phihat, mu, kTwo, ibs0(vds, blockSize))
 
     // println(dm.toLocalMatrix(kTwo))
 
@@ -139,14 +139,14 @@ object PCRelate {
     *
     *  result: (SNP x (D+1))
     */
-  def fitBeta(g: RDD[Array[Double]], pcs: DenseMatrix): M = {
+  def fitBeta(g: RDD[Array[Double]], pcs: DenseMatrix, blockSize: Int): M = {
     val aa = g.sparkContext.broadcast(pcs.rowIter.map(_.toArray).toArray)
     val rdd = g.map { a =>
       val ols = new OLSMultipleLinearRegression()
       ols.newSampleData(a, aa.value)
       ols.estimateRegressionParameters()
     }
-    dm.from(rdd)
+    dm.from(rdd, blockSize, rdd.count(), rdd.first().size)
   }
 
   private def clipToInterval(x: Double): Double =
@@ -249,7 +249,7 @@ object PCRelate {
     1.0 - (k2 :+ k0)
   }
 
-  def ibs0(vds: VariantDataset): M =
-    dm.from(IBD.ibs(vds)._1)
+  def ibs0(vds: VariantDataset, blockSize: Int): M =
+    dm.from(IBD.ibs(vds)._1, blockSize)
 
 }
