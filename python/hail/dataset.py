@@ -1232,11 +1232,11 @@ class VariantDataset(object):
 
         **Examples**
 
-        Export a four column TSV with ``v``, ``va.pass``, ``va.filters``, and
+        Export a three column TSV with ``v``, ``va.filters``, and
         one computed field: ``1 - va.qc.callRate``.
 
         >>> vds.export_variants('output/file.tsv',
-        ...        'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
+        ...        'VARIANT = v, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
 
         It is also possible to export without identifiers, which will result in
         a file with no header. In this case, the expressions should look like

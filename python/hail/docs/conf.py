@@ -72,7 +72,34 @@ for f in vds_files:
         shutil.rmtree(f)
 
 hc = HailContext(log="output/hail.log", quiet=True)
-vds = hc.read('data/example.vds')"""
+
+(hc.import_vcf('data/sample.vcf.bgz')
+ .sample_variants(0.03)
+ .annotate_variants_expr('va.useInKinship = pcoin(0.9), va.panel_maf = 0.1, va.anno1 = 5, va.anno2 = 0, va.consequence = "LOF", va.gene = "A", va.score = 5.0')
+ .split_multi()
+ .variant_qc()
+ .sample_qc()
+ .annotate_samples_expr('sa.isCase = true, sa.pheno.isCase = pcoin(0.5), sa.pheno.isFemale = pcoin(0.5), sa.pheno.age=rnorm(65, 10), sa.cov.PC1 = rnorm(0,1), sa.pheno.height = rnorm(70, 10), sa.cov1 = rnorm(0, 1), sa.cov2 = rnorm(0,1), sa.pheno.bloodPressure = rnorm(120,20), sa.pheno.cohortName = "cohort1"')
+ .write('data/example.vds', overwrite=True))
+
+(hc.import_vcf("data/sample.vcf.bgz")
+ .sample_variants(0.015).annotate_variants_expr('va.anno1 = 5, va.toKeep1 = true, va.toKeep2 = false, va.toKeep3 = true')
+ .split_multi()
+ .write("data/example2.vds", overwrite=True))
+
+(hc.import_vcf('data/sample.vcf.bgz')
+ .split_multi()
+ .variant_qc()
+ .annotate_samples_expr('sa.culprit = gs.filter(g => v == Variant("20", 13753124, "A", "C")).map(g => g.gt).collect()[0]')
+ .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
+ .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
+ .annotate_samples_expr('sa.cov2 = rnorm(0,1)')
+ .linreg('sa.pheno', ['sa.cov1', 'sa.cov2']).annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
+ .write("data/example_lmmreg.vds", overwrite=True))
+
+vds = hc.read('data/example.vds')
+
+"""
 
 doctest_global_cleanup = """import shutil, os
 
