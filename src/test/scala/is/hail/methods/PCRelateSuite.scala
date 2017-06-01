@@ -283,7 +283,7 @@ class PCRelateSuite extends SparkSuite {
 
       val (truth, pcRelateTime) = time(runPcRelateR(vds))
 
-      val pcs = SamplePCA.justScores(vds, 2)
+      val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
       val (hailPcRelate, hailTime) = time(runPcRelateToPairRDD(vds, pcs).collect().toMap)
 
       println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")

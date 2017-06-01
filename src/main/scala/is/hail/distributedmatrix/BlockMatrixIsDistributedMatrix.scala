@@ -42,7 +42,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   }
   def from(bm: BlockMatrix): M =
     new BlockMatrix(
-      bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / bm.rowsPerBlock).toInt + 1, ((bm.numCols - 1) / bm.colsPerBlock).toInt + 1)),
+      bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / bm.rowsPerBlock).toInt + 1, ((bm.numCols - 1) / bm.colsPerBlock).toInt + 1)).persist(),
       bm.rowsPerBlock, bm.colsPerBlock, bm.numRows(), bm.numCols())
 
   def transpose(m: M): M =
@@ -119,7 +119,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def map2(op: (Double, Double) => Double)(l: M, r: M): M = {
     require(l.numRows() == r.numRows())
     require(l.numCols() == r.numCols())
-    require(l.rowsPerBlock == r.rowsPerBlock)
+    require(l.rowsPerBlock == r.rowsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
     require(l.colsPerBlock == r.colsPerBlock)
     val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValues { case (m1, m2) =>
       val size = m1.numRows * m1.numCols
