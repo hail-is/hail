@@ -29,6 +29,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
   def multiply(l: M, r: M): M = l.multiply(r)
   def multiply(l: M, r: DenseMatrix): M = {
+    require(l.numCols() == r.numRows,
+      s"incompatible matrix dimensions: ${l.numRows()}x${l.numCols()} and ${r.numRows}x${r.numCols}")
     val sc = l.blocks.sparkContext
     val rbc = sc.broadcast(r)
     val rRowsPerBlock = l.colsPerBlock
