@@ -29,9 +29,17 @@ if role == 'Master':
     for pkg in pkgs:
         call(['/home/anaconda2/bin/pip', 'install', pkg])
 
-    # get Hail hash and Spark version to use for Jupyter notebook
-    hash = Popen('/usr/share/google/get_metadata_value attributes/HASH', shell=True, stdout=PIPE).communicate()[0].strip()
-    spark = Popen('/usr/share/google/get_metadata_value attributes/SPARK', shell=True, stdout=PIPE).communicate()[0].strip() 
+    # get Hail hash and Spark version to use for Jupyter notebook, if set through cluster startup metadata
+    spark = Popen('/usr/share/google/get_metadata_value attributes/SPARK', shell=True, stdout=PIPE).communicate()[0].strip()
+    hash = Popen('/usr/share/google/get_metadata_value attributes/HASH', shell=True, stdout=PIPE).communicate()[0].strip() 
+
+    # default to Spark 2.0.2 if not otherwise specified through metadata
+    if not spark:
+        spark = '2.0.2'
+
+    # default to latest Hail build if none specified through metadata
+    if not hash:
+        hash = Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash-spark{}.txt'.format(spark)], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
 
     # Hail jar and zip names
     hail_jar = 'hail-hail-is-master-all-spark{0}-{1}.jar'.format(spark, hash)
