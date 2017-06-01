@@ -38,7 +38,8 @@ class Genotype(object):
         else:
             jpl = jnone()
 
-        jrep = scala_object(Env.hail().variant, 'Genotype').apply(
+        self._genotype_object = scala_object(Env.hail().variant, 'Genotype')
+        jrep = self._genotype_object.apply(
             jgt, jad, jdp, jgq, jpl, False, False)
         self._gt = gt
         self._ad = ad
@@ -51,8 +52,8 @@ class Genotype(object):
         return self._jrep.toString()
 
     def __repr__(self):
-        fake_ref = 'FakeRef=True' if self._jrep.fakeRef() else ''
-        if self._jrep.isLinearScale():
+        fake_ref = 'FakeRef=True' if self._jrep._fakeRef() else ''
+        if self._jrep._isLinearScale():
             return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, GP=%s%s)' %\
                    (self.gt, self.ad, self.dp, self.gq, self.gp(), fake_ref)
         else:
@@ -70,13 +71,15 @@ class Genotype(object):
 
     @classmethod
     def _from_java(cls, jrep):
+        genotype_object = scala_object(Env.hail().variant, 'Genotype')
         g = Genotype.__new__(cls)
+        g._genotype_object = genotype_object
         g._init_from_java(jrep)
-        g._gt = from_option(jrep.gt())
-        g._ad = jarray_to_list(from_option(jrep.ad()))
-        g._dp = from_option(jrep.dp())
-        g._gq = from_option(jrep.gq())
-        g._pl = jarray_to_list(from_option(jrep.pl()))
+        g._gt = from_option(genotype_object.gt(jrep))
+        g._ad = jarray_to_list(from_option(genotype_object.ad(jrep)))
+        g._dp = from_option(genotype_object.dp(jrep))
+        g._gq = from_option(genotype_object.gq(jrep))
+        g._pl = jarray_to_list(from_option(genotype_object.pl(jrep)))
         return g
 
     @property
@@ -136,7 +139,7 @@ class Genotype(object):
         :rtype: int or None
         """
 
-        return from_option(self._jrep.od())
+        return from_option(self._genotype_object.od(self._jrep))
 
     @property
     def gp(self):
@@ -145,7 +148,7 @@ class Genotype(object):
         :rtype: list of float of None
         """
 
-        return jarray_to_list(from_option(self._jrep.gp()))
+        return jarray_to_list(from_option(self._genotype_object.gp(self._jrep)))
 
     def dosage(self):
         """Returns the expected value of the genotype based on genotype probabilities,
@@ -154,7 +157,7 @@ class Genotype(object):
         :rtype: float
         """
 
-        return from_option(self._jrep.dosage())
+        return from_option(self._genotype_object.dosage(self._jrep))
 
     def is_hom_ref(self):
         """True if the genotype call is 0/0
@@ -162,7 +165,7 @@ class Genotype(object):
         :rtype: bool
         """
 
-        return self._jrep.isHomRef()
+        return self._genotype_object.isHomRef(self._jrep)
 
     def is_het(self):
         """True if the genotype call contains two different alleles.
@@ -170,7 +173,7 @@ class Genotype(object):
         :rtype: bool
         """
 
-        return self._jrep.isHet()
+        return self._genotype_object.isHet(self._jrep)
 
     def is_hom_var(self):
         """True if the genotype call contains two identical alternate alleles.
@@ -178,7 +181,7 @@ class Genotype(object):
         :rtype: bool
         """
 
-        return self._jrep.isHomVar()
+        return self._genotype_object.isHomVar(self._jrep)
 
     def is_called_non_ref(self):
         """True if the genotype call contains any non-reference alleles.
@@ -186,7 +189,7 @@ class Genotype(object):
         :rtype: bool
         """
 
-        return self._jrep.isCalledNonRef()
+        return self._genotype_object.isCalledNonRef(self._jrep)
 
     def is_het_non_ref(self):
         """True if the genotype call contains two different alternate alleles.
@@ -194,7 +197,7 @@ class Genotype(object):
         :rtype: bool
         """
 
-        return self._jrep.isHetNonRef()
+        return self._genotype_object.isHetNonRef(self._jrep)
 
     def is_het_ref(self):
         """True if the genotype call contains one reference and one alternate allele.
@@ -202,7 +205,7 @@ class Genotype(object):
         :rtype: bool
         """
 
-        return self._jrep.isHetRef()
+        return self._genotype_object.isHetRef(self._jrep)
 
     def is_not_called(self):
         """True if the genotype call is missing.
@@ -210,7 +213,7 @@ class Genotype(object):
         :rtype: bool
         """
 
-        return self._jrep.isNotCalled()
+        return self._genotype_object.isNotCalled(self._jrep)
 
     def is_called(self):
         """True if the genotype call is non-missing.
@@ -218,7 +221,7 @@ class Genotype(object):
         :rtype: bool
         """
 
-        return self._jrep.isCalled()
+        return self._genotype_object.isCalled(self._jrep)
 
     def num_alt_alleles(self):
         """Returns the count of non-reference alleles.
@@ -228,7 +231,7 @@ class Genotype(object):
         :rtype: int or None
         """
 
-        return from_option(self._jrep.nNonRefAlleles())
+        return from_option(self._genotype_object.nNonRefAlleles(self._jrep))
 
     @handle_py4j
     @typecheck_method(num_alleles=integral)
@@ -261,7 +264,7 @@ class Genotype(object):
         :param int num_alleles: number of possible alternate alleles
         :rtype: list of int or None
         """
-        return jiterable_to_list(from_option(self._jrep.oneHotAlleles(num_alleles)))
+        return jiterable_to_list(from_option(self._genotype_object.oneHotAlleles(num_alleles, self._jrep)))
 
     @handle_py4j
     @typecheck_method(num_genotypes=integral)
@@ -294,7 +297,7 @@ class Genotype(object):
         :rtype: list of int or None
         """
 
-        return jiterable_to_list(from_option(self._jrep.oneHotGenotype(num_genotypes)))
+        return jiterable_to_list(from_option(self._genotype_object.oneHotGenotype(num_genotypes, self._jrep)))
 
     @handle_py4j
     @typecheck_method(theta=numeric)
@@ -309,7 +312,7 @@ class Genotype(object):
         :rtype: float
         """
 
-        return from_option(self._jrep.pAB(theta))
+        return from_option(self._genotype_object.pAB(self._jrep, theta))
 
     def fraction_reads_ref(self):
         """Returns the fraction of reads that are reference reads.
@@ -321,7 +324,7 @@ class Genotype(object):
         :rtype: float or None
         """
 
-        return from_option(self._jrep.fractionReadsRef())
+        return from_option(self._genotype_object.fractionReadsRef(self._jrep))
 
 
 class Call(object):

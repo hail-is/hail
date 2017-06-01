@@ -247,6 +247,14 @@ object Genotype {
       Genotype.plToDosage(upx(0), upx(1), upx(2))
   }
 
+  def dosage(g: Genotype): Option[Double] = {
+    val ud = unboxedDosage(g)
+    if (ud == -1d)
+      None
+    else
+      Some(ud)
+  }
+
   def call(g: Genotype): Call = {
     val ugt = unboxedGT(g)
     if (ugt == -1)
