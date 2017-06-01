@@ -42,8 +42,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       j <- 0 until rColBlocks
     } yield (i, j)
     val rMats = sc.parallelize(indices).map { case (i, j) =>
-      val rRowsInThisBlock = (if (i + 1 == rRowBlocks) rRowsRemainder else rRowsPerBlock)
-      val rColsInThisBlock = (if (i + 1 == rColBlocks) rColsRemainder else rColsPerBlock)
+      val rRowsInThisBlock = (if (i + 1 == rRowBlocks && rRowsRemainder != 0) rRowsRemainder else rRowsPerBlock)
+      val rColsInThisBlock = (if (i + 1 == rColBlocks && rColsRemainder != 0) rColsRemainder else rColsPerBlock)
       val a = new Array[Double](rRowsInThisBlock * rColsInThisBlock)
       for {
         ii <- 0 until rRowsInThisBlock
@@ -117,8 +117,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val colsRemainder: Int = (nCols % colsPerBlock).toInt
     val blocks: RDD[((Int, Int), Matrix)] = x.blocks.map { case ((blockRow, blockCol), m) =>
       ((blockRow, blockCol), new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
-        val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks) rowsRemainder else rowsPerBlock)
-        val colsInThisBlock: Int = (if (blockCol + 1 == colBlocks) colsRemainder else colsPerBlock)
+        val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
+        val colsInThisBlock: Int = (if (blockCol + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
         if (blockRow.toLong * rowsInThisBlock + j % rowsInThisBlock < nRows &&
           blockCol.toLong * colsInThisBlock + j / rowsInThisBlock < nCols)
           op(e, blockRow * rowsInThisBlock + j % rowsInThisBlock)
@@ -139,8 +139,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val colsRemainder = (nCols % colsPerBlock).toInt
     val blocks: RDD[((Int, Int), Matrix)] = x.blocks.map { case ((blockRow, blockCol), m) =>
       ((blockRow, blockCol), new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
-        val rowsInThisBlock = (if (blockRow + 1 == rowBlocks) rowsRemainder else rowsPerBlock)
-        val colsInThisBlock = (if (blockCol + 1 == colBlocks) colsRemainder else colsPerBlock)
+        val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
+        val colsInThisBlock: Int = (if (blockCol + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
         if (blockRow * rowsInThisBlock + j % rowsInThisBlock < nRows &&
           blockCol * colsInThisBlock + j / rowsInThisBlock < nCols)
           op(e, blockCol * colsInThisBlock + j / rowsInThisBlock)
