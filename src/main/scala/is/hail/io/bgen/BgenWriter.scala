@@ -43,62 +43,43 @@ object BgenWriter {
     4 + l
   }
 
-  def bitPack(bb: ArrayBuilder[Byte], input: Array[Int], nBitsPerProb: Int) {
-    require(nBitsPerProb >= 1 && nBitsPerProb <= 32, "Number of bits per probability must be between 1 and 32 inclusive.")
-
-    val bitMask = (1L << nBitsPerProb) - 1
-    var byteIndex = 0
-    var data = 0L
-    var dataSize = 0
-
-    var i = 0
-    while (i < input.length) {
-      data |= ((input(i).toUIntFromRep.toLong & bitMask) << dataSize)
-      dataSize += nBitsPerProb
-
-      while (dataSize >= 8) {
-        bb += data.toByte
-        data = data >>> 8
-        dataSize -= 8
-        byteIndex += 1
-      }
-      i += 1
-    }
-
-    if (dataSize > 0)
-      bb += data.toByte
-  }
-
   def sortedIndex(a: Array[Double], idx: Array[Int]) {
     val n = a.length
-    if (n == 3) {
-      if (a(0) >= a(1) && a(1) >= a(2)) {
+    if (n != 3)
+      throw new UnsupportedOperationException("sortedIndex is only supported for arrays of length 3.")
+
+    if (a(0) >= a(1)) {
+      if (a(1) >= a(2)) {
         idx(0) = 0
         idx(1) = 1
         idx(2) = 2
-      } else if (a(0) >= a(2) && a(2) >= a(1)) {
-        idx(0) = 0
-        idx(1) = 2
-        idx(2) = 1
-      } else if (a(1) >= a(0) && a(0) >= a(2)) {
-        idx(0) = 1
-        idx(1) = 0
-        idx(2) = 2
-      } else if (a(1) >= a(2) && a(2) >= a(0)) {
-        idx(0) = 2
-        idx(1) = 0
-        idx(2) = 1
-      } else if (a(2) >= a(0) && a(0) >= a(1)) {
-        idx(0) = 1
-        idx(1) = 2
-        idx(2) = 0
       } else {
-        idx(0) = 2
-        idx(1) = 1
-        idx(2) = 0
+        if (a(0) >= a(2)) {
+          idx(0) = 0
+          idx(1) = 2
+          idx(2) = 1
+        } else {
+          idx(0) = 1
+          idx(1) = 2
+          idx(2) = 0
+        }
       }
     } else {
-      throw new UnsupportedOperationException("sortedIndex is only supported for arrays of length 3.")
+      if (a(0) >= a(2)) {
+        idx(0) = 1
+        idx(1) = 0
+        idx(2) = 2
+      } else {
+        if (a(1) >= a(2)) {
+          idx(0) = 2
+          idx(1) = 0
+          idx(2) = 1
+        } else {
+          idx(0) = 2
+          idx(1) = 1
+          idx(2) = 0
+        }
+      }
     }
   }
 
@@ -110,85 +91,77 @@ object BgenWriter {
     }
   }
 
-  def resizeWeights(input: Array[Double], output: ArrayBuilder[Int], resized: Array[Double], index: Array[Int], size: Long) {
+  def resizeAndComputeFractional(input: Array[Int], resized: Array[Double], fractional: Array[Double], conversionFactor: Double): Int = {
     val n = input.length
-    assert(resized.length == n && index.length == n)
-    resetIndex(index)
-
-    val conversionFactor = size.toDouble / input.sum
-
-    var totalFractional = 0d
-    var i = 0
-    while (i < n) {
-      val x = input(i) * conversionFactor
-      resized(i) = x
-      totalFractional += (x - x.floor)
-      i += 1
-    }
-
-    val F = (totalFractional + 0.5).toInt
-    assert(F >= 0 && F <= n)
-
-    sortedIndex(resized, index)
-
-    i = 0
-    var newSize = 0d
-    while (i < n) {
-      val r = if (index(i) < F) resized(i).ceil else resized(i).floor
-      if (i != n - 1)
-        output += r.toUInt.intRep
-      newSize += r
-      i += 1
-    }
-
-    assert(newSize == size)
-  }
-
-  def resizeWeights(input: Array[Int], output: ArrayBuilder[Int], resized: Array[Double], index: Array[Int], size: Long) {
-    val n = input.length
-    assert(resized.length == n && index.length == n)
-    resetIndex(index)
-
-    val conversionFactor = size.toDouble / input.sum
+    assert(resized.length == n)
 
     var totalFractional = 0d
     var i = 0
     while (i < n) {
       val x = input(i).toUIntFromRep * conversionFactor
+      val f = x - x.floor
       resized(i) = x
-      totalFractional += (x - x.floor)
+      fractional(i) = f
+      totalFractional += f
       i += 1
     }
 
     val F = (totalFractional + 0.5).toInt
     assert(F >= 0 && F <= n)
+    F
+  }
 
-    sortedIndex(resized, index)
+  def resizeAndComputeFractional(input: Array[Double], resized: Array[Double], fractional: Array[Double], conversionFactor: Double): Int = {
+    val n = input.length
+    assert(resized.length == n)
 
-    i = 0
+    var totalFractional = 0d
+    var i = 0
+    while (i < n) {
+      val x = input(i) * conversionFactor
+      val f = x - x.floor
+      resized(i) = x
+      fractional(i) = f
+      totalFractional += f
+      i += 1
+    }
+
+    val F = (totalFractional + 0.5).toInt
+    assert(F >= 0 && F <= n)
+    F
+  }
+
+  def roundWithConstantSum(resized: Array[Double], fractional: Array[Double], index: Array[Int], output: IntConsumer, F: Int, expectedSize: Long, keepLast: Boolean = true) {
+    val n = resized.length
+    assert(index.length == n)
+    resetIndex(index)
+    sortedIndex(fractional, index)
+
+    var i = 0
     var newSize = 0d
     while (i < n) {
       val r = if (index(i) < F) resized(i).ceil else resized(i).floor
-      if (i != n - 1)
+      if (keepLast || i != n - 1)
         output += r.toUInt.intRep
       newSize += r
       i += 1
     }
-
-    assert(newSize == size)
+    assert(newSize == expectedSize)
   }
 
-  def emitHeaderBlock(vds: VariantDataset): Array[Byte] = {
-    val nSamples = vds.nSamples
-    val sampleIds = vds.stringSampleIds.toArray
-    val nVariants = vds.countVariants()
+  def headerBlock(sampleIds: Array[String], nVariants: Long): Array[Byte] = {
+    val bb = new ArrayBuilder[Byte]
+    emitHeaderBlock(bb, sampleIds, nVariants)
+    bb.result()
+  }
+
+  def emitHeaderBlock(bb: ArrayBuilder[Byte], sampleIds: Array[String], nVariants: Long) {
+    val nSamples = sampleIds.length
     assert(nVariants <= (1L << 32) - 1, s"Maximum number of variants can export is (2^32 - 1). Found $nVariants.")
 
     val magicNumbers = Array("b", "g", "e", "n").flatMap(_.getBytes)
     val flags = 0x01 | (0x02 << 2) | (0x01 << 31)
     val headerLength = 20
-
-    val bb = new ArrayBuilder[Byte]
 
     intToBytesLE(bb, 0) // placeholder for offset
     intToBytesLE(bb, headerLength)
@@ -210,16 +183,11 @@ object BgenWriter {
     val offset = headerLength + sampleBlockLength
     updateIntToBytesLE(bb, offset, 0)
     updateIntToBytesLE(bb, sampleBlockLength, 24)
-
-    bb.result()
   }
 
-  def emitVariantBlock(v: Variant, va: Annotation, gs: Iterable[Genotype],
-    rsidQuery: Option[Querier], varidQuery: Option[Querier], nSamples: Int, nBitsPerProb: Int): Array[Byte] = {
-
-    val bb = new ArrayBuilder[Byte]
+  def emitVariant(bb: ArrayBuilder[Byte], v: Variant, va: Annotation, gs: Iterable[Genotype],
+    rsidQuery: Option[Querier], varidQuery: Option[Querier], nSamples: Int, nBitsPerProb: Int) {
     val nAlleles = v.nAlleles
-
     require(nAlleles <= 0xffff, s"Maximum number of alleles per variant is ${ 0xffff }. Found ${ v.nAlleles }.")
 
     val varid = varidQuery.flatMap(q => Option(q(va))).map(_.asInstanceOf[String]).getOrElse(v.toString)
@@ -244,47 +212,87 @@ object BgenWriter {
 
     updateIntToBytesLE(bb, compressedLength + 4, gtDataBlockStart)
     updateIntToBytesLE(bb, uncompressedLength, gtDataBlockStart + 4)
-
-    bb.result()
   }
 
   def emitGenotypeData(gs: Iterable[Genotype], nSamples: Int, nAlleles: Int, nBitsPerProb: Int): Array[Byte] = {
-    val gtDataBuffer = new ArrayBuilder[Byte]
-    val sampleProbs = new ArrayBuilder[Int]
+    val bb = new ArrayBuilder[Byte]
 
     val nGenotypes = triangle(nAlleles)
     val newSize = (1L << nBitsPerProb) - 1
 
-    intToBytesLE(gtDataBuffer, nSamples)
-    shortToBytesLE(gtDataBuffer, nAlleles)
-    gtDataBuffer += ploidy
-    gtDataBuffer += ploidy
+    intToBytesLE(bb, nSamples)
+    shortToBytesLE(bb, nAlleles)
+    bb += ploidy
+    bb += ploidy
 
     val resized = new Array[Double](nGenotypes)
     val index = new Array[Int](nGenotypes)
+    val fractional = new Array[Double](nGenotypes)
 
-    gs.foreach { gt =>
+    val samplePloidyStart = bb.length
+    var i = 0
+    while (i < nSamples) {
+      bb += 0x80.toByte // placeholder for sample ploidy - default is missing
+      i += 1
+    }
+
+    bb += phased
+    bb += nBitsPerProb.toByte
+
+    val bitPacker = new BitPacker(bb, nBitsPerProb)
+    gs.zipWithIndex.foreach { case (gt, idx) =>
       val px = gt.unboxedPX
       if (px == null) {
-        gtDataBuffer += 0x80.toByte
         var i = 0
         while (i < nGenotypes - 1) {
-          sampleProbs += 0
+          bitPacker += 0
           i += 1
         }
       } else {
-        gtDataBuffer += ploidy
-        if (gt.isLinearScale)
-          resizeWeights(px, sampleProbs, resized, index, newSize)
-        else
-          resizeWeights(gt.unboxedGP, sampleProbs, resized, index, newSize)
+        bb(samplePloidyStart + idx) = ploidy
+
+        val F = if (gt.isLinearScale) {
+          val conversionFactor = newSize.toDouble / 32768
+          resizeAndComputeFractional(px, resized, fractional, conversionFactor)
+        } else {
+          resizeAndComputeFractional(gt.unboxedGP, resized, fractional, newSize)
+        }
+
+        roundWithConstantSum(resized, fractional, index, bitPacker, F, newSize, keepLast = false)
       }
     }
+    bitPacker.flush()
+    bb.result()
+  }
+}
 
-    gtDataBuffer += phased
-    gtDataBuffer += nBitsPerProb.toByte
-    bitPack(gtDataBuffer, sampleProbs.result(), nBitsPerProb)
+trait IntConsumer {
+  def +=(x: Int): Unit
+}
 
-    gtDataBuffer.result()
+class BitPacker(bb: ArrayBuilder[Byte], nBitsPerProb: Int) extends IntConsumer {
+  require(nBitsPerProb >= 1 && nBitsPerProb <= 32, "Number of bits per probability must be between 1 and 32 inclusive.")
+
+  val bitMask = (1L << nBitsPerProb) - 1
+  private var data = 0L
+  private var dataSize = 0
+
+  def +=(i: Int) {
+    data |= ((i.toUIntFromRep.toLong & bitMask) << dataSize)
+    dataSize += nBitsPerProb
+    write()
+  }
+
+  private def write() {
+    while (dataSize >= 8) {
+      bb += data.toByte
+      data = data >>> 8
+      dataSize -= 8
+    }
+  }
+
+  def flush() {
+    if (dataSize > 0)
+      bb += data.toByte
   }
 }

@@ -40,12 +40,7 @@ class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[
     size_ += 1
   }
 
-  def ++=(a: Array[T]) {
-    val l = a.length
-    ensureCapacity(size_ + l)
-    System.arraycopy(a, 0, b, size_, l)
-    size_ += l
-  }
+  def ++=(a: Array[T]): Unit = ++=(a, a.length)
 
   def ++=(a: Array[T], length: Int) {
     assert(length >= 0 && length <= a.length)

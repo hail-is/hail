@@ -236,10 +236,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       vds
   }
 
-  def exportBgen(path: String, nBitsPerProb: Int = 8) {
+  def exportBgen(path: String, nBitsPerProb: Int = 8, parallel: Boolean = false) {
     requireSplit("export bgen")
-
-    val nSamples = vds.nSamples
 
     val rsidQuery: Option[Querier] = vds.vaSignature.getOption("rsid")
       .filter {
@@ -259,13 +257,32 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
           false
       }.map(_ => vds.queryVA("va.varid")._2)
 
-    val bgenHeader = BgenWriter.emitHeaderBlock(vds)
+    val sampleIds = vds.stringSampleIds.toArray
+    val partitionSizes = vds.hc.sc.runJob(vds.rdd, getIteratorSize _)
+    val nVariants = partitionSizes.sum
+    val nSamples = vds.nSamples
 
-    vds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Genotype]))] =>
-      it.map { case (v, (va, gs)) =>
-        BgenWriter.emitVariantBlock(v, va, gs, rsidQuery, varidQuery, nSamples, nBitsPerProb)
+    val header = BgenWriter.headerBlock(sampleIds, nVariants)
+
+    vds.rdd.mapPartitionsWithIndex { case (i: Int, it: Iterator[(Variant, (Annotation, Iterable[Genotype]))]) =>
+      val bb = new ArrayBuilder[Byte]
+
+      val partHeader = if (parallel) {
+        BgenWriter.emitHeaderBlock(bb, sampleIds, partitionSizes(i))
+        val r = bb.result()
+        bb.clear()
+        r
+      } else
+        Array.empty[Byte]
+
+      Iterator(partHeader) ++ it.map { case (v, (va, gs)) =>
+        BgenWriter.emitVariant(bb, v, va, gs, rsidQuery, varidQuery, nSamples, nBitsPerProb)
+        val r = bb.result()
+        bb.clear()
+        r
       }
-    }.saveFromByteArrays(path + ".bgen", vds.hc.tmpDir, header = Some(bgenHeader))
+    }.saveFromByteArrays(path + ".bgen", vds.hc.tmpDir,
+      header = if (parallel && vds.nPartitions != 0) None else Some(header), parallelWrite = parallel)
 
     writeSampleFile(path)
   }
