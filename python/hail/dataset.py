@@ -1242,7 +1242,7 @@ class VariantDataset(object):
         a file with no header. In this case, the expressions should look like
         the examples below:
 
-        >>> vds.export_variants('output/file.tsv', 'v, va.pass, va.qc.AF')
+        >>> vds.export_variants('output/file.tsv', 'v, va.filters, va.qc.AF')
 
         .. note::
 
