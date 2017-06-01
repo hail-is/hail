@@ -120,7 +120,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     require(l.numRows() == r.numRows())
     require(l.numCols() == r.numCols())
     require(l.rowsPerBlock == r.rowsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
-    require(l.colsPerBlock == r.colsPerBlock)
+    require(l.colsPerBlock == r.colsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
     val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValues { case (m1, m2) =>
       val size = m1.numRows * m1.numCols
       val result = new Array[Double](size)
