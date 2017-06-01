@@ -89,7 +89,7 @@ class PCRelateSuite extends SparkSuite {
         .filter(me => me.i < me.j)
         .map(me => ((indexToId(me.i.toInt), indexToId(me.j.toInt)), me.value))
 
-    val result = PCRelate.maybefast[BlockMatrix](vds, pcs)
+    val result = PCRelate.maybefast(vds, pcs, 8192)
 
     (upperTriangularEntires(result.phiHat) join
       upperTriangularEntires(result.k0) join

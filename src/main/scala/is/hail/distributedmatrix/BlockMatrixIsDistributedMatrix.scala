@@ -16,7 +16,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def from(irm: IndexedRowMatrix, dense: Boolean = true): M =
     if (dense) irm.toBlockMatrixDense()
     else irm.toBlockMatrix()
-  def from(bm: BlockMatrix): M = bm
   def from(sc: SparkContext, dm: DenseMatrix, rowsPerBlock: Int, colsPerBlock: Int): M = {
     val rbc = sc.broadcast(dm)
     val rowBlocks = (dm.numRows - 1) / rowsPerBlock + 1
@@ -41,6 +40,10 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }.partitionBy(GridPartitioner(rowBlocks, colBlocks))
     new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, dm.numRows, dm.numCols)
   }
+  def from(bm: BlockMatrix): M =
+    new BlockMatrix(
+      bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / bm.rowsPerBlock).toInt + 1, ((bm.numCols - 1) / bm.colsPerBlock).toInt + 1)),
+      bm.rowsPerBlock, bm.colsPerBlock, bm.numRows(), bm.numCols())
 
   def transpose(m: M): M =
     BetterBlockMatrix.transpose(m)

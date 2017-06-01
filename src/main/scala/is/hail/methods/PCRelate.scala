@@ -4,7 +4,7 @@ import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import is.hail.keytable.KeyTable
 import is.hail.variant.{Variant, VariantDataset}
-import is.hail.distributedmatrix.DistributedMatrix
+import is.hail.distributedmatrix.BlockMatrixIsDistributedMatrix
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
@@ -14,12 +14,13 @@ import scala.language.higherKinds
 import scala.language.implicitConversions
 
 object PCRelate {
-  case class Result[M: DistributedMatrix](phiHat: M, k0: M, k1: M, k2: M)
+  type M = BlockMatrixIsDistributedMatrix.M
+  val dm = BlockMatrixIsDistributedMatrix
+  import dm.ops._
 
-  def maybefast[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
-    val dm = DistributedMatrix[M]
-    import dm.ops._
+  case class Result(phiHat: M, k0: M, k1: M, k2: M)
 
+  def maybefast(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result = {
     val g = vdsToMeanImputedMatrix(vds)
 
     val beta = fitBeta(g, pcs)
@@ -44,13 +45,13 @@ object PCRelate {
 
     val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0)
 
-    val blockedG = DistributedMatrix[M].from(g, vds.countVariants(), vds.nSamples)
+    val blockedG = dm.from(g, blockSize, vds.countVariants(), vds.nSamples)
     val gMinusMu = (blockedG :- (mu * 2.0))
     val variance = (mu :* (1.0 - mu))
 
     val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0)
 
-    val gD = DistributedMatrix[M].map2({
+    val gD = dm.map2({
       case (g, mu) =>
         if (g == 0.0) mu
         else if (g == 1.0) 0.0
@@ -77,27 +78,27 @@ object PCRelate {
     Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
   }
 
-  def apply[M: DistributedMatrix](vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
+  def apply(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result = {
     val g = vdsToMeanImputedMatrix(vds).cache()
 
     val beta = fitBeta(g, pcs)
 
     val mu = muHat(pcs, beta)
 
-    val blockedG = DistributedMatrix[M].from(g, vds.countVariants(), vds.nSamples)
+    val blockedG = dm.from(g, blockSize, vds.countVariants(), vds.nSamples)
     val phihat = phiHat(blockedG, mu)
 
     // FIXME: what should I do if the genotype is missing?
-    val kTwo = k2(f(phihat), DistributedMatrix[M].map2({ case (g, mu) => if (g == 0.0) mu else if (g == 1.0) 0.0 else if (g == 2.0) 1.0 - mu else g })(blockedG, mu), mu)
+    val kTwo = k2(f(phihat), dm.map2({ case (g, mu) => if (g == 0.0) mu else if (g == 1.0) 0.0 else if (g == 2.0) 1.0 - mu else g })(blockedG, mu), mu)
 
     val kZero = k0(phihat, mu, kTwo, ibs0(vds))
 
-    // println(DistributedMatrix[M].toLocalMatrix(kTwo))
+    // println(dm.toLocalMatrix(kTwo))
 
     Result(phihat, kZero, k1(kTwo, kZero), kTwo)
   }
 
-  def vdsToMeanImputedMatrix[M: DistributedMatrix](vds: VariantDataset): RDD[Array[Double]] = {
+  def vdsToMeanImputedMatrix(vds: VariantDataset): RDD[Array[Double]] = {
     val nSamples = vds.nSamples
     val rdd = vds.rdd.mapPartitions { part =>
       part.map { case (v, (va, gs)) =>
@@ -138,14 +139,14 @@ object PCRelate {
     *
     *  result: (SNP x (D+1))
     */
-  def fitBeta[M: DistributedMatrix](g: RDD[Array[Double]], pcs: DenseMatrix): M = {
+  def fitBeta(g: RDD[Array[Double]], pcs: DenseMatrix): M = {
     val aa = g.sparkContext.broadcast(pcs.rowIter.map(_.toArray).toArray)
     val rdd = g.map { a =>
       val ols = new OLSMultipleLinearRegression()
       ols.newSampleData(a, aa.value)
       ols.estimateRegressionParameters()
     }
-    DistributedMatrix[M].from(rdd)
+    dm.from(rdd)
   }
 
   private def clipToInterval(x: Double): Double =
@@ -162,10 +163,7 @@ object PCRelate {
     *
     *  result: SNP x Sample
     */
-  def muHat[M: DistributedMatrix](pcs: DenseMatrix, beta: M): M = {
-    val dm = DistributedMatrix[M]
-    import dm.ops._
-
+  def muHat(pcs: DenseMatrix, beta: M): M = {
     val pcsArray = pcs.toArray
     val pcsWithInterceptArray = new Array[Double](pcs.numRows * (pcs.numCols + 1))
 
@@ -194,23 +192,17 @@ object PCRelate {
     * g: SNP x Sample
     * muHat: SNP x Sample
     **/
-  def phiHat[M: DistributedMatrix](g: M, muHat: M): M = {
-    val dm = DistributedMatrix[M]
-    import dm.ops._
-
+  def phiHat(g: M, muHat: M): M = {
     val gMinusMu = g :- (muHat * 2.0)
     val varianceHat = muHat :* (1.0 - muHat)
 
     ((gMinusMu.t * gMinusMu) :/ (varianceHat.t.sqrt * varianceHat.sqrt)) / 4.0
   }
 
-  def f[M: DistributedMatrix](phiHat: M): Array[Double] =
-    DistributedMatrix[M].diagonal(phiHat).map(2.0 * _ - 1.0)
+  def f(phiHat: M): Array[Double] =
+    dm.diagonal(phiHat).map(2.0 * _ - 1.0)
 
-  def k2[M: DistributedMatrix](f: Array[Double], gD: M, mu: M): M = {
-    val dm = DistributedMatrix[M]
-    import dm.ops._
-
+  def k2(f: Array[Double], gD: M, mu: M): M = {
     // println("mu")
     // println(dm.toLocalMatrix(mu))
     // println("gD")
@@ -244,10 +236,7 @@ object PCRelate {
       1 - 4 * phiHat + k2
     else
       ibs0 / denom
-  def k0[M: DistributedMatrix](phiHat: M, mu: M, k2: M, ibs0: M): M = {
-    val dm = DistributedMatrix[M]
-    import dm.ops._
-
+  def k0(phiHat: M, mu: M, k2: M, ibs0: M): M = {
     val mu2 = dm.map(sqr _)(mu)
     val oneMinusMu2 = dm.map(sqr _)(1.0 - mu)
 
@@ -256,14 +245,11 @@ object PCRelate {
     dm.map4(_k0)(phiHat, denom, k2, ibs0)
   }
 
-  def k1[M: DistributedMatrix](k2: M, k0: M): M = {
-    val dm = DistributedMatrix[M]
-    import dm.ops._
-
+  def k1(k2: M, k0: M): M = {
     1.0 - (k2 :+ k0)
   }
 
-  def ibs0[M: DistributedMatrix](vds: VariantDataset): M =
-    DistributedMatrix[M].from(IBD.ibs(vds)._1)
+  def ibs0(vds: VariantDataset): M =
+    dm.from(IBD.ibs(vds)._1)
 
 }
