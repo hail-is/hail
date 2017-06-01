@@ -18,23 +18,6 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     toBlockMatrixDense(1024, 1024)
   }
 
-  /**
-    * Gets a GridParitioner instance from spark mllib using reflection, since the constructor is private.
-    */
-  private def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, suggestedNumPartitions: Int): Partitioner = {
-    val intClass = classTag[Int].runtimeClass
-    val gpObjectClass = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner$")
-    val gpApply = gpObjectClass.getMethod("apply", intClass, intClass, intClass)
-
-    try {
-      gpApply.setAccessible(true)
-      gpApply.invoke(gpObjectClass.getField("MODULE$").get(null), nRowBlocks: java.lang.Integer,
-        nColBlocks: java.lang.Integer, suggestedNumPartitions: java.lang.Integer).asInstanceOf[Partitioner]
-    } finally {
-      gpApply.setAccessible(false)
-    }
-  }
-
   def toBlockMatrixDense(rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix = {
     require(rowsPerBlock > 0,
       s"rowsPerBlock needs to be greater than 0. rowsPerBlock: $rowsPerBlock")
@@ -61,7 +44,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         .map{ case (values, blockColumn) =>
           ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
         }
-    }.groupByKey(sneakyGridPartitioner(numRowBlocks, numColBlocks, indexedRowMatrix.rows.getNumPartitions)).mapValuesWithKey{
+    }.groupByKey(GridPartitioner(numRowBlocks, numColBlocks)).mapValuesWithKey{
       case ((blockRow, blockColumn), itr) =>
         val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else rowsPerBlock
         val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else colsPerBlock

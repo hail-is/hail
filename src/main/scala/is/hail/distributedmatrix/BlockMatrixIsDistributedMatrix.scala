@@ -54,7 +54,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
         a(jj*rRowsInThisBlock + ii) = rbc.value(i*rRowsPerBlock + ii, j*rColsPerBlock + jj)
       }
       ((i, j), new DenseMatrix(rRowsInThisBlock, rColsInThisBlock, a, false): Matrix)
-    }
+    }.partitionBy(GridPartitioner(rRowBlocks, rColBlocks))
     l.multiply(new BlockMatrix(rMats, rRowsPerBlock, rColsPerBlock, r.numRows, r.numCols))
   }
 
