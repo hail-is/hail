@@ -28,28 +28,28 @@ object BetterBlockMatrix {
     }
 
     private def fmaDenseMatricesWithExtension(x: DenseMatrix, y: DenseMatrix, result: DenseMatrix) {
-      val x2 = if (finalResult.numRows != x.numRows)
-        toDenseMatrix(Matrices.vertcat(Array(x, Matrices.zeros(finalResult.numRows - x.numRows, x.numCols))))
+      val x2 = if (result.numRows != x.numRows)
+        toDenseMatrix(Matrices.vertcat(Array(x, Matrices.zeros(result.numRows - x.numRows, x.numCols))))
       else
         x
 
-      val y2 = if (finalResult.numCols != y.numCols)
-        toDenseMatrix(Matrices.horzcat(Array(y, Matrices.zeros(y.numRows, finalResult.numCols - y.numCols))))
+      val y2 = if (result.numCols != y.numCols)
+        toDenseMatrix(Matrices.horzcat(Array(y, Matrices.zeros(y.numRows, result.numCols - y.numCols))))
       else
         y
 
-      BLAS.gemm(1.0, x2, y2, 1.0, finalResult)
+      BLAS.gemm(1.0, x2, y2, 1.0, result)
     }
 
-    private def block(bm: BlockMatrix, p: GridPartitioner, i: Int, j: Int): Matrix =
+    private def block(bm: BlockMatrix, p: GridPartitioner, context: TaskContext, i: Int, j: Int): Matrix =
       bm.blocks.compute(IntPartition(p.getPartition((i, j))), context).toArray match {
         case Array((_, m)) => m
         case x => throw new RuntimeException(s"Expected array of length one, but got blocks: ${x.map(_._1).toSeq}, from $bm with partitioner $p.")
       }
-    private def leftBlock(i: Int, j: Int): Matrix =
-      block(l, lPartitioner, i, j)
-    private def rightBlock(i: Int, j: Int): Matrix =
-      block(r, rPartitioner, i, j)
+    private def leftBlock(i: Int, j: Int, context: TaskContext): Matrix =
+      block(l, lPartitioner, context, i, j)
+    private def rightBlock(i: Int, j: Int, context: TaskContext): Matrix =
+      block(r, rPartitioner, context, i, j)
 
     def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), Matrix)] = {
       val row = split.index % rowBlocks
@@ -60,7 +60,9 @@ object BetterBlockMatrix {
       val finalResult = DenseMatrix.zeros(rowsInThisBlock, colsInThisBlock)
       var i = 0
       while (i < nProducts) {
-        (leftBlock(row, i), rightBlock(i, col)) match {
+        val leftMat = leftBlock(row, i, context)
+        val rightMat = rightBlock(i, col, context)
+        (leftMat, rightMat) match {
           case (x: DenseMatrix, y: DenseMatrix) =>
             fmaDenseMatricesWithExtension(x, y, finalResult)
           case (x: DenseMatrix, y: SparseMatrix) =>
