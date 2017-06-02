@@ -3,7 +3,6 @@ package org.apache.spark.mllib.linalg.distributed
 import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.mllib.linalg._
-import org.apache.spark.mllib.linalg.distributed._
 
 object BetterBlockMatrix {
 
