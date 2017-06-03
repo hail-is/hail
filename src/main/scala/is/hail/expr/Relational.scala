@@ -195,7 +195,7 @@ object MatrixAST {
         FilterVariants(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
 
       case FilterSamples(FilterSamples(m, pred1), pred2) =>
-        FilterVariants(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
+        FilterSamples(m, Apply(pred1.getPos, "&&", Array(pred1, pred2)))
     })
   }
 }
