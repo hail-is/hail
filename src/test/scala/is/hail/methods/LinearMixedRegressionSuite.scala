@@ -134,7 +134,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     }
     
     // test dosages
-    val PX = DenseMatrix(
+    val gpMat = DenseMatrix(
       (Array(0.1, 0.2, 0.7), null),
       (Array(0.0, 0.2, 0.8), Array(1.0, 0.0, 0.0)),
       (Array(0.5, 0.2, 0.3), Array(0.4, 0.3, 0.3)),
@@ -142,10 +142,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
       (Array(1.0, 0.0, 0.0), Array(0.1, 0.2, 0.7)),
       (Array(0.0, 1.0, 0.0), Array(0.9, 0.1, 0.0)))
     
-    val dosageMat = PX.map(a => if (a != null) a(1) + 2 * a(2) else 0)
+    val dosageMat = gpMat.map(a => if (a != null) a(1) + 2 * a(2) else 0)
     dosageMat.update(0, 1, (sum(dosageMat(::, 1)) - dosageMat(0, 1)) / 5) // mean impute missing value
     
-    val vds1 = vdsFromPxMatrix(hc)(nAlleles = 2, PX)
+    val vds1 = vdsFromGpMatrix(hc)(nAlleles = 2, gpMat)
       .annotateSamples(vds0.sampleIds.zip(pheno).toMap, TDouble, "sa.pheno")
       .annotateSamples(vds0.sampleIds.zip(cov1).toMap, TDouble, "sa.cov1")
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TDouble, "sa.cov2")

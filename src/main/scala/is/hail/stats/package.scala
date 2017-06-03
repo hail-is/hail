@@ -334,23 +334,23 @@ package object stats {
   // genotypes(i,j) is genotype of variant j in sample i; i and j are 0-based indices
   // sample i is "i" by default
   // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
-  def vdsFromPxMatrix(hc: HailContext)(
+  def vdsFromGpMatrix(hc: HailContext)(
     nAlleles: Int,
-    pxMat: Matrix[Array[Double]],
+    gpMat: Matrix[Array[Double]],
     samplesIdsOpt: Option[Array[String]] = None,
     nPartitions: Int = hc.sc.defaultMinPartitions): VariantDataset = {
 
-    require(samplesIdsOpt.forall(_.length == pxMat.rows))
+    require(samplesIdsOpt.forall(_.length == gpMat.rows))
     require(samplesIdsOpt.forall(_.areDistinct()))
 
-    val sampleIds = samplesIdsOpt.getOrElse((0 until pxMat.rows).map(_.toString).toArray)
+    val sampleIds = samplesIdsOpt.getOrElse((0 until gpMat.rows).map(_.toString).toArray)
 
     val rdd = hc.sc.parallelize(
-      (0 until pxMat.cols).map { j =>
+      (0 until gpMat.cols).map { j =>
         (Variant("1", j + 1, "A", "C"),
           (Annotation.empty,
-            (0 until pxMat.rows).map { i =>
-              Genotype(nAlleles = nAlleles, dos = pxMat(i,j))
+            (0 until gpMat.rows).map { i =>
+              Genotype(nAlleles = nAlleles, dos = gpMat(i,j))
             }: Iterable[Genotype]
             )
           )
