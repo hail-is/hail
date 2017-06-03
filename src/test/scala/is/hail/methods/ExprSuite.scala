@@ -914,6 +914,9 @@ class ExprSuite extends SparkSuite {
       eval[Double]("""Genotype(Variant("1", 1, "A", "T"), [0.01, 0.95, 0.04]).dosage()""").get,
       eval[Double]("""([0.01, 0.95, 0.04] * [0, 1, 2]).sum()""").get,
       tolerance = 0.01))
+
+    assert(eval("Dict([1,2,3], [1,2,3])").contains(Map(1 -> 1, 2 -> 2, 3 -> 3)))
+    assert(eval("""Dict(["foo", "bar"], [1,2])""").contains(Map("foo" -> 1, "bar" -> 2)))
   }
 
   @Test def testParseTypes() {
@@ -1041,6 +1044,13 @@ class ExprSuite extends SparkSuite {
     val p = forAll(g) { case (t, a, b) =>
         val ord = t.ordering(missingGreatest = true)
         ord.compare(a, b) == - ord.compare(b, a)
+    }
+  }
+
+  @Test def testContext() {
+    Array("s", "sa", "v", "va", "g").foreach { sym =>
+      val (a, t) = hc.eval(sym)
+      assert(t.typeCheck(a), s"problematic symbol: '$sym'")
     }
   }
 }

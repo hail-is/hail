@@ -1098,7 +1098,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
-  override def toString: String = if (size == 0) "Empty" else "Struct"
+  override def toString: String = if (size == 0) "Empty" else toPrettyString(compact = true)
 
   override def pretty(sb: StringBuilder, indent: Int, printAttrs: Boolean, compact: Boolean) {
     if (size == 0)
@@ -1109,7 +1109,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         fields.foreachBetween(_.pretty(sb, indent, printAttrs, compact))(sb += ',')
         sb += '}'
       } else {
-        sb.append("Struct {")
+        sb.append("Struct{")
         sb += '\n'
         fields.foreachBetween(_.pretty(sb, indent + 4, printAttrs, compact))(sb.append(",\n"))
         sb += '\n'

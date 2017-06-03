@@ -1,5 +1,6 @@
 from hail.typecheck import *
 
+
 class Struct(object):
     """
     Nested annotation structure.
@@ -46,9 +47,6 @@ class Struct(object):
     def __str__(self):
         return 'Struct' + str(self._attrs)
 
-    def __repr__(self):
-        return 'Struct' + repr(self._attrs)
-
     def __eq__(self, other):
         if isinstance(other, Struct):
             return self._attrs == other._attrs
@@ -70,3 +68,29 @@ class Struct(object):
         :returns: Value of item if found, or default value if not.
         """
         return self._attrs.get(item, default)
+
+
+@typecheck(struct=Struct)
+def to_dict(struct):
+    d = {}
+    for k, v in struct._attrs.iteritems():
+        if isinstance(v, Struct):
+            d[k] = to_dict(v)
+        else:
+            d[k] = v
+    return d
+
+
+import pprint
+
+_old_printer = pprint.PrettyPrinter
+
+
+class StructPrettyPrinter(pprint.PrettyPrinter):
+    def _format(self, obj, *args, **kwargs):
+        if isinstance(obj, Struct):
+            obj = to_dict(obj)
+        return _old_printer._format(self, obj, *args, **kwargs)
+
+
+pprint.PrettyPrinter = StructPrettyPrinter  # monkey-patch pprint
