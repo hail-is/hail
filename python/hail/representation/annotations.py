@@ -44,6 +44,9 @@ class Struct(object):
     def __len__(self):
         return len(self._attrs)
 
+    def __repr__(self):
+        return str(self)
+
     def __str__(self):
         return 'Struct' + str(self._attrs)
 
