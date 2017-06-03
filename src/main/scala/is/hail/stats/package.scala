@@ -305,22 +305,52 @@ package object stats {
   // genotypes(i,j) is genotype of variant j in sample i encoded as one of {-1, 0, 1, 2}; i and j are 0-based indices
   // sample i is "i" by default
   // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
-  def vdsFromMatrix(hc: HailContext)(
-    genotypes: Matrix[Int],
+  def vdsFromGtMatrix(hc: HailContext)(
+    gtMat: Matrix[Int],
     samplesIdsOpt: Option[Array[String]] = None,
     nPartitions: Int = hc.sc.defaultMinPartitions): VariantDataset = {
 
-    require(samplesIdsOpt.forall(_.length == genotypes.rows))
+    require(samplesIdsOpt.forall(_.length == gtMat.rows))
     require(samplesIdsOpt.forall(_.areDistinct()))
 
-    val sampleIds = samplesIdsOpt.getOrElse((0 until genotypes.rows).map(_.toString).toArray)
+    val sampleIds = samplesIdsOpt.getOrElse((0 until gtMat.rows).map(_.toString).toArray)
 
     val rdd = hc.sc.parallelize(
-      (0 until genotypes.cols).map { j =>
+      (0 until gtMat.cols).map { j =>
         (Variant("1", j + 1, "A", "C"),
           (Annotation.empty,
-            (0 until genotypes.rows).map { i =>
-              Genotype(genotypes(i, j))
+            (0 until gtMat.rows).map { i =>
+              Genotype(gtMat(i, j))
+            }: Iterable[Genotype]
+            )
+          )
+      },
+      nPartitions
+    ).toOrderedRDD
+
+    new VariantDataset(hc, VSMFileMetadata(sampleIds, wasSplit = true), rdd)
+  }
+  
+  // genotypes(i,j) is genotype of variant j in sample i; i and j are 0-based indices
+  // sample i is "i" by default
+  // variant j is ("1", j + 1, "A", C") since 0 is not a valid position.
+  def vdsFromGpMatrix(hc: HailContext)(
+    nAlleles: Int,
+    gpMat: Matrix[Array[Double]],
+    samplesIdsOpt: Option[Array[String]] = None,
+    nPartitions: Int = hc.sc.defaultMinPartitions): VariantDataset = {
+
+    require(samplesIdsOpt.forall(_.length == gpMat.rows))
+    require(samplesIdsOpt.forall(_.areDistinct()))
+
+    val sampleIds = samplesIdsOpt.getOrElse((0 until gpMat.rows).map(_.toString).toArray)
+
+    val rdd = hc.sc.parallelize(
+      (0 until gpMat.cols).map { j =>
+        (Variant("1", j + 1, "A", "C"),
+          (Annotation.empty,
+            (0 until gpMat.rows).map { i =>
+              Genotype(nAlleles = nAlleles, dos = gpMat(i,j))
             }: Iterable[Genotype]
             )
           )

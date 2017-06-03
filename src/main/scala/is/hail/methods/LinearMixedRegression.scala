@@ -30,7 +30,8 @@ object LinearMixedRegression {
     rootVA: String,
     runAssoc: Boolean,
     optDelta: Option[Double],
-    sparsityThreshold: Double): VariantDataset = {
+    sparsityThreshold: Double,
+    useDosages: Boolean): VariantDataset = {
 
     require(assocVds.wasSplit)
 
@@ -140,14 +141,18 @@ object LinearMixedRegression {
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       vds2.mapAnnotations { case (v, va, gs) =>
-        val x = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
-
+        val x: Vector[Double] = 
+          if (!useDosages) {
+            val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
+            if (x0.used <= sparsityThreshold * n) x0 else x0.toDenseVector
+          }
+          else
+            RegressionUtils.dosages(gs, n, sampleMaskBc.value)
+        
         // constant checking to be removed in 0.2
-        val nonConstant = !RegressionUtils.constantVector(x)
-        
-        val x0 = if (x.used <= sparsityThreshold * n) x else x.toDenseVector
-        
-        val lmmregAnnot = if (nonConstant) scalerLMMBc.value.likelihoodRatioTest(TBc.value * x0) else null
+        val nonConstant = useDosages || !RegressionUtils.constantVector(x)
+                
+        val lmmregAnnot = if (nonConstant) scalerLMMBc.value.likelihoodRatioTest(TBc.value * x) else null
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         newAnnotation

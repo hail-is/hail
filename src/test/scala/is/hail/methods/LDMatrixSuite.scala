@@ -68,7 +68,7 @@ class LDMatrixSuite extends SparkSuite {
 
     val localLD = localLDCompute(genotypes)
 
-    val vds = stats.vdsFromMatrix(hc)(genotypes.t)
+    val vds = stats.vdsFromGtMatrix(hc)(genotypes.t)
     val distLdSpark = vds.ldMatrix().matrix.toBlockMatrix().toLocalMatrix()
     val distLDBreeze = new DenseMatrix[Double](distLdSpark.numRows, distLdSpark.numCols, distLdSpark.toArray)
 
