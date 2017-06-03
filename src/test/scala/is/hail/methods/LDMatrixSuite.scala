@@ -9,12 +9,21 @@ import org.testng.annotations.Test
 
 class LDMatrixSuite extends SparkSuite {
 
-  val m = 100
+  val m = 200
   val n = 100
   val seed = scala.util.Random.nextInt()
-  val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val ldMatrix = vds.ldMatrix()
+  lazy val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
+  lazy val ldMatrix = vds.ldMatrix(30)
+  lazy val localMatrix = ldMatrix.toLocalMatrix()
 
+
+  @Test def testSymmetry() {
+    val numVariants = ldMatrix.variants.length
+
+    for(i <- 0 until numVariants; j <- 0 to i) {
+      Assert.assertEquals(localMatrix(i, j), localMatrix(j, i), 0.0000001, s"Failed on seed $seed.")
+    }
+  }
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests
     * that index i in the matrix corresponds to index i in the array.
@@ -27,15 +36,22 @@ class LDMatrixSuite extends SparkSuite {
 
 
     val indexToBPV = ldMatrix.variants.map(v => variantsTable(v).get)
-    val ldMatrixLocal = ldMatrix.matrix.toBlockMatrix().toLocalMatrix()
-    val numVariants = ldMatrixLocal.numRows
+    val numVariants = localMatrix.numRows
 
     for(i <- 0 until numVariants; j <- 0 until numVariants) {
-      val computedR = LDPrune.computeR(indexToBPV(i), indexToBPV(j))
-      val matrixR = ldMatrixLocal(i, j)
+      val computedR = LDPrune.computeR(indexToBPV(j), indexToBPV(i))
+      val matrixR = localMatrix(j, i)
 
       Assert.assertEquals(computedR, matrixR, .000001)
     }
+  }
+
+  /**
+    * Test that LD Matrix is square.
+    */
+  @Test def testDimensions() {
+    assert(ldMatrix.matrix.numRows().toInt == ldMatrix.matrix.numCols())
+    assert(ldMatrix.matrix.numRows().toInt == ldMatrix.variants.length)
   }
 
   /**
@@ -69,8 +85,8 @@ class LDMatrixSuite extends SparkSuite {
     val localLD = localLDCompute(genotypes)
 
     val vds = stats.vdsFromMatrix(hc)(genotypes.t)
-    val distLdSpark = vds.ldMatrix().matrix.toBlockMatrix().toLocalMatrix()
-    val distLDBreeze = new DenseMatrix[Double](distLdSpark.numRows, distLdSpark.numCols, distLdSpark.toArray)
+    val distLDSpark = vds.ldMatrix(1).matrix.toBlockMatrix().toLocalMatrix()
+    val distLDBreeze = new DenseMatrix[Double](distLDSpark.numRows, distLDSpark.numCols, distLDSpark.toArray)
 
     TestUtils.assertMatrixEqualityDouble(distLDBreeze, localLD)
 

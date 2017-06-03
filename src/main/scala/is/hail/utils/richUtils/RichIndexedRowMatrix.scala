@@ -1,11 +1,9 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.Partitioner
+import is.hail.methods.LDMatrix
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-
-import scala.reflect.classTag
 
 import is.hail.utils._
 
@@ -19,23 +17,6 @@ import is.hail.utils._
 class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
   def toBlockMatrixDense(): BlockMatrix = {
     toBlockMatrixDense(1024, 1024)
-  }
-
-  /**
-    * Gets a GridParitioner instance from spark mllib using reflection, since the constructor is private.
-    */
-  private def sneakyGridPartitioner(nRowBlocks: Int, nColBlocks: Int, suggestedNumPartitions: Int): Partitioner = {
-    val intClass = classTag[Int].runtimeClass
-    val gpObjectClass = Class.forName("org.apache.spark.mllib.linalg.distributed.GridPartitioner$")
-    val gpApply = gpObjectClass.getMethod("apply", intClass, intClass, intClass)
-
-    try {
-      gpApply.setAccessible(true)
-      gpApply.invoke(gpObjectClass.getField("MODULE$").get(null), nRowBlocks: java.lang.Integer,
-        nColBlocks: java.lang.Integer, suggestedNumPartitions: java.lang.Integer).asInstanceOf[Partitioner]
-    } finally {
-      gpApply.setAccessible(false)
-    }
   }
 
   def toBlockMatrixDense(rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix = {
@@ -64,7 +45,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         .map{ case (values, blockColumn) =>
           ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
         }
-    }.groupByKey(sneakyGridPartitioner(numRowBlocks, numColBlocks, indexedRowMatrix.rows.getNumPartitions)).mapValuesWithKey{
+    }.groupByKey(LDMatrix.reflectGridPartitioner(numRowBlocks, numColBlocks, indexedRowMatrix.rows.getNumPartitions)).mapValuesWithKey{
       case ((blockRow, blockColumn), itr) =>
         val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else rowsPerBlock
         val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else colsPerBlock
