@@ -57,6 +57,7 @@ object Type {
     s <- Gen.size
     // prefer smaller type and bigger values
     fraction <- Gen.choose(0.1, 0.3)
+    x = (fraction * s).toInt
     y = s - x
     t <- Type.genStruct.resize(x)
     v <- t.genValue.resize(y)
