@@ -154,21 +154,21 @@ object BetterBlockMatrix extends Logging {
       m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.transpose) }
 
     protected def getPartitions: Array[Partition] =
-      (0 until m.numRowBlocks * m.numColBlocks).map(IntPartition.apply _).toArray[Partition]
+      m.blocks.partitions
 
     private val prevPartitioner = m.blocks.partitioner.get
-    @transient override val partitioner: Option[Partitioner] =
-      Some(new GridPartitioner(m.numColBlocks, m.numRowBlocks, 1, 1) {
-        override def getPartition(key: Any) = key match {
-          case i: Int => super.getPartition(i)
-          case (i: Int, j: Int) =>
-            prevPartitioner.getPartition((j, i))
-          case (i: Int, j: Int, _: Int) =>
-            prevPartitioner.getPartition((j, i))
-          case _ =>
-            throw new IllegalArgumentException(s"Unrecognized key: $key.")
-        }
-      })
+    private val myPartitioner = new GridPartitioner(m.numColBlocks, m.numRowBlocks, 1, 1) {
+      override def getPartition(key: Any) = key match {
+        case i: Int => super.getPartition(i)
+        case (i: Int, j: Int) =>
+          prevPartitioner.getPartition((j, i))
+        case (i: Int, j: Int, _: Int) =>
+          prevPartitioner.getPartition((j, i))
+        case _ =>
+          throw new IllegalArgumentException(s"Unrecognized key: $key.")
+      }
+    }
+    @transient override val partitioner: Option[Partitioner] = Some(myPartitioner)
   }
 
   def transpose(preM: BlockMatrix): BlockMatrix = {
