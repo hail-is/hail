@@ -6,7 +6,6 @@ import is.hail.check.Prop.forAll
 import is.hail.distributedmatrix.DistributedMatrix
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.testng.annotations.Test
-import breeze.linalg._
 import scala.util.Random
 
 class BetterBlockMatrixSuite extends SparkSuite {
