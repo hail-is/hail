@@ -95,10 +95,7 @@ class BgenSuite extends SparkSuite {
 
       assert(genAnnotations.fullOuterJoin(bgenAnnotations).forall { case (varid, (va1, va2)) => va1 == va2 })
 
-      val genExpanded = genVDS.expandWithAll().map { case (v, va, s, sa, g) => ((varidGenQuery(va).asInstanceOf[String], s), g) }
-      val bgenExpanded = bgenVDS.expandWithAll().map { case (v, va, s, sa, g) => ((varidBgenQuery(va).asInstanceOf[String], s), g) }
-
-      val isSame = isGPSame(genExpanded, bgenExpanded, tolerance)
+      val isSame = isGPSame(genVDS, bgenVDS, tolerance)
 
       hadoopConf.delete(bgen + ".idx", recursive = true)
 

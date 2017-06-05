@@ -38,4 +38,8 @@ class ByteArrayReader(arr: Array[Byte]) extends AbstractBinaryReader {
   }
 
   def hasNext(): Boolean = position < length
+
+  def reset() {
+    position = 0
+  }
 }

@@ -9,7 +9,6 @@ class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends
   var data = 0L
   var dataSize = 0
 
-
   override def next(): UInt = {
     while (dataSize < nBitsPerProb && input.hasNext()) {
       data |= ((input.read() & 0xffL) << dataSize)

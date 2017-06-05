@@ -1848,7 +1848,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
             val genotypesSame = (it1, it2).zipped.forall { case (g1, g2) =>
               val gSame = gSignatureBc.value.valuesSimilar(g1, g2, tolerance)
               if (!gSame)
-                println(s"genotypes $g1, $g2 were not the same")
+                println(s"at variant `$v', genotypes $g1, $g2 were not the same")
               gSame
             }
             annotationsSame && genotypesSame

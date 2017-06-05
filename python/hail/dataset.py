@@ -1074,8 +1074,9 @@ class VariantDataset(object):
     @handle_py4j
     @requireTGenotype
     @typecheck_method(output=strlike,
-                      nbits_per_prob=integral)
-    def export_bgen(self, output, nbits_per_prob=8):
+                      nbits_per_prob=integral,
+                      parallel=bool)
+    def export_bgen(self, output, nbits_per_prob=8, parallel=False):
         """Export variant dataset as v1.2 BGEN and SAMPLE file.
 
         .. include:: requireTGenotype.rst
@@ -1112,9 +1113,10 @@ class VariantDataset(object):
 
         :param str output: Output file base.  Will write BGEN and SAMPLE files.
         :param int nbits_per_prob: Number of bits per probability. Must be between 1 and 32 inclusive.
+        :param bool parallel: If true, return a set of BGEN files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvdf.exportBgen(output, nbits_per_prob)
+        self._jvdf.exportBgen(output, nbits_per_prob, parallel)
 
     @handle_py4j
     @requireTGenotype
