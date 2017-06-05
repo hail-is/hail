@@ -1,40 +1,47 @@
 package is.hail.utils
 
 import is.hail.SparkSuite
+import is.hail.check.Gen
+import is.hail.check.Prop.forAll
 import is.hail.distributedmatrix.DistributedMatrix
-import org.apache.spark.mllib.linalg.DenseVector
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.testng.annotations.Test
+import breeze.linalg._
+import scala.util.Random
 
 class BetterBlockMatrixSuite extends SparkSuite {
   import is.hail.distributedmatrix.DistributedMatrix.implicits._
+  val dm = DistributedMatrix[BlockMatrix]
+  import dm.ops._
 
-  @Test def testMultiply() {
-    val dm = DistributedMatrix[BlockMatrix]
-    import dm.ops._
 
-    val rowRDD = sc.parallelize(Seq(
-      Array[Double](-0.0, -0.0, 0.0),
-      Array[Double](0.24999999999999994, 0.5000000000000001, -0.5),
-      Array[Double](0.4999999999999998, 2.220446049250313E-16, 2.220446049250313E-16),
-      Array[Double](0.75, 0.5, -0.5),
-      Array[Double](0.25, -0.5, 0.5),
-      Array[Double](0.5000000000000001, 1.232595164407831E-32, -2.220446049250313E-16),
-      Array[Double](0.75, -0.5000000000000001, 0.5),
-      Array[Double](1.0, -0.0, 0.0)))
+  @Test def testMultiplyRandom() {
 
-    val irm =new IndexedRowMatrix(rowRDD.zipWithIndex().map{case(values, idx) => IndexedRow(idx, new DenseVector(values))})
-    val sbm = irm.toBlockMatrixDense()
+    val r = new Random()
+    val m = r.nextInt(100) + 30
+    val n = r.nextInt(100) + 30
+    val k = r.nextInt(100) + 30
+    val matGen1 = Gen.denseMatrix[Double](m, n)(Gen.choose(-100.0, 100.0))
+    val matGen2 = Gen.denseMatrix[Double](n, k)(Gen.choose(-100.0, 100.0))
 
-    val bbm = dm.from(rowRDD)
+    forAll(matGen1, matGen2) { (mat1, mat2) =>
+      val range1 = 0 until(m)
+      val irs1  = range1.map(i => IndexedRow(i, mat1(i, ::).t))
 
-    val betterProduct = (bbm * bbm.t).toLocalMatrix().toArray.toIndexedSeq
+      val range2 = 0 until n
+      val irs2 = range2.map(i => IndexedRow(i, mat2(i, ::).t))
 
-    val sparkProduct = (sbm multiply sbm.transpose).toLocalMatrix().toArray.toIndexedSeq
+      val mBlock = 1 + r.nextInt(m)
+      val nBlock = 1 + r.nextInt(n)
+      val kBlock = 1 + r.nextInt(k)
+      val bmat1 = new IndexedRowMatrix(sc.parallelize(irs1)).toBlockMatrixDense(mBlock, nBlock)
+      val bmat2 = new IndexedRowMatrix(sc.parallelize(irs2)).toBlockMatrixDense(nBlock, kBlock)
 
-    println(betterProduct)
+      val betterResultArray = (bmat1 * bmat2).toLocalMatrix().toArray
+      val breezeResultArray = (mat1 * mat2).toArray
 
-    assert(betterProduct == sparkProduct)
-
+      breezeResultArray.zip(betterResultArray).forall{case(d1, d2) => D_==(d1, d2)}
+    }.check()
   }
+
 }
