@@ -268,7 +268,6 @@ object Gen {
         // higher sizes
         val s = sampleBetaBinomial(p.rng, p.size, 3, 6 * math.log(p.size + 0.01))
         val part = partitionDirichlet(p.rng, p.size, s)
-        println(s"unsafeBuildableOf size: ${p.size}, s: $s, parts: ${part.toSeq}")
         for (i <- 0 until s)
           b += g(p.copy(size = part(i)))
         b.result()
@@ -285,7 +284,6 @@ object Gen {
         // higher sizes
         val s = sampleBetaBinomial(p.rng, p.size, 3, 6 * math.log(p.size + 0.01))
         val part = partitionDirichlet(p.rng, p.size, s)
-        println(s"distinctBuildableOf size: ${p.size}, s: $s, parts: ${part.toSeq}")
         val t = mutable.Set.empty[T]
         for (i <- 0 until s)
           t += g(p.copy(size = part(i)))
