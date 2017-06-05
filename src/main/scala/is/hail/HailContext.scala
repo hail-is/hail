@@ -429,7 +429,7 @@ class HailContext private(val sc: SparkContext,
   def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_] = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
     val vsms = inputs.map { input =>
       VariantSampleMatrix.read(this, input, dropSamples = dropSamples, dropVariants = dropVariants)
