@@ -236,7 +236,7 @@ class HailContext private(val sc: SparkContext,
     val inputs = hadoopConf.globAll(files)
 
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
     inputs.foreach { input =>
       if (!input.endsWith(".bgen"))
@@ -267,7 +267,7 @@ class HailContext private(val sc: SparkContext,
     }
 
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+      fatal(s"arguments refer to no files: ${files.mkString(",")}")
 
     val samples = BgenLoader.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
@@ -337,7 +337,7 @@ class HailContext private(val sc: SparkContext,
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
-      fatal("Arguments referred to no files")
+      fatal(s"Arguments referred to no files: '${files.mkString(",")}'")
 
     val (struct, rdd) =
       TextTableReader.read(sc)(files, types, commentChar, separator, missing,
@@ -573,7 +573,7 @@ class HailContext private(val sc: SparkContext,
     val inputs = hadoopConf.globAll(files)
 
     if (inputs.isEmpty)
-      fatal("arguments refer to no files")
+      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
     inputs.foreach { input =>
       if (!input.endsWith(".bgen")) {
