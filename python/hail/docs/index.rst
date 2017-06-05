@@ -13,7 +13,7 @@ Contents
 
     Getting Started <getting_started>
     Overview <overview>
-    Tutorial <tutorial.ipynb>
+    Tutorials <tutorials-landing>
     Expression Language <exprlang>
     Python API <api>
     Other Resources <other_resources>

@@ -27,7 +27,7 @@ if [ -z "$tutorialFiles" ]; then
         exit 1
     fi
 
-    tar -xvzf Hail_Tutorial_Data-v2.tgz --strip 1
+    tar -xvzf Hail_Tutorial_Data-v2.tgz --strip 1 > tutorials/
 else
     for f in "${tutorialFiles}"/*; do
         if [ ! -e $(basename "$f") ]; then

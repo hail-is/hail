@@ -57,7 +57,6 @@ String kuduSpark = 'spark2'
 String mongoVersion = '2.0.0'
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
-String tutorialFileLoc = System.getProperty("tutorial.home", "")
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
@@ -384,12 +383,6 @@ task copyPythonDirToTmp(type: Copy, dependsOn: setupDocsDirs) {
     into 'build/tmp/python'
 }
 
-task setupTutorial(type: Exec, dependsOn: copyPythonDirToTmp) {
-    workingDir 'build/tmp/python/hail/docs'
-    args tutorialFileLoc
-    executable 'scripts/setupTutorial.sh'
-}
-
 task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/'
     commandLine 'python', '-c', 'from hail import *; from hail.utils import *; hc = HailContext(); fd = FunctionDocumentation(); fd.types_rst("python/hail/docs/types.rst"); fd.functions_rst("python/hail/docs/functions.rst")'
@@ -398,7 +391,7 @@ task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
@@ -406,9 +399,9 @@ task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFun
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'setupTutorial', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
-    commandLine 'make', 'clean', 'html'
+    commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
@@ -445,6 +438,10 @@ task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     }
     from('build/libs/hail-all-spark.jar') {
         into 'jars'
+    }
+    from('python/hail/docs/tutorials') {
+        into 'tutorials'
+        include '*.ipynb'
     }
     into 'build/package'
 }
