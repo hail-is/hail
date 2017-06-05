@@ -150,7 +150,8 @@ sealed abstract class Type extends Serializable { self =>
 
   def genNonmissingValue: Gen[Annotation] = ???
 
-  def genValue: Gen[Annotation] = Gen.oneOfGen(Gen.const(null), genNonmissingValue)
+  def genValue: Gen[Annotation] = Gen.nextCoin(0.05)
+    .flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
 
   def isRealizable: Boolean = children.forall(_.isRealizable)
 

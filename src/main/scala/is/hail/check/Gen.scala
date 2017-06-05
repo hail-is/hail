@@ -2,6 +2,7 @@ package is.hail.check
 
 import breeze.linalg.DenseMatrix
 import breeze.storage.Zero
+import is.hail.utils.roundWithConstantSum
 import is.hail.utils.UInt
 import is.hail.utils.roundWithConstantSum
 import org.apache.commons.math3.random._
@@ -103,7 +104,8 @@ object Gen {
   def partition(parts: Int, sum: Double): Gen[Array[Double]] =
     Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Double) => rng.nextUniform(0, avail)) }
 
-  def partitionSize(parts: Int): Gen[Array[Int]] = Gen { p => partition(p.rng, p.size, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail)) }
+  def partitionSize(parts: Int): Gen[Array[Int]] =
+    Gen { p => partitionDirichlet(p.rng, p.size, parts) }
 
   def size: Gen[Int] = Gen { p => p.size }
 
@@ -157,6 +159,20 @@ object Gen {
 
   def gaussian(mu: Double, sigma: Double): Gen[Double] = Gen { (p: Parameters) =>
     p.rng.nextGaussian(mu, sigma)
+  }
+
+  def nextBeta(alpha: Double, beta: Double): Gen[Double] = Gen { (p: Parameters) =>
+    p.rng.nextBeta(alpha, beta)
+  }
+
+  def nextCoin(p: Double) =
+    choose(0.0, 1.0).map(_ < p)
+
+  private def sampleBetaBinomial(rng: RandomDataGenerator, n: Int, alpha: Double, beta: Double): Int =
+    rng.nextBinomial(n, rng.nextBeta(alpha, beta))
+
+  def nextBetaBinomial(n: Int, alpha: Double, beta: Double): Gen[Int] = Gen { p =>
+    sampleBetaBinomial(p.rng, n, alpha, beta)
   }
 
   def shuffle[T](is: IndexedSeq[T]): Gen[IndexedSeq[T]] = {
@@ -240,14 +256,19 @@ object Gen {
   def buildableOf2[C[_, _], T, U](g: Gen[(T, U)])(implicit cbf: CanBuildFrom[Nothing, (T, U), C[T, U]]): Gen[C[T, U]] =
     unsafeBuildableOf(g)
 
+  private val buildableOfAlpha = 3
+  private val buildableOfBeta = 6
   private def unsafeBuildableOf[C, T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
     Gen { (p: Parameters) =>
       val b = cbf()
       if (p.size == 0)
         b.result()
       else {
-        val s = p.rng.getRandomGenerator.nextInt(p.size)
-        val part = partition(p.rng, p.size, s)
+        // scale up a bit by log, so that we can spread out a bit more with
+        // higher sizes
+        val s = sampleBetaBinomial(p.rng, p.size, 3, 6 * math.log(p.size))
+        val part = partitionDirichlet(p.rng, p.size, s)
+        println(s"unsafeBuildableOf size: ${p.size}, s: $s, parts: ${part.toSeq}")
         for (i <- 0 until s)
           b += g(p.copy(size = part(i)))
         b.result()
@@ -260,8 +281,11 @@ object Gen {
       if (p.size == 0)
         b.result()
       else {
-        val s = p.rng.getRandomGenerator.nextInt(p.size)
-        val part = partition(p.rng, p.size, s)
+        // scale up a bit by log, so that we can spread out a bit more with
+        // higher sizes
+        val s = sampleBetaBinomial(p.rng, p.size, 3, 6 * math.log(p.size))
+        val part = partitionDirichlet(p.rng, p.size, s)
+        println(s"distinctBuildableOf size: ${p.size}, s: $s, parts: ${part.toSeq}")
         val t = mutable.Set.empty[T]
         for (i <- 0 until s)
           t += g(p.copy(size = part(i)))
@@ -282,8 +306,10 @@ object Gen {
       } else if (p.size == 0)
         b.result()
       else {
-        val s = p.rng.nextInt(min, p.size)
-        val part = partition(p.rng, p.size, s)
+        // scale up a bit by log, so that we can spread out a bit more with
+        // higher sizes
+        val s = min + sampleBetaBinomial(p.rng, p.size - min, 3, 6 * math.log(p.size))
+        val part = partitionDirichlet(p.rng, p.size, s)
         val t = mutable.Set.empty[T]
         for (i <- 0 until s) {
           var element = g.resize(part(i))(p)
@@ -300,7 +326,7 @@ object Gen {
 
   def buildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
-      val part = partition(p.rng, p.size, n)
+      val part = partitionDirichlet(p.rng, p.size, n)
       val b = cbf()
       for (i <- 0 until n)
         b += g(p.copy(size = part(i)))
@@ -309,7 +335,7 @@ object Gen {
 
   def distinctBuildableOfN[C[_], T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
     Gen { (p: Parameters) =>
-      val part = partition(p.rng, p.size, n)
+      val part = partitionDirichlet(p.rng, p.size, n)
       val t: mutable.Set[T] = mutable.Set.empty[T]
       var i = 0
       while (i < n) {
