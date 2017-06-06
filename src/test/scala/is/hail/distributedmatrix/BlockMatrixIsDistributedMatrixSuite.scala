@@ -108,6 +108,48 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   }
 
   @Test
+  def colwiseMultiplication() {
+    val l = toBM(Seq(
+      Array[Double](1,2,3,4),
+      Array[Double](5,6,7,8),
+      Array[Double](9,10,11,12),
+      Array[Double](13,14,15,16)
+    ))
+
+    val r = Array[Double](1,2,3,4)
+
+    val result = new DenseMatrix(4,4, Array[Double](
+      1 ,2 ,3 ,4,
+      10,12,14,16,
+      27,30,33,36,
+      52,56,60,64
+    ))
+
+    assert(dm.toLocalMatrix(l :* r) == result)
+  }
+
+  @Test
+  def colwiseAddition() {
+    val l = toBM(Seq(
+      Array[Double](1,2,3,4),
+      Array[Double](5,6,7,8),
+      Array[Double](9,10,11,12),
+      Array[Double](13,14,15,16)
+    ))
+
+    val r = Array[Double](1,2,3,4)
+
+    val result = new DenseMatrix(4,4, Array[Double](
+      1 ,2 ,3 ,4,
+      10,12,14,16,
+      27,30,33,36,
+      52,56,60,64
+    ))
+
+    assert(dm.toLocalMatrix(l :* r) == result)
+  }
+
+  @Test
   def diagonalTestTiny() {
     val l = toBM(Seq(
       Array[Double](1,2,3,4),
