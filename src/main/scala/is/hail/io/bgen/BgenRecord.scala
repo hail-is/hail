@@ -140,6 +140,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
 
     new Iterable[Genotype] {
       def iterator = new Iterator[Genotype] {
+        reader.seek(nSamples + 10)
         var sampleIndex = 0
 
         def hasNext: Boolean = sampleIndex < nSamples
