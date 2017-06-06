@@ -111,7 +111,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     var i = 0
     while (i < nSamples) {
       val ploidy = reader.read()
-      assert(ploidy == 2 || ploidy < 0, s"Ploidy value must be either 2 or missing. Found $ploidy.")
+      assert((ploidy & 0x7f) == 2, s"Ploidy value must equal to 2. Found $ploidy.")
       samplePloidy(i) = ploidy
       i += 1
     }
@@ -161,7 +161,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
           assert(sumProbInt <= totalProbInt, "Sum of probabilities is greater than 1.")
           sampleProbs(i) = totalProbInt - sumProbInt
 
-          val gt = if (samplePloidy(sampleIndex) < 0)
+          val gt = if ((samplePloidy(sampleIndex) & (1 << 7)) != 0)
             noCall
           else {
             val px = Genotype.weightsToLinear(sampleProbs)

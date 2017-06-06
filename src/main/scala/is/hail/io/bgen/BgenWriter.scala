@@ -232,7 +232,7 @@ object BgenWriter {
     val samplePloidyStart = bb.length
     var i = 0
     while (i < nSamples) {
-      bb += 0x80.toByte // placeholder for sample ploidy - default is missing
+      bb += 0x82.toByte // placeholder for sample ploidy - default is missing
       i += 1
     }
 
@@ -265,6 +265,7 @@ object BgenWriter {
       }
       idx += 1
     }
+
     bitPacker.flush()
     bb.result()
   }

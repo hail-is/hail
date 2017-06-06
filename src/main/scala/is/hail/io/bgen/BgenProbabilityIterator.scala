@@ -4,7 +4,7 @@ import is.hail.io.ByteArrayReader
 import is.hail.utils.UInt
 import is.hail.utils._
 
-class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends Iterator[UInt] {
+class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends HailIterator[UInt] {
   val bitMask = (1L << nBitsPerProb) - 1
   var data = 0L
   var dataSize = 0

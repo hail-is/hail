@@ -258,7 +258,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       }.map(_ => vds.queryVA("va.varid")._2)
 
     val sampleIds = vds.stringSampleIds.toArray
-    val partitionSizes = vds.hc.sc.runJob(vds.rdd.cache(), getIteratorSize _)
+    val partitionSizes = vds.hc.sc.runJob(vds.rdd, getIteratorSize _)
     val nVariants = partitionSizes.sum
     val nSamples = vds.nSamples
 
