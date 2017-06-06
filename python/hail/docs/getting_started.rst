@@ -18,8 +18,8 @@ Hail uploads distributions to Google Storage as part of our continuous integrati
 
 You can download the distribution from these links:
 
-- `Latest stable distribution for Spark 2.0.2 <https://storage.googleapis.com/hail-common/distributions/0.1-latest-spark2.0.2.zip>`_
-- `Latest stable distribution for Spark 2.1.0 <https://storage.googleapis.com/hail-common/distributions/0.1-latest-spark2.1.0.zip>`_
+- `Latest stable distribution for Spark 2.0.2 <https://storage.googleapis.com/hail-common/distributions/hail-0.1-latest-spark2.0.2.zip>`_
+- `Latest stable distribution for Spark 2.1.0 <https://storage.googleapis.com/hail-common/distributions/hail-0.1-latest-spark2.1.0.zip>`_
 
 Unzip the distribution after you download it. To get to know Hail, we recommend that you run the Hail tutorials.
 
