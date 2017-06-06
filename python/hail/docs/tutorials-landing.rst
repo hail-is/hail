@@ -30,7 +30,7 @@ Introduction to the expression language
 Expression language: queries and aggregations
 =============================================
 
-.. toctree::r
+.. toctree::
     :maxdepth: 2
 
     Expression language 2: <tutorials/expression-language-part-2.ipynb>
