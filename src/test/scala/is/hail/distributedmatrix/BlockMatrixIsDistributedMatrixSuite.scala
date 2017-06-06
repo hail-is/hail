@@ -120,7 +120,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   }
 
   @Test
-  def diagonalTestCompareCoordinateMatrix() {
+  def diagonalTestRandomized() {
     forAll { (mat: BlockMatrix) =>
       val lm = mat.toLocalMatrix()
       val diagonalLength = math.min(lm.numRows, lm.numCols)
