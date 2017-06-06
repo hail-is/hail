@@ -1,6 +1,10 @@
 package is.hail.distributedmatrix
 
-import org.apache.spark.rdd.RDD
+import is.hail.check.Arbitrary._
+import is.hail.check.Prop._
+import is.hail.check.Gen._
+import is.hail.check._
+import is.hail.utils._
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
 
@@ -10,16 +14,34 @@ import org.testng.annotations.Test
 class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   import is.hail.distributedmatrix.DistributedMatrix.implicits._
 
+  val dm = DistributedMatrix[BlockMatrix]
+  import dm.ops._
+
+  def toBM(rows: Seq[Array[Double]]): BlockMatrix =
+    new IndexedRowMatrix(sc.parallelize(rows.zipWithIndex.map { case (v, i) => IndexedRow(i, new DenseVector(v)) }),
+      rows.size, if (rows.isEmpty) 0 else rows.head.length)
+      .toBlockMatrixDense()
+
+  def toBM(rows: Seq[Array[Double]], blockSize: Int): BlockMatrix =
+    new IndexedRowMatrix(sc.parallelize(rows.zipWithIndex.map { case (v, i) => IndexedRow(i, new DenseVector(v)) }),
+      rows.size, if (rows.isEmpty) 0 else rows.head.length)
+      .toBlockMatrixDense()
+
+  val blockMatrixGenerator: Gen[BlockMatrix] = for {
+    (l, w) <- Gen.squareOfAreaAtMostSize
+    arrays <- Gen.buildableOfN[Seq, Array[Double]](l, Gen.buildableOfN(w, arbDouble.arbitrary))
+  } yield toBM(arrays)
+
+  implicit val arbitraryBlockMatrix =
+    Arbitrary(blockMatrixGenerator)
+
   @Test
   def pointwiseSubtractCorrect() {
-    val dm = DistributedMatrix[BlockMatrix]
-    import dm.ops._
-
-    val m = dm.from(sc.parallelize(Seq(
+    val m = toBM(Seq(
       Array[Double](1,2,3,4),
       Array[Double](5,6,7,8),
       Array[Double](9,10,11,12),
-      Array[Double](13,14,15,16))))
+      Array[Double](13,14,15,16)))
 
     val expected = Array[IndexedSeq[Double]](
       Array[Double](0,-3,-6,-9),
@@ -33,14 +55,11 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
   @Test
   def multiplyByLocalMatrix() {
-    val dm = DistributedMatrix[BlockMatrix]
-    import dm.ops._
-
-    val l = dm.from(sc.parallelize(Seq(
+    val l = toBM(Seq(
       Array[Double](1,2,3,4),
       Array[Double](5,6,7,8),
       Array[Double](9,10,11,12),
-      Array[Double](13,14,15,16))))
+      Array[Double](13,14,15,16)))
 
     val r = new DenseMatrix(4, 1, Array[Double](1,2,3,4))
 
@@ -49,10 +68,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
   @Test
   def multiplyByLocalMatrix2() {
-    val dm = DistributedMatrix[BlockMatrix]
-    import dm.ops._
-
-    val l = dm.from(sc.parallelize(Seq(
+    val l = toBM(Seq(
       Array[Double](-0.0, -0.0, 0.0),
       Array[Double](0.24999999999999994, 0.5000000000000001, -0.5),
       Array[Double](0.4999999999999998, 2.220446049250313E-16, 2.220446049250313E-16),
@@ -60,7 +76,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
       Array[Double](0.25, -0.5, 0.5),
       Array[Double](0.5000000000000001, 1.232595164407831E-32, -2.220446049250313E-16),
       Array[Double](0.75, -0.5000000000000001, 0.5),
-      Array[Double](1.0, -0.0, 0.0))))
+      Array[Double](1.0, -0.0, 0.0)))
 
     val r = new DenseMatrix(3, 4, Array[Double](1.0,0.0,1.0,
       1.0,1.0,1.0,
@@ -72,15 +88,12 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
   @Test
   def rowwiseMultiplication() {
-    val dm = DistributedMatrix[BlockMatrix]
-    import dm.ops._
-
-    val l = dm.from(sc.parallelize(Seq(
+    val l = toBM(Seq(
       Array[Double](1,2,3,4),
       Array[Double](5,6,7,8),
       Array[Double](9,10,11,12),
       Array[Double](13,14,15,16)
-    )))
+    ))
 
     val r = Array[Double](1,2,3,4)
 
@@ -92,6 +105,34 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     ))
 
     assert(dm.toLocalMatrix(l --* r) == result)
+  }
+
+  @Test
+  def diagonalTestTiny() {
+    val l = toBM(Seq(
+      Array[Double](1,2,3,4),
+      Array[Double](5,6,7,8),
+      Array[Double](9,10,11,12),
+      Array[Double](13,14,15,16)
+    ))
+
+    assert(l.diag.toSeq == Seq(1,6,11,16))
+  }
+
+  @Test
+  def diagonalTestCompareCoordinateMatrix() {
+    forAll { (mat: BlockMatrix) =>
+      val lm = mat.toLocalMatrix()
+      val diagonalLength = math.min(lm.numRows, lm.numCols)
+      val diagonal = (0 until diagonalLength).map(i => lm(i,i)).toArray
+
+      if (mat.diag.toSeq == diagonal.toSeq)
+        true
+      else {
+        println(s"${mat.diag.toSeq} != ${diagonal.toSeq}")
+        false
+      }
+    }.check()
   }
 
   // FIXME: rowmise multiplication random matrices compare with breeze

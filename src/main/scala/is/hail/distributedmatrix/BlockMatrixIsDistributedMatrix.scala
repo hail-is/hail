@@ -19,13 +19,44 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def from(cm: CoordinateMatrix): M = cm.toBlockMatrix()
 
   def transpose(m: M): M = m.transpose
-  def diagonal(m: M): Array[Double] = toCoordinateMatrix(m)
-    .entries
-    .filter(me => me.i == me.j)
-    .map(me => (me.i, me.value))
-    .collect()
-    .sortBy(_._1)
-    .map(_._2)
+  def diagonal(m: M): Array[Double] = {
+    val rowsPerBlock = m.rowsPerBlock
+    val colsPerBlock = m.colsPerBlock
+
+    // check if the intervals [i, i+rows) and [j, j+rows) overlap,
+    // meaning this block contains the diagonal.
+    def containsDiagonal(coord: (Int, Int)): Boolean = coord match {
+      case (blocki, blockj) =>
+        val i = blocki * rowsPerBlock
+        val j = blockj * colsPerBlock
+        val i2 = i + rowsPerBlock
+        val j2 = i + colsPerBlock
+
+        i <= j && j < i2 ||
+        i < j2 && j2 < i2 ||
+        j <= i && i < j2 ||
+        j < i2 && i2 < j2
+    }
+
+    def diagonal(block: Matrix): Array[Double] = {
+      val length = math.min(block.numRows,block.numCols)
+      val diagonal = new Array[Double](length)
+      var i = 0
+      while (i < length) {
+        diagonal(i) = block(i, i)
+        i += 1
+      }
+      diagonal
+    }
+
+    m.blocks
+      .filter(x => containsDiagonal(x._1))
+      .map { case ((i, j), m) => (math.max(i,j), diagonal(m)) }
+      .reduce { case ((i, m1), (j, m2)) =>
+        if (i < j) (i, m1 ++ m2)
+        else (j, m2 ++ m1)
+    }._2
+  }
 
   def multiply(l: M, r: M): M = l.multiply(r)
   def multiply(l: M, r: DenseMatrix): M = {
