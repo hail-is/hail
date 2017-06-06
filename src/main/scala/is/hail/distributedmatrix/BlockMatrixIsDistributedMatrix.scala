@@ -104,7 +104,14 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     require(b.colsPerBlock == c.colsPerBlock)
     require(c.colsPerBlock == d.colsPerBlock)
     val blocks: RDD[((Int, Int), Matrix)] = a.blocks.join(b.blocks).join(c.blocks).join(d.blocks).mapValues { case (((m1, m2), m3), m4) =>
-      new DenseMatrix(m1.numRows, m1.numCols, m1.toArray.zip(m2.toArray).zip(m3.toArray).zip(m4.toArray).map { case (((a, b), c), d) => op(a,b,c,d) })
+      val size = m1.numRows * m1.numCols
+      val result = Array[Double](size)
+      var i = 0
+      while (i < size) {
+        result(i) = op(m1(i), m2(i), m3(i), m4(i))
+        i += 1
+      }
+      new DenseMatrix(m1.numRows, m1.numCols, result)
     }
     new BlockMatrix(blocks, a.rowsPerBlock, a.colsPerBlock, a.numRows(), a.numCols())
   }
@@ -115,7 +122,14 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     require(l.rowsPerBlock == r.rowsPerBlock)
     require(l.colsPerBlock == r.colsPerBlock)
     val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValues { case (m1, m2) =>
-      new DenseMatrix(m1.numRows, m1.numCols, m1.toArray.zip(m2.toArray).map(op.tupled))
+      val size = m1.numRows * m1.numCols
+      val result = Array[Double](size)
+      var i = 0
+      while (i < size) {
+        result(i) = op(m1(i), m1(i))
+        i += 1
+      }
+      new DenseMatrix(m1.numRows, m1.numCols, result)
     }
     new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
   }
@@ -127,7 +141,14 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
   def map(op: Double => Double)(m: M): M = {
     val blocks: RDD[((Int, Int), Matrix)] = m.blocks.mapValues { case m =>
-      new DenseMatrix(m.numRows, m.numCols, m.toArray.map(op))
+      val size = m1.numRows * m1.numCols
+      val result = Array[Double](size)
+      var i = 0
+      while (i < size) {
+        result(i) = op(m(i))
+        i += 1
+      }
+      new DenseMatrix(m.numRows, m.numCols, result)
     }
     new BlockMatrix(blocks, m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols())
   }
