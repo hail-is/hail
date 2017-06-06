@@ -9,7 +9,7 @@ import scala.reflect.ClassTag
 trait DistributedMatrix[M] {
   def cache(m: M): M
 
-  def from(rdd: RDD[Array[Double]]): M
+  def from(irm: IndexedRowMatrix, dense: Boolean = true): M
   def from(bm: BlockMatrix): M
   def from(cm: CoordinateMatrix): M
 

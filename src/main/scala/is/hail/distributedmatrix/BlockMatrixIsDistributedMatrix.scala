@@ -12,11 +12,12 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
   def cache(m: M): M = m.cache()
 
-  def from(rdd: RDD[Array[Double]]): M =
-    new IndexedRowMatrix(rdd.zipWithIndex().map { case (x, i) => new IndexedRow(i, new DenseVector(x)) })
-      .toBlockMatrixDense()
+  def from(irm: IndexedRowMatrix, dense: Boolean = true): M =
+    if (dense) irm.toBlockMatrixDense()
+    else irm.toBlockMatrix()
   def from(bm: BlockMatrix): M = bm
-  def from(cm: CoordinateMatrix): M = cm.toBlockMatrix()
+  def from(cm: CoordinateMatrix): M =
+    cm.toBlockMatrix()
 
   def transpose(m: M): M = m.transpose
   def diagonal(m: M): Array[Double] = {
