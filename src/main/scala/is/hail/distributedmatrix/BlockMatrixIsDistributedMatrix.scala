@@ -181,7 +181,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
           e
       })
     }
-    new BlockMatrix(blocks, x.rowsPerBlock, x.colsPerBlock, x.numRows(), x.numCols())
+    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, nRows, nCols)
   }
   private def mapWithColIndex(op: (Double, Int) => Double)(x: M): M = {
     val nRows = x.numRows
@@ -203,7 +203,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
           e
       })
     }
-    new BlockMatrix(blocks, x.rowsPerBlock, x.colsPerBlock, x.numRows(), x.numCols())
+    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, nRows, nCols)
   }
 
   def vectorAddToEveryColumn(v: Array[Double])(m: M): M = {
