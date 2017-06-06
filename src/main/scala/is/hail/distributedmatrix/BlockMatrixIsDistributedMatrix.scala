@@ -105,7 +105,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     require(c.colsPerBlock == d.colsPerBlock)
     val blocks: RDD[((Int, Int), Matrix)] = a.blocks.join(b.blocks).join(c.blocks).join(d.blocks).mapValues { case (((m1, m2), m3), m4) =>
       val size = m1.numRows * m1.numCols
-      val result = Array[Double](size)
+      val result = new Array[Double](size)
       var i = 0
       var j = 0
       while (j < m1.numCols) {
@@ -127,7 +127,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     require(l.colsPerBlock == r.colsPerBlock)
     val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValues { case (m1, m2) =>
       val size = m1.numRows * m1.numCols
-      val result = Array[Double](size)
+      val result = new Array[Double](size)
       var i = 0
       var j = 0
       while (j < m1.numCols) {
@@ -150,7 +150,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def map(op: Double => Double)(m: M): M = {
     val blocks: RDD[((Int, Int), Matrix)] = m.blocks.mapValues { case m =>
       val size = m.numRows * m.numCols
-      val result = Array[Double](size)
+      val result = new Array[Double](size)
       var i = 0
       var j = 0
       while (j < m.numCols) {
