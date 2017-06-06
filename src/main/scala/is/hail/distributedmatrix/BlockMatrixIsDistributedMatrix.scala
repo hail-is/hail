@@ -107,9 +107,13 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       val size = m1.numRows * m1.numCols
       val result = Array[Double](size)
       var i = 0
-      while (i < size) {
-        result(i) = op(m1(i), m2(i), m3(i), m4(i))
-        i += 1
+      var j = 0
+      while (j < m1.numCols) {
+        while (i < m1.numRows) {
+          result(i + j*numRows) = op(m1(i, j), m2(i, j), m3(i, j), m4(i, j))
+          i += 1
+        }
+        j += 1
       }
       new DenseMatrix(m1.numRows, m1.numCols, result)
     }
@@ -125,9 +129,13 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       val size = m1.numRows * m1.numCols
       val result = Array[Double](size)
       var i = 0
-      while (i < size) {
-        result(i) = op(m1(i), m1(i))
-        i += 1
+      var j = 0
+      while (j < m1.numCols) {
+        while (i < m1.numRows) {
+          result(i + j*numRows) = op(m1(i, j), m2(i, j))
+          i += 1
+        }
+        j += 1
       }
       new DenseMatrix(m1.numRows, m1.numCols, result)
     }
@@ -144,9 +152,13 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       val size = m1.numRows * m1.numCols
       val result = Array[Double](size)
       var i = 0
-      while (i < size) {
-        result(i) = op(m(i))
-        i += 1
+      var j = 0
+      while (j < m1.numCols) {
+        while (i < m1.numRows) {
+          result(i + j*numRows) = op(m1(i, j))
+          i += 1
+        }
+        j += 1
       }
       new DenseMatrix(m.numRows, m.numCols, result)
     }
