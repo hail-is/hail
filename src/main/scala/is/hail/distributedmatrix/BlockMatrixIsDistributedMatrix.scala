@@ -110,7 +110,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       var j = 0
       while (j < m1.numCols) {
         while (i < m1.numRows) {
-          result(i + j*numRows) = op(m1(i, j), m2(i, j), m3(i, j), m4(i, j))
+          result(i + j*m1.numRows) = op(m1(i, j), m2(i, j), m3(i, j), m4(i, j))
           i += 1
         }
         j += 1
@@ -132,7 +132,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       var j = 0
       while (j < m1.numCols) {
         while (i < m1.numRows) {
-          result(i + j*numRows) = op(m1(i, j), m2(i, j))
+          result(i + j*m1.numRows) = op(m1(i, j), m2(i, j))
           i += 1
         }
         j += 1
@@ -149,13 +149,13 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
   def map(op: Double => Double)(m: M): M = {
     val blocks: RDD[((Int, Int), Matrix)] = m.blocks.mapValues { case m =>
-      val size = m1.numRows * m1.numCols
+      val size = m.numRows * m.numCols
       val result = Array[Double](size)
       var i = 0
       var j = 0
-      while (j < m1.numCols) {
-        while (i < m1.numRows) {
-          result(i + j*numRows) = op(m1(i, j))
+      while (j < m.numCols) {
+        while (i < m.numRows) {
+          result(i + j*m.numRows) = op(m(i, j))
           i += 1
         }
         j += 1

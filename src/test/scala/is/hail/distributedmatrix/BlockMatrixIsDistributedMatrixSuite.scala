@@ -88,6 +88,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
   @Test
   def rowwiseMultiplication() {
+    // row major
     val l = toBM(Seq(
       Array[Double](1,2,3,4),
       Array[Double](5,6,7,8),
@@ -97,6 +98,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
     val r = Array[Double](1,2,3,4)
 
+    // col major
     val result = new DenseMatrix(4,4, Array[Double](
       1,5,9,13,
       4,12,20,28,
@@ -109,6 +111,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
   @Test
   def colwiseMultiplication() {
+    // row major
     val l = toBM(Seq(
       Array[Double](1,2,3,4),
       Array[Double](5,6,7,8),
@@ -118,11 +121,12 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
     val r = Array[Double](1,2,3,4)
 
+    // col major
     val result = new DenseMatrix(4,4, Array[Double](
-      1 ,2 ,3 ,4,
-      10,12,14,16,
-      27,30,33,36,
-      52,56,60,64
+      1,10,27,52,
+      2,12,30,56,
+      3,14,33,60,
+      4,16,36,64
     ))
 
     assert(dm.toLocalMatrix(l :* r) == result)
@@ -130,6 +134,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
   @Test
   def colwiseAddition() {
+    // row major
     val l = toBM(Seq(
       Array[Double](1,2,3,4),
       Array[Double](5,6,7,8),
@@ -139,14 +144,15 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
     val r = Array[Double](1,2,3,4)
 
+    // col major
     val result = new DenseMatrix(4,4, Array[Double](
-      1 ,2 ,3 ,4,
-      10,12,14,16,
-      27,30,33,36,
-      52,56,60,64
+      2, 7,12,17,
+      3, 8,13,18,
+      4, 9,14,19,
+      5,10,15,20
     ))
 
-    assert(dm.toLocalMatrix(l :* r) == result)
+    assert(dm.toLocalMatrix(l :+ r) == result)
   }
 
   @Test
