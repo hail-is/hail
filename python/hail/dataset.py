@@ -2,7 +2,9 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import warnings
 
-from hail.expr import Type, TGenotype, TString, TVariant, TArray
+from decorator import decorator
+
+from hail.htypes import Type, TGenotype, TString, TVariant, TArray
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
@@ -5736,4 +5738,9 @@ class VariantDataset(HistoryMixin):
                                 jarray(Env.jvm().java.lang.String, wrap_to_list(key)), separator)
         return KeyTable(self.hc, jkt)
 
+    def _to_new_variant_dataset(self):
+        from hail.expr.dataset import NewVariantDataset
+        return NewVariantDataset(self.hc, self._jvds)
+
 vds_type.set(VariantDataset)
+

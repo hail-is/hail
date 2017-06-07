@@ -1,7 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
-from hail.expr import Type, TArray, TStruct
+from hail.htypes import Type, TArray, TStruct
 from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list
@@ -1638,5 +1638,9 @@ class KeyTable(HistoryMixin):
         """
 
         return KeyTable(self.hc, self._jkt.group(dest, list(columns)))
+
+    def _to_new_keytable(self):
+        from hail.expr.keytable import NewKeyTable
+        return NewKeyTable(self.hc, self._jkt)
 
 kt_type.set(KeyTable)

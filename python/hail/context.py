@@ -5,7 +5,7 @@ from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
 from hail.dataset import VariantDataset
-from hail.expr import Type
+from hail.htypes import Type
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist

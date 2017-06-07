@@ -72,6 +72,8 @@ class Type(object):
             return TLocus._from_java(jtype)
         elif class_name == 'is.hail.expr.TInterval':
             return TInterval._from_java(jtype)
+        elif class_name == "is.hail.expr.TAggregable":
+            return TAggregable._from_java(jtype)
         else:
             raise TypeError("unknown type class: '%s'" % class_name)
 
@@ -558,6 +560,15 @@ class TStruct(Type):
         names, types = zip(*[(fd.name, fd.typ) for fd in self.fields])
         return "TStruct({}, {})".format(repr(list(names)), repr(list(types)))
 
+    def _merge(self, other):
+        return TStruct._from_java(self._jtype.merge(other._jtype)._1())
+
+    def _drop(self, *identifiers):
+        return TStruct._from_java(self._jtype.filter(jset(list(identifiers)), False)._1())
+
+    def _select(self, *identifiers):
+        return TStruct._from_java(self._jtype.filter(jset(list(identifiers)), True)._1())
+
 
 class TVariant(Type):
     """
@@ -792,6 +803,35 @@ class TInterval(Type):
     def __repr__(self):
         return "TInterval()"
 
+
+class TAggregable(Type):
+    """
+    Hail type corresponding to aggregable
+
+    :param element_type: type of aggregable elements
+    :type element_type: :class:`.Type`
+
+    :ivar element_type: type of aggregable elements
+    :vartype element_type: :class:`.Type`
+    """
+
+    def __init__(self, element_type):
+        """
+        :param :class:`.Type` element_type: Hail type of array element
+        """
+        jtype = scala_object(Env.hail().expr, 'TAggregable').apply(element_type._jtype)
+        self.element_type = element_type
+        super(TAggregable, self).__init__(jtype)
+
+    @classmethod
+    def _from_java(cls, jtype):
+        t = TAggregable.__new__(cls)
+        t.element_type = Type._from_java(jtype.elementType())
+        t._jtype = jtype
+        return t
+
+    def _typecheck(self, annotation):
+        return
 
 __singletons__ = {'is.hail.expr.TInt32$': TInt32,
                   'is.hail.expr.TInt64$': TInt64,

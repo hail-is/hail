@@ -2523,6 +2523,7 @@ object FunctionRegistry {
 
     register("-", ev.negate _, "Returns the negation of this value.")
     register("+", (x: T) => x, "Returns this value.")
+    
     register("fromInt", ev.fromInt _, null)
 
     registerMethod("toInt32", ev.toInt _, "Convert value to a 32-bit integer.")

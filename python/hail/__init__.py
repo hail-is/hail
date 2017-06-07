@@ -2,7 +2,7 @@ import hail.expr
 from hail.representation import *
 from hail.context import HailContext
 from hail.dataset import VariantDataset
-from hail.expr import *
+from hail.htypes import *
 from hail.keytable import KeyTable
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
