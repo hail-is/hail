@@ -178,11 +178,12 @@ class BgenSuite extends SparkSuite {
         val isSame = isGPSame(vds, importedVds, 1d / ((1L << nBitsPerProb) - 1))
 
         val fileRootParallel = tmpDir.createTempFile("testImportBgenParallel")
-        vds.exportBgen(fileRootParallel, nBitsPerProb, parallel = true)
-        hc.indexBgen(fileRootParallel + ".bgen/part-*")
-        val bgenFilesParallel = hadoopConf.glob(fileRootParallel + ".bgen/part-*").map(_.getPath.toString).filterNot(_.endsWith(".idx"))
+        val bgenFileParallel = fileRootParallel + ".bgen"
         val sampleFileParallel = fileRootParallel + ".sample"
-        val parallelVds = hc.importBgens(bgenFilesParallel, Option(sampleFileParallel), nPartitions = Some(10))
+
+        vds.exportBgen(fileRootParallel, nBitsPerProb, parallel = true)
+        hc.indexBgen(bgenFileParallel)
+        val parallelVds = hc.importBgen(bgenFileParallel, Option(sampleFileParallel), nPartitions = Some(10))
         val isSameParallel = isGPSame(vds, parallelVds, 1d / ((1L << nBitsPerProb) - 1))
 
         isSame && isSameParallel

@@ -35,12 +35,13 @@ object BgenLoader {
 
     val nSamples = samples.length
 
-    hc.hadoopConf.setDouble("tolerance", tolerance)
+    val hConf = hc.hadoopConf
+    hConf.setDouble("tolerance", tolerance)
 
     val sc = hc.sc
     val results = files.map { file =>
       val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-      val bState = readState(sc.hadoopConfiguration, file)
+      val bState = readState(hConf, file)
       GenReport.accumulators ::= (file, reportAcc)
 
       bState.version match {
