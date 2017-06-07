@@ -2,7 +2,6 @@ from decorator import decorator
 
 from hail.typecheck import *
 
-from pyspark.mllib.linalg.distributed import IndexedRowMatrix
 from hail.java import *
 from hail.expr import Type, TString
 
@@ -45,6 +44,8 @@ class KinshipMatrix:
         :return: Matrix of kinship values.
         :rtype: `IndexedRowMatrix <https://spark.apache.org/docs/latest/api/python/pyspark.mllib.html#pyspark.mllib.linalg.distributed.IndexedRowMatrix>`__
         """
+        from pyspark.mllib.linalg.distributed import IndexedRowMatrix
+
         return IndexedRowMatrix(self._jkm.matrix())
 
     @typecheck_method(output=strlike)

@@ -1,5 +1,3 @@
-from pyspark.mllib.linalg.distributed import IndexedRowMatrix
-from pyspark.mllib.linalg import DenseMatrix
 from hail.representation import Variant
 
 class LDMatrix:
@@ -26,6 +24,8 @@ class LDMatrix:
         :return: Matrix of Pearson correlation values.
         :rtype: `IndexedRowMatrix <https://spark.apache.org/docs/latest/api/python/pyspark.mllib.html#pyspark.mllib.linalg.distributed.IndexedRowMatrix>`__
         """
+        from pyspark.mllib.linalg.distributed import IndexedRowMatrix
+
         return IndexedRowMatrix(self._jldm.matrix())
 
     def to_local_matrix(self):
@@ -39,5 +39,7 @@ class LDMatrix:
         :return: Matrix of Pearson correlation values.
         :rtype: `Matrix <https://spark.apache.org/docs/2.1.0/api/python/pyspark.mllib.html#pyspark.mllib.linalg.Matrix>`__
         """
+        from pyspark.mllib.linalg import DenseMatrix
+
         j_local_mat = self._jldm.toLocalMatrix()
         return DenseMatrix(j_local_mat.numRows(), j_local_mat.numCols(), list(j_local_mat.toArray()), j_local_mat.isTransposed())
