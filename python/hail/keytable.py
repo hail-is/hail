@@ -1,7 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
 from hail.java import *
-from hail.expr import Type, TArray, TStruct
+from hail.types import Type, TArray, TStruct
 from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list

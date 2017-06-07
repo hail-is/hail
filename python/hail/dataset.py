@@ -4,7 +4,7 @@ import warnings
 
 from decorator import decorator
 
-from hail.expr import Type, TGenotype, TString, TVariant
+from hail.types import Type, TGenotype, TString, TVariant
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
@@ -12,6 +12,7 @@ from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
+from hail.expr.dataset_new import NewVariantDataset
 
 warnings.filterwarnings(module=__name__, action='once')
 
@@ -4953,3 +4954,6 @@ class VariantDataset(object):
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
                                 jarray(Env.jvm().java.lang.String, wrap_to_list(key)), separator)
         return KeyTable(self.hc, jkt)
+
+    def toNewVariantDataset(self):
+        return NewVariantDataset(self.hc, self._jvds)

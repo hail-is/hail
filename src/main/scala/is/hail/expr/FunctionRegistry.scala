@@ -1537,7 +1537,7 @@ object FunctionRegistry {
   registerMethod("union", (x: Set[Any], a: Set[Any]) => x ++ a, "Returns the union of this Set and Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
   registerMethod("intersection", (x: Set[Any], a: Set[Any]) => x & a, "Returns the intersection of this Set and Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
   registerMethod("difference", (x: Set[Any], a: Set[Any]) => x &~ a, "Returns the elements of this Set that are not in Set `a`.")(setHr(TTHr), setHr(TTHr), setHr(TTHr))
-  registerMethod("issubset", (x: Set[Any], a: Set[Any]) => x.subsetOf(a), "Returns true if this Set is a subset of Set `a`.")(setHr(TTHr), setHr(TTHr), boolHr)
+  registerMethod("isSubset", (x: Set[Any], a: Set[Any]) => x.subsetOf(a), "Returns true if this Set is a subset of Set `a`.")(setHr(TTHr), setHr(TTHr), boolHr)
 
   registerMethod("flatten", (a: IndexedSeq[IndexedSeq[Any]]) =>
     flattenOrNull[IndexedSeq, Any](IndexedSeq.newBuilder[Any], a),
@@ -2465,6 +2465,8 @@ object FunctionRegistry {
     registerMethod("signum", ev.signum _, "Returns the sign of a number (1, 0, or -1).")
 
     register("-", ev.negate _, "Returns the negation of this value.")
+    register("+", (x: T) => x, "Returns this value.")
+
     register("fromInt", ev.fromInt _, null)
 
     registerMethod("toInt", ev.toInt _, "Convert value to an Integer.")

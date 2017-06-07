@@ -4,7 +4,7 @@ from hail.typecheck import *
 
 from pyspark.mllib.linalg.distributed import IndexedRowMatrix
 from hail.java import *
-from hail.expr import Type, TString
+from hail.types import Type, TString
 
 class KinshipMatrix:
     """
