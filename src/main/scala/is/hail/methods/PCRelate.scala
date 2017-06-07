@@ -45,7 +45,7 @@ object PCRelate {
 
     val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0)
 
-    val blockedG = dm.from(g, blockSize, vds.countVariants(), vds.nSamples)
+    val blockedG = dm.from(g, blockSize, blockSize)
     val gMinusMu = (blockedG :- (mu * 2.0))
     val variance = (mu :* (1.0 - mu))
 
@@ -79,13 +79,13 @@ object PCRelate {
   }
 
   def apply(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result = {
-    val g = vdsToMeanImputedMatrix(vds).cache()
+    val g = vdsToMeanImputedMatrix(vds)
 
     val beta = fitBeta(g, pcs, blockSize)
 
     val mu = muHat(pcs, beta)
 
-    val blockedG = dm.from(g, blockSize, vds.countVariants(), vds.nSamples)
+    val blockedG = dm.from(g, blockSize, blockSize)
     val phihat = phiHat(blockedG, mu)
 
     // FIXME: what should I do if the genotype is missing?
@@ -98,8 +98,10 @@ object PCRelate {
     Result(phihat, kZero, k1(kTwo, kZero), kTwo)
   }
 
-  def vdsToMeanImputedMatrix(vds: VariantDataset): RDD[Array[Double]] = {
+  def vdsToMeanImputedMatrix(vds: VariantDataset): IndexedRowMatrix = {
     val nSamples = vds.nSamples
+    val variants = vds.variants.collect()
+    val variantIdxBc = vds.sparkContext.broadcast(variants.index)
     val rdd = vds.rdd.mapPartitions { part =>
       part.map { case (v, (va, gs)) =>
         var sum = 0
@@ -127,10 +129,11 @@ object PCRelate {
           a(i) = mean
         }
 
-        a
+        // FIXME: this should probably be a sparse vector
+        new IndexedRow(variantIdxBc.value(v), new DenseVector(a))
       }
     }
-    rdd
+    new IndexedRowMatrix(rdd, variants.length, nSamples)
   }
 
   /**
@@ -139,14 +142,14 @@ object PCRelate {
     *
     *  result: (SNP x (D+1))
     */
-  def fitBeta(g: RDD[Array[Double]], pcs: DenseMatrix, blockSize: Int): M = {
-    val aa = g.sparkContext.broadcast(pcs.rowIter.map(_.toArray).toArray)
-    val rdd = g.map { a =>
+  def fitBeta(g: IndexedRowMatrix, pcs: DenseMatrix, blockSize: Int): M = {
+    val aa = g.rows.sparkContext.broadcast(pcs.rowIter.map(_.toArray).toArray)
+    val rdd = g.rows.map { case IndexedRow(i, v) =>
       val ols = new OLSMultipleLinearRegression()
-      ols.newSampleData(a, aa.value)
-      ols.estimateRegressionParameters()
+      ols.newSampleData(v.toArray, aa.value)
+      IndexedRow(i, new DenseVector(ols.estimateRegressionParameters()))
     }
-    dm.from(rdd, blockSize, rdd.count(), rdd.first().size)
+    dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize, blockSize)
   }
 
   private def clipToInterval(x: Double): Double =
@@ -250,6 +253,7 @@ object PCRelate {
   }
 
   def ibs0(vds: VariantDataset, blockSize: Int): M =
-    dm.from(IBD.ibs(vds)._1, blockSize)
+    // FIXME: either a) use same blocksize everywhere or b) have efficient reblocking
+    dm.from(IBD.ibs(vds)._1.toIndexedRowMatrix(), blockSize, blockSize)
 
 }
