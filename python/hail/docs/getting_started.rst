@@ -16,30 +16,35 @@ Running Hail locally
 
 Hail uploads distributions to Google Storage as part of our continuous integration suite.
 
-You can download the distribution from these links:
+You can download the distribution from these links. Make sure you download the distribution that matches
+your Spark version!
 
 - `Latest stable distribution for Spark 2.0.2 <https://storage.googleapis.com/hail-common/distributions/hail-0.1-latest-spark2.0.2.zip>`_
 - `Latest stable distribution for Spark 2.1.0 <https://storage.googleapis.com/hail-common/distributions/hail-0.1-latest-spark2.1.0.zip>`_
 
-Unzip the distribution after you download it. To get to know Hail, we recommend that you run the Hail tutorials.
+Unzip the distribution after you download it. Next, edit and copy the below bash commands to set up the Hail
+environment variables. You may want to add these to your bash dot-file (``~/.bash_profile``, ``~/.bashrc``, etc)
+so that you don't need to rerun these commands in each new session.
 
-Here, fill in the path to spark with the Spark installation directory on your computer.
-
-.. code-block:: text
-
-    export SPARK_HOME=/path/to/spark
-
-Here, fill in the path to the Hail installation.
+Here, fill in the path to the un-tarred Spark package.
 
 .. code-block:: text
 
-    export HAIL_HOME=/path/to/hail
+    export SPARK_HOME=???
 
-Finally, run the below commands to start a Jupyter Notebook server in the tutorials directory.
+Here, fill in the path to the unzipped Hail distribution.
 
 .. code-block:: text
 
+    export HAIL_HOME=???
     export PATH=$PATH:$HAIL_HOME/bin/
+
+Once you've set up Hail, we recommend that you run the Python tutorials to get an overview of Hail
+functionality and learn about the powerful query language. To try Hail out, run the below commands
+to start a Jupyter Notebook server in the tutorials directory.
+
+.. code-block:: text
+
     cd $HAIL_HOME/tutorials
     jhail
 
