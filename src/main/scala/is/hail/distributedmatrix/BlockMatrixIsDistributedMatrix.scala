@@ -40,6 +40,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }.partitionBy(GridPartitioner(rowBlocks, colBlocks))
     new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, dm.numRows, dm.numCols)
   }
+  def from(irm: IndexedRowMatrix, rowsPerBlock: Int, colsPerBlock: Int): M =
+    irm.toBlockMatrixDense(rowsPerBlock, colsPerBlock)
   def from(bm: BlockMatrix): M =
     new BlockMatrix(
       bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / bm.rowsPerBlock).toInt + 1, ((bm.numCols - 1) / bm.colsPerBlock).toInt + 1)).persist(),
