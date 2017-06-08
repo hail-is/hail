@@ -15,6 +15,10 @@ server, then click a notebook to begin!
 Hail Overview
 =============
 
+This notebook is designed to provide a broad overview of Hail’s functionality, with emphasis on the
+functionality to manipulate and query a genetic dataset. We walk through a genome-wide SNP association
+test, and demonstrate the need to control for confounding caused by population stratification.
+
 .. toctree::
     :maxdepth: 2
 
@@ -23,13 +27,22 @@ Hail Overview
 Introduction to the expression language
 =======================================
 
+This notebook starts with the basics of the Hail expression language, and builds up practical experience
+with the type system, syntax, and functionality. By the end of this notebook, we hope that you will be
+comfortable enough to start using the expression language to slice, dice, filter, and query genetic data.
+
 .. toctree::
     :maxdepth: 2
 
     Expression language <tutorials/introduction-to-the-expression-language.ipynb>
 
-Expression language: queries and aggregations
-=============================================
+Expression language: query, annotate, and aggregate
+===================================================
+
+This notebook uses the Hail expression language to query, filter, and annotate the same thousand genomes
+dataset from the overview. We also cover how to compute aggregate statistics from a dataset using the
+expression language.
+
 
 .. toctree::
     :maxdepth: 2
