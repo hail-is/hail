@@ -154,11 +154,12 @@ object PCRelate {
     dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize, blockSize)
   }
 
+  private val ksi = 1e-10
   private def clipToInterval(x: Double): Double =
     if (x <= 0)
-      Double.MinPositiveValue
+      ksi
     else if (x >= 1)
-      1 - Double.MinPositiveValue
+      1 - ksi
     else
       x
 
