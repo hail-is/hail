@@ -70,7 +70,7 @@ machine_mem = {
 }
 
 # parse Spark and HDFS configuration parameters, combine into properties argument
-properties = ','.join([
+properties = [
     'spark:spark.driver.memory={}g'.format(str(int(machine_mem[args.master_machine_type] * 0.8))),
     'spark:spark.driver.maxResultSize=0',
     'spark:spark.task.maxFailures=20',
@@ -78,7 +78,9 @@ properties = ','.join([
     'spark:spark.driver.extraJavaOptions=-Xss4M',
     'spark:spark.executor.extraJavaOptions=-Xss4M',
     'hdfs:dfs.replication=1'
-])
+]
+if args.properties:
+    properties.append(args.properties)
 
 # default initialization script to start up cluster with
 init_actions = args.init
@@ -111,7 +113,7 @@ cmd = ' '.join([
     '--worker-boot-disk-size={}'.format(args.worker_boot_disk_size),
     '--worker-machine-type={}'.format(args.worker_machine_type),
     '--zone={}'.format(args.zone),
-    '--properties={}'.format(properties),
+    '--properties={}'.format(",".join(properties)),
     '--initialization-actions={}'.format(init_actions)
 ])
 
