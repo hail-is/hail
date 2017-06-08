@@ -149,7 +149,6 @@ object BetterBlockMatrix extends Logging {
     */
   private class BlockMatrixTransposeRDD(m: BlockMatrix)
       extends RDD[((Int, Int), Matrix)](m.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(m.blocks))) {
-
     def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), Matrix)] =
       m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.transpose) }
 

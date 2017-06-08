@@ -68,12 +68,14 @@ object PCRelate {
 
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
 
+    val ibsZero = ibs0(vds, blockSize)
+
     def _k0(phiHat: Double, denom: Double, k2: Double, ibs0: Double) =
       if (phiHat <= cutoff)
         1 - 4 * phiHat + k2
       else
         ibs0 / denom
-    val kZero = dm.map4(_k0)(phi, denom, kTwo, ibs0(vds, blockSize))
+    val kZero = dm.map4(_k0)(phi, denom, kTwo, ibsZero)
 
     Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
   }
