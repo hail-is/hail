@@ -3,6 +3,7 @@ package org.apache.spark.mllib.linalg.distributed
 import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.mllib.linalg._
+import org.apache.spark.internal.Logging
 
 object BetterBlockMatrix {
 
@@ -82,57 +83,75 @@ object BetterBlockMatrix {
       Some(new GridPartitioner(rowBlocks, colBlocks, 1, 1))
   }
 
-  case class IntPartition(index: Int) extends Partition
+  case class IntPartition(index: Int) extends Partition { }
 
-  def multiply(l: BlockMatrix, r: BlockMatrix): BlockMatrix = {
-    require(l.numCols() == r.numRows(), "The number of columns of A and the number of rows " +
-      s"of B must be equal. A.numCols: ${l.numCols()}, B.numRows: ${r.numRows()}. If you " +
-      "think they should be equal, try setting the dimensions of A and B explicitly while " +
-      "initializing them.")
+  private def gridPartition(m: BlockMatrix): (BlockMatrix, GridPartitioner) = {
+    val p = GridPartitioner(m.numRowBlocks, m.numColBlocks)
+    (new BlockMatrix(m.blocks.partitionBy(p), m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols()),
+      p)
+  }
 
+  private def ensureGridPartitioning(m: BlockMatrix): (BlockMatrix, GridPartitioner) = l.blocks.partitioner match {
+    case Some(gp: GridPartitioner) if (gp.rowsPerPart == 1 && gp.colsPerPart == 1) =>
+      (l, gp)
+    case Some(gp: GridPartitioner) =>
+      logDebug(s"Repartitioning a matrix (slow), $l, with a grid partitioner that didn't have 1 block per partition, had: ${gp.rowsPerPart} x ${gp.colsPerPart}")
+      gridPartition(l)
+    case Some(p) =>
+      logDebug(s"Repartitioning a matrix (slow), $l, with a non-grid partitioner: $p")
+      gridPartition(l)
+    case None =>
+      logDebug(s"Partitioning a matrix (slow), $l, with a no partitioner")
+      gridPartition(l)
+  }
+
+  def multiply(preL: BlockMatrix, preR: BlockMatrix): BlockMatrix = {
+    require(preL.numCols() == preR.numRows(),
+      s"""The number of columns of theleft matrix and the number of rows of the right
+          matrix must be equal: ${l.numRows()} x ${l.numCols()}, ${r.numRows()}
+          x ${r.numCols()}. If you think they should be equal, try setting the
+          dimensions of A and B explicitly while initializing them.""".stripMargin)
     // FIXME: don't require same blocksize on each matrix
-    require(l.colsPerBlock == r.rowsPerBlock)
-    require(l.numColBlocks == r.numRowBlocks)
+    require(preL.colsPerBlock == preR.rowsPerBlock,
+      s"""The number of columns in blocks of the left matrix and the number of rows in
+          blocks of the right matrix must be equal: ${l.rowsPerBlock} x
+          ${l.colsPerBlock}, ${r.rowsPerBlock} x ${r.colsPerBlock}. Generally,
+          all matrices should use square blocks of the same dimension.""".stripMargin)
 
-    if (l.colsPerBlock == r.rowsPerBlock) {
-      val lPartitioner = l.blocks.partitioner.get.asInstanceOf[GridPartitioner]
-      val rPartitioner = r.blocks.partitioner.get.asInstanceOf[GridPartitioner]
-      val rowBlocks = l.numRowBlocks
-      val colBlocks = r.numColBlocks
-      val nProducts = l.numColBlocks
-      val deps = Array[Dependency[_]](
-        new NarrowDependency(l.blocks) {
-          def getParents(partitionId: Int): Seq[Int] = {
-            val row = partitionId % rowBlocks
-            val deps = new Array[Int](nProducts)
-            var i = 0
-            while (i < nProducts) {
-              deps(i) = lPartitioner.getPartition((row, i))
-              i += 1
-            }
-            deps
+    val (l, lPartitioner) = ensureGridPartitioning(preL)
+    val (r, rPartitioner) = ensureGridPartitioning(preR)
+    val rowBlocks = l.numRowBlocks
+    val nProducts = l.numColBlocks
+    val colBlocks = r.numColBlocks
+    val deps = Array[Dependency[_]](
+      new NarrowDependency(l.blocks) {
+        def getParents(partitionId: Int): Seq[Int] = {
+          val row = partitionId % rowBlocks
+          val deps = new Array[Int](nProducts)
+          var i = 0
+          while (i < nProducts) {
+            deps(i) = lPartitioner.getPartition((row, i))
+            i += 1
           }
-        },
-        new NarrowDependency(r.blocks) {
-          def getParents(partitionId: Int): Seq[Int] = {
-            val col = partitionId / rowBlocks
-            val deps = new Array[Int](nProducts)
-            var i = 0
-            while (i < nProducts) {
-              deps(i) = rPartitioner.getPartition((i, col))
-              i += 1
-            }
-            deps
+          deps
+        }
+      },
+      new NarrowDependency(r.blocks) {
+        def getParents(partitionId: Int): Seq[Int] = {
+          val col = partitionId / rowBlocks
+          val deps = new Array[Int](nProducts)
+          var i = 0
+          while (i < nProducts) {
+            deps(i) = rPartitioner.getPartition((i, col))
+            i += 1
           }
-        })
-      val nParts = rowBlocks * colBlocks
-      val parts = (0 until nParts).map(IntPartition.apply _).toArray[Partition]
+          deps
+        }
+      })
+    val nParts = rowBlocks * colBlocks
+    val parts = (0 until nParts).map(IntPartition.apply _).toArray[Partition]
 
-      new BlockMatrix(new BlockMatrixMultiplyRDD(l, r, deps, parts), l.rowsPerBlock, r.colsPerBlock, l.numRows(), r.numCols())
-    } else {
-      throw new SparkException("colsPerBlock of A doesn't match rowsPerBlock of B. " +
-        s"A.colsPerBlock: ${l.colsPerBlock}, B.rowsPerBlock: ${r.rowsPerBlock}")
-    }
+    new BlockMatrix(new BlockMatrixMultiplyRDD(l, r, deps, parts), l.rowsPerBlock, r.colsPerBlock, l.numRows(), r.numCols())
   }
 
   class BlockMatrixTransposeRDD(m: BlockMatrix)
@@ -164,8 +183,8 @@ object BetterBlockMatrix {
       })
   }
 
-  def transpose(m: BlockMatrix): BlockMatrix = {
-    require(!m.blocks.partitioner.isEmpty)
+  def transpose(preM: BlockMatrix): BlockMatrix = {
+    val (m, _) = ensureGridPartitioning(m)
     new BlockMatrix(new BlockMatrixTransposeRDD(m), m.colsPerBlock, m.rowsPerBlock, m.numCols(), m.numRows())
   }
 }
