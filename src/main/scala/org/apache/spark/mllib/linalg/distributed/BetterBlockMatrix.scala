@@ -164,8 +164,6 @@ object BetterBlockMatrix {
     private val parts =
       (0 until m.numRowBlocks * m.numColBlocks).map(IntPartition.apply _).toArray[Partition]
     protected def getPartitions: Array[Partition] =
-      // XXX: This is dumb why don't I have permission to access this?
-      // m.blocks.getPartitions
       parts
 
     private val prevPartitioner = m.blocks.partitioner.get
