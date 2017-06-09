@@ -105,6 +105,7 @@ class VariantDataset(object):
         return self._jvds.isGenericGenotype()
 
     @property
+    @handle_py4j
     def sample_ids(self):
         """Return sampleIDs.
 
@@ -117,6 +118,7 @@ class VariantDataset(object):
         return self._sample_ids
 
     @property
+    @handle_py4j
     def sample_annotations(self):
         """Return a dict of sample annotations.
 
@@ -150,6 +152,7 @@ class VariantDataset(object):
         return self._jvds.nPartitions()
 
     @property
+    @handle_py4j
     def num_samples(self):
         """Number of samples.
 
@@ -1992,6 +1995,7 @@ class VariantDataset(object):
             self.hc, self._jvds.filterVariantsTable(table._jkt, keep))
 
     @property
+    @handle_py4j
     def globals(self):
 
         """Return global annotations as a Python object.
@@ -3567,6 +3571,7 @@ class VariantDataset(object):
         self._jvds.unpersist()
 
     @property
+    @handle_py4j
     def global_schema(self):
         """
         Returns the signature of the global annotations contained in this VDS.
@@ -3581,6 +3586,7 @@ class VariantDataset(object):
         return self._global_schema
 
     @property
+    @handle_py4j
     def colkey_schema(self):
         """
         Returns the signature of the column key (sample) contained in this VDS.
@@ -3595,6 +3601,7 @@ class VariantDataset(object):
         return self._colkey_schema
 
     @property
+    @handle_py4j
     def sample_schema(self):
         """
         Returns the signature of the sample annotations contained in this VDS.
@@ -3609,6 +3616,7 @@ class VariantDataset(object):
         return self._sa_schema
 
     @property
+    @handle_py4j
     def rowkey_schema(self):
         """
         Returns the signature of the row key (variant) contained in this VDS.
@@ -3623,6 +3631,7 @@ class VariantDataset(object):
         return self._rowkey_schema
 
     @property
+    @handle_py4j
     def variant_schema(self):
         """
         Returns the signature of the variant annotations contained in this VDS.
@@ -3637,6 +3646,7 @@ class VariantDataset(object):
         return self._va_schema
 
     @property
+    @handle_py4j
     def genotype_schema(self):
         """
         Returns the signature of the genotypes contained in this VDS.

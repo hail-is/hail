@@ -1,9 +1,5 @@
 .. _sec-getting_started:
 
-.. testsetup::
-
-    hc.stop()
-
 ===============
 Getting Started
 ===============
@@ -12,8 +8,51 @@ You'll need:
 
 - The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
 - `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_. Hail should work with other versions of Spark 2, see below.
-- Python 2.7 and IPython. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
-- `CMake <http://cmake.org>`_ and a C++ compiler that supports ``-std=c++11`` (we recommend at least GCC 4.7 or Clang 3.3).
+- Python 2.7 and Jupyter Notebooks. We recommend the free `Anaconda distribution <https://www.continuum.io/downloads>`_.
+
+--------------------
+Running Hail locally
+--------------------
+
+Hail uploads distributions to Google Storage as part of our continuous integration suite.
+
+You can download the distribution from these links. Make sure you download the distribution that matches
+your Spark version!
+
+- `Latest stable distribution for Spark 2.0.2 <https://storage.googleapis.com/hail-common/distributions/hail-0.1-latest-spark2.0.2.zip>`_
+- `Latest stable distribution for Spark 2.1.0 <https://storage.googleapis.com/hail-common/distributions/hail-0.1-latest-spark2.1.0.zip>`_
+
+Unzip the distribution after you download it. Next, edit and copy the below bash commands to set up the Hail
+environment variables. You may want to add these to your bash dot-file (``~/.bash_profile``, ``~/.bashrc``, etc)
+so that you don't need to rerun these commands in each new session.
+
+Here, fill in the path to the un-tarred Spark package.
+
+.. code-block:: text
+
+    export SPARK_HOME=???
+
+Here, fill in the path to the unzipped Hail distribution.
+
+.. code-block:: text
+
+    export HAIL_HOME=???
+    export PATH=$PATH:$HAIL_HOME/bin/
+
+Once you've set up Hail, we recommend that you run the Python tutorials to get an overview of Hail
+functionality and learn about the powerful query language. To try Hail out, run the below commands
+to start a Jupyter Notebook server in the tutorials directory.
+
+.. code-block:: text
+
+    cd $HAIL_HOME/tutorials
+    jhail
+
+You can now click on the "hail-overview" notebook to get started!
+
+-------------------------
+Building Hail from source
+-------------------------
 
   On a Debian-based Linux OS like Ubuntu, run:
 
@@ -36,26 +75,17 @@ You'll need:
 
   You can also download the source code directly from `Github <https://github.com/broadinstitute/hail/archive/master.zip>`_.
 
-  You may also want to install `Seaborn <http://seaborn.pydata.org>`_, a Python library for statistical data visualization, using ``conda install seaborn`` or ``pip install seaborn``. While not technically necessary, Seaborn is used in the tutorial to make prettier plots.
+  You may also want to install `Seaborn <http://seaborn.pydata.org>`_, a Python library for statistical data visualization, using ``conda install seaborn`` or ``pip install seaborn``. While not technically necessary, Seaborn is used in the tutorials to make prettier plots.
 
 To install all dependencies for running locally on a fresh Ubuntu installation, use this `script <https://github.com/hail-is/hail/wiki/Install-Hail-dependencies-on-a-fresh-Ubuntu-VM>`_.
 
 The following commands are relative to the ``hail`` directory.
 
--------------------------
-Building and running Hail
--------------------------
-
-Hail may be built to run locally or on a Spark cluster. Running locally is useful for getting started, analyzing or experimenting with small datasets, and Hail development.
-
-Running locally
-===============
-
 The single command
 
   .. code-block:: text
 
-    $ ./gradlew shadowJar
+    $ ./gradlew -Dspark.version=2.0.2 shadowJar
 
 creates a Hail JAR file at ``build/libs/hail-all-spark.jar``. The initial build takes time as `Gradle <https://gradle.org/>`_ installs all Hail dependencies.
 
@@ -66,70 +96,6 @@ Add the following environmental variables by filling in the paths to **SPARK_HOM
     $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:`echo $SPARK_HOME/python/lib/py4j*-src.zip`"
     $ export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
 
-Running ``ipython`` on the command line will open an interactive Python shell.
-
-Here are a few simple things to try in order. To import the ``hail`` module and start a :py:class:`~hail.HailContext`, run:
-
-.. doctest::
-
-    >>> from hail import *
-    >>> hc = HailContext()
-
-To :func:`import <hail.HailContext.import_vcf>` the included *sample.vcf* into Hail's **.vds** format, run:
-
-.. doctest::
-    :hide:
-
-    >>> hc.import_vcf('../../../../../src/test/resources/sample.vcf').write('sample.vds')
-
-.. doctest::
-    :options: +SKIP
-
-    >>> hc.import_vcf('src/test/resources/sample.vcf').write('sample.vds')
-
-To :func:`split <hail.VariantDataset.split_multi>` multi-allelic variants, compute a panel of :func:`sample <hail.VariantDataset.sample_qc>` and :func:`variant <hail.VariantDataset.sample_qc>` quality control statistics, write these statistics to files, and save an annotated version of the vds, run:
-
-.. doctest::
-
-    >>> vds = (hc.read('sample.vds')
-    ...     .split_multi()
-    ...     .sample_qc()
-    ...     .variant_qc())
-    >>> vds.export_variants('variantqc.tsv', 'Variant = v, va.qc.*')
-    >>> vds.write('sample.qc.vds')
-
-
-To :func:`count <hail.VariantDataset.count>` the number of samples and variants, run:
-
-.. doctest::
-
-    >>> vds.count()
-
-The :func:`summarize <hail.VariantDataset.summarize>` method produces a variety of useful statistics:
-
-.. doctest::
-
-    >>> vds.summarize().report()
-
-Now let's get a feel for Hail's powerful objects, annotation system, and `expression language <exprlang>`_. To print the current annotation schema and use these annotations to filter variants, samples, and genotypes, run:
-
-.. doctest::
-
-    >>> print('sample annotation schema:')
-    >>> print(vds.sample_schema)
-    >>> print('\nvariant annotation schema:')
-    >>> print(vds.variant_schema)
-    >>> (vds.filter_variants_expr('v.altAllele().isSNP() && va.qc.gqMean >= 20')
-    ...     .filter_samples_expr('sa.qc.callRate >= 0.97 && sa.qc.dpMean >= 15')
-    ...     .filter_genotypes('let ab = g.ad[1] / g.ad.sum() in '
-    ...                       '((g.isHomRef() && ab <= 0.1) || '
-    ...                       ' (g.isHet() && ab >= 0.25 && ab <= 0.75) || '
-    ...                       ' (g.isHomVar() && ab >= 0.9))')
-    ...     .write('sample.filtered.vds'))
-
-Try running :py:meth:`~hail.VariantDataset.count` on *sample.filtered.vds* to see how the numbers have changed. For further background and examples, continue to the :ref:`sec-overview` and :ref:`API reference <sec-api>`.
-
-Note that during each run Hail writes a ``hail.log`` file in the current directory; this is useful to developers for debugging.
 
 Running on a Spark cluster
 ==========================
@@ -137,36 +103,34 @@ Running on a Spark cluster
 Hail can run on any cluster that has Spark 2 installed. For instructions
 specific to Google Cloud Dataproc clusters and Cloudera clusters, see below.
 
-For all other Spark clusters, you will need to build Hail from the source
-code. First, log onto the master node of the Spark cluster, and build a Hail JAR
+For all other Spark clusters, you will need to build Hail from the source code.
+
+To build Hail, log onto the master node of the Spark cluster, and build a Hail JAR
 and a zipfile of the Python code by running:
 
   .. code-block:: text
 
-    $ ./gradlew shadowJar archiveZip
+    $ ./gradlew -Dspark.version=2.0.2 shadowJar archiveZip
 
-Then set the following environment variables with values peculiar to your
-cluster for ``SPARK_HOME`` and ``HAIL_HOME``::
-
-    $ export SPARK_HOME=/path/to/spark/
-    $ export HAIL_HOME=/path/to/hail
-    $ export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*-src.zip"
-
-You can open an IPython shell with the ``ipython`` command:
+You can then open an IPython shell which can run Hail backed by the cluster
+with the ``ipython`` command.
 
   .. code-block:: text
 
-    $ ipython
+    $ SPARK_HOME=/path/to/spark/ \
+      HAIL_HOME=/path/to/hail/ \
+      PYTHONPATH="$PYTHONPATH:$HAIL_HOME/build/distributions/hail-python.zip:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*-src.zip" \
+      ipython
 
-Within the interactive shell, check that you can successfully create a
+Within the interactive shell, check that you can create a
 ``HailContext`` by running the following commands. Note that you have to pass in
 the existing ``SparkContext`` instance ``sc`` to the ``HailContext``
 constructor.
 
   .. code-block:: python
 
-    >>> import hail
-    >>> hc = hail.HailContext(sc)
+    >>> from hail import *
+    >>> hc = HailContext()
     
 Files can be accessed from both Hadoop and Google Storage. If you're running on Google's Dataproc, you'll want to store your files in Google Storage. In most on premises clusters, you'll want to store your files in Hadoop.
 
