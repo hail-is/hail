@@ -26,7 +26,7 @@ object BetterBlockMatrix {
       case x: SparseMatrix => x.toDense
     }
 
-    private def fmaDenseMatricesWithExtension(x: DenseMatrix, y: DenseMatrix, result: DenseMatrix) {
+    private def multiplyAccumulateWithExtension(x: DenseMatrix, y: DenseMatrix, result: DenseMatrix) {
       val x2 = if (result.numRows != x.numRows)
         toDenseMatrix(Matrices.vertcat(Array(x, Matrices.zeros(result.numRows - x.numRows, x.numCols))))
       else
@@ -63,13 +63,9 @@ object BetterBlockMatrix {
         val rightMat = rightBlock(i, col, context)
         (leftMat, rightMat) match {
           case (x: DenseMatrix, y: DenseMatrix) =>
-            fmaDenseMatricesWithExtension(x, y, finalResult)
-          case (x: DenseMatrix, y: SparseMatrix) =>
-            fmaDenseMatricesWithExtension(x, toDenseMatrix(y), finalResult)
-          case (x: SparseMatrix, y: DenseMatrix) =>
-            fmaDenseMatricesWithExtension(toDenseMatrix(x), y, finalResult)
+            multiplyAccumulateWithExtension(x, y, finalResult)
           case _ =>
-             throw new SparkException(s"I only support Dense * Dense, recieved: ${leftMat.getClass}, ${rightMat.getClass}.")
+             throw new SparkException(s"No support for multiplying: ${leftMat.getClass} by ${rightMat.getClass}.")
         }
 
         i += 1
