@@ -71,16 +71,9 @@ object BetterBlockMatrix {
         i += 1
       }
 
-      Array(((row, col), finalResult)).iterator
+      Iterator.single(((row, col), finalResult))
     }
 
-    /**
-      * Implemented by subclasses to return the set of partitions in this RDD. This method will only
-      * be called once, so it is safe to implement a time-consuming computation in it.
-      *
-      * The partitions in this array must satisfy the following property:
-      *   `rdd.partitions.zipWithIndex.forall { case (partition, index) => partition.index == index }`
-      */
     protected def getPartitions: Array[Partition] =
       partitions
 
