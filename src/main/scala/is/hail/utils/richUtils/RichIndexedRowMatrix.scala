@@ -63,7 +63,9 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     }, { (m1, m2) =>
       var i = 0
       while (i < m1._3.length) {
-        m1._3.update(i, m2._3(i))
+        val x = m2._3(i)
+        if (x != 0)
+          m1._3.update(i, x)
         i += 1
       }
       m1
