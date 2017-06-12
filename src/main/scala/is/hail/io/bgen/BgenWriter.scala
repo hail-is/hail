@@ -240,7 +240,10 @@ object BgenWriter {
     bb += nBitsPerProb.toByte
 
     val bitPacker = new BitPacker(bb, nBitsPerProb)
-    gs.zipWithIndex.foreach { case (gt, idx) =>
+    var idx = 0
+    val gsIt = gs.iterator
+    while (gsIt.hasNext) {
+      val gt = gsIt.next()
       val px = gt.unboxedPX
       if (px == null) {
         var i = 0
@@ -260,6 +263,7 @@ object BgenWriter {
 
         roundWithConstantSum(resized, fractional, index, bitPacker, F, newSize, keepLast = false)
       }
+      idx += 1
     }
     bitPacker.flush()
     bb.result()
