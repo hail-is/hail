@@ -11,7 +11,7 @@
  - find Mendelian violations in trios, prune variants in linkage disequilibrium, analyze genetic similarity between samples via the GRM and IBD matrix, and compute sample scores and variant loadings using PCA
  - perform variant, gene-burden and eQTL association analyses using linear, logistic, and linear mixed regression, and estimate heritability
 
-This functionality and more is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](http://spark.apache.org/)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster, without the need to manually chop up data or manage job failures. Hail also provides a flexible query language to express complex quality control and analysis pipelines with concise, readable code that reflects genetics concepts. 
+This functionality and more is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](http://spark.apache.org/)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster, without the need to manually chop up data or manage job failures. Hail also provides a flexible domain language to express complex quality control and analysis pipelines with concise, readable code.
 
 The Hail project began in Fall 2015 to [harness the flood of genomic data](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) and is under very active development. Hail has been the primary analysis platform for dozens of major studies and is the core analysis platform of large-scale genomics efforts such as [gnomAD](http://gnomad.broadinstitute.org/).
 
