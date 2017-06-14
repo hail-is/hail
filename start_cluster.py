@@ -26,6 +26,10 @@ parser.add_argument('--worker-machine-type', '--worker', '-w', type=str, help='W
 parser.add_argument('--zone', default='us-central1-b', type=str, help='Compute zone for the cluster.')
 parser.add_argument('--properties', default='', type=str, help='Additional configuration properties for the cluster.')
 
+# specify custom Hail jar and zip
+parser.add_argument('--jar', default='', type=str, help='Hail jar to use for Jupyter notebook.')
+parser.add_argument('--zip', default='', type=str, help='Hail zip to use for Jupyter notebook.')
+
 # initialization action flags
 parser.add_argument('--init', default='gs://hail-common/init_notebook.py', help='comma-separated list of init scripts to run.')
 parser.add_argument('--vep', action='store_true')
@@ -94,6 +98,12 @@ else:
 
 # prepare metadata values
 metadata = 'HASH={0},SPARK={1}'.format(hail_hash, args.spark)
+
+# if Hail jar and zip, add to metadata
+if args.jar:
+    metadata += ',JAR={}'.format(args.jar)
+if args.zip:
+    metadata += ',ZIP={}'.format(args.zip)
 
 # command to start cluster
 cmd = ' '.join([
