@@ -210,4 +210,11 @@ class LoadBgenSuite extends SparkSuite {
     TestProbIterator.check()
   }
 
+  @Test def testParallelImport() {
+    val bgen = "src/test/resources/parallelBgenExport.bgen"
+    val sample = "src/test/resources/parallelBgenExport.sample"
+
+    hc.indexBgen(bgen)
+    hc.importBgen(bgen, Option(sample)).count()
+  }
 }

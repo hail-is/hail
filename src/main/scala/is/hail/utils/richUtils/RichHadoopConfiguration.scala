@@ -47,6 +47,18 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     fs.getFileStatus(hPath).getLen
   }
 
+  def isDir(filename: String): Boolean = {
+    val fs = fileSystem(filename)
+    val hPath = new hadoop.fs.Path(filename)
+    fs.getFileStatus(hPath).isDirectory
+  }
+
+  def isFile(filename: String): Boolean = {
+    val fs = fileSystem(filename)
+    val hPath = new hadoop.fs.Path(filename)
+    fs.getFileStatus(hPath).isFile
+  }
+
   def exists(files: String*): Boolean = {
     files.forall(filename => fileSystem(filename).exists(new hadoop.fs.Path(filename)))
   }
