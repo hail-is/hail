@@ -14,6 +14,7 @@ import org.json4s.JValue
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+import scala.util.matching.Regex
 
 trait Implicits {
   implicit def toRichAny(a: Any): RichAny = new RichAny(a)
@@ -81,6 +82,8 @@ trait Implicits {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
+
+  implicit def toRichRegex(r: Regex): RichRegex = new RichRegex(r)
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 

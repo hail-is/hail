@@ -47,6 +47,12 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     fs.getFileStatus(hPath).getLen
   }
 
+  def listStatus(filename: String): Array[FileStatus] = {
+    val fs = fileSystem(filename)
+    val hPath = new hadoop.fs.Path(filename)
+    fs.listStatus(hPath)
+  }
+
   def isDir(filename: String): Boolean = {
     val fs = fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)

@@ -234,20 +234,20 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None): VariantDataset = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
+      if (!file.endsWith(".bgen")) {
+        warn(s"Input file does not have .bgen extension: $file")
+      }
+
       if (hadoopConf.isDir(file))
-        hadoopConf.glob(file + "/part-*").filter(!_.getPath.getName.endsWith(".idx")).map(_.getPath.toString)
+        hadoopConf.listStatus(file)
+          .map(_.getPath.toString)
+          .filter(p => ".*part-[0-9]+".r.matches(p))
       else
         Array(file)
     }
 
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
-    inputs.foreach { input =>
-      if (!input.endsWith(".bgen") && !input.contains("part")) {
-        warn(s"input file does not have .bgen extension: $input")
-      }
-    }
 
     BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions)
   }
@@ -577,20 +577,20 @@ class HailContext private(val sc: SparkContext,
 
   def indexBgen(files: Seq[String]) {
     val inputs = hadoopConf.globAll(files).flatMap { file =>
+      if (!file.endsWith(".bgen")) {
+        warn(s"Input file does not have .bgen extension: $file")
+      }
+
       if (hadoopConf.isDir(file))
-        hadoopConf.glob(file + "/part-*").filter(!_.getPath.getName.endsWith(".idx")).map(_.getPath.toString)
+        hadoopConf.listStatus(file)
+          .map(_.getPath.toString)
+          .filter(p => ".*part-[0-9]+".r.matches(p))
       else
         Array(file)
     }
 
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
-    inputs.foreach { input =>
-      if (!input.endsWith(".bgen") && !input.contains("part")) {
-        warn(s"input file does not have .bgen extension: $input")
-      }
-    }
 
     val conf = new SerializableHadoopConfiguration(hadoopConf)
 
