@@ -41,17 +41,31 @@ if role == 'Master':
     if not hash:
         hash = Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash-spark{}.txt'.format(spark)], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
 
-    # Hail jar and zip names
-    hail_jar = 'hail-hail-is-master-all-spark{0}-{1}.jar'.format(spark, hash)
-    hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
+    # Hail jar
+    jar = Popen('/usr/share/google/get_metadata_value attributes/JAR', shell=True, stdout=PIPE).communicate()[0].strip()
+    if jar:
+        hail_jar = jar.rsplit('/')[-1]
+        jar_path = jar
+    else:
+        hail_jar = 'hail-hail-is-master-all-spark{0}-{1}.jar'.format(spark, hash)
+        jar_path = 'gs://hail-common/' + hail_jar
+
+    # Hail zip
+    zip = Popen('/usr/share/google/get_metadata_value attributes/ZIP', shell=True, stdout=PIPE).communicate()[0].strip()
+    if zip:
+        hail_zip = zip.rsplit('/')[-1]
+        zip_path = zip
+    else:    
+        hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
+        zip_path = 'gs://hail-common/' + hail_zip
 
     # make directory for Hail and Jupyter notebook related files
     os.mkdir('/home/hail/')
     os.chmod('/home/hail/', 0777)
 
     # copy Hail jar and zip to local directory on master node
-    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_jar), '/home/hail/'])
-    call(['gsutil', 'cp', 'gs://hail-common/{}'.format(hail_zip), '/home/hail/'])
+    call(['gsutil', 'cp', jar_path, '/home/hail/'])
+    call(['gsutil', 'cp', zip_path, '/home/hail/'])
 
     # create Jupyter kernel spec file
     kernel = {
@@ -68,7 +82,7 @@ if role == 'Master':
             'PYTHONHASHSEED': '0',
             'SPARK_HOME': '/usr/lib/spark/',
             'SPARK_CONF_DIR': '/home/hail/conf/',
-            'PYTHONPATH': '/usr/lib/spark/python/:/usr/lib/spark/python/lib/py4j-0.10.3-src.zip:/home/hail/pyhail-hail-is-master-{}.zip'.format(hash)
+            'PYTHONPATH': '/usr/lib/spark/python/:/usr/lib/spark/python/lib/py4j-0.10.3-src.zip:/home/hail/{}'.format(hail_zip)
         }
     }    
 
