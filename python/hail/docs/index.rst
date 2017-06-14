@@ -16,6 +16,7 @@ Contents
     Tutorials <tutorials-landing>
     Expression Language <exprlang>
     Python API <api>
+    Annotation Database <annotationdb>
     Other Resources <other_resources>
 
 ==================
