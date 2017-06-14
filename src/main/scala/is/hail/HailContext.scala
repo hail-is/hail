@@ -233,15 +233,20 @@ class HailContext private(val sc: SparkContext,
     tolerance: Double = 0.2,
     nPartitions: Option[Int] = None): VariantDataset = {
 
-    val inputs = hadoopConf.globAll(files)
+    val inputs = hadoopConf.globAll(files).flatMap { file =>
+      if (!file.endsWith(".bgen"))
+        warn(s"Input file does not have .bgen extension: $file")
+
+      if (hadoopConf.isDir(file))
+        hadoopConf.listStatus(file)
+          .map(_.getPath.toString)
+          .filter(p => ".*part-[0-9]+".r.matches(p))
+      else
+        Array(file)
+    }
 
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
-    inputs.foreach { input =>
-      if (!input.endsWith(".bgen"))
-        fatal("unknown input file type")
-    }
 
     BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions)
   }
@@ -267,7 +272,7 @@ class HailContext private(val sc: SparkContext,
     }
 
     if (inputs.isEmpty)
-      fatal(s"arguments refer to no files: ${files.mkString(",")}")
+      fatal(s"arguments refer to no files: ${ files.mkString(",") }")
 
     val samples = BgenLoader.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
@@ -337,7 +342,7 @@ class HailContext private(val sc: SparkContext,
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
-      fatal(s"Arguments referred to no files: '${files.mkString(",")}'")
+      fatal(s"Arguments referred to no files: '${ files.mkString(",") }'")
 
     val (struct, rdd) =
       TextTableReader.read(sc)(files, types, commentChar, separator, missing,
@@ -570,16 +575,20 @@ class HailContext private(val sc: SparkContext,
   }
 
   def indexBgen(files: Seq[String]) {
-    val inputs = hadoopConf.globAll(files)
+    val inputs = hadoopConf.globAll(files).flatMap { file =>
+      if (!file.endsWith(".bgen"))
+        warn(s"Input file does not have .bgen extension: $file")
+
+      if (hadoopConf.isDir(file))
+        hadoopConf.listStatus(file)
+          .map(_.getPath.toString)
+          .filter(p => ".*part-[0-9]+".r.matches(p))
+      else
+        Array(file)
+    }
 
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
-    inputs.foreach { input =>
-      if (!input.endsWith(".bgen")) {
-        fatal(s"unknown input file: $input")
-      }
-    }
 
     val conf = new SerializableHadoopConfiguration(hadoopConf)
 
