@@ -234,9 +234,8 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None): VariantDataset = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
-      if (!file.endsWith(".bgen")) {
+      if (!file.endsWith(".bgen"))
         warn(s"Input file does not have .bgen extension: $file")
-      }
 
       if (hadoopConf.isDir(file))
         hadoopConf.listStatus(file)
@@ -273,7 +272,7 @@ class HailContext private(val sc: SparkContext,
     }
 
     if (inputs.isEmpty)
-      fatal(s"arguments refer to no files: ${files.mkString(",")}")
+      fatal(s"arguments refer to no files: ${ files.mkString(",") }")
 
     val samples = BgenLoader.readSampleFile(sc.hadoopConfiguration, sampleFile)
     val nSamples = samples.length
@@ -343,7 +342,7 @@ class HailContext private(val sc: SparkContext,
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
-      fatal(s"Arguments referred to no files: '${files.mkString(",")}'")
+      fatal(s"Arguments referred to no files: '${ files.mkString(",") }'")
 
     val (struct, rdd) =
       TextTableReader.read(sc)(files, types, commentChar, separator, missing,
@@ -577,9 +576,8 @@ class HailContext private(val sc: SparkContext,
 
   def indexBgen(files: Seq[String]) {
     val inputs = hadoopConf.globAll(files).flatMap { file =>
-      if (!file.endsWith(".bgen")) {
+      if (!file.endsWith(".bgen"))
         warn(s"Input file does not have .bgen extension: $file")
-      }
 
       if (hadoopConf.isDir(file))
         hadoopConf.listStatus(file)
