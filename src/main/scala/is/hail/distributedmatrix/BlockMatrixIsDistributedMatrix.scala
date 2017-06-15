@@ -18,6 +18,30 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def from(bm: BlockMatrix): M = bm
   def from(cm: CoordinateMatrix): M =
     cm.toBlockMatrix()
+  def from(sc: SparkContext, dm: DenseMatrix, rowsPerBlock: Int, colsPerBlock: Int): M = {
+    val rbc = sc.broadcast(r)
+    val rowBlocks = (r.numRows - 1) / rowsPerBlock + 1
+    val colBlocks = (r.numCols - 1) / colsPerBlock + 1
+    val rowsRemainder = r.numRows % rowsPerBlock
+    val colsRemainder = r.numCols % colsPerBlock
+    val indices = for {
+      i <- 0 until rowBlocks
+      j <- 0 until colBlocks
+    } yield (i, j)
+    val rMats = sc.parallelize(indices).map { case (i, j) =>
+      val rowsInThisBlock = (if (i + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
+      val colsInThisBlock = (if (i + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
+      val a = new Array[Double](rowsInThisBlock * colsInThisBlock)
+      for {
+        ii <- 0 until rowsInThisBlock
+        jj <- 0 until colsInThisBlock
+      } {
+        a(jj*rowsInThisBlock + ii) = rbc.value(i*rowsPerBlock + ii, j*colsPerBlock + jj)
+      }
+      ((i, j), new DenseMatrix(rowsInThisBlock, colsInThisBlock, a, false): Matrix)
+    }.partitionBy(GridPartitioner(rowBlocks, colBlocks))
+    new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, r.numRows, r.numCols)
+  }
 
   def transpose(m: M): M = m.transpose
   def diagonal(m: M): Array[Double] = {
@@ -63,31 +87,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def multiply(l: M, r: DenseMatrix): M = {
     require(l.numCols() == r.numRows,
       s"incompatible matrix dimensions: ${l.numRows()}x${l.numCols()} and ${r.numRows}x${r.numCols}")
-    val sc = l.blocks.sparkContext
-    val rbc = sc.broadcast(r)
-    val rRowsPerBlock = l.colsPerBlock
-    val rColsPerBlock = l.rowsPerBlock
-    val rRowBlocks = (r.numRows - 1) / rRowsPerBlock + 1
-    val rColBlocks = (r.numCols - 1) / rColsPerBlock + 1
-    val rRowsRemainder = r.numRows % rRowsPerBlock
-    val rColsRemainder = r.numCols % rColsPerBlock
-    val indices = for {
-      i <- 0 until rRowBlocks
-      j <- 0 until rColBlocks
-    } yield (i, j)
-    val rMats = sc.parallelize(indices).map { case (i, j) =>
-      val rRowsInThisBlock = (if (i + 1 == rRowBlocks && rRowsRemainder != 0) rRowsRemainder else rRowsPerBlock)
-      val rColsInThisBlock = (if (i + 1 == rColBlocks && rColsRemainder != 0) rColsRemainder else rColsPerBlock)
-      val a = new Array[Double](rRowsInThisBlock * rColsInThisBlock)
-      for {
-        ii <- 0 until rRowsInThisBlock
-        jj <- 0 until rColsInThisBlock
-      } {
-        a(jj*rRowsInThisBlock + ii) = rbc.value(i*rRowsPerBlock + ii, j*rColsPerBlock + jj)
-      }
-      ((i, j), new DenseMatrix(rRowsInThisBlock, rColsInThisBlock, a, false): Matrix)
-    }.partitionBy(GridPartitioner(rRowBlocks, rColBlocks))
-    l.multiply(new BlockMatrix(rMats, rRowsPerBlock, rColsPerBlock, r.numRows, r.numCols))
+    multiply(l, from(l.blocks.sparkContext, r, l.colsPerBlock, l.rowsPerBlock))
   }
 
   def map4(op: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M = {
@@ -168,9 +168,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def scalarSubtract(m: M, i: Double): M = map(_ - i)(m)
   def scalarMultiply(m: M, i: Double): M = map(_ * i)(m)
   def scalarDivide(m: M, i: Double): M = map(_ / i)(m)
-  def scalarAdd(i: Double, m: M): M = map(i + _)(m)
-  def scalarSubtract(i: Double, m: M): M = map(i - _)(m)
-  def scalarMultiply(i: Double, m: M): M = map(i * _)(m)
   def scalarDivide(i: Double, m: M): M = map(i / _)(m)
 
   private def mapWithRowIndex(op: (Double, Int) => Double)(x: M): M = {

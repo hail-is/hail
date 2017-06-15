@@ -32,9 +32,6 @@ trait DistributedMatrix[M] {
   def scalarSubtract(m: M, i: Double): M
   def scalarMultiply(m: M, i: Double): M
   def scalarDivide(m: M, i: Double): M
-  def scalarAdd(i: Double, m: M): M
-  def scalarSubtract(i: Double, m: M): M
-  def scalarMultiply(i: Double, m: M): M
   def scalarDivide(i: Double, m: M): M
 
   def vectorAddToEveryColumn(v: Array[Double])(m: M): M
@@ -94,11 +91,11 @@ trait DistributedMatrix[M] {
     }
     implicit class ScalarShim(l: Double) {
       def +(r: M): M =
-        scalarAdd(l, r)
+        scalarAdd(r, l)
       def -(r: M): M =
-        scalarSubtract(l, r)
+        scalarAdd(r, -l)
       def *(r: M): M =
-        scalarMultiply(l, r)
+        scalarMultiply(r, l)
       def /(r: M): M =
         scalarDivide(l, r)
     }
