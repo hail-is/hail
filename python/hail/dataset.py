@@ -9,7 +9,7 @@ from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.representation import Interval, Pedigree, Variant
-from hail.utils import Summary, wrap_to_list
+from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
 
@@ -920,28 +920,24 @@ class VariantDataset(object):
         Annotate variants using the Hail annotation database.
 
         Documentation describing the annotations that are accessible through this method can be found 
-        `here <https://hail.is/hail/annotationdb.html>`_.
+        here_.
+
+        .. _here: annotationdb.html
 
         **Examples**
 
         Annotate variants with CADD raw and PHRED scores:
 
-        .. code-block:: python
-
-            vds = vds.annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED'])
+        >>> vds = vds.annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
 
         Annotate variants with gene-level PLI score, using the VEP-generated gene symbol to map variants to genes: 
 
-        .. code-block:: python
-
-            pli_vds = vds.annotate_variants_db(['va.gene.constraint.pli'])
+        >>> pli_vds = vds.annotate_variants_db(['va.gene.constraint.pli']) # doctest: +SKIP
 
         Again annotate variants with gene-level PLI score, this time using the existing ``va.gene_symbol`` annotation 
         to map variants to genes:
 
-        .. code-block:: python
-
-            vds = vds.annotate_variants_db(['va.gene.constraint.pli'], gene_key = 'va.gene_symbol')
+        >>> vds = vds.annotate_variants_db(['va.gene.constraint.pli'], gene_key = 'va.gene_symbol') # doctest: +SKIP
 
         **Notes**
 
@@ -949,9 +945,7 @@ class VariantDataset(object):
         method is recommended to capture all appropriate annotations from the database. To do this, run :py:meth:`split_multi` 
         prior to annotating variants with this method:
 
-        .. code-block:: python
-
-            vds = vds.split_multi().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED'])
+        >>> vds = vds.split_multi().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
 
         :param annotations: List of annotations to import from the database.
         :type annotations: str or list of str 
@@ -967,21 +961,17 @@ class VariantDataset(object):
 
         # import modules needed by this function
         import json
-        import urllib2
         
         # print warning if analysis VDS is not split
         if not self.was_split():
             print('Warning: VDS not split. Multi-allelic sites will not be annotated.')
 
-        # ensure annotations object is a list
-        if type(annotations) == str:
-            annotations = [annotations]
+        # collect user-supplied annotations in a set, converting str -> list first if necessary
+        annotations = set([annotations]) if isinstance(annotations, str) else set(annotations)
 
-        # collect annotations in a set
-        annotations = set(annotations)
-
-        # read in file map from bucket
-        files = json.loads(urllib2.urlopen('https://storage.googleapis.com/annotationdb/file_map.json?ignoreCache=1').read())
+        # read in database file map from bucket
+        with hadoop_read('gs://annotationdb/file_map.json') as f:
+            files = json.load(f)
 
         # build dictionary of file: expr for each database file that needs to be read, based on the annotations provided
         file_exprs = {}
@@ -993,7 +983,7 @@ class VariantDataset(object):
 
             # "depths" of each annotation
             # e.g: {'va.cadd': 2, 'va.cadd.RawScore': 3, 'va.cadd.PHRED': 3}
-            depths = {k: len(k.split('.')) for k, _ in file_annotations.iteritems()}
+            depths = {k: len(k.split('.')) for k in file_annotations}
 
             # maximum "depth"
             # e.g: 3
@@ -1005,7 +995,7 @@ class VariantDataset(object):
 
             # get the "root" annotation of the underlying database file
             # e.g: 'va.cadd'
-            root = [x for x in file_annotations.iteritems() if depths[x[0]] == max_depth - 1][0][0]
+            root = [x for x in file_annotations if depths[x] == max_depth - 1][0]
 
             # if any of the user-supplied annotations encompass the whole database file, use all annotations
             # e.g: if 'va' or 'va.cadd', exprs = ['va.cadd.RawScore=vds.RawScore', 'va.cadd.PHRED=va.PHRED']
@@ -1019,17 +1009,14 @@ class VariantDataset(object):
 
             # if at least one annotation is needed, add to dictionary
             # e.g: if 'va.cadd.RawScore' (but not PHRED) is given by the user, 
-            #       add 'gs://annotationdb/cadd/cadd.vds': 'va.cadd.RawScore=vds.RawScore' to dictionary
-            #     if 'va' or 'va.cadd' is given by the user,
-            #       add 'gs://annotationdb/cadd/cadd.vds': 'va.cadd.RawScore=vds.RawScore,vds.cadd.PHRED=vds.PHRED'
+            #        add 'gs://annotationdb/cadd/cadd.vds': 'va.cadd.RawScore=vds.RawScore' to dictionary
+            #      if 'va' or 'va.cadd' is given by the user,
+            #        add 'gs://annotationdb/cadd/cadd.vds': 'va.cadd.RawScore=vds.RawScore,vds.cadd.PHRED=vds.PHRED'
             if exprs:
                 file_exprs[f['file']] = ','.join(exprs)
 
-        # subset to gene-level annotations
-        gene_files = {k: v for k, v in file_exprs.iteritems() if k.startswith('gs://annotationdb/gene/')}
-
         # are there any gene annotations?
-        are_genes = len([x for x in file_exprs.keys() if x.startswith('gs://annotationdb/gene/')]) > 0
+        are_genes = any([x.startswith('gs://annotationdb/gene/') for x in file_exprs])
 
         # subset to VEP annotations
         veps = [x for x in annotations if x.startswith('va.vep') or x == 'va']
@@ -1168,7 +1155,7 @@ class VariantDataset(object):
             if file.endswith('.vds'):
 
                 # annotate analysis VDS with database VDS
-                self = self.annotate_variants_vds(self.hc.read('{}'.format(file)), expr = expr)
+                self = self.annotate_variants_vds(self.hc.read(file), expr = expr)
 
             # if database file is a keytable
             elif file.endswith('.kt'):
@@ -1183,7 +1170,7 @@ class VariantDataset(object):
                     vds_key = None
 
                 # annotate analysis VDS with database keytable
-                self = self.annotate_variants_table(self.hc.read_table('{}'.format(file)), expr = expr, vds_key = vds_key)
+                self = self.annotate_variants_table(self.hc.read_table(file), expr = expr, vds_key = vds_key)
 
         return self
 

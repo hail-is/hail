@@ -6,12 +6,8 @@ Annotation Database
 
 This database contains a curated collection of variant annotations in Hail-friendly format, for use in Hail analysis pipelines. 
 
-.. _here: https://console.cloud.google.com/storage/browser/annotationdb/?project=broad-ctsa
-
-Currently, the :code:`annotate_variants_db()` VDS method associated with this database works only if you are running Hail on the 
-Google Cloud Platform. You can read more about the method_ in the documentation.
-
-.. _method: https://hail.is/hail/hail.VariantDataset.html#hail.VariantDataset.annotate_variants_db
+Currently, the :py:meth:`~.VariantDataset.annotate_variants_db` VDS method associated with this database works only if you are running Hail on the 
+Google Cloud Platform. 
 
 To incorporate these annotations in your own Hail analysis pipeline, select which annotations you would like to query from the 
 options below and then copy-and-paste the Hail code generated into your own analysis script.
@@ -125,8 +121,8 @@ Important Notes
 VEP annotations
 ===============
 
-VEP annotations are included in this database under the root :code:`va.vep`. To add VEP annotations, the :code:`annotate_variants_db()` 
-method runs Hail's :code:`vep()` method on your VDS. This means that your cluster must be properly initialized as described in the 
+VEP annotations are included in this database under the root :code:`va.vep`. To add VEP annotations, the :py:meth:`~.VariantDataset.annotate_variants_db` 
+method runs Hail's :py:meth:`~.VariantDataset.vep` method on your VDS. This means that your cluster must be properly initialized as described in the 
 *Running VEP* section in this_ discussion post.
 
 .. warning::
@@ -142,7 +138,7 @@ Gene-level annotations
 Annotations beginning with :code:`va.gene.` are gene-level annotations that can be used to annotate variants in your VDS. These 
 gene-level annotations are stored in the database as keytables keyed by HGNC gene symbols. 
 
-By default, if an annotation beginning with :code:`va.gene.` is given to :code:`annotate_variants_db()` and no :code:`gene_key` 
+By default, if an annotation beginning with :code:`va.gene.` is given to :py:meth:`~.VariantDataset.annotate_variants_db` and no :code:`gene_key` 
 parameter is specified, the function will run VEP and parse the VEP output to define one gene symbol per variant in the VDS.
 
 For each variant, the logic used to extract one gene symbol from the VEP output is as follows:
@@ -189,7 +185,7 @@ For each variant, the logic used to extract one gene symbol from the VEP output 
 
 Though this is the default logic, you may wish to define gene symbols differently. One way to do so while still using the VEP output 
 would be to add VEP annotations to your VDS, create a gene symbol variant annotation by parsing through the VEP output however you 
-wish, and then pass that annotation to :code:`annotate_variants_db()` using the :code:`gene_key` parameter.
+wish, and then pass that annotation to :py:meth:`~.VariantDataset.annotate_variants_db` using the :code:`gene_key` parameter.
 
 Here's an example that uses the gene symbol from the first VEP transcript:
 
