@@ -92,7 +92,7 @@ trait DistributedMatrix[M] {
       def +(r: M): M =
         scalarAdd(r, l)
       def -(r: M): M =
-        scalarAdd(r, -l)
+        scalarSubtract(l, r)
       def *(r: M): M =
         scalarMultiply(r, l)
       def /(r: M): M =
