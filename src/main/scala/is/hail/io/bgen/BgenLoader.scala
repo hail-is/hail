@@ -90,7 +90,7 @@ object BgenLoader {
       isLinearScale = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = samples,
-        sampleAnnotations = IndexedSeq.fill(nSamples)(Annotation.empty)),
+        sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),
       rdd)
   }
 
