@@ -216,16 +216,20 @@ object Aggregators {
 
     val seqOp = (array: Array[Aggregator], t: T) => {
       setEC(ec, t)
-      for (i <- array.indices) {
+      var i = 0
+      while (i < array.length) {
         aggregations(i)._2(array(i).seqOp)
+        i += 1
       }
       array
     }
 
     val combOp = (arr1: Array[Aggregator], arr2: Array[Aggregator]) => {
-      for (i <- arr1.indices) {
+      var i = 0
+      while (i < arr1.length) {
         val a1 = arr1(i)
         a1.combOp(arr2(i).asInstanceOf[a1.type])
+        i += 1
       }
       arr1
     }
