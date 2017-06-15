@@ -586,7 +586,7 @@ object Genotype {
 
   def weightsToLinear(a: ArrayUInt): Array[Int] = {
     val n = a.length
-    val r = new Array[Int](a.length)
+    val r = new Array[Int](n)
     val s = a.sum.toDouble
     assert(s >= 0)
     var aAcc = 0.0
@@ -607,7 +607,7 @@ object Genotype {
     import scala.math.Numeric.Implicits._
 
     val n = a.length
-    val r = new Array[Int](a.length)
+    val r = new Array[Int](n)
     val s = a.sum.toDouble
     assert(s >= 0)
     var aAcc = 0.0
