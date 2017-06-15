@@ -71,18 +71,18 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
 
   def merge(v: Variant, acs: Array[Int], g: Genotype): SampleQCCombiner = {
 
-    val gt = g.unboxedGT
+    val gt = Genotype.unboxedGT(g)
     if (gt < 0)
       nNotCalled += 1
     else {
 
       // FIXME these should probably get merged if gt is uncalled,
       // but don't want to break behavior without a version change
-      if (g.unboxedDP >= 0)
-        dpSC.merge(g.unboxedDP)
+      if (Genotype.unboxedDP(g) >= 0)
+        dpSC.merge(Genotype.unboxedDP(g))
 
-      if (g.unboxedGQ >= 0)
-        gqSC.merge(g.unboxedGQ)
+      if (Genotype.unboxedGQ(g) >= 0)
+        gqSC.merge(Genotype.unboxedGQ(g))
 
       if (gt == 0) {
         nHomRef += 1
@@ -179,8 +179,8 @@ object SampleQC {
 
             val acs = Array.fill(v.nAlleles)(0)
             gs.foreach { g =>
-              if (g.unboxedGT >= 0) {
-                val gtPair = Genotype.gtPair(g.unboxedGT)
+              if (Genotype.unboxedGT(g) >= 0) {
+                val gtPair = Genotype.gtPair(Genotype.unboxedGT(g))
                 acs(gtPair.j) += 1
                 acs(gtPair.k) += 1
               }

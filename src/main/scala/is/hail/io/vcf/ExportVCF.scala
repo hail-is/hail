@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.{Field, TArray, TBoolean, TCall, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TSet, TString, TStruct, Type}
 import is.hail.utils._
-import is.hail.variant.{Call, GenericDataset, Genotype, Variant}
+import is.hail.variant.{Call, GenericDataset, Genotype, Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
 
 import scala.io.Source
@@ -150,27 +150,33 @@ object ExportVCF {
     toAppend.foreachBetween(sb.append(_))(sb += ',')
   }
 
-  def writeGenotype(sb: StringBuilder, sig: TStruct, fieldOrder: Array[Int], a: Annotation) {
-    val r = a.asInstanceOf[Row]
+  def writeGenotype[T](sb: StringBuilder, sig: TStruct, fieldOrder: Array[Int], g: Row) {
     val fields = sig.fields
-    assert(r.length == fields.length, "annotation/type mismatch")
+    assert(g.length == fields.length, "annotation/type mismatch")
 
     fieldOrder.foreachBetween { i =>
-      emitFormatField(fields(i), sb, r.get(i))
+      emitFormatField(fields(i), sb, g.get(i))
     }(sb += ':')
   }
 
   def writeGenotype(sb: StringBuilder, g: Genotype) {
-    sb.append(g.gt.map { gt =>
+    if (g == null) {
+      sb.append("./.")
+      return
+    }
+
+    sb.append(Genotype.gt(g).map { gt =>
       val p = Genotype.gtPair(gt)
       s"${ p.j }/${ p.k }"
     }.getOrElse("./."))
 
-    (g.ad, g.dp, g.gq,
-      if (g.isLinearScale)
-        g.gp.map(Left(_))
+    (Genotype.ad(g),
+      Genotype.dp(g),
+      Genotype.gq(g),
+      if (g._isLinearScale)
+        Genotype.gp(g).map(Left(_))
       else
-        g.pl.map(Right(_))) match {
+        Genotype.pl(g).map(Right(_))) match {
       case (None, None, None, None) =>
       case (Some(ad), None, None, None) =>
         sb += ':'
@@ -225,11 +231,11 @@ object ExportVCF {
     }
   }
 
-  def apply(gds: GenericDataset, path: String, append: Option[String] = None, exportPP: Boolean = false,
+  def apply[T >: Null](vkds: VariantSampleMatrix[Locus, Variant, T], path: String, append: Option[String] = None, exportPP: Boolean = false,
     parallel: Boolean = false) {
-    val vas = gds.vaSignature
+    val vas = vkds.vaSignature
 
-    val genotypeSignature = gds.genotypeSignature
+    val genotypeSignature = vkds.genotypeSignature
 
     val (genotypeFormatField, genotypeFieldOrder) = genotypeSignature match {
       case TGenotype =>
@@ -237,6 +243,7 @@ object ExportVCF {
           ("GT:AD:DP:GQ:PP", null)
         else
           ("GT:AD:DP:GQ:PL", null)
+
       case sig: TStruct =>
         val fields = sig.fields
         val formatFieldOrder: Array[Int] = sig.fieldIdx.get("GT") match {
@@ -248,13 +255,14 @@ object ExportVCF {
         checkFormatSignature(sig)
 
         (formatFieldString, formatFieldOrder)
+
       case _ => fatal(s"Can only export to VCF with genotype signature of TGenotype or TStruct. Found `${ genotypeSignature }'.")
     }
 
-    val infoSignature = gds.vaSignature
+    val infoSignature = vkds.vaSignature
       .getAsOption[TStruct]("info")
     val infoQuery: (Annotation) => Option[(Annotation, TStruct)] = infoSignature.map { struct =>
-      val (_, f) = gds.queryVA("va.info")
+      val (_, f) = vkds.queryVA("va.info")
       (a: Annotation) => {
         if (a == null)
           None
@@ -263,7 +271,7 @@ object ExportVCF {
       }
     }.getOrElse((a: Annotation) => None)
 
-    val hasSamples = gds.nSamples > 0
+    val hasSamples = vkds.nSamples > 0
 
     def header: String = {
       val sb = new StringBuilder()
@@ -303,7 +311,7 @@ object ExportVCF {
 
       sb += '\n'
 
-      gds.vaSignature.fieldOption("filters")
+      vkds.vaSignature.fieldOption("filters")
         .foreach { f =>
           f.attrs.foreach { case (key, desc) =>
             sb.append(s"""##FILTER=<ID=$key,Description="$desc">\n""")
@@ -323,7 +331,7 @@ object ExportVCF {
       })
 
       append.foreach { f =>
-        gds.sparkContext.hadoopConfiguration.readFile(f) { s =>
+        vkds.sparkContext.hadoopConfiguration.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)
@@ -337,7 +345,7 @@ object ExportVCF {
       sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
       if (hasSamples)
         sb.append("\tFORMAT")
-      gds.sampleIds.foreach { id =>
+      vkds.sampleIds.foreach { id =>
         sb += '\t'
         sb.append(id)
       }
@@ -351,7 +359,7 @@ object ExportVCF {
           s"""found `rsid' field, but it was an unexpected type `$t'.  Emitting missing RSID.
              |  Expected ${ TString }""".stripMargin)
           false
-      }.map(_ => gds.queryVA("va.rsid")._2)
+      }.map(_ => vkds.queryVA("va.rsid")._2)
 
     val qualQuery: Option[Querier] = vas.getOption("qual")
       .filter {
@@ -360,7 +368,7 @@ object ExportVCF {
           s"""found `qual' field, but it was an unexpected type `$t'.  Emitting missing QUAL.
              |  Expected ${ TDouble }""".stripMargin)
           false
-      }.map(_ => gds.queryVA("va.qual")._2)
+      }.map(_ => vkds.queryVA("va.qual")._2)
 
     val filterQuery: Option[Querier] = vas.getOption("filters")
       .filter {
@@ -370,9 +378,9 @@ object ExportVCF {
             s"""found `filters' field, but it was an unexpected type `$t'.  Emitting missing FILTERS.
                |  Expected ${ TSet(TString) }""".stripMargin)
           false
-      }.map(_ => gds.queryVA("va.filters")._2)
+      }.map(_ => vkds.queryVA("va.filters")._2)
 
-    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[Annotation]) {
+    def appendRow(sb: StringBuilder, v: Variant, a: Annotation, gs: Iterable[T]) {
 
       sb.append(v.contig)
       sb += '\t'
@@ -431,20 +439,20 @@ object ExportVCF {
 
             genotypeSignature match {
               case TGenotype => writeGenotype(sb, g.asInstanceOf[Genotype])
-              case sig: TStruct => writeGenotype(sb, sig, genotypeFieldOrder, g)
+              case sig: TStruct => writeGenotype(sb, sig, genotypeFieldOrder, g.asInstanceOf[Row])
             }
         }
       }
     }
 
-    gds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[Annotation]))] =>
+    vkds.rdd.mapPartitions { it: Iterator[(Variant, (Annotation, Iterable[T]))] =>
       val sb = new StringBuilder
       it.map { case (v, (va, gs)) =>
         sb.clear()
         appendRow(sb, v, va, gs)
         sb.result()
       }
-    }.writeTable(path, gds.hc.tmpDir, Some(header), parallelWrite = parallel)
+    }.writeTable(path, vkds.hc.tmpDir, Some(header), parallelWrite = parallel)
   }
 
 }

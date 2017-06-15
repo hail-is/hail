@@ -39,8 +39,8 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
   def asOrderedRDD[PK](implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     OrderedRDD.cast[PK, K, V](rdd)
 
-  def orderedRepartitionBy[PK](partitioner: OrderedPartitioner[PK, K])(implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
-    OrderedRDD.shuffle(rdd, partitioner)
+  def orderedRepartitionBy[PK](partitioner: OrderedPartitioner[PK, K])(implicit vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
+    OrderedRDD.shuffle(rdd, partitioner)(partitioner.kOk, vct)
   }
 
   def toOrderedRDD[PK](reducedRepresentation: RDD[K])
@@ -48,12 +48,12 @@ class RichPairRDD[K, V](val rdd: RDD[(K, V)]) extends AnyVal {
     OrderedRDD[PK, K, V](rdd, Some(reducedRepresentation), None)
 
   def toOrderedRDD[PK](hintPartitioner: OrderedPartitioner[PK, K])
-    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
-    OrderedRDD[PK, K, V](rdd, None, Some(hintPartitioner))
+    (implicit vct: ClassTag[V]): OrderedRDD[PK, K, V] =
+    OrderedRDD[PK, K, V](rdd, None, Some(hintPartitioner))(hintPartitioner.kOk, vct)
 
   def toOrderedRDD[PK](reducedRepresentation: RDD[K], hintPartitioner: OrderedPartitioner[PK, K])
-    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
-    OrderedRDD[PK, K, V](rdd, Some(reducedRepresentation), Some(hintPartitioner))
+    (implicit vct: ClassTag[V]): OrderedRDD[PK, K, V] =
+    OrderedRDD[PK, K, V](rdd, Some(reducedRepresentation), Some(hintPartitioner))(hintPartitioner.kOk, vct)
 
   def toOrderedRDD[PK](implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     OrderedRDD[PK, K, V](rdd, None, None)

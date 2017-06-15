@@ -20,7 +20,7 @@ object GenotypeStreamSuite {
       val a2 = gs.hardCallIterator.toArray
 
       it.sameElements(a1) &&
-        a1.map(_.unboxedGT).sameElements(a2) &&
+        a1.map(g => Genotype.unboxedGT(g)).sameElements(a2) &&
         gs.iterator.sameElements(gs.mutableIterator)
     }
   }

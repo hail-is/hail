@@ -92,10 +92,10 @@ object TDT {
         else {
           gs.iterator.zipWithIndex.foreach { case (g, i) =>
             sampleTrioRolesBc.value(i).foreach { case (tIdx, rIdx) =>
-              if (v.inXNonPar && rIdx == 1 && g.isHet)
+              if (v.inXNonPar && rIdx == 1 && Genotype.isHet(g))
                 arr.update(tIdx, rIdx, GenotypeType.NoCall)
               else
-                arr.update(tIdx, rIdx, g.gtType)
+                arr.update(tIdx, rIdx, Genotype.gtType(g))
             }
           }
 

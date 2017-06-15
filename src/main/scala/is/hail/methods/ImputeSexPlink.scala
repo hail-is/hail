@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats.InbreedingCombiner
 import is.hail.utils._
-import is.hail.variant.VariantDataset
+import is.hail.variant.{Genotype, VariantDataset}
 
 object ImputeSexPlink {
 
@@ -53,9 +53,11 @@ object ImputeSexPlink {
             var nAlt = 0
             var nTot = 0
             for (g <- gs) {
-              g.nNonRefAlleles.foreach { c =>
-                nAlt += c
-                nTot += 2
+              if (g != null) {
+                Genotype.nNonRefAlleles(g).foreach { c =>
+                  nAlt += c
+                  nTot += 2
+                }
               }
             }
             if (nTot > 0)

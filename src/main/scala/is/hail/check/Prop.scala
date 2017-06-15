@@ -111,6 +111,9 @@ object Prop {
     prop.check()
   }
 
+  def forAll[T1](g1: Gen[Boolean]): Prop =
+    new GenProp1(g1, identity[Boolean])
+
   def forAll[T1](g1: Gen[T1])(p: (T1) => Boolean): Prop =
     new GenProp1(g1, p)
 

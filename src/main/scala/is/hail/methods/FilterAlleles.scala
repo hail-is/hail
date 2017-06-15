@@ -95,9 +95,9 @@ object FilterAlleles {
       }
 
       def downcodeGenotype(g: Genotype): Genotype = {
-        val px = g.px.map(downcodePx)
-        g.copy(gt = g.gt.map(downcodeGt),
-          ad = g.ad.map(downcodeAd),
+        val px = Genotype.px(g).map(downcodePx)
+        g.copy(gt = Genotype.gt(g).map(downcodeGt),
+          ad = Genotype.ad(g).map(downcodeAd),
           gq = px.map(Genotype.gqFromPL),
           px = px
         )
@@ -120,19 +120,22 @@ object FilterAlleles {
       }
 
       def subsetGenotype(g: Genotype): Genotype = {
-        val px = g.px.map(subsetPx)
-        g.copy(
-          gt = px.map(_.zipWithIndex.min._2),
-          ad = g.ad.map(_.zipWithIndex.filter({ case (d, i) => i == 0 || oldToNew(i) != 0 }).map(_._1)),
-          gq = px.map(Genotype.gqFromPL),
-          px = px
-        )
+        if (g == null)
+          null
+        else {
+          val px = Genotype.px(g).map(subsetPx)
+          g.copy(
+            gt = px.map(_.zipWithIndex.min._2),
+            ad = Genotype.ad(g).map(_.zipWithIndex.filter({ case (d, i) => i == 0 || oldToNew(i) != 0 }).map(_._1)),
+            gq = px.map(Genotype.gqFromPL),
+            px = px)
+        }
       }
 
       gs.map({
         g =>
           val newG = if (subset) subsetGenotype(g) else downcodeGenotype(g)
-          if (filterAlteredGenotypes && newG.gt != g.gt)
+          if (filterAlteredGenotypes && Genotype.gt(newG) != Genotype.gt(g))
             newG.copy(gt = None)
           else
             newG

@@ -36,8 +36,10 @@ class MutableGenotypeStreamIterator(nAlleles: Int, isLinearScale: Boolean, b: By
   override def hasNext: Boolean = b.hasNext
 
   override def next(): Genotype = {
-    mutableGenotype.read(nAlleles, isLinearScale, b)
-    mutableGenotype
+    if (mutableGenotype.read(nAlleles, isLinearScale, b))
+      mutableGenotype
+    else
+      null
   }
 }
 
@@ -113,7 +115,7 @@ case class GenotypeStream(nAlleles: Int, isLinearScale: Boolean, decompLenOption
 }
 
 object GenotypeStream {
-  def empty(n: Int) = GenotypeStream(n, false, None, Array.emptyByteArray)
+  def empty(nAlleles: Int) = GenotypeStream(nAlleles, false, None, Array.emptyByteArray)
 
   def schema: StructType = {
     StructType(Array(
