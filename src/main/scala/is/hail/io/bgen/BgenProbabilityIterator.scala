@@ -19,6 +19,7 @@ class BgenProbabilityIterator(input: ByteArrayReader, nBitsPerProb: Int) extends
     val result = data & bitMask
     dataSize -= nBitsPerProb
     data = data >>> nBitsPerProb
+
     result.toUInt
   }
 

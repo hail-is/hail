@@ -30,7 +30,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
-    val headerExt = codec.map(_.getDefaultExtension).getOrElse("")
 
     hConf.delete(filename, recursive = true) // overwriting by default
 
@@ -42,7 +41,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     val rWithHeader = header.map { h =>
       if (r.partitions.length == 0)
-        r.sparkContext.parallelize(List(h))
+        r.sparkContext.parallelize(List(h), 1)
       else if (parallelWrite)
         r.mapPartitions { it => Iterator(h) ++ it }
       else

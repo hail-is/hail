@@ -111,7 +111,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     var i = 0
     while (i < nSamples) {
       val ploidy = reader.read()
-      assert(ploidy == 2 || ploidy < 0, s"Ploidy value must be either 2 or missing. Found $ploidy.")
+      assert((ploidy & 0x7f) == 2, s"Ploidy value must equal to 2. Found $ploidy.")
       samplePloidy(i) = ploidy
       i += 1
     }
@@ -128,6 +128,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     assert(nBitsPerProb >= 1 && nBitsPerProb <= 32, s"Value for nBits must be between 1 and 32 inclusive. Found $nBitsPerProb.")
 
     val nGenotypes = triangle(nAlleles)
+
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
@@ -148,6 +149,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
         def next(): Genotype = {
           var i = 0
           var sumProbInt = UInt(0)
+
           while (i < nGenotypes - 1) {
             assert(probabilityIterator.hasNext, "Did not decode bytes correctly. Ran out of probabilities.")
             val p = probabilityIterator.next()
@@ -159,7 +161,7 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
           assert(sumProbInt <= totalProbInt, "Sum of probabilities is greater than 1.")
           sampleProbs(i) = totalProbInt - sumProbInt
 
-          val gt = if (samplePloidy(sampleIndex) < 0)
+          val gt = if ((samplePloidy(sampleIndex) & (1 << 7)) != 0)
             noCall
           else {
             val px = Genotype.weightsToLinear(sampleProbs)

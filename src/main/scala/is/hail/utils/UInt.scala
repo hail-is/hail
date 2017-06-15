@@ -1,7 +1,5 @@
 package is.hail.utils
 
-import scala.reflect.ClassTag
-
 object UInt {
   def apply(i: Int): UInt = {
     assert(i >= 0, s"UInt cannot be constructed from negative integers. Found $i.")
@@ -71,7 +69,7 @@ class UInt private(val i: Int) extends AnyVal {
   def /(right: Int): UInt = UInt(toLong / right)
   def /(right: Double): Double = toDouble / right
   def /(right: Long): Long = toLong / right
-
+  
   def <=(right: UInt, dummy: Boolean = false): Boolean = toLong <= right.toLong
   def <=(right: Int): Boolean = toLong <= right
   def <=(right: Double): Boolean = toDouble <= right
@@ -141,4 +139,6 @@ class ArrayUInt(val a: Array[Int]) extends AnyVal {
     }
     s
   }
+
+  def intArrayRep: Array[Int] = a
 }

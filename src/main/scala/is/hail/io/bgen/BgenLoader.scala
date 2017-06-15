@@ -60,12 +60,6 @@ object BgenLoader {
         s"""The following BGEN files did not contain the expected number of samples $nSamples:
            |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
 
-    val noVariants = results.filter(_.nVariants == 0).map(_.file)
-    if (noVariants.length > 0)
-      fatal(
-        s"""The following BGEN files did not contain at least 1 variant:
-           |  ${ noVariants.mkString("\n  ") })""".stripMargin)
-
     val nVariants = results.map(_.nVariants).sum
 
     info(s"Number of BGEN files parsed: ${ results.length }")
@@ -185,17 +179,20 @@ object BgenLoader {
   def readState(hConf: org.apache.hadoop.conf.Configuration, file: String): BgenHeader = {
     hConf.readFile(file) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
-      readState(reader)
+      readState(reader, file)
     }
   }
 
-  def readState(reader: HadoopFSDataBinaryReader): BgenHeader = {
+  def readState(reader: HadoopFSDataBinaryReader, file: String): BgenHeader = {
     reader.seek(0)
     val allInfoLength = reader.readInt()
+    if (allInfoLength == -1)
+      fatal(s"Found empty file: $file")
+
     val headerLength = reader.readInt()
     val dataStart = allInfoLength + 4
 
-    assert(headerLength <= allInfoLength)
+    assert(headerLength <= allInfoLength, s"BGEN header block is corrupt: $file")
     val nVariants = reader.readInt()
     val nSamples = reader.readInt()
 
@@ -204,7 +201,7 @@ object BgenLoader {
       .toSeq
 
     if (magicNumber != Seq(0, 0, 0, 0) && magicNumber != Seq(98, 103, 101, 110))
-      fatal(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")
+      fatal(s"Expected magic number [0000] or [bgen], got [${ magicNumber.mkString }] for file `$file'.")
 
     if (headerLength > 20)
       reader.skipBytes(headerLength.toInt - 20)
@@ -213,15 +210,16 @@ object BgenLoader {
     val compressType = flags & 3
 
     if (compressType != 0 && compressType != 1)
-      fatal(s"Hail only supports zlib compression.")
+      fatal(s"Hail only supports zlib compression. Found compress type equals $compressType for file `$file'.")
 
     val isCompressed = compressType != 0
 
-    val version = flags >> 2 & 0xf
+    val version = (flags >>> 2) & 0xf
     if (version != 1 && version != 2)
-      fatal(s"Hail supports BGEN version 1.1 and 1.2, got version 1.$version")
+      fatal(s"Hail supports BGEN version 1.1 and 1.2, got version 1.$version for file `$file'.")
 
-    val hasIds = (flags >> 31 & 1) != 0
+    val hasIds = (flags & (1 << 31)) != 0
+
     BgenHeader(isCompressed, nSamples, nVariants, headerLength, dataStart, hasIds, version)
   }
 }

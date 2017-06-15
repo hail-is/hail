@@ -13,6 +13,7 @@ from hail.java import *
 from hail.keytable import asc, desc
 from hail.utils import *
 import time
+import os
 from hail.keytable import desc
 
 hc = None
@@ -43,6 +44,17 @@ class ContextTests(unittest.TestCase):
         bgen = hc.import_bgen(test_resources + '/example.v11.bgen',
                               sample_file=test_resources + '/example.sample')
         self.assertEqual(bgen.count()[1], 199)
+
+        bgen.export_bgen('/tmp/sample_bgen', nbits_per_prob=32)
+        hc.index_bgen('/tmp/sample_bgen.bgen')
+        exported_bgen = hc.import_bgen('/tmp/sample_bgen.bgen', sample_file='/tmp/sample_bgen.sample')
+        self.assertTrue(bgen.same(exported_bgen))
+
+        bgen.export_bgen('/tmp/sample_bgen_parallel', nbits_per_prob=32, parallel=True)
+        hc.index_bgen('/tmp/sample_bgen_parallel.bgen/part-*')
+        part_bgen_files = ["/tmp/sample_bgen_parallel.bgen/" + f for f in os.listdir("/tmp/sample_bgen_parallel.bgen/") if f.startswith("part") and not f.endswith(".idx")]
+        exported_bgen_parallel = hc.import_bgen(part_bgen_files, sample_file='/tmp/sample_bgen_parallel.sample')
+        self.assertTrue(bgen.same(exported_bgen_parallel))
 
         gen = hc.import_gen(test_resources + '/example.gen',
                             sample_file=test_resources + '/example.sample')

@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.annotations.{Annotation, _}
 import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
+import is.hail.io.bgen.BgenWriter
 import is.hail.io.plink.ExportBedBimFam
 import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable
@@ -235,15 +236,59 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       vds
   }
 
+  def exportBgen(path: String, nBitsPerProb: Int = 8, parallel: Boolean = false) {
+    requireSplit("export bgen")
+
+    val rsidQuery: Option[Querier] = vds.vaSignature.getOption("rsid")
+      .filter {
+        case TString => true
+        case t => warn(
+          s"""found `rsid' field, but it was an unexpected type `$t'.  Emitting missing rsID.
+             |  Expected ${ TString }""".stripMargin)
+          false
+      }.map(_ => vds.queryVA("va.rsid")._2)
+
+    val varidQuery: Option[Querier] = vds.vaSignature.getOption("varid")
+      .filter {
+        case TString => true
+        case t => warn(
+          s"""found `varid' field, but it was an unexpected type `$t'.  Emitting missing variant ID.
+             |  Expected ${ TString }""".stripMargin)
+          false
+      }.map(_ => vds.queryVA("va.varid")._2)
+
+    val sampleIds = vds.stringSampleIds.toArray
+    val partitionSizes = vds.hc.sc.runJob(vds.rdd, getIteratorSize _)
+    val nVariants = partitionSizes.sum
+    val nSamples = vds.nSamples
+
+    val header = BgenWriter.headerBlock(sampleIds, nVariants)
+
+    vds.rdd.mapPartitionsWithIndex { case (i: Int, it: Iterator[(Variant, (Annotation, Iterable[Genotype]))]) =>
+      val bb = new ArrayBuilder[Byte]
+
+      val partHeader = if (parallel) {
+        BgenWriter.emitHeaderBlock(bb, sampleIds, partitionSizes(i))
+        val r = bb.result()
+        bb.clear()
+        r
+      } else
+        Array.empty[Byte]
+
+      Iterator(partHeader) ++ it.map { case (v, (va, gs)) =>
+        BgenWriter.emitVariant(bb, v, va, gs, rsidQuery, varidQuery, nSamples, nBitsPerProb)
+        val r = bb.result()
+        bb.clear()
+        r
+      }
+    }.saveFromByteArrays(path + ".bgen", vds.hc.tmpDir,
+      header = if (parallel && vds.nPartitions != 0) None else Some(header), parallelWrite = parallel)
+
+    writeSampleFile(path)
+  }
+
   def exportGen(path: String, precision: Int = 4) {
     requireSplit("export gen")
-
-    def writeSampleFile() {
-      //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
-      vds.hc.hadoopConf.writeTable(path + ".sample",
-        "ID_1 ID_2 missing" :: "0 0 0" :: vds.sampleIds.map(s => s"$s $s 0").toList)
-    }
-
 
     def formatGP(d: Double): String = d.formatted(s"%.${ precision }f")
 
@@ -304,7 +349,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       }.writeTable(path + ".gen", vds.hc.tmpDir, None)
     }
 
-    writeSampleFile()
+    writeSampleFile(path)
     writeGenFile()
   }
 
@@ -739,6 +784,12 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
           GenotypeStream.schema,
         nullable = false)
     ))
+  }
+
+  def writeSampleFile(path: String) {
+    //FIXME: should output all relevant sample annotations such as phenotype, gender, ...
+    vds.hc.hadoopConf.writeTable(path + ".sample",
+      "ID_1 ID_2 missing" :: "0 0 0" :: vds.sampleIds.map(s => s"$s $s NA").toList)
   }
 
   def writeKudu(dirname: String, tableName: String,
