@@ -11,7 +11,6 @@ trait DistributedMatrix[M] {
 
   def from(irm: IndexedRowMatrix, dense: Boolean = true): M
   def from(bm: BlockMatrix): M
-  def from(cm: CoordinateMatrix): M
 
   def transpose(m: M): M
   def diagonal(m: M): Array[Double]
@@ -42,7 +41,6 @@ trait DistributedMatrix[M] {
   def mapRows[U](m: M, f: Array[Double] => U)(implicit uct: ClassTag[U]): RDD[U]
 
   def toBlockRdd(m: M): RDD[((Int, Int), Matrix)]
-  def toCoordinateMatrix(m: M): CoordinateMatrix
 
   def toLocalMatrix(m: M): Matrix
 

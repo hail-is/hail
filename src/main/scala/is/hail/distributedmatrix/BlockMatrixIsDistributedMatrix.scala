@@ -16,8 +16,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     if (dense) irm.toBlockMatrixDense()
     else irm.toBlockMatrix()
   def from(bm: BlockMatrix): M = bm
-  def from(cm: CoordinateMatrix): M =
-    cm.toBlockMatrix()
   def from(sc: SparkContext, dm: DenseMatrix, rowsPerBlock: Int, colsPerBlock: Int): M = {
     val rbc = sc.broadcast(r)
     val rowBlocks = (r.numRows - 1) / rowsPerBlock + 1
@@ -47,6 +45,9 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def diagonal(m: M): Array[Double] = {
     val rowsPerBlock = m.rowsPerBlock
     val colsPerBlock = m.colsPerBlock
+
+    // FIXME: generalize, fix inner diagonal method
+    require(rowsPerBlock == colsPerBlock)
 
     // check if the intervals [i, i+rows) and [j, j+rows) overlap,
     // meaning this block contains the diagonal.
@@ -235,7 +236,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     m.toIndexedRowMatrix().rows.map((ir: IndexedRow) => f(ir.vector.toArray))
 
   def toBlockRdd(m: M): RDD[((Int, Int), Matrix)] = m.blocks
-  def toCoordinateMatrix(m: M): CoordinateMatrix = m.toCoordinateMatrix()
 
   def toLocalMatrix(m: M): Matrix = m.toLocalMatrix()
 }
