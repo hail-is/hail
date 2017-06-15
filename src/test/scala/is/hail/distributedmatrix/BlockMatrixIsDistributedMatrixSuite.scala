@@ -38,14 +38,14 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   } yield toBM(arrays, rowsPerBlock, colsPerBlock)
 
   val blockMatrixGen = for {
-    rowsPerBlock <- arbitrary[Int]
-    colsPerBlock <- arbitrary[Int]
+    rowsPerBlock <- Gen.interestingPosInt
+    colsPerBlock <- Gen.interestingPosInt
     bm <- blockMatrixPreGen(rowsPerBlock, colsPerBlock)
   } yield bm
 
   val blockMatrixSquareBlocksGen = for {
-    blockSize <- arbitrary[Int]
-    bm <- blockMatrixPreGen(blockSize)
+    blockSize <- Gen.interestingPosInt
+    bm <- blockMatrixPreGen(blockSize, blockSize)
    } yield bm
 
   implicit val arbitraryBlockMatrix =
@@ -193,6 +193,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
       if (mat.diag.toSeq == diagonal.toSeq)
         true
       else {
+        println(s"mat: $lm")
         println(s"${mat.diag.toSeq} != ${diagonal.toSeq}")
         false
       }

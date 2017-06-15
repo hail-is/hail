@@ -1,6 +1,7 @@
 package is.hail.distributedmatrix
 
 import is.hail.utils._
+import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
@@ -17,11 +18,11 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     else irm.toBlockMatrix()
   def from(bm: BlockMatrix): M = bm
   def from(sc: SparkContext, dm: DenseMatrix, rowsPerBlock: Int, colsPerBlock: Int): M = {
-    val rbc = sc.broadcast(r)
-    val rowBlocks = (r.numRows - 1) / rowsPerBlock + 1
-    val colBlocks = (r.numCols - 1) / colsPerBlock + 1
-    val rowsRemainder = r.numRows % rowsPerBlock
-    val colsRemainder = r.numCols % colsPerBlock
+    val rbc = sc.broadcast(dm)
+    val rowBlocks = (dm.numRows - 1) / rowsPerBlock + 1
+    val colBlocks = (dm.numCols - 1) / colsPerBlock + 1
+    val rowsRemainder = dm.numRows % rowsPerBlock
+    val colsRemainder = dm.numCols % colsPerBlock
     val indices = for {
       i <- 0 until rowBlocks
       j <- 0 until colBlocks
@@ -38,7 +39,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       }
       ((i, j), new DenseMatrix(rowsInThisBlock, colsInThisBlock, a, false): Matrix)
     }.partitionBy(GridPartitioner(rowBlocks, colBlocks))
-    new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, r.numRows, r.numCols)
+    new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, dm.numRows, dm.numCols)
   }
 
   def transpose(m: M): M = m.transpose
@@ -56,7 +57,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
         val i = blocki * rowsPerBlock
         val j = blockj * colsPerBlock
         val i2 = i + rowsPerBlock
-        val j2 = i + colsPerBlock
+        val j2 = j + colsPerBlock
 
         i <= j && j < i2 ||
         i < j2 && j2 < i2 ||
