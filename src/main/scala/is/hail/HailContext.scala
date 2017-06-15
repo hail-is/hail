@@ -592,7 +592,7 @@ class HailContext private(val sc: SparkContext,
 
     val conf = new SerializableHadoopConfiguration(hadoopConf)
 
-    sc.parallelize(inputs).foreach { in =>
+    sc.parallelize(inputs, numSlices = inputs.length).foreach { in =>
       BgenLoader.index(conf.value, in)
     }
 
