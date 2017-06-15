@@ -42,7 +42,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     val rWithHeader = header.map { h =>
       if (r.partitions.length == 0)
-        r.sparkContext.parallelize(List(h), 1)
+        r.sparkContext.parallelize(List(h), numSlices = 1)
       else if (parallelWrite)
         r.mapPartitions { it => Iterator(h) ++ it }
       else
