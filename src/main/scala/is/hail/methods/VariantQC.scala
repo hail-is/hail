@@ -61,14 +61,14 @@ class VariantQCCombiner extends Serializable {
   // FIXME per-genotype
 
   def merge(g: Genotype): VariantQCCombiner = {
-    (Genotype.gt(g): @unchecked) match {
-      case Some(0) =>
+    (Genotype.unboxedGT(g): @unchecked) match {
+      case 0 =>
         nHomRef += 1
-      case Some(1) =>
+      case 1 =>
         nHet += 1
-      case Some(2) =>
+      case 2 =>
         nHomVar += 1
-      case None =>
+      case -1 =>
         nNotCalled += 1
     }
 

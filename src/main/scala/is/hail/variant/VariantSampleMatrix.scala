@@ -83,15 +83,9 @@ object VariantSampleMatrix {
                 r.getSeq[Any](2).lazyMap(g => gImporter(g))))
           }
 
-          val partitioner: OrderedPartitioner[Annotation, Annotation] =
-            try {
-              val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
-              implicit val pkjr = vSignature.partitionKey.jsonReader
-              jv.fromJSON[OrderedPartitioner[Annotation, Annotation]]
-            } catch {
-              case _: FileNotFoundException =>
-                fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
-            }
+          val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
+          implicit val pkjr = vSignature.partitionKey.jsonReader
+          val partitioner = jv.fromJSON[OrderedPartitioner[Annotation, Annotation]]
 
           val columns = someIf(dropSamples, Array("variant", "annotations"))
           OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])](
@@ -115,14 +109,8 @@ object VariantSampleMatrix {
               r.getGenotypeStream(v, 2, isLinearScale)))
         }
 
-        val partitioner: OrderedPartitioner[Locus, Variant] =
-          try {
-            val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
-            jv.fromJSON[OrderedPartitioner[Locus, Variant]]
-          } catch {
-            case _: FileNotFoundException =>
-              fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
-          }
+        val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
+        val partitioner = jv.fromJSON[OrderedPartitioner[Locus, Variant]]
 
         val columns = someIf(dropSamples, Array("variant", "annotations"))
         OrderedRDD[Locus, Variant, (Annotation, Iterable[Genotype])](
