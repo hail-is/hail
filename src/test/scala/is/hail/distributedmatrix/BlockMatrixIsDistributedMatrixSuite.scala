@@ -25,15 +25,31 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   def toBM(rows: Seq[Array[Double]], blockSize: Int): BlockMatrix =
     new IndexedRowMatrix(sc.parallelize(rows.zipWithIndex.map { case (v, i) => IndexedRow(i, new DenseVector(v)) }),
       rows.size, if (rows.isEmpty) 0 else rows.head.length)
-      .toBlockMatrixDense()
+      .toBlockMatrixDense(blockSize, blockSize)
 
-  val blockMatrixGenerator: Gen[BlockMatrix] = for {
+  def toBM(rows: Seq[Array[Double]], rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix =
+    new IndexedRowMatrix(sc.parallelize(rows.zipWithIndex.map { case (v, i) => IndexedRow(i, new DenseVector(v)) }),
+      rows.size, if (rows.isEmpty) 0 else rows.head.length)
+      .toBlockMatrixDense(rowsPerBlock, colsPerBlock)
+
+  def blockMatrixPreGen(rowsPerBlock: Int, colsPerBlock: Int): Gen[BlockMatrix] = for {
     (l, w) <- Gen.squareOfAreaAtMostSize
     arrays <- Gen.buildableOfN[Seq, Array[Double]](l, Gen.buildableOfN(w, arbDouble.arbitrary))
-  } yield toBM(arrays)
+  } yield toBM(arrays, rowsPerBlock, colsPerBlock)
+
+  val blockMatrixGen = for {
+    rowsPerBlock <- arbitrary[Int]
+    colsPerBlock <- arbitrary[Int]
+    bm <- blockMatrixPreGen(rowsPerBlock, colsPerBlock)
+  } yield bm
+
+  val blockMatrixSquareBlocksGen = for {
+    blockSize <- arbitrary[Int]
+    bm <- blockMatrixPreGen(blockSize)
+   } yield bm
 
   implicit val arbitraryBlockMatrix =
-    Arbitrary(blockMatrixGenerator)
+    Arbitrary(blockMatrixGen)
 
   @Test
   def pointwiseSubtractCorrect() {
@@ -169,7 +185,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
   @Test
   def diagonalTestRandomized() {
-    forAll { (mat: BlockMatrix) =>
+    forAll(blockMatrixSquareBlocksGen) { (mat: BlockMatrix) =>
       val lm = mat.toLocalMatrix()
       val diagonalLength = math.min(lm.numRows, lm.numCols)
       val diagonal = (0 until diagonalLength).map(i => lm(i,i)).toArray

@@ -29,6 +29,7 @@ trait DistributedMatrix[M] {
   def map(f: Double => Double)(m: M): M
   def scalarAdd(m: M, i: Double): M
   def scalarSubtract(m: M, i: Double): M
+  def scalarSubtract(i: Double, m: M): M
   def scalarMultiply(m: M, i: Double): M
   def scalarDivide(m: M, i: Double): M
   def scalarDivide(i: Double, m: M): M
@@ -91,7 +92,7 @@ trait DistributedMatrix[M] {
       def +(r: M): M =
         scalarAdd(r, l)
       def -(r: M): M =
-        scalarAdd(r, -l)
+        scalarSubtract(l, r)
       def *(r: M): M =
         scalarMultiply(r, l)
       def /(r: M): M =
