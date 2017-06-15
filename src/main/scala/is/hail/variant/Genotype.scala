@@ -591,11 +591,13 @@ object Genotype {
     assert(s >= 0)
     var aAcc = 0.0
     var rAcc = 0
-    for (i <- 0 until n) {
+    var i = 0
+    while (i < n) {
       aAcc += a(i).toDouble
       val t = (aAcc * 32768 / s + 0.5).toInt
       r(i) = t - rAcc
       rAcc = t
+      i += 1
     }
     assert(rAcc == 32768)
     r
@@ -610,11 +612,13 @@ object Genotype {
     assert(s >= 0)
     var aAcc = 0.0
     var rAcc = 0
-    for (i <- 0 until n) {
+    var i = 0
+    while (i < n) {
       aAcc += a(i).toDouble
       val t = (aAcc * 32768 / s + 0.5).toInt
       r(i) = t - rAcc
       rAcc = t
+      i += 1
     }
     assert(rAcc == 32768)
     r
