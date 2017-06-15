@@ -43,11 +43,25 @@ object PCRelate {
     val pcsWithIntercept =
       new DenseMatrix(pcs.numRows, pcs.numCols + 1, pcsWithInterceptArray)
 
-    val mu = dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0)
-
     val blockedG = dm.from(g, blockSize, blockSize)
-    val gMinusMu = (blockedG :- (mu * 2.0))
-    val variance = (mu :* (1.0 - mu))
+    val mu = // dm.map(clipToInterval _)
+      ((beta * pcsWithIntercept.transpose) / 2.0)
+
+    def deviationFromMean(mu: Double, g: Double): Double =
+      if (mu <= 0 || mu >= 1)
+        // g - mu * 2.0
+        0
+      else
+        g - mu * 2.0
+    val gMinusMu = dm.map2(deviationFromMean _)(mu, blockedG)
+
+    def clippedVariance(mu: Double): Double =
+      if (mu <= 0 || mu >= 1)
+        // mu * (1.0 - mu)
+        0
+      else
+        mu * (1.0 - mu)
+    val variance = dm.map(clippedVariance _)(mu)
 
     val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0)
 
@@ -56,15 +70,21 @@ object PCRelate {
         if (g == 0.0) mu
         else if (g == 1.0) 0.0
         else if (g == 2.0) 1.0 - mu
-        else g
+        else 0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
     })(blockedG, mu)
 
     val normalizedGD = (gD :- (variance --* (f(phi).map(1 + _))))
 
     val kTwo = ((normalizedGD.t * normalizedGD) :/ (variance.t * variance))
 
-    val mu2 = dm.map(sqr _)(mu)
-    val oneMinusMu2 = dm.map(sqr _)(1.0 - mu)
+    def clippedSqr(mu: Double): Double =
+      if (mu <= 0 || mu >= 1)
+        0
+      else
+        sqr(mu)
+    val mu2 = dm.map(clippedSqr _)(mu)
+    // FIXME: actually zero this one
+    val oneMinusMu2 = dm.map(clippedSqr _)(1.0 - mu)
 
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
 
@@ -73,6 +93,8 @@ object PCRelate {
     def _k0(phiHat: Double, denom: Double, k2: Double, ibs0: Double) =
       if (phiHat <= cutoff)
         1 - 4 * phiHat + k2
+      else if (denom == 0)
+        0 // denom == 0 ==> mu is bad, https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L414
       else
         ibs0 / denom
     val kZero = dm.map4(_k0)(phi, denom, kTwo, ibsZero)
@@ -82,12 +104,12 @@ object PCRelate {
 
   def apply(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result = {
     val g = vdsToMeanImputedMatrix(vds)
+    val blockedG = dm.from(g, blockSize, blockSize)
 
     val beta = fitBeta(g, pcs, blockSize)
 
-    val mu = muHat(pcs, beta)
+    val mu = muHat(pcs, beta, blockedG)
 
-    val blockedG = dm.from(g, blockSize, blockSize)
     val phihat = phiHat(blockedG, mu)
 
     // FIXME: what should I do if the genotype is missing?
@@ -149,7 +171,8 @@ object PCRelate {
     val rdd = g.rows.map { case IndexedRow(i, v) =>
       val ols = new OLSMultipleLinearRegression()
       ols.newSampleData(v.toArray, aa.value)
-      IndexedRow(i, new DenseVector(ols.estimateRegressionParameters()))
+      val a = ols.estimateRegressionParameters()
+      IndexedRow(i, new DenseVector(a))
     }
     dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize, blockSize)
   }
@@ -162,14 +185,26 @@ object PCRelate {
       1 - ksi
     else
       x
+  private def clipMu(mu: M): M =
+    dm.map(clipToInterval _)(mu)
+
+  private def filter(mu: Double, g: Double): Double =
+    if (mu <= 0 || mu >= 1)
+      g / 2.0
+    else
+      mu
+
+  private def filterOutOfRangeMus(mu: M, g: M): M =
+    dm.map2(filter _)(mu, g)
 
   /**
     *  pcs: Sample x D
     *  beta: SNP x (D+1)
+    *  g: SNP x Sample
     *
     *  result: SNP x Sample
     */
-  def muHat(pcs: DenseMatrix, beta: M): M = {
+  def muHat(pcs: DenseMatrix, beta: M, g: M): M = {
     val pcsArray = pcs.toArray
     val pcsWithInterceptArray = new Array[Double](pcs.numRows * (pcs.numCols + 1))
 
@@ -191,7 +226,7 @@ object PCRelate {
     // println(pcsWithIntercept)
     // println(dm.toLocalMatrix(beta))
 
-    dm.map(clipToInterval _)((beta * pcsWithIntercept.transpose) / 2.0)
+    clipMu((beta * pcsWithIntercept.transpose) / 2.0)
   }
 
   /**
