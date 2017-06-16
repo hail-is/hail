@@ -319,6 +319,11 @@ object Gen {
     p.rng.getRandomGenerator.nextInt(Int.MaxValue - 1) + 1
   }
 
+  def interestingPosInt: Gen[Int] = oneOfGen(
+      oneOf(1, 2, Int.MaxValue - 1, Int.MaxValue),
+      choose(1, 100),
+      posInt)
+
   def zip[T1](g1: Gen[T1]): Gen[T1] = g1
 
   def zip[T1, T2](g1: Gen[T1], g2: Gen[T2]): Gen[(T1, T2)] = for {
