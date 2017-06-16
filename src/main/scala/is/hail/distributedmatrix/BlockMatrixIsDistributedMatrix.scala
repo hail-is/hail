@@ -52,6 +52,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
     // check if the intervals [i, i+rows) and [j, j+rows) overlap,
     // meaning this block contains the diagonal.
+    // This is unused, but I'll leave it here since it will be helpful if the rowsPerBlock == colsPerBlock
+    // requirement is removed.
     def containsDiagonal(coord: (Int, Int)): Boolean = coord match {
       case (blocki, blockj) =>
         val i = blocki * rowsPerBlock
