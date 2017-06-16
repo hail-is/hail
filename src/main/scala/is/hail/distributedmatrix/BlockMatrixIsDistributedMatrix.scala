@@ -50,23 +50,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     // FIXME: generalize, fix inner diagonal method
     require(rowsPerBlock == colsPerBlock)
 
-    // check if the intervals [i, i+rows) and [j, j+rows) overlap,
-    // meaning this block contains the diagonal.
-    // This is unused, but I'll leave it here since it will be helpful if the rowsPerBlock == colsPerBlock
-    // requirement is removed.
-    def containsDiagonal(coord: (Int, Int)): Boolean = coord match {
-      case (blocki, blockj) =>
-        val i = blocki * rowsPerBlock
-        val j = blockj * colsPerBlock
-        val i2 = i + rowsPerBlock
-        val j2 = j + colsPerBlock
-
-        i <= j && j < i2 ||
-        i < j2 && j2 < i2 ||
-        j <= i && i < j2 ||
-        j < i2 && i2 < j2
-    }
-
     def diagonal(block: Matrix): Array[Double] = {
       val length = math.min(block.numRows,block.numCols)
       val diagonal = new Array[Double](length)
