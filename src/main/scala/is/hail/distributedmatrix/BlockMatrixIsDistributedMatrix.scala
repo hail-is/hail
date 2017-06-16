@@ -77,8 +77,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }
 
     m.blocks
-      .filter(x => containsDiagonal(x._1))
-      .map { case ((i, j), m) => (math.max(i,j), diagonal(m)) }
+      .filter{ case ((i, j), block) => i == j}
+      .map { case ((i, j), m) => (i, diagonal(m)) }
       .reduce { case ((i, m1), (j, m2)) =>
         if (i < j) (i, m1 ++ m2)
         else (j, m2 ++ m1)
