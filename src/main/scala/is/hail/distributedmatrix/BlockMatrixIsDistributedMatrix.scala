@@ -47,7 +47,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val rowsPerBlock = m.rowsPerBlock
     val colsPerBlock = m.colsPerBlock
 
-    // FIXME: generalize, fix inner diagonal method
     require(rowsPerBlock == colsPerBlock)
 
     def diagonal(block: Matrix): Array[Double] = {
