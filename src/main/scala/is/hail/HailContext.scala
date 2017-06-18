@@ -312,10 +312,11 @@ class HailContext private(val sc: SparkContext,
     types: java.util.HashMap[String, Type],
     commentChar: String,
     separator: String,
+    quote: java.lang.Character,
     missing: String,
     noHeader: Boolean,
     impute: Boolean): KeyTable = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
-    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute)
+    types.asScala.toMap, Option(commentChar), separator, quote, missing, noHeader, impute)
 
   def importTable(input: String,
     keyNames: Array[String] = Array.empty[String],
@@ -323,10 +324,11 @@ class HailContext private(val sc: SparkContext,
     types: Map[String, Type] = Map.empty[String, Type],
     commentChar: Option[String] = None,
     separator: String = "\t",
+    quote: java.lang.Character = null,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false): KeyTable = {
-    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute)
+    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, quote, missing, noHeader, impute)
   }
 
   def importTables(inputs: Seq[String],
@@ -335,6 +337,7 @@ class HailContext private(val sc: SparkContext,
     types: Map[String, Type] = Map.empty[String, Type],
     commentChar: Option[String] = None,
     separator: String = "\t",
+    quote: java.lang.Character = null,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false): KeyTable = {
@@ -345,7 +348,7 @@ class HailContext private(val sc: SparkContext,
       fatal(s"Arguments referred to no files: '${ files.mkString(",") }'")
 
     val (struct, rdd) =
-      TextTableReader.read(sc)(files, types, commentChar, separator, missing,
+      TextTableReader.read(sc)(files, types, commentChar, separator, quote, missing,
         noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     KeyTable(this, rdd.map(_.value), struct, keyNames)

@@ -11,6 +11,64 @@ import org.apache.spark.sql.Row
 
 object TextTableReader {
 
+  def splitLine(s: String, separator: String, quote: java.lang.Character): Array[String] = {
+    val p = Pattern.compile(separator)
+    val m = p.matcher(s)
+
+    def matchSep(i: Int): Int = {
+      m.region(i, s.length)
+      if (m.lookingAt())
+        m.end() - m.start()
+      else
+        -1
+    }
+
+    val ab = new ArrayBuilder[String]
+    val sb = new StringBuilder
+
+    var i = 0
+    while (i < s.length) {
+      val c = s(i)
+
+      val l = matchSep(i)
+      if (l != -1) {
+        i += l
+        ab += sb.result()
+        sb.clear()
+      } else if (quote != null && c == quote) {
+        if (sb.nonEmpty)
+          fatal("opening quote character $quote not at start of field")
+        i += 1 // skip quote
+
+        while (i < s.length && s(i) != quote) {
+          sb += s(i)
+          i += 1
+        }
+
+        if (i == s.length)
+          fatal(s"missing terminating quote character $quote")
+        i += 1 // skip quote
+
+        // full field must be quoted
+        if (i < s.length) {
+          val l =  matchSep(i)
+          if (l == -1)
+            fatal(s"terminating quote character $quote not at end of field")
+          i += l
+          ab += sb.result()
+          sb.clear()
+        }
+      } else {
+        sb += c
+        i += 1
+      }
+    }
+
+    ab += sb.result()
+
+    ab.result()
+  }
+
   val booleanRegex = """^([Tt]rue)|([Ff]alse)|(TRUE)|(FALSE)$"""
   val variantRegex = """^.+:\d+:[ATGC]+:([ATGC]+|\*)(,([ATGC]+|\*))*$"""
   val locusRegex = """^.+:\d+$"""
@@ -18,7 +76,7 @@ object TextTableReader {
   val intRegex = """^-?\d+$"""
 
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
-    delimiter: String, missing: String): Array[Option[Type]] = {
+    delimiter: String, quote: java.lang.Character, missing: String): Array[Option[Type]] = {
     val nFields = header.length
     val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
 
@@ -27,7 +85,7 @@ object TextTableReader {
 
     val imputation = values.treeAggregate(MultiArray2.fill[Boolean](nFields, nRegex + 1)(true))({ case (ma, line) =>
       line.foreach { l =>
-        val split = l.split(delimiter)
+        val split = splitLine(l, delimiter, quote)
         if (split.length != nFields)
           fatal(s"expected $nFields fields, but found ${ split.length }")
 
@@ -72,6 +130,7 @@ object TextTableReader {
     types: Map[String, Type] = Map.empty[String, Type],
     commentChar: Option[String] = None,
     separator: String = "\t",
+    quote: java.lang.Character = null,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
@@ -91,13 +150,13 @@ object TextTableReader {
         filt.next().value
     }
 
+    val splitHeader = splitLine(header, separator, quote)
     val columns = if (noHeader) {
-      header.split(separator, -1)
-        .zipWithIndex
-        .map {
-          case (_, i) => s"f$i"
-        }
-    } else header.split(separator, -1).map(unescapeString)
+      splitHeader
+        .indices
+        .map(i => s"f$i")
+        .toArray
+    } else splitHeader.map(unescapeString)
 
     val nField = columns.length
 
@@ -121,7 +180,7 @@ object TextTableReader {
         info("Reading table to impute column types")
 
         sb.append("Finished type imputation")
-        val imputedTypes = imputeTypes(rdd, columns, separator, missing)
+        val imputedTypes = imputeTypes(rdd, columns, separator, quote, missing)
         columns.zip(imputedTypes).map { case (name, imputedType) =>
           types.get(name) match {
             case Some(t) =>
@@ -162,7 +221,7 @@ object TextTableReader {
         _.map { line =>
           val a = new Array[Annotation](nField)
 
-          val split = line.split(separator, -1)
+          val split = splitLine(line, separator, quote)
           if (split.length != nField)
             fatal(s"expected $nField fields, but found ${ split.length } fields")
 
