@@ -79,6 +79,15 @@ class AnyChecker(TypeChecker):
     def expects(self):
         return 'any'
 
+class CharChecker(TypeChecker):
+    def __init__(self):
+        super(CharChecker, self).__init__()
+
+    def check(self, x):
+        return (isinstance(x, str) or isinstance(x, unicode)) and len(x) == 1
+
+    def expects(self):
+        return 'char'
 
 class LiteralChecker(TypeChecker):
     def __init__(self, t):
@@ -131,6 +140,7 @@ integral = oneof(int, long)
 
 numeric = oneof(int, long, float)
 
+char = CharChecker()
 
 def check_all(f, args, kwargs, checks, is_method):
     spec = getargspec(f)

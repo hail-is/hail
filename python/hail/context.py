@@ -288,7 +288,7 @@ class HailContext(object):
                       no_header=bool,
                       comment=nullable(strlike),
                       delimiter=strlike,
-                      quote=nullable(strlike), # FIXME charlike
+                      quote=nullable(char),
                       missing=strlike,
                       types=dictof(strlike, Type))
     def import_table(self, paths, key=[], min_partitions=None, impute=False, no_header=False,

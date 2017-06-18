@@ -79,7 +79,7 @@ object TextTableReader {
     delimiter: String, quote: java.lang.Character, missing: String): Array[Option[Type]] = {
     val nFields = header.length
     val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
-
+    
     val regexTypes: Array[Type] = Array(TBoolean, TVariant, TLocus, TInt, TDouble)
     val nRegex = regexes.length
 
