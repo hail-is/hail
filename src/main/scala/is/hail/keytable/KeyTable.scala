@@ -212,9 +212,11 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     if (nKeys == 0)
       fatal("cannot produce a keyed RDD from a key table with no key columns")
 
-    val keySet = keyFields.map(_.name).toSet
-    val keyIndices = fields.filter(f => keySet.contains(f.name)).map(_.index)
-    val valueIndices = fields.filter(f => !keySet.contains(f.name)).map(_.index)
+    val fieldIndices = fields.map(f => f.name -> f.index).toMap
+
+    val keyIndices = key.map(fieldIndices)
+    val keyIndexSet = keyIndices.toSet
+    val valueIndices = fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
