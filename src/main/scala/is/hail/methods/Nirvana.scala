@@ -18,6 +18,9 @@ object Nirvana {
   // Originally the schema exactly matched Nirvana's JSON output, but in the interest of
   // speed and avoiding redundancy I've removed several fields that would be determined
   // from parsing VCF INFO fields. They are commented out and labeled as such below.
+
+
+  //NOTE THIS SCHEMA IS FOR NIRVANA 1.6.2 as of JUNE 19th
   val nirvanaSignature = TStruct(
     "chromosome" -> TString,
     "refAllele" -> TString,
