@@ -40,7 +40,7 @@ class TextTableSuite extends SparkSuite {
       "-200 -200.0 . 155.2 GRCH123.2:2:A:T true 1:2"
     ), 3).map { x => WithContext(x, TextContext(x, "none", None)) }
 
-    val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".")
+    val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".", null)
 
     imputed.foreach(println)
     assert(imputed.sameElements(Array(

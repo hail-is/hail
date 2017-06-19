@@ -289,9 +289,10 @@ class HailContext(object):
                       comment=nullable(strlike),
                       delimiter=strlike,
                       missing=strlike,
-                      types=dictof(strlike, Type))
+                      types=dictof(strlike, Type),
+                      quote=nullable(char))
     def import_table(self, paths, key=[], min_partitions=None, impute=False, no_header=False,
-                     comment=None, delimiter="\t", missing="NA", types={}):
+                     comment=None, delimiter="\t", missing="NA", types={}, quote=None):
         """Import delimited text file (text table) as key table.
 
         The resulting key table will have no key columns, use :py:meth:`.KeyTable.key_by`
@@ -430,6 +431,9 @@ class HailContext(object):
     
         :return: Key table constructed from text table.
         :rtype: :class:`.KeyTable`
+
+        :param quote: Quote character
+        :type quote: str or None
         """
 
         key = wrap_to_list(key)
@@ -437,7 +441,7 @@ class HailContext(object):
         jtypes = {k: v._jtype for k, v in types.items()}
 
         jkt = self._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
-                                    no_header, impute)
+                                    no_header, impute, quote)
         return KeyTable(self, jkt)
 
     @handle_py4j

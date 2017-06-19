@@ -11,4 +11,5 @@ __all__ = ['typecheck',
            'oneof',
            'strlike',
            'integral',
-           'numeric']
+           'numeric',
+           'char']

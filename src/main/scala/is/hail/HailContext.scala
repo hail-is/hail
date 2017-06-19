@@ -314,8 +314,9 @@ class HailContext private(val sc: SparkContext,
     separator: String,
     missing: String,
     noHeader: Boolean,
-    impute: Boolean): KeyTable = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
-    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute)
+    impute: Boolean,
+    quote: java.lang.Character): KeyTable = importTables(inputs.asScala, keyNames.asScala.toArray, if (nPartitions == null) None else Some(nPartitions),
+    types.asScala.toMap, Option(commentChar), separator, missing, noHeader, impute, quote)
 
   def importTable(input: String,
     keyNames: Array[String] = Array.empty[String],
@@ -325,8 +326,9 @@ class HailContext private(val sc: SparkContext,
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
-    impute: Boolean = false): KeyTable = {
-    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute)
+    impute: Boolean = false,
+    quote: java.lang.Character = null): KeyTable = {
+    importTables(List(input), keyNames, nPartitions, types, commentChar, separator, missing, noHeader, impute, quote)
   }
 
   def importTables(inputs: Seq[String],
@@ -337,7 +339,8 @@ class HailContext private(val sc: SparkContext,
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
-    impute: Boolean = false): KeyTable = {
+    impute: Boolean = false,
+    quote: java.lang.Character = null): KeyTable = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
     val files = hadoopConf.globAll(inputs)
@@ -346,7 +349,7 @@ class HailContext private(val sc: SparkContext,
 
     val (struct, rdd) =
       TextTableReader.read(sc)(files, types, commentChar, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions))
+        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote)
 
     KeyTable(this, rdd.map(_.value), struct, keyNames)
   }
