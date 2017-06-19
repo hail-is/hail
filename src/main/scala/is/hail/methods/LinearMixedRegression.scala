@@ -68,16 +68,16 @@ object LinearMixedRegression {
 
     val cols = filteredKinshipMatrix.matrix.numCols().toInt
 
-    val rrm = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
-
+    val K = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
+    
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
-    val eigK = eigSymD(rrm)
+    val eigK = eigSymD(K)
     val Ut = eigK.eigenvectors.t
     val S = eigK.eigenvalues // increasing order
 
     assert(S.length == n)
-
+        
     info("lmmreg: 20 largest evals: " + ((n - 1) to math.max(0, n - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
     info("lmmreg: 20 smallest evals: " + (0 until math.min(n, 20)).map(S(_).formatted("%.5f")).mkString(", "))
 
@@ -215,7 +215,7 @@ class DiagLMMSolver(
   val yty = y.t * y
   println(s"U has ${U.rows} rows and ${U.cols} columns")
 
-  val n = Uty.length
+  val n = y.length
   val d = C.cols
 
   val (delta, optGlobalFit) = optDelta match {
@@ -239,9 +239,6 @@ class DiagLMMSolver(
   }
 
   def fitDelta(): (Double, GlobalFitLMM) = {
-
-    val n = Uty.length
-    val c = UtC.cols
 
     object LogLkhdML extends UnivariateFunction {
       val shift: Double = n * (1 + math.log(2 * math.Pi) + math.log(1d / n))
@@ -332,8 +329,6 @@ class DiagLMMSolver(
     }
 
     object LogLkhdREML extends UnivariateFunction {
-      val shift: Double = n * (1 + math.log(1d / n)) + d * math.log(2 * math.Pi) - logdet(UtC.t * UtC)._2
-
       def value(logDelta: Double): Double = {
         val invD = (S + FastMath.exp(logDelta)).map(1 / _)
         val dy = Uty :* invD
@@ -341,9 +336,22 @@ class DiagLMMSolver(
         val Cdy = UtC.t * dy
         val CdC = UtC.t * (UtC(::, *) :* invD)
         val b = CdC \ Cdy
-        val r = ydy - (Cdy dot b)
+        val r2 = ydy - (Cdy dot b)
+        
+        val sigma2 = r2 / (n - d)
 
-        -0.5 * (-sum(breeze.numerics.log(invD)) + (n - c) * math.log(r) + logdet(CdC)._2 + shift)
+        println(ydy)
+        println(Cdy)
+        
+        val logdetK = -sum(breeze.numerics.log(invD))
+        val logdetXKX = logdet(CdC)._2
+        val logdetXX = logdet(CtC)._2
+        
+        val lkhd = -0.5 * (logdetK + logdetXKX - logdetXX + (n - d) * (math.log(2 * math.Pi * sigma2) + 1)) // FIXME: add shift
+        
+        println(logDelta, lkhd, n, d, logdetK, logdetXKX, logdetXX)
+        
+        lkhd
       }
     }
 
@@ -382,20 +390,68 @@ class DiagLMMSolver(
         val delta = FastMath.exp(logDelta)
         val D = S + delta
         val dy = Uty :/ D
-        val ydy = Uty dot dy
-        val Cdy = UtC.t * dy //U^t * C * D^-1 * U^t * y
-        val CdC = UtC.t * (UtC(::, *) :/ D)
-        val b = (CdC + (1.0 / delta) * (CtC - UtC.t * UtC)) \ (Cdy + (1.0 / delta) * (Cty - UtC.t * Uty))
-        val Cb = C * b
-        val UtCb = UtC * b
-        val k = S.length
+        val ydy =
+          (Uty dot dy) +
+          (1.0 / delta) * (yty - Uty.t * Uty)
+        val Cdy =
+          UtC.t * dy +
+          (1.0 / delta) * (Cty - UtC.t * Uty)
+        val CdC =
+          UtC.t * (UtC(::, *) :/ D) +
+          (1.0 / delta) * (CtC - UtC.t * UtC)
         
+        val b = CdC \ Cdy
+        
+        val k = S.length
+
+        val r2 = ydy - (Cdy dot b)
+        val sigma2 = r2 / (n - d)
+
+        println(ydy)
+        println(Cdy)
+
+        val logdetK = sum(breeze.numerics.log(D)) + (n - k) * logDelta
+        val logdetXKX = logdet(CdC)._2
+        val logdetXX = logdet(CtC)._2
+
+        val lkhd = -0.5 * (logdetK + logdetXKX - logdetXX + (n - d) * (math.log(2 * math.Pi * sigma2) + 1))
+        
+        println(logDelta, lkhd, n, k, d, logdetK, logdetXKX, logdetXX)
+        
+        lkhd
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        //beta = SP.dot(UxKx[:,i_pos],(SP.dot(UxKx[:,i_pos].T,XKy)/SxKx[i_pos]))
+        // CdC = V Z Vt
+        // V Z Vt beta = XKy
+        // beta = V ((Vt XKy) / Z)
+        
+        
+        // CtC - UtC.t * UtC
+        
+        // UUX.t UUX
+        // UUX = X - U U.t X
+        // (X - U U.t X).t (X - U U.t X) = XtX - Xt U Ut X - Xt U Ut X + Xt U Ut U Ut X = XtX - (Ut X).t (Ut X)
+
+       //-0.5 * ( logdetK + logdetXKX - logdetXX + (N-D) * ( SP.log(2.0*SP.pi*sigma2) + 1 ) )
+
+        // println(s"k=$k, d=$d, n=$n")
+        
+        
+       
 //        println(s"k=$k, d=$d, n=$n")
 
-        val vectorLength: Double = (yty - (Uty.t * Uty)) + (Cb.t * Cb - UtCb.t * UtCb)
-        val squaredVectorLength = vectorLength * vectorLength
+//        val vectorLength: Double = (yty - (Uty.t * Uty)) + (Cb.t * Cb - UtCb.t * UtCb)
+//        val squaredVectorLength = vectorLength * vectorLength
 
-        val sigmaSquared = (1.0 / (n - d)) * (ydy - (Cdy dot b) + (1.0 / delta) * squaredVectorLength)
+//        val sigmaSquared = (1.0 / (n - d)) * (ydy - (Cdy dot b) + (1.0 / delta) * squaredVectorLength)
 
         /*val fullD = FullS + delta
         val fullDy = (FullU.t * y) :/ fullD
@@ -409,20 +465,13 @@ class DiagLMMSolver(
 
 
         //Consider that CtC expression is used in beta computation and is constant.
-        val detExpr = CdC + (1.0 / delta) * (CtC - UtC.t * UtC)
+//        val detExpr = CdC + (1.0 / delta) * (CtC - UtC.t * UtC)
 
 //        -.5 * (n * math.log(2 * math.Pi * sigmaSquared) + sum(breeze.numerics.log(D)) + (n - k) * logDelta) +
 //          (-.5 * ((1.0 / sigmaSquared) * ((n - d) * sigmaSquared))) +
 //          (.5 * (d * math.log(2 * math.Pi * sigmaSquared) + logdet(CtC)._2 - logdet(detExpr)._2))
                 
-        //0.5 * ( logdetK + logdetXKX - logdetXX + (N-D) * ( SP.log(2.0*SP.pi*sigma2) + 1 ) )
-        
-        val logdetK = sum(breeze.numerics.log(D)) + (n - k) * math.log(delta)
-        val logdetXKX = logdet(CdC + (1.0 / delta) * (CtC - UtC.t * UtC))._2
-        val logdetXX = logdet(CtC)._2
-        
-        -0.5 * (logdetK + logdetXKX - logdetXX + (n - d) * math.log(2 * math.Pi * sigmaSquared) + 1)
-        
+        //0.5 * ( logdetK + logdetXKX - logdetXX + (N-D) * ( SP.log(2.0*SP.pi*sigma2) + 1 ) ) 
       }
     }
 
@@ -457,7 +506,7 @@ class DiagLMMSolver(
     val logLkhdFunction = (useML, optNumEigs) match {
       case (true, Some(numEigs)) => TestingML // LogLkhdMLLowRank
       case (true, None) => LogLkhdML
-      case (false, Some(numEigs)) => TestingREML // LogLkhdREMLLowRank
+      case (false, Some(numEigs)) => LogLkhdREMLLowRank2
       case (false, None) => LogLkhdREML
     }
 

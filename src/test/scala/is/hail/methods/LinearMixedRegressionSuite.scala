@@ -476,7 +476,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     //  vdsChr1FullRank.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))
   }
   
-  @Test def testSmall10() {
+  @Test def testSmall() {
     val vdsSmall = hc.readVDS("/Users/jbloom/data/fastlmm/small.vds")
     val rrm = vdsSmall.rrm()
     val vdsLmmreg = vdsSmall.lmmreg(rrm, "sa.pheno")
@@ -485,18 +485,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     
     println(vdsLmmreg.queryGlobal("global.lmmreg.evals"))
     
-    val vdsLmmregLowRank = vdsSmall.lmmreg(rrm, "sa.pheno", nEigs = Some(10))
-  }
-  
-    @Test def testSmall9() {
-    val vdsSmall = hc.readVDS("/Users/jbloom/data/fastlmm/small.vds")
-    val rrm = vdsSmall.rrm()
-    val vdsLmmreg = vdsSmall.lmmreg(rrm, "sa.pheno")
-    
-    println(vdsLmmreg.summarize())
-    
-    println(vdsLmmreg.queryGlobal("global.lmmreg.evals"))
-    
-    val vdsLmmregLowRank = vdsSmall.lmmreg(rrm, "sa.pheno", nEigs = Some(9))
+    val vdsLmmregLowRank = vdsSmall.lmmreg(rrm, "sa.pheno", nEigs = Some(3))
   }
 }
