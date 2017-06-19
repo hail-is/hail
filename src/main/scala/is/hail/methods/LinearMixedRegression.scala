@@ -219,10 +219,10 @@ class DiagLMMSolver(
   val d = C.cols
 
   val (delta, optGlobalFit) = optDelta match {
-    case Some(d) => (d, None)
+    case Some(del) => (del, None)
     case None =>
-      val (d, gf) = fitDelta()
-      (d, Some(gf))
+      val (del, gf) = fitDelta()
+      (del, Some(gf))
   }
 
   def solve(): DiagLMM = {
@@ -280,7 +280,7 @@ class DiagLMMSolver(
         //println(s"ydy = $ydy")
         //println(s"delta = $delta, \n Uty = $Uty \n dy = $dy, \n ydy = $ydy")
 
-        val r2: Double = ((yty - (Uty.t * Uty)) + (Cb.t * Cb - (UtCb).t * UtCb)) / delta
+        val r2: Double = ((yty - (Uty.t * Uty)) + (Cb.t * Cb - UtCb.t * UtCb)) / delta
 
         val nSigmaSquared = ydy - (Cdy dot b) + r2 //* r2
 
@@ -389,8 +389,10 @@ class DiagLMMSolver(
         val Cb = C * b
         val UtCb = UtC * b
         val k = S.length
+        
+//        println(s"k=$k, d=$d, n=$n")
 
-        val vectorLength: Double = (yty - (Uty.t * Uty)) + (Cb.t * Cb - (UtCb).t * UtCb)
+        val vectorLength: Double = (yty - (Uty.t * Uty)) + (Cb.t * Cb - UtCb.t * UtCb)
         val squaredVectorLength = vectorLength * vectorLength
 
         val sigmaSquared = (1.0 / (n - d)) * (ydy - (Cdy dot b) + (1.0 / delta) * squaredVectorLength)
@@ -409,20 +411,27 @@ class DiagLMMSolver(
         //Consider that CtC expression is used in beta computation and is constant.
         val detExpr = CdC + (1.0 / delta) * (CtC - UtC.t * UtC)
 
-        (-.5 * (n * math.log(2 * math.Pi * sigmaSquared) + sum(breeze.numerics.log(D)) + (n - k) * logDelta)
-        + (-.5 * ((1.0 / sigmaSquared) * ((n - d) * sigmaSquared)))
-        + (.5 * (d * math.log(2 * math.Pi * sigmaSquared) + logdet(CtC)._2
-             - logdet(detExpr)._2)))
+//        -.5 * (n * math.log(2 * math.Pi * sigmaSquared) + sum(breeze.numerics.log(D)) + (n - k) * logDelta) +
+//          (-.5 * ((1.0 / sigmaSquared) * ((n - d) * sigmaSquared))) +
+//          (.5 * (d * math.log(2 * math.Pi * sigmaSquared) + logdet(CtC)._2 - logdet(detExpr)._2))
+                
+        //0.5 * ( logdetK + logdetXKX - logdetXX + (N-D) * ( SP.log(2.0*SP.pi*sigma2) + 1 ) )
+        
+        val logdetK = sum(breeze.numerics.log(D)) + (n - k) * math.log(delta)
+        val logdetXKX = logdet(CdC + (1.0 / delta) * (CtC - UtC.t * UtC))._2
+        val logdetXX = logdet(CtC)._2
+        
+        -0.5 * (logdetK + logdetXKX - logdetXX + (n - d) * math.log(2 * math.Pi * sigmaSquared) + 1)
+        
       }
     }
 
     object TestingREML extends UnivariateFunction {
-
       def value(logDelta: Double): Double = {
-        val fullAns = LogLkhdREML.value(logDelta)
-        val resAns = LogLkhdREMLLowRank2.value(logDelta)
-        println(s"REML On input $logDelta the full answer was $fullAns while the res answer was $resAns")
-        resAns
+        val full = LogLkhdREML.value(logDelta)
+        val low = LogLkhdREMLLowRank2.value(logDelta)
+        println(s"REML for $logDelta: $full vs $low")
+        low
       }
     }
 
@@ -446,9 +455,9 @@ class DiagLMMSolver(
 
     val grid = (minLogDelta * pointsPerUnit to maxLogDelta * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (minLogDelta to logMax by logres)
     val logLkhdFunction = (useML, optNumEigs) match {
-      case (true, Some(numEigs)) => TestingML//LogLkhdMLLowRank
+      case (true, Some(numEigs)) => TestingML // LogLkhdMLLowRank
       case (true, None) => LogLkhdML
-      case (false, Some(numEigs)) => TestingREML //LogLkhdREMLLowRank
+      case (false, Some(numEigs)) => TestingREML // LogLkhdREMLLowRank
       case (false, None) => LogLkhdREML
     }
 
@@ -507,9 +516,9 @@ class DiagLMMSolver(
     val y2 = maxLogLkhd
     val y3 = if (useML) LogLkhdML.value(z3) else LogLkhdREML.value(z3)
 
-    if (y1 >= y2 || y3 >= y2)
-      fatal(s"Maximum likelihood estimate ${ math.exp(maxlogDelta) } for delta is not a global max." +
-        s"Plot the values over the full grid to investigate.")
+//    if (y1 >= y2 || y3 >= y2)
+//      fatal(s"Maximum likelihood estimate ${ math.exp(maxlogDelta) } for delta is not a global max. " +
+//        s"Plot the values over the full grid to investigate.")
 
     // Fitting parabola logLkhd ~ a * x^2 + b * x + c near MLE by Lagrange interpolation gives
     // a = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / ((x2 - x1) * (x1 - x3) * (x3 - x2))

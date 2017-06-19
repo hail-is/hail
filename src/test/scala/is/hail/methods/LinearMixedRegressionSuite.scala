@@ -441,7 +441,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val notChr1RRM = vdsFastLMM.filterVariantsExpr("""v.contig != "1"""").rrm()
 
     //ML TESTS
-    val vdsChr1LowRankML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, optNumEigs = Some(250))
+    val vdsChr1LowRankML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, nEigs = Some(250))
 
     val vdsChr1FullRankML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false)
 
@@ -470,9 +470,33 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val vdsChr1FullRank = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, delta = None)
 
-    val vdsChr1LowRank = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, optNumEigs = Some(242))
+    val vdsChr1LowRank = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, nEigs = Some(242))
 
     //assert(D_==(vdsChr1Restricted.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double],
     //  vdsChr1FullRank.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))
+  }
+  
+  @Test def testSmall10() {
+    val vdsSmall = hc.readVDS("/Users/jbloom/data/fastlmm/small.vds")
+    val rrm = vdsSmall.rrm()
+    val vdsLmmreg = vdsSmall.lmmreg(rrm, "sa.pheno")
+    
+    println(vdsLmmreg.summarize())
+    
+    println(vdsLmmreg.queryGlobal("global.lmmreg.evals"))
+    
+    val vdsLmmregLowRank = vdsSmall.lmmreg(rrm, "sa.pheno", nEigs = Some(10))
+  }
+  
+    @Test def testSmall9() {
+    val vdsSmall = hc.readVDS("/Users/jbloom/data/fastlmm/small.vds")
+    val rrm = vdsSmall.rrm()
+    val vdsLmmreg = vdsSmall.lmmreg(rrm, "sa.pheno")
+    
+    println(vdsLmmreg.summarize())
+    
+    println(vdsLmmreg.queryGlobal("global.lmmreg.evals"))
+    
+    val vdsLmmregLowRank = vdsSmall.lmmreg(rrm, "sa.pheno", nEigs = Some(9))
   }
 }
