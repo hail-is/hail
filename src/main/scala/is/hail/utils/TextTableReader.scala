@@ -76,10 +76,10 @@ object TextTableReader {
   val intRegex = """^-?\d+$"""
 
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
-    delimiter: String, quote: java.lang.Character, missing: String): Array[Option[Type]] = {
+    delimiter: String, missing: String, quote: java.lang.Character): Array[Option[Type]] = {
     val nFields = header.length
     val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
-    
+
     val regexTypes: Array[Type] = Array(TBoolean, TVariant, TLocus, TInt, TDouble)
     val nRegex = regexes.length
 
@@ -130,11 +130,11 @@ object TextTableReader {
     types: Map[String, Type] = Map.empty[String, Type],
     commentChar: Option[String] = None,
     separator: String = "\t",
-    quote: java.lang.Character = null,
     missing: String = "NA",
     noHeader: Boolean = false,
     impute: Boolean = false,
-    nPartitions: Int = sc.defaultMinPartitions): (TStruct, RDD[WithContext[Row]]) = {
+    nPartitions: Int = sc.defaultMinPartitions,
+    quote: java.lang.Character = null): (TStruct, RDD[WithContext[Row]]) = {
     require(files.nonEmpty)
 
     val firstFile = files.head
@@ -180,7 +180,7 @@ object TextTableReader {
         info("Reading table to impute column types")
 
         sb.append("Finished type imputation")
-        val imputedTypes = imputeTypes(rdd, columns, separator, quote, missing)
+        val imputedTypes = imputeTypes(rdd, columns, separator, missing, quote)
         columns.zip(imputedTypes).map { case (name, imputedType) =>
           types.get(name) match {
             case Some(t) =>
