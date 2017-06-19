@@ -362,4 +362,28 @@ class KeyTableSuite extends SparkSuite {
 
     kt.join(kt2, "inner").toDF(sqlContext).count()
   }
+
+  @Test def testKeyOrder() {
+    val kt1 = KeyTable(hc,
+      sc.parallelize(Array(Row("f1", "f2", "f3", "value1"))),
+      TStruct(
+        "f1" -> TString,
+        "f2" -> TString,
+        "f3" -> TString,
+        "f4" -> TString
+      ),
+      Array("f1", "f2", "f3"))
+
+    val kt2 = KeyTable(hc,
+      sc.parallelize(Array(Row("f3", "f1", "f2", "value2"))),
+      TStruct(
+        "f3" -> TString,
+        "f1" -> TString,
+        "f2" -> TString,
+        "f5" -> TString
+      ),
+      Array("f1", "f2", "f3"))
+
+    assert(kt1.join(kt2, "inner").count() == 1L)
+  }
 }
