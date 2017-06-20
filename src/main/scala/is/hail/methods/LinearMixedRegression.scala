@@ -77,9 +77,6 @@ object LinearMixedRegression {
     val FullS = eigK.eigenvalues // increasing order
 
     assert(FullS.length == n)
-        
-    info("lmmreg: 20 largest evals: " + ((n - 1) to math.max(0, n - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
-    info("lmmreg: 20 smallest evals: " + (0 until math.min(n, 20)).map(S(_).formatted("%.5f")).mkString(", "))
 
     optDelta match {
       case Some(_) => info(s"lmmreg: Delta specified by user")
@@ -102,9 +99,19 @@ object LinearMixedRegression {
       case None => FullS
     }
 
+    val numEigs = optNumEigs match {
+      case Some(num) => {
+        num
+      }
+      case None => n
+    }
+
+    info("lmmreg: 20 largest evals: " + ((numEigs - 1) to math.max(0, numEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
+    info("lmmreg: 20 smallest evals: " + (0 until math.min(numEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
+
     val Ut = U.t
 
-    val diagLMM = DiagLMM(cov, y, FullS, FullU, optNumEigs, optDelta, useML)
+    val diagLMM = DiagLMM(cov, y, S, U, optNumEigs, optDelta, useML)
 
     val delta = diagLMM.delta
     val globalBetaMap = covNames.zip(diagLMM.globalB.toArray).toMap
@@ -113,7 +120,7 @@ object LinearMixedRegression {
     val h2 = 1 / (1 + delta)
 
     val header = "rank\teval"
-    val evalString = (0 until n).map(i => s"$i\t${ S(n - i - 1) }").mkString("\n")
+    val evalString = (0 until numEigs).map(i => s"$i\t${ S(numEigs - i - 1) }").mkString("\n")
     log.info(s"\nlmmreg: table of eigenvalues\n$header\n$evalString\n")
 
     info(s"lmmreg: global model fit: beta = $globalBetaMap")
@@ -167,7 +174,7 @@ object LinearMixedRegression {
           else
             RegressionUtils.dosages(gs, n, sampleMaskBc.value)
         
-        // constant checking to be removed in 0.2
+        // TODO constant checking to be removed in 0.2
         val nonConstant = useDosages || !RegressionUtils.constantVector(x)
                 
         val lmmregAnnot = if (nonConstant) scalerLMMBc.value.likelihoodRatioTest(TBc.value * x) else null
@@ -182,18 +189,17 @@ object LinearMixedRegression {
 }
 
 
-
 object DiagLMM {
   def apply(
     C: DenseMatrix[Double],
     y: DenseVector[Double],
-    FullS: DenseVector[Double],
-    FullU: DenseMatrix[Double],
+    S: DenseVector[Double],
+    U: DenseMatrix[Double],
     optNumEigs: Option[Int],
     optDelta: Option[Double] = None,
     useML: Boolean = false): DiagLMM = {
 
-    new DiagLMMSolver(C, y, FullS, FullU, optNumEigs, optDelta, useML).solve()
+    new DiagLMMSolver(C, y, S, U, optNumEigs, optDelta, useML).solve()
   }
 }
 
@@ -201,26 +207,11 @@ object DiagLMM {
 class DiagLMMSolver(
   C: DenseMatrix[Double],
   y: DenseVector[Double],
-  FullS: DenseVector[Double],
-  FullU: DenseMatrix[Double],
+  S: DenseVector[Double],
+  U: DenseMatrix[Double],
   optNumEigs: Option[Int],
   optDelta: Option[Double] = None,
   useML: Boolean = false) {
-  val U = optNumEigs match {
-    case Some(num) => {
-      val len = FullS.length
-      FullU(::, (len - num) until len)
-    }
-    case None => FullU
-  }
-
-  val S = optNumEigs match {
-    case Some(num) => {
-      val len = FullS.length
-      FullS((len - num) until len)
-    }
-    case None => FullS
-  }
 
   val Ut = U.t
   val UtC = Ut * C
@@ -282,63 +273,29 @@ class DiagLMMSolver(
         //Letting S have only the K eigenvalues so that S here is equivalent to S1 in paper
         val delta = FastMath.exp(logDelta)
         val D = S + delta
-        val dy = Uty :/ D //D^-1 * U^t * y
-        val ydy = Uty dot dy
-        val Cdy = UtC.t * dy //U^t * C * D^-1 * U^t * y
-        val CdC = UtC.t * (UtC(::, *) :/ D)
-        val b = (CdC + (1.0 / delta) * (CtC - UtC.t * UtC)) \ (Cdy + (1.0 / delta) * (Cty - UtC.t * Uty))
-        val Cb = C * b
-        val UtCb = UtC * b
-        val k = S.length
-
-        //println(s"ydy = $ydy")
-        //println(s"delta = $delta, \n Uty = $Uty \n dy = $dy, \n ydy = $ydy")
-
-        val r2: Double = ((yty - (Uty.t * Uty)) + (Cb.t * Cb - UtCb.t * UtCb)) / delta
-
-        val nSigmaSquared = ydy - (Cdy dot b) + r2 //* r2
-
-        //println(s"M1: s2 = ${nSigmaSquared / n}, beta = $b" )
-
-        -0.5 * (sum(breeze.numerics.log(D)) + (n - k) * logDelta + n * math.log(nSigmaSquared) + shift)
-      }
-
-    }
-
-    object LogLkhdMLLowRank2 extends UnivariateFunction {
-      val shift = n * (math.log(2 * math.Pi) + 1)
-
-      def value(logDelta: Double): Double = {
-        val delta = FastMath.exp(logDelta)
-        val D = S + delta
         val dy = Uty :/ D
-        val dC = UtC(::, *) :/ D
-        val ydy = Uty dot dy
-        val Cdy = UtC.t * dy
-        val CdC = UtC.t * dC
+        val ydy =
+          (Uty dot dy) +
+            (1.0 / delta) * (yty - Uty.t * Uty)
+        val Cdy =
+          UtC.t * dy +
+            (1.0 / delta) * (Cty - UtC.t * Uty)
+        val CdC =
+          UtC.t * (UtC(::, *) :/ D) +
+            (1.0 / delta) * (CtC - UtC.t * UtC)
+
         val k = S.length
+        val b = CdC \ Cdy
 
-        val CpC = (C.t * C) - (UtC.t * UtC)
-        val Cpy = (C.t * y) - (UtC.t * Uty)
-        val ypy = (y dot y) - (Uty dot Uty)
+        val logdetK = sum(breeze.numerics.log(D)) + (n - k) * logDelta
 
-        val Cj = C - U * U.t * C
-        val yj = y - U * U.t * y
-        val trueBeta = (CdC + (Cj.t * Cj) / delta) \ (Cdy + (Cj.t * yj) / delta)
-        val beta = (CdC + (CpC / delta)) \ (Cdy + (Cpy / delta))
-        // println(s"logDelta  = $logDelta, beta = $beta")
-        val r1 = ydy - (Cdy dot beta)
+        val r2 = ydy - (Cdy dot b)
 
-        val Cb = C * beta
-        val UtCb = UtC * beta
-        val r2J = (ypy - (Cpy dot beta)) / delta
-        val r2J2 = (ypy - ((Cb dot Cb) - (UtCb dot UtCb))) / delta
-        val r2Temp = (y - U * Uty) - (C * beta - (U * UtC) * beta)
-        val r2 = (r2Temp dot r2Temp) / delta
-        val s2 = (r1 + r2) / n
+        val sigma2 = r2 / n
 
-        -0.5 * (sum(breeze.numerics.log(D)) + (n - k) * logDelta + n * math.log(s2) + shift)
+        -0.5 * ( logdetK + n * ( math.log(2.0 * math.Pi * sigma2) + 1 ))
       }
+
     }
 
     object LogLkhdREML extends UnivariateFunction {
@@ -353,18 +310,16 @@ class DiagLMMSolver(
         
         val sigma2 = r2 / (n - d)
 
-        println(ydy)
-        println(Cdy)
+        //println(ydy)
+        //println(Cdy)
         
         val logdetK = -sum(breeze.numerics.log(invD))
         val logdetXKX = logdet(CdC)._2
         val logdetXX = logdet(CtC)._2
         
-        val lkhd = -0.5 * (logdetK + logdetXKX - logdetXX + (n - d) * (math.log(2 * math.Pi * sigma2) + 1)) // FIXME: add shift
+        -0.5 * (logdetK + logdetXKX - logdetXX + (n - d) * (math.log(2 * math.Pi * sigma2) + 1)) // FIXME: add shift
         
-        println(logDelta, lkhd, n, d, logdetK, logdetXKX, logdetXX)
-        
-        lkhd
+        //println(logDelta, lkhd, n, d, logdetK, logdetXKX, logdetXX)
       }
     }
 
@@ -392,8 +347,8 @@ class DiagLMMSolver(
         val r2 = ydy - (Cdy dot b)
         val sigma2 = r2 / (n - d)
 
-        println(ydy)
-        println(Cdy)
+        //println(ydy)
+        //println(Cdy)
 
         val logdetK = sum(breeze.numerics.log(D)) + (n - k) * logDelta
         val logdetXKX = logdet(CdC)._2
@@ -403,28 +358,13 @@ class DiagLMMSolver(
       }
     }
 
-
-    object TestingML extends UnivariateFunction {
-      def value(logDelta: Double): Double = {
-        //val fullAns = LogLkhdML.value(logDelta)
-        //println(s"Input = $logDelta")
-        //val ans1 = LogLkhdMLLowRank.value(logDelta)
-        val ans2 = LogLkhdMLLowRank2.value(logDelta)
-        //println(s"Output = $resAns")
-        //println(s"ML On input $logDelta the full answer was $fullAns while the res answer was $resAns")
-        //println(s"Lkhd1 = $ans1, Lkhd2 = $ans2")
-        ans2
-      }
-    }
-
-
     val minLogDelta = -8
     val maxLogDelta = 8
     val pointsPerUnit = 100 // number of points per unit of log space
 
     val grid = (minLogDelta * pointsPerUnit to maxLogDelta * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (minLogDelta to logMax by logres)
     val logLkhdFunction = (useML, optNumEigs) match {
-      case (true, Some(numEigs)) => TestingML // LogLkhdMLLowRank
+      case (true, Some(numEigs)) =>  LogLkhdMLLowRank
       case (true, None) => LogLkhdML
       case (false, Some(numEigs)) => LogLkhdREMLLowRank
       case (false, None) => LogLkhdREML
