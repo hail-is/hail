@@ -73,10 +73,10 @@ object LinearMixedRegression {
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
     val eigK = eigSymD(K)
-    val Ut = eigK.eigenvectors.t
-    val S = eigK.eigenvalues // increasing order
+    val FullU = eigK.eigenvectors
+    val FullS = eigK.eigenvalues // increasing order
 
-    assert(S.length == n)
+    assert(FullS.length == n)
         
     info("lmmreg: 20 largest evals: " + ((n - 1) to math.max(0, n - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
     info("lmmreg: 20 smallest evals: " + (0 until math.min(n, 20)).map(S(_).formatted("%.5f")).mkString(", "))
@@ -86,7 +86,25 @@ object LinearMixedRegression {
       case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
-    val diagLMM = DiagLMM(cov, y, S, eigK.eigenvectors, optNumEigs, optDelta, useML)
+    val U = optNumEigs match {
+      case Some(num) => {
+        val len = FullS.length
+        FullU(::, (len - num) until len)
+      }
+      case None => FullU
+    }
+
+    val S = optNumEigs match {
+      case Some(num) => {
+        val len = FullS.length
+        FullS((len - num) until len)
+      }
+      case None => FullS
+    }
+
+    val Ut = U.t
+
+    val diagLMM = DiagLMM(cov, y, FullS, FullU, optNumEigs, optDelta, useML)
 
     val delta = diagLMM.delta
     val globalBetaMap = covNames.zip(diagLMM.globalB.toArray).toMap
