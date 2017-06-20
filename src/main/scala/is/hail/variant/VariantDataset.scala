@@ -309,7 +309,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def exportGenotypes(path: String, expr: String, typeFile: Boolean,
-    printRef: Boolean = false, printMissing: Boolean = false) {
+    printRef: Boolean = false, printMissing: Boolean = false, parallel: Boolean = false) {
 
     val localPrintRef = printRef
     val localPrintMissing = printMissing
@@ -317,7 +317,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     val filterF: Genotype => Boolean =
       g => (!g.isHomRef || localPrintRef) && (!g.isNotCalled || localPrintMissing)
 
-    vds.exportGenotypes(path, expr, typeFile, filterF)
+    vds.exportGenotypes(path, expr, typeFile, filterF, parallel)
   }
 
   def exportPlink(path: String, famExpr: String = "id = s") {

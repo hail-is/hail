@@ -1125,8 +1125,9 @@ class VariantDataset(object):
                       expr=strlike,
                       types=bool,
                       export_ref=bool,
-                      export_missing=bool)
-    def export_genotypes(self, output, expr, types=False, export_ref=False, export_missing=False):
+                      export_missing=bool,
+                      parallel=bool)
+    def export_genotypes(self, output, expr, types=False, export_ref=False, export_missing=False, parallel=False):
         """Export genotype-level information to delimited text file.
 
         **Examples**
@@ -1159,12 +1160,14 @@ class VariantDataset(object):
         :param bool export_ref: If true, export reference genotypes. Only applicable if the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         :param bool export_missing: If true, export missing genotypes.
+
+        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
         """
 
         if self._is_generic_genotype:
-            self._jvdf.exportGenotypes(output, expr, types, export_missing)
+            self._jvdf.exportGenotypes(output, expr, types, export_missing, parallel)
         else:
-            self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing)
+            self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing, parallel)
 
     @handle_py4j
     @requireTGenotype
@@ -1272,8 +1275,9 @@ class VariantDataset(object):
     @handle_py4j
     @typecheck_method(output=strlike,
                       expr=strlike,
-                      types=bool)
-    def export_variants(self, output, expr, types=False):
+                      types=bool,
+                      parallel=bool)
+    def export_variants(self, output, expr, types=False, parallel=False):
         """Export variant information to delimited text file.
 
         **Examples**
@@ -1351,9 +1355,11 @@ class VariantDataset(object):
         :param str expr: Export expression for values to export.
 
         :param bool types: Write types of exported columns to a file at (output + ".types")
+
+        :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvds.exportVariants(output, expr, types)
+        self._jvds.exportVariants(output, expr, types, parallel)
 
     @handle_py4j
     @typecheck_method(output=strlike,
