@@ -34,7 +34,8 @@ object LinearMixedRegression {
     optDelta: Option[Double],
     sparsityThreshold: Double,
     useDosages: Boolean,
-    optNumEigs: Option[Int] = None): VariantDataset = {
+    optNumEigs: Option[Int] = None,
+    optIgnoredVarianceFraction: Option[Double] = None): VariantDataset = {
 
     require(assocVds.wasSplit)
 
@@ -75,6 +76,7 @@ object LinearMixedRegression {
     val eigK = eigSymD(K)
     val FullU = eigK.eigenvectors
     val FullS = eigK.eigenvalues // increasing order
+    val fullNumEigs = FullS.length
 
     assert(FullS.length == n)
 
@@ -83,35 +85,32 @@ object LinearMixedRegression {
       case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
-    val U = optNumEigs match {
-      case Some(num) => {
-        val len = FullS.length
-        FullU(::, (len - num) until len)
+    var numEigs = optNumEigs.getOrElse(n)
+
+    val ignoredVarianceFraction = optIgnoredVarianceFraction.getOrElse(1E-6)
+
+    numEigs = {
+      val trace = FullS.toArray.sum
+      var i = fullNumEigs - 1
+      var runningSum = 0.0
+      val target = ignoredVarianceFraction * trace
+      while (i > numEigs || runningSum < target) {
+        runningSum += FullS(-i)
+        i -= 1
       }
-      case None => FullU
+      math.min(numEigs, i + 1)
     }
 
-    val S = optNumEigs match {
-      case Some(num) => {
-        val len = FullS.length
-        FullS((len - num) until len)
-      }
-      case None => FullS
-    }
+    val U = FullU(::, (fullNumEigs - numEigs) until fullNumEigs)
 
-    val numEigs = optNumEigs match {
-      case Some(num) => {
-        num
-      }
-      case None => n
-    }
+    val S = FullS((fullNumEigs - numEigs) until fullNumEigs)
 
-    info("lmmreg: 20 largest evals: " + ((numEigs - 1) to math.max(0, numEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
-    info("lmmreg: 20 smallest evals: " + (0 until math.min(numEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
+    info("lmmreg: 20 largest evals: " + ((fullNumEigs - 1) to math.max(0, fullNumEigs - 20) by -1).map(FullS(_).formatted("%.5f")).mkString(", "))
+    info("lmmreg: 20 smallest evals: " + (0 until math.min(fullNumEigs, 20)).map(FullS(_).formatted("%.5f")).mkString(", "))
 
     val Ut = U.t
 
-    val diagLMM = DiagLMM(cov, y, S, U, optNumEigs, optDelta, useML)
+    val diagLMM = DiagLMM(cov, y, S, U, optDelta, useML)
 
     val delta = diagLMM.delta
     val globalBetaMap = covNames.zip(diagLMM.globalB.toArray).toMap
@@ -195,11 +194,10 @@ object DiagLMM {
     y: DenseVector[Double],
     S: DenseVector[Double],
     U: DenseMatrix[Double],
-    optNumEigs: Option[Int],
     optDelta: Option[Double] = None,
     useML: Boolean = false): DiagLMM = {
 
-    new DiagLMMSolver(C, y, S, U, optNumEigs, optDelta, useML).solve()
+    new DiagLMMSolver(C, y, S, U, optDelta, useML).solve()
   }
 }
 
@@ -209,7 +207,6 @@ class DiagLMMSolver(
   y: DenseVector[Double],
   S: DenseVector[Double],
   U: DenseMatrix[Double],
-  optNumEigs: Option[Int],
   optDelta: Option[Double] = None,
   useML: Boolean = false) {
 

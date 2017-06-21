@@ -73,12 +73,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val S = eigRRM.eigenvalues
 
 
-    val model = DiagLMM(C, y, S, eigRRM.eigenvectors, None, Some(delta))
+    val model = DiagLMM(C, y, S, eigRRM.eigenvectors, optDelta = Some(delta))
 
     TestUtils.assertVectorEqualityDouble(beta, model.globalB)
     assert(D_==(sg2, model.globalS2))
 
-    val modelML = DiagLMM(C, y, S, eigRRM.eigenvectors, None, Some(delta), useML = true)
+    val modelML = DiagLMM(C, y, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = true)
 
     TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
@@ -113,7 +113,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TDouble, "sa.cov2")
     val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= 2)
 
-    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta))
+    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), ignoredVarianceFraction = Some(0))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
@@ -147,7 +147,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.sampleIds.zip(pheno).toMap, TDouble, "sa.pheno")
       .annotateSamples(vds0.sampleIds.zip(cov1).toMap, TDouble, "sa.cov1")
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TDouble, "sa.cov2")
-      .lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), useDosages = true)
+      .lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), useDosages = true, ignoredVarianceFraction = Some(0))
     
     val directResult1 = (0 until 2).map { j => (Variant("1", j + 1, "A", "C"), lmmfit(dosageMat(::, j to j))) }.toMap
     
@@ -229,12 +229,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val Ut = eigRRM.eigenvectors.t
     val S = eigRRM.eigenvalues
 
-    val model = DiagLMM(C, y, S, eigRRM.eigenvectors, optNumEigs = None, optDelta = Some(delta), useML = false)
+    val model = DiagLMM(C, y, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = false)
 
     TestUtils.assertVectorEqualityDouble(beta, model.globalB)
     assert(D_==(sg2, model.globalS2))
 
-    val modelML = DiagLMM(C, y, S, eigRRM.eigenvectors, optNumEigs = None, optDelta = Some(delta), useML = true)
+    val modelML = DiagLMM(C, y, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = true)
 
     TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
@@ -263,7 +263,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(covData, covSchema, "sa.covs")
     val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= mW)
 
-    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = covExpr, delta = Some(delta))
+    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = covExpr, delta = Some(delta), ignoredVarianceFraction = Some(0))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
@@ -431,29 +431,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     vdsAssoc.count()
   }
 
-  //Tests that asking for the full number of eigenvectors is the same as not specifying.
-  @Test def testFullRank() {
-    val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
-
-    val notChr1RRM = vdsFastLMM.filterVariantsExpr("""v.contig != "1"""").rrm()
-
-    vdsChr1.count()
-
-    //ML TESTS
-    val vdsChr1LowRankML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, nEigs = Some(250))
-
-    val vdsChr1FullRankML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false)
-
-    globalLMMCompare(vdsChr1LowRankML, vdsChr1FullRankML)
-
-    //REML TESTS
-    val vdsChr1LowRankREML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), runAssoc = false, nEigs = Some(250))
-
-    val vdsChr1FullRankREML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), runAssoc = false)
-
-    globalLMMCompare(vdsChr1FullRankREML, vdsChr1LowRankREML)
-  }
-
   //Tests that on a rank K NxN kinship matrix, asking for K eigenvectors gives same result as using all N eigenvectors
   @Test def testFullRankAndLowRank() {
     val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
@@ -492,11 +469,19 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vdsSmall = hc.readVDS("src/test/resources/smallLMMReg.vds")
     val rrm = vdsSmall.rrm()
     val vdsLmmreg = vdsSmall.lmmreg(rrm, "sa.pheno")
+    println(vdsLmmreg.queryGlobal("global.lmmreg.nEigs"))
 
     val vdsLmmregLowRank = vdsSmall.lmmreg(rrm, "sa.pheno", nEigs = Some(3))
 
     globalLMMCompare(vdsLmmreg, vdsLmmregLowRank)
 
     assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
+  }
+
+  @Test def testVarianceFraction() {
+    val vdsSmall = hc.readVDS("src/test/resources/smallLMMReg.vds")
+    val rrm = vdsSmall.rrm()
+    val vdsLmmreg = vdsSmall.lmmreg(rrm, "sa.pheno", ignoredVarianceFraction = Some(0.3))
+    assert(vdsLmmreg.queryGlobal("global.lmmreg.nEigs")._2 == 2)
   }
 }
