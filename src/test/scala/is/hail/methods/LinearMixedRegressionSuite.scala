@@ -464,14 +464,15 @@ class LinearMixedRegressionSuite extends SparkSuite {
     assert(D_==(vds1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double],
       vds2.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]))
   }
+
+  lazy val vdsSmall = hc.readVDS("src/test/resources/smallLMMReg.vds")
+  lazy val vdsSmallRRM = vdsSmall.rrm()
   
   @Test def testSmall() {
-    val vdsSmall = hc.readVDS("src/test/resources/smallLMMReg.vds")
-    val rrm = vdsSmall.rrm()
-    val vdsLmmreg = vdsSmall.lmmreg(rrm, "sa.pheno")
+    val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno")
     println(vdsLmmreg.queryGlobal("global.lmmreg.nEigs"))
 
-    val vdsLmmregLowRank = vdsSmall.lmmreg(rrm, "sa.pheno", nEigs = Some(3))
+    val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
 
     globalLMMCompare(vdsLmmreg, vdsLmmregLowRank)
 
@@ -479,9 +480,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
   }
 
   @Test def testVarianceFraction() {
-    val vdsSmall = hc.readVDS("src/test/resources/smallLMMReg.vds")
-    val rrm = vdsSmall.rrm()
-    val vdsLmmreg = vdsSmall.lmmreg(rrm, "sa.pheno", ignoredVarianceFraction = Some(0.3))
+    val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", ignoredVarianceFraction = Some(0.3))
     assert(vdsLmmreg.queryGlobal("global.lmmreg.nEigs")._2 == 2)
   }
 }
