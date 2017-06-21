@@ -4210,11 +4210,14 @@ class VariantDataset(object):
 
         We can fix this by setting the attributes of these fields:
 
-        >>> annotated_vds = (vds.set_va_attributes('va.info.AC_HC',
-        ...                                        {'Description':'Allele count for high quality genotypes (DP >= 10, GQ >= 20)',
-        ...                                         'Number': 'A'})
-        ...                     .set_va_attributes('va.filters',
-        ...                                        {'HardFilter': 'This site fails GATK suggested hard filters.'}))
+        >>> annotated_vds = (annotated_vds
+        ...     .set_va_attributes(
+        ...         'va.info.AC_HC',
+        ...         {'Description': 'Allele count for high quality genotypes (DP >= 10, GQ >= 20)',
+        ...          'Number': 'A'})
+        ...     .set_va_attributes(
+        ...         'va.filters',
+        ...         {'HardFilter': 'This site fails GATK suggested hard filters.'}))
 
         Exporting the VDS with the attributes now prints the following header lines:
 
