@@ -551,7 +551,7 @@ class KeyTable(object):
 
         **Examples**
 
-        Assume ``kt`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
+        Assume ``kt1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
         C3.
 
         Select/drop columns:
@@ -575,6 +575,29 @@ class KeyTable(object):
 
         new_key = [k for k in self.key if k in column_names]
         return KeyTable(self.hc, self._jkt.select(column_names, new_key))
+
+    @handle_py4j
+    @typecheck_method(column_names=listof(strlike))
+    def drop(self, column_names):
+        """Drop columns.
+
+        **Examples**
+
+        Assume ``kt1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
+        C3.
+
+        Drop columns:
+
+        >>> kt_result = kt1.drop(['C1', 'C2'])
+
+        :param column_names: List of columns to be dropped.
+        :type: list of str
+
+        :return: Key table with dropped columns.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.drop(column_names))
 
     @handle_py4j
     @typecheck_method(expand=bool,

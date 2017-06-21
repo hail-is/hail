@@ -270,20 +270,41 @@ class KeyTableSuite extends SparkSuite {
     assert((select4.key sameElements Array.empty[String]) && (select4.fieldNames sameElements Array.empty[String]))
 
     intercept[HailException](kt.select(Array.empty[String], Array("Sample")))
-
     intercept[HailException](kt.select(Array("Sample", "field2", "field5"), Array("Sample")))
 
-    val outputFile1 = tmpDir.createTempFile("select1", "tsv")
-    select1.export(outputFile1)
+    for (drop <- Array(select1, select2, select3, select4)) {
+      drop.export(tmpDir.createTempFile("select", "tsv"))
+    }
+  }
 
-    val outputFile2 = tmpDir.createTempFile("select2", "tsv")
-    select2.export(outputFile2)
+  @Test def testDrop() {
+    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
+    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
+    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
 
-    val outputFile3 = tmpDir.createTempFile("select3", "tsv")
-    select3.export(outputFile3)
+    val kt = KeyTable(hc, rdd, signature, Array("Sample"))
+    val drop0 = kt.drop(Array.empty[String])
+    assert((drop0.key sameElements Array("Sample")) && (drop0.fieldNames sameElements Array("Sample", "field1", "field2")))
+    val drop1 = kt.drop(Array("Sample"))
+    assert((drop1.key sameElements Array.empty[String]) && (drop1.fieldNames sameElements Array("field1", "field2")))
+    val drop2 = kt.drop(Array("field1", "field2"))
+    assert((drop2.key sameElements Array("Sample")) && (drop2.fieldNames sameElements Array("Sample")))
+    val drop3 = kt.drop(Array("Sample", "field1"))
+    assert((drop3.key sameElements Array.empty[String]) && (drop3.fieldNames sameElements Array("field2")))
+    val drop4 = kt.drop(Array("Sample", "field2"))
+    assert((drop4.key sameElements Array.empty[String]) && (drop4.fieldNames sameElements Array("field1")))
+    val drop5 = kt.drop(Array("Sample", "field1", "field2"))
+    assert((drop5.key sameElements Array.empty[String]) && (drop5.fieldNames sameElements Array.empty[String]))
 
-    val outputFile4 = tmpDir.createTempFile("select4", "tsv")
-    select4.export(outputFile4)
+    val kt2 = KeyTable(hc, rdd, signature, Array("field1", "field2"))
+    val drop6 = kt2.drop(Array("field1"))
+    assert((drop6.key sameElements Array("field2")) && (drop6.fieldNames sameElements Array("Sample", "field2")))
+
+    for (drop <- Array(drop0, drop1, drop2, drop3, drop4, drop5, drop6)) {
+      drop.export(tmpDir.createTempFile("drop", "tsv"))
+    }
+
+    intercept[HailException](kt.drop(Array("notInKT1", "notInKT2")))
   }
 
   @Test def testExplode() {
