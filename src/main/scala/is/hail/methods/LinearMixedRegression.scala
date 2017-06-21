@@ -83,9 +83,6 @@ object LinearMixedRegression {
       case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
-    println("U")
-    //println(FullU.toString(100, 600))
-
     val U = optNumEigs match {
       case Some(num) => {
         val len = FullS.length
@@ -93,8 +90,6 @@ object LinearMixedRegression {
       }
       case None => FullU
     }
-
-    println(U.toString(100, 600))
 
     val S = optNumEigs match {
       case Some(num) => {
@@ -139,15 +134,15 @@ object LinearMixedRegression {
     }
 
     val vds1 = assocVds.annotateGlobal(
-      Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, S.data.reverse: IndexedSeq[Double]),
+      Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, FullS.data.reverse: IndexedSeq[Double], numEigs),
       TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
-        ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble))), rootGA)
+        ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble)), ("nEigs", TInt)), rootGA)
 
     val vds2 = diagLMM.optGlobalFit match {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
-          Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals),
+          Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals, numEigs),
           TStruct(("seH2", TDouble), ("normLkhdH2", TArray(TDouble)), ("maxLogLkhd", TDouble),
             ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
       case None =>
@@ -262,10 +257,6 @@ class DiagLMMSolver(
     val TC = UtC(::, *) :* sqrtInvD
     val Ty = Uty :* sqrtInvD
     val TyTy = Ty dot Ty
-    val TCTy = TC.t * Ty
-    val TCTC = TC.t * TC
-    //val b = TCTC \ TCTy*/
-    //val s2 = (TyTy - (TCTy dot b)) / (if (useML) n else n - UtC.cols)
 
     DiagLMM(b, s2, math.log(s2), delta, optGlobalFit, sqrtInvD, TC, Ty, TyTy, useML)
   }
@@ -273,27 +264,9 @@ class DiagLMMSolver(
   def fitDelta(): (Double, GlobalFitLMM) = {
 
     object LogLkhdML extends UnivariateFunction {
-      val shift: Double = n * (1 + math.log(2 * math.Pi) + math.log(1d / n))
-
-      def value(logDelta: Double): Double = {
-
-        val invD = (S + FastMath.exp(logDelta)).map(1 / _)
-        val dy = Uty :* invD
-        val ydy = Uty dot dy
-        val Cdy = UtC.t * dy
-        val CdC = UtC.t * (UtC(::, *) :* invD)
-        val b = CdC \ Cdy
-        val r = ydy - (Cdy dot b)
-
-        -0.5 * (-sum(breeze.numerics.log(invD)) + n * math.log(r) + shift)
-      }
-    }
-
-    object LogLkhdMLLowRank extends UnivariateFunction {
       val shift = n * (math.log(2 * math.Pi) + 1 + math.log(1d / n))
 
       def value(logDelta: Double): Double = {
-        //Letting S have only the K eigenvalues so that S here is equivalent to S1 in paper
         val delta = FastMath.exp(logDelta)
         val D = S + delta
         val dy = Uty :/ D
@@ -322,30 +295,8 @@ class DiagLMMSolver(
     }
 
     object LogLkhdREML extends UnivariateFunction {
-      def value(logDelta: Double): Double = {
-        val invD = (S + FastMath.exp(logDelta)).map(1 / _)
-        val dy = Uty :* invD
-        val ydy = Uty dot dy
-        val Cdy = UtC.t * dy
-        val CdC = UtC.t * (UtC(::, *) :* invD)
-        val b = CdC \ Cdy
-        val r2 = ydy - (Cdy dot b)
-        
-        val sigma2 = r2 / (n - d)
-
-        
-        val logdetK = -sum(breeze.numerics.log(invD))
-        val logdetXKX = logdet(CdC)._2
-        val logdetXX = logdet(CtC)._2
-        
-        -0.5 * (logdetK + logdetXKX - logdetXX + (n - d) * (math.log(2 * math.Pi * sigma2) + 1)) // FIXME: add shift
-      }
-    }
-
-    object LogLkhdREMLLowRank extends UnivariateFunction {
 
       def value(logDelta: Double): Double = {
-        //Letting S have only the K eigenvalues so that S here is equivalent to S1 in paper
         val delta = FastMath.exp(logDelta)
         val D = S + delta
         val dy = Uty :/ D
@@ -379,14 +330,7 @@ class DiagLMMSolver(
     val pointsPerUnit = 100 // number of points per unit of log space
 
     val grid = (minLogDelta * pointsPerUnit to maxLogDelta * pointsPerUnit).map(_.toDouble / pointsPerUnit) // avoids rounding of (minLogDelta to logMax by logres)
-    val logLkhdFunction = (useML, optNumEigs) match {
-      case (true, Some(numEigs)) =>  LogLkhdMLLowRank
-      case (true, None) => LogLkhdML
-      case (false, Some(numEigs)) => LogLkhdREMLLowRank
-      case (false, None) => LogLkhdREML
-    }
-
-    println("The name is " + logLkhdFunction.getClass.getName)
+    val logLkhdFunction = if (useML) LogLkhdML else LogLkhdREML
 
     val gridLogLkhd = grid.map(logDelta => (logDelta, logLkhdFunction.value(logDelta)))
 
@@ -400,7 +344,6 @@ class DiagLMMSolver(
       fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta lower search boundary e^$minLogDelta = ${FastMath.exp(minLogDelta)}, indicating negligible enviromental component of variance. The model is likely ill-specified.")
     else if (approxLogDelta == maxLogDelta)
       fatal(s"lmmreg: failed to fit delta: ${if (useML) "ML" else "REML"} realized at delta upper search boundary e^$maxLogDelta = ${FastMath.exp(maxLogDelta)}, indicating negligible genetic component of variance. Standard linear regression may be more appropriate.")
-
 
     val searchInterval = new SearchInterval(minLogDelta, maxLogDelta, approxLogDelta)
     val goal = GoalType.MAXIMIZE

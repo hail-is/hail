@@ -444,18 +444,17 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val vdsChr1FullRankML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false)
 
-    assert(D_==(vdsChr1LowRankML.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double],
-      vdsChr1FullRankML.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))
+    globalLMMCompare(vdsChr1LowRankML, vdsChr1FullRankML)
 
     //REML TESTS
-    /* vdsChr1RestrictedREML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), runAssoc = false, nEigs = Some(250))
+    val vdsChr1LowRankREML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), runAssoc = false, nEigs = Some(250))
 
-    val vdsChr1FullREML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), runAssoc = false)
+    val vdsChr1FullRankREML = vdsChr1.lmmreg(notChr1RRM, "sa.pheno", Array("sa.cov"), runAssoc = false)
 
-    assert(D_==(vdsChr1RestrictedREML.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double],
-      vdsChr1FullREML.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))*/
+    globalLMMCompare(vdsChr1FullRankREML, vdsChr1LowRankREML)
   }
 
+  //Tests that on a rank K NxN kinship matrix, asking for K eigenvectors gives same result as using all N eigenvectors
   @Test def testFullRankAndLowRank() {
     val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
 
@@ -468,16 +467,25 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val vdsChr1LowRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = false, runAssoc = false, nEigs = Some(242))
 
-    assert(D_==(vdsChr1LowRankREML.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double],
-      vdsChr1FullRankREML.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))
+    globalLMMCompare(vdsChr1FullRankREML, vdsChr1LowRankREML)
 
     //ML TESTS
-    /*val vdsChr1FullRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, delta = None)
+    val vdsChr1FullRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, delta = None)
 
     val vdsChr1LowRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, nEigs = Some(242))
 
-    assert(D_==(vdsChr1LowRankML.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double],
-      vdsChr1FullRankML.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))*/
+    globalLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
+  }
+
+  private def globalLMMCompare(vds1: VariantDataset, vds2: VariantDataset) {
+    assert(D_==(vds1.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]].apply("intercept"),
+      vds2.queryGlobal("global.lmmreg.beta")._2.asInstanceOf[Map[String, Double]].apply("intercept")))
+
+    assert(D_==(vds1.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double],
+      vds2.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))
+
+    assert(D_==(vds1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double],
+      vds2.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]))
   }
   
   @Test def testSmall() {
@@ -487,7 +495,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val vdsLmmregLowRank = vdsSmall.lmmreg(rrm, "sa.pheno", nEigs = Some(3))
 
-    assert(D_==(vdsLmmreg.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double],
-      vdsLmmregLowRank.queryGlobal("global.lmmreg.delta")._2.asInstanceOf[Double]))
+    globalLMMCompare(vdsLmmreg, vdsLmmregLowRank)
+
+    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
   }
 }
