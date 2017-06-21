@@ -2983,7 +2983,7 @@ class VariantDataset(object):
 
         :param int n_eigs: Number of eigenvectors to use.
 
-        :param float ignored_variance_fraction: Fraction of the total variance that can be safely ignored.
+        :param float ignored_variance_fraction: Fraction of the total variance that will be ignored by leaving out small eigenvalues.
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
