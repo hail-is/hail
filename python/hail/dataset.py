@@ -550,7 +550,7 @@ class VariantDataset(object):
           - ``s`` (*String*): sample ID
           - ``sa``: sample annotations
         
-        **The ``root`` and ``expr`` arguments**
+        **The** ``root`` **and** ``expr`` **arguments**
         
         .. note::
         
@@ -4198,9 +4198,10 @@ class VariantDataset(object):
         ... '(va.info.QD < 2.0 || va.info.FS < 200.0 || va.info.ReadPosRankSum < 20.0)) va.filters.add("HardFilter") else va.filters'])
 
         If we now export this VDS as VCF, it would produce the following header (for these new fields):
-        ```
-        ##INFO=<ID=AC_HC,Number=.,Type=String,Description=""
-        ```
+
+        .. code-block:: text
+
+            ##INFO=<ID=AC_HC,Number=.,Type=String,Description=""
 
         This header doesn't contain all information that should be present in an optimal VCF header:
         1) There is no FILTER entry for `HardFilter`
@@ -4208,15 +4209,22 @@ class VariantDataset(object):
         3) `AC_HC` should have a Description
 
         We can fix this by setting the attributes of these fields:
-        >>> annotated_vds = vds.set_va_attributes('va.info.AC_HC', {'Description':'Allele count for high quality genotypes (DP >= 10, GQ >= 20)',
-        ... 'Number': 'A'})
-        >>> annotated_vds = vds.set_va_attributes('va.filters', {'HardFilter': 'This site fails GATK suggested hard filters.'})
+
+        >>> annotated_vds = (annotated_vds
+        ...     .set_va_attributes(
+        ...         'va.info.AC_HC',
+        ...         {'Description': 'Allele count for high quality genotypes (DP >= 10, GQ >= 20)',
+        ...          'Number': 'A'})
+        ...     .set_va_attributes(
+        ...         'va.filters',
+        ...         {'HardFilter': 'This site fails GATK suggested hard filters.'}))
 
         Exporting the VDS with the attributes now prints the following header lines:
-        ```
-        ##INFO=<ID=test,Number=A,Type=String,Description="Allele count for high quality genotypes (DP >= 10, GQ >= 20)"
-        ##FILTER=<ID=HardFilter,Description="This site fails GATK suggested hard filters.">
-        ```
+
+        .. code-block:: text
+
+            ##INFO=<ID=test,Number=A,Type=String,Description="Allele count for high quality genotypes (DP >= 10, GQ >= 20)"
+            ##FILTER=<ID=HardFilter,Description="This site fails GATK suggested hard filters.">
 
         :param str ann_path: Path to variant annotation beginning with `va`.
 
