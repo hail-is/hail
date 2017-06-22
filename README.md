@@ -2,7 +2,7 @@
 
 [![Gitter](https://badges.gitter.im/hail-is/hail.svg)](https://gitter.im/hail-is/hail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![CI Status](https://ci.hail.is/app/rest/builds/buildType:(id:HailSourceCode_HailCi)/statusIcon)](https://ci.hail.is/viewType.html?buildTypeId=HailSourceCode_HailCi&branch_HailSourceCode_HailMainline=%3Cdefault%3E&tab=buildTypeStatusDiv)
 
-[Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. Starting from sequencing or microarray data in [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) or [PLINK](https://www.cog-genomics.org/plink2/formats) format, Hail can, for example:
+[Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. Starting from genetic data in [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) or [PLINK](https://www.cog-genomics.org/plink2/formats) format, Hail can, for example:
 
  - load variant and sample annotations from text tables, JSON, VCF, VEP, and locus interval files
  - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count
