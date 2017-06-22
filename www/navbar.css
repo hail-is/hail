@@ -40,6 +40,10 @@
   text-decoration: none;
 }
 
+#hail-navbar #hail-navbar-collapse .navbar-right {
+  margin-right: -50px;
+}
+
 #hail-navbar .dropdown-menu {
   min-width: 100px;
   background-color: #FFFFFF;
