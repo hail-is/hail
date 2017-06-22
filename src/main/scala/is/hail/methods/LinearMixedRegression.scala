@@ -261,7 +261,7 @@ class DiagLMMSolver(
   def fitDelta(): (Double, GlobalFitLMM) = {
 
     object LogLkhdML extends UnivariateFunction {
-      val shift = n * (math.log(2 * math.Pi) + 1 + math.log(1d / n))
+      val shift = -0.5 * n * (1 + math.log(2.0 * math.Pi))
 
       def value(logDelta: Double): Double = {
         val delta = FastMath.exp(logDelta)
@@ -280,18 +280,19 @@ class DiagLMMSolver(
         val k = S.length
         val b = CdC \ Cdy
 
-        val logdetK = sum(breeze.numerics.log(D)) + (n - k) * logDelta
+        val logdetD = sum(breeze.numerics.log(D)) + (n - k) * logDelta
 
         val r2 = ydy - (Cdy dot b)
 
         val sigma2 = r2 / n
 
-        -0.5 * ( logdetK + n * ( math.log(2.0 * math.Pi * sigma2) + 1 ))
+        -0.5 * (logdetD + n * (math.log(sigma2))) + shift
       }
 
     }
 
     object LogLkhdREML extends UnivariateFunction {
+      val shift = -0.5 * (n - d) * (1 + math.log(2 * math.Pi))
 
       def value(logDelta: Double): Double = {
         val delta = FastMath.exp(logDelta)
@@ -314,11 +315,11 @@ class DiagLMMSolver(
         val r2 = ydy - (Cdy dot b)
         val sigma2 = r2 / (n - d)
 
-        val logdetK = sum(breeze.numerics.log(D)) + (n - k) * logDelta
-        val logdetXKX = logdet(CdC)._2
-        val logdetXX = logdet(CtC)._2
+        val logdetD = sum(breeze.numerics.log(D)) + (n - k) * logDelta
+        val logdetCdC = logdet(CdC)._2
+        val logdetCtC = logdet(CtC)._2
 
-        -0.5 * (logdetK + logdetXKX - logdetXX + (n - d) * (math.log(2 * math.Pi * sigma2) + 1))
+        -0.5 * (logdetD + logdetCdC - logdetCtC + (n - d) * (math.log(sigma2))) + shift
       }
     }
 

@@ -4,7 +4,7 @@ import breeze.linalg._
 import breeze.numerics.{abs, exp, sigmoid}
 import breeze.stats.mean
 import is.hail.annotations._
-import is.hail.expr.{TDouble, TStruct}
+import is.hail.expr.{TArray, TDouble, TStruct}
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
@@ -465,12 +465,31 @@ class LinearMixedRegressionSuite extends SparkSuite {
       vds2.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]))
   }
 
-  lazy val vdsSmall = hc.readVDS("src/test/resources/smallLMMReg.vds")
+  lazy val smallMat = DenseMatrix(
+    (1, 2, 0),
+    (2, 1, 1),
+    (1, 1, 1),
+    (0, 0, 2),
+    (1, 0, 1),
+    (0, 1, 1),
+    (2, 2, 2),
+    (2, 0, 1),
+    (1, 0, 0),
+    (1, 1, 2))
+
+  val rand = new scala.util.Random()
+  rand.setSeed(5)
+  val randomNorms = (1 to 10).map(x => rand.nextGaussian())
+
+  lazy val vdsSmall = vdsFromGtMatrix(hc)(smallMat)
+    .annotateSamplesExpr("sa.culprit = gs.filter(g => v.start == 2).map(g => g.gt).collect()[0]")
+    .annotateGlobal(randomNorms, TArray(TDouble), "global.randNorms")
+    .annotateSamplesExpr("sa.pheno = sa.culprit + global.randNorms[s.toInt]")
+
   lazy val vdsSmallRRM = vdsSmall.rrm()
   
   @Test def testSmall() {
-    val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno")
-    println(vdsLmmreg.queryGlobal("global.lmmreg.nEigs"))
+    val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", ignoredVarianceFraction = Some(0))
 
     val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
 
