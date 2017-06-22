@@ -485,13 +485,6 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(key, list):
-            for k in key:
-                if not isinstance(k, str) and not isinstance(k, unicode):
-                    raise TypeError("expected str or unicode elements of 'key' list, but found %s" % type(k))
-        elif not isinstance(key, str) and not isinstance(key, unicode):
-            raise TypeError("expected str or list of str for parameter 'key', but found %s" % type(key))
-
         return KeyTable(self.hc, self._jkt.keyBy(wrap_to_list(key)))
 
     @handle_py4j
@@ -572,12 +565,6 @@ class KeyTable(object):
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
-        if isinstance(column_names, list):
-            for c in column_names:
-                if not isinstance(c, str) and not isinstance(c, unicode):
-                    raise TypeError("expected str or unicode elements of 'column_names' list, but found %s" % type(c))
-        elif not isinstance(column_names, str) and not isinstance(column_names, unicode):
-            raise TypeError("expected str or list of str for parameter 'column_names', but found %s" % type(column_names))
 
         column_names = wrap_to_list(column_names)
         new_key = [k for k in self.key if k in column_names]
@@ -605,12 +592,6 @@ class KeyTable(object):
         :return: Key table with dropped columns.
         :rtype: :class:`.KeyTable`
         """
-        if isinstance(column_names, list):
-            for c in column_names:
-                if not isinstance(c, str) and not isinstance(c, unicode):
-                    raise TypeError("expected str or unicode elements of 'column_names' list, but found %s" % type(c))
-        elif not isinstance(column_names, str) and not isinstance(column_names, unicode):
-            raise TypeError("expected str or list of str for parameter 'column_names', but found %s" % type(column_names))
 
         return KeyTable(self.hc, self._jkt.drop(wrap_to_list(column_names)))
 
@@ -763,9 +744,7 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(column_names, str):
-            column_names = [column_names]
-        return KeyTable(self.hc, self._jkt.explode(column_names))
+        return KeyTable(self.hc, self._jkt.explode(wrap_to_list(column_names)))
 
     @handle_py4j
     @typecheck_method(exprs=oneof(strlike, listof(strlike)))
