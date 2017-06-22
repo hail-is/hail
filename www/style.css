@@ -308,70 +308,24 @@ table td {
   }
 }
 
-div.optlistcont {
-    display: table;
-    width: 100%;
-
+#banner:visited {
+    text-decoration: none;
 }
 
-div.opt_required, div.opt_optional {
-    display: table-cell;
-    width: 50%;
-    padding-right: 50px;
+#banner:hover {
+    text-decoration: none;
 }
 
-dt.optkey {
-    margin-bottom: 0em;
+#banner-jobs {
+    margin-top: 1em;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    height: 60px;
+    line-height: 60px;
 }
 
-dd.optdef {
-    line-height: 1.4em;
-}
-
-h4.required, h4.optional {
-    margin-bottom: 0em;
-    margin-top: 0em;
-}
-
-#body > div:not(.command) > *:not(h1):not(h2) {
-    position: relative;
-    margin-left: 50px;
-}
-
-.command > *:not(.cmdhead) {
-    position: relative;
-    margin-left: 50px;
-}
-
-pre {
-    border-radius: 3px;
-    border: 1px solid black;
-    overflow-x: auto;
-    white-space: pre;
-    word-wrap: normal;
-    background: #eee;
-}
-
-pre.synopsis {
-    padding: 0 0 0 2em;
-    text-indent: -2em;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    word-break: normal;
-}
-
-pre > code {
-  line-height: 1.1;
-  display: block;
-  padding: .5em .5em;
-}
-
-pre:not(.synopsis) > code  {
-    overflow-wrap: normal;
-    white-space: pre;
-    padding: 10px;
-}
-
-#HailExpressionLanguage li {
-    margin-bottom: 10px;
+#banner-jobs > p {
+    text-align: center;
+    font-size: 28px;
+    margin: 0px;
 }

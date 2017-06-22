@@ -351,7 +351,7 @@ task wrapper(type: Wrapper) {
 }
 
 task cleanHailDocs(type: Exec) {
-    commandLine 'rm', '-rf', 'build/www/hail', 'build/tmp/python', 'build/tmp/docs'
+    commandLine 'rm', '-rf', 'build/www/', 'build/tmp/python', 'build/tmp/docs'
 }
 
 task setupDocsDirs(type: Exec, dependsOn: cleanHailDocs) {
@@ -365,16 +365,31 @@ task copyPDF(type: Copy, dependsOn: setupDocsDirs) {
 
 task copyWebsiteContent(type: Copy, dependsOn: setupDocsDirs) {
     from 'www/'
+    include '*.js'
+    include '*.css'
+    include '*.css.map'
+    include '*.html'
+    include '*.png'
     into 'build/www'
 }
 
-task runPandoc(type: Exec, dependsOn: setupDocsDirs) {
+task readmeToHtml(type: Exec, dependsOn: setupDocsDirs) {
     commandLine 'pandoc', '-s', 'README.md', '-f', 'markdown', '-t', 'html', '--mathjax',
-            '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/docs/README.html'
+            '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/README.html'
 }
 
-task buildIndex(type: Exec, dependsOn: ['runPandoc']) {
-    args('--html', '-o', 'build/tmp/docs/index.html', 'docs/readme-to-index.xslt', 'build/tmp/docs/README.html')
+task jobsToHtml(type: Exec, dependsOn: setupDocsDirs) {
+    commandLine 'pandoc', '-s', 'www/jobs.md', '-f', 'markdown', '-t', 'html', '--mathjax',
+            '--highlight-style=pygments', '--columns', '10000', '-o', 'build/tmp/jobs.html'
+}
+
+task buildIndex(type: Exec, dependsOn: ['readmeToHtml']) {
+    args('--html', '-o', 'build/www/index.html', 'www/readme-to-index.xslt', 'build/tmp/README.html')
+    executable 'xsltproc'
+}
+
+task buildJobs(type: Exec, dependsOn: ['jobsToHtml']) {
+    args('--html', '-o', 'build/www/jobs.html', 'www/jobs.xslt', 'build/tmp/jobs.html')
     executable 'xsltproc'
 }
 
@@ -415,16 +430,16 @@ task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocs
     commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
 }
 
-task copyCompiledDocs(type: Copy, dependsOn: ['buildIndex']) {
-    from 'build/tmp/docs/index.html'
-    into 'build/www'
-}
+//task copyCompiledDocs(type: Copy, dependsOn: ['buildIndex']) {
+//    from 'build/tmp/docs/index.html'
+//    into 'build/www'
+//}
 
-task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocs'])
+task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocs'])
 
 task createDocs(dependsOn: createWebsite)
 
-task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'copyCompiledDocs', 'copyHailDocsNoTest', 'copyPythonDirToTmp'])
+task createDocsNoTest(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocsNoTest', 'copyPythonDirToTmp'])
 
 task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('python') {
