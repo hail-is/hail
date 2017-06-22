@@ -380,6 +380,18 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def select(fieldsSelect: java.util.ArrayList[String], newKeys: java.util.ArrayList[String]): KeyTable =
     select(fieldsSelect.asScala.toArray, newKeys.asScala.toArray)
 
+  def drop(fieldsDrop: Array[String]): KeyTable = {
+    val fieldsNotExist = fieldsDrop.diff(fieldNames)
+    if (fieldsNotExist.nonEmpty)
+      fatal(s"Columns `${ fieldsNotExist.mkString(", ") }' do not exist in key table. Choose from `${ fieldNames.mkString(", ") }'.")
+
+    val fieldsSelect = fieldNames.diff(fieldsDrop)
+    val newKeys = key.diff(fieldsDrop)
+    select(fieldsSelect, newKeys)
+  }
+
+  def drop(fieldsDrop: java.util.ArrayList[String]): KeyTable = drop(fieldsDrop.asScala.toArray)
+
   def rename(fieldNameMap: Map[String, String]): KeyTable = {
     val newSignature = TStruct(signature.fields.map { fd => fd.copy(name = fieldNameMap.getOrElse(fd.name, fd.name)) })
     val newFieldNames = newSignature.fields.map(_.name)

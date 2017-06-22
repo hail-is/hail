@@ -485,13 +485,6 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(key, list):
-            for k in key:
-                if not isinstance(k, str) and not isinstance(k, unicode):
-                    raise TypeError("expected str or unicode elements of 'key' list, but found %s" % type(k))
-        elif not isinstance(key, str) and not isinstance(key, unicode):
-            raise TypeError("expected str or list of str for parameter 'key', but found %s" % type(key))
-
         return KeyTable(self.hc, self._jkt.keyBy(wrap_to_list(key)))
 
     @handle_py4j
@@ -545,18 +538,18 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.flatten())
 
     @handle_py4j
-    @typecheck_method(column_names=listof(strlike))
+    @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def select(self, column_names):
         """Select a subset of columns.
 
         **Examples**
 
-        Assume ``kt`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
+        Assume ``kt1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
         C3.
 
         Select/drop columns:
 
-        >>> kt_result = kt1.select(['C1'])
+        >>> kt_result = kt1.select('C1')
 
         Reorder the columns:
 
@@ -567,14 +560,40 @@ class KeyTable(object):
         >>> kt_result = kt1.select([])
 
         :param column_names: List of columns to be selected.
-        :type: list of str
+        :type: str or list of str
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
 
+        column_names = wrap_to_list(column_names)
         new_key = [k for k in self.key if k in column_names]
         return KeyTable(self.hc, self._jkt.select(column_names, new_key))
+
+    @handle_py4j
+    @typecheck_method(column_names=oneof(strlike, listof(strlike)))
+    def drop(self, column_names):
+        """Drop columns.
+
+        **Examples**
+
+        Assume ``kt1`` is a :py:class:`.KeyTable` with three columns: C1, C2 and
+        C3.
+
+        Drop columns:
+
+        >>> kt_result = kt1.drop('C1')
+
+        >>> kt_result = kt1.drop(['C1', 'C2'])
+
+        :param column_names: List of columns to be dropped.
+        :type: str or list of str
+
+        :return: Key table with dropped columns.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.drop(wrap_to_list(column_names)))
 
     @handle_py4j
     @typecheck_method(expand=bool,
@@ -725,9 +744,7 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
 
-        if isinstance(column_names, str):
-            column_names = [column_names]
-        return KeyTable(self.hc, self._jkt.explode(column_names))
+        return KeyTable(self.hc, self._jkt.explode(wrap_to_list(column_names)))
 
     @handle_py4j
     @typecheck_method(exprs=oneof(strlike, listof(strlike)))
