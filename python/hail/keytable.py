@@ -545,7 +545,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.flatten())
 
     @handle_py4j
-    @typecheck_method(column_names=listof(strlike))
+    @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def select(self, column_names):
         """Select a subset of columns.
 
@@ -556,7 +556,7 @@ class KeyTable(object):
 
         Select/drop columns:
 
-        >>> kt_result = kt1.select(['C1'])
+        >>> kt_result = kt1.select('C1')
 
         Reorder the columns:
 
@@ -567,17 +567,24 @@ class KeyTable(object):
         >>> kt_result = kt1.select([])
 
         :param column_names: List of columns to be selected.
-        :type: list of str
+        :type: str or list of str
 
         :return: Key table with selected columns.
         :rtype: :class:`.KeyTable`
         """
+        if isinstance(column_names, list):
+            for c in column_names:
+                if not isinstance(c, str) and not isinstance(c, unicode):
+                    raise TypeError("expected str or unicode elements of 'column_names' list, but found %s" % type(c))
+        elif not isinstance(column_names, str) and not isinstance(column_names, unicode):
+            raise TypeError("expected str or list of str for parameter 'column_names', but found %s" % type(column_names))
 
+        column_names = wrap_to_list(column_names)
         new_key = [k for k in self.key if k in column_names]
         return KeyTable(self.hc, self._jkt.select(column_names, new_key))
 
     @handle_py4j
-    @typecheck_method(column_names=listof(strlike))
+    @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def drop(self, column_names):
         """Drop columns.
 
@@ -588,16 +595,24 @@ class KeyTable(object):
 
         Drop columns:
 
+        >>> kt_result = kt1.drop('C1')
+
         >>> kt_result = kt1.drop(['C1', 'C2'])
 
         :param column_names: List of columns to be dropped.
-        :type: list of str
+        :type: str or list of str
 
         :return: Key table with dropped columns.
         :rtype: :class:`.KeyTable`
         """
+        if isinstance(column_names, list):
+            for c in column_names:
+                if not isinstance(c, str) and not isinstance(c, unicode):
+                    raise TypeError("expected str or unicode elements of 'column_names' list, but found %s" % type(c))
+        elif not isinstance(column_names, str) and not isinstance(column_names, unicode):
+            raise TypeError("expected str or list of str for parameter 'column_names', but found %s" % type(column_names))
 
-        return KeyTable(self.hc, self._jkt.drop(column_names))
+        return KeyTable(self.hc, self._jkt.drop(wrap_to_list(column_names)))
 
     @handle_py4j
     @typecheck_method(expand=bool,

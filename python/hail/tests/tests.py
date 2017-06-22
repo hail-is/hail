@@ -458,8 +458,11 @@ class ContextTests(unittest.TestCase):
         kt.rename(["Field1", "Field2", "Field3"])
         kt.rename([name + "_a" for name in kt.columns])
 
-        kt.select(["Sample"])
+        kt.select("Sample")
         kt.select(["Sample", "Status"])
+
+        kt.drop("Sample")
+        kt.drop(["Sample", "Status"])
 
         kt.key_by(['Sample', 'Status'])
         kt.key_by([])
