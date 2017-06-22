@@ -9,7 +9,7 @@ from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.representation import Interval, Pedigree, Variant
-from hail.utils import Summary, wrap_to_list
+from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
 
@@ -914,6 +914,265 @@ class VariantDataset(object):
         jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(expr))
 
         return VariantDataset(self.hc, jvds)
+
+    def annotate_variants_db(self, annotations, gene_key=None):
+        """
+        Annotate variants using the Hail annotation database.
+
+        Documentation describing the annotations that are accessible through this method can be found 
+        here_.
+
+        .. _here: annotationdb.html
+
+        **Examples**
+
+        Annotate variants with CADD raw and PHRED scores:
+
+        >>> vds = vds.annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
+
+        Annotate variants with gene-level PLI score, using the VEP-generated gene symbol to map variants to genes: 
+
+        >>> pli_vds = vds.annotate_variants_db(['va.gene.constraint.pli']) # doctest: +SKIP
+
+        Again annotate variants with gene-level PLI score, this time using the existing ``va.gene_symbol`` annotation 
+        to map variants to genes:
+
+        >>> vds = vds.annotate_variants_db(['va.gene.constraint.pli'], gene_key = 'va.gene_symbol') # doctest: +SKIP
+
+        **Notes**
+
+        Annotations in the database are bi-allelic, so splitting multi-allelic variants in the VDS before using this 
+        method is recommended to capture all appropriate annotations from the database. To do this, run :py:meth:`split_multi` 
+        prior to annotating variants with this method:
+
+        >>> vds = vds.split_multi().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
+
+        :param annotations: List of annotations to import from the database.
+        :type annotations: str or list of str 
+
+        :param gene_key: Existing variant annotation used to map variants to gene symbols if importing gene-level 
+            annotations. If not provided, the method will add VEP annotations and parse them as described in the 
+            database documentation to obtain one gene symbol per variant.
+        :type gene_key: str
+
+        :return: Annotated variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        # import modules needed by this function
+        import json
+        
+        # print warning if analysis VDS is not split
+        if not self.was_split():
+            print('Warning: VDS not split. Multi-allelic sites will not be annotated.')
+
+        # collect user-supplied annotations in a set, converting str -> list first if necessary
+        annotations = set([annotations]) if isinstance(annotations, str) else set(annotations)
+
+        # read in database file map from bucket
+        with hadoop_read('gs://annotationdb/file_map.json') as f:
+            files = json.load(f)
+
+        # build dictionary of file: expr for each database file that needs to be read, based on the annotations provided
+        file_exprs = {}
+        for f in files:
+
+            # dictionary of annotation: expr for each underlying file in the database
+            # e.g: file_annotations is {'va.cadd': 'vds', 'va.cadd.RawScore': 'vds.RawScore', 'va.cadd.PHRED': 'vds.PHRED'}
+            file_annotations = f['annotations']
+
+            # "depths" of each annotation
+            # e.g: {'va.cadd': 2, 'va.cadd.RawScore': 3, 'va.cadd.PHRED': 3}
+            depths = {k: len(k.split('.')) for k in file_annotations}
+
+            # maximum "depth"
+            # e.g: 3
+            max_depth = max(depths.values())
+
+            # subset to annotations explicitly in the database file
+            # e.g: [('va.cadd.RawScore', 'vds.RawScore'), ('va.cadd.PHRED', 'vds.PHRED')]
+            terms = [x for x in file_annotations.items() if depths[x[0]] == max_depth]
+
+            # get the "root" annotation of the underlying database file
+            # e.g: 'va.cadd'
+            root = [x for x in file_annotations if depths[x] == max_depth - 1][0]
+
+            # if any of the user-supplied annotations encompass the whole database file, use all annotations
+            # e.g: if 'va' or 'va.cadd', exprs = ['va.cadd.RawScore=vds.RawScore', 'va.cadd.PHRED=va.PHRED']
+            if any([root.startswith(a) for a in annotations]):
+                exprs = ['='.join(x) for x in terms]
+
+            # otherwise, use only those selected
+            # e.g: if 'va.cadd.RawScore', exprs = ['va.cadd.RawScore=va.cadd.RawScore']
+            else:
+                exprs = ['='.join(x) for x in terms if x[0] in annotations]
+
+            # if at least one annotation is needed, add to dictionary
+            # e.g: if 'va.cadd.RawScore' (but not PHRED) is given by the user, 
+            #        add 'gs://annotationdb/cadd/cadd.vds': 'va.cadd.RawScore=vds.RawScore' to dictionary
+            #      if 'va' or 'va.cadd' is given by the user,
+            #        add 'gs://annotationdb/cadd/cadd.vds': 'va.cadd.RawScore=vds.RawScore,vds.cadd.PHRED=vds.PHRED'
+            if exprs:
+                file_exprs[f['file']] = ','.join(exprs)
+
+        # are there any gene annotations?
+        are_genes = any([x.startswith('gs://annotationdb/gene/') for x in file_exprs])
+
+        # subset to VEP annotations
+        veps = [x for x in annotations if x.startswith('va.vep') or x == 'va']
+
+        # if VEP annotations are selected, or if gene-level annotations are selected with no specified gene_key, annotate with VEP
+        if veps or (are_genes and not gene_key):
+
+            # VEP annotate the VDS
+            self = self.vep(config = '/vep/vep-gcloud.properties', root = 'va.vep')
+
+            # extract 1 gene symbol per variant from VEP annotations if a gene_key parameter isn't provided
+            if are_genes:
+
+                self = (
+                    self
+                    .annotate_variants_expr(
+                        """
+                        va.gene.consequence = 
+                            let csq_terms = va.vep.transcript_consequences.filter(t => t.canonical == 1).map(t => t.consequence_terms.toSet) in
+                            if (isMissing(csq_terms))
+                                va.vep.most_severe_consequence
+                            else if (csq_terms.exists(t => t.contains("transcript_ablation")))
+                                "transcript_ablation"
+                            else if (csq_terms.exists(t => t.contains("splice_acceptor_variant"))) 
+                                "splice_acceptor_variant"
+                            else if (csq_terms.exists(t => t.contains("splice_donor_variant"))) 
+                                "splice_donor_variant"
+                            else if (csq_terms.exists(t => t.contains("stop_gained"))) 
+                                "stop_gained"
+                            else if (csq_terms.exists(t => t.contains("frameshift_variant"))) 
+                                "frameshift_variant"
+                            else if (csq_terms.exists(t => t.contains("stop_lost"))) 
+                                "stop_lost"
+                            else if (csq_terms.exists(t => t.contains("start_lost"))) 
+                                "start_lost"
+                            else if (csq_terms.exists(t => t.contains("transcript_amplification"))) 
+                                "transcript_amplification"
+                            else if (csq_terms.exists(t => t.contains("inframe_insertion"))) 
+                                "inframe_insertion"
+                            else if (csq_terms.exists(t => t.contains("inframe_deletion"))) 
+                                "inframe_deletion"
+                            else if (csq_terms.exists(t => t.contains("missense_variant"))) 
+                                "missense_variant"
+                            else if (csq_terms.exists(t => t.contains("protein_altering_variant"))) 
+                                "protein_altering_variant"
+                            else if (csq_terms.exists(t => t.contains("incomplete_terminal_codon_variant"))) 
+                                "incomplete_terminal_codon_variant"
+                            else if (csq_terms.exists(t => t.contains("stop_retained_variant"))) 
+                                "stop_retained_variant"
+                            else if (csq_terms.exists(t => t.contains("synonymous_variant"))) 
+                                "synonymous_variant"
+                            else if (csq_terms.exists(t => t.contains("splice_region_variant"))) 
+                                "splice_region_variant"                                   
+                            else if (csq_terms.exists(t => t.contains("coding_sequence_variant"))) 
+                                "coding_sequence_variant"
+                            else if (csq_terms.exists(t => t.contains("mature_miRNA_variant"))) 
+                                "mature_miRNA_variant"
+                            else if (csq_terms.exists(t => t.contains("5_prime_UTR_variant"))) 
+                                "5_prime_UTR_variant" 
+                            else if (csq_terms.exists(t => t.contains("3_prime_UTR_variant"))) 
+                                "3_prime_UTR_variant"
+                            else if (csq_terms.exists(t => t.contains("non_coding_transcript_exon_variant"))) 
+                                "non_coding_transcript_exon_variant"
+                            else if (csq_terms.exists(t => t.contains("intron_variant"))) 
+                                "intron_variant"
+                            else if (csq_terms.exists(t => t.contains("NMD_transcript_variant"))) 
+                                "NMD_transcript_variant"
+                            else if (csq_terms.exists(t => t.contains("non_coding_transcript_variant"))) 
+                                "non_coding_transcript_variant"
+                            else if (csq_terms.exists(t => t.contains("upstream_gene_variant"))) 
+                                "upstream_gene_variant"
+                            else if (csq_terms.exists(t => t.contains("downstream_gene_variant"))) 
+                                "downstream_gene_variant"
+                            else if (csq_terms.exists(t => t.contains("TFBS_ablation"))) 
+                                "TFBS_ablation"
+                            else if (csq_terms.exists(t => t.contains("TFBS_amplification"))) 
+                                "TFBS_amplification"
+                            else if (csq_terms.exists(t => t.contains("TF_binding_site_variant"))) 
+                                "TF_binding_site_variant"
+                            else if (csq_terms.exists(t => t.contains("regulatory_region_ablation"))) 
+                                "regulatory_region_ablation"
+                            else if (csq_terms.exists(t => t.contains("regulatory_region_amplification"))) 
+                                "regulatory_region_amplification"
+                            else if (csq_terms.exists(t => t.contains("feature_elongation"))) 
+                                "feature_elongation"
+                            else if (csq_terms.exists(t => t.contains("regulatory_region_variant"))) 
+                                "regulatory_region_variant"
+                            else if (csq_terms.exists(t => t.contains("feature_truncation"))) 
+                                "feature_truncation"
+                            else if (csq_terms.exists(t => t.contains("intergenic_variant"))) 
+                                "intergenic_variant"
+                            else
+                                va.vep.most_severe_consequence
+                        """
+                    )
+                    .annotate_variants_expr(
+                        """
+                        va.gene.gene_symbol = 
+                            let canonical_transcripts = va.vep.transcript_consequences.filter(t => t.canonical == 1) in
+                            if (canonical_transcripts.exists(t => t.consequence_terms.toSet.contains(va.gene.consequence)))
+                                canonical_transcripts.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).gene_symbol
+                            else
+                                va.vep.transcript_consequences.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).gene_symbol,
+                        va.gene.gene_id =
+                            let canonical_transcripts = va.vep.transcript_consequences.filter(t => t.canonical == 1) in
+                            if (canonical_transcripts.exists(t => t.consequence_terms.toSet.contains(va.gene.consequence)))
+                                canonical_transcripts.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).gene_id
+                            else
+                                va.vep.transcript_consequences.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).gene_symbol,
+                        va.transcript_id = let canonical_transcripts = va.vep.transcript_consequences.filter(t => t.canonical == 1) in
+                            if (canonical_transcripts.exists(t => t.consequence_terms.toSet.contains(va.gene.consequence)))
+                                canonical_transcripts.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).transcript_id
+                            else
+                                va.vep.transcript_consequences.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).transcript_id
+                        """
+                    )
+                )
+
+            # drop VEP annotations if not specifically requested
+            if not veps:
+                self = self.annotate_variants_expr('va = drop(va, vep)')
+
+            # subset VEP annotations if needed
+            subset = ','.join([x for x in veps if x != 'va.vep' and x != 'va'])
+            if subset:
+                self = self.annotate_variants_expr('va.vep = select(va.vep, {})'.format(subset))
+
+        # iterate through files, selected annotations from each file
+        for file, expr in file_exprs.iteritems():
+
+            # skip VEP annotations
+            if file.startswith('gs://annotationdb/vep/'):
+                continue
+
+            # if database file is a VDS
+            if file.endswith('.vds'):
+
+                # annotate analysis VDS with database VDS
+                self = self.annotate_variants_vds(self.hc.read(file), expr = expr)
+
+            # if database file is a keytable
+            elif file.endswith('.kt'):
+
+                # join on gene symbol for gene annotations
+                if file.startswith('gs://annotationdb/gene/'):
+                    if gene_key:
+                        vds_key = gene_key
+                    else:
+                        vds_key = 'va.gene.gene_symbol'
+                else:
+                    vds_key = None
+
+                # annotate analysis VDS with database keytable
+                self = self.annotate_variants_table(self.hc.read_table(file), expr = expr, vds_key = vds_key)
+
+        return self
 
     @handle_py4j
     def cache(self):
