@@ -43,6 +43,11 @@ Hail
     <body>
       <nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
       <div id="body">
+        <a id="banner" href="jobs.html">
+          <div id="banner-jobs" class="alert alert-info" role="alert">
+            <p>We are hiring!</p>
+          </div>
+        </a>
         <xsl:apply-templates select="body"/>
       </div>
     </body>
