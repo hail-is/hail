@@ -11,11 +11,11 @@
  - find Mendelian violations in trios, prune variants in linkage disequilibrium, analyze genetic similarity between samples via the GRM and IBD matrix, and compute sample scores and variant loadings using PCA
  - perform variant, gene-burden and eQTL association analyses using linear, logistic, and linear mixed regression, and estimate heritability
 
-This functionality and more is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](http://spark.apache.org/)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster, without the need to manually chop up data or manage job failures. Hail also provides a flexible domain language to express complex quality control and analysis pipelines with concise, readable code.
+This functionality and more is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](http://spark.apache.org/)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster, without the need to manually chop up data or manage job failures. Hail also provides a flexible [domain language](https://hail.is/hail/exprlang.html) to express complex quality control and analysis pipelines with concise, readable code.
 
 The Hail project began in Fall 2015 to [harness the flood of genomic data](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) and is under very active development. Hail has been the primary analysis platform for dozens of major studies and is the core analysis platform of large-scale genomics efforts such as [gnomAD](http://gnomad.broadinstitute.org/).
 
-Want to get involved in development? Check out the [Github repo](https://github.com/hail-is/hail), chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev), and view our talks at [Spark Summit East](https://spark-summit.org/east-2017/events/scaling-genetic-data-analysis-with-apache-spark/) and [Spark Summit West](https://spark-summit.org/2017/events/scaling-genetic-data-analysis-with-apache-spark/) (below). Or **come join us full-time** at the [Broad Institute of MIT and Harvard](https://www.broadinstitute.org/)! We've founded a new Initiative in Scalable Analytics and are recruiting **software engineers** at multiple levels of experience. Details [here](https://www.linkedin.com/jobs/view/316818823/).
+Want to get involved in development? Check out the [Github repo](https://github.com/hail-is/hail), chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev), and view our talks at [Spark Summit East](https://spark-summit.org/east-2017/events/scaling-genetic-data-analysis-with-apache-spark/) and [Spark Summit West](https://spark-summit.org/2017/events/scaling-genetic-data-analysis-with-apache-spark/) (below). Or [come join us full-time](https://hail.is/hail/jobs.html) at the [Broad Institute of MIT and Harvard](https://www.broadinstitute.org/)! We've founded a new Initiative in Scalable Analytics and are recruiting software engineers at multiple levels of experience.
 
 [![Hail talk at Spark Summit West 2017](https://storage.googleapis.com/hail-common/hail_spark_summit_west.png)](https://www.youtube.com/watch?v=pyeQusIN5Ao&list=PLlMMtlgw6qNjROoMNTBQjAcdx53kV50cS)
 
@@ -24,7 +24,7 @@ Want to get involved in development? Check out the [Github repo](https://github.
 To get started using Hail on your data or [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
 
 - follow the installation instructions in [Getting Started](https://hail.is/hail/getting_started.html)
-- check out the [Overview](https://hail.is/hail/overview.html), [Tutorials](https://hail.is/hail/tutorials-landing.html), and [Python API](https://hail.is/hail/index.html)
+- check out the [Overview](https://hail.is/hail/overview.html), [Tutorials](https://hail.is/hail/tutorials-landing.html), and [Python API](https://hail.is/hail/api.html)
 - chat with the Hail team in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 
 We encourage use of the [Discussion Forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Follow Hail on Twitter [@hailgenetics](https://twitter.com/hailgenetics). Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
