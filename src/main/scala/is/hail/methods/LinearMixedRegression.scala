@@ -5,7 +5,7 @@ import breeze.numerics.{sigmoid, sqrt}
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.stats._
-import is.hail.stats.eigSymD.DenseeigSymD
+import is.hail.stats.eigSymD.DenseEigSymD
 import is.hail.utils._
 import is.hail.variant.VariantDataset
 
@@ -34,7 +34,7 @@ object LinearMixedRegression {
     optDelta: Option[Double],
     sparsityThreshold: Double,
     useDosages: Boolean,
-    optNumEigs: Option[Int] = None,
+    optNEigs: Option[Int] = None,
     optIgnoredVarianceFraction: Option[Double] = None): VariantDataset = {
 
     require(assocVds.wasSplit)
@@ -70,43 +70,43 @@ object LinearMixedRegression {
     val cols = filteredKinshipMatrix.matrix.numCols().toInt
 
     val K = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
-    
+
     info(s"lmmreg: Computing eigenvectors of RRM...")
 
     val eigK = eigSymD(K)
-    val FullU = eigK.eigenvectors
-    val FullS = eigK.eigenvalues // increasing order
-    val fullNumEigs = FullS.length
+    val fullU = eigK.eigenvectors
+    val fullS = eigK.eigenvalues // increasing order
+    val fullNEigs = fullS.length
 
-    assert(FullS.length == n)
+    assert(fullS.length == n)
 
     optDelta match {
       case Some(_) => info(s"lmmreg: Delta specified by user")
       case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
-    var numEigs = optNumEigs.getOrElse(n)
+    var nEigs = optNEigs.getOrElse(n)
 
     val ignoredVarianceFraction = optIgnoredVarianceFraction.getOrElse(1E-6)
 
-    numEigs = {
-      val trace = FullS.toArray.sum
-      var i = fullNumEigs - 1
+    nEigs = {
+      val trace = fullS.toArray.sum
+      var i = fullNEigs - 1
       var runningSum = 0.0
       val target = ignoredVarianceFraction * trace
-      while (i > numEigs || runningSum < target) {
-        runningSum += FullS(-i)
+      while (i > nEigs || runningSum < target) {
+        runningSum += fullS(-i)
         i -= 1
       }
-      math.min(numEigs, i + 1)
+      math.min(nEigs, i + 1)
     }
 
-    val U = FullU(::, (fullNumEigs - numEigs) until fullNumEigs)
+    val U = fullU(::, (fullNEigs - nEigs) until fullNEigs)
 
-    val S = FullS((fullNumEigs - numEigs) until fullNumEigs)
+    val S = fullS((fullNEigs - nEigs) until fullNEigs)
 
-    info("lmmreg: 20 largest evals: " + ((fullNumEigs - 1) to math.max(0, fullNumEigs - 20) by -1).map(FullS(_).formatted("%.5f")).mkString(", "))
-    info("lmmreg: 20 smallest evals: " + (0 until math.min(fullNumEigs, 20)).map(FullS(_).formatted("%.5f")).mkString(", "))
+    info("lmmreg: 20 largest evals: " + ((fullNEigs - 1) to math.max(0, fullNEigs - 20) by -1).map(fullS(_).formatted("%.5f")).mkString(", "))
+    info("lmmreg: 20 smallest evals: " + (0 until math.min(fullNEigs, 20)).map(fullS(_).formatted("%.5f")).mkString(", "))
 
     val Ut = U.t
 
@@ -119,7 +119,7 @@ object LinearMixedRegression {
     val h2 = 1 / (1 + delta)
 
     val header = "rank\teval"
-    val evalString = (0 until numEigs).map(i => s"$i\t${ S(numEigs - i - 1) }").mkString("\n")
+    val evalString = (0 until nEigs).map(i => s"$i\t${ S(nEigs - i - 1) }").mkString("\n")
     log.info(s"\nlmmreg: table of eigenvalues\n$header\n$evalString\n")
 
     info(s"lmmreg: global model fit: beta = $globalBetaMap")
@@ -133,7 +133,7 @@ object LinearMixedRegression {
     }
 
     val vds1 = assocVds.annotateGlobal(
-      Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, FullS.data.reverse: IndexedSeq[Double], numEigs),
+      Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs),
       TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
         ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble)), ("nEigs", TInt)), rootGA)
 
@@ -141,7 +141,7 @@ object LinearMixedRegression {
       case Some(gf) =>
         val (logDeltaGrid, logLkhdVals) = gf.gridLogLkhd.unzip
         vds1.annotateGlobal(
-          Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals, numEigs),
+          Annotation(gf.sigmaH2, gf.h2NormLkhd, gf.maxLogLkhd, logDeltaGrid, logLkhdVals, nEigs),
           TStruct(("seH2", TDouble), ("normLkhdH2", TArray(TDouble)), ("maxLogLkhd", TDouble),
             ("logDeltaGrid", TArray(TDouble)), ("logLkhdVals", TArray(TDouble))), rootGA + ".fit")
       case None =>
@@ -214,8 +214,6 @@ class DiagLMMSolver(
   val UtC = Ut * C
   val Uty = Ut * y
 
-  require(UtC.rows == Uty.length)
-
   val CtC = C.t * C
   val Cty = C.t * y
   val yty = y.t * y
@@ -261,7 +259,7 @@ class DiagLMMSolver(
   def fitDelta(): (Double, GlobalFitLMM) = {
 
     object LogLkhdML extends UnivariateFunction {
-      val shift = -0.5 * n * (1 + math.log(2.0 * math.Pi))
+      val shift = -0.5 * n * (1 + math.log(2 * math.Pi))
 
       def value(logDelta: Double): Double = {
         val delta = FastMath.exp(logDelta)

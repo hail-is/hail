@@ -15,9 +15,9 @@ import org.netlib.util.intW
   */
 object eigSymD extends UFunc {
   case class EigSymD[V, M](eigenvalues: V, eigenvectors: M)
-  type DenseeigSymD = EigSymD[DenseVector[Double], DenseMatrix[Double]]
-  implicit object eigSymD_DM_Impl extends Impl[DenseMatrix[Double], DenseeigSymD] {
-    def apply(X: DenseMatrix[Double]): DenseeigSymD = {
+  type DenseEigSymD = EigSymD[DenseVector[Double], DenseMatrix[Double]]
+  implicit object eigSymD_DM_Impl extends Impl[DenseMatrix[Double], DenseEigSymD] {
+    def apply(X: DenseMatrix[Double]): DenseEigSymD = {
       doeigSymD(X, rightEigenvectors = true) match {
         case (ev, Some(rev)) => EigSymD(ev, rev)
         case _ => throw new RuntimeException("Shouldn't be here!")

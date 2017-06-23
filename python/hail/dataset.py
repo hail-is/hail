@@ -2758,7 +2758,7 @@ class VariantDataset(object):
                       n_eigs=nullable(integral),
                       ignored_variance_fraction=(nullable(float)))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False, n_eigs=None, ignored_variance_fraction=None):
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False, n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
@@ -2803,9 +2803,9 @@ class VariantDataset(object):
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.nEigs``            | Int                  | the number of eigenvectors used to compute LLM                                                                                                       |
+        | ``global.lmmreg.nEigs``            | Int                  | number of eigenvectors used to fit LLM                                                                                                               |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order (all of them, not just the ones used to compute the LLM)                                       |
+        | ``global.lmmreg.evals``            | Array[Double]        | all eigenvalues of the kinship matrix in descending order                                                                                            |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.fit.seH2``         | Double               | standard error of :math:`\\hat{h}^2` under asymptotic normal approximation                                                                            |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -2950,7 +2950,7 @@ class VariantDataset(object):
 
         FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
 
-        **Limiting Eigenvectors**
+        **Low rank approximation of kinship for improved performance**
 
         It is possible to limit the number of eigenvectors used by lmmreg. This is possible in two ways. Specifying the parameter ``n_eigs`` will cause lmmreg to use only ``n_eigs`` eigenvectors to fit the global model and in the per-variant associations. Alternatively, it is also possible to specify ``ignored_variance_fraction``, which is the fraction of total variance that can be safely ignored. For example, given a value of .1, lmmreg will only use enough eigenvectors to account for 90% of the variance in the dataset. If both parameters are specified, lmmreg will use the one that filters out the most eigenvectors.
 
@@ -2981,9 +2981,9 @@ class VariantDataset(object):
 
         :param bool use_dosages: If true, use genotype dosage rather than hard call.
 
-        :param int n_eigs: Number of eigenvectors to use.
+        :param int n_eigs: Number of eigenvectors to use to fit the LMM
 
-        :param float ignored_variance_fraction: Fraction of the total variance that will be ignored by leaving out small eigenvalues.
+        :param float dropped_variance_fraction: Upper bound on fraction of total variance lost by dropping eigenvectors with small eigenvalues.
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
@@ -2991,7 +2991,7 @@ class VariantDataset(object):
 
         jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
-                                 use_dosages, joption(n_eigs), joption(ignored_variance_fraction))
+                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
