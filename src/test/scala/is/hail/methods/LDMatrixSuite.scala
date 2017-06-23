@@ -13,7 +13,8 @@ class LDMatrixSuite extends SparkSuite {
   val n = 100
   val seed = scala.util.Random.nextInt()
   val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val ldMatrix = vds.ldMatrix()
+  val ldMatrixDistCalc = vds.ldMatrix(computeLocally = Some(false))
+  val ldMatrixLocalCalc = vds.ldMatrix(computeLocally = Some(true))
 
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests
@@ -25,16 +26,18 @@ class LDMatrixSuite extends SparkSuite {
     val variantsTable = vds.rdd.map { case (v, (_, gs)) =>
       (v, LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples))}.collectAsMap()
 
-
-    val indexToBPV = ldMatrix.variants.map(v => variantsTable(v).get)
-    val ldMatrixLocal = ldMatrix.matrix.toBlockMatrix().toLocalMatrix()
-    val numVariants = ldMatrixLocal.numRows
+    val indexToBPV = ldMatrixDistCalc.variants.map(v => variantsTable(v).get)
+    val ldMatrixDistCalcLocal = ldMatrixDistCalc.matrix.toBlockMatrixDense().toLocalMatrix()
+    val ldMatrixLocalCalcLocal = ldMatrixLocalCalc.matrix.toBlockMatrixDense().toLocalMatrix()
+    val numVariants = ldMatrixDistCalcLocal.numRows
 
     for(i <- 0 until numVariants; j <- 0 until numVariants) {
       val computedR = LDPrune.computeR(indexToBPV(i), indexToBPV(j))
-      val matrixR = ldMatrixLocal(i, j)
+      val distMatrixR = ldMatrixDistCalcLocal(i, j)
+      val localMatrixR = ldMatrixLocalCalcLocal(i, j)
 
-      Assert.assertEquals(computedR, matrixR, .000001)
+      Assert.assertEquals(computedR, distMatrixR, .000001)
+      Assert.assertEquals(computedR, localMatrixR, .000001)
     }
   }
 
@@ -42,7 +45,8 @@ class LDMatrixSuite extends SparkSuite {
     * Tests that variants are ordered in array.
     */
   @Test def testOrderingOfVariants() {
-    assert(ldMatrix.variants.isSorted)
+    assert(ldMatrixDistCalc.variants.isSorted)
+    assert(ldMatrixLocalCalc.variants.isSorted)
   }
 
   /**
