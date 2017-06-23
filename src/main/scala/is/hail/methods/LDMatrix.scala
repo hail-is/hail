@@ -44,6 +44,7 @@ object LDMatrix {
     val thresholdSize = 5000 * 5000
     val numEntries: Long = normalizedBlockMatrix.numCols() * normalizedBlockMatrix.numRows()
 
+    if (optComputeLocally == null) {info("optComputeLocally is null")}
     val computeLocally = optComputeLocally.getOrElse(numEntries < thresholdSize)
 
     val nSamplesInverse = 1.0 / nSamples
