@@ -401,7 +401,7 @@ task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copy
 
 task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
-    commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html'
+    commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
