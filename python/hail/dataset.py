@@ -4631,6 +4631,7 @@ class VariantDataset(object):
         - **hail.vep.location** -- Location of the VEP Perl script.  Required.
         - **hail.vep.cache_dir** -- Location of the VEP cache dir, passed to VEP with the `--dir` option.  Required.
         - **hail.vep.fasta** -- Location of the FASTA file to use to look up the reference sequence, passed to VEP with the `--fasta` option.  Required.
+        - **hail.vep.assembly** -- Genome assembly version to use. Optional, default: GRCh37
         - **hail.vep.plugin** -- VEP plugin, passed to VEP with the `--plugin` option.  Optional. Overrides `hail.vep.lof.human_ancestor` and `hail.vep.lof.conservation_file`.
         - **hail.vep.lof.human_ancestor** -- Location of the human ancestor file for the LOFTEE plugin.  Ignored if `hail.vep.plugin` is set. Required otherwise.
         - **hail.vep.lof.conservation_file** -- Location of the conservation file for the LOFTEE plugin.  Ignored if `hail.vep.plugin` is set. Required otherwise.
@@ -4660,9 +4661,9 @@ class VariantDataset(object):
             --no_stats
             --cache --offline
             --dir <hail.vep.cache_dir>
-            --fasta <hail.vep.cache_dir>/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa
+            --fasta <hail.vep.fasta>
             --minimal
-            --assembly GRCh37
+            --assembly <hail.vep.assembly>
             --plugin LoF,human_ancestor_fa:$<hail.vep.lof.human_ancestor>,filter_position:0.05,min_intron_size:15,conservation_file:<hail.vep.lof.conservation_file>
             -o STDOUT
 
