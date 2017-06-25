@@ -87,13 +87,13 @@ object LinearMixedRegression {
 
     var nEigs = optNEigs.getOrElse(n)
 
-    val ignoredVarianceFraction = optIgnoredVarianceFraction.getOrElse(1E-6)
+    val droppedVarianceFraction = optIgnoredVarianceFraction.getOrElse(1E-6)
 
     nEigs = {
       val trace = fullS.toArray.sum
       var i = fullNEigs - 1
       var runningSum = 0.0
-      val target = ignoredVarianceFraction * trace
+      val target = droppedVarianceFraction * trace
       while (i > nEigs || runningSum < target) {
         runningSum += fullS(-i)
         i -= 1
@@ -110,7 +110,7 @@ object LinearMixedRegression {
 
     val Ut = U.t
 
-    val diagLMM = DiagLMM(cov, y, S, U, optDelta, useML)
+    val diagLMM = DiagLMM(y, cov, S, U, optDelta, useML)
 
     val delta = diagLMM.delta
     val globalBetaMap = covNames.zip(diagLMM.globalB.toArray).toMap
@@ -185,13 +185,25 @@ object LinearMixedRegression {
     else
       vds2
   }
+
+  /*def computeNEigs(): Int = {
+    val trace = fullS.toArray.sum
+    var i = fullNEigs - 1
+    var runningSum = 0.0
+    val target = droppedVarianceFraction * trace
+    while (i > nEigs || runningSum < target) {
+      runningSum += fullS(-i)
+      i -= 1
+    }
+    math.min(nEigs, i + 1)
+  }*/
 }
 
 
 object DiagLMM {
   def apply(
-    C: DenseMatrix[Double],
     y: DenseVector[Double],
+    C: DenseMatrix[Double],
     S: DenseVector[Double],
     U: DenseMatrix[Double],
     optDelta: Option[Double] = None,
@@ -221,6 +233,11 @@ class DiagLMMSolver(
   val n = y.length
   val d = C.cols
 
+  //MR indicates difference between thing and it's rotated version.
+  val ytyMR = (yty - Uty.t * Uty)
+  val CtyMR = (Cty - UtC.t * Uty)
+  val CtCMR = (CtC - UtC.t * UtC)
+
   val (delta, optGlobalFit) = optDelta match {
     case Some(del) => (del, None)
     case None =>
@@ -236,9 +253,9 @@ class DiagLMMSolver(
     var CdC = UtC.t * (UtC(::, *) :* invD)
 
     if(S.length < n) {
-      ydy = ydy + (1.0 / delta) * (yty - Uty.t * Uty)
-      Cdy = Cdy + (1.0 / delta) * (Cty - UtC.t * Uty)
-      CdC = CdC + (1.0 / delta) * (CtC - UtC.t * UtC)
+      ydy = ydy + (1.0 / delta) * ytyMR
+      Cdy = Cdy + (1.0 / delta) * CtyMR
+      CdC = CdC + (1.0 / delta) * CtCMR
     }
 
     val b = CdC \ Cdy
@@ -267,13 +284,13 @@ class DiagLMMSolver(
         val dy = Uty :/ D
         val ydy =
           (Uty dot dy) +
-            (1.0 / delta) * (yty - Uty.t * Uty)
+            (1.0 / delta) * ytyMR
         val Cdy =
           UtC.t * dy +
-            (1.0 / delta) * (Cty - UtC.t * Uty)
+            (1.0 / delta) * CtyMR
         val CdC =
           UtC.t * (UtC(::, *) :/ D) +
-            (1.0 / delta) * (CtC - UtC.t * UtC)
+            (1.0 / delta) * CtCMR
 
         val k = S.length
         val b = CdC \ Cdy
@@ -298,13 +315,13 @@ class DiagLMMSolver(
         val dy = Uty :/ D
         val ydy =
           (Uty dot dy) +
-          (1.0 / delta) * (yty - Uty.t * Uty)
+          ytyMR / delta
         val Cdy =
           UtC.t * dy +
-          (1.0 / delta) * (Cty - UtC.t * Uty)
+          CtyMR / delta
         val CdC =
           UtC.t * (UtC(::, *) :/ D) +
-          (1.0 / delta) * (CtC - UtC.t * UtC)
+          CtCMR / delta
         
         val b = CdC \ Cdy
         

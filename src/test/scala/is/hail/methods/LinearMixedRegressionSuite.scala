@@ -73,12 +73,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val S = eigRRM.eigenvalues
 
 
-    val model = DiagLMM(C, y, S, eigRRM.eigenvectors, optDelta = Some(delta))
+    val model = DiagLMM(y, C, S, eigRRM.eigenvectors, optDelta = Some(delta))
 
     TestUtils.assertVectorEqualityDouble(beta, model.globalB)
     assert(D_==(sg2, model.globalS2))
 
-    val modelML = DiagLMM(C, y, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = true)
+    val modelML = DiagLMM(y, C, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = true)
 
     TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
@@ -229,12 +229,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val Ut = eigRRM.eigenvectors.t
     val S = eigRRM.eigenvalues
 
-    val model = DiagLMM(C, y, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = false)
+    val model = DiagLMM(y, C, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = false)
 
     TestUtils.assertVectorEqualityDouble(beta, model.globalB)
     assert(D_==(sg2, model.globalS2))
 
-    val modelML = DiagLMM(C, y, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = true)
+    val modelML = DiagLMM(y, C, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = true)
 
     TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
@@ -431,7 +431,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     vdsAssoc.count()
   }
 
-  //Tests that on a rank K NxN kinship matrix, asking for K eigenvectors gives same result as using all N eigenvectors
+  //Tests that k eigenvectors give the same result as all n eigenvectors for a rank-k kinship matrix on n samples.
   @Test def testFullRankAndLowRank() {
     val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
 
