@@ -57,20 +57,6 @@ object BetterBlockMatrix extends Logging {
       case x: SparseMatrix => x.toDense
     }
 
-    private def multiplyAccumulateWithExtension(x: DenseMatrix, y: DenseMatrix, result: DenseMatrix) {
-      val x2 = if (result.numRows != x.numRows)
-        toDenseMatrix(Matrices.vertcat(Array(x, Matrices.zeros(result.numRows - x.numRows, x.numCols))))
-      else
-        x
-
-      val y2 = if (result.numCols != y.numCols)
-        toDenseMatrix(Matrices.horzcat(Array(y, Matrices.zeros(y.numRows, result.numCols - y.numCols))))
-      else
-        y
-
-      BLAS.gemm(1.0, x2, y2, 1.0, result)
-    }
-
     private def block(bm: BlockMatrix, bmPartitions: Array[Partition], p: GridPartitioner, context: TaskContext, i: Int, j: Int): Matrix = {
       val it = bm.blocks.compute(bmPartitions(p.getPartition((i, j))), context)
       val r = it.next()
@@ -96,9 +82,9 @@ object BetterBlockMatrix extends Logging {
         val rightMat = rightBlock(i, col, context)
         (leftMat, rightMat) match {
           case (x: DenseMatrix, y: DenseMatrix) =>
-            multiplyAccumulateWithExtension(x, y, finalResult)
+            BLAS.gemm(1.0, x, y, 1.0, result)
           case _ =>
-             throw new SparkException(s"No support for multiplying: ${leftMat.getClass} by ${rightMat.getClass}.")
+            throw new SparkException(s"No support for multiplying: ${leftMat.getClass} by ${rightMat.getClass}.")
         }
 
         i += 1
