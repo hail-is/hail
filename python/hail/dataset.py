@@ -2360,8 +2360,8 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    @typecheck_method(compute_locally=nullable(bool))
-    def ld_matrix(self, compute_locally=None):
+    @typecheck_method(compute_locally=bool)
+    def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
         
         **Examples**
@@ -2388,16 +2388,16 @@ class VariantDataset(object):
           :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, or :py:meth:`.ld_prune` before
           calling this unless your dataset is very small.
 
-        :param bool compute_locally: Optional parameter that specifies whether to compute the LD Matrix locally. If True,
-        the LD Matrix will be computed using local matrix multiplies on the driver. If False, the LD Matrix will be computed
-        using Spark's distributed matrix multiplication. If left unspecified, Hail will decide the appropriate matrix multiply
-        to use.
+        :param bool force_local: Optional parameter that specifies whether to compute the LD matrix locally. If true,
+        the LD Matrix will be computed using local matrix multiplies on the driver. This is appropriate when the matrix is
+        relatively small and easily fit in local memory. If left false, then Hail will decide whether a distributed or local
+        matrix multiply is appropriate.
 
         :return: Matrix of r values between pairs of variants.
         :rtype: :py:class:`LDMatrix`
         """
 
-        jldm = self._jvdf.ldMatrix(joption(compute_locally))
+        jldm = self._jvdf.ldMatrix(force_local)
         return LDMatrix(jldm)
 
     @handle_py4j

@@ -16,7 +16,7 @@ object LDMatrix {
     * @param vds VDS on which to compute Pearson correlation between pairs of variants.
     * @return An LDMatrix.
     */
-  def apply(vds : VariantDataset, optComputeLocally: Option[Boolean]): LDMatrix = {
+  def apply(vds : VariantDataset, forceLocal: Boolean): LDMatrix = {
     val nSamples = vds.nSamples
     val originalVariants = vds.variants.collect()
     assert(originalVariants.isSorted, "Array of variants is not sorted. This is a bug.")
@@ -41,11 +41,10 @@ object LDMatrix {
     normalizedBlockMatrix.blocks.count()
     normalizedIRM.rows.unpersist()
 
-    val thresholdSize = 5000 * 5000
-    val numEntries: Long = normalizedBlockMatrix.numCols() * normalizedBlockMatrix.numRows()
+    val localBound = 5000 * 5000
+    val numEntries: Long = variantsKept.length * variantsKept.length
 
-    if (optComputeLocally == null) {info("optComputeLocally is null")}
-    val computeLocally = optComputeLocally.getOrElse(numEntries < thresholdSize)
+    val computeLocally = forceLocal || numEntries <= localBound)
 
     val nSamplesInverse = 1.0 / nSamples
 
@@ -63,8 +62,8 @@ object LDMatrix {
         .toIndexedRowMatrix()
     }
 
-    val scaledIndexedRowMatrix = new IndexedRowMatrix(indexedRowMatrix.rows.
-        map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
+    val scaledIndexedRowMatrix = new IndexedRowMatrix(indexedRowMatrix.rows
+      .map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
 
     LDMatrix(scaledIndexedRowMatrix, variantsKept, vds.nSamples)
   }
