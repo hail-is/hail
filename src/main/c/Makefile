@@ -1,8 +1,12 @@
-.PHONY: default test clean libsimdpp fullperftest test256 testSub1kB cachegrind
+.PHONY: default test clean libsimdpp
+
+# If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
+# this list
+OBJECTS=ibs.o
 
 CXX ?= c++
 # append existing flags so they override our flags
-_CXXFLAGS = -O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -Wall -Werror ${CXXFLAGS}
+CXXFLAGS += -O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -Wall -Werror
 LIBFLAGS += -fvisibility=hidden
 
 UNAME_S := $(shell uname -s)
@@ -23,7 +27,7 @@ default: $(shared_library)
 
 test: ibs.cpp test.cpp
 	mkdir -p build
-	${CXX} ${_CXXFLAGS} -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o build/functional-tests
+	${CXX} ${CXXFLAGS} -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o build/functional-tests
 	./build/functional-tests
 
 clean:
@@ -44,18 +48,6 @@ libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 libsimdpp: libsimdpp-2.0-rc2
 	(cd libsimdpp-2.0-rc2 && cmake .)
 
-lib/darwin/libhail.dylib: libsimdpp
-lib/linux-x86-64/libhail.so: libsimdpp
-lib/linux-x86/libhail.so: libsimdpp
-
-lib/darwin/libhail.dylib: ibs.cpp
-	mkdir -p lib/darwin
-	${CXX} ${LIBFLAGS} ${_CXXFLAGS} $? -o $@
-
-lib/linux-x86-64/libhail.so: ibs.cpp
-	mkdir -p lib/linux-x86-64
-	${CXX} ${LIBFLAGS} ${_CXXFLAGS} $? -o $@
-
-lib/linux-x86/libhail.so: ibs.cpp
-	mkdir -p lib/linux-x86
-	${CXX} ${LIBFLAGS} ${_CXXFLAGS} $? -o $@
+$(shared_library): libsimdpp ${OBJECTS}
+	mkdir -p $(basename $(shared_library))
+	${CXX} ${LIBFLAGS} ${CXXFLAGS} ${OBJECTS} -o $@
