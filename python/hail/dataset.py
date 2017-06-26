@@ -5241,13 +5241,13 @@ class VariantDataset(object):
         "altAlleles" -> Array(String),
         "cytogeneticBand" -> String,
         "filters" -> Array(String),
-        "variants" -> Array(Struct(
+        "variants" -> Array(Struct{
           "altAllele" -> String,
           "refAllele" -> String,
           "chromosome" -> String,
           "begin" -> Int,
           "end" -> Int,
-          "phylopScore" -> TDouble,
+          "phylopScore" -> Double,
           "isReferenceMinor" -> Boolean,
           "variantType" -> String,
           "vid" -> String,
@@ -5256,7 +5256,7 @@ class VariantDataset(object):
             "id" -> String,
             "consequence" -> TSet(TString),
             "type" -> String
-          }),
+          }},
           "clinvar" -> Array(Struct{
             "id" -> String,
             "reviewStatus" -> String,
@@ -5286,67 +5286,67 @@ class VariantDataset(object):
               "primarySite" -> String
             })
           }),
-          "dbsnp" -> TStruct{"ids" -> Array(String)},
-          "evs" -> TStruct{
+          "dbsnp" -> Struct{"ids" -> Array(String)},
+          "evs" -> Struct{
             "coverage" -> Int,
             "sampleCount" -> Int,
-            "allAf" -> TDouble,
-            "afrAf" -> TDouble,
-            "eurAf" -> TDouble
+            "allAf" -> Double,
+            "afrAf" -> Double,
+            "eurAf" -> Double
           },
-          "exac" -> TStruct{
+          "exac" -> Struct{
             "coverage" -> Int,
-            "allAf" -> TDouble,
+            "allAf" -> Double,
             "allAc" -> Int,
             "allAn" -> Int,
-            "afrAf" -> TDouble,
+            "afrAf" -> Double,
             "afrAc" -> Int,
             "afrAn" -> Int,
-            "amrAf" -> TDouble,
+            "amrAf" -> Double,
             "amrAc" -> Int,
             "amrAn" -> Int,
-            "easAf" -> TDouble,
+            "easAf" -> Double,
             "easAc" -> Int,
             "easAn" -> Int,
-            "finAf" -> TDouble,
+            "finAf" -> Double,
             "finAc" -> Int,
             "finAn" -> Int,
-            "nfeAf" -> TDouble,
+            "nfeAf" -> Double,
             "nfeAc" -> Int,
             "nfeAn" -> Int,
-            "othAf" -> TDouble,
+            "othAf" -> Double,
             "othAc" -> Int,
             "othAn" -> Int,
-            "sasAf" -> TDouble,
+            "sasAf" -> Double,
             "sasAc" -> Int,
             "sasAn" -> Int
           },
-          "globalAllele" -> TStruct{
+          "globalAllele" -> Struct{
             "globalMinorAllele" -> String,
-            "globalMinorAlleleFrequency" -> TDouble
+            "globalMinorAlleleFrequency" -> Double
           },
-          "oneKg" -> TStruct{
+          "oneKg" -> Struct{
             "ancestralAllele" -> String,
-            "allAf" -> TDouble,
+            "allAf" -> Double,
             "allAc" -> Int,
             "allAn" -> Int,
-            "afrAf" -> TDouble,
+            "afrAf" -> Double,
             "afrAc" -> Int,
             "afrAn" -> Int,
-            "amrAf" -> TDouble,
+            "amrAf" -> Double,
             "amrAc" -> Int,
             "amrAn" -> Int,
-            "easAf" -> TDouble,
+            "easAf" -> Double,
             "easAc" -> Int,
             "easAn" -> Int,
-            "eurAf" -> TDouble,
+            "eurAf" -> Double,
             "eurAc" -> Int,
             "eurAn" -> Int,
-            "sasAf" -> TDouble,
+            "sasAf" -> Double,
             "sasAc" -> Int,
             "sasAn" -> Int
           },
-          "transcripts" -> TStruct{
+          "transcripts" -> Struct{
             "refSeq" -> Array(Struct{
               "transcript" -> String,
               "bioType" -> String,
@@ -5362,11 +5362,11 @@ class VariantDataset(object):
               "hgvsc" -> String,
               "hgvsp" -> String,
               "isCanonical" -> Boolean,
-              "polyPhenScore" -> TDouble,
+              "polyPhenScore" -> Double,
               "polyPhenPrediction" -> String,
               "proteinId" -> String,
               "proteinPos" -> String,
-              "siftScore" -> TDouble,
+              "siftScore" -> Double,
               "siftPrediction" -> String
             }),
             "ensembl" -> Array(Struct{
@@ -5384,11 +5384,11 @@ class VariantDataset(object):
               "hgvsc" -> String,
               "hgvsp" -> String,
               "isCanonical" -> Boolean,
-              "polyPhenScore" -> TDouble,
+              "polyPhenScore" -> Double,
               "polyPhenPrediction" -> String,
               "proteinId" -> String,
               "proteinPos" -> String,
-              "siftScore" -> TDouble,
+              "siftScore" -> Double,
               "siftPrediction" -> String
             })
           },
