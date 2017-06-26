@@ -16,7 +16,7 @@ object LDMatrix {
     * @param vds VDS on which to compute Pearson correlation between pairs of variants.
     * @return An LDMatrix.
     */
-  def apply(vds : VariantDataset, forceLocal: Boolean): LDMatrix = {
+  def apply(vds : VariantDataset, optComputeLocally: Option[Boolean]): LDMatrix = {
     val nSamples = vds.nSamples
     val originalVariants = vds.variants.collect()
     assert(originalVariants.isSorted, "Array of variants is not sorted. This is a bug.")
@@ -42,9 +42,9 @@ object LDMatrix {
     normalizedIRM.rows.unpersist()
 
     val localBound = 5000 * 5000
-    val numEntries: Long = variantsKept.length * variantsKept.length
+    val nEntries: Long = variantsKept.length * variantsKept.length
 
-    val computeLocally = forceLocal || numEntries <= localBound)
+    val computeLocally = optComputeLocally.getOrElse(nEntries <= localBound)
 
     val nSamplesInverse = 1.0 / nSamples
 

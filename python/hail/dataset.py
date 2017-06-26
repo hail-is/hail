@@ -2390,7 +2390,7 @@ class VariantDataset(object):
 
         :param bool force_local: Optional parameter that specifies whether to compute the LD matrix locally. If true,
         the LD Matrix will be computed using local matrix multiplies on the driver. This is appropriate when the matrix is
-        relatively small and easily fit in local memory. If left false, then Hail will decide whether a distributed or local
+        relatively small and easily fits in local memory. If left false, then Hail will decide whether a distributed or local
         matrix multiply is appropriate.
 
         :return: Matrix of r values between pairs of variants.

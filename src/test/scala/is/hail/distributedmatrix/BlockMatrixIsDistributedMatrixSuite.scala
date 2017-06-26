@@ -7,9 +7,11 @@ import is.hail.check._
 import is.hail.utils._
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
-
 import is.hail.SparkSuite
+import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
+
+import scala.util.Random
 
 class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   import is.hail.distributedmatrix.DistributedMatrix.implicits._
@@ -200,5 +202,14 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     }.check()
   }
 
-  // FIXME: rowmise multiplication random matrices compare with breeze
+  @Test
+  def fromLocalTest() {
+    val numRows = 100
+    val numCols = 100
+    val breezeLocal: breeze.linalg.DenseMatrix[Double] = breeze.linalg.DenseMatrix.rand[Double](numRows, numCols)
+    val sparkLocal = new DenseMatrix(numRows, numCols, breezeLocal.toArray)
+    BlockMatrixIsDistributedMatrix.from(sc, sparkLocal, numRows - 1, numCols - 1).blocks.count()
+  }
+
+  // FIXME: row-wise multiplication random matrices compare with breeze
 }

@@ -13,8 +13,8 @@ class LDMatrixSuite extends SparkSuite {
   val n = 100
   val seed = scala.util.Random.nextInt()
   val vds = hc.baldingNicholsModel(1, n, m, seed = seed)
-  val ldMatrixDistCalc = vds.ldMatrix(computeLocally = Some(false))
-  val ldMatrixLocalCalc = vds.ldMatrix(computeLocally = Some(true))
+  val distLDMatrix = LDMatrix.apply(vds, Some(false))
+  val localLDMatrix = vds.ldMatrix(forceLocal = true)
 
   /**
     * Tests that entries in LDMatrix agree with those computed by LDPrune.computeR. Also tests
@@ -26,15 +26,15 @@ class LDMatrixSuite extends SparkSuite {
     val variantsTable = vds.rdd.map { case (v, (_, gs)) =>
       (v, LDPrune.toBitPackedVector(gs.hardCallIterator, nSamples))}.collectAsMap()
 
-    val indexToBPV = ldMatrixDistCalc.variants.map(v => variantsTable(v).get)
-    val ldMatrixDistCalcLocal = ldMatrixDistCalc.matrix.toBlockMatrixDense().toLocalMatrix()
-    val ldMatrixLocalCalcLocal = ldMatrixLocalCalc.matrix.toBlockMatrixDense().toLocalMatrix()
-    val numVariants = ldMatrixDistCalcLocal.numRows
+    val indexToBPV = distLDMatrix.variants.map(v => variantsTable(v).get)
+    val distLDMatrixLocal = distLDMatrix.matrix.toBlockMatrixDense().toLocalMatrix()
+    val localLDMatrixLocal = localLDMatrix.matrix.toBlockMatrixDense().toLocalMatrix()
+    val numVariants = distLDMatrixLocal.numRows
 
     for(i <- 0 until numVariants; j <- 0 until numVariants) {
       val computedR = LDPrune.computeR(indexToBPV(i), indexToBPV(j))
-      val distMatrixR = ldMatrixDistCalcLocal(i, j)
-      val localMatrixR = ldMatrixLocalCalcLocal(i, j)
+      val distMatrixR = distLDMatrixLocal(i, j)
+      val localMatrixR = localLDMatrixLocal(i, j)
 
       Assert.assertEquals(computedR, distMatrixR, .000001)
       Assert.assertEquals(computedR, localMatrixR, .000001)
@@ -45,8 +45,8 @@ class LDMatrixSuite extends SparkSuite {
     * Tests that variants are ordered in array.
     */
   @Test def testOrderingOfVariants() {
-    assert(ldMatrixDistCalc.variants.isSorted)
-    assert(ldMatrixLocalCalc.variants.isSorted)
+    assert(distLDMatrix.variants.isSorted)
+    assert(localLDMatrix.variants.isSorted)
   }
 
   /**
