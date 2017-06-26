@@ -207,8 +207,7 @@ object Nirvana {
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(vaSignature: Type)(w: (String) => Unit, vAndA: (Variant, Annotation)) {
-    val (v, a) = vAndA
+  def printElement(vaSignature: Type)(w: (String) => Unit, v: Variant) {
     val sb = new StringBuilder()
     sb.append(v.contig)
     sb += '\t'
@@ -218,9 +217,6 @@ object Nirvana {
     sb += '\t'
     sb.append(v.altAlleles.iterator.map(_.alt).mkString(","))
     sb += '\t'
-    //val qualValue= vaSignature.query("qual")(a)
-    //sb.append(Option(qualValue).getOrElse(".").toString)
-    //sb.append("\t.\tGT")
     sb.append("\t.\t.\tGT")
     w(sb.result())
   }
@@ -294,11 +290,13 @@ object Nirvana {
       .mapPartitions({ it =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
+        if (path.getOrElse(null) != null)
+          env.put("PATH", path.get)
 
         it.filter { case (v, va) =>
           rootQuery.forall(q => q(va) == null)
         }
-          //.map { case (v, _) => v }
+          .map { case (v, _) => v }
           .grouped(localBlockSize)
           .flatMap { block =>
             val (jt, proc) = block.iterator.pipe(pb,
