@@ -33,6 +33,7 @@ test: ibs.cpp test.cpp
 clean:
 	rm -rf lib
 	rm -rf build
+	rm -rf *.o
 
 # if your build machine cannot access this URL, download this tar.gz and place
 # it in the same directory as this Makefile. If you do so, the build will
