@@ -12,7 +12,7 @@ object IBSFFI {
   @native
   def ibsMat(result: Array[Long], nSamples: Long, nPacks: Long, genotypes1: Array[Long], genotypes2: Array[Long])
 
-  Native.register("ibs")
+  Native.register("hail")
 
   val genotypesPerPack = 32
 

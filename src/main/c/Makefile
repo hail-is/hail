@@ -9,19 +9,19 @@ UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 ifeq ($(UNAME_S),Linux)
        LIBFLAGS += -rdynamic -shared -fPIC -ggdb
-       shared_library = lib/linux-x86-64/libibs.so
+       shared_library = lib/linux-x86-64/libhail.so
        ifneq ($(filter %86,$(UNAME_P)),)
-               shared_library = lib/linux-x86/libibs.so
+               shared_library = lib/linux-x86/libhail.so
        endif
 endif
 ifeq ($(UNAME_S),Darwin)
        LIBFLAGS += -dynamiclib
-       shared_library = lib/darwin/libibs.dylib
+       shared_library = lib/darwin/libhail.dylib
 endif
 
 default: $(shared_library)
 
-test:
+test: ibs.cpp test.cpp
 	mkdir -p build
 	${CXX} ${_CXXFLAGS} -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o build/functional-tests
 	./build/functional-tests
@@ -44,18 +44,18 @@ libsimdpp-2.0-rc2: libsimdpp-2.0-rc2.tar.gz
 libsimdpp: libsimdpp-2.0-rc2
 	(cd libsimdpp-2.0-rc2 && cmake .)
 
-lib/darwin/libibs.dylib: libsimdpp
-lib/linux-x86-64/libibs.so: libsimdpp
-lib/linux-x86/libibs.so: libsimdpp
+lib/darwin/libhail.dylib: libsimdpp
+lib/linux-x86-64/libhail.so: libsimdpp
+lib/linux-x86/libhail.so: libsimdpp
 
-lib/darwin/lib%.dylib: %.cpp
+lib/darwin/libhail.dylib: ibs.cpp
 	mkdir -p lib/darwin
 	${CXX} ${LIBFLAGS} ${_CXXFLAGS} $? -o $@
 
-lib/linux-x86-64/lib%.so: %.cpp
+lib/linux-x86-64/libhail.so: ibs.cpp
 	mkdir -p lib/linux-x86-64
 	${CXX} ${LIBFLAGS} ${_CXXFLAGS} $? -o $@
 
-lib/linux-x86/lib%.so: %.cpp
+lib/linux-x86/libhail.so: ibs.cpp
 	mkdir -p lib/linux-x86
 	${CXX} ${LIBFLAGS} ${_CXXFLAGS} $? -o $@
