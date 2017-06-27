@@ -321,7 +321,7 @@ class VariantDataset(HistoryMixin):
         
         >>> vds_result = vds.annotate_global('global.populations',
         ...                                     ['EAS', 'AFR', 'EUR', 'SAS', 'AMR'],
-        ...                                     TArray(String()))
+        ...                                     TArray(TString()))
 
         **Notes**
 
@@ -5334,7 +5334,7 @@ class VariantDataset(HistoryMixin):
         - **hail.nirvana.path** -- Value of the PATH environment variable when invoking Nirvana.  Optional, by default PATH is not set.
         - **hail.nirvana.location** -- Location of Nirvana.dll. Required.
         - **hail.nirvana.cache** --Location of cache. Required.
-        - **hail.nirvana.supplementaryAnnotationDirectory -- Location of Supplementary Database. Optional, no supplementary database by default.
+        - **hail.nirvana.supplementaryAnnotationDirectory** -- Location of Supplementary Database. Optional, no supplementary database by default.
         
         **Annotations**
 
