@@ -5,9 +5,11 @@ import is.hail.check.Prop._
 import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.utils._
+import is.hail.SparkSuite
+
+import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
-import is.hail.SparkSuite
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
@@ -34,8 +36,16 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
       rows.size, if (rows.isEmpty) 0 else rows.head.length)
       .toBlockMatrixDense(rowsPerBlock, colsPerBlock)
 
+  def toBreeze(bm: BlockMatrix): BDM[Double] = {
+    val lm = dm.toLocalMatrix(bm)
+    new BDM(lm.numRows, lm.numCols, lm.toArray)
+  }
+
+  def toBreeze(a: Array[Double]): BDV[Double] =
+    new BDV(a)
+
   def blockMatrixPreGen(rowsPerBlock: Int, colsPerBlock: Int): Gen[BlockMatrix] = for {
-    (l, w) <- Gen.squareOfAreaAtMostSize
+    (l, w) <- Gen.nonEmptySquareOfAreaAtMostSize
     arrays <- Gen.buildableOfN[Seq, Array[Double]](l, Gen.buildableOfN(w, arbDouble.arbitrary))
   } yield toBM(arrays, rowsPerBlock, colsPerBlock)
 
@@ -48,7 +58,13 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   val blockMatrixSquareBlocksGen = for {
     blockSize <- Gen.interestingPosInt
     bm <- blockMatrixPreGen(blockSize, blockSize)
-   } yield bm
+  } yield bm
+
+  val twoSquareBlockMatricesSameBlockSizeGen = for {
+    blockSize <- Gen.interestingPosInt
+    x <- blockMatrixPreGen(blockSize, blockSize)
+    y <- blockMatrixPreGen(blockSize, blockSize)
+  } yield (x, y)
 
   implicit val arbitraryBlockMatrix =
     Arbitrary(blockMatrixGen)
@@ -105,6 +121,21 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   }
 
   @Test
+  def multiplySameAsSpark() {
+    forAll(twoSquareBlockMatricesSameBlockSizeGen) { case (a: BlockMatrix, b: BlockMatrix) =>
+      val truth = dm.toLocalMatrix(a * b)
+      val expected = dm.toLocalMatrix(a.multiply(b))
+
+      if (truth == expected)
+        true
+      else {
+        println(s"$truth != $expected")
+        false
+      }
+    }.check()
+  }
+
+  @Test
   def rowwiseMultiplication() {
     // row major
     val l = toBM(Seq(
@@ -124,6 +155,31 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     ))
 
     assert(dm.toLocalMatrix(l --* r) == result)
+  }
+
+  @Test
+  def rowwiseMultiplicationRandom() {
+    val g = for {
+      blockSize <- Gen.interestingPosInt
+      l <- blockMatrixPreGen(blockSize, blockSize)
+      r <- Gen.buildableOfN[Array, Double](l.numCols().toInt, arbitrary[Double])
+    } yield (l, r)
+
+    forAll(g.resize(100)) { case (l: BlockMatrix, r: Array[Double]) =>
+      val truth = toBreeze(l --* r)
+      val repeatedR = (0 until l.numRows().toInt).map(x => r).flatten.toArray
+      val repeatedRMatrix = new BDM(r.size, l.numRows().toInt, repeatedR).t
+      val expected = toBreeze(l) :* repeatedRMatrix
+
+      if (truth == expected)
+        true
+      else {
+        println(s"${truth.toString(1000,1000)} did not equal ${expected.toString(1000,1000)}")
+        val firstMismatch = truth.toArray.zip(expected.toArray).filter { case (x, y) => x != y }.head
+        println(s"first differing elements: $firstMismatch")
+        false
+      }
+    }.check()
   }
 
   @Test

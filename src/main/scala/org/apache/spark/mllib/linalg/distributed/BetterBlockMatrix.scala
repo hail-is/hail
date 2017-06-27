@@ -75,7 +75,7 @@ object BetterBlockMatrix extends Logging {
       val rowsInThisBlock: Int = (if (row + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
       val colsInThisBlock: Int = (if (col + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
 
-      val finalResult = DenseMatrix.zeros(rowsInThisBlock, colsInThisBlock)
+      val result = DenseMatrix.zeros(rowsInThisBlock, colsInThisBlock)
       var i = 0
       while (i < nProducts) {
         val leftMat = leftBlock(row, i, context)
@@ -90,7 +90,7 @@ object BetterBlockMatrix extends Logging {
         i += 1
       }
 
-      Iterator.single(((row, col), finalResult))
+      Iterator.single(((row, col), result))
     }
 
     val parts = (0 until nParts).map(IntPartition.apply _).toArray[Partition]
@@ -125,7 +125,7 @@ object BetterBlockMatrix extends Logging {
 
   def multiply(preL: BlockMatrix, preR: BlockMatrix): BlockMatrix = {
     require(preL.numCols() == preR.numRows(),
-      s"""The number of columns of theleft matrix and the number of rows of the right
+      s"""The number of columns of the left matrix and the number of rows of the right
           matrix must be equal: ${preL.numRows()} x ${preL.numCols()}, ${preR.numRows()}
           x ${preR.numCols()}. If you think they should be equal, try setting the
           dimensions of A and B explicitly while initializing them.""".stripMargin)

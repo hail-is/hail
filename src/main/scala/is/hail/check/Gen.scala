@@ -33,6 +33,14 @@ object Gen {
       coin <- choose(0.0, 1.0))
       yield if (coin < 0.5) (l, w) else (w, l)
 
+  def nonEmptySquareOfAreaAtMostSize: Gen[(Int, Int)] = for {
+      s <- size
+      sqrt = Math.sqrt(s).toInt
+      l <- choose(1, sqrt)
+      w = s / l
+      coin <- choose(0.0, 1.0)
+    } yield if (coin < 0.5) (l, w) else (w, l)
+
   def partition[T](rng: RandomDataGenerator, size: T, parts: Int, f: (RandomDataGenerator, T) => T)(implicit tn: Numeric[T], tct: ClassTag[T]): Array[T] = {
     import tn.mkOrderingOps
     assert(size >= tn.zero, s"size must be greater than or equal to 0. Found $size. tn.zero=${ tn.zero }.")
