@@ -2388,7 +2388,7 @@ class VariantDataset(object):
             :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, or :py:meth:`.ld_prune` before
             calling this unless your dataset is very small.
 
-        :param bool force_local: If true, the LD matrix is computed using local matrix multiplication on the Spark driver. This may improve performance when the genotype matrix is small enough to easily fit in local memory. If false, the LD matrix is computed using distributed matrix multiplication if the number of genotypes exceeds :math:5000^2 and locally otherwise.
+        :param bool force_local: If true, the LD matrix is computed using local matrix multiplication on the Spark driver. This may improve performance when the genotype matrix is small enough to easily fit in local memory. If false, the LD matrix is computed using distributed matrix multiplication if the number of genotypes exceeds :math:`5000^2` and locally otherwise.
 
         :return: Matrix of r values between pairs of variants.
         :rtype: :py:class:`LDMatrix`
