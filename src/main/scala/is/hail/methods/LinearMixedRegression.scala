@@ -244,9 +244,9 @@ class DiagLMMSolver(
     var CdC = UtC.t * (UtC(::, *) :* invD)
 
     if(S.length < n) {
-      ydy = ydy + (1.0 / delta) * ytyMR
-      Cdy = Cdy + (1.0 / delta) * CtyMR
-      CdC = CdC + (1.0 / delta) * CtCMR
+      ydy = ydy + ytyMR / delta
+      Cdy = Cdy + CtyMR / delta
+      CdC = CdC + CtCMR / delta
     }
 
     val b = CdC \ Cdy
@@ -275,13 +275,13 @@ class DiagLMMSolver(
         val dy = Uty :/ D
         val ydy =
           (Uty dot dy) +
-            (1.0 / delta) * ytyMR
+            ytyMR / delta
         val Cdy =
           UtC.t * dy +
-            (1.0 / delta) * CtyMR
+            CtyMR / delta
         val CdC =
           UtC.t * (UtC(::, *) :/ D) +
-            (1.0 / delta) * CtCMR
+            CtCMR / delta
 
         val k = S.length
         val b = CdC \ Cdy
