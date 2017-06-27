@@ -5214,7 +5214,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    def nirvana(self, config, block_size = 1000, root = 'va.nirvana'):
+    def nirvana(self, config, block_size = 50000, root = 'va.nirvana'):
         """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
         ***Configuration***
@@ -5234,181 +5234,181 @@ class VariantDataset(object):
 
         .. code-block:: text
         
-    Struct{
-        "chromosome" -> String,
-        "refAllele" -> String,
-        "position" -> Int,
-        "altAlleles" -> Array(String),
-        "cytogeneticBand" -> String,
-        "filters" -> Array(String),
-        "variants" -> Array(Struct{
-          "altAllele" -> String,
-          "refAllele" -> String,
-          "chromosome" -> String,
-          "begin" -> Int,
-          "end" -> Int,
-          "phylopScore" -> Double,
-          "isReferenceMinor" -> Boolean,
-          "variantType" -> String,
-          "vid" -> String,
-          "isRecomposed" -> Boolean,
-          "regulatoryRegions" -> Array(Struct{
-            "id" -> String,
-            "consequence" -> TSet(TString),
-            "type" -> String
-          }},
-          "clinvar" -> Array(Struct{
-            "id" -> String,
-            "reviewStatus" -> String,
-            "isAlleleSpecific" -> Boolean,
-            "alleleOrigins" -> Array(String),
-            "refAllele" -> String,
-            "altAllele" -> String,
-            "phenotypes" -> Array(String),
-            "medGenIds" -> Array(String),
-            "omimIds" -> Array(String),
-            "orphanetIds" -> Array(String),
-            "geneReviewsId" -> String,
-            "significance" -> String,
-            "lastUpdatedDate" -> String,
-            "pubMedIds" -> Array(String)
-          }),
-          "cosmic" -> Array(Struct{
-            "id" -> String,
-            "isAlleleSpecific" -> Boolean,
-            "refAllele" -> String,
-            "altAllele" -> String,
-            "gene" -> String,
-            "sampleCount" -> Int,
-            "studies" -> Array(Struct{
-              "id" -> Int,
-              "histology" -> String,
-              "primarySite" -> String
-            })
-          }),
-          "dbsnp" -> Struct{"ids" -> Array(String)},
-          "evs" -> Struct{
-            "coverage" -> Int,
-            "sampleCount" -> Int,
-            "allAf" -> Double,
-            "afrAf" -> Double,
-            "eurAf" -> Double
-          },
-          "exac" -> Struct{
-            "coverage" -> Int,
-            "allAf" -> Double,
-            "allAc" -> Int,
-            "allAn" -> Int,
-            "afrAf" -> Double,
-            "afrAc" -> Int,
-            "afrAn" -> Int,
-            "amrAf" -> Double,
-            "amrAc" -> Int,
-            "amrAn" -> Int,
-            "easAf" -> Double,
-            "easAc" -> Int,
-            "easAn" -> Int,
-            "finAf" -> Double,
-            "finAc" -> Int,
-            "finAn" -> Int,
-            "nfeAf" -> Double,
-            "nfeAc" -> Int,
-            "nfeAn" -> Int,
-            "othAf" -> Double,
-            "othAc" -> Int,
-            "othAn" -> Int,
-            "sasAf" -> Double,
-            "sasAc" -> Int,
-            "sasAn" -> Int
-          },
-          "globalAllele" -> Struct{
-            "globalMinorAllele" -> String,
-            "globalMinorAlleleFrequency" -> Double
-          },
-          "oneKg" -> Struct{
-            "ancestralAllele" -> String,
-            "allAf" -> Double,
-            "allAc" -> Int,
-            "allAn" -> Int,
-            "afrAf" -> Double,
-            "afrAc" -> Int,
-            "afrAn" -> Int,
-            "amrAf" -> Double,
-            "amrAc" -> Int,
-            "amrAn" -> Int,
-            "easAf" -> Double,
-            "easAc" -> Int,
-            "easAn" -> Int,
-            "eurAf" -> Double,
-            "eurAc" -> Int,
-            "eurAn" -> Int,
-            "sasAf" -> Double,
-            "sasAc" -> Int,
-            "sasAn" -> Int
-          },
-          "transcripts" -> Struct{
-            "refSeq" -> Array(Struct{
-              "transcript" -> String,
-              "bioType" -> String,
-              "aminoAcids" -> String,
-              "cDnaPos" -> String,
-              "codons" -> String,
-              "cdsPos" -> String,
-              "exons" -> String,
-              "introns" -> String,
-              "geneId" -> String,
-              "hgnc" -> String,
-              "consequence" -> Array(String),
-              "hgvsc" -> String,
-              "hgvsp" -> String,
-              "isCanonical" -> Boolean,
-              "polyPhenScore" -> Double,
-              "polyPhenPrediction" -> String,
-              "proteinId" -> String,
-              "proteinPos" -> String,
-              "siftScore" -> Double,
-              "siftPrediction" -> String
-            }),
-            "ensembl" -> Array(Struct{
-              "transcript" -> String,
-              "bioType" -> String,
-              "aminoAcids" -> String,
-              "cDnaPos" -> String,
-              "codons" -> String,
-              "cdsPos" -> String,
-              "exons" -> String,
-              "introns" -> String,
-              "geneId" -> String,
-              "hgnc" -> String,
-              "consequence" -> Array(String),
-              "hgvsc" -> String,
-              "hgvsp" -> String,
-              "isCanonical" -> Boolean,
-              "polyPhenScore" -> Double,
-              "polyPhenPrediction" -> String,
-              "proteinId" -> String,
-              "proteinPos" -> String,
-              "siftScore" -> Double,
-              "siftPrediction" -> String
-            })
-          },
-          "genes" -> Array(Struct{
-            "name" -> String,
-            "omim" -> Array(Struct(
-              "mimNumber" -> Int,
-              "hgnc" -> String,
-              "description" -> String,
-              "phenotypes" -> Array(Struct{
-                "mimNumber" -> Int,
-                "phenotype" -> String,
-                "mapping" -> String,
-                "inheritance" -> Array(String),
-                "comments" -> String
-              })
-            ))
-          })
-        ))
-    }
+            Struct{
+                "chromosome" -> String,
+                "refAllele" -> String,
+                "position" -> Int,
+                "altAlleles" -> Array(String),
+                "cytogeneticBand" -> String,
+                "filters" -> Array(String),
+                "variants" -> Array(Struct{
+                  "altAllele" -> String,
+                  "refAllele" -> String,
+                  "chromosome" -> String,
+                  "begin" -> Int,
+                  "end" -> Int,
+                  "phylopScore" -> Double,
+                  "isReferenceMinor" -> Boolean,
+                  "variantType" -> String,
+                  "vid" -> String,
+                  "isRecomposed" -> Boolean,
+                  "regulatoryRegions" -> Array(Struct{
+                    "id" -> String,
+                    "consequence" -> TSet(TString),
+                    "type" -> String
+                  }},
+                  "clinvar" -> Array(Struct{
+                    "id" -> String,
+                    "reviewStatus" -> String,
+                    "isAlleleSpecific" -> Boolean,
+                    "alleleOrigins" -> Array(String),
+                    "refAllele" -> String,
+                    "altAllele" -> String,
+                    "phenotypes" -> Array(String),
+                    "medGenIds" -> Array(String),
+                    "omimIds" -> Array(String),
+                    "orphanetIds" -> Array(String),
+                    "geneReviewsId" -> String,
+                    "significance" -> String,
+                    "lastUpdatedDate" -> String,
+                    "pubMedIds" -> Array(String)
+                  }),
+                  "cosmic" -> Array(Struct{
+                    "id" -> String,
+                    "isAlleleSpecific" -> Boolean,
+                    "refAllele" -> String,
+                    "altAllele" -> String,
+                    "gene" -> String,
+                    "sampleCount" -> Int,
+                    "studies" -> Array(Struct{
+                      "id" -> Int,
+                      "histology" -> String,
+                      "primarySite" -> String
+                    })
+                  }),
+                  "dbsnp" -> Struct{"ids" -> Array(String)},
+                  "evs" -> Struct{
+                    "coverage" -> Int,
+                    "sampleCount" -> Int,
+                    "allAf" -> Double,
+                    "afrAf" -> Double,
+                    "eurAf" -> Double
+                  },
+                  "exac" -> Struct{
+                    "coverage" -> Int,
+                    "allAf" -> Double,
+                    "allAc" -> Int,
+                    "allAn" -> Int,
+                    "afrAf" -> Double,
+                    "afrAc" -> Int,
+                    "afrAn" -> Int,
+                    "amrAf" -> Double,
+                    "amrAc" -> Int,
+                    "amrAn" -> Int,
+                    "easAf" -> Double,
+                    "easAc" -> Int,
+                    "easAn" -> Int,
+                    "finAf" -> Double,
+                    "finAc" -> Int,
+                    "finAn" -> Int,
+                    "nfeAf" -> Double,
+                    "nfeAc" -> Int,
+                    "nfeAn" -> Int,
+                    "othAf" -> Double,
+                    "othAc" -> Int,
+                    "othAn" -> Int,
+                    "sasAf" -> Double,
+                    "sasAc" -> Int,
+                    "sasAn" -> Int
+                  },
+                  "globalAllele" -> Struct{
+                    "globalMinorAllele" -> String,
+                    "globalMinorAlleleFrequency" -> Double
+                  },
+                  "oneKg" -> Struct{
+                    "ancestralAllele" -> String,
+                    "allAf" -> Double,
+                    "allAc" -> Int,
+                    "allAn" -> Int,
+                    "afrAf" -> Double,
+                    "afrAc" -> Int,
+                    "afrAn" -> Int,
+                    "amrAf" -> Double,
+                    "amrAc" -> Int,
+                    "amrAn" -> Int,
+                    "easAf" -> Double,
+                    "easAc" -> Int,
+                    "easAn" -> Int,
+                    "eurAf" -> Double,
+                    "eurAc" -> Int,
+                    "eurAn" -> Int,
+                    "sasAf" -> Double,
+                    "sasAc" -> Int,
+                    "sasAn" -> Int
+                  },
+                  "transcripts" -> Struct{
+                    "refSeq" -> Array(Struct{
+                      "transcript" -> String,
+                      "bioType" -> String,
+                      "aminoAcids" -> String,
+                      "cDnaPos" -> String,
+                      "codons" -> String,
+                      "cdsPos" -> String,
+                      "exons" -> String,
+                      "introns" -> String,
+                      "geneId" -> String,
+                      "hgnc" -> String,
+                      "consequence" -> Array(String),
+                      "hgvsc" -> String,
+                      "hgvsp" -> String,
+                      "isCanonical" -> Boolean,
+                      "polyPhenScore" -> Double,
+                      "polyPhenPrediction" -> String,
+                      "proteinId" -> String,
+                      "proteinPos" -> String,
+                      "siftScore" -> Double,
+                      "siftPrediction" -> String
+                    }),
+                    "ensembl" -> Array(Struct{
+                      "transcript" -> String,
+                      "bioType" -> String,
+                      "aminoAcids" -> String,
+                      "cDnaPos" -> String,
+                      "codons" -> String,
+                      "cdsPos" -> String,
+                      "exons" -> String,
+                      "introns" -> String,
+                      "geneId" -> String,
+                      "hgnc" -> String,
+                      "consequence" -> Array(String),
+                      "hgvsc" -> String,
+                      "hgvsp" -> String,
+                      "isCanonical" -> Boolean,
+                      "polyPhenScore" -> Double,
+                      "polyPhenPrediction" -> String,
+                      "proteinId" -> String,
+                      "proteinPos" -> String,
+                      "siftScore" -> Double,
+                      "siftPrediction" -> String
+                    })
+                  },
+                  "genes" -> Array(Struct{
+                    "name" -> String,
+                    "omim" -> Array(Struct(
+                      "mimNumber" -> Int,
+                      "hgnc" -> String,
+                      "description" -> String,
+                      "phenotypes" -> Array(Struct{
+                        "mimNumber" -> Int,
+                        "phenotype" -> String,
+                        "mapping" -> String,
+                        "inheritance" -> Array(String),
+                        "comments" -> String
+                      })
+                    ))
+                  })
+                ))
+            }
 
         """
         jvds = self._jvdf.nirvana(config, block_size, root)
