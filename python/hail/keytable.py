@@ -20,6 +20,8 @@ def desc(col):
     return scala_package_object(Env.hail().keytable).desc(col)
 
 
+kt_type = lazy()
+
 class KeyTable(object):
     """Hail's version of a SQL table where columns can be designated as keys.
 
@@ -176,7 +178,7 @@ class KeyTable(object):
         return self._jkt.count()
 
     @handle_py4j
-    @typecheck_method(other=anytype)
+    @typecheck_method(other=kt_type)
     def same(self, other):
         """Test whether two key tables are identical.
 
@@ -287,7 +289,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.annotate(expr))
 
     @handle_py4j
-    @typecheck_method(right=anytype,
+    @typecheck_method(right=kt_type,
                       how=strlike)
     def join(self, right, how='inner'):
         """Join two key tables together.
@@ -928,7 +930,7 @@ class KeyTable(object):
         self._jkt.unpersist()
 
     @handle_py4j
-    @typecheck_method(cols=tupleof(oneof(strlike, anytype)))
+    @typecheck_method(cols=tupleof(oneof(strlike, kt_type)))
     def order_by(self, *cols):
         """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
 
@@ -1175,7 +1177,7 @@ class KeyTable(object):
         return KeyTable(hc, jkt)
 
     @handle_py4j
-    @typecheck_method(kts=tupleof(anytype))
+    @typecheck_method(kts=tupleof(kt_type))
     def union(self, *kts):
         """Union the rows of multiple tables.
 
@@ -1286,3 +1288,5 @@ class KeyTable(object):
         """
 
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
+
+kt_type.set(KeyTable)

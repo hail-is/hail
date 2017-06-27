@@ -36,6 +36,7 @@ def convertVDS(func, vds, *args, **kwargs):
 
     return func(vds, *args, **kwargs)
 
+vds_type = lazy()
 
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
@@ -841,7 +842,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @typecheck_method(other=anytype,
+    @typecheck_method(other=vds_type,
                       expr=nullable(strlike),
                       root=nullable(strlike))
     def annotate_variants_vds(self, other, expr=None, root=None):
@@ -928,7 +929,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    @typecheck_method(right=anytype)
+    @typecheck_method(right=vds_type)
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
@@ -2263,7 +2264,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @typecheck_method(right=anytype)
+    @typecheck_method(right=vds_type)
     def join(self, right):
         """Join two variant datasets.
 
@@ -3999,7 +4000,7 @@ class VariantDataset(object):
         return KinshipMatrix(self._jvdf.rrm(force_block, force_gramian))
 
     @handle_py4j
-    @typecheck_method(other=anytype,
+    @typecheck_method(other=vds_type,
                       tolerance=numeric)
     def same(self, other, tolerance=1e-6):
         """True if the two variant datasets have the same variants, samples, genotypes, and annotation schemata and values.
@@ -4978,3 +4979,5 @@ class VariantDataset(object):
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
                                 jarray(Env.jvm().java.lang.String, wrap_to_list(key)), separator)
         return KeyTable(self.hc, jkt)
+
+vds_type.set(VariantDataset)
