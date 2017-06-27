@@ -2758,7 +2758,7 @@ class VariantDataset(object):
                       n_eigs=nullable(integral),
                       dropped_variance_fraction=(nullable(float)))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False, n_eigs=None, dropped_variance_fraction=None):
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False, n_eigs=None, dropped_variance_fraction=1e-6):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
@@ -2952,7 +2952,7 @@ class VariantDataset(object):
 
         **Low rank approximation of kinship for improved performance**
 
-        It is possible to limit the number of eigenvectors used by lmmreg. This is possible in two ways. Specifying the parameter ``n_eigs`` will cause lmmreg to use only ``n_eigs`` eigenvectors to fit the global model and in the per-variant associations. Alternatively, it is also possible to specify ``ignored_variance_fraction``, which is the fraction of total variance that can be safely ignored. For example, given a value of .1, lmmreg will only use enough eigenvectors to account for 90% of the variance in the dataset. If both parameters are specified, lmmreg will use the one that filters out the most eigenvectors.
+        :py:meth:`.lmmreg` can implicitly use a low rank approximation of the kinship matrix to fit the variance components and improve the performance of fitting the model for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specifying the parameter ``n_eigs`` will cause lmmreg to use only the top ``n_eigs`` eigenvectors to fit the global model and in the per-variant associations. Alternatively, it is also possible to specify ``ignored_variance_fraction``, which is the fraction of total variance that can be safely ignored. For example, given a value of .1, lmmreg will only use enough eigenvectors to account for 90% of the variance in the dataset. If both parameters are specified, lmmreg will use the one that filters out the most eigenvectors.
 
         **Further background**
 

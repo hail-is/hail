@@ -35,7 +35,7 @@ object LinearMixedRegression {
     sparsityThreshold: Double,
     useDosages: Boolean,
     optNEigs: Option[Int] = None,
-    optIgnoredVarianceFraction: Option[Double] = None): VariantDataset = {
+    droppedVarianceFraction: Double): VariantDataset = {
 
     require(assocVds.wasSplit)
 
@@ -87,26 +87,17 @@ object LinearMixedRegression {
 
     var nEigs = optNEigs.getOrElse(n)
 
-    val droppedVarianceFraction = optIgnoredVarianceFraction.getOrElse(1E-6)
+    require(nEigs > 0 && nEigs <= fullS.length, s"lmmreg: Must specify number of eigenvectors between 1 and ${fullS.length}")
 
-    nEigs = {
-      val trace = fullS.toArray.sum
-      var i = fullNEigs - 1
-      var runningSum = 0.0
-      val target = droppedVarianceFraction * trace
-      while (i > nEigs || runningSum < target) {
-        runningSum += fullS(-i)
-        i -= 1
-      }
-      math.min(nEigs, i + 1)
-    }
+    nEigs = computeNEigs(fullS, nEigs, droppedVarianceFraction)
 
     val U = fullU(::, (fullNEigs - nEigs) until fullNEigs)
 
     val S = fullS((fullNEigs - nEigs) until fullNEigs)
 
-    info("lmmreg: 20 largest evals: " + ((fullNEigs - 1) to math.max(0, fullNEigs - 20) by -1).map(fullS(_).formatted("%.5f")).mkString(", "))
-    info("lmmreg: 20 smallest evals: " + (0 until math.min(fullNEigs, 20)).map(fullS(_).formatted("%.5f")).mkString(", "))
+
+    info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
+    info(s"lmmreg: Evals $nEigs to ${math.max(1, nEigs - 20)}: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
 
     val Ut = U.t
 
@@ -186,17 +177,17 @@ object LinearMixedRegression {
       vds2
   }
 
-  /*def computeNEigs(): Int = {
-    val trace = fullS.toArray.sum
-    var i = fullNEigs - 1
+  def computeNEigs(S: DenseVector[Double], nEigs: Int, droppedVarianceFraction: Double): Int = {
+    val trace = S.toArray.sum
+    var i = S.length - 1
     var runningSum = 0.0
     val target = droppedVarianceFraction * trace
-    while (i > nEigs || runningSum < target) {
-      runningSum += fullS(-i)
+    while (i > nEigs || runningSum <= target) {
+      runningSum += S(-i)
       i -= 1
     }
     math.min(nEigs, i + 1)
-  }*/
+  }
 }
 
 
