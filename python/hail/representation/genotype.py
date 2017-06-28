@@ -54,7 +54,7 @@ class Genotype(object):
         fake_ref = 'FakeRef=True' if self._jrep.fakeRef() else ''
         if self._jrep.isLinearScale():
             return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, GP=%s%s)' %\
-                   (self.gt, self.ad, self.dp, self.gq, self.gp(), fake_ref)
+                   (self.gt, self.ad, self.dp, self.gq, self.gp, fake_ref)
         else:
             return 'Genotype(GT=%s, AD=%s, DP=%s, GQ=%s, PL=%s%s)' % \
                    (self.gt, self.ad, self.dp, self.gq, self.pl, fake_ref)
