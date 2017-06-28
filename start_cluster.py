@@ -9,19 +9,19 @@ import subprocess
 parser = argparse.ArgumentParser()
 
 # required arguments
-parser.add_argument('--name', '-n', required=True, type=str, help='Name of cluster.')
+parser.add_argument('--name', '-n', required=True, type=str, help='Name of cluster.', required=True)
 
 # arguments with default parameters
 parser.add_argument('--hash', default='latest', type=str, help='Hail build to use for notebook initialization.')
 parser.add_argument('--spark', default='2.0.2', type=str, choices=['2.0.2', '2.1.0'], help='Spark version used to build Hail.')
 parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str, help='Master machine type.')
-parser.add_argument('--master-boot-disk-size', default='100GB', type=str, help='Disk size of master machine.')
-parser.add_argument('--num-master-local-ssds', default='0', type=str, help='Number of local SSDs to attach to the master machine.')
-parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-np', default='0', type=str, help='Number of preemptible worker machines.')
-parser.add_argument('--num-worker-local-ssds', default='0', type=str, help='Number of local SSDs to attach to each worker machine.')
-parser.add_argument('--num-workers', '--n-workers', '-nw', default='2', type=str, help='Number of worker machines.')
-parser.add_argument('--preemptible-worker-boot-disk-size', default='40GB', type=str, help='Disk size of preemptible machines.')
-parser.add_argument('--worker-boot-disk-size', default='40GB', type=str, help='Disk size of worker machines.')
+parser.add_argument('--master-boot-disk-size', default=100, type=int, help='Disk size of master machine (in GB).')
+parser.add_argument('--num-master-local-ssds', default=0, type=int, help='Number of local SSDs to attach to the master machine.')
+parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-np', default=0, type=int, help='Number of preemptible worker machines.')
+parser.add_argument('--num-worker-local-ssds', default=0, type=int, help='Number of local SSDs to attach to each worker machine.')
+parser.add_argument('--num-workers', '--n-workers', '-nw', default=2, type=int, help='Number of worker machines.')
+parser.add_argument('--preemptible-worker-boot-disk-size', default=40, type=int, help='Disk size of preemptible machines (in GB).')
+parser.add_argument('--worker-boot-disk-size', default=40, type=int, help='Disk size of worker machines (in GB).')
 parser.add_argument('--worker-machine-type', '--worker', '-w', type=str, help='Worker machine type.')
 parser.add_argument('--zone', default='us-central1-b', type=str, help='Compute zone for the cluster.')
 parser.add_argument('--properties', default='', type=str, help='Additional configuration properties for the cluster.')
@@ -48,7 +48,7 @@ if not args.worker_machine_type:
     if args.vep:
         args.worker_machine_type = 'n1-highmem-8'
     else:
-        args.worker_machine_type = 'n1-standard-8' # default
+        args.worker_machine_type = 'n1-standard-8'  # default
 
 # master machine type to memory map, used for setting spark.driver.memory property
 machine_mem = {
@@ -91,7 +91,7 @@ init_actions = args.init
 
 # add VEP action
 if args.vep:
-    init_actions = args.init + ',' + 'gs://hail-common/vep/vep/vep85-init.sh'
+    init_actions += ',' + 'gs://hail-common/vep/vep/vep85-init.sh'
 
 if args.hash == 'latest':
     hail_hash = subprocess.Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash.txt'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].strip()
@@ -114,13 +114,13 @@ cmd = ' '.join([
     '--image-version={}'.format(image_version),
     '--master-machine-type={}'.format(args.master_machine_type),
     '--metadata {}'.format(metadata),
-    '--master-boot-disk-size={}'.format(args.master_boot_disk_size),
+    '--master-boot-disk-size={}GB'.format(args.master_boot_disk_size),
     '--num-master-local-ssds={}'.format(args.num_master_local_ssds),
     '--num-preemptible-workers={}'.format(args.num_preemptible_workers),
     '--num-worker-local-ssds={}'.format(args.num_worker_local_ssds),
     '--num-workers={}'.format(args.num_workers),
-    '--preemptible-worker-boot-disk-size={}'.format(args.preemptible_worker_boot_disk_size),
-    '--worker-boot-disk-size={}'.format(args.worker_boot_disk_size),
+    '--preemptible-worker-boot-disk-size={}GB'.format(args.preemptible_worker_boot_disk_size),
+    '--worker-boot-disk-size={}GB'.format(args.worker_boot_disk_size),
     '--worker-machine-type={}'.format(args.worker_machine_type),
     '--zone={}'.format(args.zone),
     '--properties={}'.format(",".join(properties)),
