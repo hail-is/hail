@@ -4,7 +4,7 @@ We believe there is a **unique opportunity** to transform the practice of comput
 
 Two of us ([Cotton Seed](https://www.broadinstitute.org/bios/cotton-seed) and [Jon Bloom](https://www.broadinstitute.org/bios/jonathan-bloom)) co-founded the **Hail project** in the [Neale lab](http://www.nealelab.is/) of the [Broad Institute](https://www.broadinstitute.org/about-us) in Fall 2015 to help the genetics community [harness the flood of sequenced genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) in order to unravel the genetic architecture of disease. Our open-source framework is already being used to analyze the largest genetic data sets in existence, to power dozens of major academic studies, and to meet the exploding needs of hospitals, diagnostic labs, and industry.
 
-We are now building a new **Initiative in Scalable Analytics** in order to grow the Hail project within and beyond genetics and reduce the latency of computational experiments in biomedical research. And we are seeking **software engineers** at multiple levels of experience to join us!
+We are now building a new **Initiative in Scalable Analytics** at the Broad Institute in order to grow the Hail project within and beyond genetics and reduce the latency of computational experiments in biomedical research. And we are seeking **software engineers** at multiple levels of experience to join us!
 
 ![](https://storage.googleapis.com/hail-common/hail_team.JPG "Hail team")
 
