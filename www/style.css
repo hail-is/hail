@@ -320,12 +320,12 @@ table td {
     margin-top: 1em;
     padding-top: 0px;
     padding-bottom: 0px;
-    height: 60px;
-    line-height: 60px;
+    height: 40px;
+    line-height: 40px;
 }
 
 #banner-jobs > p {
     text-align: center;
-    font-size: 28px;
+    font-size: 20px;
     margin: 0px;
 }
