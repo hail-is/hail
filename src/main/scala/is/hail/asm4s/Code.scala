@@ -324,6 +324,10 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
 
   def <(rhs: Code[Float]): Code[Boolean] = compare(rhs) < 0
   def >(rhs: Code[Float]): Code[Boolean] = compare(rhs) > 0
+  def <=(rhs: Code[Float]): Code[Boolean] = compare(rhs) <= 0
+  def >=(rhs: Code[Float]): Code[Boolean] = compare(rhs) >= 0
+  def ceq(rhs: Code[Float]): Code[Boolean] = compare(rhs).ceq(0)
+  def cne(rhs: Code[Float]): Code[Boolean] = compare(rhs).cne(0)
 
   def toI: Code[Int] = Code(lhs, new InsnNode(F2I))
   def toL: Code[Long] = Code(lhs, new InsnNode(F2L))
