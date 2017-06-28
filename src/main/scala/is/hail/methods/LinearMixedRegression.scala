@@ -140,7 +140,7 @@ object LinearMixedRegression {
         vds1
     }
 
-    if (runAssoc) {
+    if (runAssoc && false) {
       info(s"lmmreg: Computing statistics for each variant...")
 
       val T = Ut(::, *) :* diagLMM.sqrtInvD
@@ -173,6 +173,30 @@ object LinearMixedRegression {
         newAnnotation
       }.copy(vaSignature = newVAS)
     }
+    else if (runAssoc) {
+      val sc = assocVds.sparkContext
+      val sampleMaskBc = sc.broadcast(sampleMask)
+      val slowLMMBc = sc.broadcast(SlowLMM(y, cov, S, U, delta, diagLMM.logNullS2, useML))
+
+      val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
+
+      vds2.mapAnnotations { case (v, va, gs) =>
+      val x: Vector[Double] =
+        if (!useDosages) {
+          val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
+          if (x0.used <= sparsityThreshold * n) x0 else x0.toDenseVector
+        }
+        else
+          RegressionUtils.dosages(gs, n, sampleMaskBc.value)
+
+        val nonConstant = useDosages || !RegressionUtils.constantVector(x)
+
+        val lmmregAnnot = if (nonConstant) slowLMMBc.value.liklihoodRatioTest(x) else null
+        val newAnnotation = inserter(va, lmmregAnnot)
+        assert(newVAS.typeCheck(newAnnotation))
+        newAnnotation
+      }.copy(vaSignature = newVAS)
+    }
     else
       vds2
   }
@@ -187,6 +211,84 @@ object LinearMixedRegression {
       i -= 1
     }
     math.min(nEigs, i + 1)
+  }
+}
+
+case class SlowLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: DenseVector[Double], U: DenseMatrix[Double], delta: Double, logNullS2: Double, useML: Boolean) {
+
+  val n = y.length
+  val d = covs.cols
+
+  def liklihoodRatioTest(x: Vector[Double]): Annotation = {
+    val D = S + delta
+
+    val Ut = U.t
+
+    println(x.toDenseVector.toDenseMatrix.rows, x.toDenseVector.toDenseMatrix.cols)
+
+    val C = DenseMatrix.horzcat(x.toDenseVector.toDenseMatrix.t, covs)
+
+    val UtC = Ut * C
+    val Uty = Ut * y
+
+    val CtC = C.t * C
+    val Cty = C.t * y
+    val yty = y.t * y
+
+    val ytyMR = (yty - Uty.t * Uty)
+    val CtyMR = (Cty - UtC.t * Uty)
+    val CtCMR = (CtC - UtC.t * UtC)
+
+    val dy = Uty :/ D
+    val ydy =
+      (Uty dot dy) +
+        ytyMR / delta
+    val Cdy =
+      UtC.t * dy +
+        CtyMR / delta
+    val CdC =
+      UtC.t * (UtC(::, *) :/ D) +
+        CtCMR / delta
+
+    val k = S.length
+    val b = CdC \ Cdy
+
+    val r2 = ydy - (Cdy dot b)
+
+    val denom = if (useML) n else n - d
+
+    val s2 = r2 / denom
+
+    val chi2 = n * (logNullS2 - math.log(s2))
+    val p = chiSquaredTail(1, chi2)
+
+    Annotation(b(0), s2, chi2, p)
+  }
+
+}
+
+case class ScalerLMM(
+  y: DenseVector[Double],
+  yy: Double,
+  Qt: DenseMatrix[Double],
+  Qty: DenseVector[Double],
+  yQty: Double,
+  logNullS2: Double,
+  useML: Boolean) {
+
+  def likelihoodRatioTest(x: Vector[Double]): Annotation = {
+
+    val n = y.length
+    val Qtx = Qt * x
+    val xQtx: Double = (x dot x) - (Qtx dot Qtx)
+    val xQty: Double = (x dot y) - (Qtx dot Qty)
+
+    val b: Double = xQty / xQtx
+    val s2 = (yQty - xQty * b) / (if (useML) n else n - Qt.rows)
+    val chi2 = n * (logNullS2 - math.log(s2))
+    val p = chiSquaredTail(1, chi2)
+
+    Annotation(b, s2, chi2, p)
   }
 }
 
@@ -417,27 +519,4 @@ case class DiagLMM(
   TyTy: Double,
   useML: Boolean)
 
-case class ScalerLMM(
-  y: DenseVector[Double],
-  yy: Double,
-  Qt: DenseMatrix[Double],
-  Qty: DenseVector[Double],
-  yQty: Double,
-  logNullS2: Double,
-  useML: Boolean) {
 
-  def likelihoodRatioTest(x: Vector[Double]): Annotation = {
-
-    val n = y.length
-    val Qtx = Qt * x
-    val xQtx: Double = (x dot x) - (Qtx dot Qtx)
-    val xQty: Double = (x dot y) - (Qtx dot Qty)
-
-    val b: Double = xQty / xQtx
-    val s2 = (yQty - xQty * b) / (if (useML) n else n - Qt.rows)
-    val chi2 = n * (logNullS2 - math.log(s2))
-    val p = chiSquaredTail(1, chi2)
-
-    Annotation(b, s2, chi2, p)
-  }
-}
