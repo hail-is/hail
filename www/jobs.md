@@ -1,31 +1,21 @@
-### Concise and visual description of the big opportunity
+####Join the Initiative in Scalable Analytics at the Broad Institute of MIT and Harvard
 
-You/Cotton have done this a million times other places, but it goes something like
+We believe there is a **unique opportunity** to transform the practice of computational biology by applying deep ideas from computer science and mathematics to build the next generation of modular, scalable tools for analyzing massive genetic and biological data. These tools will drive the development of new treatments and biotechnologies and fundamentally advance our understanding of life itself.
 
-"There is a tidal wave of genomic data coming, there is an urgent need to handle it, and our tools aren't ready. Hail is a pioneering team that is already making an outsized impact on the future of biomedical research, and we need your help." 
+Two of us ([Cotton Seed](https://www.broadinstitute.org/bios/cotton-seed) and [Jon Bloom](https://www.broadinstitute.org/bios/jonathan-bloom)) co-founded the **Hail project** in the [Neale lab](http://www.nealelab.is/) of the [Broad Institute](https://www.broadinstitute.org/about-us) in Fall 2015 to help the genetics community [harness the flood of sequenced genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) in order to unravel the genetic architecture of disease. Our open-source framework is already being used to analyze the largest genetic data sets in existence, to power dozens of major academic studies, and to meet the exploding needs of hospitals, diagnostic labs, and industry.
 
-#### Insert: Chart from Cotton's Spark presentation
- 
-Or something similar showing future size of genomics data as compared with today's structured big datasets like YouTube, Facebook, etc. with short description of the magnitude of the challenge that poses
+We are now building a new **Initiative in Scalable Analytics** in order to grow the Hail project within and beyond genetics and reduce the latency of computational experiments in biomedical research. And we are seeking **software engineers** at multiple levels of experience to strengthen and complement our small team!
 
-### Vision for Hail
+![Hail team](https://storage.googleapis.com/hail-common/hail_team.JPG)
 
-The vision for Hail is an open source platform that can quickly and affordably compute on petabytes of data, and help accelerate scientists' efforts at finding cures for disease. We are excited by the strides we have made toward this goal over the last two years, but we are just getting started.
+Operationally, we're a **zero-equity start-up** embedded inside the world's leading biomedical and genomics research instutute, anchoring the [global heart of biotech](http://www.wbur.org/bostonomix/2017/06/19/boston-biotech-success) right across from MIT. We implement **distributed algorithms** on top of our custom-built language, compiler, and run-time system to support querying, aggregation, and linear algebra on hundreds of thousands of human genomes.
 
-#### INSERT: high-level, not too technical, exciting description of what Hail has achieved for science so far, citation list with links
+The **genomic data** for a typical disease study now runs in the tens of terabytes, doubling every eight months. Single-cell RNA datasets are still gigabyte-scall but growing far faster in support of ambitious efforts like the [Human Cell Atlas](https://www.broadinstitute.org/research-highlights-human-cell-atlas). Much of this data comes from the [Broad Genomics Platform](https://www.broadinstitute.org/genomics), the largest producer of human genomics information in the world.
 
-### One or two sentences on next steps
+We thrive on **diverse challenges**: language and compiler design, low-level performance optimization, architecture of distributed systems, scaling established methods and inventing new ones, visualization, interoperability with other powerful tools, and close collaboration with the amazing science and scientists all around us (this is incredibly fun!). Our current **technology stack** includes the JVM, Scala, Spark, Python, GCP, and C++. Our domain knowledge includes machine learning, bioinformatics, statistical genetics, compilers, and theoretical math.
 
-Articulate in broad strokes what this engineer will be working on to take Hail to the next level, so he/she can begin to imagine how his/her skills will apply.
+In addition to software development, our groups is interested in the application of **machine learning** to problems in biology. We run the [Models, Inference and Algorithms Initiative](http://www.broadinstitute.org/mia) to foster community and pedagogy in greater Boston at the interface of computational biology, mathematical theory, and computer science.
 
-### Paragraph on why working at the Broad is special.
+If you’d like a **video intro** for engineers on what we’re building and why, check out the talks on our [homepage](https://hail.is). If you’re curious how Hail is used, check out the [tutorials](https://hail.is/hail/tutorials-landing.html). And if you think you might enjoy applying your engineering skills to understand the biology of disease, send your resume with any questions to <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a> and apply through the following link!
 
-Close contact with scientists, startup within a larger community, connections to the forefront of medical research worldwide, etc.  You are trying to appeal to the engineer who is searching for a more meaningful life beyond ad clicks, and briefly painting a picture of what his/her life at the Broad would feel like.
-
-![Hail talk at Spark Summit West 2017](https://storage.googleapis.com/hail-common/hail_team.JPG)
-
-He/she should literally imagine him/herself in front of the chalkboard
-
-### We need your help.
-
-If you are ... prerequisites ..., then email us your resume at once: to <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>. We will be in touch.
+[https://www.linkedin.com/jobs/view/316818823/](https://www.linkedin.com/jobs/view/316818823/)
