@@ -29,7 +29,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     } yield (i, j)
     val rMats = sc.parallelize(indices).map { case (i, j) =>
       val rowsInThisBlock = (if (i + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
-      val colsInThisBlock = (if (i + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
+      val colsInThisBlock = (if (j + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
       val a = new Array[Double](rowsInThisBlock * colsInThisBlock)
       for {
         ii <- 0 until rowsInThisBlock

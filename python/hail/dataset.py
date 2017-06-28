@@ -2360,38 +2360,41 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    def ld_matrix(self):
+    @typecheck_method(force_local=bool)
+    def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
-        
+
         **Examples**
-        
+
         >>> ld_mat = vds.ld_matrix()
-        
+
         **Notes**
-        
-        Each entry (i, j) in the LD matrix gives the :math:`r` value between variants i and j, defined as 
-        `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__ 
+
+        Each entry (i, j) in the LD matrix gives the :math:`r` value between variants i and j, defined as
+        `Pearson's correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
         :math:`\\rho_{x_i,x_j}` between the two genotype vectors :math:`x_i` and :math:`x_j`.
 
         .. math::
 
             \\rho_{x_i,x_j} = \\frac{\\mathrm{Cov}(X_i,X_j)}{\\sigma_{X_i} \\sigma_{X_j}}
-        
-        Also note that variants with zero variance (:math:`\\sigma = 0`) will be dropped from the matrix. 
+
+        Also note that variants with zero variance (:math:`\\sigma = 0`) will be dropped from the matrix.
 
         .. caution::
 
-          The matrix returned by this function can easily be very large with most entries near zero
-          (for example, entries between variants on different chromosomes in a homogenous population).
-          Most likely you'll want to reduce the number of variants with methods like
-          :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, or :py:meth:`.ld_prune` before
-          calling this unless your dataset is very small.
+            The matrix returned by this function can easily be very large with most entries near zero
+            (for example, entries between variants on different chromosomes in a homogenous population).
+            Most likely you'll want to reduce the number of variants with methods like
+            :py:meth:`.sample_variants`, :py:meth:`.filter_variants_expr`, or :py:meth:`.ld_prune` before
+            calling this unless your dataset is very small.
+
+        :param bool force_local: If true, the LD matrix is computed using local matrix multiplication on the Spark driver. This may improve performance when the genotype matrix is small enough to easily fit in local memory. If false, the LD matrix is computed using distributed matrix multiplication if the number of genotypes exceeds :math:`5000^2` and locally otherwise.
 
         :return: Matrix of r values between pairs of variants.
         :rtype: :py:class:`LDMatrix`
         """
 
-        jldm = self._jvdf.ldMatrix()
+        jldm = self._jvdf.ldMatrix(force_local)
         return LDMatrix(jldm)
 
     @handle_py4j

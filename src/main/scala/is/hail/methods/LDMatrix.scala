@@ -1,9 +1,10 @@
 package is.hail.methods
 
+import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix}
 import is.hail.utils._
 import is.hail.stats.ToNormalizedIndexedRowMatrix
 import is.hail.variant.{Variant, VariantDataset}
-import org.apache.spark.mllib.linalg.Matrix
+import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.storage.StorageLevel
 
@@ -15,7 +16,7 @@ object LDMatrix {
     * @param vds VDS on which to compute Pearson correlation between pairs of variants.
     * @return An LDMatrix.
     */
-  def apply(vds : VariantDataset): LDMatrix = {
+  def apply(vds : VariantDataset, optComputeLocally: Option[Boolean]): LDMatrix = {
     val nSamples = vds.nSamples
     val originalVariants = vds.variants.collect()
     assert(originalVariants.isSorted, "Array of variants is not sorted. This is a bug.")
@@ -40,12 +41,29 @@ object LDMatrix {
     normalizedBlockMatrix.blocks.count()
     normalizedIRM.rows.unpersist()
 
-    val indexedRowMatrix = (normalizedBlockMatrix multiply normalizedBlockMatrix.transpose)
-      .toIndexedRowMatrix()
+    val localBound = 5000 * 5000
+    val nEntries: Long = variantsKept.length * variantsKept.length
+
+    val computeLocally = optComputeLocally.getOrElse(nEntries <= localBound)
 
     val nSamplesInverse = 1.0 / nSamples
-    val scaledIndexedRowMatrix = new IndexedRowMatrix(indexedRowMatrix.rows.
-      map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
+
+    var indexedRowMatrix: IndexedRowMatrix = null
+
+    if (computeLocally) {
+      val localMat: DenseMatrix = normalizedBlockMatrix.toLocalMatrix().asInstanceOf[DenseMatrix]
+      val product = localMat multiply localMat.transpose
+      indexedRowMatrix =
+        BlockMatrixIsDistributedMatrix.from(normalizedBlockMatrix.blocks.sparkContext, product,
+          normalizedBlockMatrix.rowsPerBlock, normalizedBlockMatrix.colsPerBlock).toIndexedRowMatrix()
+    }
+    else {
+      indexedRowMatrix = (normalizedBlockMatrix multiply normalizedBlockMatrix.transpose)
+        .toIndexedRowMatrix()
+    }
+
+    val scaledIndexedRowMatrix = new IndexedRowMatrix(indexedRowMatrix.rows
+      .map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
 
     LDMatrix(scaledIndexedRowMatrix, variantsKept, vds.nSamples)
   }
