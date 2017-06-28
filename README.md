@@ -49,5 +49,3 @@ and either the forthcoming manuscript describing Hail (if possible):
 or the following paper which includes a brief introduction to Hail in the online methods:
 
  - Andrea Ganna, Giulio Genovese, et al. _Ultra-rare disruptive and damaging mutations influence educational attainment in the general population_.  [Nature Neuroscience](http://www.nature.com/neuro/journal/vaop/ncurrent/full/nn.4404.html)
-
-And we'd love to hear about your work in the [Science category](http://discuss.hail.is/c/science) of the discussion forum!
