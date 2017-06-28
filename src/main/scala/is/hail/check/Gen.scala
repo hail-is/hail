@@ -116,6 +116,10 @@ object Gen {
     Gen { (p: Parameters) => p.rng.nextLong(min, max) }
   }
 
+  def choose(min: Float, max: Float): Gen[Float] = Gen { (p: Parameters) =>
+    p.rng.nextUniform(min, max, true).toFloat
+  }
+
   def choose(min: Double, max: Double): Gen[Double] = Gen { (p: Parameters) =>
     p.rng.nextUniform(min, max, true)
   }
