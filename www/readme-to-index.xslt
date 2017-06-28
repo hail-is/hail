@@ -45,7 +45,7 @@ Hail
       <div id="body">
         <a id="banner" href="jobs.html">
           <div id="banner-jobs" class="alert alert-info" role="alert">
-            <p>Hail is hiring!</p>
+            <p>Hail is hiring engineers!</p>
           </div>
         </a>
         <xsl:apply-templates select="body"/>
