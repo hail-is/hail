@@ -15,7 +15,7 @@ This functionality and more is exposed through **[Python](https://www.python.org
 
 The Hail project began in Fall 2015 to empower the worldwide genetics community to [harness the flood of genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) to discover the biology of human disease. Hail has been used for dozens of major studies and is the core analysis platform of large-scale genomics efforts such as [gnomAD](http://gnomad.broadinstitute.org/).
 
-Hail is under very active open-source development. To learn more and get involved, check out the [Github repo](https://github.com/hail-is/hail), and view our talks at [Spark Summit East](https://spark-summit.org/east-2017/events/scaling-genetic-data-analysis-with-apache-spark/) and [Spark Summit West](https://spark-summit.org/2017/events/scaling-genetic-data-analysis-with-apache-spark/) (below), and chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev). Or **come join our team full-time** at the [Broad Institute of MIT and Harvard](https://www.broadinstitute.org/)! We've founded a new Initiative in Scalable Analytics and are recruiting **software engineers** at multiple levels of experience. Details [here](https://www.linkedin.com/jobs/view/316818823/).
+Want to get involved in open-source development of methods or infrastructure? Check out the [Github repo](https://github.com/hail-is/hail), chat with us in the [Gitter dev room](https://gitter.im/hail-is/hail-dev), and view our talks at [Spark Summit East](https://spark-summit.org/east-2017/events/scaling-genetic-data-analysis-with-apache-spark/) and [Spark Summit West](https://spark-summit.org/2017/events/scaling-genetic-data-analysis-with-apache-spark/) (below). Or come [join us full-time](jobs.html)!
 
 [![Hail talk at Spark Summit West 2017](https://storage.googleapis.com/hail-common/hail_spark_summit_west.png)](https://www.youtube.com/watch?v=pyeQusIN5Ao&list=PLlMMtlgw6qNjROoMNTBQjAcdx53kV50cS)
 
@@ -24,7 +24,7 @@ Hail is under very active open-source development. To learn more and get involve
 To get started using Hail on your data or [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
 
 - follow the installation instructions in [Getting Started](https://hail.is/hail/getting_started.html)
-- check out the [Overview](https://hail.is/hail/overview.html), [Tutorials](https://hail.is/hail/tutorials-landing.html), and [Python API](https://hail.is/hail/index.html)
+- check out the [Overview](https://hail.is/hail/overview.html), [Tutorials](https://hail.is/hail/tutorials-landing.html), and [Python API](https://hail.is/hail/api.html)
 - chat with the Hail team in the [Hail Gitter](https://gitter.im/hail-is/hail) room
 
 We encourage use of the [Discussion Forum](http://discuss.hail.is) for user and dev support, feature requests, and sharing your Hail-powered science. Follow Hail on Twitter [@hailgenetics](https://twitter.com/hailgenetics). Please report any suspected bugs to [github issues](https://github.com/hail-is/hail/issues).
