@@ -1,4 +1,4 @@
-####Join the Initiative in Scalable Analytics at the Broad Institute of MIT and Harvard
+####Join the Initiative in Scalable Analytics at the Broad Institute
 
 We believe there is a **unique opportunity** to transform the practice of computational biology by applying deep ideas from computer science and mathematics to build the next generation of modular, scalable tools for analyzing massive genetic and biological data. These tools will drive the development of new treatments and biotechnologies and fundamentally advance our understanding of life itself.
 
@@ -6,7 +6,7 @@ Two of us ([Cotton Seed](https://www.broadinstitute.org/bios/cotton-seed) and [J
 
 We are now building a new **Initiative in Scalable Analytics** in order to grow the Hail project within and beyond genetics and reduce the latency of computational experiments in biomedical research. And we are seeking **software engineers** at multiple levels of experience to strengthen and complement our small team!
 
-![Hail team](https://storage.googleapis.com/hail-common/hail_team.JPG)
+![](https://storage.googleapis.com/hail-common/hail_team.JPG "Hail team")
 
 Operationally, we're a **zero-equity start-up** embedded inside the world's leading biomedical and genomics research instutute, anchoring the [global heart of biotech](http://www.wbur.org/bostonomix/2017/06/19/boston-biotech-success) right across from MIT. We implement **distributed algorithms** on top of our custom-built language, compiler, and run-time system to support querying, aggregation, and linear algebra on hundreds of thousands of human genomes.
 
@@ -16,6 +16,6 @@ We thrive on **diverse challenges**: language and compiler design, low-level per
 
 In addition to software development, our groups is interested in the application of **machine learning** to problems in biology. We run the [Models, Inference and Algorithms Initiative](http://www.broadinstitute.org/mia) to foster community and pedagogy in greater Boston at the interface of computational biology, mathematical theory, and computer science.
 
-If you’d like a **video intro** for engineers on what we’re building and why, check out the talks on our [homepage](https://hail.is). If you’re curious how Hail is used, check out the [tutorials](https://hail.is/hail/tutorials-landing.html). And if you think you might enjoy applying your engineering skills to understand the biology of disease, send your resume with any questions to <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a> and apply through the following link!
+If you’d like a **video intro** for engineers on what we’re building and why, check out the talks on our [homepage](https://hail.is). If you’re curious how Hail is used, check out the [tutorials](https://hail.is/hail/tutorials-landing.html). And if you think you might enjoy applying your engineering skills to accelerate our understanding of disease, send any questions to <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a> and apply as soon as possible through the following link!
 
 [https://www.linkedin.com/jobs/view/316818823/](https://www.linkedin.com/jobs/view/316818823/)
