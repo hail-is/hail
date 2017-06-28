@@ -430,11 +430,6 @@ task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocs
     commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
 }
 
-//task copyCompiledDocs(type: Copy, dependsOn: ['buildIndex']) {
-//    from 'build/tmp/docs/index.html'
-//    into 'build/www'
-//}
-
 task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocs'])
 
 task createDocs(dependsOn: createWebsite)
