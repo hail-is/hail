@@ -12,7 +12,7 @@ Operationally, we're a **zero-equity start-up** embedded inside the world's lead
 
 We thrive on **diverse challenges**: language and compiler design, low-level performance optimization, architecture of distributed systems, scaling established methods and inventing new ones, visualization, interoperability with other powerful tools, and close collaboration with the amazing science and scientists all around us (this is super fun!). Our current **technology stack** includes the JVM, Scala, Spark, Python, GCP, and C++.
 
-In addition to software development, our groups is interested in the application of **machine learning** to problems in biology. We run the [Models, Inference and Algorithms Initiative](http://www.broadinstitute.org/mia) to foster community and pedagogy in greater Boston at the interface of computational biology, mathematical theory, and computer science.
+In addition to software development, our team is interested in the application of **machine learning** to problems in biology. We run the [Models, Inference and Algorithms Initiative](http://www.broadinstitute.org/mia) to foster community and pedagogy in greater Boston at the interface of computational biology, mathematical theory, and computer science.
 
 If you’d like a **video intro** for engineers on what we’re building and why, check out the talks on our [homepage](https://hail.is). If you’re curious how Hail is used, check out the [tutorials](https://hail.is/hail/tutorials-landing.html). And if you think you might enjoy applying your engineering skills to accelerate our understanding of disease, send any questions to <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a> and apply as soon as possible through the following link!
 
