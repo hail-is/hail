@@ -5518,6 +5518,15 @@ class VariantDataset(HistoryMixin):
                 ))
             }
 
+        :param str config: The path to the config file.
+
+        :param int block_size: The number of variants processed in one Nirvana job within a partition. If block_size is greater than or equal to the number of variants in a partition, that whole partition will be processed in one job.
+
+        :param str root: The root of the annotation path for variant annotations.
+
+        :return: An annotated dataset with variant annotations from Nirvana.
+        :rtype: :py:class:`.VariantDataset`
+
         """
         jvds = self._jvdf.nirvana(config, block_size, root)
         return VariantDataset(self.hc, jvds)
