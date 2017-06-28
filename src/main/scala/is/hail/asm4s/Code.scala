@@ -319,15 +319,17 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
 
   def /(rhs: Code[Float]): Code[Float] = Code(lhs, rhs, new InsnNode(FDIV))
 
-  // FIXME: FCMPG vs FCMPL
-  def compare(rhs: Code[Float]): Code[Int] = Code(lhs, rhs, new InsnNode(FCMPG))
+  def >(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)) > 0
 
-  def <(rhs: Code[Float]): Code[Boolean] = compare(rhs) < 0
-  def >(rhs: Code[Float]): Code[Boolean] = compare(rhs) > 0
-  def <=(rhs: Code[Float]): Code[Boolean] = compare(rhs) <= 0
-  def >=(rhs: Code[Float]): Code[Boolean] = compare(rhs) >= 0
-  def ceq(rhs: Code[Float]): Code[Boolean] = compare(rhs).ceq(0)
-  def cne(rhs: Code[Float]): Code[Boolean] = compare(rhs).cne(0)
+  def >=(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)) >= 0
+
+  def <(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPG)) < 0
+
+  def <=(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPG)) <= 0
+
+  def ceq(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)).ceq(0)
+
+  def cne(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)).cne(0)
 
   def toI: Code[Int] = Code(lhs, new InsnNode(F2I))
   def toL: Code[Long] = Code(lhs, new InsnNode(F2L))
@@ -344,20 +346,17 @@ class CodeDouble(val lhs: Code[Double]) extends AnyVal {
 
   def /(rhs: Code[Double]): Code[Double] = Code(lhs, rhs, new InsnNode(DDIV))
 
-  // FIXME DCMPG vs DCMPL
-  def compare(rhs: Code[Double]): Code[Int] = Code(lhs, rhs, new InsnNode(DCMPG))
+  def >(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)) > 0
 
-  def >(rhs: Code[Double]): Code[Boolean] = compare(rhs) > 0
+  def >=(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)) >= 0
 
-  def >=(rhs: Code[Double]): Code[Boolean] = compare(rhs) >= 0
+  def <(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPG)) < 0
 
-  def <(rhs: Code[Double]): Code[Boolean] = compare(rhs) < 0
+  def <=(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPG)) <= 0
 
-  def <=(rhs: Code[Double]): Code[Boolean] = compare(rhs) <= 0
+  def ceq(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)).ceq(0)
 
-  def ceq(rhs: Code[Double]): Code[Boolean] = compare(rhs).ceq(0)
-
-  def cne(rhs: Code[Double]): Code[Boolean] = compare(rhs).cne(0)
+  def cne(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)).cne(0)
 
   def toI: Code[Int] = Code(lhs, new InsnNode(D2I))
   def toL: Code[Long] = Code(lhs, new InsnNode(D2L))
