@@ -143,62 +143,44 @@ object LinearMixedRegression {
 
 
     if (runAssoc) {
-      
+
       val sc = assocVds.sparkContext
       val sampleMaskBc = sc.broadcast(sampleMask)
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
+      val T = Ut(::, *) :* diagLMM.sqrtInvD
+      val Qt = qr.reduced.justQ(diagLMM.TC).t
+      val QtTy = Qt * diagLMM.Ty
+      val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
+
       info(s"lmmreg: Computing statistics for each variant...")
 
-      if (false) {
-        val T = Ut(::, *) :* diagLMM.sqrtInvD
-        val Qt = qr.reduced.justQ(diagLMM.TC).t
-        val QtTy = Qt * diagLMM.Ty
-        val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
+      val useScaler = true
 
-        val TBc = sc.broadcast(T)
-        val scalerLMMBc = sc.broadcast(ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, diagLMM.logNullS2, useML))
+      val perVariantLMM = if (useScaler)
+        ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, T, diagLMM.logNullS2, useML)
+      else
+        SlowLMM(y, cov, S, U, delta, diagLMM.logNullS2, useML)
 
+      val perVariantLMMBc = sc.broadcast(perVariantLMM)
 
-        vds2.mapAnnotations { case (v, va, gs) =>
-          val x: Vector[Double] =
-            if (!useDosages) {
-              val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
-              if (x0.used <= sparsityThreshold * n) x0 else x0.toDenseVector
-            }
-            else
-              RegressionUtils.dosages(gs, n, sampleMaskBc.value)
+      vds2.mapAnnotations { case (v, va, gs) =>
+        val x: Vector[Double] =
+          if (!useDosages) {
+            val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
+            if (x0.used <= sparsityThreshold * n) x0 else x0.toDenseVector
+          }
+          else
+            RegressionUtils.dosages(gs, n, sampleMaskBc.value)
 
-          // TODO constant checking to be removed in 0.2
-          val nonConstant = useDosages || !RegressionUtils.constantVector(x)
+        // TODO constant checking to be removed in 0.2
+        val nonConstant = useDosages || !RegressionUtils.constantVector(x)
 
-          val lmmregAnnot = if (nonConstant) scalerLMMBc.value.likelihoodRatioTest(TBc.value * x) else null
-          val newAnnotation = inserter(va, lmmregAnnot)
-          assert(newVAS.typeCheck(newAnnotation))
-          newAnnotation
-        }.copy(vaSignature = newVAS)
-      }
-      else {
-
-        val slowLMMBc = sc.broadcast(SlowLMM(y, cov, S, U, delta, diagLMM.logNullS2, useML))
-
-        vds2.mapAnnotations { case (v, va, gs) =>
-          val x: Vector[Double] =
-            if (!useDosages) {
-              val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
-              if (x0.used <= sparsityThreshold * n) x0 else x0.toDenseVector
-            }
-            else
-              RegressionUtils.dosages(gs, n, sampleMaskBc.value)
-
-          val nonConstant = useDosages || !RegressionUtils.constantVector(x)
-
-          val lmmregAnnot = if (nonConstant) slowLMMBc.value.liklihoodRatioTest(x) else null
-          val newAnnotation = inserter(va, lmmregAnnot)
-          assert(newVAS.typeCheck(newAnnotation))
-          newAnnotation
-        }.copy(vaSignature = newVAS)
-      }
+        val lmmregAnnot = if (nonConstant) perVariantLMMBc.value.likelihoodRatioTest(x) else null
+        val newAnnotation = inserter(va, lmmregAnnot)
+        assert(newVAS.typeCheck(newAnnotation))
+        newAnnotation
+      }.copy(vaSignature = newVAS)
     }
     else
       vds2
@@ -217,7 +199,12 @@ object LinearMixedRegression {
   }
 }
 
-case class SlowLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: DenseVector[Double], U: DenseMatrix[Double], delta: Double, logNullS2: Double, useML: Boolean) {
+trait PerVariantLMM {
+  def likelihoodRatioTest(v: Vector[Double]): Annotation
+}
+
+case class SlowLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: DenseVector[Double],
+                   U: DenseMatrix[Double], delta: Double, logNullS2: Double, useML: Boolean) extends PerVariantLMM{
 
   val n = y.length
   val d = covs.cols
@@ -238,7 +225,7 @@ case class SlowLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: DenseVe
   val k = S.length
 
 
-  def liklihoodRatioTest(v: Vector[Double]): Annotation = {
+  def likelihoodRatioTest(v: Vector[Double]): Annotation = {
     val vty = v dot y
     val vtv = v dot v
     val covtv = covs.t * v
@@ -287,11 +274,13 @@ case class ScalerLMM(
   Qt: DenseMatrix[Double],
   Qty: DenseVector[Double],
   yQty: Double,
+  T: DenseMatrix[Double],
   logNullS2: Double,
-  useML: Boolean) {
+  useML: Boolean) extends PerVariantLMM {
 
-  def likelihoodRatioTest(x: Vector[Double]): Annotation = {
+  def likelihoodRatioTest(v: Vector[Double]): Annotation = {
 
+    val x = T * v
     val n = y.length
     val Qtx = Qt * x
     val xQtx: Double = (x dot x) - (Qtx dot Qtx)
