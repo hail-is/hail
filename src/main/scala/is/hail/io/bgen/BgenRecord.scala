@@ -78,6 +78,75 @@ class BgenRecordV11(compressed: Boolean,
   }
 }
 
+class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBitsPerProb: Int) {
+
+  def apply(s: Int, gi: Int): UInt = {
+    assert(s >= 0 && s < nSamples)
+    assert(gi >= 0 && gi < nGenotypes - 1)
+
+    val firstBit = (s * (nGenotypes - 1) + gi) * nBitsPerProb
+
+    var byteIndex = nSamples + 10 + (firstBit >> 3)
+    var r = (a(byteIndex) & 0xff) >>> (firstBit & 7)
+    var rBits = 8 - (firstBit & 7)
+    byteIndex += 1
+
+    while (rBits < nBitsPerProb) {
+      r |= ((a(byteIndex) & 0xff) << rBits)
+      byteIndex += 1
+      rBits += 8
+    }
+
+    // clear upper bits that might have garbage from last byte or
+    UInt.uintFromRep(r & ((1L << nBitsPerProb) - 1).toInt)
+  }
+}
+
+class Bgen12GenotypeIterator(a: Array[Byte],
+  nAlleles: Int,
+  nBitsPerProb: Int,
+  nSamples: Int) extends Iterable[Genotype] {
+  private val nGenotypes = triangle(nAlleles)
+
+  private val totalProb = ((1L << nBitsPerProb) - 1).toUInt
+
+  private val sampleProbs = ArrayUInt(nGenotypes)
+
+  private val noCall = new DosageGenotype(-1, null)
+
+  private val pa = new BGen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
+
+  def iterator: Iterator[Genotype] = new Iterator[Genotype] {
+    var sampleIndex = 0
+
+    def hasNext: Boolean = sampleIndex < nSamples
+
+    def next(): Genotype = {
+      val g = if ((a(8 + sampleIndex) & 0x80) != 0)
+        noCall
+      else {
+        var i = 0
+        var lastProb = totalProb
+        while (i < nGenotypes - 1) {
+          val p = pa(sampleIndex, i)
+          sampleProbs(i) = p
+          i += 1
+          lastProb -= p
+        }
+        sampleProbs(i) = lastProb
+
+        val px = Genotype.weightsToLinear(sampleProbs)
+        val gt = Genotype.unboxedGTFromLinear(px)
+        new DosageGenotype(gt, px)
+      }
+
+      sampleIndex += 1
+
+      g
+    }
+  }
+}
+
 class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) extends BgenRecord {
   var expectedDataSize: Int = _
   var expectedNumAlleles: Int = _
@@ -93,7 +162,8 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
   override def getValue: Iterable[Genotype] = {
     require(input != null, "called getValue before serialized value was set")
 
-    val reader = new ByteArrayReader(if (compressed) decompress(input, expectedDataSize) else input)
+    val a = if (compressed) decompress(input, expectedDataSize) else input
+    val reader = new ByteArrayReader(a)
 
     val nRow = reader.readInt()
     assert(nRow == nSamples, "row nSamples is not equal to header nSamples")
@@ -107,12 +177,10 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     if (minPloidy != 2 || maxPloidy != 2)
       fatal(s"Hail only supports diploid genotypes. Found min ploidy equals `$minPloidy' and max ploidy equals `$maxPloidy'.")
 
-    val samplePloidy = new Array[Int](nSamples)
     var i = 0
     while (i < nSamples) {
       val ploidy = reader.read()
       assert((ploidy & 0x3f) == 2, s"Ploidy value must equal to 2. Found $ploidy.")
-      samplePloidy(i) = ploidy
       i += 1
     }
     assert(i == nSamples, s"Number of ploidy values `$i' does not equal the number of samples `$nSamples'.")
@@ -131,47 +199,12 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
 
-    val probabilityIterator = new BgenProbabilityIterator(reader, nBitsPerProb)
-
     val sampleProbs = ArrayUInt(nGenotypes)
 
     val totalProbInt = ((1L << nBitsPerProb) - 1).toUInt
     val noCall = new DosageGenotype(-1, null)
 
-    new Iterable[Genotype] {
-      def iterator = new Iterator[Genotype] {
-        reader.seek(nSamples + 10)
-        var sampleIndex = 0
-
-        def hasNext: Boolean = sampleIndex < nSamples
-
-        def next(): Genotype = {
-          var i = 0
-          var sumProbInt = UInt(0)
-          while (i < nGenotypes - 1) {
-            assert(probabilityIterator.hasNext, "Did not decode bytes correctly. Ran out of probabilities.")
-            val p = probabilityIterator.next()
-            sampleProbs(i) = p
-            i += 1
-            sumProbInt += p
-          }
-
-          assert(sumProbInt <= totalProbInt, "Sum of probabilities is greater than 1.")
-          sampleProbs(i) = totalProbInt - sumProbInt
-
-          val gt = if ((samplePloidy(sampleIndex) & (1 << 7)) != 0)
-            noCall
-          else {
-            val px = Genotype.weightsToLinear(sampleProbs)
-            val gt = Genotype.unboxedGTFromLinear(px)
-            new DosageGenotype(gt, px)
-          }
-
-          sampleIndex += 1
-          gt
-        }
-      }
-    }
+    new Bgen12GenotypeIterator(a, nAlleles, nBitsPerProb, nSamples)
   }
 }
 
