@@ -115,7 +115,7 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
         mergeAllele(gtPair.j)
         mergeAllele(gtPair.k)
 
-        if (gtPair.j == gtPair.k)
+        if (gtPair.j != gtPair.k)
           nHet += 1
         else
           nHomVar += 1

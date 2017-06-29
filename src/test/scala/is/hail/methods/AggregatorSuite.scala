@@ -18,7 +18,8 @@ class AggregatorSuite extends SparkSuite {
       .splitMulti()
       .variantQC()
       .annotateVariantsExpr(
-        """va.test.callrate = gs.fraction(g => g.isCalled()), va.test.AC = gs.map(g => g.nNonRefAlleles()).sum(),
+        """va.test.callrate = gs.fraction(g => g.isCalled()),
+          |va.test.AC = gs.map(g => g.nNonRefAlleles()).sum(),
           |va.test.AF = gs.map(g => g.nNonRefAlleles()).stats().sum.toDouble() / gs.filter(g => g.isCalled()).count() / 2.0,
           |va.test.gqstats = gs.map(g => g.gq).stats(), va.test.gqhetstats = gs.filter(g => g.isHet()).map(g => g.gq).stats(),
           |va.lowGqGts = gs.filter(g => g.gq < 60).collect()""".stripMargin)
@@ -72,8 +73,19 @@ class AggregatorSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/sample2.vcf")
       .splitMulti()
       .sampleQC()
-      .annotateSamplesExpr("sa.test.callrate = gs.fraction(g => g.isCalled()), sa.test.gqstats = " +
-        "gs.map(g => g.gq).stats(), sa.test.gqhetstats = gs.filter(g => g.isHet()).map(g => g.gq).stats()")
+      .annotateSamplesExpr(
+        """sa.test.callrate = gs.fraction(g => g.isCalled()),
+          |sa.test.gqstats = gs.map(g => g.gq).stats(),
+          |sa.test.gqhetstats = gs.filter(g => g.isHet()).map(g => g.gq).stats(),
+          |sa.test.nHet = gs.filter(g => g.isHet()).count(),
+          |sa.test.nHomRef = gs.filter(g => g.isHomRef()).count(),
+          |sa.test.nHomVar = gs.filter(g => g.isHomVar()).count(),
+          |sa.test.nSNP = gs.filter(g => v.altAllele.isSNP()).map(g => g.nNonRefAlleles()).sum(),
+          |sa.test.nInsertion = gs.filter(g => v.altAllele.isInsertion()).map(g => g.nNonRefAlleles()).sum(),
+          |sa.test.nDeletion = gs.filter(g => v.altAllele.isDeletion()).map(g => g.nNonRefAlleles()).sum(),
+          |sa.test.nTi = gs.filter(g => v.altAllele.isTransition()).map(g => g.nNonRefAlleles()).sum(),
+          |sa.test.nTv = gs.filter(g => v.altAllele.isTransversion()).map(g => g.nNonRefAlleles()).sum  ()
+          |""".stripMargin)
 
     val qCallRate = vds.querySA("sa.test.callrate")._2
     val qCallRateQC = vds.querySA("sa.qc.callRate")._2
@@ -83,6 +95,9 @@ class AggregatorSuite extends SparkSuite {
     val gqStatsStDevQC = vds.querySA("sa.qc.gqStDev")._2
     val gqStatsHetMean = vds.querySA("sa.test.gqhetstats.mean")._2
     val gqStatsHetStDev = vds.querySA("sa.test.gqhetstats.stdev")._2
+    val nHomRef = vds.querySA("sa.test.nHomRef")._2
+    val nHet = vds.querySA("sa.test.nHet")._2
+    val nHomVar = vds.querySA("sa.test.nHomVar")._2
 
     val gqHetMap = vds.aggregateBySample(new StatCounter())({ case (s, g) =>
       if (g.isHet)
@@ -108,6 +123,15 @@ class AggregatorSuite extends SparkSuite {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })
       }
+
+    assert(vds.samplesKT().forall("sa.qc.nHet == sa.test.nHet"))
+    assert(vds.samplesKT().forall("sa.qc.nHomVar == sa.test.nHomVar"))
+    assert(vds.samplesKT().forall("sa.qc.nHomRef == sa.test.nHomRef"))
+    assert(vds.samplesKT().forall("sa.qc.nSNP == sa.test.nSNP"))
+    assert(vds.samplesKT().forall("sa.qc.nInsertion == sa.test.nInsertion"))
+    assert(vds.samplesKT().forall("sa.qc.nDeletion == sa.test.nDeletion"))
+    assert(vds.samplesKT().forall("sa.qc.nTransition == sa.test.nTi"))
+    assert(vds.samplesKT().forall("sa.qc.nTransversion == sa.test.nTv"))
   }
 
   @Test def testSum() {
@@ -128,9 +152,9 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testMaxMin() {
     val rdd = sc.parallelize(Seq(
-      Row("a",  0, null,    1,   -1, null, null,    1, null,  0l,  0f,  0d),
-      Row("a", -1,   -1, null,   -2, null,    1, null, null, -1l, -1f, -1d),
-      Row("a",  1,   -2,    2, null,   -1, null, null, null,  1l,  1f,  1d)), numSlices = 2)
+      Row("a", 0, null, 1, -1, null, null, 1, null, 0l, 0f, 0d),
+      Row("a", -1, -1, null, -2, null, 1, null, null, -1l, -1f, -1d),
+      Row("a", 1, -2, 2, null, -1, null, null, null, 1l, 1f, 1d)), numSlices = 2)
 
     val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt))
       ++ IndexedSeq("s8" -> TLong, "s9" -> TFloat, "s10" -> TDouble): _*)
@@ -148,9 +172,9 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testProduct() {
     val rdd = sc.parallelize(Seq(
-      Row("a",  0, null,    1, 1, null, null, 10, null,  0l,  2f,  0d),
-      Row("a", -1,   -1, null, 2, null,    1,  4, null, -1l, -1f, -1d),
-      Row("a",  1,   -2,    2, 3,   -1,   -3,  2, null,  1l,  2f,  1d)), numSlices = 2)
+      Row("a", 0, null, 1, 1, null, null, 10, null, 0l, 2f, 0d),
+      Row("a", -1, -1, null, 2, null, 1, 4, null, -1l, -1f, -1d),
+      Row("a", 1, -2, 2, 3, -1, -3, 2, null, 1l, 2f, 1d)), numSlices = 2)
 
     val signature = TStruct((("group" -> TString) +: (0 until 8).map(i => s"s$i" -> TInt))
       ++ IndexedSeq("s8" -> TLong, "s9" -> TFloat, "s10" -> TDouble): _*)
@@ -323,11 +347,11 @@ class AggregatorSuite extends SparkSuite {
     }.check()
   }
 
-  private def isLensedPrefix[T,K](lens: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+  private def isLensedPrefix[T, K](lens: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
     prefix.zip(full).forall { case (x, y) => lens(x) == lens(y) }
   }
 
-  private def prefixModuloDisordering[T,K](sortBy: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
+  private def prefixModuloDisordering[T, K](sortBy: T => K)(prefix: Seq[T], full: Seq[T]): Boolean = {
     def equivClasses(ts: Seq[T]): Map[K, Set[T]] =
       ts.groupBy(sortBy).mapValues(_.toSet)
 
@@ -353,7 +377,7 @@ class AggregatorSuite extends SparkSuite {
           if (lastKeySubset) {
             true
           } else {
-            println(s"The values at the last key in the prefix, $lastKey, were not a subset of those in the full list: ${prefixEquivClasses(lastKey)} ${fullEquivClasses(lastKey)}")
+            println(s"The values at the last key in the prefix, $lastKey, were not a subset of those in the full list: ${ prefixEquivClasses(lastKey) } ${ fullEquivClasses(lastKey) }")
             false
           }
         } else {
@@ -383,7 +407,7 @@ class AggregatorSuite extends SparkSuite {
       } else {
         true
       }
-    } (Parameters(rng, 1000, 100))
+    }(Parameters(rng, 1000, 100))
   }
 
   @Test def takeByAndSortByAgreeUsingLatentEnvironment() {
@@ -402,7 +426,7 @@ class AggregatorSuite extends SparkSuite {
       } else {
         true
       }
-    } (Parameters(rng, 1000, 100))
+    }(Parameters(rng, 1000, 100))
   }
 
   private def runAggregatorExpression(expr: String, aggregableName: String, aggregableElementType: Type, aggregableValue: TraversableOnce[_]): Any = {
@@ -478,8 +502,8 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def takeByMoreThanExist() {
-    val result = runAggregatorExpression("xs.takeBy(x => x, 10)", "xs", TInt, Array(0,1,2))
+    val result = runAggregatorExpression("xs.takeBy(x => x, 10)", "xs", TInt, Array(0, 1, 2))
       .asInstanceOf[IndexedSeq[java.lang.Integer]]
-    assert(result == IndexedSeq(0,1,2))
+    assert(result == IndexedSeq(0, 1, 2))
   }
 }
