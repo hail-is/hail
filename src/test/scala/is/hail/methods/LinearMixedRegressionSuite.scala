@@ -125,9 +125,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     (0 until mG).foreach { j =>
       val v = Variant("1", j + 1, "A", "C")
       val (beta, sg2, chi2, pval) = directResult(v)
-      println(s"qBeta: ${qBeta(a(v))}, beta: $beta")
-      //assertDouble(qBeta(a(v)), beta)
-      println(qSg2(a(v)), sg2)
+      assertDouble(qBeta(a(v)), beta)
       assertDouble(qSg2(a(v)), sg2)
       assertDouble(qChi2(a(v)), chi2)
       assertDouble(qPval(a(v)), pval)
