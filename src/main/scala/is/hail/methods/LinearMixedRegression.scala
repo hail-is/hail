@@ -140,8 +140,7 @@ object LinearMixedRegression {
         vds1
     }
 
-
-
+    
     if (runAssoc) {
 
       val sc = assocVds.sparkContext
@@ -155,7 +154,7 @@ object LinearMixedRegression {
 
       info(s"lmmreg: Computing statistics for each variant...")
 
-      val useScaler = true
+      val useScaler = false
 
       val perVariantLMM = if (useScaler)
         ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, T, diagLMM.logNullS2, useML)
