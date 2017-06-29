@@ -217,4 +217,13 @@ class LoadBgenSuite extends SparkSuite {
     hc.indexBgen(bgen)
     hc.importBgen(bgen, Option(sample)).count()
   }
+
+  @Test def testReIterate() {
+    val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"))
+
+    assert(vds.annotateVariantsExpr("va.cr1 = gs.fraction(g => g.isCalled())")
+      .annotateVariantsExpr("va.cr2 = gs.fraction(g => g.isCalled())")
+      .variantsKT()
+      .forall("va.cr1 == va.cr2"))
+  }
 }
