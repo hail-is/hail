@@ -71,6 +71,14 @@ class LoadBgenSuite extends SparkSuite {
           }
         }
 
+      val vdsFile = tmpDir.createTempFile("bgenImportWriteRead", "vds")
+      bgenVDS.write(vdsFile)
+      val bgenWriteVDS = hc.readVDS(vdsFile)
+      assert(bgenVDS
+        .filterVariantsExpr("va.rsid != \"RSID_100\"")
+        .same(bgenWriteVDS.filterVariantsExpr("va.rsid != \"RSID_100\"")
+        ), "Not same after write/read.")
+
       hadoopConf.delete(bgen + ".idx", recursive = true)
 
       assert(isSame)
