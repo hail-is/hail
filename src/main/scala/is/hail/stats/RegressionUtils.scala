@@ -75,6 +75,7 @@ object RegressionUtils {
     assert((mask == null || i == mask.size) && row == nKept)
 
     val nMissing = missingRows.size
+
     val meanValue = if (impute) sum / (nKept - nMissing) else Double.NaN
     i = 0
     while (i < nMissing) {

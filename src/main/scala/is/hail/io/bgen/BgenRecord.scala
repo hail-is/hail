@@ -1,5 +1,6 @@
 package is.hail.io.bgen
 
+import breeze.linalg.DenseVector
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
 import is.hail.io.gen.GenReport._
@@ -102,7 +103,7 @@ class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBi
   }
 }
 
-class Bgen12GenotypeIterator(a: Array[Byte],
+final class Bgen12GenotypeIterator(a: Array[Byte],
   nAlleles: Int,
   nBitsPerProb: Int,
   nSamples: Int) extends Iterable[Genotype] {
@@ -116,13 +117,46 @@ class Bgen12GenotypeIterator(a: Array[Byte],
 
   private val pa = new BGen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
 
+  def sampleMissing(s: Int): Boolean = (a(8 + s) & 0x80) != 0
+
+  def dosages(v: DenseVector[Double], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
+    assert(nAlleles == 2)
+    assert(nBitsPerProb == 8)
+    assert(v.length == completeSampleIndex.length)
+    assert(totalProb == 255)
+
+    val n = v.length
+
+    missingSamples.clear()
+    var sum = 0.0
+    var i = 0
+    while (i < n) {
+      val s = completeSampleIndex(i)
+      if (!sampleMissing(s)) {
+        val off = nSamples + 10 + 2 * s
+        val d = (510 - 2 * (a(off) & 0xff) - (a(off + 1) & 0xff)) / 255.0
+        v(i) = d
+        sum += d
+      } else
+        missingSamples += i
+      i += 1
+    }
+
+    val mean = sum / (n - missingSamples.length)
+    i = 0
+    while (i < missingSamples.length) {
+      v(missingSamples(i)) = mean
+      i += 1
+    }
+  }
+
   def iterator: Iterator[Genotype] = new Iterator[Genotype] {
     var sampleIndex = 0
 
     def hasNext: Boolean = sampleIndex < nSamples
 
     def next(): Genotype = {
-      val g = if ((a(8 + sampleIndex) & 0x80) != 0)
+      val g = if (sampleMissing(sampleIndex))
         noCall
       else {
         var i = 0
@@ -198,11 +232,6 @@ class BgenRecordV12(compressed: Boolean, nSamples: Int, tolerance: Double) exten
     val nGenotypes = triangle(nAlleles)
     val nExpectedBytesProbs = (nSamples * (nGenotypes - 1) * nBitsPerProb + 7) / 8
     assert(reader.length == nExpectedBytesProbs + nSamples + 10, s"Number of uncompressed bytes `${ reader.length }' does not match the expected size `$nExpectedBytesProbs'.")
-
-    val sampleProbs = ArrayUInt(nGenotypes)
-
-    val totalProbInt = ((1L << nBitsPerProb) - 1).toUInt
-    val noCall = new DosageGenotype(-1, null)
 
     new Bgen12GenotypeIterator(a, nAlleles, nBitsPerProb, nSamples)
   }
