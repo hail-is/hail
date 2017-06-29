@@ -6,12 +6,14 @@ import is.hail.utils._
 import is.hail.check.Prop._
 import org.testng.annotations.Test
 import breeze.linalg._
+
 import scala.language.postfixOps
 import scala.sys.process._
 import java.io.File
 
 import breeze.numerics._
 import com.google.common.primitives.Doubles
+import is.hail.stats.skat
 import org.scalatest.testng.TestNGSuite
 
 class SkatSuite extends SparkSuite {
@@ -217,7 +219,7 @@ class SkatSuite extends SparkSuite {
       }
       t2 += t
     }
-    
+
     println(header)
     println("Finished computing SKAT stats in %s".format(formatTime(t2/testsToAverageOver)))
     println("             speed of first run  %s".format(formatTime(firstTiming2)))

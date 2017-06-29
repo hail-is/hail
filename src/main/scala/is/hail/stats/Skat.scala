@@ -1,12 +1,11 @@
 //Charlie Colley
 //  29/6/2017
-package is.hail.methods
+package is.hail.stats
 
 import breeze.linalg._
 import breeze.numerics._
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
-import is.hail.stats._
 import is.hail.utils._
 
 /** skat
