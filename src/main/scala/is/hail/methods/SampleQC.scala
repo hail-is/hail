@@ -107,7 +107,8 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
         nHet += 1
       else
         nHomVar += 1
-    }
+    } else
+      nNotCalled += 1
 
     if (g.unboxedDP >= 0)
       dpSC.merge(g.unboxedDP)
