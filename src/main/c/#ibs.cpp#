@@ -195,11 +195,11 @@ void ibsMat(uint64_t* __restrict__ result, uint64_t nSamples, uint64_t nGenotype
 
    static real square(real x)  { return x*x; }
 
-   static real cube(real x)  { return x*x*x; }
+//   static real cube(real x)  { return x*x*x; }
 
-//if (first) return log1p(x); else return log1p(x) - x;			       
 static real  log1(real x, BOOL first) 
-   /* if (first) log(1 + x) ; else  log(1 + x) - x */
+
+     			   /* if (first) log(1 + x) ; else  log(1 + x) - x */
       {
       if (fabs(x) > 0.1)
       {
@@ -212,7 +212,7 @@ static real  log1(real x, BOOL first)
          s = (first ? 2.0 : - x) * y;
          y = square(y);
          for (s1 = s + term / k; s1 != s; s1 = s + term / k)
-	   {k = k + 2.0; term = term * y; s = s1; }
+	   {printf("log function %f",s1); k = k + 2.0; term = term * y; s = s1; }
          return s;
 	 }
 	 }
@@ -358,6 +358,7 @@ static real  log1(real x, BOOL first)
          sum3 = - 0.5 * sigsq * square(u);
          for ( j = r-1; j>=0; j--)
          {
+	   printf("integrate loop @ %d\n",j);
             nj = n[j];  x = 2.0 * lb[j] * u;  y = square(x);
             sum3 = sum3 - 0.25 * nj * log1(y, TRUE );
             y = nc[j] * x / (1.0 + y);
@@ -439,6 +440,7 @@ output:
    trace[6]         cycles to locate integration parameters     */
 
 {
+      printf("1\n");
       int j, nj, nt, ntm;  real acc1, almx, xlim, xnt, xntm;
       real utx, tausq, sd, intv, intv1, x, up, un, d1, d2, lj, ncj;
       extern real sigsq, lmax, lmin, mean;
@@ -458,6 +460,7 @@ output:
       xlim = (real)lim;
       th=(int*)malloc(r*(sizeof(int)));
       if (! th) { *ifault=5;  goto  endofproc; }
+      printf("11\n");
 
       /* find mean, sd, max and min of lb,
          check that parameter values are valid */
@@ -465,6 +468,7 @@ output:
       lmax = 0.0; lmin = 0.0; mean = 0.0;
       for (j=0; j<r; j++ )
       {
+         printf("111  %d %d\n", j, r);
          nj = n[j];  lj = lb[j];  ncj = nc[j];
          if ( nj < 0  ||  ncj < 0.0 ) { *ifault = 3;  goto  endofproc;  }
          sd  = sd  + square(lj) * (2 * nj + 4.0 * ncj);
@@ -477,7 +481,8 @@ output:
          { *ifault = 3;  goto  endofproc;  }
       sd = sqrt(sd);
       almx = (lmax < - lmin) ? - lmin : lmax;
-     
+      printf("12\n");
+
       /* starting values for findu, ctff */
       utx = 16.0 / sd;  up = 4.5 / sd;  un = - up;
       /* truncation point with no convergence factor */
@@ -507,6 +512,7 @@ output:
       /* calculate number of terms required for main and
          auxillary integrations */
       xnt = utx / intv;  xntm = 3.0 / sqrt(acc1);
+      printf("2\n");
       if (xnt > xntm * 1.5)
       {
          /* parameters for auxillary integration */
@@ -524,16 +530,21 @@ output:
          trace[2] = trace[2] + 1; trace[1] = trace[1] + ntm + 1;
          /* find truncation point with new convergence factor */
          findu(&utx, .25 * acc1);  acc1 = 0.75 * acc1;
+               printf("looping back to l1\n");
          goto l1;
       }
-      
+      printf("21\n");
+
       /* main integration */
    l2:
-      
+      printf("22\n");
+
       trace[3] = intv;
       if (xnt > xlim) { *ifault = 1; goto endofproc; }
       nt = (int)floor(xnt+0.5);
+      printf("about to integrate \n");
       integrate(nt, intv, 0.0, TRUE );
+      printf("3\n");
       trace[2] = trace[2] + 1; trace[1] = trace[1] + nt + 1;
       qfval = 0.5 - intl;
       trace[0] = ersm;
@@ -546,6 +557,7 @@ output:
    endofproc :
       free((char*)th);
       trace[6] = (real)count;
+      printf("qfval is %f\n",qfval);
       return qfval;
 }
 
