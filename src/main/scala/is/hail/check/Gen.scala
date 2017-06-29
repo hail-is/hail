@@ -90,12 +90,11 @@ object Gen {
     roundWithConstantSum(draws.map((x: Double) => x / sum * size).toArray)
   }
 
-  def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int): Array[Int] = {
-    val alpha = n
+  def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int, alpha: Int = 1): Array[Int] = {
     val sizeOfSum = math.log(size)
     val draws = (0 until n).map(x => rng.nextGamma(alpha, 1))
     val ratio = sizeOfSum / draws.sum
-    roundWithConstantSum(draws.map((x: Double) => math.exp(x * ratio)).toArray)
+    roundWithConstantSum(draws.map((x: Double) => x * ratio).toArray).map(x => math.exp(x).toInt).toArray
   }
 
   def partition(parts: Int, sum: UInt)(implicit tn: Numeric[UInt], uct: ClassTag[UInt]): Gen[Array[UInt]] =
