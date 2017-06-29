@@ -80,19 +80,21 @@ class BgenRecordV11(compressed: Boolean,
 
 class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBitsPerProb: Int) {
 
-  def apply(s: Int, i: Int): UInt = {
-    val firstBit = (s * (nGenotypes - 1) + i) * nBitsPerProb
-    val firstBitWithinByte = firstBit & 7
+  def apply(s: Int, gi: Int): UInt = {
+    assert(s >= 0 && s < nSamples)
+    assert(gi >= 0 && gi < nGenotypes - 1)
 
-    var j = nSamples + 10 + (firstBit >> 3)
-    var r = (a(j) & 0xff) >>> (firstBit & 7)
-    var k = 8 - (firstBit & 7)
-    j += 1
+    val firstBit = (s * (nGenotypes - 1) + gi) * nBitsPerProb
 
-    while (k < nBitsPerProb) {
-      r |= ((a(j) & 0xff) << k)
-      j += 1
-      k += 8
+    var byteIndex = nSamples + 10 + (firstBit >> 3)
+    var r = (a(byteIndex) & 0xff) >>> (firstBit & 7)
+    var rBits = 8 - (firstBit & 7)
+    byteIndex += 1
+
+    while (rBits < nBitsPerProb) {
+      r |= ((a(byteIndex) & 0xff) << rBits)
+      byteIndex += 1
+      rBits += 8
     }
 
     // clear upper bits that might have garbage from last byte or
