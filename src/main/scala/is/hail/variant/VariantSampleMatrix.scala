@@ -184,13 +184,22 @@ object VariantSampleMatrix {
          """.stripMargin)
 
     val wasSplit = getAndCastJSON[JBool]("split").value
-    val isDosage = fields.get("isDosage") match {
-      case Some(t: JBool) => t.value
-      case Some(other) => fatal(
+    val isDosage = (fields.get("isDosage"), fields.get("isLinearScale")) match {
+      case (Some(t: JBool), None) => t.value
+      case (None, Some(t: JBool)) => t.value
+      case (Some(other), None) => fatal(
         s"""corrupt VDS: invalid metadata
            |  Expected `JBool' in field `isDosage', but got `${ other.getClass.getName }'
            |  Recreate VDS with current version of Hail.""".stripMargin)
-      case _ => false
+      case (None, Some(other)) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Expected `JBool' in field `isLinearScale', but got `${ other.getClass.getName }'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case (Some(l), Some(r)) => fatal(
+        s"""corrupt VDS: invalid metadata
+           |  Cannot have fields for both `isDosage` and `isLinearScale'.'
+           |  Recreate VDS with current version of Hail.""".stripMargin)
+      case (None, None) => false
     }
 
     val parquetGenotypes = fields.get("parquetGenotypes") match {
