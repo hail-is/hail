@@ -1,6 +1,6 @@
 package is.hail.io
 
-class ByteArrayReader(arr: Array[Byte]) extends AbstractBinaryReader {
+class ByteArrayReader(val arr: Array[Byte]) extends AbstractBinaryReader {
 
   final var position: Int = 0
   val length = arr.length
