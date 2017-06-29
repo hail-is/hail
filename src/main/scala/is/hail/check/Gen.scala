@@ -3,6 +3,7 @@ package is.hail.check
 import breeze.linalg.DenseMatrix
 import breeze.storage.Zero
 import is.hail.utils.UInt
+import is.hail.utils.roundWithConstantSum
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
@@ -34,12 +35,18 @@ object Gen {
       yield if (coin < 0.5) (l, w) else (w, l)
 
   def nonEmptySquareOfAreaAtMostSize: Gen[(Int, Int)] = for {
-      s <- size
-      sqrt = Math.sqrt(s).toInt
-      l <- choose(1, sqrt)
-      w = s / l
-      coin <- choose(0.0, 1.0)
-    } yield if (coin < 0.5) (l, w) else (w, l)
+    s <- size
+    sqrt = Math.sqrt(s).toInt
+    l <- choose(1, sqrt)
+    w = s / l
+    coin <- choose(0.0, 1.0)
+  } yield if (coin < 0.5) (l, w) else (w, l)
+
+  def nCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
+    Gen { (p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size) }
+
+  def nonEmptyNCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
+    Gen { (p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size).map(x => if (x == 0) 1 else x).toArray }
 
   def partition[T](rng: RandomDataGenerator, size: T, parts: Int, f: (RandomDataGenerator, T) => T)(implicit tn: Numeric[T], tct: ClassTag[T]): Array[T] = {
     import tn.mkOrderingOps
@@ -67,6 +74,29 @@ object Gen {
 
   def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] =
     partition(rng, size, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
+
+  /**
+    * Takes {@code size} balls and places them into {@code parts} bins according
+    * to a dirichlet-multinomial distribution with alpha_n equal to {@code
+    * parts} for all n. The outputs of this function tend towards uniformly
+    * distributed balls, i.e. vectors close to the center of the simplex in
+    * {@code parts} dimensions.
+    *
+    **/
+  def partitionDirichlet(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
+    val alpha = parts
+    val draws = (0 until parts).map(x => rng.nextGamma(alpha, 1))
+    val sum = draws.sum
+    roundWithConstantSum(draws.map((x: Double) => x / sum * size).toArray)
+  }
+
+  def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int): Array[Int] = {
+    val alpha = n
+    val sizeOfSum = math.log(size)
+    val draws = (0 until n).map(x => rng.nextGamma(alpha, 1))
+    val ratio = sizeOfSum / draws.sum
+    roundWithConstantSum(draws.map((x: Double) => math.exp(x * ratio)).toArray)
+  }
 
   def partition(parts: Int, sum: UInt)(implicit tn: Numeric[UInt], uct: ClassTag[UInt]): Gen[Array[UInt]] =
     Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: UInt) => UInt(rng.nextLong(0, avail.toLong))) }
