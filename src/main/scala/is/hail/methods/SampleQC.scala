@@ -72,49 +72,55 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
   def merge(v: Variant, acs: Array[Int], g: Genotype): SampleQCCombiner = {
 
     val gt = g.unboxedGT
-    if (gt == 0) {
-      nHomRef += 1
-    } else if (gt > 0) {
-      val gtPair = Genotype.gtPair(gt)
-
-      def mergeAllele(ai: Int) {
-        if (ai > 0 && (keepStar || !v.altAlleles(ai - 1).isStar)) {
-
-          val altAllele = v.altAlleles(ai - 1)
-          altAllele.altAlleleType match {
-            case AltAlleleType.SNP =>
-              nSNP += 1
-              if (altAllele.isTransition)
-                nTi += 1
-              else
-                nTv += 1
-            case AltAlleleType.Insertion =>
-              nIns += 1
-            case AltAlleleType.Deletion =>
-              nDel += 1
-            case _ =>
-          }
-
-          if (acs(ai) == 1)
-            nSingleton += 1
-        }
-      }
-
-      mergeAllele(gtPair.j)
-      mergeAllele(gtPair.k)
-
-      if (gtPair.j == gtPair.k)
-        nHet += 1
-      else
-        nHomVar += 1
-    } else
+    if (gt < 0)
       nNotCalled += 1
+    else {
 
-    if (g.unboxedDP >= 0)
-      dpSC.merge(g.unboxedDP)
+      // FIXME these should probably get merged if gt is uncalled,
+      // but don't want to break behavior without a version change
+      if (g.unboxedDP >= 0)
+        dpSC.merge(g.unboxedDP)
 
-    if (g.unboxedGQ >= 0)
-      gqSC.merge(g.unboxedGQ)
+      if (g.unboxedGQ >= 0)
+        gqSC.merge(g.unboxedGQ)
+
+      if (gt == 0) {
+        nHomRef += 1
+      } else {
+        val gtPair = Genotype.gtPair(gt)
+
+        def mergeAllele(ai: Int) {
+          if (ai > 0 && (keepStar || !v.altAlleles(ai - 1).isStar)) {
+
+            val altAllele = v.altAlleles(ai - 1)
+            altAllele.altAlleleType match {
+              case AltAlleleType.SNP =>
+                nSNP += 1
+                if (altAllele.isTransition)
+                  nTi += 1
+                else
+                  nTv += 1
+              case AltAlleleType.Insertion =>
+                nIns += 1
+              case AltAlleleType.Deletion =>
+                nDel += 1
+              case _ =>
+            }
+
+            if (acs(ai) == 1)
+              nSingleton += 1
+          }
+        }
+
+        mergeAllele(gtPair.j)
+        mergeAllele(gtPair.k)
+
+        if (gtPair.j == gtPair.k)
+          nHet += 1
+        else
+          nHomVar += 1
+      }
+    }
 
     this
   }
