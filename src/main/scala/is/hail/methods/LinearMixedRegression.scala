@@ -140,9 +140,7 @@ object LinearMixedRegression {
         vds1
     }
 
-    
     if (runAssoc) {
-
       val sc = assocVds.sparkContext
       val sampleMaskBc = sc.broadcast(sampleMask)
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
@@ -159,7 +157,7 @@ object LinearMixedRegression {
       val perVariantLMM = if (useScaler)
         ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, T, diagLMM.logNullS2, useML)
       else
-        SlowLMM(y, cov, S, U, delta, diagLMM.logNullS2, useML)
+        StandardLMM(y, cov, S, U, delta, diagLMM.logNullS2, useML)
 
       val perVariantLMMBc = sc.broadcast(perVariantLMM)
 
@@ -202,8 +200,8 @@ trait PerVariantLMM {
   def likelihoodRatioTest(v: Vector[Double]): Annotation
 }
 
-case class SlowLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: DenseVector[Double],
-                   U: DenseMatrix[Double], delta: Double, logNullS2: Double, useML: Boolean) extends PerVariantLMM{
+case class StandardLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: DenseVector[Double],
+                       U: DenseMatrix[Double], delta: Double, logNullS2: Double, useML: Boolean) extends PerVariantLMM {
 
   val n = y.length
   val d = covs.cols
