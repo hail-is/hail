@@ -26,6 +26,11 @@ test:
 	${CXX} ${_CXXFLAGS} -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o build/functional-tests
 	./build/functional-tests
 
+test2:
+	mkdir -p build
+	${CXX} ${_CXXFLAGS} ibs.cpp test2.cpp -o build/test2
+	./build/test2
+
 clean:
 	rm -rf lib
 	rm -rf build
