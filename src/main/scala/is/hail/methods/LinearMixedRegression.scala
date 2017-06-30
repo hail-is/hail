@@ -35,7 +35,7 @@ object LinearMixedRegression {
     sparsityThreshold: Double,
     useDosages: Boolean,
     optNEigs: Option[Int] = None,
-    droppedVarianceFraction: Double): VariantDataset = {
+    optDroppedVarianceFraction: Option[Double]): VariantDataset = {
 
     require(assocVds.wasSplit)
 
@@ -89,14 +89,13 @@ object LinearMixedRegression {
 
     require(nEigs > 0 && nEigs <= fullS.length, s"lmmreg: Must specify number of eigenvectors between 1 and ${fullS.length}")
 
-    nEigs = computeNEigs(fullS, nEigs, droppedVarianceFraction)
+    nEigs = computeNEigs(fullS, nEigs, optDroppedVarianceFraction)
 
     val U = fullU(::, (fullNEigs - nEigs) until fullNEigs)
 
     val Ut = U.t
 
     val S = fullS((fullNEigs - nEigs) until fullNEigs)
-
 
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
     info(s"lmmreg: Evals $nEigs to ${math.max(1, nEigs - 20)}: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
@@ -147,17 +146,17 @@ object LinearMixedRegression {
       val sampleMaskBc = sc.broadcast(sampleMask)
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
-      val T = Ut(::, *) :* diagLMM.sqrtInvD
-      val Qt = qr.reduced.justQ(diagLMM.TC).t
-      val QtTy = Qt * diagLMM.Ty
-      val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
-
       info(s"lmmreg: Computing statistics for each variant...")
 
-      val useScaler = false
+      val useScaler = optNEigs.isEmpty && optDroppedVarianceFraction.isEmpty
 
-      val perVariantLMM = if (useScaler)
+      val perVariantLMM = if (useScaler) {
+        val T = Ut(::, *) :* diagLMM.sqrtInvD
+        val Qt = qr.reduced.justQ(diagLMM.TC).t
+        val QtTy = Qt * diagLMM.Ty
+        val TyQtTy = (diagLMM.Ty dot diagLMM.Ty) - (QtTy dot QtTy)
         new ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, T, diagLMM.logNullS2, useML)
+      }
       else
         new StandardLMM(lmmConstants, delta, diagLMM.logNullS2, useML)
 
@@ -185,11 +184,12 @@ object LinearMixedRegression {
       vds2
   }
 
-  def computeNEigs(S: DenseVector[Double], nEigs: Int, droppedVarianceFraction: Double): Int = {
+  def computeNEigs(S: DenseVector[Double], nEigs: Int, optDroppedVarianceFraction: Option[Double]): Int = {
     val trace = S.toArray.sum
     var i = S.length - 1
     var runningSum = 0.0
-    val target = droppedVarianceFraction * trace
+    if (optDroppedVarianceFraction.isEmpty) return nEigs
+    val target = optDroppedVarianceFraction.get * trace
     while (i > nEigs || runningSum <= target) {
       runningSum += S(-i)
       i -= 1
@@ -202,6 +202,7 @@ trait PerVariantLMM {
   def likelihoodRatioTest(v: Vector[Double]): Annotation
 }
 
+//Works in any situation, but is slower than ScalerLMM
 class StandardLMM(lmmConstants: LMMConstants, delta: Double, logNullS2: Double, useML: Boolean) extends PerVariantLMM {
   val n = lmmConstants.n
   val d = lmmConstants.d
@@ -223,7 +224,7 @@ class StandardLMM(lmmConstants: LMMConstants, delta: Double, logNullS2: Double, 
     (Uty dot (Uty :* Z))
 
   val ZUtCov = UtCov(::, *) :* Z
-  val lowerRight = UtCov.t * ZUtCov
+  val CzCLowerRight = UtCov.t * ZUtCov
 
   def likelihoodRatioTest(v: Vector[Double]): Annotation = {
     val vty = v dot y
@@ -256,7 +257,7 @@ class StandardLMM(lmmConstants: LMMConstants, delta: Double, logNullS2: Double, 
     val lowerLeft = UtCov.t * ZUtv
 
     var CzC = DenseMatrix.zeros[Double](d + 1, d + 1)
-    CzC(1 to d, 1 to d) := lowerRight
+    CzC(1 to d, 1 to d) := CzCLowerRight
 
     CzC(0, 0) = upperLeft
     i = 1
@@ -282,6 +283,7 @@ class StandardLMM(lmmConstants: LMMConstants, delta: Double, logNullS2: Double, 
 
 }
 
+//Only works when all eigenvectors are used, but faster than StandardLMM
 class ScalerLMM(
   y: DenseVector[Double],
   yy: Double,
@@ -293,7 +295,6 @@ class ScalerLMM(
   useML: Boolean) extends PerVariantLMM {
 
   def likelihoodRatioTest(v: Vector[Double]): Annotation = {
-
     val x = T * v
     val n = y.length
     val Qtx = Qt * x
@@ -309,7 +310,6 @@ class ScalerLMM(
   }
 }
 
-
 object DiagLMM {
   def apply(
     lmmConstants: LMMConstants,
@@ -320,13 +320,11 @@ object DiagLMM {
   }
 }
 
-
 class DiagLMMSolver(
   lmmConstants: LMMConstants,
   optDelta: Option[Double] = None,
   useML: Boolean = false) {
 
-  //val Ut = U.t
   val UtC = lmmConstants.UtC
   val Uty = lmmConstants.Uty
 
@@ -338,10 +336,7 @@ class DiagLMMSolver(
   val n = lmmConstants.n
   val d = lmmConstants.d
 
-  //MR indicates difference between thing and it's rotated version.
-  val ytyMR = (yty - Uty.t * Uty)
-  val CtyMR = (Cty - UtC.t * Uty)
-  val CtCMR = (CtC - UtC.t * UtC)
+
 
   val (delta, optGlobalFit) = optDelta match {
     case Some(del) => (del, None)
@@ -353,15 +348,17 @@ class DiagLMMSolver(
   def solve(): DiagLMM = {
     val invD = (S + delta).map(1 / _)
     val dy = Uty :* invD
-    var ydy = Uty dot dy
-    var Cdy = UtC.t * dy
-    var CdC = UtC.t * (UtC(::, *) :* invD)
 
-    if(S.length < n) {
-      ydy = ydy + ytyMR / delta
-      Cdy = Cdy + CtyMR / delta
-      CdC = CdC + CtCMR / delta
-    }
+    val Z = invD - 1 / delta
+
+    val ydy = yty / delta +
+      (Uty dot (Uty :* Z))
+
+    val Cdy = Cty / delta +
+      (UtC.t  * (Uty :* Z))
+
+    val CdC = CtC / delta +
+      (UtC.t * (UtC(::, *) :* Z))
 
     val b = CdC \ Cdy
 
