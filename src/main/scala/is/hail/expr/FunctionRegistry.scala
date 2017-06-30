@@ -2570,6 +2570,8 @@ object FunctionRegistry {
 
   register("~", (s: String, t: String) => s.r.findFirstIn(t).isDefined, null)
 
+  register("isnan", (d: Double) => d.isNaN, "Returns true if the argument is NaN (not a number), false if the argument is defined but not NaN. Returns missing if the argument is missing.")
+
   registerSpecial("isMissing", (g: () => Any) => g() == null, "Returns true if item is missing. Otherwise, false.")(TTHr, boolHr)
   registerSpecial("isDefined", (g: () => Any) => g() != null, "Returns true if item is non-missing. Otherwise, false.")(TTHr, boolHr)
 
