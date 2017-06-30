@@ -146,7 +146,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
 
   @Test
   def multiplySameAsSpark() {
-    forAll(twoMultiplyableBlockMatrices) { case (a: BlockMatrix, b: BlockMatrix) =>
+    forAll(twoMultipliableBlockMatrices) { case (a: BlockMatrix, b: BlockMatrix) =>
       val truth = dm.toLocalMatrix(a * b)
       val expected = dm.toLocalMatrix(a.multiply(b))
 
