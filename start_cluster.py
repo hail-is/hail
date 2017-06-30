@@ -110,7 +110,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # required arguments
-    parser.add_argument('--name', '-n', required=True, type=str, help='Name of cluster.', required=True)
+    parser.add_argument('--name', '-n', required=True, type=str, help='Name of cluster.')
 
     # arguments with default parameters
     parser.add_argument('--hash', default='latest', type=str, help='Hail build to use for notebook initialization.')
