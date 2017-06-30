@@ -68,7 +68,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     bm <- blockMatrixPreGen(blockSize, blockSize)
   } yield bm
 
-  val twoMultiplyableBlockMatrices = for {
+  val twoMultipliableBlockMatrices = for {
     Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
     blockSize <- Gen.interestingPosInt
     x <- blockMatrixPreGen(rows, inner, blockSize, blockSize)
