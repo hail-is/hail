@@ -214,6 +214,7 @@ class LoadBgenSuite extends SparkSuite {
 
   @Test def testDosage() {
     val sc = hc.sc
+    hc.indexBgen("src/test/resources/example.8bits.bgen")
     val vds = hc.importBgen("src/test/resources/example.8bits.bgen"
       // , nPartitions = Some(8)
       , nPartitions = Some(1)
