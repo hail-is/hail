@@ -253,17 +253,17 @@ class StandardLMM(lmmConstants: LMMConstants, delta: Double, logNullS2: Double, 
     val ZUtv = Utv :* Z
 
     //4 Parts (lowerLeft and upperRight same)
-    val upperLeft = Utv dot ZUtv
-    val lowerLeft = UtCov.t * ZUtv
+    val CzCUpperLeft = Utv dot ZUtv
+    val CzCLowerLeft = UtCov.t * ZUtv
 
     var CzC = DenseMatrix.zeros[Double](d + 1, d + 1)
     CzC(1 to d, 1 to d) := CzCLowerRight
 
-    CzC(0, 0) = upperLeft
+    CzC(0, 0) = CzCUpperLeft
     i = 1
     while (i <= d) {
-      CzC(i, 0) = lowerLeft(i - 1)
-      CzC(0, i) = lowerLeft(i - 1)
+      CzC(i, 0) = CzCLowerLeft(i - 1)
+      CzC(0, i) = CzCLowerLeft(i - 1)
       i += 1
     }
 
