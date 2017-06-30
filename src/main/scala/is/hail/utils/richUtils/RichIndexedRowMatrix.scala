@@ -60,7 +60,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         }
         new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
     }
-    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock)
+    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, n, m)
   }
 }
 
