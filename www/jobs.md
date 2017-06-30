@@ -12,6 +12,4 @@ Operationally, we're a **zero-equity start-up** embedded inside the world's lead
 
 In addition to software development, our team is interested in the application of **machine learning** to problems in biology. We run the [Models, Inference & Algorithms Initiative](http://www.broadinstitute.org/mia) to foster community and pedagogy in greater Boston at the interface of computational biology, mathematical theory, and computer science.
 
-If you’d like a **video intro** for engineers on what we’re building and why, check out the talks on our [homepage](https://hail.is). If you’re curious how Hail is used, check out the [tutorials](https://hail.is/hail/tutorials-landing.html). And if you think you might enjoy applying your engineering skills to accelerate our understanding of disease, send any questions to <a href="mailto:isa-jobs@broadinstitute.org"><code>isa-jobs@broadinstitute.org</code></a> and apply as soon as possible through the following link!
-
-[https://www.linkedin.com/jobs/view/316818823/](https://www.linkedin.com/jobs/view/316818823/)
+If you’d like a **video intro** for engineers on what we’re building and why, check out the talks on our [homepage](https://hail.is). If you’re curious how Hail is used, check out the [tutorials](https://hail.is/hail/tutorials-landing.html). And if you think you might enjoy applying your engineering skills to accelerate our understanding of disease, send any questions to <a href="mailto:isa-jobs@broadinstitute.org"><code>isa-jobs@broadinstitute.org</code></a> and apply soon!
