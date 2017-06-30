@@ -4911,20 +4911,6 @@ class VariantDataset(object):
         """Produce a key with one row per variant and one or more columns per sample.
 
         **Examples**
-        
-        >>> kt = vds.make_table('v = v', ['gt = g.gt', 'gq = g.gq'])
-
-        **Notes**
-
-        Per sample field names in the result are formed by
-        concatenating the sample ID with the ``genotype_expr`` left
-        hand side with ``separator``.  If the left hand side is empty::
-
-          `` = expr
-
-        then the dot (.) is omitted.
-
-        **Examples**
 
         Consider a :py:class:`VariantDataset` ``vds`` with 2 variants and 3 samples:
 
@@ -4958,6 +4944,18 @@ class VariantDataset(object):
             1:1:A:T	1	99	NA	NA	0	99
             1:2:G:C	1	89	1	99	2	93
 
+        The above table can be generated and exported as a TSV using :class:`.KeyTable` :py:meth:`~hail.KeyTable.export`
+
+        **Notes**
+
+        Per sample field names in the result are formed by
+        concatenating the sample ID with the ``genotype_expr`` left
+        hand side with ``separator``.  If the left hand side is empty::
+
+          `` = expr
+
+        then the dot (.) is omitted.
+
         :param variant_expr: Variant annotation expressions.
         :type variant_expr: str or list of str
 
@@ -4967,7 +4965,7 @@ class VariantDataset(object):
         :param key: List of key columns.
         :type key: str or list of str
 
-        :param str separator: Seperator to use between sample IDs and genotype expression left hand side identifiers.
+        :param str separator: Separator to use between sample IDs and genotype expression left hand side identifiers.
 
         :rtype: :py:class:`.KeyTable`
 
