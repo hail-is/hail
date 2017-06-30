@@ -148,11 +148,14 @@ package object utils extends Logging
       null
   }
 
-  def divOption[T](num: T, denom: T)(implicit ev: T => Double): Option[Double] =
-    someIf(denom != 0, ev(num) / denom)
+  def divOption(num: Double, denom: Double): Option[Double] =
+    someIf(denom != 0, num / denom)
 
-  def divNull[T](num: T, denom: T)(implicit ev: T => Double): Any =
-    nullIfNot(denom != 0, ev(num) / denom)
+  def divNull(num: Double, denom: Double): java.lang.Double =
+    if (denom == 0)
+      null
+    else
+    num / denom
 
   val defaultTolerance = 1e-6
 

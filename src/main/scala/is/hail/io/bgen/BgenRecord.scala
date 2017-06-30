@@ -26,10 +26,7 @@ class BgenRecordV11(compressed: Boolean,
     require(input != null, "called getValue before serialized value was set")
 
     val byteReader = new ByteArrayReader(if (compressed) decompress(input, nSamples * 6) else input)
-
     assert(byteReader.length == nSamples * 6)
-
-    resetWarnings()
 
     val lowerTol = (32768 * (1.0 - tolerance) + 0.5).toInt
     val upperTol = (32768 * (1.0 + tolerance) + 0.5).toInt
@@ -40,6 +37,7 @@ class BgenRecordV11(compressed: Boolean,
     new Iterable[Genotype] {
       def iterator = new Iterator[Genotype] {
         var i = 0
+        byteReader.seek(0)
 
         def hasNext: Boolean = i < byteReader.length
 
@@ -61,17 +59,10 @@ class BgenRecordV11(compressed: Boolean,
               val gt = Genotype.unboxedGTFromLinear(px)
               new DosageGenotype(gt, px)
             } else {
-              setWarning(gpSumGreaterThanTolerance)
               noCall
             }
-          } else {
-            if (dsum == 0)
-              setWarning(gpNoCall)
-            else
-              setWarning(gpSumLessThanTolerance)
-
+          } else
             noCall
-          }
         }
       }
     }

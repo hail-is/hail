@@ -11,7 +11,6 @@ import scala.collection.mutable
 abstract class KeySerializedValueRecord[K, V] extends Serializable {
   var input: Array[Byte] = _
   var key: K = _
-  var warnings = mutable.Map.empty[Int, Int]
 
   def setSerializedValue(arr: Array[Byte]) {
     this.input = arr
@@ -24,16 +23,6 @@ abstract class KeySerializedValueRecord[K, V] extends Serializable {
   }
 
   def getKey: K = key
-
-  def getWarnings = warnings
-
-  def setWarning(idx: Int) {
-    warnings(idx) = this.warnings.getOrElseUpdate(idx, 0) + 1
-  }
-
-  def resetWarnings() {
-    warnings = mutable.Map.empty[Int, Int]
-  }
 }
 
 abstract class IndexedBinaryBlockReader[T](job: Configuration, split: FileSplit)

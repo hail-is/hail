@@ -97,12 +97,6 @@ class VariantQCCombiner extends Serializable {
     this
   }
 
-  def emitSC(sb: mutable.StringBuilder, sc: StatCounter) {
-    sb.tsvAppend(someIf(sc.count > 0, sc.mean))
-    sb += '\t'
-    sb.tsvAppend(someIf(sc.count > 0, sc.stdev))
-  }
-
   def HWEStats: (Option[Double], Double) = {
     // rExpectedHetFrequency, pHWE
     val n = nHomRef + nHet + nHomVar
@@ -111,57 +105,6 @@ class VariantQCCombiner extends Serializable {
 
     val LH = LeveneHaldane(n, nA)
     (divOption(LH.getNumericalMean, n), LH.exactMidP(nAB))
-  }
-
-  def emit(sb: mutable.StringBuilder) {
-    val nCalled = nHomRef + nHet + nHomVar
-
-    val callRate = divOption(nCalled, nCalled + nNotCalled)
-    val ac = nHet + 2 * nHomVar
-
-    sb.tsvAppend(callRate)
-    sb += '\t'
-    sb.append(ac)
-    sb += '\t'
-    // MAF
-    val refAlleles = nHomRef * 2 + nHet
-    val altAlleles = nHomVar * 2 + nHet
-    sb.tsvAppend(divOption(altAlleles, refAlleles + altAlleles))
-    sb += '\t'
-    sb.append(nCalled)
-    sb += '\t'
-    sb.append(nNotCalled)
-    sb += '\t'
-    sb.append(nHomRef)
-    sb += '\t'
-    sb.append(nHet)
-    sb += '\t'
-    sb.append(nHomVar)
-    sb += '\t'
-
-    emitSC(sb, dpSC)
-    sb += '\t'
-
-    emitSC(sb, gqSC)
-    sb += '\t'
-
-    // nNonRef
-    sb.append(nHet + nHomVar)
-    sb += '\t'
-
-    // rHeterozygosity
-    sb.tsvAppend(divOption(nHet, nCalled))
-    sb += '\t'
-
-    // rHetHomVar
-    sb.tsvAppend(divOption(nHet, nHomVar))
-    sb += '\t'
-
-    // Hardy-Weinberg statistics
-    val hwe = HWEStats
-    sb.tsvAppend(hwe._1)
-    sb += '\t'
-    sb.tsvAppend(hwe._2)
   }
 
   def asAnnotation: Annotation = {

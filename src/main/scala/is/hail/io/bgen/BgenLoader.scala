@@ -2,15 +2,13 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr._
-import is.hail.io._
-import is.hail.io.gen.GenReport
+import is.hail.expr.{TString, TStruct, TVariant}
+import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.rdd.RDD
 
-import scala.collection.mutable
 import scala.io.Source
 
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
@@ -39,9 +37,7 @@ object BgenLoader {
 
     val sc = hc.sc
     val results = files.map { file =>
-      val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
       val bState = readState(sc.hadoopConfiguration, file)
-      GenReport.accumulators ::= (file, reportAcc)
 
       bState.version match {
         case 1 =>
