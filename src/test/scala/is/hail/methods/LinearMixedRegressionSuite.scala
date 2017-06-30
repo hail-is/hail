@@ -72,13 +72,14 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val Ut = eigRRM.eigenvectors.t
     val S = eigRRM.eigenvalues
 
+    val constants = LMMConstants(y, C, S, eigRRM.eigenvectors)
 
-    val model = DiagLMM(y, C, S, eigRRM.eigenvectors, optDelta = Some(delta))
+    val model = DiagLMM(LMMConstants(y, C, S, eigRRM.eigenvectors), optDelta = Some(delta))
 
     TestUtils.assertVectorEqualityDouble(beta, model.globalB)
     assert(D_==(sg2, model.globalS2))
 
-    val modelML = DiagLMM(y, C, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = true)
+    val modelML = DiagLMM(LMMConstants(y, C, S, eigRRM.eigenvectors), optDelta = Some(delta), useML = true)
 
     TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
@@ -229,12 +230,14 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val Ut = eigRRM.eigenvectors.t
     val S = eigRRM.eigenvalues
 
-    val model = DiagLMM(y, C, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = false)
+    val constants = LMMConstants(y, C, S, eigRRM.eigenvectors)
+
+    val model = DiagLMM(constants, optDelta = Some(delta), useML = false)
 
     TestUtils.assertVectorEqualityDouble(beta, model.globalB)
     assert(D_==(sg2, model.globalS2))
 
-    val modelML = DiagLMM(y, C, S, eigRRM.eigenvectors, optDelta = Some(delta), useML = true)
+    val modelML = DiagLMM(constants, optDelta = Some(delta), useML = true)
 
     TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))

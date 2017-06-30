@@ -58,7 +58,7 @@ object LinearMixedRegression {
       fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
         "samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
 
-    val n = y.size
+    val n = y.length
     val k = cov.cols
     val d = n - k - 1
 
@@ -93,15 +93,17 @@ object LinearMixedRegression {
 
     val U = fullU(::, (fullNEigs - nEigs) until fullNEigs)
 
+    val Ut = U.t
+
     val S = fullS((fullNEigs - nEigs) until fullNEigs)
 
 
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
     info(s"lmmreg: Evals $nEigs to ${math.max(1, nEigs - 20)}: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
 
-    val Ut = U.t
+    val lmmConstants = LMMConstants(y, cov, S, U)
 
-    val diagLMM = DiagLMM(y, cov, S, U, optDelta, useML)
+    val diagLMM = DiagLMM(lmmConstants, optDelta, useML)
 
     val delta = diagLMM.delta
     val globalBetaMap = covNames.zip(diagLMM.globalB.toArray).toMap
@@ -155,9 +157,9 @@ object LinearMixedRegression {
       val useScaler = false
 
       val perVariantLMM = if (useScaler)
-        ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, T, diagLMM.logNullS2, useML)
+        new ScalerLMM(diagLMM.Ty, diagLMM.TyTy, Qt, QtTy, TyQtTy, T, diagLMM.logNullS2, useML)
       else
-        StandardLMM(y, cov, S, U, delta, diagLMM.logNullS2, useML)
+        new StandardLMM(lmmConstants, delta, diagLMM.logNullS2, useML)
 
       val perVariantLMMBc = sc.broadcast(perVariantLMM)
 
@@ -200,27 +202,28 @@ trait PerVariantLMM {
   def likelihoodRatioTest(v: Vector[Double]): Annotation
 }
 
-case class StandardLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: DenseVector[Double],
-                       U: DenseMatrix[Double], delta: Double, logNullS2: Double, useML: Boolean) extends PerVariantLMM {
-
-  val n = y.length
-  val d = covs.cols
-  val D = S + delta
-  val Ut = U.t
-  val Uty = Ut * y
-  val UtCov = Ut * covs
-  val yty = y.t * y
+class StandardLMM(lmmConstants: LMMConstants, delta: Double, logNullS2: Double, useML: Boolean) extends PerVariantLMM {
+  val n = lmmConstants.n
+  val d = lmmConstants.d
+  val k = lmmConstants.S.length
+  val y = lmmConstants.y
+  val covs = lmmConstants.C
+  val D = lmmConstants.S + delta
+  val Ut = lmmConstants.U.t
+  val Uty = lmmConstants.Uty
+  val UtCov = lmmConstants.UtC
+  val yty = lmmConstants.yty
   val dy = Uty :/ D
+  val covTcov = lmmConstants.CtC
 
-  val covTcov = covs.t * covs
-  val covTy = covs.t * y
+  val covTy = lmmConstants.Cty
 
-  val invDMinusInvDelta = D.map(x => 1 / x) - 1 / delta
+  val Z = D.map(x => 1 / x) - 1 / delta
   val ydy = yty / delta +
-    (Uty dot (Uty :* invDMinusInvDelta))
+    (Uty dot (Uty :* Z))
 
-  val k = S.length
-
+  val ZUtCov = UtCov(::, *) :* Z
+  val lowerRight = UtCov.t * ZUtCov
 
   def likelihoodRatioTest(v: Vector[Double]): Annotation = {
     val vty = v dot y
@@ -230,26 +233,40 @@ case class StandardLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: Den
 
     val UtC = DenseMatrix.horzcat(Utv.toDenseVector.toDenseMatrix.t, UtCov)
 
-    val CtC = DenseMatrix.vertcat(DenseVector.vertcat(DenseVector(vtv), covtv).toDenseVector.toDenseMatrix,
-      DenseMatrix.horzcat(covtv.toDenseVector.toDenseMatrix.t, covTcov))
+    var CtC = DenseMatrix.zeros[Double](d + 1, d + 1)
+    CtC(1 to d, 1 to d) := lmmConstants.CtC
+    CtC(0, 0) = vtv
+
+    var i = 1
+    while (i <= d) {
+      CtC(0, i) = covtv(i - 1)
+      CtC(i, 0) = covtv(i - 1)
+      i += 1
+    }
+
     val Cty = DenseVector.vertcat(DenseVector(vty), covTy)
 
     val Cdy = Cty / delta +
-      (UtC.t  * (Uty :* invDMinusInvDelta))
+      (UtC.t  * (Uty :* Z))
 
-    val ZUtv = Utv :* invDMinusInvDelta
-    val ZUtCov = UtCov(::, *) :* invDMinusInvDelta//Rowwise.
+    val ZUtv = Utv :* Z
 
-    //4 Parts
-    val topLeft = Utv dot ZUtv
-    val bottomLeft = UtCov.t * ZUtv
-    val topRight = Utv.t * ZUtCov
-    val bottomRight = UtCov.t * ZUtCov
+    //4 Parts (lowerLeft and upperRight same)
+    val upperLeft = Utv dot ZUtv
+    val lowerLeft = UtCov.t * ZUtv
 
-    val top = DenseVector.vertcat(DenseVector(topLeft), topRight.t)
-    val bottom = DenseMatrix.horzcat(bottomLeft.toDenseMatrix.t, bottomRight)
+    var CzC = DenseMatrix.zeros[Double](d + 1, d + 1)
+    CzC(1 to d, 1 to d) := lowerRight
 
-    val CdC = CtC / delta + DenseMatrix.vertcat(top.toDenseVector.toDenseMatrix, bottom)
+    CzC(0, 0) = upperLeft
+    i = 1
+    while (i <= d) {
+      CzC(i, 0) = lowerLeft(i - 1)
+      CzC(0, i) = lowerLeft(i - 1)
+      i += 1
+    }
+
+    val CdC = CtC / delta + CzC
 
     val b = CdC \ Cdy
 
@@ -265,7 +282,7 @@ case class StandardLMM(y: DenseVector[Double], covs: DenseMatrix[Double], S: Den
 
 }
 
-case class ScalerLMM(
+class ScalerLMM(
   y: DenseVector[Double],
   yy: Double,
   Qt: DenseMatrix[Double],
@@ -295,36 +312,31 @@ case class ScalerLMM(
 
 object DiagLMM {
   def apply(
-    y: DenseVector[Double],
-    C: DenseMatrix[Double],
-    S: DenseVector[Double],
-    U: DenseMatrix[Double],
+    lmmConstants: LMMConstants,
     optDelta: Option[Double] = None,
     useML: Boolean = false): DiagLMM = {
 
-    new DiagLMMSolver(C, y, S, U, optDelta, useML).solve()
+    new DiagLMMSolver(lmmConstants, optDelta, useML).solve()
   }
 }
 
 
 class DiagLMMSolver(
-  C: DenseMatrix[Double],
-  y: DenseVector[Double],
-  S: DenseVector[Double],
-  U: DenseMatrix[Double],
+  lmmConstants: LMMConstants,
   optDelta: Option[Double] = None,
   useML: Boolean = false) {
 
-  val Ut = U.t
-  val UtC = Ut * C
-  val Uty = Ut * y
+  //val Ut = U.t
+  val UtC = lmmConstants.UtC
+  val Uty = lmmConstants.Uty
 
-  val CtC = C.t * C
-  val Cty = C.t * y
-  val yty = y.t * y
+  val CtC = lmmConstants.CtC
+  val Cty = lmmConstants.Cty
+  val yty = lmmConstants.yty
+  val S = lmmConstants.S
 
-  val n = y.length
-  val d = C.cols
+  val n = lmmConstants.n
+  val d = lmmConstants.d
 
   //MR indicates difference between thing and it's rotated version.
   val ytyMR = (yty - Uty.t * Uty)
@@ -375,17 +387,16 @@ class DiagLMMSolver(
         val delta = FastMath.exp(logDelta)
         val D = S + delta
         val dy = Uty :/ D
-
-        val invDMinusInvDelta = D.map(x => 1 / x) - 1 / delta
+        val Z = D.map(x => 1 / x) - 1 / delta
 
         val ydy = yty / delta +
-          (Uty dot (Uty :* invDMinusInvDelta))
+          (Uty dot (Uty :* Z))
 
         val Cdy = Cty / delta +
-          (UtC.t  * (Uty :* invDMinusInvDelta))
+          (UtC.t  * (Uty :* Z))
 
         val CdC = CtC / delta +
-          (UtC.t * (UtC(::, *) :* invDMinusInvDelta))
+          (UtC.t * (UtC(::, *) :* Z))
 
         val k = S.length
         val b = CdC \ Cdy
@@ -408,15 +419,16 @@ class DiagLMMSolver(
         val delta = FastMath.exp(logDelta)
         val D = S + delta
         val dy = Uty :/ D
-        val ydy =
-          (Uty dot dy) +
-          ytyMR / delta
-        val Cdy =
-          UtC.t * dy +
-          CtyMR / delta
-        val CdC =
-          UtC.t * (UtC(::, *) :/ D) +
-          CtCMR / delta
+        val Z = D.map(x => 1 / x) - 1 / delta
+
+        val ydy = yty / delta +
+          (Uty dot (Uty :* Z))
+
+        val Cdy = Cty / delta +
+          (UtC.t  * (Uty :* Z))
+
+        val CdC = CtC / delta +
+          (UtC.t * (UtC(::, *) :* Z))
         
         val b = CdC \ Cdy
         
@@ -522,3 +534,24 @@ case class DiagLMM(
   useML: Boolean)
 
 
+object LMMConstants {
+  def apply(y: DenseVector[Double], C: DenseMatrix[Double],
+            S: DenseVector[Double], U: DenseMatrix[Double]): LMMConstants = {
+    val Ut = U.t
+
+    lazy val UtC = Ut * C
+    lazy val Uty = Ut * y
+
+    lazy val CtC = C.t * C
+    lazy val Cty = C.t * y
+    lazy val yty = y.t * y
+
+    val n = y.length
+    val d = C.cols
+
+    new LMMConstants(y, C, S, U, Uty, UtC, Cty, CtC, yty, n, d)
+  }
+}
+case class LMMConstants(y: DenseVector[Double], C: DenseMatrix[Double], S: DenseVector[Double], U: DenseMatrix[Double],
+                        Uty: DenseVector[Double], UtC: DenseMatrix[Double], Cty: DenseVector[Double],
+                        CtC: DenseMatrix[Double], yty: Double, n: Int, d: Int)
