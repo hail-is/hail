@@ -24,8 +24,13 @@ object Arbitrary {
       Gen.choose(-100, 100),
       Gen { p => p.rng.getRandomGenerator.nextLong() }))
 
+  implicit def arbFloat: Arbitrary[Float] = new Arbitrary(
+    Gen.oneOfGen(Gen.oneOf(Float.MinValue, -1.0f, -Float.MinPositiveValue, 0.0f, Float.MinPositiveValue, 1.0f, Float.MaxValue),
+      Gen.choose(-100.0f, 100.0f),
+      Gen { p => p.rng.nextUniform(Float.MinValue, Float.MaxValue, true).toFloat }))
+
   implicit def arbDouble: Arbitrary[Double] = new Arbitrary(
-    Gen.oneOfGen(Gen.oneOf(Double.MinValue, -1.0, 0.0, Double.MinPositiveValue, 1.0, Double.MaxValue),
+    Gen.oneOfGen(Gen.oneOf(Double.MinValue, -1.0, -Double.MinPositiveValue, 0.0, Double.MinPositiveValue, 1.0, Double.MaxValue),
       Gen.choose(-100.0, 100.0),
       Gen { p => p.rng.nextUniform(Double.MinValue, Double.MaxValue, true) }))
 
