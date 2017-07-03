@@ -1,10 +1,10 @@
 The [Broad Institute of MIT and Harvard](https://www.broadinstitute.org/about-us) was launched in 2004 to improve human health by using genomics to advance our understanding of the biology and treatment of human disease, and to help lay the groundwork for a new generation of therapies.
 
-The Hail team's mission is to build tools to enable rapid analysis and exploration of massive genetic datasets (10s of TB and tripling yearly). We are committed to open science and everything we do is open source. We currently develop in Scala, Spark, Python an C/C++ but will use any tools we need to get the job done.
+The Hail team's mission is to build tools to enable rapid analysis and exploration of massive genetic datasets (10s of TB and tripling yearly). We are committed to open science and everything we do is open source. We currently develop in Scala, Spark, Python and C/C++ but will use any tools we need to get the job done.
 
-We're looking for skilled engineers who have a solid CS/engineering background, can quickly write clear, correct code and, for the senior position, have experience working on large, complex projects. You don't need experience in biology or our particular technologies. We work in a highly multi-disciplinary environment with biologists, bioinformaticians, physicians, operations, and mathematicians. Self-improvement is a fundamental part of our culture; we want to grow great engineers. You must be excited to be challenged and learn new things.
+We're looking for skilled engineers who have a solid CS/engineering background, can quickly write clear, correct code and, for the senior position, have experience working on large, complex projects. You don't need experience in biology or our particular technologies. We work in a highly multi-disciplinary environment with biologists, bioinformaticians, doctors, mathematicians, and operations. Self-improvement is a fundamental part of our culture; we want to grow great engineers. You must be excited to be challenged and learn new things.
 
-For more details on the roles and **to apply, proceed to the [job post](https://broadinstitute.wd1.myworkdayjobs.com/broad_institute/job/Cambridge-MA/Software-Engineer---Hail-Team_3168)**. For more on our mission and approach, read on.
+Questions? Write us at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>. For more on the roles and **to apply, visit the [offical job post](https://broadinstitute.wd1.myworkdayjobs.com/broad_institute/job/Cambridge-MA/Software-Engineer---Hail-Team_3168)**. For more on our mission and approach, read on.
 
 ![](https://storage.googleapis.com/hail-common/hail_team.JPG "Hail team")
 
