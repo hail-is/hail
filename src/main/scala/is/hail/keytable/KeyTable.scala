@@ -186,10 +186,9 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def nPartitions: Int = rdd.partitions.length
 
   def keySignature: TStruct = {
-    val fieldIndices = fields.map(f => f.name -> f).toMap
+    val types = fields.map(f => f.name -> f.typ).toMap
     val keyFields = key
-      .map(k => fieldIndices(k))
-      .map(f => f.name -> f.typ)
+      .map(k => k -> types(k))
 
     TStruct(keyFields: _*)
   }
