@@ -386,7 +386,7 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testKeyOrder() {
     val kt1 = KeyTable(hc,
-      sc.parallelize(Array(Row("f1", "f2", 3, "value1"))),
+      sc.parallelize(Array(Row("foo", "bar", 3, "baz"))),
       TStruct(
         "f1" -> TString,
         "f2" -> TString,
@@ -396,7 +396,7 @@ class KeyTableSuite extends SparkSuite {
       Array("f3", "f2", "f1"))
 
     val kt2 = KeyTable(hc,
-      sc.parallelize(Array(Row(3, "f1", "f2", "value2"))),
+      sc.parallelize(Array(Row(3, "foo", "bar", "qux"))),
       TStruct(
         "f3" -> TInt,
         "f1" -> TString,
