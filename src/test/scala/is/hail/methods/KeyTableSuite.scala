@@ -386,25 +386,26 @@ class KeyTableSuite extends SparkSuite {
 
   @Test def testKeyOrder() {
     val kt1 = KeyTable(hc,
-      sc.parallelize(Array(Row("f1", "f2", "f3", "value1"))),
+      sc.parallelize(Array(Row("f1", "f2", 3, "value1"))),
       TStruct(
         "f1" -> TString,
         "f2" -> TString,
-        "f3" -> TString,
+        "f3" -> TInt,
         "f4" -> TString
       ),
-      Array("f1", "f2", "f3"))
+      Array("f3", "f2", "f1"))
 
     val kt2 = KeyTable(hc,
-      sc.parallelize(Array(Row("f3", "f1", "f2", "value2"))),
+      sc.parallelize(Array(Row(3, "f1", "f2", "value2"))),
       TStruct(
-        "f3" -> TString,
+        "f3" -> TInt,
         "f1" -> TString,
         "f2" -> TString,
         "f5" -> TString
       ),
-      Array("f1", "f2", "f3"))
+      Array("f3", "f2", "f1"))
 
     assert(kt1.join(kt2, "inner").count() == 1L)
+    kt1.join(kt2, "outer").typeCheck()
   }
 }
