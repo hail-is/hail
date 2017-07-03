@@ -4920,7 +4920,7 @@ class VariantDataset(object):
           1:1:A:T	GT:GQ	0/1:99	./.	0/0:99
           1:2:G:C	GT:GQ	0/1:89	0/1:99	1/1:93
 
-        Then:
+        Then
 
         >>> kt = vds.make_table('v = v', ['gt = g.gt', 'gq = g.gq'])
 
@@ -4936,7 +4936,7 @@ class VariantDataset(object):
             C.gt: Int
             C.gq: Int
 
-        in particular, the values would be
+        and values
 
         .. code-block:: text
 
@@ -4944,7 +4944,7 @@ class VariantDataset(object):
             1:1:A:T	1	99	NA	NA	0	99
             1:2:G:C	1	89	1	99	2	93
 
-        The above table can be generated and exported as a TSV using :class:`.KeyTable` :py:meth:`~hail.KeyTable.export`
+        The above table can be generated and exported as a TSV using :class:`.KeyTable` :py:meth:`~hail.KeyTable.export`.
 
         **Notes**
 
@@ -4965,7 +4965,7 @@ class VariantDataset(object):
         :param key: List of key columns.
         :type key: str or list of str
 
-        :param str separator: Separator to use between sample IDs and genotype expression left hand side identifiers.
+        :param str separator: Separator to use between sample IDs and genotype expression left-hand side identifiers.
 
         :rtype: :py:class:`.KeyTable`
 
