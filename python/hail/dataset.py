@@ -4706,6 +4706,95 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @requireTGenotype
+    @typecheck_method(key_name=strlike,
+                      variant_keys=strlike,
+                      single_key=bool,
+                      weight_expr=strlike,
+                      y=strlike,
+                      covariates=listof(strlike),
+                      useDosages=bool)
+    def skat(self, key_name, variant_keys, single_key, weight_expr = None, y, covariates=[], use_dosages=False):
+        """Test each keyed group of variants for association by linear SKAT test.
+
+        .. include:: requireTGenotype.rst
+
+        **Examples**
+
+        Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
+        is a variant annotation of type Set[String] giving the set of genes containing the variant:
+
+        >>> skat_kt = (hc.read('data/example_burden.vds').skat(key_name='gene',
+        ...           variant_keys='va.genes',
+        ...           single_key=False,
+        ...           weight_expr='va.weight',
+        ...           y='sa.burden.pheno',
+        ...           covariates=['sa.burden.cov1', 'sa.burden.cov2']))
+
+        .. caution::
+
+          With ``single_key=False``, ``variant_keys`` expects a variant annotation of Set or Array type, in order to
+          allow each variant to have zero, one, or more keys (for example, the same variant may appear in multiple
+          genes). Unlike with type Set, if the same key appears twice in a variant annotation of type Array, then that
+          variant will be counted twice in that key's group. With ``single_key=True``, ``variant_keys`` expects a
+          variant annotation whose value is itself the key of interest. In both cases, variants with missing keys are
+          ignored.
+
+        .. caution::
+          If a p-value of 0.0 is returned, then the true p-value falls in the range between 0.0 and
+          :math:`2^-52 \approx  2.22 \cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
+          left-hand area, which we then subtract from 1 to get the p-value.
+
+        **Notes**
+
+        This method provides a scalable implementation of the score-based variance-component test originally described
+        in `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
+        <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
+
+        The resulting key table provides the variant component score and the p-value for each group, with the latter
+        given by right tail of a weighted sum of :math:`\Chi^2(1)` distributions. For the example above with
+        `key_name='gene'`, the table has the form:
+
+        +------+-------+------+
+        | gene | qstat | pval |
+        +======+=======+======+
+        | geneA| 4.136 | 0.205|
+        +------+-------+------+
+        | geneB| 5.659 | 0.195|
+        +------+-------+------+
+        | geneC| 4.122 | 0.192|
+        +------+-------+------+
+
+        Note that the variant component score `qstat` is related to :math:`Q` in the paper by
+        :math:`\\frac{1}{2\hat\sigma^2} Q` where :math:`\hat\sigma^2` is the unbiased estimator of residual variance.
+
+        :param str key_name: Name to assign to key column of returned key tables.
+
+        :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
+
+        :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
+                                rather than as a collection of keys.
+
+        :param str weight: Variant expression of numeric type for SKAT weight.
+
+        :param str y: Response expression.
+
+        :param covariates: list of covariate expressions.
+        :type covariates: list of str
+
+        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
+
+        :return: Key table of SKAT results.
+        :rtype: :py:class:`.KeyTable`
+        """
+        if weight_expr == None:
+          weight_expr = "undefined by user"
+
+        return KeyTable(self.hc, self._jvdf.skat(key_name, variant_keys, single_key, weight_expr, y,
+                                    jarray(Env.jvm().java.lang.String, covariates), use_dosages))
+
+    @handle_py4j
+    @requireTGenotype
     @typecheck_method(propagate_gq=bool,
                       keep_star_alleles=bool,
                       max_shift=integral)

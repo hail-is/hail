@@ -2,7 +2,7 @@ package is.hail.utils
 
 import scala.reflect.ClassTag
 
-class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) {
+class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) extends Serializable {
   private var b: Array[T] = new Array[T](initialCapacity)
   private var size_ : Int = 0
 
@@ -36,6 +36,28 @@ class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[
     size_ += 1
   }
 
+  def +(x: T): ArrayBuilder[T] = {
+    ensureCapacity(size_ + 1)
+    b(size_) = x
+    size_ += 1
+    
+    this
+  }
+  
+  def ++(a: Array[T]): ArrayBuilder[T] = {
+    val len = a.length
+    ensureCapacity(size_ + len)
+    
+    var i = 0
+    while (i < len) {
+      b(size_ + i) = a(i)
+      i += 1
+    }
+    size_ += len
+    
+    this
+  }
+  
   def result(): Array[T] = {
     val r = new Array[T](size_)
     Array.copy(b, 0, r, 0, size_)
