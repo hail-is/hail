@@ -215,17 +215,14 @@ class LoadBgenSuite extends SparkSuite {
   @Test def testDosage() {
     val sc = hc.sc
     hc.indexBgen("src/test/resources/example.8bits.bgen")
-    val vds = hc.importBgen("src/test/resources/example.8bits.bgen"
-      // , nPartitions = Some(8)
-      , nPartitions = Some(1)
-    )
+    val vds = hc.importBgen("src/test/resources/example.8bits.bgen", nPartitions = Some(8))
 
     val mask = Array.fill(vds.nSamples)(true)
-    val incomplete = Array(13, 172, 273, 319, 441)
-    for (i <- incomplete)
+    val incompleteSampleIndices = Array(13, 172, 273, 319, 441)
+    for (i <- incompleteSampleIndices)
       mask(i) = false
 
-    val nKept = vds.nSamples - incomplete.length
+    val nKept = vds.nSamples - incompleteSampleIndices.length
     val maskBc = sc.broadcast(mask)
 
     val completeSampleIndices = (0 until vds.nSamples)
@@ -235,7 +232,7 @@ class LoadBgenSuite extends SparkSuite {
     val completeSampleIndicesBc = sc.broadcast(completeSampleIndices)
 
     vds.rdd.foreachPartition { it =>
-      val missingSamples = new ArrayBuilder[Int]
+      val missingSamples = new ArrayBuilder[Int]()
       val dosages2 = new DenseVector[Double](nKept)
 
       it.foreach { case (v, (va, gs)) =>

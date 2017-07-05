@@ -117,7 +117,7 @@ final class Bgen12GenotypeIterator(a: Array[Byte],
 
   private val pa = new BGen12ProbabilityArray(a, nSamples, nGenotypes, nBitsPerProb)
 
-  def sampleMissing(s: Int): Boolean = (a(8 + s) & 0x80) != 0
+  def isSampleMissing(s: Int): Boolean = (a(8 + s) & 0x80) != 0
 
   def dosages(v: DenseVector[Double], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
     assert(nAlleles == 2)
@@ -132,7 +132,7 @@ final class Bgen12GenotypeIterator(a: Array[Byte],
     var i = 0
     while (i < n) {
       val s = completeSampleIndex(i)
-      if (!sampleMissing(s)) {
+      if (!isSampleMissing(s)) {
         val off = nSamples + 10 + 2 * s
         val d = (510 - 2 * (a(off) & 0xff) - (a(off + 1) & 0xff)) / 255.0
         v(i) = d
@@ -156,7 +156,7 @@ final class Bgen12GenotypeIterator(a: Array[Byte],
     def hasNext: Boolean = sampleIndex < nSamples
 
     def next(): Genotype = {
-      val g = if (sampleMissing(sampleIndex))
+      val g = if (isSampleMissing(sampleIndex))
         noCall
       else {
         var i = 0
