@@ -4,7 +4,7 @@ import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset}
-import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson}
+import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson, Beta}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 
 package object stats {
@@ -274,6 +274,8 @@ package object stats {
 
   // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
   def qnorm(p: Double): Double = Normal.quantile(p, 0, 1, true, false)
+
+  def dbeta(x: Double, a: Double, b:Double) = Beta.density(x, a, b,false)
 
   // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def chiSquaredTail(df: Double, x: Double): Double = ChiSquare.cumulative(x, df, false, false)
