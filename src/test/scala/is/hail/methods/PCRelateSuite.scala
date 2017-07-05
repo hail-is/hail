@@ -82,8 +82,8 @@ class PCRelateSuite extends SparkSuite {
       .toMap
   }
 
-  def runPcRelateToPairRDD(vds: VariantDataset, pcs: DenseMatrix): RDD[((String, String), (Double, Double, Double, Double))] = {
-    val indexToId: Map[Int, String] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
+  def runPcRelateToPairRDD(vds: VariantDataset, pcs: DenseMatrix, maf: Double = 0.01): RDD[((String, String), (Double, Double, Double, Double))] = {
+    val indexToId: Map[Int, String] = vds.stringSampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
     def upperTriangularEntires(bm: BlockMatrix): RDD[((String, String), Double)] = {
       val rowsPerBlock = bm.rowsPerBlock
       val colsPerBlock = bm.colsPerBlock
@@ -111,7 +111,7 @@ class PCRelateSuite extends SparkSuite {
       }
     }
 
-    val result = PCRelate.maybefast(vds, pcs, 8192)
+    val result = PCRelate.maybefast(vds, pcs, 8192, maf=maf)
 
     val a = upperTriangularEntires(result.phiHat)
     val b = upperTriangularEntires(result.k0)
@@ -275,6 +275,7 @@ class PCRelateSuite extends SparkSuite {
         }
       }
 
+      println(s"$n $seed $nVariants")
       assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
     }
   }
@@ -282,7 +283,7 @@ class PCRelateSuite extends SparkSuite {
   @Test
   def trivial() {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
-    val vds = vdsFromMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
+    val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
     val pcs = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
     val us = runPcRelateToPairRDD(vds, new DenseMatrix(4,2,pcs))
       .collect()
@@ -311,7 +312,7 @@ class PCRelateSuite extends SparkSuite {
 
     val r = scala.util.Random
 
-    val profile225 = hc.read("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
+    val profile225 = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
     for (fraction <- Seq(0.0625// , 0.125, 0.25, 0.5
     )) {
       val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
@@ -320,7 +321,7 @@ class PCRelateSuite extends SparkSuite {
         subset.contains(s) || trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
 
       val vds = profile225
-        .filterSamples((s, sa) => underStudy(s))
+        .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
         .cache()
 
       val (truth, pcRelateTime) = time(runPcRelateR(vds))
@@ -331,6 +332,58 @@ class PCRelateSuite extends SparkSuite {
       println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
 
       printToFile(new java.io.File(s"/tmp/thousandGenomesTrios-$fraction.out")) { pw =>
+        pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
+        for ((k, (hkin, hz0, hz1, hz2)) <- hailPcRelate) {
+          val (rkin, rz0, rz1, rz2) = truth(k)
+          val (s1, s2) = k
+          pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
+        }
+      }
+
+      assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+    }
+  }
+
+  @Test
+  def thousandGenomesTriosMAFOneHundredth() {
+    val trios = Array("HG00702", "HG00656", "HG00657",
+      "HG00733", "HG00731", "HG00732",
+      "HG02024", "HG02026", "HG02025",
+      "HG03715","HG03713",
+      "HG03948","HG03673",
+      "NA19240", "NA19239", "NA19238",
+      "NA19675", "NA19679", "NA19678",
+      "NA19685", "NA19661", "NA19660")
+
+    val siblings = Array("NA19713", "NA19985",
+      "NA20289", "NA20341",
+      "NA20334", "NA20336")
+
+    val secondOrder = Array("HG01936", "HG01983")
+
+    val r = scala.util.Random
+
+    val profile225 = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
+    for (fraction <- Seq(// 0.0625,
+      0.125//, 0.25, 0.5
+    )) {
+      val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
+
+      def underStudy(s: String) =
+        subset.contains(s) || trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
+
+      val vds = profile225
+        .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
+        .cache()
+
+      val (truth, pcRelateTime) = time(runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateMAF0.01.R"))
+
+      val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
+      val (hailPcRelate, hailTime) = time(runPcRelateToPairRDD(vds, pcs, maf=0.01).collect().toMap)
+
+      println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
+
+      printToFile(new java.io.File(s"/tmp/thousandGenomesTriosMAFOneHundredth-$fraction.out")) { pw =>
         pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
         for ((k, (hkin, hz0, hz1, hz2)) <- hailPcRelate) {
           val (rkin, rz0, rz1, rz2) = truth(k)
@@ -565,8 +618,8 @@ class PCRelateSuite extends SparkSuite {
     def underStudy(s: String) =
       subset.contains(s)
 
-    val vds = hc.read("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
-      .filterSamples((s, sa) => underStudy(s))
+    val vds = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
+      .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
       .cache()
 
     val (truth, pcRelateTime) = time(runPcRelateR(vds))
@@ -577,6 +630,35 @@ class PCRelateSuite extends SparkSuite {
     println(s"pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
 
     printToFile(new java.io.File("/tmp/thousandGenomesSubsetSamePCsTest.out")) { pw =>
+      pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
+      for ((k, (hkin, hz0, hz1, hz2)) <- hailPcRelate) {
+        val (rkin, rz0, rz1, rz2) = truth(k)
+        val (s1, s2) = k
+        pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
+      }
+    }
+
+    assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+  }
+
+  @Test
+  def thousandGenomesSubsetSamePCsMAFOneHundredthTest() {
+    val subset = thousandGenomesRandomSubsetWithTrios.toSet
+    def underStudy(s: String) =
+      subset.contains(s)
+
+    val vds = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
+      .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
+      .cache()
+
+    val (truth, pcRelateTime) = time(runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateMAF0.01.R"))
+
+    val pcs = new DenseMatrix(thousandGenomesRandomSubsetWithTrios.length, 2, thousandGenomesRandomSubsetPCsFromPCAiR)
+    val (hailPcRelate, hailTime) = time(runPcRelateToPairRDD(vds, pcs, maf=0.01).collect().toMap)
+
+    println(s"pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
+
+    printToFile(new java.io.File("/tmp/thousandGenomesSubsetSamePCsMAFOneHundredthTest.out")) { pw =>
       pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
       for ((k, (hkin, hz0, hz1, hz2)) <- hailPcRelate) {
         val (rkin, rz0, rz1, rz2) = truth(k)
@@ -607,7 +689,7 @@ class PCRelateSuite extends SparkSuite {
 
     val r = scala.util.Random
 
-    val profile225 = hc.read("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
+    val profile225 = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
     for (fraction <- Seq(0.0625// , 0.125, 0.25, 0.5
     )) {
       val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
@@ -616,7 +698,7 @@ class PCRelateSuite extends SparkSuite {
         subset.contains(s) || trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
 
       val vds = profile225
-        .filterSamples((s, sa) => underStudy(s))
+        .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
         .cache()
 
       val (truth, pcRelateTime) = time(runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelate10PCs.R"))

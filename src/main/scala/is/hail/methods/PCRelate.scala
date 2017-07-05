@@ -20,7 +20,13 @@ object PCRelate {
 
   case class Result(phiHat: M, k0: M, k1: M, k2: M)
 
-  def maybefast(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result = {
+  def maybefast(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int, maf: Double = 0.0): Result = {
+    require(maf >= 0.0)
+    require(maf <= 1.0)
+    val antimaf = (1 - maf)
+    def badmu(mu: Double): Boolean =
+      mu <= maf || mu >= antimaf || mu <= 0 || mu >= 1
+
     val g = vdsToMeanImputedMatrix(vds)
 
     val beta = fitBeta(g, pcs, blockSize)
@@ -48,17 +54,17 @@ object PCRelate {
       ((beta * pcsWithIntercept.transpose) / 2.0)
 
     def deviationFromMean(mu: Double, g: Double): Double =
-      if (mu <= 0 || mu >= 1)
+      if (badmu(mu))
         // g - mu * 2.0
-        0
+        0.0
       else
         g - mu * 2.0
     val gMinusMu = dm.map2(deviationFromMean _)(mu, blockedG)
 
     def clippedVariance(mu: Double): Double =
-      if (mu <= 0 || mu >= 1)
+      if (badmu(mu))
         // mu * (1.0 - mu)
-        0
+        0.0
       else
         mu * (1.0 - mu)
     val variance = dm.map(clippedVariance _)(mu)
@@ -67,19 +73,20 @@ object PCRelate {
 
     val gD = dm.map2({
       case (g, mu) =>
-        if (g == 0.0) mu
+        if (badmu(mu)) 0.0
+        else if (g == 0.0) mu
         else if (g == 1.0) 0.0
         else if (g == 2.0) 1.0 - mu
-        else 0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
+        else 0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
     })(blockedG, mu)
 
-    val normalizedGD = (gD :- (variance --* (f(phi).map(1 + _))))
+    val normalizedGD = (gD :- (variance --* (f(phi).map(1.0 + _))))
 
     val kTwo = ((normalizedGD.t * normalizedGD) :/ (variance.t * variance))
 
     def clippedSqr(mu: Double): Double =
-      if (mu <= 0 || mu >= 1)
-        0
+      if (badmu(mu))
+        0.0
       else
         sqr(mu)
     val mu2 = dm.map(clippedSqr _)(mu)
