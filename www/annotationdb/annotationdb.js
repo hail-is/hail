@@ -304,10 +304,14 @@ function build_docs(nodes, parent_id, parent_level) {
 
 // get data dictionary in JSON format from PHP script
 $.ajax({
-	url: '../annotationdb/build_tree.php',
-	method: 'POST',
+	url: 'https://storage.googleapis.com/annotationdb/tree.json',
+	method: 'GET',
 	dataType: 'json',
 	cache: false,
+	beforeSend: function(request) {
+ 		request.setRequestHeader('access-control-expose-headers', 'access-control-allow-origin');
+ 		request.setRequestHeader('access-control-allow-origin', '*');
+ 	},
 	success: function(data) {
 		/*
 		data =
