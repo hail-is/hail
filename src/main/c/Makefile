@@ -7,12 +7,13 @@ OBJECTS=ibs.o
 CXX ?= c++
 # append existing flags so they override our flags
 CXXFLAGS += -O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -Wall -Werror
+CXXFLAGS += -fPIC -ggdb
 LIBFLAGS += -fvisibility=hidden
 
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 ifeq ($(UNAME_S),Linux)
-       LIBFLAGS += -rdynamic -shared -fPIC -ggdb
+       LIBFLAGS += -rdynamic -shared
        shared_library = lib/linux-x86-64/libhail.so
        ifneq ($(filter %86,$(UNAME_P)),)
                shared_library = lib/linux-x86/libhail.so
