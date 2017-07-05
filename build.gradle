@@ -370,6 +370,7 @@ task copyWebsiteContent(type: Copy, dependsOn: setupDocsDirs) {
     include '*.css.map'
     include '*.html'
     include '*.png'
+    include 'annotationdb/*'
     into 'build/www'
 }
 
