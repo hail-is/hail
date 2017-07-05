@@ -3,6 +3,7 @@ package is.hail.stats
 import breeze.linalg._
 import is.hail.annotations.Annotation
 import is.hail.expr._
+import is.hail.io.bgen.Bgen12GenotypeIterator
 import is.hail.utils._
 import is.hail.variant.{Genotype, VariantDataset}
 import org.apache.spark.sql.Row
@@ -51,39 +52,54 @@ object RegressionUtils {
     new SparseVector[Double](rows.result(), valsArray, row)
   }
 
-  // mask == null is interpreted as no mask
-  // impute uses mean for missing dosage rather than Double.NaN
-  def dosages(gs: Iterable[Genotype], nKept: Int, mask: Array[Boolean] = null, impute: Boolean = true): DenseVector[Double] = {
-    val gts = gs.dosageIterator
-    val vals = Array.ofDim[Double](nKept)
-    val missingRows = new ArrayBuilder[Int]()
-    var i = 0
-    var row = 0
-    var sum = 0d
-    while (gts.hasNext) {
-      val gt = gts.next()
-      if (mask == null || mask(i)) {
-        if (gt != -1) {
-          sum += gt
-          vals(row) = gt
-        } else
-          missingRows += row
-        row += 1
-      }
-      i += 1
+  def dosages(x: DenseVector[Double], gs: Iterable[Genotype], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
+    gs match {
+      case bgenGs: Bgen12GenotypeIterator => bgenGs.dosages(x, completeSampleIndex, missingSamples)
+      case _ => genericDosages(x, gs, completeSampleIndex, missingSamples)
     }
-    assert((mask == null || i == mask.size) && row == nKept)
+  }
 
-    val nMissing = missingRows.size
+  def dosages(gs: Iterable[Genotype], completeSampleIndex: Array[Int]): DenseVector[Double] = {
+    val n = completeSampleIndex.length
+    val x = new DenseVector[Double](n)
+    val missingSamples = new ArrayBuilder[Int]()
+    RegressionUtils.dosages(x, gs, completeSampleIndex, missingSamples)
+    x
+  }
 
-    val meanValue = if (impute) sum / (nKept - nMissing) else Double.NaN
+  def genericDosages(x: DenseVector[Double], gs: Iterable[Genotype], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
+    require(x.length == completeSampleIndex.length)
+
+    missingSamples.clear()
+    val n = completeSampleIndex.length
+    val gts = gs.dosageIterator
+    var i = 0
+    var j = 0
+    var sum = 0d
+    while (j < n) {
+      while (completeSampleIndex(j) > i) {
+        gts.next()
+        i += 1
+      }
+      assert(completeSampleIndex(j) == i)
+
+      val gt = gts.next()
+      i += 1
+      if (gt != -1) {
+        sum += gt
+        x(j) = gt
+      } else
+        missingSamples += j
+      j += 1
+    }
+
+    val nMissing = missingSamples.size
+    val meanValue = sum / (n - nMissing)
     i = 0
     while (i < nMissing) {
-      vals(missingRows(i)) = meanValue
+      x(missingSamples(i)) = meanValue
       i += 1
     }
-
-    DenseVector(vals)
   }
 
   // keyedRow consists of row key followed by numeric data
@@ -159,13 +175,13 @@ object RegressionUtils {
           meanSq - mean * mean
         })
 
-      val gtDict = Array(0, - mean / stdDev, (1 - mean) / stdDev, (2 - mean) / stdDev)
+      val gtDict = Array(0, -mean / stdDev, (1 - mean) / stdDev, (2 - mean) / stdDev)
       var i = 0
       while (i < nSamples) {
         vals(i) = gtDict(vals(i).toInt + 1)
         i += 1
       }
-      
+
       Some(vals)
     } else
       None
@@ -236,7 +252,7 @@ object RegressionUtils {
     val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
     if (n < vds.nSamples)
-      warn(s"${vds.nSamples - n} of ${vds.nSamples} samples have a missing phenotype or covariate.")
+      warn(s"${ vds.nSamples - n } of ${ vds.nSamples } samples have a missing phenotype or covariate.")
 
     (y, cov, completeSamples)
   }
@@ -277,7 +293,7 @@ object RegressionUtils {
     val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
     if (n < vds.nSamples)
-      warn(s"${vds.nSamples - n} of ${vds.nSamples} samples have a missing phenotype or covariate.")
+      warn(s"${ vds.nSamples - n } of ${ vds.nSamples } samples have a missing phenotype or covariate.")
 
     (y, cov, completeSamples)
   }
@@ -295,7 +311,7 @@ object RegressionUtils {
     }
     true
   }
-    
+
   // Retrofitting for 0.1, will be removed at 2.0 when linreg AC is calculated post-imputation
   def hardCallsWithAC(gs: Iterable[Genotype], nKept: Int, mask: Array[Boolean] = null, impute: Boolean = true): (SparseVector[Double], Double) = {
     val gts = gs.hardCallIterator

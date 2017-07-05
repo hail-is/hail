@@ -45,6 +45,9 @@ object LinearMixedRegression {
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
     val completeSamplesSet = completeSamples.toSet
     val sampleMask = assocVds.sampleIds.map(completeSamplesSet).toArray
+    val completeSampleIndex = (0 until assocVds.nSamples)
+      .filter(i => completeSamplesSet(assocVds.sampleIds(i)))
+      .toArray
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
@@ -67,9 +70,9 @@ object LinearMixedRegression {
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
+      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
 
-    info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
+    info(s"lmmreg: running lmmreg on $n samples with $k sample ${ plural(k, "covariate") } including intercept...")
 
     val K = new DenseMatrix[Double](n, n, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
 
@@ -120,7 +123,7 @@ object LinearMixedRegression {
     info(s"lmmreg: global model fit: h2 = $h2")
 
     diagLMM.optGlobalFit.foreach { gf =>
-      info(s"lmmreg: global model fit: seH2 = ${gf.sigmaH2}")
+      info(s"lmmreg: global model fit: seH2 = ${ gf.sigmaH2 }")
     }
 
     val vds1 = assocVds.annotateGlobal(
@@ -143,6 +146,8 @@ object LinearMixedRegression {
     if (runAssoc) {
       val sc = assocVds.sparkContext
       val sampleMaskBc = sc.broadcast(sampleMask)
+      val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
+
       val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       info(s"lmmreg: Computing statistics for each variant...")
@@ -164,14 +169,14 @@ object LinearMixedRegression {
           if (!useDosages) {
             val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
             if (x0.used <= sparsityThreshold * n) x0 else x0.toDenseVector
-          }
-          else
-            RegressionUtils.dosages(gs, n, sampleMaskBc.value)
-
+          } else
+            RegressionUtils.dosages(gs, completeSampleIndexBc.value)
+        
         // TODO constant checking to be removed in 0.2
         val nonConstant = useDosages || !RegressionUtils.constantVector(x)
 
         val lmmregAnnot = if (nonConstant) scalerLMMBc.value.likelihoodRatioTest(x) else null
+
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         newAnnotation
@@ -390,7 +395,6 @@ object DiagLMM {
         warn(s"lmmreg: the difference between the optimal value $approxLogDelta of ln(delta) on the grid and" +
           s"the optimal value $maxlogDelta of ln(delta) by Brent's method exceeds the grid resolution" +
           s"of ${1d / pointsPerUnit}. Plot the values over the full grid to investigate.")
-
       }
 
       val epsilon = 1d / pointsPerUnit

@@ -2746,6 +2746,58 @@ class VariantDataset(object):
                                            jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
                                            min_af)
         return VariantDataset(self.hc, jvds)
+    
+    @handle_py4j
+    @requireTGenotype
+    @typecheck_method(ys=listof(strlike),
+                      covariates=listof(strlike),
+                      root=strlike,
+                      use_dosages=bool,
+                      variant_block_size=integral)
+    def linreg3(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
+        r"""Test each variant for association with multiple phenotypes using linear regression.
+
+        This method runs linear regression for multiple phenotypes
+        more efficiently than looping over :py:meth:`.linreg`.  This
+        method is more efficient than :py:meth:`.linreg_multi_pheno`
+        but doesn't implicitly filter on allele count or allele
+        frequency.
+
+        .. warning::
+
+            :py:meth:`.linreg3` uses the same set of samples for each phenotype,
+            namely the set of samples for which **all** phenotypes and covariates are defined.
+
+        **Annotations**
+
+        With the default root, the following four variant annotations are added.
+        The indexing of these annotations corresponds to that of ``y``.
+
+        - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
+        - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
+        - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+        - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
+
+        :param ys: list of one or more response expressions.
+        :type covariates: list of str
+
+        :param covariates: list of covariate expressions.
+        :type covariates: list of str
+
+        :param str root: Variant annotation path to store result of linear regression.
+
+        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
+
+        :param int variant_block_size: Number of variant regressions to perform simultaneously.  Larger block size requires more memmory.
+
+        :return: Variant dataset with linear regression variant annotations.
+        :rtype: :py:class:`.VariantDataset`
+
+        """
+
+        jvds = self._jvdf.linreg3(jarray(Env.jvm().java.lang.String, ys),
+                                  jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
+        return VariantDataset(self.hc, jvds)
 
     @handle_py4j
     @requireTGenotype

@@ -23,7 +23,11 @@ object LogisticRegression {
       fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
+    val completeSamplesSet = completeSamples.toSet
+    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
+    val completeSampleIndex = (0 until vds.nSamples)
+      .filter(i => completeSamplesSet(vds.sampleIds(i)))
+      .toArray
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all present values equal to 0 or 1")
@@ -49,6 +53,7 @@ object LogisticRegression {
 
     val sc = vds.sparkContext
     val sampleMaskBc = sc.broadcast(sampleMask)
+    val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
     val XBc = sc.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
     val nullFitBc = sc.broadcast(nullFit)
@@ -58,13 +63,15 @@ object LogisticRegression {
     val (newVAS, inserter) = vds.insertVA(logRegTest.schema, pathVA)
 
     vds.copy(rdd = vds.rdd.mapPartitions( { it =>
+      val  missingSamples = new ArrayBuilder[Int]()
+
       val X = XBc.value.copy
       it.map { case (v, (va, gs)) =>
         val x: Vector[Double] = 
           if (!useDosages)
             RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
           else
-            RegressionUtils.dosages(gs, n, sampleMaskBc.value)
+            RegressionUtils.dosages(gs, completeSampleIndexBc.value)
 
         X(::, -1) := x
 
