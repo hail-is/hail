@@ -1,10 +1,12 @@
 package is.hail.io
 
+import breeze.linalg.DenseVector
 import is.hail.SparkSuite
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.io.bgen.BGen12ProbabilityArray
+import is.hail.io.bgen.{BGen12ProbabilityArray, Bgen12GenotypeIterator}
+import is.hail.stats.RegressionUtils
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
@@ -208,6 +210,40 @@ class LoadBgenSuite extends SparkSuite {
       packedInput(nSamples + 10 + byteIndex) = (data & 0xffL).toByte
 
     packedInput
+  }
+
+  @Test def testDosage() {
+    val sc = hc.sc
+    hc.indexBgen("src/test/resources/example.8bits.bgen")
+    val vds = hc.importBgen("src/test/resources/example.8bits.bgen", nPartitions = Some(8))
+
+    val mask = Array.fill(vds.nSamples)(true)
+    val incompleteSampleIndices = Array(13, 172, 273, 319, 441)
+    for (i <- incompleteSampleIndices)
+      mask(i) = false
+
+    val nKept = vds.nSamples - incompleteSampleIndices.length
+    val maskBc = sc.broadcast(mask)
+
+    val completeSampleIndices = (0 until vds.nSamples)
+      .filter(mask)
+      .toArray
+    assert(completeSampleIndices.length == nKept)
+    val completeSampleIndicesBc = sc.broadcast(completeSampleIndices)
+
+    vds.rdd.foreachPartition { it =>
+      val missingSamples = new ArrayBuilder[Int]()
+      val dosages2 = new DenseVector[Double](nKept)
+
+      it.foreach { case (v, (va, gs)) =>
+        val dosages1 = RegressionUtils.dosages(gs, nKept, maskBc.value)
+
+        gs.asInstanceOf[Bgen12GenotypeIterator].dosages(dosages2, completeSampleIndicesBc.value, missingSamples)
+        
+        for (i <- 0 until nKept)
+          simpleAssert(dosages1(i) - dosages2(i) < 1e-3)
+      }
+    }
   }
 
   object TestProbIterator extends Properties("ImportBGEN") {
