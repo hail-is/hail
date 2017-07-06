@@ -43,7 +43,7 @@ desc = json.loads(Popen('gcloud dataproc clusters describe {name} --format json'
 config = desc['config']
 
 master = config['masterConfig']['instanceNames'][0]
-workers = config['workerConfig']['instanceNames']
+workers = config['workerConfig']['instanceNames'] + config['secondaryWorkerConfig']['instanceNames']
 zone = re.search('zones\/(?P<zone>\S+)$', config['gceClusterConfig']['zoneUri']).group('zone')
 
 if args.workers:
