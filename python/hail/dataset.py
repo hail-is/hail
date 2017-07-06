@@ -3842,6 +3842,39 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @requireTGenotype
+    @typecheck_method(k=integral,
+                      maf=numeric,
+                      block_size=integral)
+    def pc_relate(self, k, maf, block_size=8192):
+        """Compute relatedness between individuals using the PCRelate method.
+
+        .. include:: requireTGenotype.rst
+
+        :param k: the number of principal components to use to distinguish
+                  ancestries
+        :type k: int
+
+        :param maf: the minimum individual-specific allele frequency for an
+                    allele used to measure relatedness
+        :type maf: float
+
+        :param block_size: the side length of the blocks of the block-
+                          distributed matrices; this should be set such that
+                          atleast three of these matrices fit in memory (in
+                          addition to all other objects necessary for Spark and
+                          Hail)
+        :type block_size: int
+
+        :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
+                 of their kinship and identity-by-descent zero, one, and two
+        :rtype: :py:class:`.KeyTable`
+
+        """
+
+        return KeyTable(self.hc, self._jvdf.pcrelate(k, maf, block_size))
+
+    @handle_py4j
     @typecheck_method(storage_level=strlike)
     def persist(self, storage_level="MEMORY_AND_DISK"):
         """Persist this variant dataset to memory and/or disk.

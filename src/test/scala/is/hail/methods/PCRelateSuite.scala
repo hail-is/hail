@@ -28,6 +28,8 @@ import is.hail.distributedmatrix.DistributedMatrix
 import is.hail.distributedmatrix.DistributedMatrix.implicits._
 
 class PCRelateSuite extends SparkSuite {
+  private val blockSize: Int = 8192
+
   private def toI(a: Any): Int =
     a.asInstanceOf[Int]
 
@@ -36,6 +38,9 @@ class PCRelateSuite extends SparkSuite {
 
   private def toS(a: Any): String =
     a.asInstanceOf[String]
+
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix): Map[(String, String), (Double, Double, Double, Double)] =
+    PCRelate.toPairRdd(vds, pcs, 0.01, blockSize).collect().toMap.asInstanceOf[Map[(String, String), (Double, Double, Double, Double)]]
 
   def runPcRelateR(
     vds: VariantDataset,
@@ -80,46 +85,6 @@ class PCRelateSuite extends SparkSuite {
       ((id1, id2), (kin, k0, k1, k2))
     }
       .toMap
-  }
-
-  def runPcRelateToPairRDD(vds: VariantDataset, pcs: DenseMatrix, maf: Double = 0.01): RDD[((String, String), (Double, Double, Double, Double))] = {
-    val indexToId: Map[Int, String] = vds.stringSampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
-    def upperTriangularEntires(bm: BlockMatrix): RDD[((String, String), Double)] = {
-      val rowsPerBlock = bm.rowsPerBlock
-      val colsPerBlock = bm.colsPerBlock
-
-      bm.blocks.filter { case ((blocki, blockj), m) =>
-        blocki < blockj || {
-          val i = blocki * rowsPerBlock
-          val j = blockj * colsPerBlock
-          val i2 = i + rowsPerBlock
-          val j2 = i + colsPerBlock
-
-          i <= j && j < i2 ||
-          i < j2 && j2 < i2 ||
-          j <= i && i < j2 ||
-          j < i2 && i2 < j2
-        }
-      }.flatMap { case ((blocki, blockj), m) =>
-          val ioffset = blocki * rowsPerBlock
-          val joffset = blockj * colsPerBlock
-          for {
-            i <- 0 until m.numRows
-            jstart = if (blocki < blockj) 0 else i+1
-            j <- jstart until m.numCols
-          } yield ((indexToId(i + ioffset), indexToId(j + joffset)), m(i, j))
-      }
-    }
-
-    val result = PCRelate.maybefast(vds, pcs, 8192, maf=maf)
-
-    val a = upperTriangularEntires(result.phiHat)
-    val b = upperTriangularEntires(result.k0)
-    val c = upperTriangularEntires(result.k1)
-    val d = upperTriangularEntires(result.k2)
-
-    (a join b join c join d)
-      .mapValues { case (((kin, k0), k1), k2) => (kin, k0, k1, k2) }
   }
 
   def compareDoubleQuartuplets(cmp: (Double, Double) => Boolean)(x: (Double, Double, Double, Double), y: (Double, Double, Double, Double)): Boolean =
@@ -234,9 +199,7 @@ class PCRelateSuite extends SparkSuite {
 
     val truth = runPcRelateR(vds)
 
-    val hailPcRelate = runPcRelateToPairRDD(vds, pcs)
-      .collect()
-      .toMap
+    val hailPcRelate = runPcRelateHail(vds, pcs)
 
     printToFile(new java.io.File(s"/tmp/compareToPCRelateRSamePCs.out")) { pw =>
       pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
@@ -262,9 +225,7 @@ class PCRelateSuite extends SparkSuite {
       val truth = runPcRelateR(vds)
 
       val pcs = SamplePCA.justScores(vds, 2)
-      val hailPcRelate = runPcRelateToPairRDD(vds, pcs)
-        .collect()
-        .toMap
+      val hailPcRelate = runPcRelateHail(vds, pcs)
 
       printToFile(new java.io.File(s"/tmp/compareToPCRelateR-$n-$seed-$nVariants.out")) { pw =>
         pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
@@ -285,9 +246,7 @@ class PCRelateSuite extends SparkSuite {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
     val pcs = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
-    val us = runPcRelateToPairRDD(vds, new DenseMatrix(4,2,pcs))
-      .collect()
-      .toMap
+    val us = runPcRelateHail(vds, new DenseMatrix(4,2,pcs))
     println(us)
     val truth = runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
     assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
@@ -327,7 +286,7 @@ class PCRelateSuite extends SparkSuite {
       val (truth, pcRelateTime) = time(runPcRelateR(vds))
 
       val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
-      val (hailPcRelate, hailTime) = time(runPcRelateToPairRDD(vds, pcs).collect().toMap)
+      val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs))
 
       println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
 
@@ -379,7 +338,7 @@ class PCRelateSuite extends SparkSuite {
       val (truth, pcRelateTime) = time(runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateMAF0.01.R"))
 
       val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
-      val (hailPcRelate, hailTime) = time(runPcRelateToPairRDD(vds, pcs, maf=0.01).collect().toMap)
+      val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs))
 
       println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
 
@@ -625,7 +584,7 @@ class PCRelateSuite extends SparkSuite {
     val (truth, pcRelateTime) = time(runPcRelateR(vds))
 
     val pcs = new DenseMatrix(thousandGenomesRandomSubsetWithTrios.length, 2, thousandGenomesRandomSubsetPCsFromPCAiR)
-    val (hailPcRelate, hailTime) = time(runPcRelateToPairRDD(vds, pcs).collect().toMap)
+    val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs))
 
     println(s"pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
 
@@ -654,7 +613,7 @@ class PCRelateSuite extends SparkSuite {
     val (truth, pcRelateTime) = time(runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateMAF0.01.R"))
 
     val pcs = new DenseMatrix(thousandGenomesRandomSubsetWithTrios.length, 2, thousandGenomesRandomSubsetPCsFromPCAiR)
-    val (hailPcRelate, hailTime) = time(runPcRelateToPairRDD(vds, pcs, maf=0.01).collect().toMap)
+    val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs))
 
     println(s"pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
 
@@ -704,7 +663,7 @@ class PCRelateSuite extends SparkSuite {
       val (truth, pcRelateTime) = time(runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelate10PCs.R"))
 
       val pcs = SamplePCA.justScores(vds.coalesce(10), 10)
-      val (hailPcRelate, hailTime) = time(runPcRelateToPairRDD(vds, pcs).collect().toMap)
+      val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs))
 
       println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
 
