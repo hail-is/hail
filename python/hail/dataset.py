@@ -4,7 +4,7 @@ import warnings
 
 from decorator import decorator
 
-from hail.expr import Type, TGenotype, TString, TVariant
+from hail.expr import Type, TGenotype, TString, TVariant, TArray
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
@@ -1022,107 +1022,70 @@ class VariantDataset(object):
             # extract 1 gene symbol per variant from VEP annotations if a gene_key parameter isn't provided
             if are_genes:
 
+                # hierarchy of possible variant consequences, from most to least severe
+                csq_terms = [
+                    'transcript_ablation',
+                    'splice_acceptor_variant',
+                    'splice_donor_variant',
+                    'stop_gained',
+                    'frameshift_variant',
+                    'stop_lost',
+                    'start_lost',
+                    'transcript_amplification',
+                    'inframe_insertion',
+                    'inframe_deletion',
+                    'missense_variant',
+                    'protein_altering_variant',
+                    'incomplete_terminal_codon_variant',
+                    'stop_retained_variant',
+                    'synonymous_variant',
+                    'splice_region_variant',
+                    'coding_sequence_variant',
+                    'mature_miRNA_variant',
+                    '5_prime_UTR_variant',
+                    '3_prime_UTR_variant',
+                    'non_coding_transcript_exon_variant',
+                    'intron_variant',
+                    'NMD_transcript_variant',
+                    'non_coding_transcript_variant',
+                    'upstream_gene_variant',
+                    'downstream_gene_variant',
+                    'TFBS_ablation',
+                    'TFBS_amplification',
+                    'TF_binding_site_variant',
+                    'regulatory_region_ablation',
+                    'regulatory_region_amplification',
+                    'feature_elongation',
+                    'regulatory_region_variant',
+                    'feature_truncation',
+                    'intergenic_variant'
+                ]
+
+                # add consequence terms as a global annotation
+                self = self.annotate_global('global.csq_terms', csq_terms, TArray(TString()))
+
+                # find 1 transcript/gene per variant using the following method:
+                #   1. define the most severe consequence for each variant according to hierarchy
+                #   2. subset to transcripts with that most severe consequence
+                #   3. if one of the transcripts in the subset is canonical, take that gene/transcript,
+                #      else just take the first gene/transcript in the subset
                 self = (
                     self
                     .annotate_variants_expr(
                         """
-                        va.gene.consequence = 
-                            let csq_terms = va.vep.transcript_consequences.filter(t => t.canonical == 1).map(t => t.consequence_terms.toSet) in
-                            if (isMissing(csq_terms))
-                                va.vep.most_severe_consequence
-                            else if (csq_terms.exists(t => t.contains("transcript_ablation")))
-                                "transcript_ablation"
-                            else if (csq_terms.exists(t => t.contains("splice_acceptor_variant"))) 
-                                "splice_acceptor_variant"
-                            else if (csq_terms.exists(t => t.contains("splice_donor_variant"))) 
-                                "splice_donor_variant"
-                            else if (csq_terms.exists(t => t.contains("stop_gained"))) 
-                                "stop_gained"
-                            else if (csq_terms.exists(t => t.contains("frameshift_variant"))) 
-                                "frameshift_variant"
-                            else if (csq_terms.exists(t => t.contains("stop_lost"))) 
-                                "stop_lost"
-                            else if (csq_terms.exists(t => t.contains("start_lost"))) 
-                                "start_lost"
-                            else if (csq_terms.exists(t => t.contains("transcript_amplification"))) 
-                                "transcript_amplification"
-                            else if (csq_terms.exists(t => t.contains("inframe_insertion"))) 
-                                "inframe_insertion"
-                            else if (csq_terms.exists(t => t.contains("inframe_deletion"))) 
-                                "inframe_deletion"
-                            else if (csq_terms.exists(t => t.contains("missense_variant"))) 
-                                "missense_variant"
-                            else if (csq_terms.exists(t => t.contains("protein_altering_variant"))) 
-                                "protein_altering_variant"
-                            else if (csq_terms.exists(t => t.contains("incomplete_terminal_codon_variant"))) 
-                                "incomplete_terminal_codon_variant"
-                            else if (csq_terms.exists(t => t.contains("stop_retained_variant"))) 
-                                "stop_retained_variant"
-                            else if (csq_terms.exists(t => t.contains("synonymous_variant"))) 
-                                "synonymous_variant"
-                            else if (csq_terms.exists(t => t.contains("splice_region_variant"))) 
-                                "splice_region_variant"                                   
-                            else if (csq_terms.exists(t => t.contains("coding_sequence_variant"))) 
-                                "coding_sequence_variant"
-                            else if (csq_terms.exists(t => t.contains("mature_miRNA_variant"))) 
-                                "mature_miRNA_variant"
-                            else if (csq_terms.exists(t => t.contains("5_prime_UTR_variant"))) 
-                                "5_prime_UTR_variant" 
-                            else if (csq_terms.exists(t => t.contains("3_prime_UTR_variant"))) 
-                                "3_prime_UTR_variant"
-                            else if (csq_terms.exists(t => t.contains("non_coding_transcript_exon_variant"))) 
-                                "non_coding_transcript_exon_variant"
-                            else if (csq_terms.exists(t => t.contains("intron_variant"))) 
-                                "intron_variant"
-                            else if (csq_terms.exists(t => t.contains("NMD_transcript_variant"))) 
-                                "NMD_transcript_variant"
-                            else if (csq_terms.exists(t => t.contains("non_coding_transcript_variant"))) 
-                                "non_coding_transcript_variant"
-                            else if (csq_terms.exists(t => t.contains("upstream_gene_variant"))) 
-                                "upstream_gene_variant"
-                            else if (csq_terms.exists(t => t.contains("downstream_gene_variant"))) 
-                                "downstream_gene_variant"
-                            else if (csq_terms.exists(t => t.contains("TFBS_ablation"))) 
-                                "TFBS_ablation"
-                            else if (csq_terms.exists(t => t.contains("TFBS_amplification"))) 
-                                "TFBS_amplification"
-                            else if (csq_terms.exists(t => t.contains("TF_binding_site_variant"))) 
-                                "TF_binding_site_variant"
-                            else if (csq_terms.exists(t => t.contains("regulatory_region_ablation"))) 
-                                "regulatory_region_ablation"
-                            else if (csq_terms.exists(t => t.contains("regulatory_region_amplification"))) 
-                                "regulatory_region_amplification"
-                            else if (csq_terms.exists(t => t.contains("feature_elongation"))) 
-                                "feature_elongation"
-                            else if (csq_terms.exists(t => t.contains("regulatory_region_variant"))) 
-                                "regulatory_region_variant"
-                            else if (csq_terms.exists(t => t.contains("feature_truncation"))) 
-                                "feature_truncation"
-                            else if (csq_terms.exists(t => t.contains("intergenic_variant"))) 
-                                "intergenic_variant"
+                        va.gene.most_severe_consequence = 
+                            let canonical_consequences = va.vep.transcript_consequences.filter(t => t.canonical == 1).flatMap(t => t.consequence_terms).toSet() in
+                            if (isDefined(canonical_consequences))
+                                orElse(global.csq_terms.find(c => canonical_consequences.contains(c)), 
+                                       va.vep.most_severe_consequence)
                             else
                                 va.vep.most_severe_consequence
                         """
                     )
                     .annotate_variants_expr(
                         """
-                        va.gene.gene_symbol = 
-                            let canonical_transcripts = va.vep.transcript_consequences.filter(t => t.canonical == 1) in
-                            if (canonical_transcripts.exists(t => t.consequence_terms.toSet.contains(va.gene.consequence)))
-                                canonical_transcripts.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).gene_symbol
-                            else
-                                va.vep.transcript_consequences.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).gene_symbol,
-                        va.gene.gene_id =
-                            let canonical_transcripts = va.vep.transcript_consequences.filter(t => t.canonical == 1) in
-                            if (canonical_transcripts.exists(t => t.consequence_terms.toSet.contains(va.gene.consequence)))
-                                canonical_transcripts.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).gene_id
-                            else
-                                va.vep.transcript_consequences.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).gene_symbol,
-                        va.transcript_id = let canonical_transcripts = va.vep.transcript_consequences.filter(t => t.canonical == 1) in
-                            if (canonical_transcripts.exists(t => t.consequence_terms.toSet.contains(va.gene.consequence)))
-                                canonical_transcripts.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).transcript_id
-                            else
-                                va.vep.transcript_consequences.find(t => t.consequence_terms.toSet.contains(va.gene.consequence)).transcript_id
+                        va.gene.transcript = let tc = va.vep.transcript_consequences.filter(t => t.consequence_terms.toSet.contains(va.gene.most_severe_consequence)) in 
+                                             orElse(tc.find(t => t.canonical == 1), tc[0])
                         """
                     )
                 )
@@ -1137,28 +1100,28 @@ class VariantDataset(object):
                 self = self.annotate_variants_expr('va.vep = select(va.vep, {})'.format(subset))
 
         # iterate through files, selected annotations from each file
-        for file, expr in file_exprs.iteritems():
+        for db_file, expr in file_exprs.iteritems():
 
             # if database file is a VDS
-            if file.endswith('.vds'):
+            if db_file.endswith('.vds'):
 
                 # annotate analysis VDS with database VDS
-                self = self.annotate_variants_vds(self.hc.read(file), expr = expr)
+                self = self.annotate_variants_vds(self.hc.read(db_file), expr = expr)
 
             # if database file is a keytable
-            elif file.endswith('.kt'):
+            elif db_file.endswith('.kt'):
 
                 # join on gene symbol for gene annotations
-                if file.startswith('gs://annotationdb/gene/'):
+                if db_file.startswith('gs://annotationdb/gene/'):
                     if gene_key:
                         vds_key = gene_key
                     else:
-                        vds_key = 'va.gene.gene_symbol'
+                        vds_key = 'va.gene.transcript.gene_symbol'
                 else:
                     vds_key = None
 
                 # annotate analysis VDS with database keytable
-                self = self.annotate_variants_table(self.hc.read_table(file), expr = expr, vds_key = vds_key)
+                self = self.annotate_variants_table(self.hc.read_table(db_file), expr = expr, vds_key = vds_key)
 
             else:
                 continue

@@ -118,6 +118,19 @@ the relevant publications and raw data downloads are included where applicable.
 Important Notes
 ---------------
 
+Multiallelic variants
+======================
+
+Annotations in the database are keyed by biallelic variants. For some annotations, this means Hail's :py:meth:`~.VariantDataset.split_multi` method
+has been used to split multiallelic variants into biallelics.
+
+.. warning:: 
+
+    It is recommended to run :py:meth:`~.VariantDataset.split_multi` on your VDS before using :py:meth:`~.VariantDataset.annotate_variants_db`. You can use
+    :py:meth:`~.VariantDataset.annotate_variants_db` without first splitting multiallelic variants, but any multiallelics in your VDS will not be annotated.
+    If you first split these variants, the resulting biallelic variants may then be annotated by the database.
+
+
 VEP annotations
 ===============
 
@@ -181,7 +194,8 @@ For each variant, the logic used to extract one gene symbol from the VEP output 
     - Feature truncation
     - Intergenic variant
 
-*  Take the gene symbol from the canonical transcript with the most severe consequence
+*  If a canonical transcript with the most severe consequence exists, take that gene and transcript. Otherwise, take a non-canonical 
+   transcript with the most severe consequence.
 
 Though this is the default logic, you may wish to define gene symbols differently. One way to do so while still using the VEP output 
 would be to add VEP annotations to your VDS, create a gene symbol variant annotation by parsing through the VEP output however you 
