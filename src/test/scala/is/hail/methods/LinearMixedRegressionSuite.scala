@@ -504,14 +504,13 @@ class LinearMixedRegressionSuite extends SparkSuite {
   @Test def testVarianceFraction() {
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", optDroppedVarianceFraction = Some(0.3))
     assert(vdsLmmreg.queryGlobal("global.lmmreg.nEigs")._2 == 2)
+    assert(vdsLmmreg.queryGlobal("global.lmmreg.dropped_variance_fraction")._2 == 0.3)
   }
 
-  // FIXME
-//  @Test def computeNEigsDVF() {
-//    val eigs = DenseVector(0.0, 1.0, 2.0, 3.0, 4.0)
-//    assert(LinearMixedRegression.computeNEigs(eigs, 5, .1) == 3)
-//    assert(LinearMixedRegression.computeNEigs(eigs, 2, .1) == 2)
-//    assert(LinearMixedRegression.computeNEigs(eigs, 4, .6) == 1)
-//    assert(LinearMixedRegression.computeNEigs(eigs, 5, .2) == 3)
-//  }
+  @Test def computeNEigsDVF() {
+    val eigs = DenseVector(0.0, 1.0, 2.0, 3.0, 4.0)
+    assert(LinearMixedRegression.computeNEigsDVF(eigs, .1) == 3)
+    assert(LinearMixedRegression.computeNEigsDVF(eigs, .6) == 1)
+    assert(LinearMixedRegression.computeNEigsDVF(eigs, .2) == 3)
+  }
 }
