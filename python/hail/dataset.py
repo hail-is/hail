@@ -2758,7 +2758,8 @@ class VariantDataset(object):
                       n_eigs=nullable(integral),
                       dropped_variance_fraction=(nullable(float)))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False, n_eigs=None, dropped_variance_fraction=None):
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False,
+               n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
@@ -2803,7 +2804,7 @@ class VariantDataset(object):
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.nEigs``            | Int                  | number of eigenvectors used to fit LLM                                                                                                               |
+        | ``global.lmmreg.nEigs``            | Int                  | number of eigenvectors of kinship matrix used to fit model                                                                                           |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.evals``            | Array[Double]        | all eigenvalues of the kinship matrix in descending order                                                                                            |
         +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -2950,9 +2951,9 @@ class VariantDataset(object):
 
         FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
 
-        **Low rank approximation of kinship for improved performance**
+        **Low-rank approximation of kinship for improved performance**
 
-        :py:meth:`.lmmreg` can implicitly use a low rank approximation of the kinship matrix to fit the variance components and improve the performance of fitting the model for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specifying the parameter ``n_eigs`` will cause lmmreg to use only the top ``n_eigs`` eigenvectors to fit the global model and in the per-variant associations. Alternatively, it is also possible to specify ``ignored_variance_fraction``, which is the fraction of total variance that can be safely ignored. For example, given a value of .1, lmmreg will only use enough eigenvectors to account for 90% of the variance in the dataset. If both parameters are specified, lmmreg will use the one that filters out the most eigenvectors.
+        :py:meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specify the parameter ``n_eigs`` to use only the top ``n_eigs`` eigenvectors. Alternatively, specify ``dropped_variance_fraction`` to use as many eigenvectors as necessary to capture all but at most this fraction of the sample variance (also known as the trace, or the sum of the eigenvalues). For example, ``dropped_variance_fraction=0.01`` will use the minimal number of eigenvectors to account for 99% of the sample variance. Specifying both parameters will apply the more stringent (fewest eigenvectors) of the two.
 
         **Further background**
 
@@ -2970,7 +2971,7 @@ class VariantDataset(object):
 
         :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
 
-        :param bool run_assoc: If true, run association testing in addition to fitting the global model
+        :param bool run_assoc: If true, run association testing in addition to fitting the global model.
 
         :param bool use_ml: Use ML instead of REML throughout.
 
@@ -2979,11 +2980,11 @@ class VariantDataset(object):
 
         :param float sparsity_threshold: Genotype vector sparsity at or below which to use sparse genotype vector in rotation (advanced).
 
-        :param bool use_dosages: If true, use genotype dosage rather than hard call.
+        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
 
-        :param int n_eigs: Number of eigenvectors to use to fit the LMM
+        :param int n_eigs: Number of eigenvectors of the kinship matrix used to fit the model.
 
-        :param float dropped_variance_fraction: Upper bound on fraction of total variance lost by dropping eigenvectors with small eigenvalues.
+        :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
