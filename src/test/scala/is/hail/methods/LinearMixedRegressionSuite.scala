@@ -511,6 +511,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val eigs = DenseVector(0.0, 1.0, 2.0, 3.0, 4.0)
     assert(LinearMixedRegression.computeNEigsDVF(eigs, .1) == 3)
     assert(LinearMixedRegression.computeNEigsDVF(eigs, .6) == 1)
+    assert(LinearMixedRegression.computeNEigsDVF(eigs, .59) == 2)
     assert(LinearMixedRegression.computeNEigsDVF(eigs, .2) == 3)
   }
 }
