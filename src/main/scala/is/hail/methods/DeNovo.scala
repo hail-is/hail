@@ -289,7 +289,7 @@ object DeNovo {
           }
         }.iterator
       }
-    }.cache()
+    }.persist()
 
     KeyTable(vds.hc, rdd, schema, Array.empty)
   }
