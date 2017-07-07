@@ -584,7 +584,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LinearRegression3(vds, ys, covariates, root, useDosages, variantBlockSize)
   }
 
-  def lmmreg(kinshipMatrix: KinshipMatrix,
+  def lmmreg(kinshipMatrix: LMMMatrix,
     y: String,
     covariates: Array[String] = Array.empty[String],
     useML: Boolean = false,

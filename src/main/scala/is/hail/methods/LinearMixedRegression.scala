@@ -15,6 +15,8 @@ import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
 import org.apache.commons.math3.optim.univariate.{BrentOptimizer, SearchInterval, UnivariateObjectiveFunction}
 import org.apache.commons.math3.util.FastMath
 
+trait LMMMatrix
+
 object LinearMixedRegression {
   val schema: Type = TStruct(
     ("beta", TDouble),
@@ -23,19 +25,19 @@ object LinearMixedRegression {
     ("pval", TDouble))
 
   def apply(
-    assocVds: VariantDataset,
-    kinshipMatrix: KinshipMatrix,
-    yExpr: String,
-    covExpr: Array[String],
-    useML: Boolean,
-    rootGA: String,
-    rootVA: String,
-    runAssoc: Boolean,
-    optDelta: Option[Double],
-    sparsityThreshold: Double,
-    useDosages: Boolean,
-    optNEigs: Option[Int],
-    optDroppedVarianceFraction: Option[Double]): VariantDataset = {
+             assocVds: VariantDataset,
+             relationMatrix: LMMMatrix,
+             yExpr: String,
+             covExpr: Array[String],
+             useML: Boolean,
+             rootGA: String,
+             rootVA: String,
+             runAssoc: Boolean,
+             optDelta: Option[Double],
+             sparsityThreshold: Double,
+             useDosages: Boolean,
+             optNEigs: Option[Int] = None,
+             optDroppedVarianceFraction: Option[Double]): VariantDataset = {
 
     require(assocVds.wasSplit)
 
@@ -55,7 +57,7 @@ object LinearMixedRegression {
 
     val covNames = "intercept" +: covExpr
 
-    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
+    /*val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
       kinshipMatrix
     else {
       val fkm = kinshipMatrix.filterSamples(completeSamplesSet)
@@ -63,7 +65,8 @@ object LinearMixedRegression {
         fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
           "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
       fkm
-    }
+    }*/
+
 
     val n = y.length
     val k = cov.cols
@@ -74,13 +77,71 @@ object LinearMixedRegression {
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${ plural(k, "covariate") } including intercept...")
 
-    val K = new DenseMatrix[Double](n, n, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
+    //val cols = filteredKinshipMatrix.matrix.numCols().toInt
+
+    //val K = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
+
+    val (fullU, fullS): (DenseMatrix[Double], DenseVector[Double]) = relationMatrix match {
+      case LDMatrix(indexedRowMatrix, variants, numSamplesUsed) => {
+        val variantSet = variants.toSet
+        val localMatrix = new DenseMatrix[Double](indexedRowMatrix.numRows().toInt,
+          indexedRowMatrix.numCols().toInt,
+          indexedRowMatrix.toBlockMatrixDense().toLocalMatrix().toArray)
+        val eigK = eigSymD(localMatrix)
+        //Pretty sure these need to be in right order for SVD to work.
+        val VLeastToGreatest  = eigK.eigenvectors
+        val V = VLeastToGreatest(::, (VLeastToGreatest.cols - 1) to 0 by -1)
+        val SLeastToGreatest = eigK.eigenvalues.map(d => d * (numSamplesUsed.toDouble / variants.size))
+        val S = new DenseVector[Double](SLeastToGreatest.toArray.reverse)
+        val sqrtSInv = S.map(d => 1.0 / math.sqrt(variants.length * d))
+        val filteredVDS = assocVds.filterVariants((v, _, _) => variantSet(v))
+        //Each column is all samples for a variant.
+        val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().toLocalMatrix()
+        val genotypeMatrix = new DenseMatrix[Double](sparkGenotypeMatrix.numRows, sparkGenotypeMatrix.numCols,
+          sparkGenotypeMatrix.toArray).t
+
+        println(genotypeMatrix.majorStride)
+
+        val CV = (genotypeMatrix * V)
+        val U = CV(*, ::) :* sqrtSInv
+        println(U.majorStride)
+        println(U.offset)
+        val bStride = U(::, (U.cols - 1) to 0 by -1)
+        println(bStride.majorStride)
+        println(bStride.offset)
+        val ULeastToGreatest = new DenseMatrix[Double](U.rows, U.cols, U.toArray.reverse)
+        //val ULeastToGreatestFixedStride = new DenseMatrix[Double](bStride.rows, bStride.cols, bStride.data, bStride.offset,
+        //  -bStride.majorStride, bStride.isTranspose)
+        (ULeastToGreatest, SLeastToGreatest)
+      }
+      case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, numVariantsUsed) => {
+        val kinshipMatrix = relationMatrix.asInstanceOf[KinshipMatrix]
+        val filteredKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet)
+
+        if (!(filteredKinshipMatrix.sampleIds sameElements completeSamples))
+          fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
+            "samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
+
+        val cols = filteredKinshipMatrix.matrix.numCols().toInt
+
+        val rrm = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
+
+        info(s"lmmreg: Computing eigenvectors of RRM...")
+
+        val eigK = eigSymD(rrm)
+        val U = eigK.eigenvectors
+        val S = eigK.eigenvalues
+        (eigK.eigenvectors, eigK.eigenvalues)
+      }
+    }
 
     info(s"lmmreg: Computing eigendecomposition of kinship matrix...")
 
-    val eigK = eigSymD(K)
-    val fullU = eigK.eigenvectors
-    val fullS = eigK.eigenvalues // increasing order
+
+    //val eigK = eigSymD(K)
+    //val fullU = eigK.eigenvectors
+    //val fullS = eigK.eigenvalues // increasing order
+    val fullNEigs = fullS.length
 
     optDelta match {
       case Some(_) => info(s"lmmreg: Delta specified by user")
@@ -91,7 +152,7 @@ object LinearMixedRegression {
       case (Some(e), Some(dvf)) => e min computeNEigsDVF(fullS, dvf)
       case (Some(e), None) => e
       case (None, Some(dvf)) => computeNEigsDVF(fullS, dvf)
-      case (None, None) => n
+      case (None, None) => fullNEigs
     }
 
     require(nEigs > 0 && nEigs <= n, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the number of samples $n inclusive: got $nEigs")
@@ -310,6 +371,7 @@ object DiagLMM {
 
     val n = lmmConstants.n
     val d = lmmConstants.d
+
 
     def fitDelta(): (Double, GlobalFitLMM) = {
 
