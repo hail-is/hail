@@ -1768,6 +1768,7 @@ class VariantDataset(object):
         >>> vds_filtered = vds.filter_samples_table(table, keep=True)
         
         Remove samples in a text file with 1 field, and no header:
+        
         >>> to_remove = hc.import_table('data/exclude_samples.txt', no_header=True).key_by('f0')
         >>> vds_filtered = vds.filter_samples_table(to_remove, keep=False)
         
