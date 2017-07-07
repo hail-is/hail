@@ -278,8 +278,8 @@ object DeNovo {
             Row(
               v,
               triosBc.value(t).kid,
-              triosBc.value(t).dad,
-              triosBc.value(t).mom,
+              triosBc.value(t).knownDad,
+              triosBc.value(t).knownMom,
               triosBc.value(t).sex.map(s => (s == Sex.Female): Annotation).orNull,
               confidence,
               kid,
