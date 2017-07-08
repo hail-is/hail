@@ -95,6 +95,8 @@ class DeNovoSuite extends SparkSuite {
     val vds = hc.importVCF(pathBase + ".vcf")
     val kt = vds.deNovo(Pedigree.read(pathBase + ".fam", hadoopConf), "va.info.ESP")
 
+    kt.typeCheck()
+
     val ktOut = kt.rdd
       .map { r =>
         val v = r.getAs[Variant](0)

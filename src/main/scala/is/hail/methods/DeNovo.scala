@@ -21,7 +21,7 @@ object DeNovo {
     "fatherID" -> TString,
     "motherID" -> TString,
     "isFemale" -> TBoolean,
-    "confidence" -> TFloat64,
+    "confidence" -> TString,
     "probandGt" -> TGenotype,
     "motherGt" -> TGenotype,
     "fatherGt" -> TGenotype,
