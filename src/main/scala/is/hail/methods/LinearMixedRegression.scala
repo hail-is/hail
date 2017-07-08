@@ -91,7 +91,7 @@ object LinearMixedRegression {
       case (None, None) => n
     }
 
-    require(nEigs > 0 && nEigs <= n, s"lmmreg: Must specify number of eigenvectors between 1 and $n")
+    require(nEigs > 0 && nEigs <= n, s"lmmreg: n_eigs parameter must be between 1 and the number of samples $n: got $nEigs")
 
     val Ut = fullU(::, (n - nEigs) until n).t
     val S = fullS((n - nEigs) until n)
@@ -157,7 +157,7 @@ object LinearMixedRegression {
       else
         new LowRankScalerLMM(lmmConstants, delta, diagLMM.logNullS2, useML)
 
-      val perVariantLMMBc = sc.broadcast(scalerLMM)
+      val scalerLMMBc = sc.broadcast(scalerLMM)
 
       vds2.mapAnnotations { case (v, va, gs) =>
         val x: Vector[Double] =
@@ -171,7 +171,7 @@ object LinearMixedRegression {
         // TODO constant checking to be removed in 0.2
         val nonConstant = useDosages || !RegressionUtils.constantVector(x)
 
-        val lmmregAnnot = if (nonConstant) perVariantLMMBc.value.likelihoodRatioTest(x) else null
+        val lmmregAnnot = if (nonConstant) scalerLMMBc.value.likelihoodRatioTest(x) else null
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         newAnnotation
@@ -183,18 +183,16 @@ object LinearMixedRegression {
 
   def computeNEigsDVF(S: DenseVector[Double], droppedVarianceFraction: Double): Int = {
     require(0 <= droppedVarianceFraction && droppedVarianceFraction < 1)
-    val trace = sum(S)
 
-    var i = 0
+    val trace = sum(S)
+    var i = -1
     var runningSum = 0.0
     val target = droppedVarianceFraction * trace
-    while (runningSum <= target) {
-      //Note that S is sorted smallest to largest
-      runningSum += S(i)
+    while (runningSum <= target && i < S.length - 1) {
       i += 1
+      //Note that S is increasing
+      runningSum += S(i)
     }
-    //i is the number of eigenvalues it took to pass the target value. One too big.
-    i = i - 1
     S.length - i
   }
 }
@@ -214,6 +212,9 @@ class FullRankScalerLMM(
   logNullS2: Double,
   useML: Boolean) extends ScalerLMM {
 
+  val n = y.length
+  val invDf = 1.0 / (if (useML) n else n - Qt.rows)
+
   def likelihoodRatioTest(x0: Vector[Double]): Annotation = {
     val x = T * x0
     val n = y.length
@@ -222,7 +223,7 @@ class FullRankScalerLMM(
     val xQty: Double = (x dot y) - (Qtx dot Qty)
 
     val b: Double = xQty / xQtx
-    val s2 = (yQty - xQty * b) / (if (useML) n else n - Qt.rows)
+    val s2 = invDf * (yQty - xQty * b)
     val chi2 = n * (logNullS2 - math.log(s2))
     val p = chiSquaredTail(1, chi2)
 
@@ -326,10 +327,9 @@ object DiagLMM {
           val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
 
           val b = CdC \ Cdy
+          val sigma2 = (ydy - (Cdy dot b)) / n
 
           val logdetD = sum(breeze.numerics.log(D)) + (n - S.length) * logDelta
-          val r2 = ydy - (Cdy dot b)
-          val sigma2 = r2 / n
 
           -0.5 * (logdetD + n * math.log(sigma2)) + shift
         }
@@ -350,8 +350,7 @@ object DiagLMM {
           val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
 
           val b = CdC \ Cdy
-          val r2 = ydy - (Cdy dot b)
-          val sigma2 = r2 / (n - d)
+          val sigma2 = (ydy - (Cdy dot b)) / (n - d)
 
           val logdetD = sum(breeze.numerics.log(D)) + (n - S.length) * logDelta
           val (_, logdetCdC) = logdet(CdC)
@@ -436,15 +435,7 @@ object DiagLMM {
       (FastMath.exp(maxlogDelta), GlobalFitLMM(maxLogLkhd, gridLogLkhd, sigmaH2, h2NormLkhd))
     }
 
-    val (delta, optGlobalFit) = optDelta match {
-      case Some(delta0) => (delta0, None)
-      case None => {
-        val (delta0, gf) = fitDelta()
-        (delta0, Some(gf))
-      }
-    }
-
-    def solve(): DiagLMM = {
+    def fitUsingDelta(delta: Double, optGlobalFit: Option[GlobalFitLMM]): DiagLMM = {
       val invDelta = 1 / delta
       val invD = (S + delta).map(1 / _)
       val dy = Uty :* invD
@@ -456,9 +447,7 @@ object DiagLMM {
       val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
 
       val b = CdC \ Cdy
-      val r2 = ydy - (Cdy dot b)
-      val denom = if (useML) n else n - d
-      val s2 = r2 / denom
+      val s2 = (ydy - (Cdy dot b)) / (if (useML) n else n - d)
       val sqrtInvD = sqrt(invD)
       val TC = UtC(::, *) :* sqrtInvD
       val Ty = Uty :* sqrtInvD
@@ -467,9 +456,15 @@ object DiagLMM {
       DiagLMM(b, s2, math.log(s2), delta, optGlobalFit, sqrtInvD, TC, Ty, TyTy, useML)
     }
 
-    val diagLMM = solve()
+    val (delta, optGlobalFit) = optDelta match {
+      case Some(delta0) => (delta0, None)
+      case None => {
+        val (delta0, gf) = fitDelta()
+        (delta0, Some(gf))
+      }
+    }
 
-    diagLMM
+    fitUsingDelta(delta, optGlobalFit)
   }
 }
 

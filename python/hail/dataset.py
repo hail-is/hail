@@ -2787,7 +2787,7 @@ class VariantDataset(object):
         - Set the ``global_root`` argument to change the global annotation root in Step 4.
         - Set the ``va_root`` argument to change the variant annotation root in Step 5.
 
-        :py:meth:`.lmmreg` adds 7 or 11 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
+        :py:meth:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
 
         +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | Annotation                                   | Type                 | Value                                                                                                                                                |
@@ -2806,7 +2806,7 @@ class VariantDataset(object):
         +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.nEigs``                      | Int                  | number of eigenvectors of kinship matrix used to fit model                                                                                           |
         +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.dropped_variance_fraction``  | Double               | specified value of dropped_variance_fraction                                                                                                         |
+        | ``global.lmmreg.dropped_variance_fraction``  | Double               | specified value of `dropped_variance_fraction`                                                                                                       |
         +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
         | ``global.lmmreg.evals``                      | Array[Double]        | all eigenvalues of the kinship matrix in descending order                                                                                            |
         +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
