@@ -285,6 +285,48 @@ class FractionAggregator(f: (Any) => Any)
   def copy() = new FractionAggregator(f)
 }
 
+class ExistsAggregator(f: (Any) => Any)
+  extends TypedAggregator[Boolean] {
+
+  var exists: Boolean = false
+
+  def result: Boolean = exists
+
+  def seqOp(x: Any) {
+    exists = exists || {
+      val r = f(x)
+      r != null && r.asInstanceOf[Boolean]
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    exists = exists || agg2.exists
+  }
+
+  def copy() = new ExistsAggregator(f)
+}
+
+class ForallAggregator(f: (Any) => Any)
+  extends TypedAggregator[Boolean] {
+
+  var forall: Boolean = true
+
+  def result: Boolean = forall
+
+  def seqOp(x: Any) {
+    forall = forall && {
+      val r = f(x)
+      r != null || r.asInstanceOf[Boolean]
+    }
+  }
+
+  def combOp(agg2: this.type) {
+    forall = forall && agg2.forall
+  }
+
+  def copy() = new ForallAggregator(f)
+}
+
 class StatAggregator() extends TypedAggregator[Annotation] {
 
   var _state = new StatCounter()
@@ -423,7 +465,7 @@ class ProductAggregator[T](implicit ev: scala.math.Numeric[T]) extends TypedAggr
 
   def seqOp(x: Any) {
     if (x != null)
-       _state *= x.asInstanceOf[T]
+      _state *= x.asInstanceOf[T]
   }
 
   def combOp(agg2: this.type) = _state *= agg2._state
