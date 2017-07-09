@@ -163,6 +163,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       val v = Variant("1", j + 1, "A", "C")
       val (beta, sg2, chi2, pval) = directResult1(v)
       assertDouble(qBeta1(a1(v)), beta, 1e-3)
+      println(qSg21(a1(v)), sg2)
       assertDouble(qSg21(a1(v)), sg2, 1e-3)
       assertDouble(qChi21(a1(v)), chi2, 1e-3)
       assertDouble(qPval1(a1(v)), pval, 1e-3)

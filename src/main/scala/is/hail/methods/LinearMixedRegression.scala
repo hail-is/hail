@@ -91,7 +91,7 @@ object LinearMixedRegression {
       case (None, None) => n
     }
 
-    require(nEigs > 0 && nEigs <= n, s"lmmreg: n_eigs parameter must be between 1 and the number of samples $n: got $nEigs")
+    require(nEigs > 0 && nEigs <= n, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the number of samples $n inclusive: got $nEigs")
 
     val Ut = fullU(::, (n - nEigs) until n).t
     val S = fullS((n - nEigs) until n)
@@ -232,64 +232,58 @@ class FullRankScalerLMM(
 }
 
 // Handles low-rank case, but is slower than ScalerLMM on full-rank case
-class LowRankScalerLMM(lmmConstants: LMMConstants, delta: Double, logNullS2: Double, useML: Boolean) extends ScalerLMM {
-  val n = lmmConstants.n
-  val d = lmmConstants.d
-  val k = lmmConstants.S.length
-  val y = lmmConstants.y
-  val covs = lmmConstants.C
-  val D = lmmConstants.S + delta
-  val Ut = lmmConstants.Ut
-  val Uty = lmmConstants.Uty
-  val UtCov = lmmConstants.UtC
-  val yty = lmmConstants.yty
-  val dy = Uty :/ D
-  val covtcov = lmmConstants.CtC
-  val covty = lmmConstants.Cty
+class LowRankScalerLMM(con: LMMConstants, delta: Double, logNullS2: Double, useML: Boolean) extends ScalerLMM {
+  val n = con.n
+  val d = con.d
+  val k = con.S.length
+  val y = con.y
+  val covt = con.C.t
+  val Ut = con.Ut
+  val Uty = con.Uty
+  val Utcov = con.UtC
+  val covtcov = con.CtC
+  val covty = con.Cty
+  
+  val invDf = 1d / (if (useML) n else n - d)
   val invDelta = 1 / delta
-  val Z = D.map(1 / _ - invDelta)
-  val ydy = yty / delta + (Uty dot (Uty :* Z))
-
-  val ZUtCov = UtCov(::, *) :* Z
-  val CzCLowerRight = UtCov.t * ZUtCov
-
+  
+  val Z = (con.S + delta).map(1 / _ - invDelta)
+  val ydy = con.yty / delta + (Uty dot (Uty :* Z))
+  val UtcovZUtcov = Utcov.t * (Utcov(::, *) :* Z)
+  
+  val r1 = 0 to 0
+  val r2 = 1 to d
+  
   def likelihoodRatioTest(x: Vector[Double]): Annotation = {
-    val xty = x dot y
-    val xtx = x dot x
-    val covtx = covs.t * x
-    val Utx = Ut * x
-    val UtC = DenseMatrix.horzcat(Utx.toDenseVector.toDenseMatrix.t, UtCov)
-
+    
     val CtC = DenseMatrix.zeros[Double](d + 1, d + 1)
-    CtC(0, 0) = xtx
-    CtC(0 to 0, 1 to d) := covtx
-    CtC(1 to d, 0) := covtx
-    CtC(1 to d, 1 to d) := lmmConstants.CtC
+    CtC(0, 0) = x dot x
+    CtC(r1, r2) :=  covt * x
+    CtC(r2, r1) := CtC(r1, r2).t
+    CtC(r2, r2) := con.CtC
 
-    val Cty = DenseVector.vertcat(DenseVector(xty), covty)
-    val Cdy = invDelta * Cty + (UtC.t  * (Uty :* Z))
+    val Utx = Ut * x
+    val UtC = DenseMatrix.horzcat(Utx.toDenseMatrix.t, Utcov)
     val ZUtx = Utx :* Z
-
-    //4 Parts (lowerLeft and upperRight same)
-    val CzCUpperLeft = Utx dot ZUtx
-    val CzCLowerLeft = UtCov.t * ZUtx
+    
+    val Cty = DenseVector.vertcat(DenseVector(x dot y), covty)
+    val Cdy = invDelta * Cty + (UtC.t  * (Uty :* Z))
 
     val CzC = DenseMatrix.zeros[Double](d + 1, d + 1)
-    CzC(0, 0) = CzCUpperLeft
-    CzC(0 to 0, 1 to d) := CzCLowerLeft
-    CzC(1 to d, 0) := CzCLowerLeft
-    CzC(1 to d, 1 to d) := CzCLowerRight
+    CzC(0, 0) = Utx dot ZUtx
+    CzC(r1, r2) := Utcov.t * ZUtx
+    CzC(r2, r1) := CzC(r1, r2).t
+    CzC(r2, r2) := UtcovZUtcov
 
     val CdC = invDelta * CtC + CzC
+    
     val b = CdC \ Cdy
-    val r2 = ydy - (Cdy dot b)
-    val s2 = r2 / (if (useML) n else n - d)
+    val s2 = invDf * (ydy - (Cdy dot b))
     val chi2 = n * (logNullS2 - math.log(s2))
     val p = chiSquaredTail(1, chi2)
 
     Annotation(b(0), s2, chi2, p)
   }
-
 }
 
 
