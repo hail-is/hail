@@ -293,14 +293,14 @@ class ExistsAggregator(f: (Any) => Any)
   def result: Boolean = exists
 
   def seqOp(x: Any) {
-    val r = f(x)
-    if (r != null && r.asInstanceOf[Boolean])
-      exists = true
+    exists = exists || {
+      val r = f(x)
+      r != null && r.asInstanceOf[Boolean]
+    }
   }
 
   def combOp(agg2: this.type) {
-    if (agg2.exists)
-      exists = true
+    exists = exists || agg2.exists
   }
 
   def copy() = new ExistsAggregator(f)
@@ -314,14 +314,14 @@ class ForallAggregator(f: (Any) => Any)
   def result: Boolean = forall
 
   def seqOp(x: Any) {
-    val r = f(x)
-    if (r == null || !r.asInstanceOf[Boolean])
-      forall = false
+    forall = forall && {
+      val r = f(x)
+      r != null || r.asInstanceOf[Boolean]
+    }
   }
 
   def combOp(agg2: this.type) {
-    if (!agg2.forall)
-      forall = false
+    forall = forall && agg2.forall
   }
 
   def copy() = new ForallAggregator(f)
