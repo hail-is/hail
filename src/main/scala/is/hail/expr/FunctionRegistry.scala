@@ -2170,6 +2170,18 @@ object FunctionRegistry {
     """)(
     aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boxeddoubleHr)
 
+  registerLambdaAggregator[Any, (Any) => Any, Boolean]("exists", (f: (Any) => Any) => new ExistsAggregator(f),
+    """
+    Returns true if **any** element in the aggregator satisfies the condition given by ``expr`` and false otherwise.
+    """,
+    "expr" -> "Lambda expression.")(aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boolHr)
+
+  registerLambdaAggregator[Any, (Any) => Any, Boolean]("forall", (f: (Any) => Any) => new ForallAggregator(f),
+    """
+    Returns a true if **all** elements in the array satisfies the condition given by ``expr`` and false otherwise.
+    """,
+    "expr" -> "Lambda expression.")(aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boolHr)
+
   registerAggregator("take", (n: Int) => new TakeAggregator(n),
     """
     Take the first ``n`` items of an aggregable.
