@@ -88,7 +88,8 @@ object LinearMixedRegression {
         val V = eigK.eigenvectors
         val S = eigK.eigenvalues.map(d => d * (numSamplesUsed.toDouble / variants.size))
         val sqrtSInv = S.map(d => 1.0 / math.sqrt(variants.length * d))
-        val filteredVDS = assocVds.filterVariants((v, _, _) => variantSet(v))
+        val filteredVDS = assocVds.filterVariants((v, _, _) => {println(v); variantSet(v)})
+
         //Each column is all samples for a variant.
         val sparkGenotypeMatrixTemp = ToNormalizedIndexedRowMatrix(filteredVDS)
 
