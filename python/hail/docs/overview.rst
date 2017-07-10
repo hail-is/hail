@@ -26,7 +26,7 @@ storage-efficient internal representation called a Variant Dataset (**VDS**).
 
 In addition to information about Samples, Variants, and Genotypes, Hail stores meta-data as annotations that can be attached to each variant (**variant annotations**),
 each sample (**sample annotations**), and global to the dataset (**global annotations**).
-Annotations in Hail can be thought of as a hierarchial data structure with a specific schema that is typed (similar to the JSON format).
+Annotations in Hail can be thought of as a hierarchical data structure with a specific schema that is typed (similar to the JSON format).
 For example, given this schema::
 
     va: Struct {
