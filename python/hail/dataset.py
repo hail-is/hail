@@ -2758,9 +2758,12 @@ class VariantDataset(object):
                       use_ml=bool,
                       delta=nullable(numeric),
                       sparsity_threshold=numeric,
-                      use_dosages=bool)
+                      use_dosages=bool,
+                      n_eigs=nullable(integral),
+                      dropped_variance_fraction=(nullable(float)))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False):
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False,
+               n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
@@ -2788,35 +2791,39 @@ class VariantDataset(object):
         - Set the ``global_root`` argument to change the global annotation root in Step 4.
         - Set the ``va_root`` argument to change the variant annotation root in Step 5.
 
-        :py:meth:`.lmmreg` adds 7 or 11 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
+        :py:meth:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
 
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | Annotation                         | Type                 | Value                                                                                                                                                |
-        +====================================+======================+======================================================================================================================================================+
-        | ``global.lmmreg.useML``            | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order                                                                                                |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.seH2``         | Double               | standard error of :math:`\\hat{h}^2` under asymptotic normal approximation                                                                            |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.normLkhdH2``   | Array[Double]        | likelihood function of :math:`h^2` normalized on the discrete grid ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for percentage ``i``.    |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to :math:`\\hat{\delta}`                                                                            |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathrm{ln}(\delta)` used in the grid search                                                                                        |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | Annotation                                   | Type                 | Value                                                                                                                                                |
+        +==============================================+======================+======================================================================================================================================================+
+        | ``global.lmmreg.useML``                      | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.beta``                       | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.sigmaG2``                    | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.sigmaE2``                    | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.delta``                      | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.h2``                         | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.nEigs``                      | Int                  | number of eigenvectors of kinship matrix used to fit model                                                                                           |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.dropped_variance_fraction``  | Double               | specified value of ``dropped_variance_fraction``                                                                                                     |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.evals``                      | Array[Double]        | all eigenvalues of the kinship matrix in descending order                                                                                            |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.seH2``                   | Double               | standard error of :math:`\\hat{h}^2` under asymptotic normal approximation                                                                            |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.normLkhdH2``             | Array[Double]        | likelihood function of :math:`h^2` normalized on the discrete grid ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for percentage ``i``.    |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.maxLogLkhd``             | Double               | (restricted) maximum log likelihood corresponding to :math:`\\hat{\delta}`                                                                            |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.logDeltaGrid``           | Array[Double]        | values of :math:`\\mathrm{ln}(\delta)` used in the grid search                                                                                        |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.logLkhdVals``            | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
 
         These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
 
@@ -2950,6 +2957,10 @@ class VariantDataset(object):
 
         FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
 
+        **Low-rank approximation of kinship for improved performance**
+
+        :py:meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specify the parameter ``n_eigs`` to use only the top ``n_eigs`` eigenvectors. Alternatively, specify ``dropped_variance_fraction`` to use as many eigenvectors as necessary to capture all but at most this fraction of the sample variance (also known as the trace, or the sum of the eigenvalues). For example, ``dropped_variance_fraction=0.01`` will use the minimal number of eigenvectors to account for 99% of the sample variance. Specifying both parameters will apply the more stringent (fewest eigenvectors) of the two.
+
         **Further background**
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
@@ -2966,7 +2977,7 @@ class VariantDataset(object):
 
         :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
 
-        :param bool run_assoc: If true, run association testing in addition to fitting the global model
+        :param bool run_assoc: If true, run association testing in addition to fitting the global model.
 
         :param bool use_ml: Use ML instead of REML throughout.
 
@@ -2975,15 +2986,19 @@ class VariantDataset(object):
 
         :param float sparsity_threshold: Genotype vector sparsity at or below which to use sparse genotype vector in rotation (advanced).
 
-        :param bool use_dosages: If true, use genotype dosage rather than hard call.
+        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
+
+        :param int n_eigs: Number of eigenvectors of the kinship matrix used to fit the model.
+
+        :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
         jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
-                                 use_ml, global_root, va_root, run_assoc,
-                                 joption(delta), sparsity_threshold, use_dosages)
+                                 use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
+                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
