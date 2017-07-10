@@ -467,12 +467,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val rrm = notChr1VDSDownsampled.rrm()
 
-    val ldMatrix = notChr1VDSDownsampled.ldMatrix()
+    val ldMatrix = vdsChr1.ldMatrix()
 
     val vdsLD230 = vdsChr1.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
     val vdsRRM230 = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
 
-    //globalLMMCompare(vdsLD230, vdsRRM230)
+    globalLMMCompare(vdsLD230, vdsRRM230)
 
 
   }
