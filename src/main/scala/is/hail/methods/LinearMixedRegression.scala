@@ -77,9 +77,6 @@ object LinearMixedRegression {
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${ plural(k, "covariate") } including intercept...")
 
-    //val cols = filteredKinshipMatrix.matrix.numCols().toInt
-
-    //val K = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrixDense().toLocalMatrix().toArray)
 
     val (fullU, fullS): (DenseMatrix[Double], DenseVector[Double]) = relationMatrix match {
       case LDMatrix(indexedRowMatrix, variants, numSamplesUsed) => {
@@ -88,31 +85,22 @@ object LinearMixedRegression {
           indexedRowMatrix.numCols().toInt,
           indexedRowMatrix.toBlockMatrixDense().toLocalMatrix().toArray)
         val eigK = eigSymD(localMatrix)
-        //Pretty sure these need to be in right order for SVD to work.
-        val VLeastToGreatest  = eigK.eigenvectors
-        val V = VLeastToGreatest(::, (VLeastToGreatest.cols - 1) to 0 by -1)
-        val SLeastToGreatest = eigK.eigenvalues.map(d => d * (numSamplesUsed.toDouble / variants.size))
-        val S = new DenseVector[Double](SLeastToGreatest.toArray.reverse)
+        val V = eigK.eigenvectors
+        val S = eigK.eigenvalues.map(d => d * (numSamplesUsed.toDouble / variants.size))
         val sqrtSInv = S.map(d => 1.0 / math.sqrt(variants.length * d))
         val filteredVDS = assocVds.filterVariants((v, _, _) => variantSet(v))
         //Each column is all samples for a variant.
-        val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().toLocalMatrix()
+        val sparkGenotypeMatrixTemp = ToNormalizedIndexedRowMatrix(filteredVDS)
+
+        println(sparkGenotypeMatrixTemp.rows.count())
+
+        val sparkGenotypeMatrix = sparkGenotypeMatrixTemp.toBlockMatrixDense().toLocalMatrix()
         val genotypeMatrix = new DenseMatrix[Double](sparkGenotypeMatrix.numRows, sparkGenotypeMatrix.numCols,
           sparkGenotypeMatrix.toArray).t
 
-        println(genotypeMatrix.majorStride)
-
         val CV = (genotypeMatrix * V)
         val U = CV(*, ::) :* sqrtSInv
-        println(U.majorStride)
-        println(U.offset)
-        val bStride = U(::, (U.cols - 1) to 0 by -1)
-        println(bStride.majorStride)
-        println(bStride.offset)
-        val ULeastToGreatest = new DenseMatrix[Double](U.rows, U.cols, U.toArray.reverse)
-        //val ULeastToGreatestFixedStride = new DenseMatrix[Double](bStride.rows, bStride.cols, bStride.data, bStride.offset,
-        //  -bStride.majorStride, bStride.isTranspose)
-        (ULeastToGreatest, SLeastToGreatest)
+        (U, S)
       }
       case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, numVariantsUsed) => {
         val kinshipMatrix = relationMatrix.asInstanceOf[KinshipMatrix]
@@ -138,9 +126,7 @@ object LinearMixedRegression {
     info(s"lmmreg: Computing eigendecomposition of kinship matrix...")
 
 
-    //val eigK = eigSymD(K)
-    //val fullU = eigK.eigenvectors
-    //val fullS = eigK.eigenvalues // increasing order
+
     val fullNEigs = fullS.length
 
     optDelta match {
@@ -368,6 +354,8 @@ object DiagLMM {
     val Cty = lmmConstants.Cty
     val yty = lmmConstants.yty
     val S = lmmConstants.S
+
+
 
     val n = lmmConstants.n
     val d = lmmConstants.d

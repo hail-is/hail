@@ -438,6 +438,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
   @Test def testFullRankAndLowRank() {
     val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
 
+    //This has 242 variants.
     val notChr1VDSDownsampled = vdsFastLMM.filterVariantsExpr("""v.contig == "3" && v.start < 2242""")
 
     val rrm = notChr1VDSDownsampled.rrm()
@@ -456,6 +457,24 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vdsChr1LowRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, nEigs = Some(242))
 
     globalLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
+  }
+
+  @Test def testLDAndRRMAreEquivalent() {
+    val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
+
+    //This has 242 variants.
+    val notChr1VDSDownsampled = vdsFastLMM.filterVariantsExpr("""v.contig == "3" && v.start < 2242""")
+
+    val rrm = notChr1VDSDownsampled.rrm()
+
+    val ldMatrix = notChr1VDSDownsampled.ldMatrix()
+
+    val vdsLD230 = vdsChr1.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
+    val vdsRRM230 = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
+
+    //globalLMMCompare(vdsLD230, vdsRRM230)
+
+
   }
 
   private def globalLMMCompare(vds1: VariantDataset, vds2: VariantDataset) {
@@ -495,13 +514,16 @@ class LinearMixedRegressionSuite extends SparkSuite {
   @Test def testSmall() {
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno")
 
-    //val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
+    val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
 
     val vdsLmmregLD = vdsSmall.lmmreg(vdsSmall.ldMatrix(), "sa.pheno", nEigs = Some(3))
 
-//    globalLMMCompare(vdsLmmreg, vdsLmmregLowRank)
+    globalLMMCompare(vdsLmmregLowRank, vdsLmmregLD)
 
-  //  assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
+    globalLMMCompare(vdsLmmregLowRank, vdsLmmreg)
+
+    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
+    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
   }
 
   @Test def testVarianceFraction() {
