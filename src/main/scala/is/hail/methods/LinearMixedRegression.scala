@@ -15,6 +15,7 @@ import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
 import org.apache.commons.math3.optim.univariate.{BrentOptimizer, SearchInterval, UnivariateObjectiveFunction}
 import org.apache.commons.math3.util.FastMath
 
+//FIXME Should not have to make KinshipMatrix and LDMatrix extend this trait. Do fancy type stuff to make this work.
 trait LMMMatrix
 
 object LinearMixedRegression {
@@ -57,27 +58,15 @@ object LinearMixedRegression {
 
     val covNames = "intercept" +: covExpr
 
-    /*val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
-      kinshipMatrix
-    else {
-      val fkm = kinshipMatrix.filterSamples(completeSamplesSet)
-      if (!(fkm.sampleIds sameElements completeSamples))
-        fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
-          "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
-      fkm
-    }*/
-
-
     val n = y.length
     val k = cov.cols
     val d = n - k - 1
 
     if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+      fatal(s"lmmreg: $n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${ plural(k, "covariate") } including intercept...")
-
-
+    
     val (fullU, fullS): (DenseMatrix[Double], DenseVector[Double]) = relationMatrix match {
       case LDMatrix(indexedRowMatrix, variants, numSamplesUsed) => {
         val variantSet = variants.toSet
@@ -88,14 +77,13 @@ object LinearMixedRegression {
         val V = eigK.eigenvectors
         val S = eigK.eigenvalues.map(d => d * (numSamplesUsed.toDouble / variants.size))
         val sqrtSInv = S.map(d => 1.0 / math.sqrt(variants.length * d))
-        val filteredVDS = assocVds.filterVariants((v, _, _) => {println(v); variantSet(v)})
+
+        //FIXME Need some sort of requirement / assertation that all of the LDMatrix variants are in the VDS. Otherwise fail  s.
+        val filteredVDS = assocVds.filterVariants((v, _, _) => variantSet(v))
 
         //Each column is all samples for a variant.
-        val sparkGenotypeMatrixTemp = ToNormalizedIndexedRowMatrix(filteredVDS)
-
-        println(sparkGenotypeMatrixTemp.rows.count())
-
-        val sparkGenotypeMatrix = sparkGenotypeMatrixTemp.toBlockMatrixDense().toLocalMatrix()
+        val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().toLocalMatrix()
+        //FIXME This is an array copy of something potentially very large. (toArray copies)
         val genotypeMatrix = new DenseMatrix[Double](sparkGenotypeMatrix.numRows, sparkGenotypeMatrix.numCols,
           sparkGenotypeMatrix.toArray).t
 
@@ -105,11 +93,15 @@ object LinearMixedRegression {
       }
       case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, numVariantsUsed) => {
         val kinshipMatrix = relationMatrix.asInstanceOf[KinshipMatrix]
-        val filteredKinshipMatrix = kinshipMatrix.filterSamples(completeSamplesSet)
-
-        if (!(filteredKinshipMatrix.sampleIds sameElements completeSamples))
-          fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
-            "samples in assoc_vds) do not agree. This should not happen when kinship_vds is formed by filtering variants on assoc_vds.")
+        val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
+          kinshipMatrix
+        else {
+          val fkm = kinshipMatrix.filterSamples(completeSamplesSet)
+          if (!(fkm.sampleIds sameElements completeSamples))
+            fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
+              "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
+          fkm
+        }
 
         val cols = filteredKinshipMatrix.matrix.numCols().toInt
 
@@ -125,8 +117,6 @@ object LinearMixedRegression {
     }
 
     info(s"lmmreg: Computing eigendecomposition of kinship matrix...")
-
-
 
     val fullNEigs = fullS.length
 
@@ -144,8 +134,8 @@ object LinearMixedRegression {
 
     require(nEigs > 0 && nEigs <= n, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the number of samples $n inclusive: got $nEigs")
 
-    val Ut = fullU(::, (n - nEigs) until n).t
-    val S = fullS((n - nEigs) until n)
+    val Ut = fullU(::, (fullNEigs - nEigs) until fullNEigs).t
+    val S = fullS((fullNEigs - nEigs) until fullNEigs)
 
 
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
