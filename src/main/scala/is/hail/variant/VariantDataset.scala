@@ -579,6 +579,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LinearRegressionMultiPheno(vds, ys, covariates, root, useDosages, minAC, minAF)
   }
 
+  def linreg3(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, variantBlockSize: Int = 16): VariantDataset = {
+    requireSplit("linear regression 3")
+    LinearRegression3(vds, ys, covariates, root, useDosages, variantBlockSize)
+  }
+
   def lmmreg(kinshipMatrix: KinshipMatrix,
     y: String,
     covariates: Array[String] = Array.empty[String],
