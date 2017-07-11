@@ -459,21 +459,15 @@ class LinearMixedRegressionSuite extends SparkSuite {
     globalLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
   }
 
+  //FIXME LD Matrix tests are insufficent at the moment.
   @Test def testLDAndRRMAreEquivalent() {
-    val vdsChr1: VariantDataset = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
+    val vdsFastLMMDownsampled = vdsFastLMM.sampleVariants(0.5)
+    val rrm = vdsFastLMMDownsampled.rrm()
+    val ldMatrix = vdsFastLMMDownsampled.ldMatrix()
 
-    //This has 242 variants.
-    val notChr1VDSDownsampled = vdsFastLMM.filterVariantsExpr("""v.contig == "3" && v.start < 2242""")
-
-    val rrm = notChr1VDSDownsampled.rrm()
-
-    val ldMatrix = vdsChr1.ldMatrix()
-
-    val vdsLD230 = vdsChr1.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
-    val vdsRRM230 = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
-
+    val vdsLD230 = vdsFastLMMDownsampled.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
+    val vdsRRM230 = vdsFastLMMDownsampled.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
     globalLMMCompare(vdsLD230, vdsRRM230)
-
 
   }
 
@@ -512,6 +506,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
   lazy val vdsSmallRRM = vdsSmall.rrm()
   
   @Test def testSmall() {
+
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno")
 
     val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
@@ -519,7 +514,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vdsLmmregLD = vdsSmall.lmmreg(vdsSmall.ldMatrix(), "sa.pheno", nEigs = Some(3))
 
     globalLMMCompare(vdsLmmregLowRank, vdsLmmregLD)
-
     globalLMMCompare(vdsLmmregLowRank, vdsLmmreg)
 
     assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
