@@ -67,7 +67,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       .collect()
       .sortBy(_._1)
       .map(_._2)
-      .reduceLeft(_ ++ _)
+      .fold(Array[Double]())(_ ++ _)
   }
 
   def multiply(l: M, r: M): M = l.multiply(r)
