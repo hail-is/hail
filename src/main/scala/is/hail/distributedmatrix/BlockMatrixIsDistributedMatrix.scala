@@ -64,10 +64,9 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     m.blocks
       .filter{ case ((i, j), block) => i == j}
       .map { case ((i, j), m) => (i, diagonal(m)) }
-      .reduce { case ((i, m1), (j, m2)) =>
-        if (i < j) (i, m1 ++ m2)
-        else (j, m2 ++ m1)
-    }._2
+      .collect()
+      .sortBy(_._1)
+      .reduceLeft[Array[Double]](_ ++ _._2)
   }
 
   def multiply(l: M, r: M): M = l.multiply(r)
