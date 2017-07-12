@@ -1,9 +1,6 @@
 
 function generate_query(selected_nodes) {
 
-	// get all selected nodes from tree
-	//var selected_nodes = $('#tree').treeview('getSelected');
-
 	// for each selected node, get Hail path of annotation
 	var selected_hail = $.map(selected_nodes, function(value, index) {
 		return value['annotation'];
@@ -63,7 +60,6 @@ function generate_query(selected_nodes) {
 function select_nodes(node, selections){
 
 	var current_selections = selections;
-
 	if (node.hasOwnProperty('nodes')){
 		$.each(node['nodes'], function(index, child){
 			if ($.inArray(child, current_selections) == -1) {
@@ -85,7 +81,7 @@ function build_tree(data){
 		levels: 1,
 		expandIcon: 'glyphicon-plus',
 		collapseIcon: 'glyphicon-minus',
-		allowReselect: false,
+		allowReselect: true,
 		preventUnselect: false,
 		onNodeSelected: function(event, node){
 			var children = select_nodes(node, [node]);
@@ -125,17 +121,13 @@ function build_table(node, id) {
 		var col1 = child_node['annotation'];
 		var col2 = child_node['type'];
 		var col3 = child_node['description'];
-
 		var has_elements = (child_node.hasOwnProperty('elements') ? true : false);
 
 		if (has_elements) {
-
 			var sub_table_id = 'sub-' + table_id + '-' + child_node['annotation'].split('.').slice(-1)[0];
-
 			col0 = '<a data-toggle="collapse" href="#row-' + sub_table_id + '" aria-expanded="false" aria-controls="row-' + sub_table_id + '">' +
 				       '<i class="sub-table-icon glyphicon glyphicon-plus icon-plus"><i>' +
 				   '</a>';
-
 		}
 
 		$('#' + table_id + '>tbody').append(
@@ -173,9 +165,7 @@ function build_table(node, id) {
 				);
 			});
 		}
-
-	});
-	
+	});	
 }
 
 function build_docs(nodes, parent_id, parent_level) {
@@ -202,42 +192,33 @@ function build_docs(nodes, parent_id, parent_level) {
 		);
 
 		if (node['free_text']) {
-
 			var paragraphs = node['free_text'].split("\n\n");
-			var insert = '<div class="panel-text">'
-
+			var insert = '<div class="panel-text">';
 			$.each(paragraphs, function(_, paragraph) {
 				insert += '<p>' + paragraph.replace('\n', '<br>') + '</p>'
 			});
-
 			$('#' + node_id + '>.panel-body').append(insert + '</div>');
-
 		}
 
 		if (node['study_title'] && node['study_link']) {
-
 			$('#' + node_id + '>.panel-body').append(
 				'<div class="panel-text">' + 
 				   '<p><a href="' + node['study_link'] + '" target="_blank">' + node['study_title'] + '</a></p>' +
 				'</div>'
 			);
-
 		}
 		
 		if (node['study_data']) {
-
 			$('#' + node_id + '>.panel-body').append(
 				'<div class="panel-text">' +
 				   '<p><a href="' + node['study_data'] + '" target="_blank">Data source</p></a>' +
 				'</div>'
 			);
-
 		}
 
 		if (!node.hasOwnProperty('nodes')) {
 
 			var table_id = node_id + '-table';
-
 			$('#' + node_id + '>.panel-body').append(
 				'<table id="' + table_id + '" class="table table-hover" data-detail-view="true">' +
 					'<thead>' + 
@@ -266,7 +247,6 @@ function build_docs(nodes, parent_id, parent_level) {
 			);
 
 		} else {
-
 			if (!node['nodes'][0].hasOwnProperty('nodes')) {
 				build_table(node = node, id = node_id);
 			} else {
@@ -319,5 +299,4 @@ $(document).ready(function() {
 	var clipboard = new Clipboard(hail_copy_btn);
 	clipboard.on('success', function(e) {});
 	clipboard.on('error', function(e) {});
-
 });

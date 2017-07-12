@@ -1,3 +1,7 @@
+div.wy-nav-content{
+	max-width: 1000px;
+}
+
 #panel-annotations{
 	width: 49.5%;
 	float: left;
@@ -130,22 +134,6 @@ span.hail-code.query>pre{
 	transition-property:height,visibility
 }
 
-table.docutils{
-	width: 100%;
-}
-
-table.docutils thead{
-	background-color: #f5f5f5;
-}
-
-table th.col1{
-	width: 25%;
-}
-
-table th.col2{
-	width: 10%;
-}
-
 code{
 	background-color: transparent;
 	font-weight: bold;
@@ -154,14 +142,6 @@ code{
 
 .text-expand:hover{
 	text-decoration: underline;
-}
-
-.text-link:hover{
-	text-decoration: underline;
-}
-
-.text-link{
-	color: #2980B9;
 }
 
 .btn-group {
@@ -217,7 +197,7 @@ button {
 	float: left!important;
 }
 
-.btn .caret {
+btn .caret {
 	margin-left: 0;
 }
 
@@ -311,31 +291,12 @@ div.panel.level3{
 	margin-right: 6%;
 }
 
-/*#panel-docs table td.col2{
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-#panel-docs table td.col2:hover{
-	overflow: visible;
-}
-
-#panel-docs table td.col2:hover span{
-	background: #fff;
-	position: relative;
-	padding: 4px;
-}*/
-
 #panel-docs table .sub-table{
 	padding-left: 5%;
 	width: 75%;
 	border-top: hidden;
 	margin-top: -0.5%;
 }
-
-/*#panel-docs table .sub-table .sub-col0{
-	width: 50%;
-}*/
 
 #panel-docs table .sub-table tbody tr:last-child{
 	border-bottom: hidden;
@@ -375,6 +336,7 @@ div.panel.level3{
 	max-width:100%;
 	table-layout: fixed;
 	margin-top: 1%;
+
 }
 
 #panel-docs table th.col0{
