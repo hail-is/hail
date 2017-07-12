@@ -459,7 +459,18 @@ class LinearMixedRegressionSuite extends SparkSuite {
     globalLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
   }
 
-  //FIXME LD Matrix tests are insufficent at the moment.
+  @Test def testLDandRRMLOCO() {
+    val vdsChr1 = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
+    val vdsChr3 = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
+
+    val vdsRRM = vdsChr1.lmmreg(vdsChr3.rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None)
+    // FIXME This test fails if I don't specify nEigs = Some(250), which suggests a bug to me. There are only 249 non-zero eigenpairs, but 1000 variants.
+    val vdsLD = vdsFastLMM.lmmreg(vdsChr3.ldMatrix(), "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(250))
+
+    globalLMMCompare(vdsRRM, vdsLD)
+  }
+
+  //FIXME LD Matrix tests are insufficent at the moment. Need to do per variant tests.
   @Test def testLDAndRRMAreEquivalent() {
     val vdsFastLMMDownsampled = vdsFastLMM.sampleVariants(0.5)
     val rrm = vdsFastLMMDownsampled.rrm()

@@ -3065,10 +3065,11 @@ class VariantDataset(object):
                       sparsity_threshold=numeric,
                       use_dosages=bool,
                       n_eigs=nullable(integral),
-                      dropped_variance_fraction=(nullable(float)))
+                      dropped_variance_fraction=nullable(float),
+                      filter_variants_expr=(nullable(strlike)))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
                run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False,
-               n_eigs=None, dropped_variance_fraction=None):
+               n_eigs=None, dropped_variance_fraction=None, filter_variants_expr=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
@@ -3271,7 +3272,7 @@ class VariantDataset(object):
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
 
         :param kinshipMatrix: Kinship matrix to be used.
-        :type kinshipMatrix: :class:`KinshipMatrix`
+        :type kinshipMatrix: :class:`KinshipMatrix` or :class:`LDMatrix`
 
         :param str y: Response sample annotation.
 
@@ -3307,7 +3308,7 @@ class VariantDataset(object):
 
         jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
-                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction))
+                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction), joption(filter_variants_expr))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

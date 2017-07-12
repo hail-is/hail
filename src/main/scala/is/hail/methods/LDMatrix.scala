@@ -68,8 +68,7 @@ object LDMatrix {
   * @param variants Array of variants indexing the rows and columns of the matrix.
   * @param nSamples Number of samples used to compute this matrix.
   */
-
-case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) extends LMMMatrix {
+case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) extends SimilarityMatrix {
   def toLocalMatrix(): Matrix = {
     matrix.toBlockMatrixDense().toLocalMatrix()
   }

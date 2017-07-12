@@ -16,7 +16,7 @@ import org.apache.commons.math3.optim.univariate.{BrentOptimizer, SearchInterval
 import org.apache.commons.math3.util.FastMath
 
 //FIXME Should not have to make KinshipMatrix and LDMatrix extend this trait. Do fancy type stuff to make this work.
-trait LMMMatrix
+trait SimilarityMatrix
 
 object LinearMixedRegression {
   val schema: Type = TStruct(
@@ -26,19 +26,20 @@ object LinearMixedRegression {
     ("pval", TDouble))
 
   def apply(
-             assocVds: VariantDataset,
-             relationMatrix: LMMMatrix,
-             yExpr: String,
-             covExpr: Array[String],
-             useML: Boolean,
-             rootGA: String,
-             rootVA: String,
-             runAssoc: Boolean,
-             optDelta: Option[Double],
-             sparsityThreshold: Double,
-             useDosages: Boolean,
-             optNEigs: Option[Int] = None,
-             optDroppedVarianceFraction: Option[Double]): VariantDataset = {
+    assocVds: VariantDataset,
+    similarityMatrix: SimilarityMatrix,
+    yExpr: String,
+    covExpr: Array[String],
+    useML: Boolean,
+    rootGA: String,
+    rootVA: String,
+    runAssoc: Boolean,
+    optDelta: Option[Double],
+    sparsityThreshold: Double,
+    useDosages: Boolean,
+    optNEigs: Option[Int],
+    optDroppedVarianceFraction: Option[Double],
+    filterVariantsExpr: Option[String]): VariantDataset = {
 
     require(assocVds.wasSplit)
 
@@ -65,34 +66,37 @@ object LinearMixedRegression {
     if (d < 1)
       fatal(s"lmmreg: $n samples and $k ${plural(k, "covariate")} including intercept implies $d degrees of freedom.")
 
-    info(s"lmmreg: running lmmreg on $n samples with $k sample ${ plural(k, "covariate") } including intercept...")
-    
-    val (fullU, fullS): (DenseMatrix[Double], DenseVector[Double]) = relationMatrix match {
-      case LDMatrix(indexedRowMatrix, variants, numSamplesUsed) => {
+    info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
+
+    val (fullU, fullS): (DenseMatrix[Double], DenseVector[Double]) = similarityMatrix match {
+      case LDMatrix(irm, variants, nSamplesUsed) => {
         val variantSet = variants.toSet
-        val localMatrix = new DenseMatrix[Double](indexedRowMatrix.numRows().toInt,
-          indexedRowMatrix.numCols().toInt,
-          indexedRowMatrix.toBlockMatrixDense().toLocalMatrix().toArray)
+        val localMatrix = new DenseMatrix[Double](irm.numRows().toInt,
+          irm.numCols().toInt,
+          irm.toBlockMatrixDense().toLocalMatrix().toArray)
         val eigK = eigSymD(localMatrix)
         val V = eigK.eigenvectors
-        val S = eigK.eigenvalues.map(d => d * (numSamplesUsed.toDouble / variants.size))
-        val sqrtSInv = S.map(d => 1.0 / math.sqrt(variants.length * d))
 
-        //FIXME Need some sort of requirement / assertation that all of the LDMatrix variants are in the VDS. Otherwise fail  s.
+        val c1 = nSamplesUsed.toDouble / variants.length
+        val S = eigK.eigenvalues.map(d => d * c1)
+        val c2 = 1.0 / math.sqrt(variants.length)
+        val sqrtSInv = S.map(d => c2 / math.sqrt(d))
+
         val filteredVDS = assocVds.filterVariants((v, _, _) => variantSet(v))
+        require(filteredVDS.variants.count() == variantSet.size, "Not all variants in LDMatrix present in vds.")
 
         //Each column is all samples for a variant.
         val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().toLocalMatrix()
-        //FIXME This is an array copy of something potentially very large. (toArray copies)
+        //FIXME Should reflect and get "asBreeze" for this.
         val genotypeMatrix = new DenseMatrix[Double](sparkGenotypeMatrix.numRows, sparkGenotypeMatrix.numCols,
           sparkGenotypeMatrix.toArray).t
 
-        val CV = (genotypeMatrix * V)
-        val U = CV(*, ::) :* sqrtSInv
+        val VS = V(* , ::) :* sqrtSInv
+        val U = genotypeMatrix * VS
         (U, S)
       }
       case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, numVariantsUsed) => {
-        val kinshipMatrix = relationMatrix.asInstanceOf[KinshipMatrix]
+        val kinshipMatrix = similarityMatrix.asInstanceOf[KinshipMatrix]
         val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
           kinshipMatrix
         else {
@@ -132,7 +136,7 @@ object LinearMixedRegression {
       case (None, None) => fullNEigs
     }
 
-    require(nEigs > 0 && nEigs <= n, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the number of samples $n inclusive: got $nEigs")
+    require(nEigs > 0 && nEigs <= fullNEigs, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the dimension of similarity matrix ${fullNEigs} inclusive: got $nEigs")
 
     val Ut = fullU(::, (fullNEigs - nEigs) until fullNEigs).t
     val S = fullS((fullNEigs - nEigs) until fullNEigs)
@@ -165,7 +169,9 @@ object LinearMixedRegression {
       info(s"lmmreg: global model fit: seH2 = ${ gf.sigmaH2 }")
     }
 
-    val vds1 = assocVds.annotateGlobal(
+    val filteredAssocVds = filterVariantsExpr.map(s => assocVds.filterVariantsExpr(s)).getOrElse(assocVds)
+
+    val vds1 = filteredAssocVds.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs, optDroppedVarianceFraction.getOrElse(null)),
       TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
         ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble)), ("nEigs", TInt), ("dropped_variance_fraction", TDouble)), rootGA)
