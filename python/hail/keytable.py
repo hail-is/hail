@@ -684,6 +684,23 @@ class KeyTable(object):
         self._jkt.exportCassandra(address, keyspace, table, block_size, rate)
 
     @handle_py4j
+    @typecheck_method(host=strlike,
+                      port=integral,
+                      index=strlike,
+                      index_type=strlike,
+                      block_size=integral)
+    def export_elasticsearch(self, host, port, index, index_type, block_size):
+        """Export to Elasticsearch.
+
+        .. warning::
+
+          :py:meth:`~.export_elasticsearch` is EXPERIMENTAL.
+
+        """
+
+        self._jkt.exportElasticsearch(host, port, index, index_type, block_size)
+
+    @handle_py4j
     @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def explode(self, column_names):
         """Explode columns of this key table.
