@@ -25,9 +25,10 @@ object ElasticsearchConnector {
     // es.batch.write.refresh // default true  (Whether to invoke an index refresh or not after a bulk update has been completed)
 
     val df = kt.toDF(kt.hc.sqlContext)
-    if (verbose)
+    if (verbose) {
       println(s"Exporting ${df.count()} rows to ${host}:${port}/${index}/${indexType}")
-    df.printSchema()
+      df.printSchema()
+    }
     df.saveToEs(s"${index}/${indexType}", config)
   }
 }
