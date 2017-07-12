@@ -1,11 +1,3 @@
-div.wy-nav-content{
-	max-width: 100%;
-	padding-left: 5%;
-	padding-right: 10%;
-	margin-left: 0%;
-	margin-right: 0%;
-}
-
 #panel-annotations{
 	width: 49.5%;
 	float: left;
@@ -148,10 +140,6 @@ table.docutils thead{
 
 table th.col1{
 	width: 25%;
-}
-
-table th.col1.exomes, table th.col1.genomes{
-	width: 35%;
 }
 
 table th.col2{
@@ -323,53 +311,7 @@ div.panel.level3{
 	margin-right: 6%;
 }
 
-#panel-docs table{
-	width:100%;
-	max-width:100%;
-	table-layout: fixed;
-	margin-top: 1%;
-}
-
-#panel-docs table th.col0{
-	width: 2%;
-}
-
-#panel-docs table th.col1{
-	width: 28%;
-}
-
-#panel-docs table th.col2{
-	width: 12%;
-}
-
-#panel-docs table th.col3{
-	width: 58%;
-}
-
-#panel-docs table .glyphicon-plus::before{
-	margin-left: 0px;
-}
-
-#panel-docs table td.col0{
-	padding-left: 4px;
-}
-
-#panel-docs table td.col1{
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-#panel-docs table td.col1:hover{
-	overflow: visible;
-}
-
-#panel-docs table td.col1:hover span{
-	background: #fff;
-	position: relative;
-	padding: 4px;
-}
-
-#panel-docs table td.col2{
+/*#panel-docs table td.col2{
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
@@ -382,14 +324,18 @@ div.panel.level3{
 	background: #fff;
 	position: relative;
 	padding: 4px;
-}
+}*/
 
 #panel-docs table .sub-table{
 	padding-left: 5%;
-	width: 50%;
+	width: 75%;
 	border-top: hidden;
 	margin-top: -0.5%;
 }
+
+/*#panel-docs table .sub-table .sub-col0{
+	width: 50%;
+}*/
 
 #panel-docs table .sub-table tbody tr:last-child{
 	border-bottom: hidden;
@@ -422,6 +368,56 @@ div.panel.level3{
 
 #panel-docs table tbody tr:hover {
 	background-color:#ddd!important;
+}
+
+#panel-docs table{
+	width:100%;
+	max-width:100%;
+	table-layout: fixed;
+	margin-top: 1%;
+}
+
+#panel-docs table th.col0{
+	width: 2%;
+}
+
+#panel-docs table th.col1{
+	width: 33%;
+}
+
+#panel-docs table th.col2{
+	width: 12%;
+}
+
+#panel-docs table th.col3{
+	width: 53%;
+}
+
+#panel-docs table .glyphicon-plus::before{
+	margin-left: 0px;
+}
+
+#panel-docs table td.col0{
+	padding-left: 4px;
+}
+
+#panel-docs table td.col1{
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+#panel-docs table td.col1:hover{
+	overflow: visible;
+	padding-left: 4px;
+	padding-right: 4px;
+	padding-top: 8px;
+	padding-top: 8px;
+}
+
+#panel-docs table td.col1:hover span{
+	background: #fff;
+	position: relative;
+	padding: 4px;
 }
 
 .panel-text{

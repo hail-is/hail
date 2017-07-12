@@ -922,7 +922,7 @@ class VariantDataset(object):
         Documentation describing the annotations that are accessible through this method can be found 
         here_.
 
-        .. _here: annotationdb.html
+        .. _here: `here <sec-annotationdb>`
 
         **Examples**
 
@@ -963,7 +963,7 @@ class VariantDataset(object):
         import sqlite3
 
         # collect user-supplied annotations, converting str -> list if necessary and dropping duplicates
-        annotations = tuple(set([annotations])) if isinstance(annotations, str) else tuple(set(annotations))
+        annotations = tuple(set(wrap_to_list(annotations)))
 
         # open connection to in-memory SQLite database
         conn = sqlite3.connect(':memory:')

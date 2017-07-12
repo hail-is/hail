@@ -1,13 +1,16 @@
 
-function generate_query() {
+function generate_query(selected_nodes) {
 
 	// get all selected nodes from tree
-	var selected_nodes = $('#tree').treeview('getSelected');
+	//var selected_nodes = $('#tree').treeview('getSelected');
 
 	// for each selected node, get Hail path of annotation
 	var selected_hail = $.map(selected_nodes, function(value, index) {
 		return value['annotation'];
 	});
+
+	// empty DOM element
+	$('span.hail-code.query').empty();
 
 	// if at least 1 annotation is selected, generate query to display
 	if (selected_hail.length) {
@@ -27,48 +30,34 @@ function generate_query() {
 			var last = display.slice(-1)[0];
 
 			// if current path has same beginning as last currently displayed, skip
-			if (last.toString() == value.slice(0, last.length).toString()){
-				return true
+			if (last.toString() != value.slice(0, last.length).toString()){
+				display.push(value);
 			} 
 
-			// add annotation to display array
-			display.push(value);
-
 		});
 
-		// rejoin display annotation paths
-		display = $.map(display, function(element, index){
+		// rejoin display annotation paths, combine into parameter string
+		display = "'" + $.map(display, function(element, index){
 			return element.join('.');
-		});
-
-		var query = '<pre class="import-function">' +
-				    '    .annotate_variants_db([' + 
-				    '<br>' +
-					"        '" + display.join("',<br>        '") +
-					"'<br>" +
-					'    ])' +
-					'</pre>'
-
-		// empty DOM element and insert newly created query
-		$( 'span.hail-code.query ').empty();
-		$( 'span.hail-code.query ').html(query);
-	
-	// if no annotations selected, clear query panel			
+		}).join("',<br>        '") + "'";
+				
 	} else {
-
-		// boilerplate template
-		var template = '<pre class="import-function">' +
-					     '    .annotate_variants_db([' +
-					     '<br>' +
-					     '        ...' +
-				    	 '<br>' +
-				     	 '    ])' +
-				       '</pre>'
-
-		// empty DOM and insert empty string
-		$( 'span.hail-code.query ').empty();
-		$( 'span.hail-code.query' ).html(template);
+		// if no annotations selected, clear query panel
+		var display = '...';
 	}
+
+	// query string
+	var query =
+		'<pre>' +
+		'    .annotate_variants_db([' +
+		'<br>' +
+		"        " + display +
+		'<br>' +
+		'    ])' +
+		'</pre>';
+
+	// insert query into DOM
+	$('span.hail-code.query').html(query);
 }
 
 function select_nodes(node, selections){
@@ -76,17 +65,15 @@ function select_nodes(node, selections){
 	var current_selections = selections;
 
 	if (node.hasOwnProperty('nodes')){
-
-		children = node['nodes'];
-
-		$.each(children, function(index, child){
-			current_selections.push(child);
+		$.each(node['nodes'], function(index, child){
+			if ($.inArray(child, current_selections) == -1) {
+				current_selections.push(child);
+			}
 			current_selections = select_nodes(child, current_selections);
 		});
-
 	}
 
-	return current_selections
+	return current_selections;
 }
 
 function build_tree(data){
@@ -98,25 +85,19 @@ function build_tree(data){
 		levels: 1,
 		expandIcon: 'glyphicon-plus',
 		collapseIcon: 'glyphicon-minus',
+		allowReselect: false,
+		preventUnselect: false,
 		onNodeSelected: function(event, node){
-
-			var selections = $('#tree').treeview('getSelected');
-			var new_selections = select_nodes(node, selections);
-
-			$(this).treeview('unselectNode', [ new_selections, {silent: true} ]);
-			$(this).treeview('selectNode', [ new_selections, {silent: true} ]);
-
-			generate_query();
+			var children = select_nodes(node, [node]);
+			$(this).treeview('unselectNode', [children, {silent: true}]);
+			$(this).treeview('selectNode', [children, {silent: true}]);
+			generate_query($(this).treeview('getSelected'));
 		},
 		onNodeUnselected: function(event, node){
-
-			var unselections = select_nodes(node, []);
-			var tree = $(this).treeview(true);
-
-			$(this).treeview('selectNode', [ unselections, {silent: true} ]);
-			$(this).treeview('unselectNode', [ unselections, {silent: true }]);
-
-			generate_query();
+			var children = select_nodes(node, [node]);
+			$(this).treeview('selectNode', [children, {silent: true}]);
+			$(this).treeview('unselectNode', [children, {silent: true}]);
+			generate_query($(this).treeview('getSelected'));
 		}
 	});
 }
@@ -287,19 +268,12 @@ function build_docs(nodes, parent_id, parent_level) {
 		} else {
 
 			if (!node['nodes'][0].hasOwnProperty('nodes')) {
-
 				build_table(node = node, id = node_id);
-
 			} else {
-
 				build_docs(nodes = node['nodes'], parent_id = node_id, parent_level = level);
-
 			}
-
 		}
-
 	});
-
 }
 
 // get data dictionary in JSON format from PHP script
@@ -313,38 +287,6 @@ $.ajax({
  		request.setRequestHeader('access-control-allow-origin', '*');
  	},
 	success: function(data) {
-		/*
-		data =
-			[
-				{
-					"annotation": "va.cadd",
-					"text": "CADD score with annotations",
-					"study_data": "http://cadd.gs.washington.edu/download",
-					"study_link": "https://www.ncbi.nlm.nih.gov/pubmed/24487276",
-					"study_title": "Kircher, Martin et al. "A General Framework for Estimating the Relative Pathogenicity of Human Genetic Variants."Nature genetics 46.3 (2014): 310-315.",
-					"free_text": "This is CADD version 1.3. For more info, we suggest reading through the official release notes: http://cadd.gs.washington.edu/static/ReleaseNotes_CADD_v1.3.pdf",
-					"selectable": false,
-					"nodes": [
-						{
-							"annotation": "va.cadd.RawScore",
-							"text": "RawScore",
-							"type": "Double",
-							"description": "Raw CADD score"
-						},
-						...
-					]
-				},
-				{
-					"text": "DANN",
-					"hail": "va.dann",
-					...,
-					"nodes": [
-						...
-					]
-				},
-				...
-	    	]
-		*/
 
 		// use data dictionary to build query tree
 		build_tree(data);
@@ -357,26 +299,25 @@ $.ajax({
 	}
 });
 
-// expand Array[Struct] elements in documentation tables
-$(document).ready(function(){
+$(document).ready(function() {
+
+	// expand Array[Struct] elements in documentation tables
 	$(document).on('click', 'i.sub-table-icon', function(e) {
 		$(this).toggleClass('glyphicon-plus icon-plus');
 		$(this).toggleClass('glyphicon-minus icon-minus');
 	});
-});
 
-// functionality to clear selection when button is clicked
-$('#annotations-clear').on('click', function() {
-	var tree = $('#tree').treeview(true);
-	var selected = tree.getSelected();
-	if (selected.length){
-		tree.unselectNode(selected, {silent: true});
-		generate_query();
-	}
-});
+	// functionality to clear selection when button is clicked
+	$('#annotations-clear').on('click', function() {
+		var tree = $('#tree').treeview(true);
+		tree.unselectNode(tree.getNodes());
+		generate_query([]);
+	});
 
-// copy query to clipboard when button is clicked
-var hail_copy_btn = document.getElementById('hail-copy-btn');
-var clipboard = new Clipboard(hail_copy_btn);
-clipboard.on('success', function(e) {});
-clipboard.on('error', function(e) {});
+	// copy query to clipboard when button is clicked
+	var hail_copy_btn = document.getElementById('hail-copy-btn');
+	var clipboard = new Clipboard(hail_copy_btn);
+	clipboard.on('success', function(e) {});
+	clipboard.on('error', function(e) {});
+
+});

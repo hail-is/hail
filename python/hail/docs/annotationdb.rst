@@ -36,7 +36,7 @@ and inspect the schema could look something like this:
 
 This code would return the following schema:
 
-.. code-block:: python
+.. code-block:: text
 
   Struct{
       rsid: String,
@@ -223,7 +223,7 @@ Here's an example that uses the gene symbol from the first VEP transcript:
 
 This code would return:
 
-.. code-block:: python
+.. code-block:: text
 
   Struct{
       rsid: String,
