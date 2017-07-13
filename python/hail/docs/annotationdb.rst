@@ -216,7 +216,7 @@ Here's an example that uses the gene symbol from the first VEP transcript:
       .split_multi()
       .annotate_variants_db('va.vep')
       .annotate_variants_expr('va.my_gene = va.vep.transcript_consequences[0].gene_symbol')
-      .annotate_variants_db('va.gene.constraint.pli', gene_key = 'va.my_gene')
+      .annotate_variants_db('va.gene.constraint.pli', gene_key='va.my_gene')
   )
 
   pprint(vds.variant_schema)

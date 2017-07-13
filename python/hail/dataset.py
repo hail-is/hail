@@ -919,6 +919,10 @@ class VariantDataset(object):
         """
         Annotate variants using the Hail annotation database.
 
+        .. warning::
+
+            Experimental. Supported only while running Hail on the Google Cloud Platform.
+
         Documentation describing the annotations that are accessible through this method can be found 
         here_.
 
@@ -932,12 +936,12 @@ class VariantDataset(object):
 
         Annotate variants with gene-level PLI score, using the VEP-generated gene symbol to map variants to genes: 
 
-        >>> pli_vds = vds.annotate_variants_db(['va.gene.constraint.pli']) # doctest: +SKIP
+        >>> pli_vds = vds.annotate_variants_db('va.gene.constraint.pli') # doctest: +SKIP
 
         Again annotate variants with gene-level PLI score, this time using the existing ``va.gene_symbol`` annotation 
         to map variants to genes:
 
-        >>> vds = vds.annotate_variants_db(['va.gene.constraint.pli'], gene_key = 'va.gene_symbol') # doctest: +SKIP
+        >>> vds = vds.annotate_variants_db('va.gene.constraint.pli', gene_key='va.gene_symbol') # doctest: +SKIP
 
         **Notes**
 
@@ -946,6 +950,15 @@ class VariantDataset(object):
         prior to annotating variants with this method:
 
         >>> vds = vds.split_multi().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
+
+        To add VEP annotations, or to add gene-level annotations without a predefined gene symbol for each variant, the 
+        :py:meth:`~.VariantDataset.annotate_variants_db` method runs Hail's :py:meth:`~.VariantDataset.vep` method on the 
+        VDS. This means that your cluster must be properly initialized to run VEP.
+
+        .. warning::
+
+            If you want to add VEP annotations to your VDS, make sure to add the initialization action 
+            :code:`gs://hail-common/vep/vep/vep85-init.sh` when starting your cluster.
 
         :param annotations: List of annotations to import from the database.
         :type annotations: str or list of str 
@@ -963,17 +976,22 @@ class VariantDataset(object):
         import sqlite3
 
         # collect user-supplied annotations, converting str -> list if necessary and dropping duplicates
-        annotations = tuple(set(wrap_to_list(annotations)))
+        annotations = list(set(wrap_to_list(annotations)))
 
         # open connection to in-memory SQLite database
         conn = sqlite3.connect(':memory:')
 
-        # load database with annotation metadata
-        with hadoop_read('gs://annotationdb/annotationdb.sql') as f:
+        # load database with annotation metadata, print error if not on Google Cloud Platform
+        try:
+            f = hadoop_read('gs://annotationdb/ADMIN/annotationdb.sql')
+        except FatalError:
+            raise EnvironmentError('Cannot read from Google Storage. Must be running on Google Cloud Platform to use annotation database.')
+        else:
             curs = conn.executescript(f.read())
+            f.close()
 
         # parameter substitution string to put in SQL query
-        like = ' OR '.join('a.annotation LIKE ?' for x in annotations)
+        like = ' OR '.join('a.annotation LIKE ?' for i in xrange(2*len(annotations)))
 
         # query to extract path of all needed database files and their respective annotation exprs 
         qry = """SELECT file_path, annotation, file_type, file_element, f.file_id
@@ -981,10 +999,10 @@ class VariantDataset(object):
                  WHERE {}""".format(like)
 
         # run query and collect results in a file_path: expr dictionary
-        results = curs.execute(qry, [x + '%' for x in annotations]).fetchall()
+        results = curs.execute(qry, [x + '.%' for x in annotations] + annotations).fetchall()
 
         # all file_ids to be used
-        file_ids = tuple(set([x[4] for x in results]))
+        file_ids = list(set([x[4] for x in results]))
 
         # parameter substitution string
         sub = ','.join('?' for x in file_ids)
@@ -998,6 +1016,9 @@ class VariantDataset(object):
         # collect counts in file_id: count dictionary
         cnts = {x[0]: x[1] for x in curs.execute(qry, file_ids).fetchall()}
 
+        # close database connection
+        conn.close()
+
         # collect dictionary of file_path: expr entries
         file_exprs = {}
         for r in results:
@@ -1008,7 +1029,7 @@ class VariantDataset(object):
                 file_exprs[r[0]] = expr
 
         # are there any gene annotations?
-        are_genes = any([x.startswith('gs://annotationdb/gene/') for x in file_exprs])
+        are_genes = 'gs://annotationdb/gene/gene.kt' in file_exprs #any([x.startswith('gs://annotationdb/gene/') for x in file_exprs])
 
         # subset to VEP annotations
         veps = any([x == 'vep' for x in file_exprs])
@@ -1017,7 +1038,7 @@ class VariantDataset(object):
         if veps or (are_genes and not gene_key):
 
             # VEP annotate the VDS
-            self = self.vep(config = '/vep/vep-gcloud.properties', root = 'va.vep')
+            self = self.vep(config='/vep/vep-gcloud.properties', root='va.vep')
 
             # extract 1 gene symbol per variant from VEP annotations if a gene_key parameter isn't provided
             if are_genes:
@@ -1106,13 +1127,13 @@ class VariantDataset(object):
             if db_file.endswith('.vds'):
 
                 # annotate analysis VDS with database VDS
-                self = self.annotate_variants_vds(self.hc.read(db_file), expr = expr)
+                self = self.annotate_variants_vds(self.hc.read(db_file), expr=expr)
 
             # if database file is a keytable
             elif db_file.endswith('.kt'):
 
                 # join on gene symbol for gene annotations
-                if db_file.startswith('gs://annotationdb/gene/'):
+                if db_file == 'gs://annotationdb/gene/gene.kt':
                     if gene_key:
                         vds_key = gene_key
                     else:
@@ -1121,7 +1142,7 @@ class VariantDataset(object):
                     vds_key = None
 
                 # annotate analysis VDS with database keytable
-                self = self.annotate_variants_table(self.hc.read_table(db_file), expr = expr, vds_key = vds_key)
+                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr, vds_key=vds_key)
 
             else:
                 continue

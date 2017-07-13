@@ -258,7 +258,7 @@ function build_docs(nodes, parent_id, parent_level) {
 
 // get data dictionary in JSON format from PHP script
 $.ajax({
-	url: 'https://storage.googleapis.com/annotationdb/tree.json',
+	url: 'https://storage.googleapis.com/annotationdb/ADMIN/tree.json',
 	method: 'GET',
 	dataType: 'json',
 	cache: false,
