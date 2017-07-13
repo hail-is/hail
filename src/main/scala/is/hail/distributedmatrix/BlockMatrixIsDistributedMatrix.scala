@@ -174,14 +174,17 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val rowsRemainder: Int = (nRows % rowsPerBlock).toInt
     val colsRemainder: Int = (nCols % colsPerBlock).toInt
     val blocks: RDD[((Int, Int), Matrix)] = x.blocks.mapValuesWithKey { case ((blockRow, blockCol), m) =>
-      new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
-        val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
-        if (blockRow.toLong * rowsPerBlock + j % rowsInThisBlock < nRows &&
-          blockCol.toLong * colsPerBlock + j / rowsInThisBlock < nCols)
-          op(e, blockRow * rowsPerBlock + j % rowsInThisBlock)
-        else
-          e
-      })
+      val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
+      val a = m.toArray
+      var i = 0
+      while (i < a.length) {
+        assert(blockRow.toLong * rowsPerBlock + i % rowsInThisBlock < nRows &&
+          blockCol.toLong * colsPerBlock + i / rowsInThisBlock < nCols)
+
+        a(i) = op(a(i), blockRow * rowsPerBlock + i)
+        i += 1
+      }
+      new DenseMatrix(m.numRows, m.numCols, a)
     }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, nRows, nCols)
   }
@@ -195,14 +198,16 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val rowsRemainder = (nRows % rowsPerBlock).toInt
     val colsRemainder = (nCols % colsPerBlock).toInt
     val blocks: RDD[((Int, Int), Matrix)] = x.blocks.mapValuesWithKey { case ((blockRow, blockCol), m) =>
-      new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
-        val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
-        if (blockRow * rowsPerBlock + j % rowsInThisBlock < nRows &&
-          blockCol * colsPerBlock + j / rowsInThisBlock < nCols)
-          op(e, blockCol * colsPerBlock + j / rowsInThisBlock)
-        else
-          e
-      })
+      val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
+      val a = m.toArray
+      var i = 0
+      while (i < a.length) {
+        assert(blockRow * rowsPerBlock + i % rowsInThisBlock < nRows &&
+          blockCol * colsPerBlock + i / rowsInThisBlock < nCols)
+
+        a(i) = op(a(i), blockCol * colsPerBlock + i)
+      }
+      new DenseMatrix(m.numRows, m.numCols, a)
     }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, nRows, nCols)
   }

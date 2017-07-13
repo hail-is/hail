@@ -7,7 +7,11 @@ import org.apache.spark.internal.Logging
 
 object BetterBlockMatrix extends Logging {
 
-  class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
+  /**
+    * The matrices {@code l} and {@code r} must both have a GridPartitioner with
+    * 1 block per partition.
+    */
+  private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
       extends RDD[((Int, Int), Matrix)](l.blocks.sparkContext, Nil) {
 
     private val lPartitioner = l.blocks.partitioner.get.asInstanceOf[GridPartitioner]
@@ -57,12 +61,11 @@ object BetterBlockMatrix extends Logging {
       case x: SparseMatrix => x.toDense
     }
 
-    private def block(bm: BlockMatrix, bmPartitions: Array[Partition], p: GridPartitioner, context: TaskContext, i: Int, j: Int): Matrix = {
-      val it = bm.blocks.compute(bmPartitions(p.getPartition((i, j))), context)
-      val r = it.next()
-      assert(!it.hasNext, s"Expected iterator of size one, but got blocks: ${r +: it.toSeq}, from $bm with partitioner $p. ${bm.blocks.toDebugString}")
-      r._2
-    }
+    private def block(bm: BlockMatrix, bmPartitions: Array[Partition], p: GridPartitioner, context: TaskContext, i: Int, j: Int): Matrix =
+      bm.blocks
+        .iterator(bmPartitions(p.getPartition((i, j))), context)
+        .next()
+        ._2
 
     private def leftBlock(i: Int, j: Int, context: TaskContext): Matrix =
       block(l, lPartitions, lPartitioner, context, i, j)
@@ -93,9 +96,8 @@ object BetterBlockMatrix extends Logging {
       Iterator.single(((row, col), result))
     }
 
-    val parts = (0 until nParts).map(IntPartition.apply _).toArray[Partition]
     protected def getPartitions: Array[Partition] =
-      parts
+      (0 until nParts).map(IntPartition.apply _).toArray[Partition]
 
     /** Optionally overridden by subclasses to specify how they are partitioned. */
     @transient override val partitioner: Option[Partitioner] =
@@ -141,20 +143,18 @@ object BetterBlockMatrix extends Logging {
     new BlockMatrix(new BlockMatrixMultiplyRDD(l, r), l.rowsPerBlock, r.colsPerBlock, l.numRows(), r.numCols())
   }
 
-  class BlockMatrixTransposeRDD(m: BlockMatrix)
+  /**
+    * The matrix {@code m} must have a GridPartitioner with 1 block per
+    * partition.
+    */
+  private class BlockMatrixTransposeRDD(m: BlockMatrix)
       extends RDD[((Int, Int), Matrix)](m.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(m.blocks))) {
 
-    def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), Matrix)] = {
-      val it = m.blocks.compute(split, context).map { case ((i, j), m) => ((j, i), m.transpose) }
-      val r = it.next()
-      assert(!it.hasNext, s"Expected iterator of size one, but got blocks: ${r +: it.toSeq}, from $m with partitioner ${m.blocks.partitioner}. ${m.blocks.toDebugString}")
-      Iterator.single(r)
-    }
+    def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), Matrix)] =
+      m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.transpose) }
 
-    private val parts =
-      (0 until m.numRowBlocks * m.numColBlocks).map(IntPartition.apply _).toArray[Partition]
     protected def getPartitions: Array[Partition] =
-      parts
+      (0 until m.numRowBlocks * m.numColBlocks).map(IntPartition.apply _).toArray[Partition]
 
     private val prevPartitioner = m.blocks.partitioner.get
     @transient override val partitioner: Option[Partitioner] =
