@@ -27,20 +27,10 @@ case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
 object Gen {
 
   def squareOfAreaAtMostSize: Gen[(Int, Int)] =
-    for (s <- size;
-      sqrt = Math.sqrt(s).toInt;
-      l <- choose(0, sqrt);
-      w = if (l == 0) s else s / l;
-      coin <- choose(0.0, 1.0))
-      yield if (coin < 0.5) (l, w) else (w, l)
+    nCubeOfVolumeAtMostSize(2)
 
-  def nonEmptySquareOfAreaAtMostSize: Gen[(Int, Int)] = for {
-    s <- size
-    sqrt = Math.sqrt(s).toInt
-    l <- choose(1, sqrt)
-    w = s / l
-    coin <- choose(0.0, 1.0)
-  } yield if (coin < 0.5) (l, w) else (w, l)
+  def nonEmptySquareOfAreaAtMostSize: Gen[(Int, Int)] =
+    nonEmptyNCubeOfVolumeAtMostSize(2)
 
   def nCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
     Gen { (p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size) }
@@ -84,17 +74,21 @@ object Gen {
     *
     **/
   def partitionDirichlet(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
-    val alpha = parts
-    val draws = (0 until parts).map(x => rng.nextGamma(alpha, 1))
-    val sum = draws.sum
-    roundWithConstantSum(draws.map((x: Double) => x / sum * size).toArray)
+    val simplexVector = sampleDirichlet(rng, (0 until parts).map(x => parts).toArray)
+    roundWithConstantSum(simplexVector.map((x: Double) => x * size).toArray)
   }
 
   def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int, alpha: Int = 1): Array[Int] = {
     val sizeOfSum = math.log(size)
-    val draws = (0 until n).map(x => rng.nextGamma(alpha, 1))
-    val ratio = sizeOfSum / draws.sum
-    roundWithConstantSum(draws.map((x: Double) => x * ratio).toArray).map(x => math.exp(x).toInt).toArray
+    val simplexVector = sampleDirichlet(rng, (0 until n).map(x => alpha).toArray)
+    roundWithConstantSum(simplexVector.map((x: Double) => x * sizeOfSum).toArray)
+      .map(x => math.exp(x).toInt).toArray
+  }
+
+  private def sampleDirichlet(rng: RandomDataGenerator, alpha: Array[Double]): Array[Double] = {
+    val draws = alpha.map(rng.nextGamma(_, 1))
+    val sum = draws.sum
+    alpha.map(_ / sum)
   }
 
   def partition(parts: Int, sum: UInt)(implicit tn: Numeric[UInt], uct: ClassTag[UInt]): Gen[Array[UInt]] =
