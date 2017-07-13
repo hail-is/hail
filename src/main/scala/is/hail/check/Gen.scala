@@ -27,10 +27,10 @@ case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
 object Gen {
 
   def squareOfAreaAtMostSize: Gen[(Int, Int)] =
-    nCubeOfVolumeAtMostSize(2)
+    nCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
 
   def nonEmptySquareOfAreaAtMostSize: Gen[(Int, Int)] =
-    nonEmptyNCubeOfVolumeAtMostSize(2)
+    nonEmptyNCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
 
   def nCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
     Gen { (p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size) }
@@ -74,13 +74,13 @@ object Gen {
     *
     **/
   def partitionDirichlet(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
-    val simplexVector = sampleDirichlet(rng, (0 until parts).map(x => parts).toArray)
+    val simplexVector = sampleDirichlet(rng, (0 until parts).map(x => parts.toDouble).toArray)
     roundWithConstantSum(simplexVector.map((x: Double) => x * size).toArray)
   }
 
   def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int, alpha: Int = 1): Array[Int] = {
     val sizeOfSum = math.log(size)
-    val simplexVector = sampleDirichlet(rng, (0 until n).map(x => alpha).toArray)
+    val simplexVector = sampleDirichlet(rng, (0 until n).map(x => alpha.toDouble).toArray)
     roundWithConstantSum(simplexVector.map((x: Double) => x * sizeOfSum).toArray)
       .map(x => math.exp(x).toInt).toArray
   }
