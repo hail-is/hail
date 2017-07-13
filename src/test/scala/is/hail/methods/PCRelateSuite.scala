@@ -39,8 +39,8 @@ class PCRelateSuite extends SparkSuite {
   private def toS(a: Any): String =
     a.asInstanceOf[String]
 
-  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix): Map[(String, String), (Double, Double, Double, Double)] =
-    PCRelate.toPairRdd(vds, pcs, 0.01, blockSize).collect().toMap.asInstanceOf[Map[(String, String), (Double, Double, Double, Double)]]
+  def runPcRelateHail(vds: VariantDataset, pcs: DenseMatrix, maf: Double = 0.01): Map[(String, String), (Double, Double, Double, Double)] =
+    PCRelate.toPairRdd(vds, pcs, maf, blockSize).collect().toMap.asInstanceOf[Map[(String, String), (Double, Double, Double, Double)]]
 
   def runPcRelateR(
     vds: VariantDataset,
@@ -215,9 +215,11 @@ class PCRelateSuite extends SparkSuite {
 
   @Test def compareToPCRelateR() {
     for {
-      n <- Seq(50, 100, 500)
+      n <- Seq(// 50, 100,
+        500)
       seed <- Seq(0, 1, 2)
-      nVariants <- Seq(1000, 10000// , 50000
+      nVariants <- Seq(// 1000, 10000,
+        50000
       )
     } {
       val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
@@ -246,7 +248,7 @@ class PCRelateSuite extends SparkSuite {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
     val pcs = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
-    val us = runPcRelateHail(vds, new DenseMatrix(4,2,pcs))
+    val us = runPcRelateHail(vds, new DenseMatrix(4,2,pcs), maf=0.0)
     println(us)
     val truth = runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
     assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
@@ -286,7 +288,7 @@ class PCRelateSuite extends SparkSuite {
       val (truth, pcRelateTime) = time(runPcRelateR(vds))
 
       val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
-      val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs))
+      val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs, maf=0.0))
 
       println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
 
@@ -333,6 +335,7 @@ class PCRelateSuite extends SparkSuite {
 
       val vds = profile225
         .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
+        .filterVariantsExpr("v => va.qc.AF > 0.20 && va.qc.AF < 0.80 && v.isAutosomal")
         .cache()
 
       val (truth, pcRelateTime) = time(runPcRelateR(vds, "src/test/resources/is/hail/methods/runPcRelateMAF0.01.R"))
