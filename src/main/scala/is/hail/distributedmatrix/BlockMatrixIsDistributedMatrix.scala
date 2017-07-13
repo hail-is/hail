@@ -176,7 +176,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val blocks: RDD[((Int, Int), Matrix)] = x.blocks.mapValuesWithKey { case ((blockRow, blockCol), m) =>
       new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
         val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
-        val colsInThisBlock: Int = (if (blockCol + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
         if (blockRow.toLong * rowsPerBlock + j % rowsInThisBlock < nRows &&
           blockCol.toLong * colsPerBlock + j / rowsInThisBlock < nCols)
           op(e, blockRow * rowsPerBlock + j % rowsInThisBlock)
@@ -198,7 +197,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val blocks: RDD[((Int, Int), Matrix)] = x.blocks.mapValuesWithKey { case ((blockRow, blockCol), m) =>
       new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
         val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
-        val colsInThisBlock: Int = (if (blockCol + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
         if (blockRow * rowsPerBlock + j % rowsInThisBlock < nRows &&
           blockCol * colsPerBlock + j / rowsInThisBlock < nCols)
           op(e, blockCol * colsPerBlock + j / rowsInThisBlock)
