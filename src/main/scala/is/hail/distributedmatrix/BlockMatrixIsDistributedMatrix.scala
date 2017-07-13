@@ -181,7 +181,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
         assert(blockRow.toLong * rowsPerBlock + i % rowsInThisBlock < nRows &&
           blockCol.toLong * colsPerBlock + i / rowsInThisBlock < nCols)
 
-        a(i) = op(a(i), blockRow * rowsPerBlock + i)
+        a(i) = op(a(i), blockRow * rowsPerBlock + i % rowsInThisBlock)
         i += 1
       }
       new DenseMatrix(m.numRows, m.numCols, a)
@@ -205,7 +205,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
         assert(blockRow * rowsPerBlock + i % rowsInThisBlock < nRows &&
           blockCol * colsPerBlock + i / rowsInThisBlock < nCols)
 
-        a(i) = op(a(i), blockCol * colsPerBlock + i)
+        a(i) = op(a(i), blockCol * colsPerBlock + i / rowsInThisBlock)
+        i += 1
       }
       new DenseMatrix(m.numRows, m.numCols, a)
     }
