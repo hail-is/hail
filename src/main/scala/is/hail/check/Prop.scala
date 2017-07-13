@@ -3,7 +3,6 @@ package is.hail.check
 import org.apache.commons.math3.random.RandomDataGenerator
 
 import scala.collection.mutable.ArrayBuffer
-import scala.reflect.ClassTag
 import scala.util.Random
 
 abstract class Prop {
