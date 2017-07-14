@@ -37,7 +37,7 @@ class ComputeRRMSuite extends SparkSuite {
     val Klocal = (W * W.t) / W.cols.toDouble
     val KwithoutBlock = ComputeRRM(vds)._1
     val KwithBlock = ComputeRRM(vds, forceBlock = true)._1
-    
+
     def convertToBreeze(sparkMatrix: IndexedRowMatrix): Matrix[Double] = {
       sparkMatrix.toBlockMatrixDense().toLocalMatrix().asBreeze()
     }
