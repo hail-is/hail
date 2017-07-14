@@ -81,7 +81,7 @@ function build_tree(data){
 		levels: 1,
 		expandIcon: 'glyphicon-plus',
 		collapseIcon: 'glyphicon-minus',
-		allowReselect: true,
+		allowReselect: false,
 		preventUnselect: false,
 		onNodeSelected: function(event, node){
 			var children = select_nodes(node, [node]);
