@@ -1,20 +1,12 @@
 import sys
 from decorator import decorator, getargspec
 import re
+from hail.py3_compat import *
 
 
 if sys.version_info > (3,):
-    long = int
-    unicode = str
-
-    def iteritems(x):
-        return x.items()
-
     class_types = type
 else:
-    def iteritems(x):
-        return x.iteritems()
-
     from types import ClassType
     class_types = (ClassType, type)
 

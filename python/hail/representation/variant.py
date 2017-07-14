@@ -1,5 +1,6 @@
 from hail.java import scala_object, Env, handle_py4j
 from hail.typecheck import *
+from hail.py3_compat import *
 
 class Variant(object):
     """
@@ -42,7 +43,7 @@ class Variant(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-        self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
+        self._alt_alleles = map_list(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
 
     @classmethod
     def _from_java(cls, jrep):

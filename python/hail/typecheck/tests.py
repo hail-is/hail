@@ -2,6 +2,7 @@ import unittest
 
 import sys
 from hail.typecheck.check import *
+from hail.py3_compat import *
 
 
 class ContextTests(unittest.TestCase):
@@ -88,9 +89,6 @@ class ContextTests(unittest.TestCase):
 
 
     def test_helpers(self):
-        if sys.version_info > (3,):
-            long = int
-
         # check nullable
         @typecheck(x=nullable(int))
         def f(x):

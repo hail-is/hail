@@ -2,6 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import warnings
 
+import sys
 from decorator import decorator
 
 from hail.expr import Type, TGenotype, TString, TVariant
@@ -12,6 +13,7 @@ from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
+from hail.py3_compat import *
 
 warnings.filterwarnings(module=__name__, action='once')
 
@@ -403,7 +405,8 @@ class VariantDataset(object):
         annotation_type._typecheck(annotation)
 
         annotated = self._jvds.annotateGlobal(annotation_type._convert_to_j(annotation), annotation_type._jtype, path)
-        assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
+        if sys.version_info < (3,):
+            assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
         return VariantDataset(self.hc, annotated)
 
     @handle_py4j

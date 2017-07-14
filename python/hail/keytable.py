@@ -6,6 +6,7 @@ from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
+from hail.py3_compat import *
 
 
 def asc(col):

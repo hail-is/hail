@@ -1,4 +1,5 @@
 from hail.representation import Variant
+from hail.py3_compat import *
 
 class LDMatrix:
     """
@@ -15,7 +16,7 @@ class LDMatrix:
         :rtype: list of Variant
         """
         jvars = self._jldm.variants()
-        return list(map(lambda jrep: Variant._from_java(jrep), jvars))
+        return map_list(lambda jrep: Variant._from_java(jrep), jvars)
 
     def matrix(self):
         """
