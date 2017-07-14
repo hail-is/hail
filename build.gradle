@@ -28,9 +28,6 @@ repositories {
     maven {
         url "https://repository.cloudera.com/artifactory/cloudera-repos/" // kudu
     }
-    maven {
-        url "http://conjars.org/repo"
-    }
 }
 
 buildScan {
@@ -149,7 +146,6 @@ dependencies {
     compile 'org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':' + mongoVersion
     compile 'org.apache.solr:solr-solrj:6.2.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
-    compile 'org.elasticsearch:elasticsearch-hadoop:6.0.0-alpha2'
     compile 'org.elasticsearch:elasticsearch-spark-20_2.11:6.0.0-alpha2'
 
     compile 'com.jayway.restassured:rest-assured:2.8.0'
@@ -261,7 +257,6 @@ shadowJar {
         include(dependency('org.noggit:noggit:.*'))
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
-        include(dependency('org.elasticsearch:elasticsearch-hadoop:.*'))
         include(dependency('org.elasticsearch:elasticsearch-spark_2.10:.*'))
 
         include(dependency('com.google.guava:guava:.*'))
@@ -314,7 +309,6 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.noggit:noggit:.*'))
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
-        include(dependency('org.elasticsearch:elasticsearch-hadoop:.*'))
         include(dependency('org.elasticsearch:elasticsearch-spark_2.10:.*'))
 
         include(dependency('com.google.guava:guava:.*'))
