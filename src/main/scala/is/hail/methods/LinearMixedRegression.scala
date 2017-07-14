@@ -68,7 +68,7 @@ object LinearMixedRegression {
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
 
-    val (fullU, fullS): (DenseMatrix[Double], DenseVector[Double]) = similarityMatrix match {
+    val (fullU, fullS, rank): (DenseMatrix[Double], DenseVector[Double], Int) = similarityMatrix match {
       case LDMatrix(irm, variants, nSamplesUsed) => {
         val variantSet = variants.toSet
         val localMatrix = new DenseMatrix[Double](irm.numRows().toInt,
@@ -91,9 +91,9 @@ object LinearMixedRegression {
         val genotypeMatrix = sparkGenotypeMatrix.asBreeze().asInstanceOf[DenseMatrix[Double]].t
         val VS = V(* , ::) :* sqrtSInv
         val U = genotypeMatrix * VS
-        (U, S)
+        (U, S, min(variants.length, nSamplesUsed))
       }
-      case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, numVariantsUsed) => {
+      case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, nVariantsUsed) => {
         val kinshipMatrix = similarityMatrix.asInstanceOf[KinshipMatrix]
         val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
           kinshipMatrix
@@ -114,14 +114,14 @@ object LinearMixedRegression {
         val eigK = eigSymD(rrm)
         val U = eigK.eigenvectors
         val S = eigK.eigenvalues
-        (eigK.eigenvectors, eigK.eigenvalues)
+        (eigK.eigenvectors, eigK.eigenvalues, min(samples.length, nVariantsUsed.toInt))
       }
     }
 
     info(s"lmmreg: Computing eigendecomposition of kinship matrix...")
 
     val fullNEigs = fullS.length
-    val maxEigsAllowed = min(n, assocVds.countVariants().toInt)
+    val maxEigsAllowed = rank
 
     optDelta match {
       case Some(_) => info(s"lmmreg: Delta specified by user")
@@ -136,12 +136,9 @@ object LinearMixedRegression {
     }
 
     require(nEigs > 0 && nEigs <= fullNEigs, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the dimension of similarity matrix ${fullNEigs} inclusive: got $nEigs")
-    println(fullNEigs)
 
     val Ut = fullU(::, (fullNEigs - nEigs) until fullNEigs).t
-    println("Ut column 0" + Ut(::, 0))
     val S = fullS((fullNEigs - nEigs) until fullNEigs)
-    println(s"S $S")
 
 
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
@@ -357,13 +354,6 @@ object DiagLMM {
     val n = lmmConstants.n
     val d = lmmConstants.d
 
-    println(s"n $n")
-    println(s"d $d")
-    println(s"yty $yty")
-    println(s"Cty $Cty")
-    println(s"Uty $Uty")
-
-
     def fitDelta(): (Double, GlobalFitLMM) = {
 
       object LogLkhdML extends UnivariateFunction {
@@ -412,7 +402,6 @@ object DiagLMM {
           val (_, logdetCtC) = logdet(CtC)
 
           val res = -0.5 * (logdetD + logdetCdC - logdetCtC + (n - d) * math.log(sigma2)) + shift
-          //println(s"logDelta = $logDelta, yty = $yty, temp = $temp, ydy = $ydy")//sigma2 = $sigma2 res $res")
           res
         }
 
