@@ -444,19 +444,22 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val rrm = notChr1VDSDownsampled.rrm()
 
     //REML TESTS
-    val vdsChr1FullRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None)
+    val vdsChr1FullRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = true, delta = None)
 
-    val vdsChr1LowRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, nEigs = Some(242))
-
+    val vdsChr1LowRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = true, nEigs = Some(242))
 
     globalLMMCompare(vdsChr1FullRankREML, vdsChr1LowRankREML)
 
-    //ML TESTS
-    val vdsChr1FullRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, delta = None)
+    variantAnnotationLMMCompare(vdsChr1FullRankREML, vdsChr1LowRankREML)
 
-    val vdsChr1LowRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = false, nEigs = Some(242))
+    //ML TESTS
+    val vdsChr1FullRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = true, delta = None)
+
+    val vdsChr1LowRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = true, nEigs = Some(242))
 
     globalLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
+
+    variantAnnotationLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
   }
 
   @Test def testLDandRRMLOCO() {
@@ -470,16 +473,16 @@ class LinearMixedRegressionSuite extends SparkSuite {
     globalLMMCompare(vdsRRM, vdsLD)
   }
 
-  //FIXME LD Matrix tests are insufficent at the moment. Need to do per variant tests.
   @Test def testLDAndRRMAreEquivalent() {
     val vdsFastLMMDownsampled = vdsFastLMM.sampleVariants(0.5)
     val rrm = vdsFastLMMDownsampled.rrm()
     val ldMatrix = vdsFastLMMDownsampled.ldMatrix()
 
-    val vdsLD230 = vdsFastLMMDownsampled.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
-    val vdsRRM230 = vdsFastLMMDownsampled.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(230))
-    globalLMMCompare(vdsLD230, vdsRRM230)
+    val vdsLD230 = vdsFastLMMDownsampled.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), runAssoc = true, delta = None, nEigs = Some(230))
+    val vdsRRM230 = vdsFastLMMDownsampled.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = true, delta = None, nEigs = Some(230))
 
+    globalLMMCompare(vdsLD230, vdsRRM230)
+    variantAnnotationLMMCompare(vdsLD230, vdsRRM230)
   }
 
   private def globalLMMCompare(vds1: VariantDataset, vds2: VariantDataset) {
@@ -491,6 +494,24 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     assert(D_==(vds1.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double],
       vds2.queryGlobal("global.lmmreg.h2")._2.asInstanceOf[Double]))
+  }
+
+  def variantAnnotationLMMCompare(vds1: VariantDataset, vds2: VariantDataset) {
+    val vds1Annotations = vds1.variantsAndAnnotations.collect().map{case(variant, annotation) => annotation}
+    val vds2Annotations = vds2.variantsAndAnnotations.collect().map{case(variant, annotation) => annotation}
+
+    val qBeta1 = vds1.queryVA("va.lmmreg.beta")._2
+    val qSg21 = vds1.queryVA("va.lmmreg.sigmaG2")._2
+
+    val qBeta2 = vds2.queryVA("va.lmmreg.beta")._2
+    val qSg22 = vds2.queryVA("va.lmmreg.sigmaG2")._2
+
+    val m = vds1Annotations.length
+
+    (0 until m).foreach { j =>
+      assertDouble(qBeta1(vds1Annotations(j)).asInstanceOf[Double], qBeta2(vds2Annotations(j)).asInstanceOf[Double])
+      assertDouble(qSg21(vds1Annotations(j)).asInstanceOf[Double], qSg22(vds2Annotations(j)).asInstanceOf[Double])
+    }
   }
 
   lazy val smallMat = DenseMatrix(
