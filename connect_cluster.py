@@ -32,7 +32,10 @@ else:
 cmd = [
     'gcloud compute ssh {}-m'.format(args.name),
     '--zone={}'.format(args.zone),
-    '--ssh-flag="-D {} -N -f -n"'.format(args.port),
+    '--ssh-flag="-D {}"'.format(args.port),
+    '--ssh-flag="-N"',
+    '--ssh-flag="-f"',
+    '--ssh-flag="-n"',
     '> /dev/null 2>&1 &'
 ]
 subprocess.call(' '.join(cmd), shell=True)
