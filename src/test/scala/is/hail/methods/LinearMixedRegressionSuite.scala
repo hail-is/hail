@@ -14,7 +14,8 @@ import org.testng.annotations.Test
 class LinearMixedRegressionSuite extends SparkSuite {
 
   def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
-    assert(D_==(a.asInstanceOf[Double], value, tol))
+    val d1 = a.asInstanceOf[Double]
+    assert(D_==(d1, value, tol), s"$d1 did not equal $value with tol $tol")
   }
   
   @Test def lmmSmallExampleTest() {
@@ -147,7 +148,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(vds0.sampleIds.zip(pheno).toMap, TDouble, "sa.pheno")
       .annotateSamples(vds0.sampleIds.zip(cov1).toMap, TDouble, "sa.cov1")
       .annotateSamples(vds0.sampleIds.zip(cov2).toMap, TDouble, "sa.cov2")
-      .lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), useDosages = true, optDroppedVarianceFraction = Some(0))
+      .lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = Array("sa.cov1", "sa.cov2"), delta = Some(delta), useDosages = true)
     
     val directResult1 = (0 until 2).map { j => (Variant("1", j + 1, "A", "C"), lmmfit(dosageMat(::, j to j))) }.toMap
     
@@ -162,7 +163,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
       val v = Variant("1", j + 1, "A", "C")
       val (beta, sg2, chi2, pval) = directResult1(v)
       assertDouble(qBeta1(a1(v)), beta, 1e-3)
-      println(qSg21(a1(v)), sg2)
       assertDouble(qSg21(a1(v)), sg2, 1e-3)
       assertDouble(qChi21(a1(v)), chi2, 1e-3)
       assertDouble(qPval1(a1(v)), pval, 1e-3)
@@ -509,8 +509,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val m = vds1Annotations.length
 
     (0 until m).foreach { j =>
-      assertDouble(qBeta1(vds1Annotations(j)).asInstanceOf[Double], qBeta2(vds2Annotations(j)).asInstanceOf[Double])
-      assertDouble(qSg21(vds1Annotations(j)).asInstanceOf[Double], qSg22(vds2Annotations(j)).asInstanceOf[Double])
+      assertDouble(qBeta1(vds1Annotations(j)).asInstanceOf[Double], qBeta2(vds2Annotations(j)).asInstanceOf[Double], 1e-4)
+      assertDouble(qSg21(vds1Annotations(j)).asInstanceOf[Double], qSg22(vds2Annotations(j)).asInstanceOf[Double], 1e-4)
     }
   }
 
