@@ -129,18 +129,18 @@ object LinearMixedRegression {
     }
 
     val nEigs = (optNEigs, optDroppedVarianceFraction) match {
-      case (Some(e), Some(dvf)) => e min computeNEigsDVF(fullS, dvf)
+      case (Some(e), Some(dvf)) => min(e, computeNEigsDVF(fullS, dvf))
       case (Some(e), None) => e
       case (None, Some(dvf)) => computeNEigsDVF(fullS, dvf)
       case (None, None) => maxEigsAllowed
     }
 
-    require(nEigs > 0 && nEigs <= fullNEigs, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the dimension of similarity matrix ${fullNEigs} inclusive: got $nEigs")
+    require(nEigs > 0 && nEigs <= maxEigsAllowed, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the rank of similarity matrix ${maxEigsAllowed} inclusive: got $nEigs")
 
     val Ut = fullU(::, (fullNEigs - nEigs) until fullNEigs).t
     val S = fullS((fullNEigs - nEigs) until fullNEigs)
 
-
+    info(s"lmmreg: Using $nEigs")
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
     info(s"lmmreg: Evals $nEigs to ${math.max(1, nEigs - 20)}: " + (0 until math.min(nEigs, 20)).map(S(_).formatted("%.5f")).mkString(", "))
 
@@ -231,7 +231,7 @@ object LinearMixedRegression {
   }
 
   def computeNEigsDVF(S: DenseVector[Double], droppedVarianceFraction: Double): Int = {
-    require(0 <= droppedVarianceFraction && droppedVarianceFraction < 1)
+    require(0 <= droppedVarianceFraction && droppedVarianceFraction < 1, "lmmreg: droppedVarianceFraction must be between 0 and 1")
 
     val trace = sum(S)
     var i = -1
