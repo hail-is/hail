@@ -1,5 +1,7 @@
 import unittest
-from check import *
+
+import sys
+from hail.typecheck.check import *
 
 
 class ContextTests(unittest.TestCase):
@@ -86,6 +88,9 @@ class ContextTests(unittest.TestCase):
 
 
     def test_helpers(self):
+        if sys.version_info > (3,):
+            long = int
+
         # check nullable
         @typecheck(x=nullable(int))
         def f(x):
@@ -101,7 +106,7 @@ class ContextTests(unittest.TestCase):
             pass
 
         f(1)
-        f(1L)
+        f(long(1))
         self.assertRaises(TypeError, lambda: f(1.1))
 
         # check numeric
@@ -111,7 +116,7 @@ class ContextTests(unittest.TestCase):
 
         f(1)
         f(1.0)
-        f(1L)
+        f(long(1))
         self.assertRaises(TypeError, lambda: f('1.1'))
 
         # check strlike

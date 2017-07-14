@@ -1,6 +1,22 @@
+import sys
 from decorator import decorator, getargspec
-from types import ClassType, NoneType, InstanceType
 import re
+
+
+if sys.version_info > (3,):
+    long = int
+    unicode = str
+
+    def iteritems(x):
+        return x.items()
+
+    class_types = type
+else:
+    def iteritems(x):
+        return x.iteritems()
+
+    from types import ClassType
+    class_types = (ClassType, type)
 
 
 def extract(t):
@@ -63,7 +79,7 @@ class DictChecker(TypeChecker):
 
     def check(self, x):
         passes = isinstance(x, dict)
-        return passes and all(self.kc.check(k) and self.vc.check(v) for k, v in x.iteritems())
+        return passes and all(self.kc.check(k) and self.vc.check(v) for k, v in iteritems(x))
 
     def expects(self):
         return 'dict[%s, %s]' % (self.kc.expects(), self.vc.expects())
@@ -102,7 +118,7 @@ class LiteralChecker(TypeChecker):
 
 
 def only(t):
-    if isinstance(t, type) or type(t) is ClassType:
+    if isinstance(t, class_types):
         return LiteralChecker(t)
     elif isinstance(t, TypeChecker):
         return t
@@ -115,7 +131,7 @@ def oneof(*args):
 
 
 def nullable(t):
-    return oneof(t, NoneType)
+    return oneof(t, type(None))
 
 
 def listof(t):
@@ -130,7 +146,7 @@ def dictof(k, v):
     return DictChecker(only(k), only(v))
 
 
-none = only(NoneType)
+none = only(type(None))
 
 anytype = AnyChecker()
 
