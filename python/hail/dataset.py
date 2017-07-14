@@ -923,10 +923,7 @@ class VariantDataset(object):
 
             Experimental. Supported only while running Hail on the Google Cloud Platform.
 
-        Documentation describing the annotations that are accessible through this method can be found 
-        here_.
-
-        .. _here: `here <sec-annotationdb>`
+        Documentation describing the annotations that are accessible through this method can be found :ref:`here <sec-annotationdb>`.
 
         **Examples**
 
