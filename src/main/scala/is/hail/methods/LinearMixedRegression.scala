@@ -3,17 +3,19 @@ package is.hail.methods
 import breeze.linalg._
 import breeze.numerics.{sigmoid, sqrt}
 import is.hail.annotations._
+import is.hail.distributedmatrix.DistributedMatrix
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.stats.eigSymD.DenseEigSymD
 import is.hail.utils._
 import is.hail.variant.VariantDataset
-
 import org.apache.commons.math3.analysis.UnivariateFunction
 import org.apache.commons.math3.optim.MaxEval
 import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
 import org.apache.commons.math3.optim.univariate.{BrentOptimizer, SearchInterval, UnivariateObjectiveFunction}
 import org.apache.commons.math3.util.FastMath
+import org.apache.spark.mllib.linalg
+import org.apache.spark.mllib.linalg.distributed.BlockMatrix
 
 //FIXME Should not have to make KinshipMatrix and LDMatrix extend this trait. Do fancy type stuff to make this work.
 trait SimilarityMatrix
@@ -86,11 +88,21 @@ object LinearMixedRegression {
         val filteredVDS = assocVds.filterVariants((v, _, _) => variantSet(v))
         require(filteredVDS.variants.count() == variantSet.size, "Not all variants in LDMatrix present in vds.")
 
-        //Each column is all samples for a variant.
-        val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().toLocalMatrix()
-        val genotypeMatrix = sparkGenotypeMatrix.asBreeze().asInstanceOf[DenseMatrix[Double]].t
+        // FIXME Clean up this ugliness. Unnecessary back and forth from Breeze to Spark.
         val VS = V(* , ::) :* sqrtSInv
-        val U = genotypeMatrix * VS
+        val VSSpark = new linalg.DenseMatrix(VS.rows, VS.cols, VS.toArray)
+
+        import is.hail.distributedmatrix.DistributedMatrix.implicits._
+        val dm = DistributedMatrix[BlockMatrix]
+        import dm.ops._
+
+        val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().t
+        val sparkU = (sparkGenotypeMatrix * VSSpark).toLocalMatrix()
+        val U = distU.asBreeze().asInstanceOf[DenseMatrix[Double]]
+
+        //val genotypeMatrix = sparkGenotypeMatrix.asBreeze().asInstanceOf[DenseMatrix[Double]].t
+
+        //val U = genotypeMatrix * VS
         (U, S, min(variants.length, nSamplesUsed))
       }
       case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, nVariantsUsed) => {
