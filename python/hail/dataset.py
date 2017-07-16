@@ -4,12 +4,12 @@ import warnings
 
 from decorator import decorator
 
-from hail.expr import Type, TGenotype, TString, TVariant
+from hail.expr import Type, TGenotype, TString, TVariant, TArray
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.representation import Interval, Pedigree, Variant
-from hail.utils import Summary, wrap_to_list
+from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
 
@@ -914,6 +914,237 @@ class VariantDataset(object):
         jvds = self._jvds.annotateVariantsVDS(other._jvds, joption(root), joption(expr))
 
         return VariantDataset(self.hc, jvds)
+
+    def annotate_variants_db(self, annotations, gene_key=None):
+        """
+        Annotate variants using the Hail annotation database.
+
+        .. warning::
+
+            Experimental. Supported only while running Hail on the Google Cloud Platform.
+
+        Documentation describing the annotations that are accessible through this method can be found :ref:`here <sec-annotationdb>`.
+
+        **Examples**
+
+        Annotate variants with CADD raw and PHRED scores:
+
+        >>> vds = vds.annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
+
+        Annotate variants with gene-level PLI score, using the VEP-generated gene symbol to map variants to genes: 
+
+        >>> pli_vds = vds.annotate_variants_db('va.gene.constraint.pli') # doctest: +SKIP
+
+        Again annotate variants with gene-level PLI score, this time using the existing ``va.gene_symbol`` annotation 
+        to map variants to genes:
+
+        >>> vds = vds.annotate_variants_db('va.gene.constraint.pli', gene_key='va.gene_symbol') # doctest: +SKIP
+
+        **Notes**
+
+        Annotations in the database are bi-allelic, so splitting multi-allelic variants in the VDS before using this 
+        method is recommended to capture all appropriate annotations from the database. To do this, run :py:meth:`split_multi` 
+        prior to annotating variants with this method:
+
+        >>> vds = vds.split_multi().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
+
+        To add VEP annotations, or to add gene-level annotations without a predefined gene symbol for each variant, the 
+        :py:meth:`~.VariantDataset.annotate_variants_db` method runs Hail's :py:meth:`~.VariantDataset.vep` method on the 
+        VDS. This means that your cluster must be properly initialized to run VEP.
+
+        .. warning::
+
+            If you want to add VEP annotations to your VDS, make sure to add the initialization action 
+            :code:`gs://hail-common/vep/vep/vep85-init.sh` when starting your cluster.
+
+        :param annotations: List of annotations to import from the database.
+        :type annotations: str or list of str 
+
+        :param gene_key: Existing variant annotation used to map variants to gene symbols if importing gene-level 
+            annotations. If not provided, the method will add VEP annotations and parse them as described in the 
+            database documentation to obtain one gene symbol per variant.
+        :type gene_key: str
+
+        :return: Annotated variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        # import modules needed by this function
+        import sqlite3
+
+        # collect user-supplied annotations, converting str -> list if necessary and dropping duplicates
+        annotations = list(set(wrap_to_list(annotations)))
+
+        # open connection to in-memory SQLite database
+        conn = sqlite3.connect(':memory:')
+
+        # load database with annotation metadata, print error if not on Google Cloud Platform
+        try:
+            f = hadoop_read('gs://annotationdb/ADMIN/annotationdb.sql')
+        except FatalError:
+            raise EnvironmentError('Cannot read from Google Storage. Must be running on Google Cloud Platform to use annotation database.')
+        else:
+            curs = conn.executescript(f.read())
+            f.close()
+
+        # parameter substitution string to put in SQL query
+        like = ' OR '.join('a.annotation LIKE ?' for i in xrange(2*len(annotations)))
+
+        # query to extract path of all needed database files and their respective annotation exprs 
+        qry = """SELECT file_path, annotation, file_type, file_element, f.file_id
+                 FROM files AS f INNER JOIN annotations AS a ON f.file_id = a.file_id
+                 WHERE {}""".format(like)
+
+        # run query and collect results in a file_path: expr dictionary
+        results = curs.execute(qry, [x + '.%' for x in annotations] + annotations).fetchall()
+
+        # all file_ids to be used
+        file_ids = list(set([x[4] for x in results]))
+
+        # parameter substitution string
+        sub = ','.join('?' for x in file_ids)
+
+        # query to fetch count of total annotations in each file
+        qry = """SELECT file_path, COUNT(*)
+                 FROM files AS f INNER JOIN annotations AS a ON f.file_id = a.file_id
+                 WHERE f.file_id IN ({})
+                 GROUP BY file_path""".format(sub)
+            
+        # collect counts in file_id: count dictionary
+        cnts = {x[0]: x[1] for x in curs.execute(qry, file_ids).fetchall()}
+
+        # close database connection
+        conn.close()
+
+        # collect dictionary of file_path: expr entries
+        file_exprs = {}
+        for r in results:
+            expr = r[1] + '=' + 'table' if r[2] == 'table' and cnts[r[0]] < 2 else r[1] + '=' + r[2] + '.' + r[3]
+            try:
+                file_exprs[r[0]] += ',' + expr
+            except KeyError:
+                file_exprs[r[0]] = expr
+
+        # are there any gene annotations?
+        are_genes = 'gs://annotationdb/gene/gene.kt' in file_exprs #any([x.startswith('gs://annotationdb/gene/') for x in file_exprs])
+
+        # subset to VEP annotations
+        veps = any([x == 'vep' for x in file_exprs])
+
+        # if VEP annotations are selected, or if gene-level annotations are selected with no specified gene_key, annotate with VEP
+        if veps or (are_genes and not gene_key):
+
+            # VEP annotate the VDS
+            self = self.vep(config='/vep/vep-gcloud.properties', root='va.vep')
+
+            # extract 1 gene symbol per variant from VEP annotations if a gene_key parameter isn't provided
+            if are_genes:
+
+                # hierarchy of possible variant consequences, from most to least severe
+                csq_terms = [
+                    'transcript_ablation',
+                    'splice_acceptor_variant',
+                    'splice_donor_variant',
+                    'stop_gained',
+                    'frameshift_variant',
+                    'stop_lost',
+                    'start_lost',
+                    'transcript_amplification',
+                    'inframe_insertion',
+                    'inframe_deletion',
+                    'missense_variant',
+                    'protein_altering_variant',
+                    'incomplete_terminal_codon_variant',
+                    'stop_retained_variant',
+                    'synonymous_variant',
+                    'splice_region_variant',
+                    'coding_sequence_variant',
+                    'mature_miRNA_variant',
+                    '5_prime_UTR_variant',
+                    '3_prime_UTR_variant',
+                    'non_coding_transcript_exon_variant',
+                    'intron_variant',
+                    'NMD_transcript_variant',
+                    'non_coding_transcript_variant',
+                    'upstream_gene_variant',
+                    'downstream_gene_variant',
+                    'TFBS_ablation',
+                    'TFBS_amplification',
+                    'TF_binding_site_variant',
+                    'regulatory_region_ablation',
+                    'regulatory_region_amplification',
+                    'feature_elongation',
+                    'regulatory_region_variant',
+                    'feature_truncation',
+                    'intergenic_variant'
+                ]
+
+                # add consequence terms as a global annotation
+                self = self.annotate_global('global.csq_terms', csq_terms, TArray(TString()))
+
+                # find 1 transcript/gene per variant using the following method:
+                #   1. define the most severe consequence for each variant according to hierarchy
+                #   2. subset to transcripts with that most severe consequence
+                #   3. if one of the transcripts in the subset is canonical, take that gene/transcript,
+                #      else just take the first gene/transcript in the subset
+                self = (
+                    self
+                    .annotate_variants_expr(
+                        """
+                        va.gene.most_severe_consequence = 
+                            let canonical_consequences = va.vep.transcript_consequences.filter(t => t.canonical == 1).flatMap(t => t.consequence_terms).toSet() in
+                            if (isDefined(canonical_consequences))
+                                orElse(global.csq_terms.find(c => canonical_consequences.contains(c)), 
+                                       va.vep.most_severe_consequence)
+                            else
+                                va.vep.most_severe_consequence
+                        """
+                    )
+                    .annotate_variants_expr(
+                        """
+                        va.gene.transcript = let tc = va.vep.transcript_consequences.filter(t => t.consequence_terms.toSet.contains(va.gene.most_severe_consequence)) in 
+                                             orElse(tc.find(t => t.canonical == 1), tc[0])
+                        """
+                    )
+                )
+
+            # drop VEP annotations if not specifically requested
+            if not veps:
+                self = self.annotate_variants_expr('va = drop(va, vep)')
+
+            # subset VEP annotations if needed
+            subset = ','.join([x.rsplit('.')[-1] for x in annotations if x.startswith('va.vep.')])
+            if subset:
+                self = self.annotate_variants_expr('va.vep = select(va.vep, {})'.format(subset))
+
+        # iterate through files, selected annotations from each file
+        for db_file, expr in file_exprs.iteritems():
+
+            # if database file is a VDS
+            if db_file.endswith('.vds'):
+
+                # annotate analysis VDS with database VDS
+                self = self.annotate_variants_vds(self.hc.read(db_file), expr=expr)
+
+            # if database file is a keytable
+            elif db_file.endswith('.kt'):
+
+                # join on gene symbol for gene annotations
+                if db_file == 'gs://annotationdb/gene/gene.kt':
+                    if gene_key:
+                        vds_key = gene_key
+                    else:
+                        vds_key = 'va.gene.transcript.gene_symbol'
+                else:
+                    vds_key = None
+
+                # annotate analysis VDS with database keytable
+                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr, vds_key=vds_key)
+
+            else:
+                continue
+
+        return self
 
     @handle_py4j
     def cache(self):
