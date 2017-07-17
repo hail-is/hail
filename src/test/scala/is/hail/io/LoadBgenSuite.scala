@@ -234,9 +234,10 @@ class LoadBgenSuite extends SparkSuite {
     vds.rdd.foreachPartition { it =>
       val missingSamples = new ArrayBuilder[Int]()
       val dosages2 = new DenseVector[Double](nKept)
-
+      
       it.foreach { case (v, (va, gs)) =>
-        val dosages1 = RegressionUtils.dosages(gs, nKept, maskBc.value)
+        val dosages1 = new DenseVector[Double](nKept)
+        RegressionUtils.dosages(dosages1, gs, completeSampleIndicesBc.value, missingSamples)
 
         gs.asInstanceOf[Bgen12GenotypeIterator].dosages(dosages2, completeSampleIndicesBc.value, missingSamples)
         
