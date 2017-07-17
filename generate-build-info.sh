@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 echo_build_properties() {
   echo user=$USER
   echo revision=$(git rev-parse HEAD)
