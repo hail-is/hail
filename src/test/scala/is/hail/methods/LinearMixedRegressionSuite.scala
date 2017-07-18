@@ -467,8 +467,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vdsChr3 = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
 
     val vdsRRM = vdsChr1.lmmreg(vdsChr3.rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None)
-    //FIXME Shouldn't need this nEigs = 250 here, but I do.
-    val vdsLD = vdsFastLMM.lmmreg(vdsChr3.ldMatrix(), "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None, nEigs = Some(250))
+    val vdsLD = vdsFastLMM.lmmreg(vdsChr3.ldMatrix(), "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None)
 
     globalLMMCompare(vdsRRM, vdsLD)
   }
