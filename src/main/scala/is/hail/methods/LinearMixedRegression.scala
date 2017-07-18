@@ -28,7 +28,7 @@ object LinearMixedRegression {
     ("pval", TDouble))
 
   def apply(
-    assocVds: VariantDataset,
+    vds: VariantDataset,
     similarityMatrix: SimilarityMatrix,
     yExpr: String,
     covExpr: Array[String],
@@ -43,16 +43,16 @@ object LinearMixedRegression {
     optDroppedVarianceFraction: Option[Double],
     filterVariantsExpr: Option[String]): VariantDataset = {
 
-    require(assocVds.wasSplit)
+    require(vds.wasSplit)
 
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val completeSamplesSet = completeSamples.toSet
-    val sampleMask = assocVds.sampleIds.map(completeSamplesSet).toArray
-    val completeSampleIndex = (0 until assocVds.nSamples)
-      .filter(i => completeSamplesSet(assocVds.sampleIds(i)))
+    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
+    val completeSampleIndex = (0 until vds.nSamples)
+      .filter(i => completeSamplesSet(vds.sampleIds(i)))
       .toArray
 
     optDelta.foreach(delta =>
@@ -81,12 +81,12 @@ object LinearMixedRegression {
         val V = eigK.eigenvectors
 
         val c1 = nSamplesUsed.toDouble / variants.length
-        val S = eigK.eigenvalues.map(d => d * c1)
+        val S = eigK.eigenvalues.map(e => e * c1)
         val c2 = 1.0 / math.sqrt(variants.length)
-        val sqrtSInv = S.map(d => c2 / math.sqrt(d))
+        val sqrtSInv = S.map(e => c2 / math.sqrt(e))
 
-        val filteredVDS = assocVds.filterVariants((v, _, _) => variantSet(v))
-        require(filteredVDS.variants.count() == variantSet.size, "Not all variants in LDMatrix present in vds.")
+        val filteredVDS = vds.filterVariants((v, _, _) => variantSet(v))
+        require(filteredVDS.variants.count() == variantSet.size, "Some variants in LD matrix are missing from VDS")
 
         // FIXME Clean up this ugliness. Unnecessary back and forth from Breeze to Spark.
         val VS = V(* , ::) :* sqrtSInv
@@ -133,7 +133,6 @@ object LinearMixedRegression {
     info(s"lmmreg: Computing eigendecomposition of kinship matrix...")
 
     val fullNEigs = fullS.length
-    val maxEigsAllowed = rank
 
     optDelta match {
       case Some(_) => info(s"lmmreg: Delta specified by user")
@@ -144,10 +143,10 @@ object LinearMixedRegression {
       case (Some(e), Some(dvf)) => min(e, computeNEigsDVF(fullS, dvf))
       case (Some(e), None) => e
       case (None, Some(dvf)) => computeNEigsDVF(fullS, dvf)
-      case (None, None) => maxEigsAllowed
+      case (None, None) => rank
     }
 
-    require(nEigs > 0 && nEigs <= maxEigsAllowed, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the rank of similarity matrix ${maxEigsAllowed} inclusive: got $nEigs")
+    require(nEigs > 0 && nEigs <= rank, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the rank of similarity matrix $rank inclusive: got $nEigs")
 
     val Ut = fullU(::, (fullNEigs - nEigs) until fullNEigs).t
     val S = fullS((fullNEigs - nEigs) until fullNEigs)
@@ -180,9 +179,7 @@ object LinearMixedRegression {
       info(s"lmmreg: global model fit: seH2 = ${ gf.sigmaH2 }")
     }
 
-    val filteredAssocVds = filterVariantsExpr.map(s => assocVds.filterVariantsExpr(s)).getOrElse(assocVds)
-
-    val vds1 = filteredAssocVds.annotateGlobal(
+    val vds1 = vds.annotateGlobal(
       Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs, optDroppedVarianceFraction.getOrElse(null)),
       TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
         ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble)), ("nEigs", TInt), ("dropped_variance_fraction", TDouble)), rootGA)
@@ -200,11 +197,12 @@ object LinearMixedRegression {
     }
 
     if (runAssoc) {
-      val sc = assocVds.sparkContext
+      val sc = vds.sparkContext
       val sampleMaskBc = sc.broadcast(sampleMask)
       val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
+      val filteredVds = filterVariantsExpr.map(s => vds2.filterVariantsExpr(s)).getOrElse(vds2)
 
-      val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
+      val (newVAS, inserter) = filteredVds.insertVA(LinearMixedRegression.schema, pathVA)
 
       info(s"lmmreg: Computing statistics for each variant...")
 
@@ -220,7 +218,7 @@ object LinearMixedRegression {
 
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
-      vds2.mapAnnotations { case (v, va, gs) =>
+      filteredVds.mapAnnotations { case (v, va, gs) =>
         val x: Vector[Double] =
           if (!useDosages) {
             val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
@@ -401,8 +399,7 @@ object DiagLMM {
           val dy = Uty :/ D
           val Z = D.map(1 / _ - invDelta)
 
-          val temp = (Uty dot (Uty :* Z))
-          val ydy = invDelta * yty + temp
+          val ydy = invDelta * yty + (Uty dot (Uty :* Z))
           val Cdy = invDelta * Cty + (UtC.t * (Uty :* Z))
           val CdC = invDelta * CtC + (UtC.t * (UtC(::, *) :* Z))
 
@@ -413,8 +410,7 @@ object DiagLMM {
           val (_, logdetCdC) = logdet(CdC)
           val (_, logdetCtC) = logdet(CtC)
 
-          val res = -0.5 * (logdetD + logdetCdC - logdetCtC + (n - d) * math.log(sigma2)) + shift
-          res
+          -0.5 * (logdetD + logdetCdC - logdetCtC + (n - d) * math.log(sigma2)) + shift
         }
 
       }
