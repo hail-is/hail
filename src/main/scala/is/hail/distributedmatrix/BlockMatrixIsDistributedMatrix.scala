@@ -42,7 +42,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, dm.numRows, dm.numCols)
   }
 
-  def transpose(m: M): M = m.transpose
+  def transpose(m: M): M =
+    BetterBlockMatrix.transpose(m)
   def diagonal(m: M): Array[Double] = {
     val rowsPerBlock = m.rowsPerBlock
     val colsPerBlock = m.colsPerBlock
@@ -70,7 +71,12 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }._2
   }
 
-  def multiply(l: M, r: M): M = l.multiply(r)
+  /**
+    * Note that this method requires that the individual blocks of l have the same number of columns as the
+    * blocks of r have rows.
+    */
+  def multiply(l: M, r: M): M =
+    BetterBlockMatrix.multiply(l, r)
   def multiply(l: M, r: DenseMatrix): M = {
     require(l.numCols() == r.numRows,
       s"incompatible matrix dimensions: ${l.numRows()}x${l.numCols()} and ${r.numRows}x${r.numCols}")
@@ -168,15 +174,17 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val rowsRemainder: Int = (nRows % rowsPerBlock).toInt
     val colsRemainder: Int = (nCols % colsPerBlock).toInt
     val blocks: RDD[((Int, Int), Matrix)] = x.blocks.mapValuesWithKey { case ((blockRow, blockCol), m) =>
-      new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
-        val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
-        val colsInThisBlock: Int = (if (blockCol + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
-        if (blockRow.toLong * rowsInThisBlock + j % rowsInThisBlock < nRows &&
-          blockCol.toLong * colsInThisBlock + j / rowsInThisBlock < nCols)
-          op(e, blockRow * rowsInThisBlock + j % rowsInThisBlock)
-        else
-          e
-      })
+      val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
+      val a = m.toArray
+      var i = 0
+      while (i < a.length) {
+        assert(blockRow.toLong * rowsPerBlock + i % rowsInThisBlock < nRows &&
+          blockCol.toLong * colsPerBlock + i / rowsInThisBlock < nCols)
+
+        a(i) = op(a(i), blockRow * rowsPerBlock + i % rowsInThisBlock)
+        i += 1
+      }
+      new DenseMatrix(m.numRows, m.numCols, a)
     }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, nRows, nCols)
   }
@@ -190,31 +198,33 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     val rowsRemainder = (nRows % rowsPerBlock).toInt
     val colsRemainder = (nCols % colsPerBlock).toInt
     val blocks: RDD[((Int, Int), Matrix)] = x.blocks.mapValuesWithKey { case ((blockRow, blockCol), m) =>
-      new DenseMatrix(m.numRows, m.numCols, m.toArray.zipWithIndex.map { case (e, j) =>
-        val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
-        val colsInThisBlock: Int = (if (blockCol + 1 == colBlocks && colsRemainder != 0) colsRemainder else colsPerBlock)
-        if (blockRow * rowsInThisBlock + j % rowsInThisBlock < nRows &&
-          blockCol * colsInThisBlock + j / rowsInThisBlock < nCols)
-          op(e, blockCol * colsInThisBlock + j / rowsInThisBlock)
-        else
-          e
-      })
+      val rowsInThisBlock: Int = (if (blockRow + 1 == rowBlocks && rowsRemainder != 0) rowsRemainder else rowsPerBlock)
+      val a = m.toArray
+      var i = 0
+      while (i < a.length) {
+        assert(blockRow * rowsPerBlock + i % rowsInThisBlock < nRows &&
+          blockCol * colsPerBlock + i / rowsInThisBlock < nCols)
+
+        a(i) = op(a(i), blockCol * colsPerBlock + i / rowsInThisBlock)
+        i += 1
+      }
+      new DenseMatrix(m.numRows, m.numCols, a)
     }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, nRows, nCols)
   }
 
   def vectorAddToEveryColumn(v: Array[Double])(m: M): M = {
-    require(v.length == m.numRows())
+    require(v.length == m.numRows(), s"vector length, ${v.length}, must equal number of matrix rows ${m.numRows()}; v: $v, m: $m")
     val vbc = m.blocks.sparkContext.broadcast(v)
     mapWithRowIndex((x,i) => x + vbc.value(i))(m)
   }
   def vectorPointwiseMultiplyEveryColumn(v: Array[Double])(m: M): M = {
-    require(v.length == m.numRows())
+    require(v.length == m.numRows(), s"vector length, ${v.length}, must equal number of matrix rows ${m.numRows()}; v: $v, m: $m")
     val vbc = m.blocks.sparkContext.broadcast(v)
     mapWithRowIndex((x,i) => x * vbc.value(i))(m)
   }
   def vectorPointwiseMultiplyEveryRow(v: Array[Double])(m: M): M = {
-    require(v.length == m.numCols())
+    require(v.length == m.numCols(), s"vector length, ${v.length}, must equal number of matrix columns ${m.numCols()}; v: $v, m: $m")
     val vbc = m.blocks.sparkContext.broadcast(v)
     mapWithColIndex((x,i) => x * vbc.value(i))(m)
   }
