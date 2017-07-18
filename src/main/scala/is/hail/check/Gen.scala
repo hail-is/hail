@@ -80,7 +80,7 @@ object Gen {
 
   def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int, alpha: Int = 1): Array[Int] = {
     val sizeOfSum = math.log(size)
-    val simplexVector = sampleDirichlet(rng, (0 until n).map(x => alpha.toDouble).toArray)
+    val simplexVector = sampleDirichlet(rng, Array.fill(n)(alpha.toDouble))
     roundWithConstantSum(simplexVector.map((x: Double) => x * sizeOfSum).toArray)
       .map(x => math.exp(x).toInt).toArray
   }
