@@ -7,6 +7,7 @@ import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix, Vectors}
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 
+
 object LDMatrix {
   /**
     * Computes the LD matrix for the given VDS.
