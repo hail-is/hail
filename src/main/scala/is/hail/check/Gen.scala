@@ -88,7 +88,7 @@ object Gen {
   private def sampleDirichlet(rng: RandomDataGenerator, alpha: Array[Double]): Array[Double] = {
     val draws = alpha.map(rng.nextGamma(_, 1))
     val sum = draws.sum
-    alpha.map(_ / sum)
+    draws.map(_ / sum)
   }
 
   def partition(parts: Int, sum: UInt)(implicit tn: Numeric[UInt], uct: ClassTag[UInt]): Gen[Array[UInt]] =
