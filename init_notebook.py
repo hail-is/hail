@@ -60,7 +60,8 @@ if role == 'Master':
         zip_path = 'gs://hail-common/' + hail_zip
 
     # make directory for Hail and Jupyter notebook related files
-    os.mkdir('/home/hail/')
+    if not os.path.isdir('/home/hail/'):
+        os.mkdir('/home/hail/')
     os.chmod('/home/hail/', 0777)
 
     # copy Hail jar and zip to local directory on master node
