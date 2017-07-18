@@ -3096,6 +3096,7 @@ class VariantDataset(object):
         - Set the ``delta`` argument to manually set the value of :math:`\delta` rather that fitting :math:`\delta` in Step 3.
         - Set the ``global_root`` argument to change the global annotation root in Step 3.
         - Set the ``va_root`` argument to change the variant annotation root in Step 4.
+        - Set the ``filter_variants_expr`` argument to filter the dataset to only those variants for which variant association should be done.
         - Passing an instance of LDMatrix instead of KinshipMatrix for the kinshipMatrix argument adds some extra work to step 2. See LD Matrix section below.
 
         :py:meth:`.lmmreg` adds 9 or 13 global annotations in Step 3, depending on whether :math:`\delta` is set or fit.
@@ -3168,7 +3169,7 @@ class VariantDataset(object):
 
         The `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`__ step (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`__, which we empirically find to be the most performant of the four available routines; laptop performance plots showing cubic complexity in :math:`n` are available `here <https://github.com/hail-is/hail/pull/906>`__. On Google cloud, eigendecomposition takes about 2 seconds for 2535 samples and 1 minute for 8185 samples. If you see worse performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
 
-        Given the eigendecomposition, fitting the global model (Step 3) takes on the order of a few seconds on master. Association testing (Step 4) is fully distributed by variant with per-variant time complexity that is completely independent of the number of sample covariates and dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
+        Given the eigendecomposition, fitting the global model (Step 3) takes on the order of a few seconds on master. Association testing (Step 4) is fully distributed by variant with per-variant time complexity that is dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. For example, with 15k samples, storing :math:`U^T` consumes about 3.6GB of memory on a 16-core worker node with two 8-core executors. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
 
         **Linear mixed model**
 
@@ -3262,11 +3263,11 @@ class VariantDataset(object):
 
         **Kinship Matrix**
 
-        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
+        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order. Currently, due to the fact that the eigendecomposition is done locally, this matrix (or the LD matrix below) can only be a maximum size of 32,000 X 32,000.
 
         **LD Matrix**
 
-        When using less variants than samples, it becomes wasteful to compute a gigantic RRM matrix considering that it will end up being low rank and as such contain at most m nonzero eigenvalues. For this reason, this method can take an LD Matrix instead of a Kinship Matrix. The eigendecomposition of this LD Matrix will then be used to compute the eigenvalues and eigenvectors that would have been returned from the RRM.
+        The rank of the kinship matrix (RRM) resulting from a genetic matrix on n samples and m variants is at most the minimum of n and m. So to improve efficiency when m is less than n, this method alternatively accepts an LD matrix, the eigenvectors of which are then transformed to the first m eigenvectors of the RRM using the relationship between left and right singular vectors as defined by the singular value decomposition of the normalized genetic matrix. Passing in the RRM or LD matrix will result in mathematically identical statistics. The n_eigs and dropped_variance_fraction parameters may be used in addition to further improve performance using approximate rather than exact inference (see next section).
 
         **Low-rank approximation of kinship for improved performance**
 
@@ -3276,7 +3277,7 @@ class VariantDataset(object):
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
 
-        :param kinshipMatrix: Kinship matrix or LD Matrix to be used.
+        :param kinshipMatrix: Kinship matrix or LD matrix to be used.
         :type kinshipMatrix: :class:`KinshipMatrix` or :class:`LDMatrix`
 
         :param str y: Response sample annotation.
@@ -3307,7 +3308,7 @@ class VariantDataset(object):
 
         :param float dropped_variance_fraction: Upper bound on fraction of total variance lost by dropping eigenvectors with small eigenvalues.
 
-        :param str filter_variants_expr: Only variants that pass this predicate will undergo per variant testing and be included in the resulting RDD.
+        :param str filter_variants_expr: Boolean filter expression on variants. If given, only variants that pass this predicate will have statistics computed; the rest will be removed from the returned VDS.
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
