@@ -74,7 +74,7 @@ object Gen {
     *
     **/
   def partitionDirichlet(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
-    val simplexVector = sampleDirichlet(rng, (0 until parts).map(x => parts.toDouble).toArray)
+    val simplexVector = sampleDirichlet(rng, Array.fill(parts)(parts.toDouble))
     roundWithConstantSum(simplexVector.map((x: Double) => x * size).toArray)
   }
 
