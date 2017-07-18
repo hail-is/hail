@@ -1,11 +1,11 @@
 package is.hail.methods
 
-import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix}
+import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
 import is.hail.utils._
 import is.hail.stats.ToNormalizedIndexedRowMatrix
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.storage.StorageLevel
 
 
@@ -58,7 +58,10 @@ object LDMatrix {
           normalizedBlockMatrix.rowsPerBlock, normalizedBlockMatrix.colsPerBlock).toIndexedRowMatrix()
     }
     else {
-      indexedRowMatrix = (normalizedBlockMatrix multiply normalizedBlockMatrix.transpose)
+      import is.hail.distributedmatrix.DistributedMatrix.implicits._
+      val dm = DistributedMatrix[BlockMatrix]
+      import dm.ops._
+      indexedRowMatrix = (normalizedBlockMatrix * normalizedBlockMatrix.transpose)
         .toIndexedRowMatrix()
     }
 
