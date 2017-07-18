@@ -98,7 +98,7 @@ object LinearMixedRegression {
 
         val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().t
         val sparkU = (sparkGenotypeMatrix * VSSpark).toLocalMatrix()
-        val U = distU.asBreeze().asInstanceOf[DenseMatrix[Double]]
+        val U = sparkU.asBreeze().asInstanceOf[DenseMatrix[Double]]
 
         //val genotypeMatrix = sparkGenotypeMatrix.asBreeze().asInstanceOf[DenseMatrix[Double]].t
 
