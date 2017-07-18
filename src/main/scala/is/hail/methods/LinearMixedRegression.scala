@@ -90,7 +90,7 @@ object LinearMixedRegression {
 
         // FIXME Clean up this ugliness. Unnecessary back and forth from Breeze to Spark.
         val VS = V(* , ::) :* sqrtSInv
-        val VSSpark = new linalg.DenseMatrix(VS.rows, VS.cols, VS.toArray)
+        val VSSpark = new linalg.DenseMatrix(VS.rows, VS.cols, VS.data, VS.isTranspose)
 
         import is.hail.distributedmatrix.DistributedMatrix.implicits._
         val dm = DistributedMatrix[BlockMatrix]
@@ -100,9 +100,6 @@ object LinearMixedRegression {
         val sparkU = (sparkGenotypeMatrix * VSSpark).toLocalMatrix()
         val U = sparkU.asBreeze().asInstanceOf[DenseMatrix[Double]]
 
-        //val genotypeMatrix = sparkGenotypeMatrix.asBreeze().asInstanceOf[DenseMatrix[Double]].t
-
-        //val U = genotypeMatrix * VS
         (U, S, min(variants.length, nSamplesUsed))
       }
       case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, nVariantsUsed) => {
