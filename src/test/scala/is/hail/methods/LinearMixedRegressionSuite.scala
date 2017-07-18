@@ -509,8 +509,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val m = vds1Annotations.length
 
     (0 until m).foreach { j =>
-      assertDouble(qBeta1(vds1Annotations(j)).asInstanceOf[Double], qBeta2(vds2Annotations(j)).asInstanceOf[Double], 1e-4)
-      assertDouble(qSg21(vds1Annotations(j)).asInstanceOf[Double], qSg22(vds2Annotations(j)).asInstanceOf[Double], 1e-4)
+      assertDouble(qBeta1(vds1Annotations(j)).asInstanceOf[Double], qBeta2(vds2Annotations(j)).asInstanceOf[Double], 1e-2)
+      assertDouble(qSg21(vds1Annotations(j)).asInstanceOf[Double], qSg22(vds2Annotations(j)).asInstanceOf[Double], 1e-2 )
     }
   }
 
