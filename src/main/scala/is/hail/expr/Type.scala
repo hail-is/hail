@@ -632,8 +632,8 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     extendOrderingToNull(missingGreatest)(
       Ordering.Iterable(
         Ordering.Tuple2(
-          elementType.ordering(missingGreatest),
-          elementType.ordering(missingGreatest))))
+          keyType.ordering(missingGreatest),
+          valueType.ordering(missingGreatest))))
   }
 }
 
