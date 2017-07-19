@@ -1,5 +1,6 @@
 import py4j
 from decorator import decorator
+from hail.py3_compat import *
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
