@@ -71,7 +71,7 @@ class DictChecker(TypeChecker):
 
     def check(self, x):
         passes = isinstance(x, dict)
-        return passes and all(self.kc.check(k) and self.vc.check(v) for k, v in iteritems(x))
+        return passes and all(self.kc.check(k) and self.vc.check(v) for k, v in x.items())
 
     def expects(self):
         return 'dict[%s, %s]' % (self.kc.expects(), self.vc.expects())

@@ -1,5 +1,5 @@
 from hail.representation import Variant
-from hail.py3_compat import *
+
 
 class LDMatrix:
     """

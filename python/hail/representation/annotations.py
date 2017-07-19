@@ -76,7 +76,7 @@ class Struct(object):
 @typecheck(struct=Struct)
 def to_dict(struct):
     d = {}
-    for k, v in struct._attrs.iteritems():
+    for k, v in struct._attrs.items():
         if isinstance(v, Struct):
             d[k] = to_dict(v)
         else:
