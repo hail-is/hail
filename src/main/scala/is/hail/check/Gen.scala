@@ -3,6 +3,7 @@ package is.hail.check
 import breeze.linalg.DenseMatrix
 import breeze.storage.Zero
 import is.hail.utils.UInt
+import is.hail.utils.roundWithConstantSum
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
@@ -26,12 +27,16 @@ case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
 object Gen {
 
   def squareOfAreaAtMostSize: Gen[(Int, Int)] =
-    for (s <- size;
-      sqrt = Math.sqrt(s).toInt;
-      l <- choose(0, sqrt);
-      w = if (l == 0) s else s / l;
-      coin <- choose(0.0, 1.0))
-      yield if (coin < 0.5) (l, w) else (w, l)
+    nCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
+
+  def nonEmptySquareOfAreaAtMostSize: Gen[(Int, Int)] =
+    nonEmptyNCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
+
+  def nCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
+    Gen { (p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size) }
+
+  def nonEmptyNCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
+    Gen { (p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size).map(x => if (x == 0) 1 else x).toArray }
 
   def partition[T](rng: RandomDataGenerator, size: T, parts: Int, f: (RandomDataGenerator, T) => T)(implicit tn: Numeric[T], tct: ClassTag[T]): Array[T] = {
     import tn.mkOrderingOps
@@ -59,6 +64,32 @@ object Gen {
 
   def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] =
     partition(rng, size, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
+
+  /**
+    * Takes {@code size} balls and places them into {@code parts} bins according
+    * to a dirichlet-multinomial distribution with alpha_n equal to {@code
+    * parts} for all n. The outputs of this function tend towards uniformly
+    * distributed balls, i.e. vectors close to the center of the simplex in
+    * {@code parts} dimensions.
+    *
+    **/
+  def partitionDirichlet(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
+    val simplexVector = sampleDirichlet(rng, Array.fill(parts)(parts.toDouble))
+    roundWithConstantSum(simplexVector.map((x: Double) => x * size).toArray)
+  }
+
+  def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int, alpha: Int = 1): Array[Int] = {
+    val sizeOfSum = math.log(size)
+    val simplexVector = sampleDirichlet(rng, Array.fill(n)(alpha.toDouble))
+    roundWithConstantSum(simplexVector.map((x: Double) => x * sizeOfSum).toArray)
+      .map(x => math.exp(x).toInt).toArray
+  }
+
+  private def sampleDirichlet(rng: RandomDataGenerator, alpha: Array[Double]): Array[Double] = {
+    val draws = alpha.map(rng.nextGamma(_, 1))
+    val sum = draws.sum
+    draws.map(_ / sum)
+  }
 
   def partition(parts: Int, sum: UInt)(implicit tn: Numeric[UInt], uct: ClassTag[UInt]): Gen[Array[UInt]] =
     Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: UInt) => UInt(rng.nextLong(0, avail.toLong))) }

@@ -5,18 +5,21 @@ import is.hail.check.Prop._
 import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.utils._
+import is.hail.SparkSuite
+
+import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
-import is.hail.SparkSuite
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
+import scala.reflect.ClassTag
 
 import scala.util.Random
 
 class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   import is.hail.distributedmatrix.DistributedMatrix.implicits._
 
-  val dm = DistributedMatrix[BlockMatrix]
+  val dm = BlockMatrixIsDistributedMatrix
   import dm.ops._
 
   def toBM(rows: Seq[Array[Double]]): BlockMatrix =
@@ -34,9 +37,24 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
       rows.size, if (rows.isEmpty) 0 else rows.head.length)
       .toBlockMatrixDense(rowsPerBlock, colsPerBlock)
 
+  def toBM(x: BDM[Double], rowsPerBlock: Int, colsPerBlock: Int): BlockMatrix =
+    dm.from(sc, new DenseMatrix(x.rows, x.cols, x.toArray), rowsPerBlock, colsPerBlock)
+
+  def toBreeze(bm: BlockMatrix): BDM[Double] = {
+    val lm = dm.toLocalMatrix(bm)
+    new BDM(lm.numRows, lm.numCols, lm.toArray)
+  }
+
+  def toBreeze(a: Array[Double]): BDV[Double] =
+    new BDV(a)
+
   def blockMatrixPreGen(rowsPerBlock: Int, colsPerBlock: Int): Gen[BlockMatrix] = for {
-    (l, w) <- Gen.squareOfAreaAtMostSize
-    arrays <- Gen.buildableOfN[Seq, Array[Double]](l, Gen.buildableOfN(w, arbDouble.arbitrary))
+    (l, w) <- Gen.nonEmptySquareOfAreaAtMostSize
+    bm <- blockMatrixPreGen(l, w, rowsPerBlock, colsPerBlock)
+  } yield bm
+
+  def blockMatrixPreGen(rows: Int, columns: Int, rowsPerBlock: Int, colsPerBlock: Int): Gen[BlockMatrix] = for {
+    arrays <- Gen.buildableOfN[Seq, Array[Double]](rows, Gen.buildableOfN(columns, arbDouble.arbitrary))
   } yield toBM(arrays, rowsPerBlock, colsPerBlock)
 
   val blockMatrixGen = for {
@@ -48,7 +66,14 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
   val blockMatrixSquareBlocksGen = for {
     blockSize <- Gen.interestingPosInt
     bm <- blockMatrixPreGen(blockSize, blockSize)
-   } yield bm
+  } yield bm
+
+  val twoMultipliableBlockMatrices = for {
+    Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
+    blockSize <- Gen.interestingPosInt
+    x <- blockMatrixPreGen(rows, inner, blockSize, blockSize)
+    y <- blockMatrixPreGen(inner, columns, blockSize, blockSize)
+  } yield (x, y)
 
   implicit val arbitraryBlockMatrix =
     Arbitrary(blockMatrixGen)
@@ -104,6 +129,36 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     assert((l.toIndexedRowMatrix().multiply(r).toBlockMatrix().toLocalMatrix().toArray: IndexedSeq[Double]) == ((l * r).toLocalMatrix().toArray: IndexedSeq[Double]))
   }
 
+  private def arrayEqualNaNEqualsNaN(x: Array[Double], y: Array[Double]): Boolean = {
+    if (x.length != y.length) {
+      return false
+    } else {
+      var i = 0
+      while (i < x.length) {
+        if (x(i) != y(i) && !(x(i).isNaN && y(i).isNaN)) {
+          return false
+        }
+        i += 1
+      }
+      return true
+    }
+  }
+
+  @Test
+  def multiplySameAsSpark() {
+    forAll(twoMultipliableBlockMatrices) { case (a: BlockMatrix, b: BlockMatrix) =>
+      val truth = dm.toLocalMatrix(a * b)
+      val expected = dm.toLocalMatrix(a.multiply(b))
+
+      if (arrayEqualNaNEqualsNaN(truth.toArray, expected.toArray))
+        true
+      else {
+        println(s"$truth != $expected")
+        false
+      }
+    }.check()
+  }
+
   @Test
   def rowwiseMultiplication() {
     // row major
@@ -111,8 +166,7 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
       Array[Double](1,2,3,4),
       Array[Double](5,6,7,8),
       Array[Double](9,10,11,12),
-      Array[Double](13,14,15,16)
-    ))
+      Array[Double](13,14,15,16)))
 
     val r = Array[Double](1,2,3,4)
 
@@ -125,6 +179,29 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     ))
 
     assert(dm.toLocalMatrix(l --* r) == result)
+  }
+
+  @Test
+  def rowwiseMultiplicationRandom() {
+    val g = for {
+      blockSize <- Gen.interestingPosInt
+      l <- blockMatrixPreGen(blockSize, blockSize)
+      r <- Gen.buildableOfN[Array, Double](l.numCols().toInt, arbitrary[Double])
+    } yield (l, r)
+
+    forAll(g) { case (l: BlockMatrix, r: Array[Double]) =>
+      val truth = toBreeze(l --* r)
+      val repeatedR = (0 until l.numRows().toInt).map(x => r).flatten.toArray
+      val repeatedRMatrix = new BDM(r.size, l.numRows().toInt, repeatedR).t
+      val expected = toBreeze(l) :* repeatedRMatrix
+
+      if (arrayEqualNaNEqualsNaN(truth.toArray, expected.toArray))
+        true
+      else {
+        println(s"$truth != $expected")
+        false
+      }
+    }.check()
   }
 
   @Test
@@ -148,6 +225,30 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     ))
 
     assert(dm.toLocalMatrix(l :* r) == result)
+  }
+
+  @Test
+  def colwiseMultiplicationRandom() {
+    val g = for {
+      blockSize <- Gen.interestingPosInt
+      l <- blockMatrixPreGen(blockSize, blockSize)
+      r <- Gen.buildableOfN[Array, Double](l.numRows().toInt, arbitrary[Double])
+    } yield (l, r)
+
+    forAll(g) { case (l: BlockMatrix, r: Array[Double]) =>
+      val truth = toBreeze(l :* r)
+      val repeatedR = (0 until l.numCols().toInt).map(x => r).flatten.toArray
+      val repeatedRMatrix = new BDM(r.size, l.numCols().toInt, repeatedR)
+      val expected = toBreeze(l) :* repeatedRMatrix
+
+      if (arrayEqualNaNEqualsNaN(truth.toArray, expected.toArray))
+        true
+      else {
+        println(s"${dm.toLocalMatrix(l).toArray.toSeq}\n*\n${r.toSeq}")
+        println(s"${truth.toString(10000,10000)}\n!=\n${expected.toString(10000,10000)}")
+        false
+      }
+    }.check()
   }
 
   @Test
@@ -211,5 +312,4 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     BlockMatrixIsDistributedMatrix.from(sc, sparkLocal, numRows - 1, numCols - 1).blocks.count()
   }
 
-  // FIXME: row-wise multiplication random matrices compare with breeze
 }
