@@ -7,11 +7,6 @@ if sys.version_info > (3,):
 
     def iteritems(x):
         return x.items()
-
-    def map_list(*args, **kwargs):
-        return list(map(*args, **kwargs))
 else:
     def iteritems(x):
         return x.iteritems()
-
-    map_list = map

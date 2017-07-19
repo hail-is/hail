@@ -479,7 +479,7 @@ class TStruct(Type):
 
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
-        jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, map_list(lambda t: t._jtype, types))
+        jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, [t._jtype for t in types])
         self.fields = [Field(names[i], types[i]) for i in xrange(len(names))]
 
         super(TStruct, self).__init__(jtype)

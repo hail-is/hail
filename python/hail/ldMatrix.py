@@ -16,7 +16,7 @@ class LDMatrix:
         :rtype: list of Variant
         """
         jvars = self._jldm.variants()
-        return map_list(lambda jrep: Variant._from_java(jrep), jvars)
+        return [Variant._from_java(jrep) for jrep in jvars]
 
     def matrix(self):
         """
