@@ -3314,7 +3314,12 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
+        if isinstance(kinshipMatrix, KinshipMatrix):
+            jm = kinshipMatrix._jkm
+        else:
+            jm = kinshipMatrix._jldm
+
+        jvds = self._jvdf.lmmreg(jm, y, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
                                  use_dosages, joption(n_eigs), joption(dropped_variance_fraction), joption(filter_variants_expr))
         return VariantDataset(self.hc, jvds)
