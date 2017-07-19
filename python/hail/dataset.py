@@ -3054,7 +3054,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    @typecheck_method(kinshipMatrix=KinshipMatrix,
+    @typecheck_method(kinshipMatrix=oneof(KinshipMatrix, LDMatrix),
                       y=strlike,
                       covariates=listof(strlike),
                       global_root=strlike,
