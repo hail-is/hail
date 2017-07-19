@@ -77,6 +77,7 @@ object LinearMixedRegression {
           irm.numCols().toInt,
           irm.toBlockMatrixDense().toLocalMatrix().toArray)
 
+        info(s"lmmreg: Computing eigenvectors of LD matrix...")
         val eigK = eigSymD(localMatrix)
         val V = eigK.eigenvectors
 
@@ -118,7 +119,7 @@ object LinearMixedRegression {
 
         val rrm = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
 
-        info(s"lmmreg: Computing eigenvectors of RRM...")
+        info(s"lmmreg: Computing eigenvectors of kinship matrix...")
 
         val eigK = eigSymD(rrm)
         val U = eigK.eigenvectors
@@ -126,8 +127,6 @@ object LinearMixedRegression {
         (eigK.eigenvectors, eigK.eigenvalues, min(samples.length, nVariantsUsed.toInt))
       }
     }
-
-    info(s"lmmreg: Computing eigendecomposition of kinship matrix...")
 
     val fullNEigs = fullS.length
 
