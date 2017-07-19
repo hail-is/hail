@@ -122,10 +122,6 @@ def oneof(*args):
     return MultipleTypeChecker([only(x) for x in args])
 
 
-def nullable(t):
-    return oneof(t, type(None))
-
-
 def listof(t):
     return CollectionChecker(only(list), only(t))
 
@@ -139,6 +135,11 @@ def dictof(k, v):
 
 
 none = only(type(None))
+
+
+def nullable(t):
+    return oneof(t, none)
+
 
 anytype = AnyChecker()
 
