@@ -80,8 +80,8 @@ object LinearRegression3 {
           }
 
           // val dosageAC: DenseMatrix[Double] = sum(X(::, *))
-          val dosageAC: DenseMatrix[Double] = X(::, *).map(r => sum(r))
-          assert(dosageAC.rows == 1 && dosageAC.cols == blockLength)
+          val dosageAC: DenseVector[Double] = X.t(*, ::).map(r => sum(r))
+          assert(dosageAC.length == blockLength)
 
           val qtx: DenseMatrix[Double] = QtBc.value * X
           val qty: DenseMatrix[Double] = QtyBc.value
@@ -107,7 +107,7 @@ object LinearRegression3 {
 
           block.zipWithIndex.map { case ((v, (va, gs)), i) =>
             val result = Annotation(
-              dosageAC(0, i),
+              dosageAC(i),
               ytx(::, i).toArray: IndexedSeq[Double],
               b(::, i).toArray: IndexedSeq[Double],
               se(::, i).toArray: IndexedSeq[Double],
