@@ -79,7 +79,7 @@ object LinearRegression3 {
             i += 1
           }
 
-          val dosageAC = sum(X(::, *))
+          val dosageAC: DenseMatrix[Double] = sum(X(::, *))
           assert(dosageAC.rows == 1 && dosageAC.cols == blockLength)
 
           val qtx: DenseMatrix[Double] = QtBc.value * X
