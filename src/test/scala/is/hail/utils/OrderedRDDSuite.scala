@@ -87,12 +87,12 @@ class OrderedRDDSuite extends SparkSuite {
       val check1 = leftDistinct.toSet == leftJoin.map { case (k, (v1, _)) => (k, v1) }.toSet
       val check2 = leftJoin.forall { case (k, (_, v2)) =>
         val eq = v2.toSet == m2.getOrElse(k, Set.empty[String])
-          if (!eq)
-            println(
-              s"""key=$k
-                 |  v1 = ${v2.toSet}
-                 |  v2 = ${m2.getOrElse(k, Set.empty[String])}""".stripMargin)
-          eq
+        if (!eq)
+          println(
+            s"""key=$k
+               |  v1 = ${ v2.toSet }
+               |  v2 = ${ m2.getOrElse(k, Set.empty[String]) }""".stripMargin)
+        eq
       }
 
       val p = check1 && check2
@@ -160,7 +160,8 @@ class OrderedRDDSuite extends SparkSuite {
 
     property("fullySorted") = Prop.forAll(sorted) { rdd =>
       val (status, ordered) = OrderedRDD.coerce(rdd)
-      check(ordered, rdd) && status == OrderedRDD.AS_IS
+      // could be local sort if variant is split across partitions
+      check(ordered, rdd) && status <= OrderedRDD.LOCAL_SORT
     }
 
     property("join1") = Prop.forAll(g, g) { case ((nPar1, is1), (nPar2, is2)) =>
