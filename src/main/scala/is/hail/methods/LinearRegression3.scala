@@ -12,6 +12,8 @@ import net.sourceforge.jdistlib.T
 
 object LinearRegression3 {
   def schema = TStruct(
+    ("dosageAC", TDouble),
+    ("ytx", TArray(TDouble)),
     ("beta", TArray(TDouble)),
     ("se", TArray(TDouble)),
     ("tstat", TArray(TDouble)),
@@ -27,8 +29,8 @@ object LinearRegression3 {
       .filter(i => completeSamplesSet(vds.sampleIds(i)))
       .toArray
 
-    val n = y.rows
-    val k = cov.cols
+    val n = y.rows // nCompleteSamples
+    val k = cov.cols // nCovariates
     val d = n - k - 1
     val dRec = 1d / d
 
@@ -49,7 +51,7 @@ object LinearRegression3 {
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(LinearRegressionMultiPheno.schema, pathVA)
+    val (newVAS, inserter) = vds.insertVA(LinearRegression3.schema, pathVA)
 
     val newRDD = vds.rdd.mapPartitions({ it =>
       val missingSamples = new ArrayBuilder[Int]
@@ -77,10 +79,16 @@ object LinearRegression3 {
             i += 1
           }
 
+          val dosageAC = sum(X(::, *))
+          assert(dosageAC.rows == 1 && dosageAC.cols == blockLength)
+
           val qtx: DenseMatrix[Double] = QtBc.value * X
           val qty: DenseMatrix[Double] = QtyBc.value
           val xxpRec: DenseVector[Double] = 1.0 / (X.t(*, ::).map(r => r dot r) - qtx.t(*, ::).map(r => r dot r))
-          val xyp: DenseMatrix[Double] = (yBc.value.t * X) - (qty.t * qtx)
+          val ytx = yBc.value.t * X
+          assert(ytx.rows == yBc.value.cols && ytx.cols == blockLength)
+
+          val xyp: DenseMatrix[Double] = ytx - (qty.t * qtx)
           val yyp: DenseVector[Double] = yypBc.value
 
           // resuse xyp
@@ -98,6 +106,8 @@ object LinearRegression3 {
 
           block.zipWithIndex.map { case ((v, (va, gs)), i) =>
             val result = Annotation(
+              dosageAC(0, i),
+              ytx(::, i).toArray: IndexedSeq[Double],
               b(::, i).toArray: IndexedSeq[Double],
               se(::, i).toArray: IndexedSeq[Double],
               t(::, i).toArray: IndexedSeq[Double],
