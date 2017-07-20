@@ -25,11 +25,12 @@ object Type {
     else if (size < 2)
       genScalar
     else
-      Gen.oneOfGen(genScalar,
-        genArb.resize(size - 1).map(TArray),
-        genArb.resize(size - 1).map(TSet),
-        Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v) },
-        genStruct.resize(size))
+      Gen.frequency(
+        0.75 -> genScalar,
+        0.10 -> genStruct.resize(size),
+        0.05 -> genArb.resize(size - 1).map(TArray),
+        0.05 -> genArb.resize(size - 1).map(TSet),
+        0.05 -> Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v) })
   }
 
   def genStruct: Gen[TStruct] =
@@ -38,7 +39,7 @@ object Type {
         genArb,
         Gen.option(
           Gen.buildableOf2[Map, String, String](
-            Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])))
+            Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])), someFraction = 0.05)
           .map(o => o.getOrElse(Map.empty[String, String]))))
       .filter(fields => fields.map(_._1).areDistinct())
       .map(fields => TStruct(fields

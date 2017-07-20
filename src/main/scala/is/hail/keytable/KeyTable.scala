@@ -2,6 +2,7 @@ package is.hail.keytable
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.check.Gen
 import is.hail.expr.{TStruct, _}
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
@@ -35,6 +36,16 @@ case class SortColumn(field: String, sortOrder: SortOrder)
 
 object KeyTable {
   final val fileVersion: Int = 1
+
+  def gen(hc: HailContext): Gen[KeyTable] = {
+    for {
+      schema <- Type.genStruct
+      nKeys <- Gen.chooseWithWeights(Array(0.30, 0.40, 0.20, 0.10))
+      key <- Gen.shuffle(schema.fields.map(_.name)).map(_.take(nKeys).toArray)
+      values <- Gen.buildableOf[Array, Row](schema.genNonmissingValue.map(_.asInstanceOf[Row]))
+        .map(_.filter(_ != null))
+    } yield KeyTable(hc, hc.sc.parallelize(values), schema, key)
+  }
 
   def range(hc: HailContext, n: Int, partitions: Option[Int] = None): KeyTable = {
     val range = Range(0, n).view.map(Row(_))

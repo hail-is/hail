@@ -2,6 +2,7 @@ package is.hail.check
 
 import breeze.linalg.DenseMatrix
 import breeze.storage.Zero
+import is.hail.stats.{BetaDist, TruncatedBeta}
 import is.hail.utils.UInt
 import is.hail.utils.roundWithConstantSum
 import org.apache.commons.math3.random._
@@ -63,7 +64,7 @@ object Gen {
   }
 
   def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] =
-    partition(rng, size, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
+    partition(rng, size, parts, (rng: RandomDataGenerator, avail: Int) => (rng.nextBeta(1, 10) * avail).toInt)
 
   /**
     * Takes {@code size} balls and places them into {@code parts} bins according
@@ -171,20 +172,20 @@ object Gen {
   def chooseWithWeights(weights: Array[Double]): Gen[Int] =
     frequency(weights.zipWithIndex.map { case (w, i) => (w, Gen.const(i)) }: _*)
 
-  def frequency[T, U](wxs: (T, Gen[U])*)(implicit ev: T => scala.math.Numeric[T]#Ops): Gen[U] = {
+  def frequency[U](wxs: (Double, Gen[U])*): Gen[U] = {
     assert(wxs.nonEmpty)
 
     val running = Array.fill[Double](wxs.length)(0d)
     for (i <- 1 until wxs.length) {
-      val w = wxs(i - 1)._1.toDouble
-      assert(w >= 0d)
+      val w = wxs(i - 1)._1
+      assert(w >= 0d, "negative weight")
       running(i) = running(i - 1) + w
     }
 
-    val outOf = running.last + wxs.last._1.toDouble
+    val outOf = running.last + wxs.last._1
 
     Gen { (p: Parameters) =>
-      val v = p.rng.getRandomGenerator.nextDouble * outOf.toDouble
+      val v = p.rng.getRandomGenerator.nextDouble * outOf
       val t = running.indexWhere(x => x >= v) - 1
       val j = if (t < 0) running.length - 1 else t
       assert(j >= 0 && j < wxs.length)
@@ -244,7 +245,7 @@ object Gen {
       if (p.size == 0)
         b.result()
       else {
-        val s = p.rng.getRandomGenerator.nextInt(p.size)
+        val s = p.rng.getRandomGenerator.nextInt(math.sqrt(p.size).toInt)
         val part = partition(p.rng, p.size, s)
         for (i <- 0 until s)
           b += g(p.copy(size = part(i)))
