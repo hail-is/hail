@@ -34,7 +34,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     val numColBlocks = (n / colsPerBlock + (if (n % colsPerBlock == 0) 0 else 1)).toInt
 
 
-    val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap { ir =>
+    val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap{ ir =>
       val blockRow = ir.index / rowsPerBlock
       val rowInBlock = ir.index % rowsPerBlock
 
@@ -42,36 +42,26 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         .grouped(colsPerBlock)
         .zipWithIndex
         .map{ case (values, blockColumn) =>
-          ((blockRow.toInt, blockColumn), (blockRow.toInt, blockColumn, rowInBlock.toInt, values))
+          ((blockRow.toInt, blockColumn), (rowInBlock.toInt, values))
         }
-    }.aggregateByKey((rowsPerBlock, colsPerBlock, null: Array[Double]), GridPartitioner(numRowBlocks, numColBlocks)
-    )({ (m, row) =>
-      val (blockRow, blockCol, rowWithinBlock, values) = row
-      val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else rowsPerBlock
-      val actualNumColumns: Int = if (blockCol == lastColBlockIndex) lastColBlockSize else colsPerBlock
-      val m2 = if (m._3 == null)
-        (actualNumRows, actualNumColumns, new Array[Double](actualNumRows * actualNumColumns))
-      else
-        m
+    }.groupByKey(GridPartitioner(numRowBlocks, numColBlocks)).mapValuesWithKey{
+      case ((blockRow, blockColumn), itr) =>
+        val actualNumRows: Int = if (blockRow == lastRowBlockIndex) lastRowBlockSize else rowsPerBlock
+        val actualNumColumns: Int = if (blockColumn == lastColBlockIndex) lastColBlockSize else colsPerBlock
 
-      var i = 0
-      while (i < values.length) {
-        m2._3.update(i * actualNumRows + rowWithinBlock, values(i))
-        i += 1
-      }
-      m2
-    }, { (m1, m2) =>
-      var i = 0
-      while (i < m1._3.length) {
-        val x = m2._3(i)
-        if (x != 0)
-          m1._3.update(i, x)
-        i += 1
-      }
-      m1
-    }).mapValues { case (rows, cols, a) => new DenseMatrix(rows, cols, a) }
-
-    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock)
+        val arraySize = actualNumRows * actualNumColumns
+        val matrixAsArray = new Array[Double](arraySize)
+        itr.foreach{ case (rowWithinBlock, values) =>
+          var i = 0
+          while (i < values.length) {
+            matrixAsArray.update(i * actualNumRows + rowWithinBlock, values(i))
+            i += 1
+          }
+        }
+        new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
+    }
+    new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, m, n)
   }
 }
+
 
