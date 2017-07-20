@@ -3002,8 +3002,11 @@ class VariantDataset(object):
         **Annotations**
 
         With the default root, the following four variant annotations are added.
-        The indexing of these annotations corresponds to that of ``y``.
+        The indexing of the array annotations corresponds to that of ``y``.
 
+        - **va.linreg.nCompleteSamples** (*Int*) -- number of samples used
+        - **va.linreg.AC** (*Double*) -- sum of the genotype values ``x``
+        - **va.linreg.ytx** (*Array[Double]*) -- array of dot products of each phenotype vector ``y`` with the genotype vector ``x``
         - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
         - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
         - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
