@@ -12,6 +12,7 @@ import net.sourceforge.jdistlib.T
 
 object LinearRegression3 {
   def schema = TStruct(
+    ("nCompleteSamples", TInt),
     ("AC", TDouble),
     ("ytx", TArray(TDouble)),
     ("beta", TArray(TDouble)),
@@ -107,6 +108,7 @@ object LinearRegression3 {
 
           block.zipWithIndex.map { case ((v, (va, gs)), i) =>
             val result = Annotation(
+              n,
               AC(i),
               ytx(::, i).toArray: IndexedSeq[Double],
               b(::, i).toArray: IndexedSeq[Double],
