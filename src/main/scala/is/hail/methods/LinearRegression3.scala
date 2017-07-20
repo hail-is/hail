@@ -12,7 +12,7 @@ import net.sourceforge.jdistlib.T
 
 object LinearRegression3 {
   def schema = TStruct(
-    ("dosageAC", TDouble),
+    ("AC", TDouble),
     ("ytx", TArray(TDouble)),
     ("beta", TArray(TDouble)),
     ("se", TArray(TDouble)),
@@ -79,9 +79,9 @@ object LinearRegression3 {
             i += 1
           }
 
-          // val dosageAC: DenseMatrix[Double] = sum(X(::, *))
-          val dosageAC: DenseVector[Double] = X.t(*, ::).map(r => sum(r))
-          assert(dosageAC.length == blockLength)
+          // val AC: DenseMatrix[Double] = sum(X(::, *))
+          val AC: DenseVector[Double] = X.t(*, ::).map(r => sum(r))
+          assert(AC.length == blockLength)
 
           val qtx: DenseMatrix[Double] = QtBc.value * X
           val qty: DenseMatrix[Double] = QtyBc.value
@@ -107,7 +107,7 @@ object LinearRegression3 {
 
           block.zipWithIndex.map { case ((v, (va, gs)), i) =>
             val result = Annotation(
-              dosageAC(i),
+              AC(i),
               ytx(::, i).toArray: IndexedSeq[Double],
               b(::, i).toArray: IndexedSeq[Double],
               se(::, i).toArray: IndexedSeq[Double],
