@@ -85,7 +85,7 @@ object LinearRegression3 {
           val qtx: DenseMatrix[Double] = QtBc.value * X
           val qty: DenseMatrix[Double] = QtyBc.value
           val xxpRec: DenseVector[Double] = 1.0 / (X.t(*, ::).map(r => r dot r) - qtx.t(*, ::).map(r => r dot r))
-          val ytx = yBc.value.t * X
+          val ytx: DenseMatrix[Double] = yBc.value.t * X
           assert(ytx.rows == yBc.value.cols && ytx.cols == blockLength)
 
           val xyp: DenseMatrix[Double] = ytx - (qty.t * qtx)
