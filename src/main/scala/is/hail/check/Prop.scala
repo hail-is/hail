@@ -106,7 +106,8 @@ class Properties(val name: String) extends Prop {
   }
 
   def checkSingle(propName: String) {
-    properties.find(_._1 == propName) match {
+    val id = name + "." + propName
+    properties.find(_._1 == id) match {
       case Some((_, p)) => p.check()
       case None => throw new NoSuchElementException(propName)
     }
