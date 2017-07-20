@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.annotations._
+import is.hail.check.{Prop, Properties}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
@@ -163,7 +164,7 @@ class KeyTableSuite extends SparkSuite {
     val noNull = ktLeft.filter("isDefined(qPhen) && isDefined(Status)", keep = true).keyBy(List("Sample", "Status"))
     assert(noNull.join(
       noNull.rename(Map("qPhen" -> "qPhen_")), "outer"
-    ).rdd.forall { r => !r.toSeq.exists(_ == null)})
+    ).rdd.forall { r => !r.toSeq.exists(_ == null) })
   }
 
   @Test def testJoinDiffKeyNames() = {
@@ -407,5 +408,16 @@ class KeyTableSuite extends SparkSuite {
 
     assert(kt1.join(kt2, "inner").count() == 1L)
     kt1.join(kt2, "outer").typeCheck()
+  }
+
+  object Spec extends Properties("KeyTable") {
+    property("typecheck") = Prop.forAll(KeyTable.gen(hc)) { kt =>
+      kt.typeCheck()
+      true
+    }
+  }
+
+  @Test def testGen() {
+    Spec.check()
   }
 }
