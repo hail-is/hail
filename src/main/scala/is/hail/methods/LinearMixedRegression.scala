@@ -70,7 +70,8 @@ object LinearMixedRegression {
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
 
-    val (fullU, fullS, rank): (DenseMatrix[Double], DenseVector[Double], Int) = similarityMatrix match {
+    //TODO This whole match thing got a little ugly as complexity increased. Consider cleaning up.
+    val (u, s, rank, fullS): (DenseMatrix[Double], DenseVector[Double], Int, DenseVector[Double]) = similarityMatrix match {
       case LDMatrix(irm, variants, nSamplesUsed) => {
         val variantSet = variants.toSet
         val localMatrix = new DenseMatrix[Double](irm.numRows().toInt,
@@ -79,10 +80,19 @@ object LinearMixedRegression {
 
         info(s"lmmreg: Computing eigenvectors of LD matrix...")
         val eigK = eigSymD(localMatrix)
-        val V = eigK.eigenvectors
+        val fullV = eigK.eigenvectors
 
         val c1 = nSamplesUsed.toDouble / variants.length
-        val S = eigK.eigenvalues.map(e => e * c1)
+        val fullS = eigK.eigenvalues.map(e => e * c1)
+        val fullNEigs = fullS.length
+
+        val rank = min(variants.length, nSamplesUsed)
+
+        val nEigs = computeNEigs(fullS, optNEigs, optDroppedVarianceFraction, rank)
+
+        val S = fullS((fullNEigs - nEigs) until fullNEigs)
+        val V = fullV(::, (fullNEigs - nEigs) until fullNEigs)
+
         val c2 = 1.0 / math.sqrt(variants.length)
         val sqrtSInv = S.map(e => c2 / math.sqrt(e))
 
@@ -101,7 +111,7 @@ object LinearMixedRegression {
         val sparkU = (sparkGenotypeMatrix * VSSpark).toLocalMatrix()
         val U = sparkU.asBreeze().asInstanceOf[DenseMatrix[Double]]
 
-        (U, S, min(variants.length, nSamplesUsed))
+        (U, S, rank, fullS)
       }
       case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, nVariantsUsed) => {
         val kinshipMatrix = similarityMatrix.asInstanceOf[KinshipMatrix]
@@ -122,30 +132,31 @@ object LinearMixedRegression {
         info(s"lmmreg: Computing eigenvectors of kinship matrix...")
 
         val eigK = eigSymD(rrm)
-        val U = eigK.eigenvectors
-        val S = eigK.eigenvalues
-        (eigK.eigenvectors, eigK.eigenvalues, min(samples.length, nVariantsUsed.toInt))
+        val fullU = eigK.eigenvectors
+        val fullS = eigK.eigenvalues
+        val rank = min(samples.length, nVariantsUsed.toInt)
+        val fullNEigs = fullS.length
+
+        val nEigs = computeNEigs(fullS, optNEigs, optDroppedVarianceFraction, rank)
+
+        val U = fullU(::, (fullNEigs - nEigs) until fullNEigs)
+        val S = fullS((fullNEigs - nEigs) until fullNEigs)
+
+        (U, S, rank, fullS)
       }
     }
-
-    val fullNEigs = fullS.length
 
     optDelta match {
       case Some(_) => info(s"lmmreg: Delta specified by user")
       case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
-    val nEigs = (optNEigs, optDroppedVarianceFraction) match {
-      case (Some(e), Some(dvf)) => min(e, computeNEigsDVF(fullS, dvf))
-      case (Some(e), None) => e
-      case (None, Some(dvf)) => computeNEigsDVF(fullS, dvf)
-      case (None, None) => rank
-    }
+    val Ut = u.t
+    val S = s
+
+    val nEigs = S.length
 
     require(nEigs > 0 && nEigs <= rank, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the rank of similarity matrix $rank inclusive: got $nEigs")
-
-    val Ut = fullU(::, (fullNEigs - nEigs) until fullNEigs).t
-    val S = fullS((fullNEigs - nEigs) until fullNEigs)
 
     info(s"lmmreg: Using $nEigs")
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
@@ -234,6 +245,15 @@ object LinearMixedRegression {
     }
     else
       vds2
+  }
+
+  def computeNEigs(S: DenseVector[Double], optNEigs: Option[Int], optDroppedVarianceFraction: Option[Double], default: Int): Int = {
+    (optNEigs, optDroppedVarianceFraction) match {
+      case (Some(e), Some(dvf)) => min(e, computeNEigsDVF(S, dvf))
+      case (Some(e), None) => e
+      case (None, Some(dvf)) => computeNEigsDVF(S, dvf)
+      case (None, None) => default
+    }
   }
 
   def computeNEigsDVF(S: DenseVector[Double], droppedVarianceFraction: Double): Int = {
