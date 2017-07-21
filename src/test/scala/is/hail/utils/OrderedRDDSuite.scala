@@ -35,7 +35,7 @@ class OrderedRDDSuite extends SparkSuite {
     val locusSorted = for ((n, v) <- g;
       locusSorted <- Gen.const(v.sortBy(_._1.locus))) yield sc.parallelize(locusSorted, n)
 
-    val scrambledInPartition = locusSorted.map(_.mapPartitions { it => Gen.shuffle(it.toIndexedSeq).sample().iterator })
+    val scrambledInPartition = locusSorted.map(_.mapPartitions { it => it.toArray.reverseIterator })
 
     val sorted = for ((n, v) <- g;
       sorted <- Gen.const(v.sortBy(_._1))) yield sc.parallelize(sorted, n)
@@ -63,7 +63,13 @@ class OrderedRDDSuite extends SparkSuite {
             .foldLeft((true, first)) { case ((b, last), (start, end)) =>
               (b && start > last, end)
             }._1
-          sortedWithin && partitionedCorrectly && sortedBetween
+          val p = sortedWithin && partitionedCorrectly && sortedBetween
+          if (!p) {
+            println(s"sortedWithin: $sortedWithin")
+            println(s"sortedBetween: $sortedBetween")
+            println(s"partitionedCorrectly: $partitionedCorrectly")
+          }
+          p
         case None => true
       }
 
@@ -150,7 +156,7 @@ class OrderedRDDSuite extends SparkSuite {
 
     property("scrambledInPartition") = Prop.forAll(scrambledInPartition) { rdd =>
       val (status, ordered) = OrderedRDD.coerce(rdd)
-      check(ordered, rdd) && status <= OrderedRDD.ARRAY_SORT
+      check(ordered, rdd) && status <= OrderedRDD.SHUFFLE
     }
 
     property("locusSorted") = Prop.forAll(locusSorted) { rdd =>
