@@ -99,7 +99,7 @@ object LinearMixedRegression {
         val filteredVDS = vds.filterVariants((v, _, _) => variantSet(v))
         require(filteredVDS.variants.count() == variantSet.size, "Some variants in LD matrix are missing from VDS")
 
-        // FIXME Clean up this ugliness. Unnecessary back and forth from Breeze to Spark.
+        // FIXME Clean up this ugliness. Unnecessary back and forth from Breeze to Spark. (Might just need to allow multiplying block matrix by local Breeze matrix.
         val VS = V(* , ::) :* sqrtSInv
         val VSSpark = new linalg.DenseMatrix(VS.rows, VS.cols, VS.data, VS.isTranspose)
 
