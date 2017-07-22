@@ -242,7 +242,7 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
                         (0.0, 0.0,  1.0, 1.0, 0.0),
                         (1.0, 0.0, 2/3d, 1.0, 0.0))
     
-    println(RestService.lowerTriangle(G.toArray, 5).toIndexedSeq)
+    // println(RestService.lowerTriangle(G.toArray, 5).toIndexedSeq)
     
     val y = DenseVector(1, 1, 2, 2, 2)
     val bmi = DenseVector(20, 25, 30, 22, 19)

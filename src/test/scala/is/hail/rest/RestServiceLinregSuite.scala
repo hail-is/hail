@@ -48,7 +48,7 @@ class RestServiceLinregSuite extends SparkSuite {
   
   @Test def test() {
     
-    val r = new RestServiceScoreCovarianceRunnable(hc)
+    val r = new RestServiceLinregRunnable(hc)
     val t = new Thread(r)
     t.start()
 
