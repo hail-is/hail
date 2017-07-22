@@ -96,8 +96,12 @@ object RestService {
       }
     }
 
+    val completeSampleIndex = (0 until vds.nSamples).filter(sampleMask).toArray
+    
     // variant covariates
-    val sampleMaskBc = vds.sparkContext.broadcast(sampleMask)
+    val sc = vds.sparkContext
+    val sampleMaskBc = sc.broadcast(sampleMask)
+    val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
 
     val covVariantWithGenotypes = vds
       .filterVariantsList(covVariants.toSet, keep = true)
@@ -106,7 +110,7 @@ object RestService {
         if (!useDosages)
           RegressionUtils.hardCalls(gs, nMaskedSamples, sampleMaskBc.value).toArray
         else
-          RegressionUtils.dosages(gs, nMaskedSamples, sampleMaskBc.value).toArray)
+          RegressionUtils.dosages(gs, completeSampleIndexBc.value).toArray)
       }
       .collect()
 

@@ -40,6 +40,8 @@ object RestServiceLinreg {
     
     require(vds.wasSplit)
     require(minMAC >= 0 && maxMAC >= minMAC)
+    
+    val completeSampleIndex = (0 until vds.nSamples).filter(sampleMask).toArray
 
     val n = y.size
     val k = cov.cols
@@ -57,6 +59,7 @@ object RestServiceLinreg {
 
     val sc = vds.sparkContext
     val sampleMaskBc = sc.broadcast(sampleMask)
+    val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
     val QtBc = sc.broadcast(Qt)
     val QtyBc = sc.broadcast(Qty)
@@ -67,7 +70,7 @@ object RestServiceLinreg {
         if (!useDosages) // replace by hardCalls in 0.2, with ac post-imputation
           RegressionUtils.hardCallsWithAC(gs, n, sampleMaskBc.value)
         else {
-          val x0 = RegressionUtils.dosages(gs, n, sampleMaskBc.value)
+          val x0 = RegressionUtils.dosages(gs, completeSampleIndexBc.value)
           (x0, sum(x0))
         }
 

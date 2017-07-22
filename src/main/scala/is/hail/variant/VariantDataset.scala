@@ -7,7 +7,7 @@ import is.hail.io.plink.ExportBedBimFam
 import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable
 import is.hail.methods._
-import is.hail.rest.{RestServer, RestServerScoreCovariance, RestServerLinreg}
+import is.hail.rest.{RestServerScoreCovariance, RestServerLinreg}
 import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
