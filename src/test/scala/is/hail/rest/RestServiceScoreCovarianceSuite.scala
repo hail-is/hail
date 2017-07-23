@@ -139,7 +139,7 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
         .extract()
         .response()
 
-    println(response.asString())
+    // println(response.asString())
     
     response =
       given()
@@ -176,8 +176,6 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
         .extract()
         .response()
 
-    println(response.asString())
-    
     response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
@@ -207,8 +205,6 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
         .extract()
         .response()
 
-    println(response.asString())
-    
     response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
@@ -234,8 +230,6 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
         .extract()
         .response()
 
-    println(response.asString())
-    
     /*
     // Truth data for variantList test
     //
@@ -296,8 +290,6 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
         .body("count", is(2))
         .extract()
         .response()
-
-    println(response.asString())
   }
   
   @Test def lowerTriangleTest() {

@@ -47,6 +47,7 @@ class RestServiceScoreCovariance(vds: VariantDataset, covariates: Array[String],
   
   def getStats(req0: GetRequest): GetResultScoreCovariance = {
     val req = req0.asInstanceOf[GetRequestScoreCovariance]
+    
     req.md_version.foreach { md_version =>
       if (md_version != "mdv1")
         throw new RestFailure(s"Unknown md_version `$md_version'. Available md_versions: mdv1")
@@ -55,143 +56,26 @@ class RestServiceScoreCovariance(vds: VariantDataset, covariates: Array[String],
     if (req.api_version != 1)
       throw new RestFailure(s"Unsupported API version `${ req.api_version }'. Supported API versions: 1")
 
-    // construct yName, covNames, and covVariants
-    val covNamesSet = mutable.Set[String]()
-    val covVariantsSet = mutable.Set[Variant]()
-
-    req.covariates.foreach { covariates =>
-      for (c <- covariates)
-        c.`type` match {
-          case "phenotype" =>
-            c.name match {
-              case Some(name) =>
-                if (availableCovariates(name))
-                  if (covNamesSet(name))
-                    throw new RestFailure(s"Covariate $name is included as a covariate more than once")
-                  else
-                    covNamesSet += name
-                else
-                  throw new RestFailure(s"$name is not a valid covariate name")
-              case None =>
-                throw new RestFailure("Covariate of type 'phenotype' must include 'name' field in request")
-            }
-          case "variant" =>
-            (c.chrom, c.pos, c.ref, c.alt) match {
-              case (Some(chr), Some(pos), Some(ref), Some(alt)) =>
-                val v = Variant(chr, pos, ref, alt)
-                if (covVariantsSet(v))
-                  throw new RestFailure(s"$v is included as a covariate more than once")
-                else
-                  covVariantsSet += v
-              case missingFields =>
-                throw new RestFailure("Covariate of type 'variant' must include 'chrom', 'pos', 'ref', and 'alt' fields in request")
-            }
-          case other =>
-            throw new RestFailure(s"Covariate type must be 'phenotype' or 'variant': got $other")
-        }
-    }
-
-    val covNames = covNamesSet.toArray
-    val covVariants = covVariantsSet.toArray
-
     val yNameOpt = req.phenotype
-
-    yNameOpt.foreach { yName =>
-      if (!availableCovariates(yName))
-        throw new RestFailure(s"$yName is not a valid phenotype name")
-      if (covNamesSet(yName))
-        throw new RestFailure(s"$yName appears as both response phenotype and covariate")
-    }
-
-    // construct variant filters
-    var chrom = ""
-
-    var minPos = 1
-    var maxPos = Int.MaxValue // 2,147,483,647 is greater than length of longest chromosome
-
-    var minMAC = 1
-    var maxMAC = Int.MaxValue
-
-    val nonNegIntRegEx = """\d+""".r
-
-    req.variant_filters.foreach(_.foreach { f =>
-      f.operand match {
-        case "chrom" =>
-          if (!(f.operator == "eq" && f.operand_type == "string"))
-            throw new RestFailure(s"chrom filter operator must be 'eq' and operand_type must be 'string': got '${ f.operator }' and '${ f.operand_type }'")
-          else if (f.value.isEmpty)
-            throw new RestFailure("chrom filter value cannot be the empty string")
-          else if (chrom.isEmpty)
-            chrom = f.value
-          else if (chrom != f.value)
-            throw new RestFailure(s"Got incompatible chrom filters: '$chrom' and '${ f.value }'")
-        case "pos" =>
-          if (f.operand_type != "integer")
-            throw new RestFailure(s"pos filter operand_type must be 'integer': got '${ f.operand_type }'")
-          else if (!nonNegIntRegEx.matches(f.value))
-            throw new RestFailure(s"Value of position in variant_filter must be a valid non-negative integer: got '${ f.value }'")
-          else {
-            val pos = f.value.toInt
-            f.operator match {
-              case "gte" => minPos = minPos max pos
-              case "gt" => minPos = minPos max (pos + 1)
-              case "lte" => maxPos = maxPos min pos
-              case "lt" => maxPos = maxPos min (pos - 1)
-              case "eq" => minPos = minPos max pos; maxPos = maxPos min pos
-              case other =>
-                throw new RestFailure(s"pos filter operator must be 'gte', 'gt', 'lte', 'lt', or 'eq': got '$other'")
-            }
-          }
-        case "mac" =>
-          if (f.operand_type != "integer")
-            throw new RestFailure(s"mac filter operand_type must be 'integer': got '${ f.operand_type }'")
-          else if (!nonNegIntRegEx.matches(f.value))
-            throw new RestFailure(s"mac filter value must be a valid non-negative integer: got '${ f.value }'")
-          val mac = f.value.toInt
-          f.operator match {
-            case "gte" => minMAC = minMAC max mac
-            case "gt" => minMAC = minMAC max (mac + 1)
-            case "lte" => maxMAC = maxMAC min mac
-            case "lt" => maxMAC = maxMAC min (mac - 1)
-            case other =>
-              throw new RestFailure(s"mac filter operator must be 'gte', 'gt', 'lte', 'lt': got '$other'")
-          }
-        case other => throw new RestFailure(s"Filter operand must be 'chrom' or 'pos': got '$other'")
-      }
-    })
-
-    // construct window
-    if (chrom.isEmpty)
-      throw new RestFailure("No chromosome specified in variant_filter")
-
-    val width = maxPos - minPos
-    if (width > maxWidth)
-      throw new RestFailure(s"Interval length cannot exceed $maxWidth: got $width")
-
-    if (width < 0)
-      throw new RestFailure(s"Window is empty: got start $minPos and end $maxPos")
-
-    val window = Interval(Locus(chrom, minPos), Locus(chrom, maxPos + 1))
-
-    info(s"Using window ${ RestService.windowToString(window) } of size ${ width + 1 }")
-
+    val (covNames, covVariants) = RestService.getCovariates(yNameOpt, req.covariates, availableCovariates)
+    val (window, chrom, minPos, maxPos, minMAC, maxMAC) = RestService.getWindow(req.variant_filters, maxWidth)
+    
     val variantsSet = mutable.Set[Variant]()
 
-    req.variant_list.foreach {
-      _.foreach { sv =>
-        val v =
-          if (sv.chrom.isDefined && sv.pos.isDefined && sv.ref.isDefined && sv.alt.isDefined) {
-            val v = Variant(sv.chrom.get, sv.pos.get, sv.ref.get, sv.alt.get)
-            if (v.contig != chrom || v.start < minPos || v.start > maxPos)
-              throw new RestFailure(s"Variant ${ v.toString } from 'variant_list' is not in the window ${ RestService.windowToString(window) }")
-            variantsSet += v
-          }
-          else
-            throw new RestFailure(s"All variants in 'variant_list' must include 'chrom', 'pos', 'ref', and 'alt' fields: got ${ (sv.chrom.getOrElse("NA"), sv.pos.getOrElse("NA"), sv.ref.getOrElse("NA"), sv.alt.getOrElse("NA")) }")
+    req.variant_list.foreach { _.foreach { sv =>
+      if (sv.chrom.isDefined && sv.pos.isDefined && sv.ref.isDefined && sv.alt.isDefined) {
+        val v = Variant(sv.chrom.get, sv.pos.get, sv.ref.get, sv.alt.get)
+        if (v.contig != chrom || v.start < minPos || v.start > maxPos)
+          throw new RestFailure(s"Variant ${ v.toString } from 'variant_list' is not in the window ${ RestService.windowToString(window) }")
+        variantsSet += v
+      } else
+        throw new RestFailure(s"All variants in 'variant_list' must include " +
+          s"'chrom', 'pos', 'ref', and 'alt' fields: got " +
+          s"${ (sv.chrom.getOrElse("NA"), sv.pos.getOrElse("NA"), sv.ref.getOrElse("NA"), sv.alt.getOrElse("NA")) }")
       }
     }
 
-    // pull up to server?
+    // pull up?
     import is.hail.distributedmatrix.DistributedMatrix.implicits._
     val dm = DistributedMatrix[BlockMatrix]
     import dm.ops._
@@ -205,9 +89,9 @@ class RestServiceScoreCovariance(vds: VariantDataset, covariates: Array[String],
 
     if (req.count.getOrElse(false)) {
       val count = filteredVds.countVariants().toInt // upper bound as does not account for MAC filtering
+      
       GetResultScoreCovariance(is_error = false, None, req.passback, None, None, None, None, None, Some(count))
-    }
-    else {
+    } else {
       val (yOpt, cov) = RestService.getYCovAndSetMask(sampleMask, vds, window, yNameOpt, covNames, covVariants,
         useDosages, availableCovariates, availableCovariateToIndex, sampleIndexToPresentness, covariateIndexToValues)
 
@@ -227,26 +111,25 @@ class RestServiceScoreCovariance(vds: VariantDataset, covariates: Array[String],
         } else
           (None, None)
 
-      val (xOpt, activeVariants) = ToFilteredCenteredIndexedRowMatrix(filteredVds, cov.rows, sampleMask, minMAC, maxMAC)
-
-      val noActiveVariants = xOpt.isEmpty
-
-      val nCompleteSamples = cov.rows
+      val n = cov.rows
       
-      if (noActiveVariants) {
+      val (xOpt, activeVariants) = ToFilteredCenteredIndexedRowMatrix(filteredVds, n, sampleMask, minMAC, maxMAC)
+
+      if (activeVariants.isEmpty) {
         GetResultScoreCovariance(is_error = false, None, req.passback,
           Some(Array.empty[SingleVariant]),
           Some(Array.empty[Double]),
           Some(Array.empty[Double]),
           sigmaSqOpt,
-          Some(nCompleteSamples),
+          Some(n),
           Some(0))
       } else {
         val limit = req.limit.getOrElse(hardLimit)
+        
         if (activeVariants.length > limit)
           throw new RestFailure(s"Number of active variants $activeVariants exceeds limit $limit")
 
-        val X = xOpt.get        
+        val X = xOpt.get
         X.rows.persist()
         
         // consider block matrix route
@@ -259,8 +142,7 @@ class RestServiceScoreCovariance(vds: VariantDataset, covariates: Array[String],
           if (req.compute_cov.isEmpty || (req.compute_cov.isDefined && req.compute_cov.get)) {
             val Xb = X.toBlockMatrixDense()
             val covarianceSquare = (Xb * Xb.transpose).toLocalMatrix().toArray
-            val covarianceTri = RestService.lowerTriangle(covarianceSquare, activeVariants.length)
-            Some(covarianceTri)
+            Some(RestService.lowerTriangle(covarianceSquare, activeVariants.length))
           } else
             None
         
@@ -274,23 +156,23 @@ class RestServiceScoreCovariance(vds: VariantDataset, covariates: Array[String],
           scoresOpt,
           covarianceOpt,
           sigmaSqOpt,
-          Some(nCompleteSamples),
+          Some(n),
           Some(activeVariants.length))
       }
     }
   }
 }
 
-// n is nCompleteSamples
+// n = mask.filter(_).length
 object ToFilteredCenteredIndexedRowMatrix {  
   def apply(vds: VariantDataset, n: Int, mask: Array[Boolean], minMAC: Int, maxMAC: Int): (Option[IndexedRowMatrix], Array[Variant]) = {
     require(vds.wasSplit)
     
-    val inRange = RestService.inRangeFunc(n, minMAC, maxMAC)
+    val filterAC = RestService.makeFilterAC(n, minMAC, maxMAC)
 
     val variantVectors = vds.rdd.flatMap { case (v, (_, gs)) =>  // when all missing, gets filtered by ac
       val (x, ac) = RegressionUtils.hardCallsWithAC(gs, n, mask)
-      if (inRange(ac)) {
+      if (filterAC(ac)) {
         val mu = sum(x) / n // inefficient
         Some(v, Vectors.dense((x - mu).toArray))
       } else

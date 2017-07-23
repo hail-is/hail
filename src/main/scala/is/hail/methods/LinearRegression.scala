@@ -8,12 +8,6 @@ import is.hail.utils._
 import is.hail.variant._
 
 object LinearRegression {
-  val schema = TStruct(
-    ("beta", TDouble),
-    ("se", TDouble),
-    ("tstat", TDouble),
-    ("pval", TDouble))
-
   def apply(vds: VariantDataset, yExpr: String, covExpr: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
     require(vds.wasSplit)
 
@@ -51,7 +45,7 @@ object LinearRegression {
     val yypBc = sc.broadcast((y dot y) - (Qty dot Qty))
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
+    val (newVAS, inserter) = vds.insertVA(LinearRegressionModel.schema, pathVA)
 
     vds.mapAnnotations { case (v, va, gs) =>
       val (x: Vector[Double], ac) =

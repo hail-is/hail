@@ -104,7 +104,7 @@ class RestServiceLinregSuite extends SparkSuite {
         .extract()
         .response()
 
-    println(response.asString())
+    // println(response.asString())
 
     response =
       given()
@@ -206,8 +206,6 @@ class RestServiceLinregSuite extends SparkSuite {
         .extract()
         .response()
     
-    println(response.asString())
-
     response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
@@ -238,8 +236,6 @@ class RestServiceLinregSuite extends SparkSuite {
         .body("nsamples", is(6))
         .extract()
         .response()
-
-    println(response.asString())
 
     response =
       given()
@@ -338,8 +334,6 @@ class RestServiceLinregSuite extends SparkSuite {
         .body("stats[4].p-value", anyOf(closeTo(1.0, 1e-3), is(nullValue)): AnyOf[java.lang.Double]) // NaN
         .extract()
         .response()
-
-    println(response.asString())
 
     response =
       given()
@@ -630,14 +624,12 @@ class RestServiceLinregSuite extends SparkSuite {
         .when()
         .post("/getStats")
         .`then`()
-        .statusCode(200)
-        .body("is_error", is(false))
-        .body("stats.size", is(3))
+        .statusCode(400)
+        .body("is_error", is(true))
         .body("passback", is("limit"))
-        .body("count", is(3))
         .extract()
         .response()
-
+    
     response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
@@ -1029,8 +1021,6 @@ class RestServiceLinregSuite extends SparkSuite {
         .extract()
         .response()
 
-    println(response.asString())
-    
     response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
@@ -1061,8 +1051,6 @@ class RestServiceLinregSuite extends SparkSuite {
         .body("stats[4].p-value", is(nullValue()))
         .extract()
         .response()
-
-    println(response.asString())
     
     response =
       given()
@@ -1496,8 +1484,6 @@ class RestServiceLinregSuite extends SparkSuite {
         .extract()
         .response()
 
-    println(response.asString())
-
     response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
@@ -1520,8 +1506,6 @@ class RestServiceLinregSuite extends SparkSuite {
         .body("error_message", containsString("must be a valid non-negative integer"))
         .extract()
         .response()
-
-    println(response.asString())
 
     response =
       given()
