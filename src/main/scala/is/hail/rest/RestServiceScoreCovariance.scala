@@ -1,12 +1,13 @@
 package is.hail.rest
 
 import breeze.linalg._
+import is.hail.distributedmatrix.DistributedMatrix
 import is.hail.stats.RegressionUtils
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.variant.VariantDataset
 import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.json4s.jackson.Serialization.read
 
 import scala.collection.mutable
@@ -190,6 +191,11 @@ class RestServiceScoreCovariance(vds: VariantDataset, covariates: Array[String],
       }
     }
 
+    // pull up to server?
+    import is.hail.distributedmatrix.DistributedMatrix.implicits._
+    val dm = DistributedMatrix[BlockMatrix]
+    import dm.ops._
+    
     // filter and compute
     val filteredVds =
       if (variantsSet.isEmpty)
@@ -240,21 +246,25 @@ class RestServiceScoreCovariance(vds: VariantDataset, covariates: Array[String],
         if (activeVariants.length > limit)
           throw new RestFailure(s"Number of active variants $activeVariants exceeds limit $limit")
 
-        val X = xOpt.get
+        val X = xOpt.get        
+        X.rows.persist()
+        
+        // consider block matrix route
+        val scoresOpt = yResOpt.map { yRes =>
+          val yResMat = new org.apache.spark.mllib.linalg.DenseMatrix(yRes.length, 1, yRes.toArray, true)
+          X.multiply(yResMat).toBlockMatrixDense().toLocalMatrix().toArray
+        }
         
         val covarianceOpt =
           if (req.compute_cov.isEmpty || (req.compute_cov.isDefined && req.compute_cov.get)) {
-            val Xb = X.toBlockMatrix()
-            val covarianceMatrix = Xb.multiply(Xb.transpose).toLocalMatrix()
-            val covariance = RestService.lowerTriangle(covarianceMatrix.toArray, activeVariants.length)
-            Some(covariance)
+            val Xb = X.toBlockMatrixDense()
+            val covarianceSquare = (Xb * Xb.transpose).toLocalMatrix().toArray
+            val covarianceTri = RestService.lowerTriangle(covarianceSquare, activeVariants.length)
+            Some(covarianceTri)
           } else
             None
         
-        val scoresOpt = yResOpt.map { yRes =>
-          val yResMat = new org.apache.spark.mllib.linalg.DenseMatrix(yRes.length, 1, yRes.toArray, true)
-          X.multiply(yResMat).toBlockMatrix().toLocalMatrix().toArray
-        }
+        X.rows.unpersist()
 
         val activeSingleVariants = activeVariants.map(v =>
           SingleVariant(Some(v.contig), Some(v.start), Some(v.ref), Some(v.alt)))

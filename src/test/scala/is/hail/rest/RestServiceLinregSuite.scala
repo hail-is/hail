@@ -15,9 +15,9 @@ class RestServiceLinregRunnable(hc: HailContext) extends Runnable {
   var task: Server = _
 
   override def run() {
-    val sampleKT = hc.importTable("src/test/resources/restServerLinreg.cov", impute = true).keyBy("IID")
+    val sampleKT = hc.importTable("src/test/resources/restService.cov", impute = true).keyBy("IID")
     
-    val vds: VariantDataset = hc.importVCF("src/test/resources/restServerLinreg.vcf", nPartitions = Some(2))
+    val vds: VariantDataset = hc.importVCF("src/test/resources/restService.vcf", nPartitions = Some(2))
       .annotateSamplesTable(sampleKT, root="sa.rest")
    
     val covariates = sampleKT.fieldNames.filterNot(_ == "IID").map("sa.rest." + _)
@@ -37,8 +37,8 @@ class RestServiceLinregSuite extends SparkSuite {
   
   // run to test server
   def localRestServerTest() {
-    val sampleKT = hc.importTable("src/test/resources/restServerLinreg.cov", impute = true).keyBy("IID")
-    val vds: VariantDataset = hc.importVCF("src/test/resources/restServerLinreg.vcf", nPartitions = Some(2))
+    val sampleKT = hc.importTable("src/test/resources/restService.cov", impute = true).keyBy("IID")
+    val vds: VariantDataset = hc.importVCF("src/test/resources/restService.vcf", nPartitions = Some(2))
       .annotateSamplesTable(sampleKT, root="sa.rest")
     val covariates = sampleKT.fieldNames.filterNot(_ == "IID").map("sa.rest." + _)
     
@@ -62,12 +62,12 @@ class RestServiceLinregSuite extends SparkSuite {
 
     Contents of t2dserverR.tsv (change spaces to tabs):
     IID v1  v2  v3  v4  v5  v6  v7  v8  v9  v10 T2D SEX PC1 BMI HEIGHT
-    A   0   1   0   0   0   0   1   2   1   2   1   0   -1  20  5.4
-    B   1   2   .75 0   1   0   1   2   1   2   1   2   3   25  5.6
-    C   0   1   1   0   1   0   1   2   1   2   2   1   5   NA  6.3
+    A   0   .   0   0   0   0   1   2   1   2   1   0   -1  20  5.4
+    B   1   2   .   0   1   0   1   2   1   2   1   2   3   25  5.6
+    C   0   .   1   0   1   0   1   2   1   2   2   1   5   NA  6.3
     D   0   2   1   1   2   0   1   2   1   2   2   -2  0   30  NA
     E   0   0   1   1   0   0   1   2   1   2   2   -2  -4  22  6.0
-    F   1   0   .75 1   0   0   1   2   1   2   2   4   3   19  5.8
+    F   1   0   .   1   0   0   1   2   1   2   2   4   3   19  5.8
     */
 
     var response =

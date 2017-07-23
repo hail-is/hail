@@ -15,9 +15,9 @@ class RestServiceScoreCovarianceRunnable(hc: HailContext) extends Runnable {
   var task: Server = _
 
   override def run() {
-    val sampleKT = hc.importTable("src/test/resources/restServerLinreg.cov", impute = true).keyBy("IID")
+    val sampleKT = hc.importTable("src/test/resources/restService.cov", impute = true).keyBy("IID")
     
-    val vds: VariantDataset = hc.importVCF("src/test/resources/restServerLinreg.vcf", nPartitions = Some(2))
+    val vds: VariantDataset = hc.importVCF("src/test/resources/restService.vcf", nPartitions = Some(2))
       .annotateSamplesTable(sampleKT, root="sa.rest")
    
     val covariates = sampleKT.fieldNames.filterNot(_ == "IID").map("sa.rest." + _)
@@ -37,8 +37,8 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
   
   // run to test server
   def localRestServerTest() {
-    val sampleKT = hc.importTable("src/test/resources/restServerLinreg.cov", impute = true).keyBy("IID")
-    val vds: VariantDataset = hc.importVCF("src/test/resources/restServerLinreg.vcf", nPartitions = Some(2))
+    val sampleKT = hc.importTable("src/test/resources/restService.cov", impute = true).keyBy("IID")
+    val vds: VariantDataset = hc.importVCF("src/test/resources/restService.vcf", nPartitions = Some(2))
       .annotateSamplesTable(sampleKT, root="sa.rest")
     val covariates = sampleKT.fieldNames.filterNot(_ == "IID").map("sa.rest." + _)
     
@@ -61,15 +61,87 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
 
     Contents of t2dserverR.tsv (change spaces to tabs, and re-impute missing values based on subset):
     IID v1  v2  v3  v4  v5  v6  v7  v8  v9  v10 T2D SEX PC1 BMI HEIGHT
-    A   0   1   0   0   0   0   1   2   1   2   1   0   -1  20  5.4
-    B   1   2   .75 0   1   0   1   2   1   2   1   2   3   25  5.6
-    C   0   1   1   0   1   0   1   2   1   2   2   1   5   NA  6.3
+    A   0   .   0   0   0   0   1   2   1   2   1   0   -1  20  5.4
+    B   1   2   .   0   1   0   1   2   1   2   1   2   3   25  5.6
+    C   0   .   1   0   1   0   1   2   1   2   2   1   5   NA  6.3
     D   0   2   1   1   2   0   1   2   1   2   2   -2  0   30  NA
     E   0   0   1   1   0   0   1   2   1   2   2   -2  -4  22  6.0
-    F   1   0   .75 1   0   0   1   2   1   2   2   4   3   19  5.8
+    F   1   0   .   1   0   0   1   2   1   2   2   4   3   19  5.8
     */
 
+    /*
+    // Truth data for covariateBMI test
+    //
+    // yRes and sigma from R, then score = G.t * yRes
+    // y = c(1, 1, 2, 2, 2)
+    // bmi = c(20, 25, 30, 22, 19)
+    // fit = lm(y ~ x)
+    // summary(fit)
+    
+    // covariance from G: rows are samples, columns are variants. Sample C is incomplete for BMI.
+    val G = DenseMatrix((0.0, 1.0,  0.0, 0.0, 0.0),
+                        (1.0, 2.0, 2/3d, 0.0, 1.0),
+                        (0.0, 2.0,  1.0, 1.0, 2.0),
+                        (0.0, 0.0,  1.0, 1.0, 0.0),
+                        (1.0, 0.0, 2/3d, 1.0, 0.0))
+    
+    val colMeans = (1.0 / G.rows) * DenseVector(sum(G(::, *)).toArray)
+    val centeredG = G(*, ::).map(_ - colMeans)
+    val covariance = centeredG.t * centeredG
+    */
+        
     var response =
+      given()
+        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
+        .contentType("application/json")
+        .body(
+          """{
+            |  "passback"        : "CovariateBMI",
+            |  "api_version"     : 1,
+            |  "phenotype"       : "sa.rest.T2D",
+            |  "covariates"      : [
+            |                        {"type": "phenotype", "name": "sa.rest.BMI"}
+            |                      ],
+            |  "variant_filters" : [
+            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
+            |                        {"operand": "pos", "operator": "gte", "value": 1, "operand_type": "integer"},
+            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
+            |                      ]
+            |}""".stripMargin)
+        .when()
+        .post("/getStats")
+        .`then`()
+        .statusCode(200)
+        .body("is_error", is(false))
+        .body("covariance[0]", closeTo(1.2, 1e-5))
+        .body("covariance[1]", closeTo(0.0, 1e-5))
+        .body("covariance[2]", closeTo(0.0, 1e-5))
+        .body("covariance[3]", closeTo(-0.2, 1e-5))
+        .body("covariance[4]", closeTo(-0.2, 1e-5))
+        .body("covariance[5]", closeTo(4.0, 1e-5))
+        .body("covariance[6]", closeTo(0.0, 1e-5))
+        .body("covariance[7]", closeTo(-1.0, 1e-5))
+        .body("covariance[8]", closeTo(3.0, 1e-5))
+        .body("covariance[9]", closeTo(2/3d, 1e-5))
+        .body("covariance[10]", closeTo(2/3d, 1e-5))
+        .body("covariance[11]", closeTo(2/3d, 1e-5))
+        .body("covariance[12]", closeTo(1.2, 1e-5))
+        .body("covariance[13]", closeTo(0.2, 1e-5))
+        .body("covariance[14]", closeTo(3.2, 1e-5))
+        .body("scores[0]", closeTo(-0.157360, 1e-5))
+        .body("scores[1]", closeTo(-1.24873, 1e-5))
+        .body("scores[2]", closeTo(0.595601, 1e-5))
+        .body("scores[3]", closeTo(1.17513, 1e-5))
+        .body("scores[4]", closeTo(-0.0736041, 1e-5))
+        .body("sigma_sq", closeTo(0.391708, 1e-5))
+        .body("nsamples", is(5))
+        .body("count", is(5))
+        .extract()
+        .response()
+
+    println(response.asString())
+    
+    response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
         .contentType("application/json")
@@ -100,44 +172,6 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
         .body("active_variants[4].alt", is("A"))
         .body("sigma_sq", closeTo(0.266666, 1e-5))
         .body("nsamples", is(6))
-        .body("count", is(5))
-        .extract()
-        .response()
-
-    println(response.asString())
-    
-    response =
-      given()
-        .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
-        .contentType("application/json")
-        .body(
-          """{
-            |  "passback"        : "CovariateBMI",
-            |  "api_version"     : 1,
-            |  "phenotype"       : "sa.rest.T2D",
-            |  "covariates"      : [
-            |                        {"type": "phenotype", "name": "sa.rest.BMI"}
-            |                      ],
-            |  "variant_filters" : [
-            |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
-            |                        {"operand": "pos", "operator": "gte", "value": 1, "operand_type": "integer"},
-            |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
-            |                      ]
-            |}""".stripMargin)
-        .when()
-        .post("/getStats")
-        .`then`()
-        .statusCode(200)
-        .body("is_error", is(false))
-        .body("covariance[0]", closeTo(1.2, 1e-5))
-        .body("covariance[1]", closeTo(0.0, 1e-5))
-        .body("covariance[2]", closeTo(0.0, 1e-5))
-        .body("covariance[3]", closeTo(-0.2, 1e-5))
-        .body("covariance[4]", closeTo(-0.2, 1e-5))
-        .body("scores[0]", closeTo(-0.157360, 1e-5))
-        .body("scores[4]", closeTo(-0.073604, 1e-5))
-        .body("sigma_sq", closeTo(0.391708, 1e-5))
-        .body("nsamples", is(5))
         .body("count", is(5))
         .extract()
         .response()
@@ -202,15 +236,42 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
 
     println(response.asString())
     
+    /*
+    // Truth data for variantList test
+    //
+    // yRes and sigma from R, then score = G.t * yRes
+    // y = c(1, 1, 2, 2, 2)
+    // bmi = c(20, 25, 30, 22, 19)
+    // v1 = c(0, 1, 0, 0, 1)
+    // fit = lm(y ~ bmi + v1)
+    // summary(fit)
+    
+    // covariance from G: rows are samples, columns are variants.
+    // sample C is incomplete for BMI. Using variant_list to filter to 2nd and 4th variants.
+    val G = DenseMatrix((1.0, 0.0),
+                        (2.0, 0.0),
+                        (2.0, 1.0),
+                        (0.0, 1.0),
+                        (0.0, 1.0))
+    
+    val colMeans = (1.0 / G.rows) * DenseVector(sum(G(::, *)).toArray)
+    val centeredG = G(*, ::).map(_ - colMeans)
+    val covariance = centeredG.t * centeredG
+    */
+    
     response =
       given()
         .config(config().jsonConfig(new JsonConfig(NumberReturnType.DOUBLE)))
         .contentType("application/json")
         .body(
           """{
-            |  "passback"        : "macBoundsFilterSome",
+            |  "passback"        : "variantList",
             |  "api_version"     : 1,
             |  "phenotype"       : "sa.rest.T2D",
+            |  "covariates"      : [
+            |                        {"type": "phenotype", "name": "sa.rest.BMI"},
+            |                        {"type": "variant", "chrom": "1", "pos": 1, "ref": "C", "alt": "T"}
+            |                      ],
             |  "variant_filters" : [
             |                        {"operand": "chrom", "operator": "eq", "value": "1", "operand_type": "string"},
             |                        {"operand": "pos", "operator": "lte", "value": 500000, "operand_type": "integer"}
@@ -224,8 +285,14 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
         .post("/getStats")
         .`then`()
         .statusCode(200)
-        .body("is_error", is(false))      
-        .body("nsamples", is(6))
+        .body("is_error", is(false))    
+        .body("covariance[0]", closeTo(4.0, 1e-5))
+        .body("covariance[1]", closeTo(-1.0, 1e-5))
+        .body("covariance[2]", closeTo(1.2, 1e-5))
+        .body("scores[0]", closeTo(-1.18918, 1e-5))
+        .body("scores[1]", closeTo(1.15315, 1e-5))
+        .body("sigma_sq", closeTo(0.576576, 1e-5))
+        .body("nsamples", is(5))
         .body("count", is(2))
         .extract()
         .response()
@@ -233,32 +300,11 @@ class RestServiceScoreCovarianceSuite extends SparkSuite {
     println(response.asString())
   }
   
-  // used with R to determine truth above
-  def smallData() {
-    // samples by variants
-    val G = DenseMatrix((0.0, 1.0,  0.0, 0.0, 0.0),
-                        (1.0, 2.0, 2/3d, 0.0, 1.0),
-                        (0.0, 2.0,  1.0, 1.0, 2.0),
-                        (0.0, 0.0,  1.0, 1.0, 0.0),
-                        (1.0, 0.0, 2/3d, 1.0, 0.0))
+  @Test def lowerTriangleTest() {
+    val X = DenseMatrix((1.0, 0.0, 0.0),
+                        (2.0, 4.0, 0.0),
+                        (3.0, 5.0, 6.0))
     
-    // println(RestService.lowerTriangle(G.toArray, 5).toIndexedSeq)
-    
-    val y = DenseVector(1, 1, 2, 2, 2)
-    val bmi = DenseVector(20, 25, 30, 22, 19)
-    
-    val colMeans = (1.0 / G.rows) * DenseVector(sum(G(::, *)).toArray)
-    
-    val cG = G(*, ::).map(_ - colMeans)
-    
-    val covariance = cG.t * cG
-    
-    // from R
-    val yRes = DenseVector(-0.5431472081218269, -0.631979695431472, 0.27918781725888264, 0.421319796954315, 0.474619289340102)
-    
-    val score = G.t * yRes
-    
-    // from R
-    val sigma_sq = 0.6259 * 0.6259
+    assert(RestService.lowerTriangle(X.toArray, 3) sameElements Array(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
   }
 }
