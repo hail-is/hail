@@ -80,7 +80,8 @@ object LinearMixedRegression {
           irm.toBlockMatrixDense().toLocalMatrix().toArray)
 
         info(s"lmmreg: Computing eigenvectors of LD matrix...")
-        val eigK = eigSymD(localMatrix)
+        val eigK = printTime(eigSymD(localMatrix))
+        info(s"lmmreg: Eigendecomposition complete")
         val fullV = eigK.eigenvectors
 
         val c1 = nSamplesUsed.toDouble / variants.length
@@ -531,7 +532,8 @@ object DiagLMM {
     val (delta, optGlobalFit) = optDelta match {
       case Some(delta0) => (delta0, None)
       case None => {
-        val (delta0, gf) = fitDelta()
+        info("lmmreg: Fitting delta...")
+        val (delta0, gf) = printTime(fitDelta())
         (delta0, Some(gf))
       }
     }
