@@ -74,9 +74,12 @@ object LinearMixedRegression {
     val (u, s, rank, fullS): (DenseMatrix[Double], DenseVector[Double], Int, DenseVector[Double]) = similarityMatrix match {
       case LDMatrix(irm, variants, nSamplesUsed) => {
         val variantSet = variants.toSet
-        val localMatrix = new DenseMatrix[Double](irm.numRows().toInt,
-          irm.numCols().toInt,
+        irm.rows.persist()
+        val ldDim = irm.numCols().toInt
+        val localMatrix = new DenseMatrix[Double](ldDim,
+          ldDim,
           irm.toBlockMatrixDense().toLocalMatrix().toArray)
+        irm.rows.unpersist()
 
         info(s"lmmreg: Computing eigenvectors of LD matrix...")
         val eigK = eigSymD(localMatrix)
