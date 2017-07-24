@@ -33,8 +33,8 @@ object SamplePCA {
 
     if (svd.s.size < k)
       fatal(
-        s"""Found only ${svd.s.size} non-zero (or nearly zero) singular values, but user requested ${k} PC coordinates
-           |per sample.
+        s"""Found only ${svd.s.size} non-zero (or nearly zero) singular values, but user requested ${k}
+           |principal components per sample.
          """.stripMargin)
 
     val scores = svd.V.multiply(DenseMatrix.diag(svd.s))
