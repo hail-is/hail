@@ -66,7 +66,9 @@ object LDMatrix {
     }
 
     val scaledIndexedRowMatrix = new IndexedRowMatrix(indexedRowMatrix.rows
-      .map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
+      .map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))},
+      variantsKept.length,
+      variantsKept.length)
 
     LDMatrix(scaledIndexedRowMatrix, variantsKept, vds.nSamples)
   }
