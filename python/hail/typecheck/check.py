@@ -1,6 +1,14 @@
+import sys
 from decorator import decorator, getargspec
-from types import ClassType, NoneType, InstanceType
 import re
+from hail.py3_compat import *
+
+
+if sys.version_info > (3,):
+    class_types = type
+else:
+    from types import ClassType
+    class_types = (ClassType, type)
 
 
 def extract(t):
@@ -63,7 +71,7 @@ class DictChecker(TypeChecker):
 
     def check(self, x):
         passes = isinstance(x, dict)
-        return passes and all(self.kc.check(k) and self.vc.check(v) for k, v in x.iteritems())
+        return passes and all(self.kc.check(k) and self.vc.check(v) for k, v in x.items())
 
     def expects(self):
         return 'dict[%s, %s]' % (self.kc.expects(), self.vc.expects())
@@ -102,7 +110,7 @@ class LiteralChecker(TypeChecker):
 
 
 def only(t):
-    if isinstance(t, type) or type(t) is ClassType:
+    if isinstance(t, class_types):
         return LiteralChecker(t)
     elif isinstance(t, TypeChecker):
         return t
@@ -112,10 +120,6 @@ def only(t):
 
 def oneof(*args):
     return MultipleTypeChecker([only(x) for x in args])
-
-
-def nullable(t):
-    return oneof(t, NoneType)
 
 
 def listof(t):
@@ -130,7 +134,12 @@ def dictof(k, v):
     return DictChecker(only(k), only(v))
 
 
-none = only(NoneType)
+none = only(type(None))
+
+
+def nullable(t):
+    return oneof(t, none)
+
 
 anytype = AnyChecker()
 

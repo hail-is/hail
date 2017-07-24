@@ -2,6 +2,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import warnings
 
+import sys
 from decorator import decorator
 
 from hail.expr import Type, TGenotype, TString, TVariant, TArray
@@ -12,6 +13,7 @@ from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
+from hail.py3_compat import *
 
 warnings.filterwarnings(module=__name__, action='once')
 
@@ -403,7 +405,8 @@ class VariantDataset(object):
         annotation_type._typecheck(annotation)
 
         annotated = self._jvds.annotateGlobal(annotation_type._convert_to_j(annotation), annotation_type._jtype, path)
-        assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
+        if sys.version_info < (3,):
+            assert annotated.globalSignature().typeCheck(annotated.globalAnnotation()), 'error in java type checking'
         return VariantDataset(self.hc, annotated)
 
     @handle_py4j
@@ -988,7 +991,7 @@ class VariantDataset(object):
             f.close()
 
         # parameter substitution string to put in SQL query
-        like = ' OR '.join('a.annotation LIKE ?' for i in xrange(2*len(annotations)))
+        like = ' OR '.join('a.annotation LIKE ?' for i in range(2*len(annotations)))
 
         # query to extract path of all needed database files and their respective annotation exprs 
         qry = """SELECT file_path, annotation, file_type, file_element, f.file_id
@@ -1243,7 +1246,7 @@ class VariantDataset(object):
         j_global_concordance = r._1()
         sample_kt = KeyTable(self.hc, r._2())
         variant_kt = KeyTable(self.hc, r._3())
-        global_concordance = [[j_global_concordance.apply(j).apply(i) for i in xrange(5)] for j in xrange(5)]
+        global_concordance = [[j_global_concordance.apply(j).apply(i) for i in range(5)] for j in range(5)]
 
         return global_concordance, sample_kt, variant_kt
 
@@ -3992,7 +3995,7 @@ class VariantDataset(object):
         if isinstance(exprs, list):
             result_list = self._jvds.querySamples(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
-            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
             return annotations, ptypes
         else:
             result = self._jvds.querySamples(exprs)
@@ -4061,7 +4064,7 @@ class VariantDataset(object):
         if isinstance(exprs, list):
             result_list = self._jvds.queryVariants(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
-            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
             return annotations, ptypes
 
         else:
@@ -4179,7 +4182,7 @@ class VariantDataset(object):
         if isinstance(exprs, list):
             result_list = self._jvds.queryGenotypes(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
-            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
             return annotations, ptypes
         else:
             result = self._jvds.queryGenotypes(exprs)

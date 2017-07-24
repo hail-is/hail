@@ -1,6 +1,7 @@
 from hail.java import scala_object, Env, handle_py4j
 from hail.typecheck import *
 
+
 class Variant(object):
     """
     An object that represents a genomic polymorphism.
@@ -42,7 +43,7 @@ class Variant(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-        self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
+        self._alt_alleles = [AltAllele._from_java(jrep.altAlleles().apply(i)) for i in range(jrep.nAltAlleles())]
 
     @classmethod
     def _from_java(cls, jrep):

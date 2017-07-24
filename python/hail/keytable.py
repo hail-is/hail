@@ -1,7 +1,7 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-from hail.java import *
 from hail.expr import Type, TArray, TStruct
+from hail.java import *
 from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list
@@ -768,7 +768,7 @@ class KeyTable(object):
         if isinstance(exprs, list):
             result_list = self._jkt.query(jarray(Env.jvm().java.lang.String, exprs))
             ptypes = [Type._from_java(x._2()) for x in result_list]
-            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in xrange(len(ptypes))]
+            annotations = [ptypes[i]._convert_to_py(result_list[i]._1()) for i in range(len(ptypes))]
             return annotations, ptypes
 
         else:

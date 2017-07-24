@@ -1,6 +1,9 @@
 import abc
+
+import sys
 from hail.java import scala_object, Env, jset
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call
+from hail.py3_compat import *
 
 
 class TypeCheckError(Exception):
@@ -418,7 +421,7 @@ class TDict(Type):
     def _convert_to_j(self, annotation):
         if annotation is not None:
             return Env.jutils().javaMapToMap(
-                {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.iteritems()}
+                {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.items()}
             )
         else:
             return annotation
@@ -427,7 +430,7 @@ class TDict(Type):
         if annotation:
             if not isinstance(annotation, dict):
                 raise TypeCheckError("TDict expected type 'dict', but found type '%s'" % type(annotation))
-            for k, v in annotation.iteritems():
+            for k, v in annotation.items():
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)
 
@@ -476,8 +479,8 @@ class TStruct(Type):
 
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
-        jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, map(lambda t: t._jtype, types))
-        self.fields = [Field(names[i], types[i]) for i in xrange(len(names))]
+        jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, [t._jtype for t in types])
+        self.fields = [Field(names[i], types[i]) for i in range(len(names))]
 
         super(TStruct, self).__init__(jtype)
 

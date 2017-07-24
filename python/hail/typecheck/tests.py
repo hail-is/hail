@@ -1,5 +1,8 @@
 import unittest
-from check import *
+
+import sys
+from hail.typecheck.check import *
+from hail.py3_compat import *
 
 
 class ContextTests(unittest.TestCase):
@@ -101,7 +104,7 @@ class ContextTests(unittest.TestCase):
             pass
 
         f(1)
-        f(1L)
+        f(long(1))
         self.assertRaises(TypeError, lambda: f(1.1))
 
         # check numeric
@@ -111,7 +114,7 @@ class ContextTests(unittest.TestCase):
 
         f(1)
         f(1.0)
-        f(1L)
+        f(long(1))
         self.assertRaises(TypeError, lambda: f('1.1'))
 
         # check strlike

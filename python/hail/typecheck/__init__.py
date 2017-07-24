@@ -1,4 +1,4 @@
-from check import *
+from hail.typecheck.check import *
 
 __all__ = ['typecheck',
            'typecheck_method',
@@ -13,3 +13,5 @@ __all__ = ['typecheck',
            'integral',
            'numeric',
            'char']
+
+
