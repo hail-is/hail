@@ -31,6 +31,12 @@ object SamplePCA {
 
     val svd = mat.computeSVD(k, computeU = computeLoadings)
 
+    if (svd.s.size < k)
+      fatal(
+        s"""Found only ${svd.s.size} non-zero (or nearly zero) singular values, but user requested ${k} PC coordinates
+           |per sample.
+         """.stripMargin)
+
     val scores = svd.V.multiply(DenseMatrix.diag(svd.s))
     val sampleScores = vds.sampleIds.zipWithIndex.map { case (id, i) =>
       (id, makeAnnotation((0 until k).map(j => scores(i, j)), asArray))
