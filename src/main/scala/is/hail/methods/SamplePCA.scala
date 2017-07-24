@@ -34,8 +34,7 @@ object SamplePCA {
     if (svd.s.size < k)
       fatal(
         s"""Found only ${svd.s.size} non-zero (or nearly zero) eigenvalues, but user requested ${k}
-           |principal components.
-         """.stripMargin)
+           |principal components.""".stripMargin)
 
     val scores = svd.V.multiply(DenseMatrix.diag(svd.s))
     val sampleScores = vds.sampleIds.zipWithIndex.map { case (id, i) =>
