@@ -3588,10 +3588,136 @@ class VariantDataset(object):
     @typecheck_method(k=integral,
                       maf=numeric,
                       block_size=integral)
-    def pc_relate(self, k, maf, block_size=8192):
-        """Compute relatedness between individuals using the PCRelate method.
+    def pc_relate(self, k, maf, block_size=512):
+        """Compute relatedness estimates between individuals using a variant of the
+        PC-Relate method.
 
         .. include:: requireTGenotype.rst
+
+        **Examples**
+
+        Estimate kinship, identity-by-descent zero, identity-by-descent one, and
+        identity-by-descent zero for every pair of samples, using 10 prinicpal
+        components to correct for ancestral populations:
+
+        >>> rel = vds.pc_relate(10, 0.01)
+
+        **Method**
+
+        The PC-Relate method computes relatedness estimates using a small
+        modification to the usual formulas: occurences of population allele
+        frequency is replaced with an "individual-specific allele frequency". An
+        individual's allele frequency at a given genetic locus is a linear
+        function of their first ``k`` principal component coordinates.
+
+        The efficacy of this method rests crucially on two assumptions:
+
+         - an individual's first ``k`` principal component coordinates fully
+           describe their allele-frequency-relevant ancestry
+
+         - the relationship between ancestry (as described by principal
+           component coordinates) and population allele frequency is linear
+
+        Let:
+
+         - :math:`S_{ij}` be the set of genetic loci at which both individuals
+           :math:`i` and :math:`j` have a defined measurement
+
+         - :math:`g_{is} \in {0, 1, 2}` be the number of alternate alleles that
+           individual :math:`i` has at gentic locus :math:`s`
+
+         - :math:`{\widehat \\mu}_{is} \in [0, 1]` be the individual-specific allele
+           frequency for individual :math:`i` at genetic locus :math:`s`
+
+         - :math:`{\widehat \\sigma}_{is} := {\widehat \\mu}_{is} (1 - {\widehat
+           \\mu}_{is})`, the Binomial standard deviation of :math:`{\widehat
+           \\mu}_{is}`
+
+         - :math:`{\widehat \\tau}_{is} := \sqrt{{\widehat \\sigma}_{is}}`
+
+         - :math:`\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{g_{is} -
+           g_{js} = 2}`, the number of genetic loci at which individuals
+           :math:`i` and :math:`j` share no alleles
+
+         - :math:`{\widehat f}_i := 2 {\widehat \phi}_{ii} - 1`, the inbreeding
+           coefficient for individual :math:`i`
+
+         - :math:`X_{is} := g^D_{is} - { \widehat \\sigma}_{ij} (1 - f_i)`
+
+         - :math:`g^D_{is}` be a dominance encoding of the genotype matrix
+
+        .. math::
+
+          g^D_{is} :=
+            \\begin{cases}
+              {\widehat \\mu}_{is}     & g_{is} == 0 \\\\
+              0                       & g_{is} == 1 \\\\
+              1 - {\widehat \\mu}_{is} & g_{is} == 2
+            \\end{cases}
+
+
+        The estimator for kinship is given by:
+
+        .. math::
+
+          {\widehat \phi}_{ij} := \\frac{((g - 2 \\mu) (g - 2 \\mu)^T)_{ij}}{4 * ({\widehat \\tau} {\widehat \\tau}^T)_{ij}}
+
+        The estimator for identity-by-descent two is given by:
+
+        .. math::
+
+          {\widehat k}^{(2)}_{ij} := \\frac{(X X^T)_{ij}}{({\widehat \\sigma} {\widehat \\sigma}^T)_{ij}}
+
+        The estimator for identity-by-descent zero is given by:
+
+        .. math::
+
+          {\widehat k}^{(0)}_{ij} :=
+            \\begin{cases}
+              \\frac{\text{IBS}^{(0)}_{ij}}
+                   {\sum_{s \in S_{ij}} {\widehat \\mu}^2_{is}(1 - {\widehat \\mu}_{js})^2 + (1 - {\widehat \\mu}_{is})^2{\widehat \\mu}^2_{js}}
+                & {\widehat \phi}_{ij} > 2^{-5/2} \\\\
+              1 - 4 {\widehat \phi}_{ij} + k^{(2)}_{ij}
+                & {\widehat \phi}_{ij} \le 2^{-5/2}
+            \\end{cases}
+
+        The estimator for identity-by-descent one is given by:
+
+        .. math::
+
+          {\widehat k}^{(1)}_{ij} := 1 - {\widehat k}^{(2)}_{ij} - {\widehat k}^{(0)}_{ij}
+
+        **Details**
+
+        The PC-Relate method is described in "Model-free Estimation of Recent
+        Genetic Relatedness". Conomos MP, Reiner AP, Weir BS, Thornton TA. in
+        American Journal of Human Genetics. 2016 Jan 7. The reference
+        implementation is available in the `GENESIS Bioconductor package
+        <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`_ .
+
+        :py:meth:`~hail.VariantDataset.pc_relate` differs from the reference
+        implementation in a couple key ways:
+
+         - the principal components analysis does not use an unrelated set of
+           individuals
+
+         - the estimators do not perform small sample correction
+
+         - the algorithm does not provide an option to use population-wide
+           allele frequency estimates
+
+         - the algorithm does not provide an option to not use "overall
+           standardization" (see R ``pcrelate`` documentation)
+
+        **Notes**
+
+        The ``block_size`` controls memory usage and parallelism. If it is large
+        enough to hold an entire sample-by-sample matrix of 64-bit doubles in
+        memory, then only one Spark worker node can be used to compute matrix
+        operations. If it is too small, communication overhead will begin to
+        dominate the computation's time. The author has found that on Google
+        Dataproc (where each core has about 3.75GB of memory), setting
+        ``block_size`` larger than 512 tends to cause memory exhaustion errors.
 
         :param k: the number of principal components to use to distinguish
                   ancestries
@@ -3603,7 +3729,7 @@ class VariantDataset(object):
 
         :param block_size: the side length of the blocks of the block-
                           distributed matrices; this should be set such that
-                          atleast three of these matrices fit in memory (in
+                          at least three of these matrices fit in memory (in
                           addition to all other objects necessary for Spark and
                           Hail)
         :type block_size: int
@@ -3614,7 +3740,7 @@ class VariantDataset(object):
 
         """
 
-        return KeyTable(self.hc, self._jvdf.pcrelate(k, maf, block_size))
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size))
 
     @handle_py4j
     @typecheck_method(storage_level=strlike)

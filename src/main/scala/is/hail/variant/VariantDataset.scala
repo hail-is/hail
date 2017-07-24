@@ -546,7 +546,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     *                  these matrices fit in memory (in addition to all other
     *                  objects necessary for Spark and Hail).
     */
-  def pcrelate(k: Int, maf: Double, blockSize: Int): KeyTable = {
+  def pcRelate(k: Int, maf: Double, blockSize: Int): KeyTable = {
     requireSplit("PCRelate")
     val pcs = SamplePCA.justScores(vds, k)
     PCRelate.toKeyTable(vds, pcs, maf, blockSize)
