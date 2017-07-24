@@ -2,6 +2,8 @@ from hail.java import *
 from hail.representation.variant import Locus
 from hail.typecheck import *
 
+interval_type = lazy()
+
 class Interval(object):
     """
     A genomic interval marked by start and end loci.
@@ -124,7 +126,7 @@ class Interval(object):
         return self._jrep.contains(locus._jrep)
 
     @handle_py4j
-    @typecheck_method(interval=anytype)
+    @typecheck_method(interval=interval_type)
     def overlaps(self, interval):
         """True if the the supplied interval contains any locus in common with this one.
 
@@ -140,3 +142,5 @@ class Interval(object):
         :rtype: bool"""
 
         return self._jrep.overlaps(interval._jrep)
+
+interval_type.set(Interval)

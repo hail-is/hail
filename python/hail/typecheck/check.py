@@ -79,6 +79,7 @@ class AnyChecker(TypeChecker):
     def expects(self):
         return 'any'
 
+
 class CharChecker(TypeChecker):
     def __init__(self):
         super(CharChecker, self).__init__()
@@ -89,6 +90,7 @@ class CharChecker(TypeChecker):
     def expects(self):
         return 'char'
 
+
 class LiteralChecker(TypeChecker):
     def __init__(self, t):
         self.t = t
@@ -98,6 +100,25 @@ class LiteralChecker(TypeChecker):
         return isinstance(x, self.t)
 
     def expects(self):
+        return extract(self.t)
+
+
+class LazyChecker(TypeChecker):
+    def __init__(self):
+        self.t = None
+        super(LazyChecker, self).__init__()
+
+    def set(self, t):
+        self.t = t
+
+    def check(self, x):
+        if not self.t:
+            raise RuntimeError("LazyChecker not initialized. Use 'set' to provide the expected type")
+        return isinstance(x, self.t)
+
+    def expects(self):
+        if not self.t:
+            raise RuntimeError("LazyChecker not initialized. Use 'set' to provide the expected type")
         return extract(self.t)
 
 
@@ -129,6 +150,8 @@ def tupleof(t):
 def dictof(k, v):
     return DictChecker(only(k), only(v))
 
+def lazy():
+    return LazyChecker()
 
 none = only(NoneType)
 
@@ -141,6 +164,7 @@ integral = oneof(int, long)
 numeric = oneof(int, long, float)
 
 char = CharChecker()
+
 
 def check_all(f, args, kwargs, checks, is_method):
     spec = getargspec(f)
