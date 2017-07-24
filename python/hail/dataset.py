@@ -3267,13 +3267,15 @@ class VariantDataset(object):
 
         **LD Matrix**
 
-        The rank of the kinship matrix (RRM) resulting from a genetic matrix on n samples and m variants is at most the minimum of n and m. So to improve efficiency when m is less than n, this method alternatively accepts an LD matrix, the eigenvectors of which are then transformed to the first m eigenvectors of the RRM using the relationship between left and right singular vectors as defined by the singular value decomposition of the normalized genetic matrix. Passing in the RRM or LD matrix will result in mathematically identical statistics. The n_eigs and dropped_variance_fraction parameters may be used in addition to further improve performance using approximate rather than exact inference (see next section).
+        The rank of the kinship matrix (RRM) resulting from a genetic matrix on :math:`n` samples and :math:`m` variants is at most the minimum of :math:`n` and :math:`m`. So to improve efficiency when :math:`m` is less than :math:`n`, this method alternatively accepts an LD matrix, the eigenvectors of which are then transformed to the first :math:`m` eigenvectors of the RRM using the relationship between left and right singular vectors as defined by the singular value decomposition of the normalized genetic matrix. Passing in the RRM or LD matrix will result in mathematically identical statistics. The n_eigs and dropped_variance_fraction parameters may be used in addition to further improve performance using approximate rather than exact inference (see next section).
+
+        Also note that all variants present in the LD matrix must be present in the variant dataset in order to run this method. The `filter_variants_expr` parameter can be used to limit the per variant association portion of the method to particular variants.
 
         **Low-rank approximation of kinship for improved performance**
 
         :py:meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specify the parameter ``n_eigs`` to use only the top ``n_eigs`` eigenvectors. Alternatively, specify ``dropped_variance_fraction`` to use as many eigenvectors as necessary to capture all but at most this fraction of the sample variance (also known as the trace, or the sum of the eigenvalues). For example, ``dropped_variance_fraction=0.01`` will use the minimal number of eigenvectors to account for 99% of the sample variance. Specifying both parameters will apply the more stringent (fewest eigenvectors) of the two.
 
-        Note the number of eigenvectors used must not be greater than the rank of the Kinship matrix or LD matrix.
+        Note the number of eigenvectors used cannot be greater than the rank of the Kinship matrix, or equivalently, of the LD matrix.
 
         **Further background**
 

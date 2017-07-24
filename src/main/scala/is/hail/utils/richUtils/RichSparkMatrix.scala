@@ -15,6 +15,4 @@ class RichSparkMatrix(sparkMatrix: Matrix) {
     val breezeConverter = sparkMatrix.getClass.getMethod("asBreeze")
     breezeConverter.invoke(sparkMatrix).asInstanceOf[BreezeMatrix[Double]]
   }
-
-
 }

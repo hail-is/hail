@@ -96,7 +96,8 @@ object LinearMixedRegression {
         val c2 = 1.0 / math.sqrt(variants.length)
         val sqrtSInv = S.map(e => c2 / math.sqrt(e))
 
-        val filteredVDS = vds.filterVariants((v, _, _) => variantSet(v))
+        var filteredVDS = vds.filterVariants((v, _, _) => variantSet(v))
+        filteredVDS = filteredVDS.persist()
         require(filteredVDS.variants.count() == variantSet.size, "Some variants in LD matrix are missing from VDS")
 
         // FIXME Clean up this ugliness. Unnecessary back and forth from Breeze to Spark. (Might just need to allow multiplying block matrix by local Breeze matrix.
@@ -257,7 +258,7 @@ object LinearMixedRegression {
   }
 
   def computeNEigsDVF(S: DenseVector[Double], droppedVarianceFraction: Double): Int = {
-    require(0 <= droppedVarianceFraction && droppedVarianceFraction < 1, "lmmreg: droppedVarianceFraction must be between 0 and 1")
+    require(0 <= droppedVarianceFraction && droppedVarianceFraction < 1, "lmmreg: droppedVarianceFraction must be nonnegative and less than 1")
 
     val trace = sum(S)
     var i = -1
@@ -428,7 +429,6 @@ object DiagLMM {
 
           -0.5 * (logdetD + logdetCdC - logdetCtC + (n - d) * math.log(sigma2)) + shift
         }
-
       }
 
       // number of points per unit of log space
