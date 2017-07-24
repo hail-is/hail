@@ -466,10 +466,13 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vdsChr1 = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
     val vdsChr3 = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
 
-    val vdsRRM = vdsChr1.lmmreg(vdsChr3.rrm(), "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None)
-    val vdsLD = vdsFastLMM.lmmreg(vdsChr3.ldMatrix(), "sa.pheno", Array("sa.cov"), runAssoc = false, delta = None)
+    val vdsRRM = vdsChr1.lmmreg(vdsChr3.rrm(), "sa.pheno", Array("sa.cov"), delta = None)
+    val vdsLD = vdsFastLMM.lmmreg(vdsChr3.ldMatrix(), "sa.pheno", Array("sa.cov"), delta = None, optFilterVariantsExpr = Option("""v.contig == "1""""))
+
+    assert(vdsLD.countVariants() == vdsChr1.countVariants())
 
     globalLMMCompare(vdsRRM, vdsLD)
+    variantAnnotationLMMCompare(vdsRRM, vdsLD)
   }
 
   @Test def testLDAndRRMAreEquivalent() {
