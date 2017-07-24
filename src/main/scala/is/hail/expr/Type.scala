@@ -466,11 +466,6 @@ abstract class TIterable extends TContainer {
       && a1.asInstanceOf[Iterable[_]].zip(a2.asInstanceOf[Iterable[_]])
       .forall { case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance) })
 
-  override def canCompare(other: Type): Boolean = other match {
-    case TArray(otherType) => elementType.canCompare(otherType)
-    case _ => false
-  }
-
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] = {
     extendOrderingToNull(missingGreatest)(
       Ordering.Iterable(elementType.ordering(missingGreatest)))
@@ -479,6 +474,11 @@ abstract class TIterable extends TContainer {
 
 case class TArray(elementType: Type) extends TIterable {
   override def toString = s"Array[$elementType]"
+
+  override def canCompare(other: Type): Boolean = other match {
+    case TArray(otherType) => elementType.canCompare(otherType)
+    case _ => false
+  }
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
@@ -531,6 +531,11 @@ case class TArray(elementType: Type) extends TIterable {
 case class TSet(elementType: Type) extends TIterable {
   override def toString = s"Set[$elementType]"
 
+  override def canCompare(other: Type): Boolean = other match {
+    case TSet(otherType) => elementType.canCompare(otherType)
+    case _ => false
+  }
+  
   override def unify(concrete: Type): Boolean = concrete match {
     case TSet(celementType) => elementType.unify(celementType)
     case _ => false
