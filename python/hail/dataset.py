@@ -3737,9 +3737,9 @@ class VariantDataset(object):
 
         **Examples**
 
-        Compute the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double:
+        Compute the top 5 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
 
-        >>> vds_result = vds.pca('sa.scores')
+        >>> vds_result = vds.pca('sa.scores', k=5)
 
         Compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
 
