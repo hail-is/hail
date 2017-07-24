@@ -18,6 +18,7 @@ object LDMatrix {
     val nSamples = vds.nSamples
     val nVariants = vds.countVariants()
 
+
     val filteredNormalizedHardCalls = vds.rdd.flatMap { 
       case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, nSamples).map(x => (v, x))
     }
