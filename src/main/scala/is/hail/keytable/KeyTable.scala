@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
-import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
+import is.hail.io.{CassandraConnector, SolrConnector, ElasticsearchConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -736,6 +736,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val act = implicitly[ClassTag[Annotation]]
     copy(rdd = rdd.sortBy(identity[Annotation], ascending = true)(ord, act))
+  }
+
+  def exportElasticsearch(host: String, port: Int, index: String, indexType: String, blockSize: Int = 1000): Unit = {
+    ElasticsearchConnector.export(this, host, port, index, indexType, blockSize)
   }
 
   def exportSolr(zkHost: String, collection: String, blockSize: Int = 100): Unit = {
