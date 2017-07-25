@@ -1,4 +1,5 @@
 from hail.typecheck import *
+from hail.history import *
 
 
 class Struct(object):
@@ -31,9 +32,10 @@ class Struct(object):
     :param dict attributes: struct members.
     """
 
+    @record_init
     def __init__(self, attributes):
-
         self._attrs = attributes
+        self._history = None
 
     def __getattr__(self, item):
         assert (self._attrs)
@@ -65,6 +67,10 @@ class Struct(object):
     def __hash__(self):
         return 37 + hash(tuple(sorted(self._attrs.items())))
 
+    def _set_history(self, history):
+        self._history = history
+
+    @record_method
     @typecheck_method(item=strlike,
                       default=anytype)
     def get(self, item, default=None):

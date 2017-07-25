@@ -1,35 +1,48 @@
 from hail.java import Env
 from hail.typecheck import *
+from hail.history import *
 
 class BetaDist:
     """
     Represents a beta distribution with parameters a and b.
     """
+
     @typecheck_method(a=numeric,
                       b=numeric)
+    @record_init
     def __init__(self, a, b):
         self.a = a
         self.b = b
-
+        self._history = None
 
     def _jrep(self):
         return Env.hail().stats.BetaDist.apply(float(self.a), float(self.b))
+
+    def _set_history(self, history):
+        self._history = history
 
 
 class UniformDist:
     """
     Represents a uniform distribution on the interval [minVal, maxVal].
     """
+
     @typecheck_method(minVal=numeric,
                       maxVal=numeric)
+    @record_init
     def __init__(self, minVal, maxVal):
         if minVal >= maxVal:
             raise ValueError("min must be less than max")
         self.minVal = minVal
         self.maxVal = maxVal
+        self._history = None
 
     def _jrep(self):
         return Env.hail().stats.UniformDist.apply(float(self.minVal), float(self.maxVal))
+
+    def _set_history(self, history):
+        self._history = history
+
 
 class TruncatedBetaDist:
     """
@@ -40,6 +53,7 @@ class TruncatedBetaDist:
                       b=numeric,
                       minVal=numeric,
                       maxVal=numeric)
+    @record_init
     def __init__(self, a, b, minVal, maxVal):
         if minVal >= maxVal:
             raise ValueError("min must be less than max")
@@ -52,6 +66,10 @@ class TruncatedBetaDist:
         self.maxVal = maxVal
         self.a = a
         self.b = b
+        self._history = None
 
     def _jrep(self):
         return Env.hail().stats.TruncatedBetaDist.apply(float(self.a), float(self.b), float(self.minVal), float(self.maxVal))
+
+    def _set_history(self, history):
+        self._history = history

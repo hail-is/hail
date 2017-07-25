@@ -1,6 +1,7 @@
 import abc
 from hail.java import scala_object, Env, jset
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call
+from hail.history import *
 
 
 class TypeCheckError(Exception):
@@ -26,6 +27,7 @@ class Type(object):
 
     def __init__(self, jtype):
         self._jtype = jtype
+        self._history = None
 
     def __repr__(self):
         return str(self)
@@ -38,6 +40,9 @@ class Type(object):
 
     def __hash__(self):
         return self._jtype.hashCode()
+
+    def _set_history(self, history):
+        self._history = history
 
     def pretty(self, indent=0, attrs=False):
         """Returns a prettily formatted string representation of the type.
@@ -104,6 +109,7 @@ class TInt32(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TInt32, self).__init__(scala_object(Env.hail().expr, 'TInt32'))
 
@@ -133,6 +139,7 @@ class TInt64(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TInt64, self).__init__(scala_object(Env.hail().expr, 'TInt64'))
 
@@ -162,6 +169,7 @@ class TFloat32(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TFloat32, self).__init__(scala_object(Env.hail().expr, 'TFloat32'))
 
@@ -194,6 +202,7 @@ class TFloat64(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TFloat64, self).__init__(scala_object(Env.hail().expr, 'TFloat64'))
 
@@ -223,6 +232,7 @@ class TString(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TString, self).__init__(scala_object(Env.hail().expr, 'TString'))
 
@@ -249,6 +259,7 @@ class TBoolean(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TBoolean, self).__init__(scala_object(Env.hail().expr, 'TBoolean'))
 
@@ -279,6 +290,7 @@ class TArray(Type):
     :vartype element_type: :class:`.Type`
     """
 
+    @record_init
     def __init__(self, element_type):
         """
         :param :class:`.Type` element_type: Hail type of array element
@@ -333,6 +345,7 @@ class TSet(Type):
     :vartype element_type: :class:`.Type`
     """
 
+    @record_init
     def __init__(self, element_type):
         """
         :param :class:`.Type` element_type: Hail type of set element
@@ -391,6 +404,7 @@ class TDict(Type):
     :vartype value_type: :class:`.Type`
     """
 
+    @record_init
     def __init__(self, key_type, value_type):
         jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype)
         self.key_type = key_type
@@ -470,6 +484,7 @@ class TStruct(Type):
     :vartype fields: list of :class:`.Field`
     """
 
+    @record_init
     def __init__(self, names, types):
         """
         """
@@ -536,6 +551,7 @@ class TVariant(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TVariant, self).__init__(scala_object(Env.hail().expr, 'TVariant'))
 
@@ -569,6 +585,7 @@ class TAltAllele(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TAltAllele, self).__init__(scala_object(Env.hail().expr, 'TAltAllele'))
 
@@ -602,6 +619,7 @@ class TGenotype(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TGenotype, self).__init__(scala_object(Env.hail().expr, 'TGenotype'))
 
@@ -635,6 +653,7 @@ class TCall(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TCall, self).__init__(scala_object(Env.hail().expr, 'TCall'))
 
@@ -668,6 +687,7 @@ class TLocus(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TLocus, self).__init__(scala_object(Env.hail().expr, 'TLocus'))
 
@@ -701,6 +721,7 @@ class TInterval(Type):
     """
     __metaclass__ = SingletonType
 
+    @record_init
     def __init__(self):
         super(TInterval, self).__init__(scala_object(Env.hail().expr, 'TInterval'))
 

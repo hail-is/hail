@@ -65,6 +65,10 @@ trait Py4jUtils {
     hc.hadoopConf.copy(from, to)
   }
 
+  def isDir(path: String, hc: HailContext): Boolean = {
+    hc.hadoopConf.isDir(path)
+  }
+
   def addSocketAppender(hostname: String, port: Int) {
     val app = new StringSocketAppender(hostname, port, HailContext.logFormat)
     consoleLog.addAppender(app)

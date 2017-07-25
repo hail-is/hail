@@ -1,5 +1,6 @@
 from hail.java import scala_object, Env, handle_py4j
 from hail.typecheck import *
+from hail.history import *
 
 class Variant(object):
     """
@@ -19,6 +20,7 @@ class Variant(object):
     """
 
     @handle_py4j
+    @record_init
     def __init__(self, contig, start, ref, alts):
         if isinstance(contig, int):
             contig = str(contig)
@@ -27,6 +29,7 @@ class Variant(object):
         self._contig = contig
         self._start = start
         self._ref = ref
+        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -44,6 +47,9 @@ class Variant(object):
         self._jrep = jrep
         self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
 
+    def _set_history(self, history):
+        self._history = history
+
     @classmethod
     def _from_java(cls, jrep):
         v = Variant.__new__(cls)
@@ -53,10 +59,11 @@ class Variant(object):
         v._ref = jrep.ref()
         return v
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(string=strlike)
-    def parse(string):
+    @record_classmethod
+    @typecheck_method(string=strlike)
+    def parse(cls, string):
         """Parses a variant object from a string.
 
         There are two acceptable formats: CHR:POS:REF:ALT, and
@@ -192,6 +199,7 @@ class Variant(object):
 
         return self._jrep.nGenotypes()
 
+    @record_method
     def locus(self):
         """Returns the locus object for this polymorphism.
 
@@ -263,11 +271,13 @@ class AltAllele(object):
     """
 
     @handle_py4j
+    @record_init
     def __init__(self, ref, alt):
         jaa = scala_object(Env.hail().variant, 'AltAllele').apply(ref, alt)
         self._init_from_java(jaa)
         self._ref = ref
         self._alt = alt
+        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -283,6 +293,9 @@ class AltAllele(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
+
+    def _set_history(self, history):
+        self._history = history
 
     @classmethod
     def _from_java(cls, jaa):
@@ -427,6 +440,7 @@ class Locus(object):
     """
 
     @handle_py4j
+    @record_init
     def __init__(self, contig, position):
         if isinstance(contig, int):
             contig = str(contig)
@@ -434,6 +448,7 @@ class Locus(object):
         self._init_from_java(jrep)
         self._contig = contig
         self._position = position
+        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -450,6 +465,9 @@ class Locus(object):
     def _init_from_java(self, jrep):
         self._jrep = jrep
 
+    def _set_history(self, history):
+        self._history = history
+
     @classmethod
     def _from_java(cls, jrep):
         l = Locus.__new__(cls)
@@ -458,10 +476,11 @@ class Locus(object):
         l._position = jrep.position()
         return l
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(string=strlike)
-    def parse(string):
+    @record_classmethod
+    @typecheck_method(string=strlike)
+    def parse(cls, string):
         """Parses a locus object from a CHR:POS string.
 
         **Examples**
