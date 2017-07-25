@@ -246,23 +246,3 @@ If natives are not found, ``hail.log`` will contain the warnings
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
 
 See `netlib-java <http://github.com/fommil/netlib-java>`_ for more information.
-
------------------
-Running the tests
------------------
-
-Several Hail tests have additional dependencies:
-
- - `PLINK 1.9 <http://www.cog-genomics.org/plink2>`_
-
- - `QCTOOL 1.4 <http://www.well.ox.ac.uk/~gav/qctool>`_
-
- - `R 3.3.1 <http://www.r-project.org/>`_ with packages ``jsonlite`` and ``logistf``, which depends on ``mice`` and ``Rcpp``.
-
-Other recent versions of QCTOOL and R should suffice, but PLINK 1.7 will not.
-
-To execute all Hail tests, run
-
-.. code-block:: text
-
-    ./gradlew -Dspark.home=$SPARK_HOME test
