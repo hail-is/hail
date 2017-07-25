@@ -4916,9 +4916,6 @@ class VariantDataset(object):
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`__
         on the current variant dataset and adds the result as a variant annotation.
 
-        If the variant annotation path defined by ``root`` already exists and its schema matches the VEP schema, then
-        Hail only runs VEP for variants for which the annotation is missing.
-
         **Examples**
 
         Add VEP annotations to the dataset:
@@ -4976,7 +4973,7 @@ class VariantDataset(object):
         **Annotations**
 
         Annotations with the following schema are placed in the location specified by ``root``.
-        The schema can be confirmed with :py:attr:`~hail.VariantDataset.variant_schema`, :py:attr:`~hail.VariantDataset.sample_schema`, and :py:attr:`~hail.VariantDataset.global_schema`.
+        The full resulting dataset schema can be queried with :py:attr:`~hail.VariantDataset.variant_schema`.
 
         .. code-block:: text
 
@@ -5121,8 +5118,8 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store VEP output.
 
-        :param bool csq: If true, annotates VCF CSQ field as a String.
-            If False, annotates with the full nested struct schema
+        :param bool csq: If ``True``, annotates VCF CSQ field as a String.
+            If ``False``, annotates with the full nested struct schema
 
         :return: An annotated with variant annotations from VEP.
         :rtype: :py:class:`.VariantDataset`
