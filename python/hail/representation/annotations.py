@@ -22,6 +22,12 @@ class Struct(object):
     >>> getattr(bar, '1kg')
     >>> bar['1kg']
 
+    The ``pprint`` module can be used to print nested Structs in a more
+    human-readable fashion:
+
+    >>> from pprint import pprint
+    >>> pprint(bar)
+
     :param dict attributes: struct members.
     """
 
