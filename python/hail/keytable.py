@@ -1088,6 +1088,12 @@ class KeyTable(object):
     def from_dataframe(df, key=[]):
         """Convert Spark SQL DataFrame to key table.
 
+        **Examples**
+
+        >>> kt = KeyTable.from_dataframe(df) # doctest: +SKIP
+
+        **Notes**
+
         Spark SQL data types are converted to Hail types as follows:
 
         .. code-block:: text
