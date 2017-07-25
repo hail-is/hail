@@ -494,9 +494,8 @@ object Parser extends JavaTokenParsers {
 
   def backtickLiteral: Parser[String] = quotedLiteral('`', "backtick identifier")
 
-  override def stringLiteral: Parser[String]
-
-  = quotedLiteral('"', "string literal")
+  override def stringLiteral: Parser[String] =
+    quotedLiteral('"', "string literal") | quotedLiteral('\'', "string literal")
 
   def tuplify[T, S](p: ~[T, S]): (T, S) = p match {
     case t ~ s => (t, s)

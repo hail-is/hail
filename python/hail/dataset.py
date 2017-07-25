@@ -36,6 +36,7 @@ def convertVDS(func, vds, *args, **kwargs):
 
     return func(vds, *args, **kwargs)
 
+vds_type = lazy()
 
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
@@ -841,7 +842,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @typecheck_method(other=anytype,
+    @typecheck_method(other=vds_type,
                       expr=nullable(strlike),
                       root=nullable(strlike))
     def annotate_variants_vds(self, other, expr=None, root=None):
@@ -1159,7 +1160,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    @typecheck_method(right=anytype)
+    @typecheck_method(right=vds_type)
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
@@ -2495,7 +2496,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @typecheck_method(right=anytype)
+    @typecheck_method(right=vds_type)
     def join(self, right):
         """Join two variant datasets.
 
@@ -3002,8 +3003,11 @@ class VariantDataset(object):
         **Annotations**
 
         With the default root, the following four variant annotations are added.
-        The indexing of these annotations corresponds to that of ``y``.
+        The indexing of the array annotations corresponds to that of ``y``.
 
+        - **va.linreg.nCompleteSamples** (*Int*) -- number of samples used
+        - **va.linreg.AC** (*Double*) -- sum of the genotype values ``x``
+        - **va.linreg.ytx** (*Array[Double]*) -- array of dot products of each phenotype vector ``y`` with the genotype vector ``x``
         - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
         - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
         - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
@@ -3734,9 +3738,9 @@ class VariantDataset(object):
 
         **Examples**
 
-        Compute the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double:
+        Compute the top 5 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
 
-        >>> vds_result = vds.pca('sa.scores')
+        >>> vds_result = vds.pca('sa.scores', k=5)
 
         Compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
 
@@ -4301,7 +4305,7 @@ class VariantDataset(object):
         return KinshipMatrix(self._jvdf.rrm(force_block, force_gramian))
 
     @handle_py4j
-    @typecheck_method(other=anytype,
+    @typecheck_method(other=vds_type,
                       tolerance=numeric)
     def same(self, other, tolerance=1e-6):
         """True if the two variant datasets have the same variants, samples, genotypes, and annotation schemata and values.
@@ -4852,7 +4856,7 @@ class VariantDataset(object):
         +===========================+========+========================================================+
         | ``callRate``              | Double | Fraction of samples with called genotypes              |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``AF``                    | Double | Calculated minor allele frequency (q)                  |
+        | ``AF``                    | Double | Calculated alternate allele frequency (q)              |
         +---------------------------+--------+--------------------------------------------------------+
         | ``AC``                    | Int    | Count of alternate alleles                             |
         +---------------------------+--------+--------------------------------------------------------+
@@ -5278,3 +5282,5 @@ class VariantDataset(object):
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
                                 jarray(Env.jvm().java.lang.String, wrap_to_list(key)), separator)
         return KeyTable(self.hc, jkt)
+
+vds_type.set(VariantDataset)

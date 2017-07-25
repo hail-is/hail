@@ -1448,7 +1448,10 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
     val joined = rdd.orderedInnerJoinDistinct(right.rdd)
       .mapValues { case ((lva, lgs), (rva, rgs)) =>
-        (lva, lgs ++ rgs)
+        val lrgs: Iterable[T] = new Iterable[T] with Serializable {
+          def iterator: Iterator[T] = lgs.iterator ++ rgs.iterator
+        }
+        (lva, lrgs)
       }.asOrderedRDD
 
     copy(
