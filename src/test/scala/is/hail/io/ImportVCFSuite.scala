@@ -1,7 +1,8 @@
 package is.hail.io
 
+import htsjdk.variant.variantcontext.VariantContext
 import is.hail.SparkSuite
-import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF, VCFReport}
+import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF}
 import is.hail.variant.{Call, Genotype, Variant}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
@@ -37,7 +38,6 @@ class ImportVCFSuite extends SparkSuite {
     val n = vds.countVariants()
 
     assert(n == 1)
-    assert(VCFReport.accumulators.head._2.value(VCFReport.Symbolic) == 2)
   }
 
   @Test def testStoreGQ() {

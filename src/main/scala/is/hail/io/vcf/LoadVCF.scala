@@ -5,15 +5,12 @@ import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
-import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
-import org.apache.spark.Accumulable
 import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable
 import scala.io.Source
 import scala.reflect.ClassTag
 
@@ -21,80 +18,6 @@ case class VCFSettings(storeGQ: Boolean = false,
   dropSamples: Boolean = false,
   ppAsPL: Boolean = false,
   skipBadAD: Boolean = false)
-
-object VCFReport {
-  val GTPLMismatch = 1
-  val ADDPMismatch = 2
-  val ODMissingAD = 3
-  val ADODDPPMismatch = 4
-  val GQPLMismatch = 5
-  val GQMissingPL = 6
-  val RefNonACGTN = 7
-  val Symbolic = 8
-  val ADInvalidNumber = 9
-
-  var accumulators: List[(String, Accumulable[mutable.Map[Int, Int], Int])] = Nil
-
-  def isVariant(id: Int): Boolean = id == RefNonACGTN || id == Symbolic
-
-  def isGenotype(id: Int): Boolean = !isVariant(id)
-
-  def warningMessage(id: Int, count: Int): String = {
-    val desc = id match {
-      case GTPLMismatch => "PL(GT) != 0"
-      case ADDPMismatch => "sum(AD) > DP"
-      case ODMissingAD => "OD present but AD missing"
-      case ADODDPPMismatch => "DP != sum(AD) + OD"
-      case GQPLMismatch => "GQ != difference of two smallest PL entries"
-      case GQMissingPL => "GQ present but PL missing"
-      case RefNonACGTN => "REF contains non-ACGTN"
-      case Symbolic => "Variant is symbolic"
-      case ADInvalidNumber => "AD array contained the wrong number of elements"
-    }
-    s"$count ${ plural(count, "time") }: $desc"
-  }
-
-  def report() {
-    val sb = new StringBuilder()
-    for ((file, m) <- accumulators) {
-      sb.clear()
-
-      sb.append(s"while importing:\n    $file")
-
-      val variantWarnings = m.value.filter { case (k, v) => isVariant(k) }
-      val nVariantsFiltered = variantWarnings.values.sum
-      if (nVariantsFiltered > 0) {
-        sb.append(s"\n  filtered $nVariantsFiltered variants:")
-        variantWarnings.foreach { case (id, n) =>
-          if (n > 0) {
-            sb.append("\n    ")
-            sb.append(warningMessage(id, n))
-          }
-        }
-        warn(sb.result())
-      }
-
-      val genotypeWarnings = m.value.filter { case (k, v) => isGenotype(k) }
-      val nGenotypesFiltered = genotypeWarnings.values.sum
-      if (nGenotypesFiltered > 0) {
-        sb.append(s"\n  filtered $nGenotypesFiltered genotypes:")
-        genotypeWarnings.foreach { case (id, n) =>
-          if (n > 0) {
-            sb.append("\n    ")
-            sb.append(warningMessage(id, n))
-          }
-        }
-      }
-
-      if (nVariantsFiltered == 0 && nGenotypesFiltered == 0) {
-        sb.append("  import clean")
-        info(sb.result())
-      } else
-        warn(sb.result())
-    }
-  }
-}
-
 
 object LoadVCF {
 
@@ -290,18 +213,9 @@ object LoadVCF {
     if (!noMulti)
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
-    val reportAccs = partitionFile.toSet.iterator
-      .map { (file: String) =>
-        val reportAcc = sc.accumulable[mutable.Map[Int, Int], Int](mutable.Map.empty[Int, Int])
-        VCFReport.accumulators ::= (file, reportAcc)
-        (file, reportAcc)
-      }
-      .toMap
-
     val rdd = lines
       .mapPartitionsWithIndex { case (i, lines) =>
         val file = partitionFile(i)
-        val reportAcc = reportAccs(file)
 
         val codec = new htsjdk.variant.vcf.VCFCodec()
         codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
@@ -311,15 +225,13 @@ object LoadVCF {
             if (line.isEmpty || line(0) == '#')
               None
             else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
-              reportAcc += VCFReport.RefNonACGTN
               None
             } else {
               val vc = codec.decode(line)
               if (vc.isSymbolic) {
-                reportAcc += VCFReport.Symbolic
                 None
               } else
-                Some(reader.readRecord(reportAcc, vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value))
+                Some(reader.readRecord(vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value))
             }
           }.value
         }

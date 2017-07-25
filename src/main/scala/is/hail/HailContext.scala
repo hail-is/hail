@@ -665,7 +665,6 @@ class HailContext private(val sc: SparkContext,
   }
 
   def report() {
-    VCFReport.report()
     GenReport.report()
     DuplicateReport.report()
   }
