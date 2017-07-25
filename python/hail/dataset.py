@@ -2141,8 +2141,17 @@ class VariantDataset(object):
         
         >>> vds_filtered = vds.filter_intervals(Interval.parse('15:100000-200000'))
 
-        :param intervals: interval or list of intervals
+        .. note::
+
+            A :py:class:`.KeyTable` keyed by interval can be used to filter a dataset efficiently as well.
+            See the documentation for :py:meth:`.filter_variants_table` for an example. This is useful for
+            using interval files to filter a dataset.
+
+        :param intervals: Interval(s) to keep or remove.
         :type intervals: :class:`.Interval` or list of :class:`.Interval`
+
+        :param bool keep: Keep variants overlapping an interval if ``True``, remove variants overlapping
+                          an interval if ``False``.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
