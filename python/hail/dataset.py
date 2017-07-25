@@ -1010,7 +1010,7 @@ class VariantDataset(object):
                  FROM files AS f INNER JOIN annotations AS a ON f.file_id = a.file_id
                  WHERE f.file_id IN ({})
                  GROUP BY file_path""".format(sub)
-            
+
         # collect counts in file_id: count dictionary
         cnts = {x[0]: x[1] for x in curs.execute(qry, file_ids).fetchall()}
 
@@ -2978,7 +2978,7 @@ class VariantDataset(object):
                                            jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
                                            min_af)
         return VariantDataset(self.hc, jvds)
-    
+
     @handle_py4j
     @requireTGenotype
     @typecheck_method(ys=listof(strlike),
@@ -4225,6 +4225,12 @@ class VariantDataset(object):
         **Examples**
 
         >>> vds_result = vds.rename_samples({'ID1': 'id1', 'ID2': 'id2'})
+
+        Use a file with an "old_id" and "new_id" column to rename samples:
+
+        >>> mapping_table = hc.import_table('data/sample_mapping.txt')
+        >>> mapping_dict = {row.old_id: row.new_id for row in mapping_table.collect()}
+        >>> vds_result = vds.rename_samples(mapping_dict)
 
         :param dict mapping: Mapping from old to new sample IDs.
 
