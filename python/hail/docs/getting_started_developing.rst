@@ -24,11 +24,13 @@ Hail uses conda environments to manage python dependencies. First, create a
 conda environment for hail:
 
 .. code-block:: text
+
     conda env update hail -f ./python/hail/environment.yml
 
 And run the ``createDocs`` gradle task in the environment:
 
 .. code-block:: text
+
     (source activate hail && gradle createDocs) ; source deactivate hail
 
 The generated docs are located at ``./build/www/hail/index.html``.
@@ -38,6 +40,7 @@ creating the environment, we recommend building the docs as follows to ensure
 the environment is always up to date:
 
 .. code-block:: text
+
     (conda env update hail -f ./python/hail/environment.yml &&
      source activate hail &&
      gradle createDocs) ; source deactivate hail
