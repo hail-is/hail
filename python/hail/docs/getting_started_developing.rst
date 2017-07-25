@@ -23,13 +23,13 @@ Building the Docs
 Hail uses conda environments to manage python dependencies. First, create a
 conda environment for hail:
 
-.. code-block:: text
+.. code-block:: bash
 
     conda env create hail -f ./python/hail/environment.yml
 
 And run the ``createDocs`` gradle task in the environment:
 
-.. code-block:: text
+.. code-block:: bash
 
     (source activate hail && gradle createDocs) ; source deactivate hail
 
@@ -39,7 +39,7 @@ The ``environment.yml`` file may change without warning; therefore, after
 creating the environment, we recommend building the docs as follows to ensure
 the environment is always up to date:
 
-.. code-block:: text
+.. code-block:: bash
 
     (conda env update hail -f ./python/hail/environment.yml &&
      source activate hail &&
@@ -61,6 +61,7 @@ Other recent versions of QCTOOL and R should suffice, but PLINK 1.7 will not.
 
 To execute all Hail tests, run:
 
-.. code-block:: text
+.. code-block:: bash
 
-    $ ./gradlew -Dspark.home=${SPARK_HOME} test
+    ./gradlew -Dspark.home=${SPARK_HOME} test
+
