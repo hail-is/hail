@@ -14,7 +14,7 @@ You'll need:
 Building a Hail JAR
 -------------------
 
-See the "Running Hail locally" section of <getting_started>.
+See :ref:`building-hail-from-source`.
 
 -----------------
 Building the Docs
@@ -25,7 +25,7 @@ conda environment for hail:
 
 .. code-block:: text
 
-    conda env update hail -f ./python/hail/environment.yml
+    conda env create hail -f ./python/hail/environment.yml
 
 And run the ``createDocs`` gradle task in the environment:
 

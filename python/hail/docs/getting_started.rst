@@ -44,6 +44,8 @@ to start a Jupyter Notebook server in the tutorials directory.
 
 You can now click on the "hail-overview" notebook to get started!
 
+.. _building-hail-from-source:
+
 -------------------------
 Building Hail from source
 -------------------------
