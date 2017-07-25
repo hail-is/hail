@@ -30,6 +30,10 @@ class ExprSuite extends SparkSuite {
     assert(run[Boolean]("false").contains(false))
     assert(run[String](""""foo"""").contains("foo"))
 
+    assert(run[String]("'foo'").contains("foo"))
+    assert(run[String]("'\"foo'").contains("\"foo"))
+    assert(run[String]("'\\'foo'").contains("'foo"))
+
     assert(run[String]("""if (true) "foo" else "bar"""").contains("foo"))
     assert(run[String]("""if (false) "foo" else "bar"""").contains("bar"))
     assert(run[Int]("""if (true) 1 else 0""").contains(1))
