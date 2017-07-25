@@ -3888,7 +3888,15 @@ class VariantDataset(object):
         """
         Returns the signature of the global annotations contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.global_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.global_schema)
+
 
         :rtype: :class:`.Type`
         """
@@ -3903,7 +3911,14 @@ class VariantDataset(object):
         """
         Returns the signature of the column key (sample) contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.colkey_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.colkey_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3918,7 +3933,14 @@ class VariantDataset(object):
         """
         Returns the signature of the sample annotations contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.sample_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.sample_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3933,7 +3955,14 @@ class VariantDataset(object):
         """
         Returns the signature of the row key (variant) contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.rowkey_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.rowkey_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3948,7 +3977,14 @@ class VariantDataset(object):
         """
         Returns the signature of the variant annotations contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.variant_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.variant_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3963,7 +3999,14 @@ class VariantDataset(object):
         """
         Returns the signature of the genotypes contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.genotype_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.genotype_schema)
 
         :rtype: :class:`.Type`
         """

@@ -121,21 +121,14 @@ class KeyTable(object):
     def schema(self):
         """Table schema.
 
-        **Example:**
-
-        Print the table columns / signatures:
+        **Examples**
 
         >>> print(kt1.schema)
-        Struct {
-            ID: Int,
-            HT: Int,
-            SEX: String,
-            X: Int,
-            Z: Int,
-            C1: Int,
-            C2: Int,
-            C3: Int
-        }
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(kt1.schema)
 
         :rtype: :class:`.TStruct`
         """
