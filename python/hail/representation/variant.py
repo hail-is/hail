@@ -464,6 +464,11 @@ class Locus(object):
     def parse(string):
         """Parses a locus object from a CHR:POS string.
 
+        **Examples**
+
+        >>> l1 = Locus.parse('1:101230')
+        >>> l2 = Locus.parse('X:4201230')
+
         :rtype: :class:`.Locus`
         """
 

@@ -76,6 +76,15 @@ class VariantDataset(object):
     def from_table(table):
         """Construct a sites-only variant dataset from a key table.
 
+        **Examples**
+
+        Import a text table and construct a sites-only VDS:
+
+        >>> table = hc.import_table('data/variant-lof.tsv', types={'v': TVariant()}).key_by('v')
+        >>> sites_vds = VariantDataset.from_table(table)
+
+        **Notes**
+
         The key table must be keyed by one column of type :py:class:`.TVariant`.
 
         All columns in the key table become variant annotations in the result.
