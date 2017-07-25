@@ -38,7 +38,7 @@ class Summary(object):
         summary = Summary.__new__(cls)
         summary.samples = jrep.samples()
         summary.variants = jrep.variants()
-        summary.call_rate = jrep.callRate().getOrElse(None)
+        summary.call_rate = jrep.callRate().get() if jrep.callRate().isDefined() else float('nan')
         summary.contigs = [str(x) for x in jiterable_to_list(jrep.contigs())]
         summary.multiallelics = jrep.multiallelics()
         summary.snps = jrep.snps()
