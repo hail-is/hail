@@ -276,6 +276,7 @@ class ContextTests(unittest.TestCase):
         sample.cache()
 
         sample.summarize().report()
+        sample.drop_samples().summarize().report()
 
         sample_split = sample.split_multi()
 
