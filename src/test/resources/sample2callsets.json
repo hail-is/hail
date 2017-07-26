@@ -1,0 +1,504 @@
+{
+    "callsets" : {
+        "HG00096" : {
+            "row_idx" : 0,
+            "idx_in_file" : 0,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00097" : {
+            "row_idx" : 1,
+            "idx_in_file" : 1,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00099" : {
+            "row_idx" : 2,
+            "idx_in_file" : 2,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00100" : {
+            "row_idx" : 3,
+            "idx_in_file" : 3,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00101" : {
+            "row_idx" : 4,
+            "idx_in_file" : 4,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00102" : {
+            "row_idx" : 5,
+            "idx_in_file" : 5,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00103" : {
+            "row_idx" : 6,
+            "idx_in_file" : 6,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00105" : {
+            "row_idx" : 7,
+            "idx_in_file" : 7,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00106" : {
+            "row_idx" : 8,
+            "idx_in_file" : 8,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00107" : {
+            "row_idx" : 9,
+            "idx_in_file" : 9,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00108" : {
+            "row_idx" : 10,
+            "idx_in_file" : 10,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00109" : {
+            "row_idx" : 11,
+            "idx_in_file" : 11,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00110" : {
+            "row_idx" : 12,
+            "idx_in_file" : 12,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00111" : {
+            "row_idx" : 13,
+            "idx_in_file" : 13,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00112" : {
+            "row_idx" : 14,
+            "idx_in_file" : 14,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00113" : {
+            "row_idx" : 15,
+            "idx_in_file" : 15,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00114" : {
+            "row_idx" : 16,
+            "idx_in_file" : 16,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00115" : {
+            "row_idx" : 17,
+            "idx_in_file" : 17,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00116" : {
+            "row_idx" : 18,
+            "idx_in_file" : 18,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00117" : {
+            "row_idx" : 19,
+            "idx_in_file" : 19,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00118" : {
+            "row_idx" : 20,
+            "idx_in_file" : 20,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00119" : {
+            "row_idx" : 21,
+            "idx_in_file" : 21,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00120" : {
+            "row_idx" : 22,
+            "idx_in_file" : 22,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00121" : {
+            "row_idx" : 23,
+            "idx_in_file" : 23,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00122" : {
+            "row_idx" : 24,
+            "idx_in_file" : 24,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00123" : {
+            "row_idx" : 25,
+            "idx_in_file" : 25,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00124" : {
+            "row_idx" : 26,
+            "idx_in_file" : 26,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00125" : {
+            "row_idx" : 27,
+            "idx_in_file" : 27,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00126" : {
+            "row_idx" : 28,
+            "idx_in_file" : 28,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00127" : {
+            "row_idx" : 29,
+            "idx_in_file" : 29,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00128" : {
+            "row_idx" : 30,
+            "idx_in_file" : 30,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00129" : {
+            "row_idx" : 31,
+            "idx_in_file" : 31,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00130" : {
+            "row_idx" : 32,
+            "idx_in_file" : 32,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00131" : {
+            "row_idx" : 33,
+            "idx_in_file" : 33,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00132" : {
+            "row_idx" : 34,
+            "idx_in_file" : 34,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00133" : {
+            "row_idx" : 35,
+            "idx_in_file" : 35,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00136" : {
+            "row_idx" : 36,
+            "idx_in_file" : 36,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00137" : {
+            "row_idx" : 37,
+            "idx_in_file" : 37,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00138" : {
+            "row_idx" : 38,
+            "idx_in_file" : 38,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00139" : {
+            "row_idx" : 39,
+            "idx_in_file" : 39,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00140" : {
+            "row_idx" : 40,
+            "idx_in_file" : 40,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00141" : {
+            "row_idx" : 41,
+            "idx_in_file" : 41,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00142" : {
+            "row_idx" : 42,
+            "idx_in_file" : 42,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00143" : {
+            "row_idx" : 43,
+            "idx_in_file" : 43,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00145" : {
+            "row_idx" : 44,
+            "idx_in_file" : 44,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00146" : {
+            "row_idx" : 45,
+            "idx_in_file" : 45,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00148" : {
+            "row_idx" : 46,
+            "idx_in_file" : 46,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00149" : {
+            "row_idx" : 47,
+            "idx_in_file" : 47,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00150" : {
+            "row_idx" : 48,
+            "idx_in_file" : 48,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00151" : {
+            "row_idx" : 49,
+            "idx_in_file" : 49,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00154" : {
+            "row_idx" : 50,
+            "idx_in_file" : 50,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00155" : {
+            "row_idx" : 51,
+            "idx_in_file" : 51,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00157" : {
+            "row_idx" : 52,
+            "idx_in_file" : 52,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00158" : {
+            "row_idx" : 53,
+            "idx_in_file" : 53,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00159" : {
+            "row_idx" : 54,
+            "idx_in_file" : 54,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00160" : {
+            "row_idx" : 55,
+            "idx_in_file" : 55,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00171" : {
+            "row_idx" : 56,
+            "idx_in_file" : 56,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00173" : {
+            "row_idx" : 57,
+            "idx_in_file" : 57,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00174" : {
+            "row_idx" : 58,
+            "idx_in_file" : 58,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00176" : {
+            "row_idx" : 59,
+            "idx_in_file" : 59,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00177" : {
+            "row_idx" : 60,
+            "idx_in_file" : 60,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00178" : {
+            "row_idx" : 61,
+            "idx_in_file" : 61,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00179" : {
+            "row_idx" : 62,
+            "idx_in_file" : 62,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00180" : {
+            "row_idx" : 63,
+            "idx_in_file" : 63,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00181" : {
+            "row_idx" : 64,
+            "idx_in_file" : 64,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00182" : {
+            "row_idx" : 65,
+            "idx_in_file" : 65,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00183" : {
+            "row_idx" : 66,
+            "idx_in_file" : 66,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00185" : {
+            "row_idx" : 67,
+            "idx_in_file" : 67,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00186" : {
+            "row_idx" : 68,
+            "idx_in_file" : 68,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00187" : {
+            "row_idx" : 69,
+            "idx_in_file" : 69,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00188" : {
+            "row_idx" : 70,
+            "idx_in_file" : 70,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00189" : {
+            "row_idx" : 71,
+            "idx_in_file" : 71,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00190" : {
+            "row_idx" : 72,
+            "idx_in_file" : 72,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00231" : {
+            "row_idx" : 73,
+            "idx_in_file" : 73,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00232" : {
+            "row_idx" : 74,
+            "idx_in_file" : 74,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00233" : {
+            "row_idx" : 75,
+            "idx_in_file" : 75,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00234" : {
+            "row_idx" : 76,
+            "idx_in_file" : 76,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00235" : {
+            "row_idx" : 77,
+            "idx_in_file" : 77,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00236" : {
+            "row_idx" : 78,
+            "idx_in_file" : 78,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00237" : {
+            "row_idx" : 79,
+            "idx_in_file" : 79,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00238" : {
+            "row_idx" : 80,
+            "idx_in_file" : 80,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00239" : {
+            "row_idx" : 81,
+            "idx_in_file" : 81,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00240" : {
+            "row_idx" : 82,
+            "idx_in_file" : 82,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00242" : {
+            "row_idx" : 83,
+            "idx_in_file" : 83,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00243" : {
+            "row_idx" : 84,
+            "idx_in_file" : 84,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00244" : {
+            "row_idx" : 85,
+            "idx_in_file" : 85,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00245" : {
+            "row_idx" : 86,
+            "idx_in_file" : 86,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00246" : {
+            "row_idx" : 87,
+            "idx_in_file" : 87,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00250" : {
+            "row_idx" : 88,
+            "idx_in_file" : 88,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00251" : {
+            "row_idx" : 89,
+            "idx_in_file" : 89,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00252" : {
+            "row_idx" : 90,
+            "idx_in_file" : 90,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00253" : {
+            "row_idx" : 91,
+            "idx_in_file" : 91,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00254" : {
+            "row_idx" : 92,
+            "idx_in_file" : 92,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00255" : {
+            "row_idx" : 93,
+            "idx_in_file" : 93,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00256" : {
+            "row_idx" : 94,
+            "idx_in_file" : 94,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00257" : {
+            "row_idx" : 95,
+            "idx_in_file" : 95,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00258" : {
+            "row_idx" : 96,
+            "idx_in_file" : 96,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00259" : {
+            "row_idx" : 97,
+            "idx_in_file" : 97,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00260" : {
+            "row_idx" : 98,
+            "idx_in_file" : 98,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        },
+        "HG00261" : {
+            "row_idx" : 99,
+            "idx_in_file" : 99,
+            "filename": "/Users/jgoldsmi/hail/src/test/resources/sample2.vcf.gz"
+        }
+    }
+}

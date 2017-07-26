@@ -11,11 +11,12 @@ import org.testng.annotations.Test
 class ImportGDBSuite extends SparkSuite {
 
   val loader = "/Users/jgoldsmi/tdbjson/loader_sample2.json"
+  val query = "/Users/jgoldsmi/tdbjson/test_read.json"
   val workspace = "/Users/jgoldsmi/tdbworkspace"
   val arrName = "my_array_sample2"
   val ref = "/Users/jgoldsmi/build/Homo_sapiens_assembly19.fasta"
   val reader = new GenericRecordReader(Set.empty)
-  val gdbVariantSampleMatrix: GenericDataset = LoadGDB(hc, reader, loader, workspace, arrName, ref) //TODO: hc.importGDB(loader, workspace, arrName, ref) @HailContext.scala
+  val gdbVariantSampleMatrix: GenericDataset = LoadGDB(hc, reader, loader, query, workspace, arrName, ref)
   val vcfVariantSampleMatrix: GenericDataset = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
   @Test def genomicsDBIterator() {
@@ -63,7 +64,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfVariantSampleMatrix.wasSplit == gdbVariantSampleMatrix.wasSplit) // wasSplit == noMulti
   }
 
-  //FIXME: this test fails because of the differences in info signatures AND filters -- waiting on GenomicsDB response to figure out how to fix infoSignatures
+  //FIXME: this test fails because genomicsDB version has an extra PASS filter
   @Test def genomicsDBVariantAnnotationSignatures() {
 
     val vcfVAS = vcfVariantSampleMatrix
@@ -71,42 +72,34 @@ class ImportGDBSuite extends SparkSuite {
       .vaSignature
       .asInstanceOf[TStruct]
       .fields
-      .toSet
 
     val gdbVAS = gdbVariantSampleMatrix
       .metadata
       .vaSignature
       .asInstanceOf[TStruct]
       .fields
-      .toSet
 
-    assert(vcfVAS.equals(gdbVAS))
+    assert(vcfVAS.zip(gdbVAS).forall( { case (f1, f2) =>
+        println(f1)
+        println(f2)
+        println
+        f1.equals(f2)
+    }))
   }
 
-  //TODO: this test maps each field to a pair of (name, type) because GenomicsDB drops descriptions for each field -- find way to get descriptions into GenomicsDB array
   @Test def genomicsDBGenotypeSignature() {
 
     val vcfGenotypeSignature = vcfVariantSampleMatrix
       .genotypeSignature
       .asInstanceOf[TStruct]
       .fields
-      .map(field => {
-        //println(field.toString + "\n")
-        (field.name, field.typ)
-      })
-      .toSet
 
     val gdbGenotypeSignature = gdbVariantSampleMatrix
       .genotypeSignature
       .asInstanceOf[TStruct]
       .fields
-      .map(field => {
-        //println(field.toString + "\n")
-        (field.name, field.typ)
-      })
-      .toSet
 
-    assert(vcfGenotypeSignature.equals(gdbGenotypeSignature))
+    assert(vcfGenotypeSignature.zip(gdbGenotypeSignature).forall( { case (f1, f2) => f1.equals(f2) }))
   }
 
   @Test def genomicsDBVariantsSamples() {
@@ -118,34 +111,24 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfVariantSampleMatrix.sampleIds.equals(gdbVariantSampleMatrix.sampleIds))
   }
 
-  //FIXME: this test fails because GT field not getting initialized (despite turning on produce_GT_field option in loader file)
   @Test def genomicsDBRDDGenotypeData() {
 
     val vcfGT = vcfVariantSampleMatrix.rdd.map(_._2._2).collect
     val gdbGT = gdbVariantSampleMatrix.rdd.map(_._2._2).collect
 
-    val writer = new FileWriter(new File("/Users/jgoldsmi/Desktop/gtInfo.txt"))
-
-
-    assert(vcfGT.zip(gdbGT).forall( { case (it1, it2) => it1.zip(it2).forall( { case (a1, a2) =>
-      writer.write(a1.toString + "\n")
-      writer.write(a2.toString + "\n\n")
-      a1.equals(a2) })
-    }))
-
-    writer.close()
+    assert(vcfGT.zip(gdbGT).forall( { case (it1, it2) => it1.zip(it2).forall( { case (a1, a2) => a1.equals(a2) }) }))
   }
 
-  //FIXME: this test fails because the info signatures are different due to gdb issues, and the QUAL field is dropped
+  //FIXME: this test fails because the QUAL field is dropped and the DP field has two extra zeroes on the end
   @Test def genomicsDBRDDAnnotations() {
 
     val vcfAnn = vcfVariantSampleMatrix.rdd.map(_._2._1).collect
     val gdbAnn = gdbVariantSampleMatrix.rdd.map(_._2._1).collect
 
     assert(vcfAnn.zip(gdbAnn).forall( { case (a1, a2) =>
-      //println(a1.toString)
-      //println(a2.toString)
-      //println
+      println(a1.toString)
+      println(a2.toString)
+      println
       a1.equals(a2)
     }))
   }

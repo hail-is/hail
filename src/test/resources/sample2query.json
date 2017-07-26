@@ -1,0 +1,11 @@
+{
+    "workspace" : "/Users/jgoldsmi/tdbworkspace",
+    "array" : "my_array_sample2",
+    "query_column_ranges" : [ [ [0, 17421565 ] ] ],
+    "vid_mapping_file": "/Users/jgoldsmi/tdbjson/vid_sample2.json",
+    "callset_mapping_file": "/Users/jgoldsmi/tdbjson/callsets_sample2.json",	
+    "query_attributes" : [],
+    "reference_genome" : "/Users/jgoldsmi/build/Homo_sapiens_assembly19.fasta",
+    "vcf_header_filename" : "/Users/jgoldsmi/tdbjson/sample2header.vcf",
+    "produce_GT_field" : true
+}

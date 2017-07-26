@@ -1,0 +1,33 @@
+{
+        "contigs": {
+                "22": {
+                        "length": 51304566,
+                        "tiledb_column_offset": 0
+                }
+        },
+        "callset_mapping_file": "/Users/jgoldsmi/tdbjson/callsets_sample2.json",
+        "fields": {
+                "AD": {
+                        "vcf_field_class": ["FORMAT"],
+                        "type": "int"
+                },
+                "DP": {
+                        "vcf_field_class": ["FORMAT", "INFO"],
+                        "type": "int"
+                },
+                "GQ": {
+                        "vcf_field_class": ["FORMAT"],
+                        "type": "int"
+                },
+                "GT": {
+			"vcf_field_class": ["FORMAT"],
+                        "type": "int",
+                        "length": "P"
+                },
+                "PL": {
+                        "vcf_field_class": ["FORMAT"],
+                        "type": "int",
+                        "length": "G"
+                }
+	}
+} 
