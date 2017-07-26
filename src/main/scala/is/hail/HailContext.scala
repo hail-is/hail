@@ -5,11 +5,10 @@ import java.util.Properties
 import is.hail.annotations.Annotation
 import is.hail.expr.{EvalContext, Parser, TStruct, Type, _}
 import is.hail.io.bgen.BgenLoader
-import is.hail.io.gen.{GenLoader, GenReport}
+import is.hail.io.gen.GenLoader
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
 import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
-import is.hail.methods.DuplicateReport
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{GenericDataset, Genotype, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
@@ -662,12 +661,6 @@ class HailContext private(val sc: SparkContext,
 
     val (t, f) = Parser.parseExpr(expr, ec)
     (f(), t)
-  }
-
-  def report() {
-    VCFReport.report()
-    GenReport.report()
-    DuplicateReport.report()
   }
 
   def stop() {

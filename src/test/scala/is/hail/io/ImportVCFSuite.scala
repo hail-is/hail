@@ -124,7 +124,6 @@ class ImportVCFSuite extends SparkSuite {
       .map { case (v, s, g) => ((v, s), g) }
       .toMap
 
-    hc.report()
     val v1 = Variant("X", 16050036, "A", "C")
     val v2 = Variant("X", 16061250, "T", Array("A", "C"))
 
