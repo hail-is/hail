@@ -1015,6 +1015,12 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
   def variants: RDD[Variant] = rdd.keys
 
+  def deduplicate(): VariantSampleMatrix[T] = {
+    copy(rdd = rdd.mapPartitions({ it =>
+      new SortedDistinctPairIterator(it)
+    }, preservesPartitioning = true).asOrderedRDD)
+  }
+
   def deleteGlobal(args: String*): (Type, Deleter) = deleteGlobal(args.toList)
 
   def deleteGlobal(path: List[String]): (Type, Deleter) = globalSignature.delete(path)
