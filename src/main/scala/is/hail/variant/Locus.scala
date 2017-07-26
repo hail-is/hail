@@ -49,7 +49,7 @@ object Locus {
   def parse(str: String): Locus = {
     str.split(":") match {
       case Array(chr, pos) => Locus(chr, pos.toInt)
-      case a => fatal(s"expected 2 colon-delimited fields, but found ${ a.length }")
+      case a => fatal(s"invalid locus: expected 2 colon-delimited fields, found ${ a.length }: $str")
     }
   }
 
