@@ -210,7 +210,7 @@ object LoadVCF {
 
     if (noMulti)
       info("No multiallelics detected.")
-    if (!noMulti)
+    else
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
     val rdd = lines

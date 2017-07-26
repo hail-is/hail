@@ -13,7 +13,6 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.reflect.ClassTag
 
-
 object LoadGDB {
 
   def apply[T](hc: HailContext,
@@ -28,18 +27,18 @@ object LoadGDB {
 
     val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile, tiledbWorkspace, arrayName, referenceGenome, new htsjdk.variant.vcf.VCFCodec())
 
+    println(gdbReader.getHeader.toString)
+
     val header = gdbReader //FIXME: get the header that was passed in from the loader file
       .getHeader
       .asInstanceOf[VCFHeader]
-
-    println(header.toString)
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
     val filters: Map[String, String] = header
       .getFilterLines
       .toList
       //(filter, description)
-      .map(line => (line.getID, "")) //does this even matter if genomicsDB drops descriptions upon array creation?
+      .map(line => (line.getID, ""))
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
@@ -88,9 +87,8 @@ object LoadGDB {
 
     if (noMulti)
       info("No multiallelics detected.")
-    if (!noMulti)
+    else
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
-
 
     val rdd = recordRDD.toOrderedRDD(justVariants)
 

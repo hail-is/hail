@@ -130,7 +130,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfGT.zip(gdbGT).forall( { case (it1, it2) => it1.zip(it2).forall( { case (a1, a2) =>
       writer.write(a1.toString + "\n")
       writer.write(a2.toString + "\n\n")
-      a1.equals(a1) })
+      a1.equals(a2) })
     }))
 
     writer.close()
