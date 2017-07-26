@@ -64,7 +64,7 @@ object OrderedRDD {
         return (ORDERED_PARTITIONER, ordd.asInstanceOf[OrderedRDD[PK, K, V]])
       case _ =>
     }
-    
+
     val keys = fastKeys.getOrElse(rdd.map(_._1))
 
     val keyInfo = keys.mapPartitionsWithIndex { case (i, it) =>
@@ -183,12 +183,12 @@ object OrderedRDD {
   def apply[PK, K, V](rdd: RDD[(K, V)],
     orderedPartitioner: OrderedPartitioner[PK, K])
     (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] = {
-    assert(rdd.partitions.length == orderedPartitioner.numPartitions, s"${rdd.partitions.length} != ${orderedPartitioner.numPartitions}")
+    assert(rdd.partitions.length == orderedPartitioner.numPartitions, s"${ rdd.partitions.length } != ${ orderedPartitioner.numPartitions }")
 
     import kOk._
 
     import Ordering.Implicits._
-    
+
     val rangeBoundsBc = rdd.sparkContext.broadcast(orderedPartitioner.rangeBounds)
     new OrderedRDD(
       rdd.mapPartitionsWithIndex { case (i, it) =>
@@ -453,6 +453,25 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       val partitioner = new OrderedPartitioner(newRangeBounds, newPartEnd.length)
       new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd), partitioner)
     }
+  }
+
+  def naiveCoalesce(maxPartitions: Int): OrderedRDD[PK, K, V] = {
+    val n = orderedPartitioner.numPartitions
+    if (maxPartitions > n)
+      return this
+
+    val newN = maxPartitions
+    val newNParts = Array.tabulate(newN)(i => (n - i + newN - 1) / newN)
+    assert(newNParts.sum == n)
+    assert(newNParts.forall(_ > 0))
+
+    val newPartEnd = newNParts.scanLeft(-1)( _ + _ ).tail
+    assert(newPartEnd.last == n - 1)
+
+    val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
+
+    new OrderedRDD[PK, K, V](new BlockedRDD(rdd, newPartEnd),
+      new OrderedPartitioner(newRangeBounds, newN))
   }
 
   def filterIntervals(intervals: IntervalTree[PK, _]): OrderedRDD[PK, K, V] = {
