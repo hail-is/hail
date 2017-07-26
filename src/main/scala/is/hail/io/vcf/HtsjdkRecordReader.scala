@@ -164,9 +164,8 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
         else
           Genotype.gtIndex(j, i)
 
-        if (g.hasPL && pl(gt) != 0) {
+        if (g.hasPL && pl(gt) != 0)
           filter = true
-        }
 
         if (gt != -1)
           gb.setGT(gt)
@@ -174,7 +173,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
 
       val ad = g.getAD
       if (g.hasAD) {
-        if (!vcfSettings.skipBadAD || ad.length == nAlleles)
+        if (ad.length == nAlleles || !vcfSettings.skipBadAD)
           gb.setAD(ad)
       }
 
@@ -182,9 +181,8 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
         var dp = g.getDP
         if (g.hasAD) {
           val adsum = ad.sum
-          if (dp < adsum) {
+          if (dp < adsum)
             filter = true
-          }
         }
 
         gb.setDP(dp)
@@ -216,12 +214,10 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
           val adsum = ad.sum
           if (!g.hasDP)
             gb.setDP(adsum + od)
-          else if (!filter && adsum + od != g.getDP) {
+          else if (adsum + od != g.getDP)
             filter = true
-          }
-        } else if (!filter) {
+        } else
           filter = true
-        }
       }
 
       if (filter)

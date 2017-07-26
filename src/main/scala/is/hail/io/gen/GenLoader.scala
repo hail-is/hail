@@ -75,7 +75,7 @@ object GenLoader {
       val d1 = gp(i + 1)
       val d2 = gp(i + 2)
       val sumDosages = d0 + d1 + d2
-      if (sumDosages != 0.0 && !(math.abs(sumDosages - 1.0) > tolerance)) {
+      if (sumDosages != 0.0 && math.abs(sumDosages - 1.0) <= tolerance) {
         val px = Genotype.weightsToLinear(d0, d1, d2)
         val gt = Genotype.gtFromLinear(px)
 
