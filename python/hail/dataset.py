@@ -4348,7 +4348,7 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.naiveCoalesce(max_partitions)
+        jvds = self._jvds.naiveCoalesce(max_partitions)
         return VariantDataset(self.hc, jvds)
     
     @handle_py4j

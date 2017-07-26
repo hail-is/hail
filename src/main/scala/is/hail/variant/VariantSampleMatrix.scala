@@ -2121,4 +2121,7 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
   def unpersist() {
     rdd.unpersist()
   }
+  
+  def naiveCoalesce(maxPartitions: Int): VariantSampleMatrix[T] =
+    copy(rdd = rdd.naiveCoalesce(maxPartitions))
 }
