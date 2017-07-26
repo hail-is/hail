@@ -4334,6 +4334,24 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @typecheck_method(max_partitions=integral)
+    def naive_coalesce(self, max_partitions):
+        """Naively descrease the number of partitions.
+
+        .. warning ::
+
+          :py:meth:`~hail.VariantDataset.naive_coalesce` simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance, unlike :py:meth:`~hail.VariantDataset.repartition`, so it can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
+
+        :param int max_partitions: Desired number of partitions.  If the current number of partitions is less than ``max_partitions``, do nothing.
+
+        :return: Variant dataset with the number of partitions equal to at most ``max_partitions``
+        :rtype: :class:`.VariantDataset`
+        """
+
+        jvds = self._jvdf.naiveCoalesce(max_partitions)
+        return VariantDataset(self.hc, jvds)
+    
+    @handle_py4j
     @typecheck_method(force_block=bool,
                       force_gramian=bool)
     def rrm(self, force_block=False, force_gramian=False):

@@ -206,6 +206,9 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     start.copy(rdd = start.rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
   }
 
+  def naiveCoalesce(maxPartitions: Int): VariantDataset =
+    vds.copy(rdd = vds.rdd.naiveCoalesce(maxPartitions))
+
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
     requireSplit("concordance")
 

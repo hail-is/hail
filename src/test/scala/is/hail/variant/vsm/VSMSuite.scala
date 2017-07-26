@@ -315,6 +315,19 @@ class VSMSuite extends SparkSuite {
     }.check()
   }
 
+  @Test def testNaiveCoalesce() {
+    val g = for (
+      vsm <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random);
+      k <- Gen.choose(1, math.max(1, vsm.nPartitions)))
+      yield (vsm, k)
+
+    forAll(g) { case (vsm, k) =>
+      val coalesced = vsm.naiveCoalesce(k)
+      val n = coalesced.nPartitions
+      VSMSuite.checkOrderedRDD(coalesced.rdd) && vsm.same(coalesced) && n <= k
+    }.check()
+  }
+
   @Test def testUnionRead() {
     val g = for (vds <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random);
       variants <- Gen.const(vds.variants.collect());

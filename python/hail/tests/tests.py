@@ -268,6 +268,8 @@ class ContextTests(unittest.TestCase):
                 (dataset.repartition(16, shuffle=False)
                  .same(dataset)))
 
+            self.assertTrue(dataset.naiveCoalesce(2).same(dataset))
+
             print(dataset.storage_level())
             dataset.unpersist()
             dataset2.unpersist()
