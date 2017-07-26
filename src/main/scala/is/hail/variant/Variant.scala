@@ -161,7 +161,7 @@ object Variant {
   def parse(str: String): Variant = {
     val colonSplit = str.split(":")
     if (colonSplit.length != 4)
-      fatal(s"expected 4 colon-delimited fields, but found ${ colonSplit.length }")
+      fatal(s"invalid variant, expected 4 colon-delimited fields, found ${ colonSplit.length }: $str")
     val Array(contig, start, ref, alts) = colonSplit
     Variant(contig, start.toInt, ref, alts.split(","))
   }
