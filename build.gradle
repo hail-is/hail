@@ -35,6 +35,9 @@ buildScan {
     licenseAgree = 'yes'
 }
 
+String hailVersion = "0.1"
+String[] supportedSparkVersions = ["2.0.2", "2.1.0"]
+
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
 if (!(sparkVersion ==~ /^2\..*/))
@@ -100,6 +103,13 @@ compileJava {
 task generateBuildInfo(type: Exec) {
     commandLine 'sh', 'generate-build-info.sh', sparkVersion
     outputs.upToDateWhen { false }
+}
+
+task generateDistLinks(type: Exec) {
+    executable 'sh'
+    args(['generate-dist-links.sh'])
+    args(hailVersion)
+    args(supportedSparkVersions)
 }
 
 compileScala {
@@ -407,7 +417,7 @@ task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp', 'generateDistLinks']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
@@ -415,7 +425,7 @@ task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copy
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp', 'generateDistLinks']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
