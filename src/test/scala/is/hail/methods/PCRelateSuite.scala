@@ -198,25 +198,78 @@ class PCRelateSuite extends SparkSuite {
 
       val vds = profile225
         .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
-        .filterVariantsExpr("v => va.qc.AF > 0.20 && va.qc.AF < 0.80 && v.isAutosomal")
+        .annotateVariantsExpr("va.af = gs.callStats(g => v).AF[0]")
+        .filterVariantsExpr("va.af > 0.20 && va.af < 0.80 && v.isAutosomal")
         .cache()
       val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 
-      val (truth, pcRelateTime) = time(PCRelateReferenceImplementation(vds, pcs, maf=0.01))
-      val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs, maf=0.01))
+      val (truth, truthtime) = time(PCRelateReferenceImplementation(vds, pcs, maf=0.01))
+      val (actual, actualtime) = time(runPcRelateHail(vds, pcs, maf=0.01))
 
-      println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
+      println(s"on fraction: $fraction; reference impl: $truthtime, hail: $actualtime, ratio: ${truthtime / actualtime.toDouble}")
 
       printToFile(new java.io.File(s"/tmp/thousandGenomesTriosMatchesReference-$fraction.out")) { pw =>
         pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
-        for ((k, (hkin, hz0, hz1, hz2)) <- hailPcRelate) {
+        for ((k, (hkin, hz0, hz1, hz2)) <- actual) {
           val (rkin, rz0, rz1, rz2) = truth(k)
           val (s1, s2) = k
           pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
         }
       }
 
-      assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+    }
+  }
+
+  @Test
+  def thousandGenomesTriosReferenceMatchesR() {
+    val trios = Array("HG00702", "HG00656", "HG00657",
+      "HG00733", "HG00731", "HG00732",
+      "HG02024", "HG02026", "HG02025",
+      "HG03715","HG03713",
+      "HG03948","HG03673",
+      "NA19240", "NA19239", "NA19238",
+      "NA19675", "NA19679", "NA19678",
+      "NA19685", "NA19661", "NA19660")
+
+    val siblings = Array("NA19713", "NA19985",
+      "NA20289", "NA20341",
+      "NA20334", "NA20336")
+
+    val secondOrder = Array("HG01936", "HG01983")
+
+    val r = scala.util.Random
+
+    val profile225 = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
+    for (fraction <- Seq(0.0625//0.125, 0.25, 0.5
+    )) {
+      val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
+
+      def underStudy(s: String) =
+        subset.contains(s) || trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
+
+      val vds = profile225
+        .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
+        .annotateVariantsExpr("va.af = gs.callStats(g => v).AF[0]")
+        .filterVariantsExpr("va.af > 0.20 && va.af < 0.80 && v.isAutosomal")
+        .cache()
+      val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
+
+      val (truth, pcRelateTime) = time(runPcRelateR(vds, maf=0.01))
+      val (actual, hailTime) = time(PCRelateReferenceImplementation(vds, pcs, maf=0.01))
+
+      println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
+
+      printToFile(new java.io.File(s"/tmp/thousandGenomesTriosReferenceMatchesR-$fraction.out")) { pw =>
+        pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
+        for ((k, (hkin, hz0, hz1, hz2)) <- actual) {
+          val (rkin, rz0, rz1, rz2) = truth(k)
+          val (s1, s2) = k
+          pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
+        }
+      }
+
+      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
     }
   }
 
