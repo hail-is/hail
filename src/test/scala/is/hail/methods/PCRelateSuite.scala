@@ -39,7 +39,7 @@ object PCRelateReferenceImplementation {
 
     val mat = new BDM[Double](vds.nSamples, vds.countVariants().toInt, gts)
 
-    val PCRelate.Result(phi, k0, k1, k2) = forMatrices(mat, new BDM[Double](pcs.numRows, pcs.numCols, pcs.toArray))
+    val PCRelate.Result(phi, k0, k1, k2) = forMatrices(mat, new BDM[Double](pcs.numRows, pcs.numCols, pcs.toArray), maf=0.01)
       .map(symmetricMatrixToMap(indexToId,_))
 
     phi.keys.map(k => (k, (phi(k), k0(k), k1(k), k2(k)))).toMap
@@ -78,8 +78,8 @@ object PCRelateReferenceImplementation {
     // the if eliminates contribution from bad mu and bad genotype entries
     val g2mua = new Array[Double](m*n)
     var i = 0
-    var j = 0
     while (i < n) {
+      var j = 0
       while (j < m) {
         val gt = g(i,j)
         val mu = mu_si(j,i)
@@ -91,29 +91,37 @@ object PCRelateReferenceImplementation {
       }
       i += 1
     }
-
     val g2mu = new BDM[Double](m, n, g2mua)
 
     val numer = g2mu.t * g2mu
 
-    val variancea = new Array[Double](m*n)
+    val stddeva = new Array[Double](m*n)
     i = 0
-    j = 0
     while (i < n) {
+      var j = 0
       while (j < m) {
+        val gt = g(i,j)
         val mu = mu_si(j,i)
 
-        if (goodMu(mu_si(j,i)))
-          variancea(i*m + j) = math.sqrt(mu * (1 - mu))
+        if (goodMu(mu) && goodGT(gt))
+          stddeva(i*m + j) = math.sqrt(mu * (1.0 - mu))
 
         j += 1
       }
       i += 1
     }
-    val variance = new BDM[Double](m, n, variancea)
+    val stddev = new BDM[Double](m, n, stddeva)
 
-    val denom = 4.0 :* (variance.t * variance)
-    val phi = numer :/ denom
+    // println(g.t)
+    // println("mu")
+    // println(mu_si)
+    // println("gMinusMu")
+    // println(g2mu)
+    // println("stddev")
+    // println(stddev)
+
+    val denom = (stddev.t * stddev)
+    val phi = (numer :/ denom) / 4.0
 
     def toDom(gt: Double, mu: Double): Double = gt match {
       case 0.0 => mu
@@ -124,8 +132,8 @@ object PCRelateReferenceImplementation {
 
     val k2a = new Array[Double](n*n)
     i = 0
-    j = 0
     while (i < n) {
+      var j = 0
       while (j < n) {
         var k = 0
         var numer = 0.0
@@ -158,8 +166,8 @@ object PCRelateReferenceImplementation {
 
     val k0a = new Array[Double](n*n)
     i = 0
-    j = 0
     while (i < n) {
+      var j = 0
       while (j < n) {
         if (phi(i,j) >= 0.177) {
           var k = 0
@@ -269,7 +277,7 @@ class PCRelateSuite extends SparkSuite {
     val pcs = new DenseMatrix(4,2,pcsArray)
     val us = runPcRelateHail(vds, pcs, maf=0.0)
     val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.0)
-    assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+    assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
   @Test
@@ -280,16 +288,16 @@ class PCRelateSuite extends SparkSuite {
     val pcs = new DenseMatrix(4,2,pcsArray)
     val usRef = PCRelateReferenceImplementation(vds, pcs, maf=0.0)
     val truth = runPcRelateR(vds, maf=0.0, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
-    assert(mapSameElements(usRef, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+    assert(mapSameElements(usRef, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
   @Test def baldingNicholsMatchesReference() {
     for {
-      n <- Seq(50//, 100, 500
+      n <- Seq(50, 100//, 500
       )
-      seed <- Seq(0//, 1, 2
+      seed <- Seq(0, 1//, 2
       )
-      nVariants <- Seq(1000// , 10000, 50000
+      nVariants <- Seq(1000, 10000//, 50000
       )
     } {
       val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
@@ -307,17 +315,17 @@ class PCRelateSuite extends SparkSuite {
       }
 
       println(s"$n $seed $nVariants")
-      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
+      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
     }
   }
 
   @Test def baldingNicholsReferenceMatchesR() {
     for {
-      n <- Seq(50//, 100, 500
+      n <- Seq(50, 100//, 500
       )
-      seed <- Seq(0//, 1, 2
+      seed <- Seq(0, 1//, 2
       )
-      nVariants <- Seq(1000// , 10000, 50000
+      nVariants <- Seq(1000, 10000//, 50000
       )
     } {
       val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
@@ -336,6 +344,57 @@ class PCRelateSuite extends SparkSuite {
 
       println(s"$n $seed $nVariants")
       assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
+    }
+  }
+
+  @Test
+  def thousandGenomesTriosMatchesReference() {
+    val trios = Array("HG00702", "HG00656", "HG00657",
+      "HG00733", "HG00731", "HG00732",
+      "HG02024", "HG02026", "HG02025",
+      "HG03715","HG03713",
+      "HG03948","HG03673",
+      "NA19240", "NA19239", "NA19238",
+      "NA19675", "NA19679", "NA19678",
+      "NA19685", "NA19661", "NA19660")
+
+    val siblings = Array("NA19713", "NA19985",
+      "NA20289", "NA20341",
+      "NA20334", "NA20336")
+
+    val secondOrder = Array("HG01936", "HG01983")
+
+    val r = scala.util.Random
+
+    val profile225 = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
+    for (fraction <- Seq(0.0625//0.125, 0.25, 0.5
+    )) {
+      val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
+
+      def underStudy(s: String) =
+        subset.contains(s) || trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
+
+      val vds = profile225
+        .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
+        .filterVariantsExpr("v => va.qc.AF > 0.20 && va.qc.AF < 0.80 && v.isAutosomal")
+        .cache()
+      val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
+
+      val (truth, pcRelateTime) = time(PCRelateReferenceImplementation(vds, pcs, maf=0.01))
+      val (hailPcRelate, hailTime) = time(runPcRelateHail(vds, pcs, maf=0.01))
+
+      println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
+
+      printToFile(new java.io.File(s"/tmp/thousandGenomesTriosMatchesReference-$fraction.out")) { pw =>
+        pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
+        for ((k, (hkin, hz0, hz1, hz2)) <- hailPcRelate) {
+          val (rkin, rz0, rz1, rz2) = truth(k)
+          val (s1, s2) = k
+          pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
+        }
+      }
+
+      assert(mapSameElements(hailPcRelate, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
     }
   }
 

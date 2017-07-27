@@ -144,6 +144,32 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
   }
 
+  def map2WithIndex(op: (Long, Long, Double, Double) => Double)(l: M, r: M): M = {
+    require(l.numRows() == r.numRows())
+    require(l.numCols() == r.numCols())
+    require(l.rowsPerBlock == r.rowsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    require(l.colsPerBlock == r.colsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    val rowsPerBlock = l.rowsPerBlock
+    val colsPerBlock = l.colsPerBlock
+    val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValuesWithKey { case ((blocki, blockj), (m1, m2)) =>
+      val iprefix = blocki.toLong * rowsPerBlock
+      val jprefix = blockj.toLong * colsPerBlock
+      val size = m1.numRows * m1.numCols
+      val result = new Array[Double](size)
+      var j = 0
+      while (j < m1.numCols) {
+        var i = 0
+        while (i < m1.numRows) {
+          result(i + j*m1.numRows) = op(iprefix + i, jprefix + j, m1(i, j), m2(i, j))
+          i += 1
+        }
+        j += 1
+      }
+      new DenseMatrix(m1.numRows, m1.numCols, result)
+    }
+    new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
+  }
+
   def pointwiseAdd(l: M, r: M): M = l.add(r)
   def pointwiseSubtract(l: M, r: M): M = l.subtract(r)
   def pointwiseMultiply(l: M, r: M): M = map2(_ * _)(l, r)
