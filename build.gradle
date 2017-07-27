@@ -35,6 +35,10 @@ buildScan {
     licenseAgree = 'yes'
 }
 
+String hailVersion = "0.1"
+String[] supportedSparkVersions = ["2.0.2", "2.1.0"]
+String gitHash = exec {commandLine 'git', 'rev-parse', '--short', 'HEAD'}
+
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
 if (!(sparkVersion ==~ /^2\..*/))
@@ -98,8 +102,15 @@ compileJava {
 }
 
 task generateBuildInfo(type: Exec) {
-    commandLine 'sh', 'generate-build-info.sh', sparkVersion
+    commandLine 'sh', 'generate-build-info.sh', sparkVersion, hailVersion
     outputs.upToDateWhen { false }
+}
+
+task generateDistLinks(type: Exec) {
+    executable 'sh'
+    args(['generate-dist-links.sh'])
+    args(hailVersion)
+    args(supportedSparkVersions)
 }
 
 compileScala {
@@ -355,7 +366,7 @@ task cleanHailDocs(type: Exec) {
 }
 
 task setupDocsDirs(type: Exec, dependsOn: cleanHailDocs) {
-    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/', 'build/tmp/python/'
+    commandLine 'mkdir', '-p', 'build/tmp/', 'build/www/', 'build/tmp/python/', 'build/tmp/docs', 'build/www/docs'
 }
 
 task copyPDF(type: Copy, dependsOn: setupDocsDirs) {
@@ -407,28 +418,32 @@ task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment HAIL_VERSION: hailVersion
+    environment HAIL_RELEASE: hailVersion + '-' + gitHash
 }
 
-task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment HAIL_VERSION: hailVersion
+    environment HAIL_RELEASE: hailVersion + '-' + gitHash
 }
 
 task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
 }
 
 task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
 }
 
 task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocs'])
@@ -443,7 +458,7 @@ task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('python') {
         into 'python'
     }
-    from('build/www/hail') {
+    from('build/www/docs/stable') {
         into 'docs'
     }
     from('scripts') {
