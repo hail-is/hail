@@ -88,24 +88,20 @@ object PCRelate {
       gt != 0.0 && gt != 1.0 && gt != 2.0
 
     val g = vdsToMeanImputedMatrix(vds)
-
     val beta = fitBeta(g, pcs, blockSize)
 
     val pcsArray = pcs.toArray
     val pcsWithInterceptArray = new Array[Double](pcs.numRows * (pcs.numCols + 1))
-
     var i = 0
     while (i < pcs.numRows) {
       pcsWithInterceptArray(i) = 1
       i += 1
     }
-
     i = 0
     while (i < pcs.numRows * pcs.numCols) {
       pcsWithInterceptArray(pcs.numRows + i) = pcsArray(i)
       i += 1
     }
-
     val pcsWithIntercept =
       new DenseMatrix(pcs.numRows, pcs.numCols + 1, pcsWithInterceptArray)
 
@@ -118,14 +114,6 @@ object PCRelate {
       else
         g - mu * 2.0
     }(blockedG, mu)
-
-    // println("blockedG spark")
-    // println(blockedG.toLocalMatrix())
-    // println("mu spark")
-    // println(mu.toLocalMatrix())
-    // println("gMinusMu spark")
-    // println(gMinusMu.toLocalMatrix())
-
     val variance = dm.map2 {
       case (g, mu) =>
         if (badgt(g) || badmu(mu))
@@ -133,14 +121,18 @@ object PCRelate {
         else
           mu * (1.0 - mu)
     }(blockedG, mu)
+    val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0)
 
+    // println("blockedG spark")
+    // println(blockedG.toLocalMatrix())
+    // println("mu spark")
+    // println(mu.toLocalMatrix())
+    // println("gMinusMu spark")
+    // println(gMinusMu.toLocalMatrix())
     // println("stddev")
     // println(variance.sqrt.toLocalMatrix())
 
-    val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0)
-
     val twoPhi_ii = fTwiddle(phi)
-
     val normalizedGD = dm.map2WithIndex({
       case (_, i, g, mu) =>
         if (badmu(mu) || badgt(g))
@@ -153,7 +145,6 @@ object PCRelate {
           gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
         }
     })(blockedG, mu)
-
     val kTwo = ((normalizedGD.t * normalizedGD) :/ (variance.t * variance))
 
     val mu2 = dm.map2 {
@@ -163,8 +154,6 @@ object PCRelate {
         else
           mu * mu
     }(blockedG, mu)
-
-    // FIXME: actually zero this one
     val oneMinusMu2 = dm.map2 {
       case (g, mu) =>
         if (badgt(g) || badmu(mu))
@@ -172,42 +161,17 @@ object PCRelate {
         else
           (1.0 - mu) * (1.0 - mu)
     }(blockedG, mu)
-
     val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
-
     val ibsZero = ibs0(vds, blockSize)
-
-    def _k0(phiHat: Double, denom: Double, k2: Double, ibs0: Double) =
+    val kZero = dm.map4 { (phiHat: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phiHat <= k0cutoff)
         1 - 4 * phiHat + k2
-      else if (denom == 0)
-        0 // denom == 0 ==> mu is bad, https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L414
       else
         ibs0 / denom
-    val kZero = dm.map4(_k0)(phi, denom, kTwo, ibsZero)
+    }(phi, denom, kTwo, ibsZero)
 
     Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
   }
-
-  // def apply(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result[M] = {
-  //   val g = vdsToMeanImputedMatrix(vds)
-  //   val blockedG = dm.from(g, blockSize, blockSize)
-
-  //   val beta = fitBeta(g, pcs, blockSize)
-
-  //   val mu = muHat(pcs, beta, blockedG)
-
-  //   val phihat = phiHat(blockedG, mu)
-
-  //   // FIXME: what should I do if the genotype is missing?
-  //   val kTwo = k2(f(phihat), dm.map2({ case (g, mu) => if (g == 0.0) mu else if (g == 1.0) 0.0 else if (g == 2.0) 1.0 - mu else g })(blockedG, mu), mu)
-
-  //   val kZero = k0(phihat, mu, kTwo, ibs0(vds, blockSize))
-
-  //   // println(dm.toLocalMatrix(kTwo))
-
-  //   Result(phihat, kZero, k1(kTwo, kZero), kTwo)
-  // }
 
   def vdsToMeanImputedMatrix(vds: VariantDataset): IndexedRowMatrix = {
     val nSamples = vds.nSamples
@@ -264,117 +228,8 @@ object PCRelate {
     dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize, blockSize)
   }
 
-  // private val ksi = 1e-10
-  // private def clipToInterval(x: Double): Double =
-  //   if (x <= 0)
-  //     ksi
-  //   else if (x >= 1)
-  //     1 - ksi
-  //   else
-  //     x
-  // private def clipMu(mu: M): M =
-  //   dm.map(clipToInterval _)(mu)
-
-  // private def filter(mu: Double, g: Double): Double =
-  //   if (mu <= 0 || mu >= 1)
-  //     g / 2.0
-  //   else
-  //     mu
-
-  // private def filterOutOfRangeMus(mu: M, g: M): M =
-  //   dm.map2(filter _)(mu, g)
-
-  // /**
-  //   *  pcs: Sample x D
-  //   *  beta: SNP x (D+1)
-  //   *  g: SNP x Sample
-  //   *
-  //   *  result: SNP x Sample
-  //   */
-  // def muHat(pcs: DenseMatrix, beta: M, g: M): M = {
-  //   val pcsArray = pcs.toArray
-  //   val pcsWithInterceptArray = new Array[Double](pcs.numRows * (pcs.numCols + 1))
-
-  //   var i = 0
-  //   while (i < pcs.numRows) {
-  //     pcsWithInterceptArray(i) = 1
-  //     i += 1
-  //   }
-
-  //   i = 0
-  //   while (i < pcs.numRows * pcs.numCols) {
-  //     pcsWithInterceptArray(pcs.numRows + i) = pcsArray(i)
-  //     i += 1
-  //   }
-
-  //   val pcsWithIntercept =
-  //     new DenseMatrix(pcs.numRows, pcs.numCols + 1, pcsWithInterceptArray)
-
-  //   // println(pcsWithIntercept)
-  //   // println(dm.toLocalMatrix(beta))
-
-  //   clipMu((beta * pcsWithIntercept.transpose) / 2.0)
-  // }
-
-  // /**
-  //   * g: SNP x Sample
-  //   * muHat: SNP x Sample
-  //   **/
-  // def phiHat(g: M, muHat: M): M = {
-  //   val gMinusMu = g :- (muHat * 2.0)
-  //   val varianceHat = muHat :* (1.0 - muHat)
-
-  //   ((gMinusMu.t * gMinusMu) :/ (varianceHat.t.sqrt * varianceHat.sqrt)) / 4.0
-  // }
-
   def fTwiddle(phiHat: M): Array[Double] =
     dm.diagonal(phiHat).map(2.0 * _)
-
-  // def f(phiHat: M): Array[Double] =
-  //   dm.diagonal(phiHat).map(2.0 * _ - 1.0)
-
-  // def k2(f: Array[Double], gD: M, mu: M): M = {
-  //   // println("mu")
-  //   // println(dm.toLocalMatrix(mu))
-  //   // println("gD")
-  //   // println(dm.toLocalMatrix(gD))
-  //   // println("f.map(1 + _)")
-  //   // println(f.map(1 + _): IndexedSeq[Double])
-  //   // println("mu :* (1.0 - mu)")
-  //   // println(dm.toLocalMatrix(mu :* (1.0 - mu)))
-  //   // println("(mu :* (1.0 - mu)) --* f.map(1 + _)")
-  //   // println(dm.toLocalMatrix((mu :* (1.0 - mu)) --* (f.map(1 + _))))
-
-  //   val normalizedGD = gD :- ((mu :* (1.0 - mu)) --* (f.map(1 + _)))
-  //   val variance = mu :* (1.0 - mu)
-
-  //   // println("numer")
-  //   // println(dm.toLocalMatrix(normalizedGD.t * normalizedGD))
-  //   // println("denom")
-  //   // println(dm.toLocalMatrix(variance.t * variance))
-
-  //   (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
-  // }
-
-  // /**
-  //   * muHat: SNP x Sample
-  //   *
-  //   **/
-  // private def sqr(x: Double): Double = x * x
-  // private val cutoff = math.pow(2.0, (-5.0/2.0))
-  // private def _k0(phiHat: Double, denom: Double, k2: Double, ibs0: Double) =
-  //   if (phiHat <= cutoff)
-  //     1 - 4 * phiHat + k2
-  //   else
-  //     ibs0 / denom
-  // def k0(phiHat: M, mu: M, k2: M, ibs0: M): M = {
-  //   val mu2 = dm.map(sqr _)(mu)
-  //   val oneMinusMu2 = dm.map(sqr _)(1.0 - mu)
-
-  //   val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
-
-  //   dm.map4(_k0)(phiHat, denom, k2, ibs0)
-  // }
 
   def k1(k2: M, k0: M): M = {
     1.0 - (k2 :+ k0)
