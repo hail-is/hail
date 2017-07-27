@@ -16,6 +16,6 @@ echo "" >> $TARGET
 shift
 while test ${#} -gt 0
 do
-  echo "- \`Current distribution for Spark $1 <https://storage.googleapis.com/hail-common/distributions/Hail-$HAIL_VERSION-$HASH-Spark-$1.zip>\`_" >> $TARGET
+  echo "- \`Current distribution for Spark $1 <https://storage.googleapis.com/hail-common/distributions/%HAIL_VERSION/Hail-$HAIL_VERSION-$HASH-Spark-$1.zip>\`_" >> $TARGET
   shift
 done
