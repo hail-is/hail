@@ -5,8 +5,8 @@
     "column_partitions" : [
         {"begin": 0, "workspace":"/Users/jgoldsmi/tdbworkspace", "array":"my_array_sample2"}
     ],
-    "vid_mapping_file" : "/Users/jgoldsmi/tdbjson/vid_sample2.json",
-    "callset_mapping_file" : "/Users/jgoldsmi/tdbjson/callsets_sample2.json",
+    "vid_mapping_file" : "sample2vid.json",
+    "callset_mapping_file" : "sample2callsets.json",
     "size_per_column_partition": 3000000,
     "treat_deletions_as_intervals" : false,
     "delete_and_create_tiledb_array" : true,

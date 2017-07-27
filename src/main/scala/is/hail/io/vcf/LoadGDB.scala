@@ -1,6 +1,7 @@
 package is.hail.io.vcf
 
 import com.intel.genomicsdb.GenomicsDBFeatureReader
+import htsjdk.variant.variantcontext.VariantContext
 import htsjdk.variant.vcf.VCFHeader
 import is.hail.HailContext
 import is.hail.annotations.Annotation
@@ -30,22 +31,22 @@ object LoadGDB {
 
     val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile, tiledbWorkspace, arrayName, referenceGenome, codec)
 
-    gdbReader.initialize(loaderJSONFile, queryJSONFile, codec)
+    gdbReader.initialize(loaderJSONFile, queryJSONFile, codec) //query file contains path to VCF header
 
     val header = gdbReader
       .getHeader
       .asInstanceOf[VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
-    val filters: Map[String, String] = header
+    var filters: Map[String, String] = header
       .getFilterLines
       .toList
-      //(filter, description)
+      //(ID, description)
       .map(line => (line.getID, ""))
       .toMap
 
-    println(header.getFilterLines)
-    filters.foreach(println(_))
+    if (filters.size > 1 && filters.contains("PASS")) //remove extra PASS filter if there are others
+      filters = filters.tail //FIXME: remove operation on Maps doesn't work -- what is a better way to remove PASS?
 
     val infoHeader = header.getInfoHeaderLines
     val infoSignature = LoadVCF.headerSignature(infoHeader)
@@ -78,9 +79,7 @@ object LoadGDB {
     val records = gdbReader
       .iterator
       .asScala
-      .map(vc => {
-        reader.readRecord(vc, infoSignature, genotypeSignature)
-      })
+      .map(vc => reader.readRecord(vc, infoSignature, genotypeSignature))
       .toSeq
 
     val recordRDD = sc.parallelize(records, nPartitions.getOrElse(sc.defaultMinPartitions))

@@ -147,7 +147,7 @@ object LoadVCF {
     val filters: Map[String, String] = header
       .getFilterLines
       .toList
-      // (filter, description)
+      // (ID, description)
       .map(line => (line.getID, ""))
       .toMap
 

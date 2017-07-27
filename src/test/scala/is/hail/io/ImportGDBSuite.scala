@@ -1,7 +1,5 @@
 package is.hail.io
 
-import java.io.{File, FileWriter}
-
 import is.hail.SparkSuite
 import is.hail.expr.TStruct
 import is.hail.io.vcf.{GenericRecordReader, LoadGDB, LoadVCF}
@@ -10,8 +8,8 @@ import org.testng.annotations.Test
 
 class ImportGDBSuite extends SparkSuite {
 
-  val loader = "/Users/jgoldsmi/tdbjson/loader_sample2.json"
-  val query = "/Users/jgoldsmi/tdbjson/test_read.json"
+  val loader = "/Users/jgoldsmi/tdbjson/sample2loader.json"
+  val query = "/Users/jgoldsmi/tdbjson/sample2query.json"
   val workspace = "/Users/jgoldsmi/tdbworkspace"
   val arrName = "my_array_sample2"
   val ref = "/Users/jgoldsmi/build/Homo_sapiens_assembly19.fasta"
@@ -64,7 +62,6 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfVariantSampleMatrix.wasSplit == gdbVariantSampleMatrix.wasSplit) // wasSplit == noMulti
   }
 
-  //FIXME: this test fails because genomicsDB version has an extra PASS filter
   @Test def genomicsDBVariantAnnotationSignatures() {
 
     val vcfVAS = vcfVariantSampleMatrix
@@ -113,17 +110,31 @@ class ImportGDBSuite extends SparkSuite {
 
   @Test def genomicsDBRDDGenotypeData() {
 
-    val vcfGT = vcfVariantSampleMatrix.rdd.map(_._2._2).collect
-    val gdbGT = gdbVariantSampleMatrix.rdd.map(_._2._2).collect
+    val vcfGT = vcfVariantSampleMatrix
+      .rdd
+      .map(_._2._2)
+      .collect
+
+    val gdbGT = gdbVariantSampleMatrix
+      .rdd
+      .map(_._2._2)
+      .collect
 
     assert(vcfGT.zip(gdbGT).forall( { case (it1, it2) => it1.zip(it2).forall( { case (a1, a2) => a1.equals(a2) }) }))
   }
 
-  //FIXME: this test fails because the QUAL field is dropped and the DP field has two extra zeroes on the end
+  //FIXME: this test fails because genomicsDB drops the QUAL field, and the DP field has two extra zeroes
   @Test def genomicsDBRDDAnnotations() {
 
-    val vcfAnn = vcfVariantSampleMatrix.rdd.map(_._2._1).collect
-    val gdbAnn = gdbVariantSampleMatrix.rdd.map(_._2._1).collect
+    val vcfAnn = vcfVariantSampleMatrix
+      .rdd
+      .map(_._2._1.asInstanceOf[annotation.Annotation])
+      .collect
+
+    val gdbAnn = gdbVariantSampleMatrix
+      .rdd
+      .map(_._2._1.asInstanceOf[annotation.Annotation])
+      .collect
 
     assert(vcfAnn.zip(gdbAnn).forall( { case (a1, a2) =>
       println(a1.toString)

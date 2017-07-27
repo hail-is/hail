@@ -5,7 +5,7 @@
                         "tiledb_column_offset": 0
                 }
         },
-        "callset_mapping_file": "/Users/jgoldsmi/tdbjson/callsets_sample2.json",
+        "callset_mapping_file": "sample2callsets.json",
         "fields": {
                 "AD": {
                         "vcf_field_class": ["FORMAT"],
