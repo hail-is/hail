@@ -56,7 +56,7 @@ object PCRelate {
       }
     }
 
-    val result = maybefast(vds, pcs, maf, blockSize)
+    val result = apply(vds, pcs, maf, blockSize)
 
     val a = upperTriangularEntires(result.phiHat)
     val b = upperTriangularEntires(result.k0)
@@ -78,7 +78,7 @@ object PCRelate {
 
   private val k0cutoff = math.pow(2.0, (-5.0/2.0))
 
-  def maybefast(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result[M] = {
+  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result[M] = {
     require(maf >= 0.0)
     require(maf <= 1.0)
     val antimaf = (1.0 - maf)
