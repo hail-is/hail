@@ -5,6 +5,7 @@ library(SNPRelate)
 library(GWASTools)
 
 fname = args[1]
+maf = as.numeric(args[2])
 
 snpgdsBED2GDS( bed.fn = paste(fname,".bed",sep="")
              , bim.fn = paste(fname,".bim",sep="")
@@ -23,7 +24,7 @@ print(mypcair$vectors[,1:10])
 mypcrelate <- pcrelate( genoData = HapMap_genoData
                       , pcMat = mypcair$vectors[,1:10]
                       , correct = FALSE
-                      , MAF = 0.0
+                      , MAF = maf
                       )
 foo <- pcrelateReadKinship( pcrelObj = mypcrelate
                           )

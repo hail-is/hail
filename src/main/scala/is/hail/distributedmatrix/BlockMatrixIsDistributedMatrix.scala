@@ -46,6 +46,10 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     new BlockMatrix(
       bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / bm.rowsPerBlock).toInt + 1, ((bm.numCols - 1) / bm.colsPerBlock).toInt + 1)).persist(),
       bm.rowsPerBlock, bm.colsPerBlock, bm.numRows(), bm.numCols())
+  def from(bm: BlockMatrix, rowsPerBlock: Int, colsPerBlock: Int): M =
+    new BlockMatrix(
+      bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / rowsPerBlock).toInt + 1, ((bm.numCols - 1) / colsPerBlock).toInt + 1)).persist(),
+      rowsPerBlock, colsPerBlock, bm.numRows(), bm.numCols())
 
   def transpose(m: M): M =
     BetterBlockMatrix.transpose(m)
