@@ -417,7 +417,7 @@ task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp', 'generateDistLinks']) {
+task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
@@ -425,7 +425,7 @@ task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copy
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp', 'generateDistLinks']) {
+task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
