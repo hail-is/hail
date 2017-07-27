@@ -36,7 +36,7 @@ buildScan {
 }
 
 String hailVersion = "0.1"
-String[] supportedSparkVersions = ["2.0.2", "2.1.0"]
+String[] deployedSparkVersions = ["2.0.2", "2.1.0"]
 String gitHash = exec {commandLine 'git', 'rev-parse', '--short', 'HEAD'}
 
 String sparkVersion = System.getProperty("spark.version","2.0.2")
@@ -110,7 +110,7 @@ task generateDistLinks(type: Exec) {
     executable 'sh'
     args(['generate-dist-links.sh'])
     args(hailVersion)
-    args(supportedSparkVersions)
+    args(deployedSparkVersions)
 }
 
 compileScala {
@@ -366,7 +366,7 @@ task cleanHailDocs(type: Exec) {
 }
 
 task setupDocsDirs(type: Exec, dependsOn: cleanHailDocs) {
-    commandLine 'mkdir', '-p', 'build/tmp/', 'build/www/', 'build/tmp/python/', 'build/tmp/docs', 'build/www/docs'
+    commandLine 'mkdir', '-p', 'build/www/', 'build/tmp/python/', 'build/tmp/docs', 'build/www/docs'
 }
 
 task copyPDF(type: Copy, dependsOn: setupDocsDirs) {
