@@ -21,7 +21,11 @@ object PCRelate {
   val dm = BlockMatrixIsDistributedMatrix
   import dm.ops._
 
-  case class Result(phiHat: M, k0: M, k1: M, k2: M)
+  case class Result[M](phiHat: M, k0: M, k1: M, k2: M) {
+    def map[N](f: M => N): Result[N] =
+
+    Result(f(phiHat), f(k0), f(k1), f(k2))
+  }
 
   def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): RDD[((Annotation, Annotation), (Double, Double, Double, Double))] = {
     val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
@@ -72,12 +76,14 @@ object PCRelate {
       signature,
       keys)
 
-  def maybefast(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result = {
+  def maybefast(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result[M] = {
     require(maf >= 0.0)
     require(maf <= 1.0)
-    val antimaf = (1 - maf)
+    val antimaf = (1.0 - maf)
     def badmu(mu: Double): Boolean =
       mu <= maf || mu >= antimaf || mu <= 0 || mu >= 1
+    def badgt(gt: Double): Boolean =
+      gt != 0.0 && gt != 1.0 && gt != 2.0
 
     val g = vdsToMeanImputedMatrix(vds)
 
@@ -113,13 +119,13 @@ object PCRelate {
         g - mu * 2.0
     val gMinusMu = dm.map2(deviationFromMean _)(mu, blockedG)
 
-    def clippedVariance(mu: Double): Double =
-      if (badmu(mu))
-        // mu * (1.0 - mu)
-        0.0
-      else
-        mu * (1.0 - mu)
-    val variance = dm.map(clippedVariance _)(mu)
+    val variance = dm.map2 {
+      case (g, mu) =>
+        if (badgt(g) || badmu(mu))
+          0.0
+        else
+          mu * (1.0 - mu)
+    }(blockedG, mu)
 
     val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0)
 
@@ -132,7 +138,8 @@ object PCRelate {
         else 0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
     })(blockedG, mu)
 
-    val normalizedGD = (gD :- (variance --* (f(phi).map(1.0 + _))))
+    // FIXME: what about when the gt is missing?
+    val normalizedGD = (gD :- (variance --* (fTwiddle(phi))))
 
     val kTwo = ((normalizedGD.t * normalizedGD) :/ (variance.t * variance))
 
@@ -161,7 +168,7 @@ object PCRelate {
     Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
   }
 
-  def apply(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result = {
+  def apply(vds: VariantDataset, pcs: DenseMatrix, blockSize: Int): Result[M] = {
     val g = vdsToMeanImputedMatrix(vds)
     val blockedG = dm.from(g, blockSize, blockSize)
 
@@ -299,6 +306,9 @@ object PCRelate {
     ((gMinusMu.t * gMinusMu) :/ (varianceHat.t.sqrt * varianceHat.sqrt)) / 4.0
   }
 
+  def fTwiddle(phiHat: M): Array[Double] =
+    dm.diagonal(phiHat).map(2.0 * _)
+
   def f(phiHat: M): Array[Double] =
     dm.diagonal(phiHat).map(2.0 * _ - 1.0)
 
@@ -350,7 +360,6 @@ object PCRelate {
   }
 
   def ibs0(vds: VariantDataset, blockSize: Int): M =
-    // FIXME: either a) use same blocksize everywhere or b) have efficient reblocking
-    dm.from(IBD.ibs(vds)._1.toIndexedRowMatrix(), blockSize, blockSize)
+    dm.from(IBD.ibs(vds)._1, blockSize, blockSize)
 
 }

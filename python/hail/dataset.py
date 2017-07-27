@@ -3592,100 +3592,134 @@ class VariantDataset(object):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
+        .. include:: experimental.rst
+
         .. include:: requireTGenotype.rst
 
         **Examples**
 
-        Estimate kinship, identity-by-descent zero, identity-by-descent one, and
+        Estimate kinship, identity-by-descent two, identity-by-descent one, and
         identity-by-descent zero for every pair of samples, using 10 prinicpal
-        components to correct for ancestral populations:
+        components to correct for ancestral populations, and a minimum minor
+        allele frequency filter of 0.01:
 
         >>> rel = vds.pc_relate(10, 0.01)
 
+        Calculate values as above, but when performing distributed matrix
+        multiplications use a matrix-block-size of 1024 by 1024.
+
+        >>> rel = vds.pc_relate(10, 0.01, 1024)
+
         **Method**
 
-        The PC-Relate method computes relatedness estimates using a small
-        modification to the usual formulas: occurences of population allele
-        frequency is replaced with an "individual-specific allele frequency". An
-        individual's allele frequency at a given genetic locus is a linear
-        function of their first ``k`` principal component coordinates.
+        The traditional estimator for kinship between a pair of individuals
+        :math:`i` and :math:`j`, sharing the set :math:`S_{ij}` of
+        single-nucleotide variants, from a population with allele frequencies
+        :math:`p_s`, is given by:
 
-        The efficacy of this method rests crucially on two assumptions:
+        .. math::
+
+          \\widehat{\phi_{ij}} := \\frac{1}{|S_{ij}|}\\sum_{s \in S_{ij}}\\frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}{4 * \sum_{s \in S_{ij} p_s (1 - p_s)}}
+
+        This estimator is true under the model that the sharing of common
+        (relative to the population) alleles is not very informative to
+        relatedness (because they're common) and the sharing of rare alleles
+        suggests a recent common ancestor from which the allele was inherited by
+        descent.
+
+        When multiple ancestry groups are mixed in a sample, this model breaks
+        down. Alleles that are rare in all but one ancestry group are treated as
+        very informative to relatedness. However, these alleles are simply
+        markers of the ancestry group. The PC-Relate method corrects for this
+        situation and the related situation of a admixed individuals.
+
+        PC-Relate slightly modifies the usual estimator for relatedness:
+        occurences of population allele frequency are replaced with an
+        "individual-specific allele frequency". This modification allows the
+        method to correctly weight an allele according to an individual's unique
+        ancestry profile.
+
+        The "individual-specific allele frequency" at a given genetic locus is
+        modeled by PC-Relate as a linear function of their first ``k`` principal
+        component coordinates. As such, the efficacy of this method rests on two
+        assumptions:
 
          - an individual's first ``k`` principal component coordinates fully
-           describe their allele-frequency-relevant ancestry
+           describe their allele-frequency-relevant ancestry, and
 
          - the relationship between ancestry (as described by principal
            component coordinates) and population allele frequency is linear
 
-        Let:
+        The estimators for kinship, and identity-by-descent zero, one, and two
+        follow. Let:
 
          - :math:`S_{ij}` be the set of genetic loci at which both individuals
-           :math:`i` and :math:`j` have a defined measurement
+           :math:`i` and :math:`j` have a defined genotype
 
          - :math:`g_{is} \in {0, 1, 2}` be the number of alternate alleles that
            individual :math:`i` has at gentic locus :math:`s`
 
-         - :math:`{\widehat \\mu}_{is} \in [0, 1]` be the individual-specific allele
+         - :math:`\\widehat{\\mu_{is}} \in [0, 1]` be the individual-specific allele
            frequency for individual :math:`i` at genetic locus :math:`s`
 
-         - :math:`{\widehat \\sigma}_{is} := {\widehat \\mu}_{is} (1 - {\widehat
-           \\mu}_{is})`, the Binomial standard deviation of :math:`{\widehat
-           \\mu}_{is}`
+         - :math:`{\\widehat{\\sigma^2_{is}}} := \\widehat{\\mu_{is}} (1 -
+           \\widehat{\\mu_{is}})`, the Binomial variance of
+           :math:`\\widehat{\\mu_{is}}`
 
-         - :math:`{\widehat \\tau}_{is} := \sqrt{{\widehat \\sigma}_{is}}`
+         - :math:`\\widehat{\\sigma_{is}} := \sqrt{\\widehat{\\sigma^2_{is}}}`,
+           the Binomial standard deviation of :math:`\\widehat{\\mu_{is}}`
 
-         - :math:`\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{g_{is} -
-           g_{js} = 2}`, the number of genetic loci at which individuals
+         - :math:`\\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{||g_{is} -
+           g_{js} = 2||}`, the number of genetic loci at which individuals
            :math:`i` and :math:`j` share no alleles
 
-         - :math:`{\widehat f}_i := 2 {\widehat \phi}_{ii} - 1`, the inbreeding
+         - :math:`\\widehat{f_i} := 2 \\widehat{\phi_{ii}} - 1`, the inbreeding
            coefficient for individual :math:`i`
 
-         - :math:`X_{is} := g^D_{is} - { \widehat \\sigma}_{ij} (1 - f_i)`
-
-         - :math:`g^D_{is}` be a dominance encoding of the genotype matrix
+         - :math:`g^D_{is}` be a dominance encoding of the genotype matrix, and
+           :math:`X_{is}` be a normalized dominance-coded genotype matrix
 
         .. math::
 
           g^D_{is} :=
             \\begin{cases}
-              {\widehat \\mu}_{is}     & g_{is} == 0 \\\\
-              0                       & g_{is} == 1 \\\\
-              1 - {\widehat \\mu}_{is} & g_{is} == 2
+              \\widehat{\\mu_{is}}     & g_{is} = 0 \\\\
+              0                        & g_{is} = 1 \\\\
+              1 - \\widehat{\\mu_{is}} & g_{is} = 2
             \\end{cases}
 
+          X_{is} := g^D_{is} - \\widehat{\\sigma^2_{is}} (1 - \\widehat{f_i})
 
         The estimator for kinship is given by:
 
         .. math::
 
-          {\widehat \phi}_{ij} := \\frac{((g - 2 \\mu) (g - 2 \\mu)^T)_{ij}}{4 * ({\widehat \\tau} {\widehat \\tau}^T)_{ij}}
+          \\widehat{\phi_{ij}} := \\frac{\sum_{s \in S_{ij}}(g - 2 \\mu)_{is} (g - 2 \\mu)_{js}}{4 * \sum_{s \in S_{ij}}\\widehat{\\sigma_{is}} \\widehat{\\sigma_{js}}}
 
         The estimator for identity-by-descent two is given by:
 
         .. math::
 
-          {\widehat k}^{(2)}_{ij} := \\frac{(X X^T)_{ij}}{({\widehat \\sigma} {\widehat \\sigma}^T)_{ij}}
+          \\widehat{k^{(2)}_{ij}} := \\frac{\sum_{s \in S_{ij}}X_{is} X_{js}}{\sum_{s \in S_{ij}}\\widehat{\\sigma^2_{is}} \\widehat{\\sigma^2_{js}}}
 
         The estimator for identity-by-descent zero is given by:
 
         .. math::
 
-          {\widehat k}^{(0)}_{ij} :=
+          \\widehat{k^{(0)}_{ij}} :=
             \\begin{cases}
-              \\frac{\text{IBS}^{(0)}_{ij}}
-                   {\sum_{s \in S_{ij}} {\widehat \\mu}^2_{is}(1 - {\widehat \\mu}_{js})^2 + (1 - {\widehat \\mu}_{is})^2{\widehat \\mu}^2_{js}}
-                & {\widehat \phi}_{ij} > 2^{-5/2} \\\\
-              1 - 4 {\widehat \phi}_{ij} + k^{(2)}_{ij}
-                & {\widehat \phi}_{ij} \le 2^{-5/2}
+              \\frac{\\text{IBS}^{(0)}_{ij}}
+                   {\sum_{s \in S_{ij}} \\widehat{\\mu_{is}}^2(1 - \\widehat{\\mu_{js}})^2 + (1 - \\widehat{\\mu_{is}})^2\\widehat{\\mu_{js}}^2}
+                & \\widehat{\phi_{ij}} > 2^{-5/2} \\\\
+              1 - 4 \\widehat{\phi_{ij}} + k^{(2)}_{ij}
+                & \\widehat{\phi_{ij}} \le 2^{-5/2}
             \\end{cases}
 
         The estimator for identity-by-descent one is given by:
 
         .. math::
 
-          {\widehat k}^{(1)}_{ij} := 1 - {\widehat k}^{(2)}_{ij} - {\widehat k}^{(0)}_{ij}
+          \\widehat{k^{(1)}_{ij}} := 1 - \\widehat{k^{(2)}_{ij}} - \\widehat{k^{(0)}_{ij}}
 
         **Details**
 
@@ -3718,6 +3752,15 @@ class VariantDataset(object):
         dominate the computation's time. The author has found that on Google
         Dataproc (where each core has about 3.75GB of memory), setting
         ``block_size`` larger than 512 tends to cause memory exhaustion errors.
+
+        The minimum allele frequency filter is applied per-pair: if either of
+        the two individual's individual-specific minor allele frequency is below
+        the threshold, then the variant's contribution to relatedness estimates
+        is zero.
+
+        The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
+        j: String, kin: Double, k2: Double, k1: Double, k0: Double }*. The key
+        list is: `*i: String, j: String*`.
 
         :param k: the number of principal components to use to distinguish
                   ancestries
