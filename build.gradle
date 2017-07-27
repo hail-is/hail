@@ -423,12 +423,16 @@ task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst',
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
+task makeDocsDir(type: Exec) {
+    commandLine 'mkdir', 'build/www/docs'
 }
 
-task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
+task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs', 'makeDocsDir']) {
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
+}
+
+task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs', 'makeDocsDir']) {
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
 }
 
 task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocs'])
@@ -443,7 +447,7 @@ task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('python') {
         into 'python'
     }
-    from('build/www/hail') {
+    from('build/www/docs/stable') {
         into 'docs'
     }
     from('scripts') {
