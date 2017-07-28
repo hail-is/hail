@@ -35,7 +35,7 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-String hailVersion = "0.1"
+String hailVersion = "devel"
 String[] deployedSparkVersions = ["2.0.2", "2.1.0"]
 String gitHash = exec {commandLine 'git', 'rev-parse', '--short', 'HEAD'}
 
