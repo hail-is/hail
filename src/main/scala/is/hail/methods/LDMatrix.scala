@@ -61,7 +61,7 @@ object LDMatrix {
       import is.hail.distributedmatrix.DistributedMatrix.implicits._
       val dm = DistributedMatrix[BlockMatrix]
       import dm.ops._
-      indexedRowMatrix = (normalizedBlockMatrix * normalizedBlockMatrix.transpose)
+      indexedRowMatrix = (normalizedBlockMatrix * normalizedBlockMatrix.t)
         .toIndexedRowMatrix()
     }
 
