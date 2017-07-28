@@ -44,7 +44,7 @@ if role == 'Master':
 
     # default to latest Hail build if none specified through metadata
     if not hash_name:
-        hash_name = check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(hail_version, spark)])
+        hash_name = check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(hail_version, spark)]).strip()
 
     # Hail jar
     try:
