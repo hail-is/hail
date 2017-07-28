@@ -8,7 +8,7 @@ import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.testng.annotations.Test
 
-class LinearRegressionMultiPhenoSuite extends SparkSuite {
+class LinearRegressionWithFieldsSuite extends SparkSuite {
 
   val covariates: KeyTable = hc.importTable("src/test/resources/regressionLinear.cov",
     types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
@@ -17,7 +17,7 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
   val vds0: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
     .annotateSamplesTable(covariates, root = "sa.cov")
     .annotateSamplesTable(phenotypes, root = "sa.pheno")
-
+  
   val v1 = Variant("1", 1, "C", "T")   // x = (0, 1, 0, 0, 0, 1)
   val v2 = Variant("1", 2, "C", "T")   // x = (., 2, ., 2, 0, 0)
   val v3 = Variant("1", 3, "C", "T")   // x = (0, ., 1, 1, 1, .)
@@ -26,11 +26,83 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
   val v8 = Variant("1", 8, "C", "T")   // x = (2, 2, 2, 2, 2, 2)
   val v9 = Variant("1", 9, "C", "T")   // x = (., 1, 1, 1, 1, 1)
   val v10 = Variant("1", 10, "C", "T") // x = (., 2, 2, 2, 2, 2)
+
   
   // ensuring that result for one phenotype and hard calls is the same as with linreg
-  // and that including the same phenotype a second time gives same result as well.
-  @Test def testWithTwoCov() {
-    val vds = vds0.linregMultiPheno(Array("sa.pheno", "sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2"))
+  @Test def testWithTwoCovOneField() {
+
+      //.filterVariantsExpr("v.start == 2")
+    val vds = vds0.linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), fields = Array("g.gt"))
+    
+    val qBeta = vds.queryVA("va.linreg.beta")._2
+    val qSe = vds.queryVA("va.linreg.se")._2
+    val qTstat = vds.queryVA("va.linreg.tstat")._2
+    val qPval = vds.queryVA("va.linreg.pval")._2
+
+    val annotationMap = vds.variantsAndAnnotations
+      .collect()
+      .toMap
+
+    def assertInt(q: Querier, v: Variant, value: Int) =
+      assert(D_==(q(annotationMap(v)).asInstanceOf[Int], value))
+
+    def assertDouble(q: Querier, v: Variant, value: Double) = {
+      val x = q(annotationMap(v)).asInstanceOf[IndexedSeq[Double]].apply(0)
+      assert(D_==(x, value))
+    }
+
+    def assertEmptyOrNaN(q: Querier, v: Variant) = {
+      val x = q(annotationMap(v))
+      assert(x == null || x.asInstanceOf[IndexedSeq[Double]].apply(0).isNaN)      
+    }
+    
+    /*
+    comparing to output of R code:
+    y = c(1, 1, 2, 2, 2, 2)
+    x = c(0, 1, 0, 0, 0, 1)
+    c1 = c(0, 2, 1, -2, -2, 4)
+    c2 = c(-1, 3, 5, 0, -4, 3)
+    df = data.frame(y, x, c1, c2)
+    fit <- lm(y ~ x + c1 + c2, data=df)
+    summary(fit)["coefficients"]
+
+    */
+
+    assertDouble(qBeta, v1, -0.28589421)
+    assertDouble(qSe, v1, 1.2739153)
+    assertDouble(qTstat, v1, -0.22442167)
+    assertDouble(qPval, v1, 0.84327106)
+
+    /*
+    v2 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
+    x = c(1, 2, 1, 2, 0, 0)
+    */
+
+    assertDouble(qBeta, v2, -0.5417647)
+    assertDouble(qSe, v2, 0.3350599)
+    assertDouble(qTstat, v2, -1.616919)
+    assertDouble(qPval, v2, 0.24728705)
+
+    /*
+    v3 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
+    x = c(0, 0.75, 1, 1, 1, 0.75)
+    */
+
+    assertDouble(qBeta, v3, 1.07367185)
+    assertDouble(qSe, v3, 0.6764348)
+    assertDouble(qTstat, v3, 1.5872510)
+    assertDouble(qPval, v3, 0.2533675)
+        
+    assertEmptyOrNaN(qPval, v6)
+    assertEmptyOrNaN(qPval, v7)
+    assertEmptyOrNaN(qPval, v8)
+    assertEmptyOrNaN(qPval, v9)
+    assertEmptyOrNaN(qPval, v10)
+  }
+  
+  // ensuring that result for one phenotype and second fields is the same as with linreg
+  @Test def testWithOneCovTwoFields() {
+    val vds = vds0.linreg("sa.pheno", Array("sa.cov.Cov1"), fields = Array("g.gt", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -54,9 +126,11 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
       assert(D_==(x, value))
     }
 
-    def assertEmpty(q: Querier, v: Variant) =
-      assert(q(annotationMap(v)) == null)
-
+    def assertEmptyOrNaN(q: Querier, v: Variant) = {
+      val x = q(annotationMap(v))
+      assert(x == null || x.asInstanceOf[IndexedSeq[Double]].apply(0).isNaN)      
+    }
+    
     /*
     comparing to output of R code:
     y = c(1, 1, 2, 2, 2, 2)
@@ -66,20 +140,19 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
     df = data.frame(y, x, c1, c2)
     fit <- lm(y ~ x + c1 + c2, data=df)
     summary(fit)["coefficients"]
-
     */
 
+    // checking coefficients of gt
     assertDouble(qBeta, v1, -0.28589421)
     assertDouble(qSe, v1, 1.2739153)
     assertDouble(qTstat, v1, -0.22442167)
     assertDouble(qPval, v1, 0.84327106)
 
-    // checking that second copy of phenotype gives the same answer
-    assertDouble1(qBeta, v1, -0.28589421)
-    assertDouble1(qSe, v1, 1.2739153)
-    assertDouble1(qTstat, v1, -0.22442167)
-    assertDouble1(qPval, v1, 0.84327106)
-
+    // checking coefficients of cov2
+    assertDouble1(qBeta, v1, 0.02770781)
+    assertDouble1(qSe, v1, 0.1643444)
+    assertDouble1(qTstat, v1, 0.16859599)
+    assertDouble1(qPval, v1, 0.88162287)
 
     /*
     v2 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
@@ -100,18 +173,17 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
     assertDouble(qSe, v3, 0.6764348)
     assertDouble(qTstat, v3, 1.5872510)
     assertDouble(qPval, v3, 0.2533675)
-
-    assertEmpty(qBeta, v6)
-    assertEmpty(qBeta, v7)
-    assertEmpty(qBeta, v8)
-    assertEmpty(qBeta, v9)
-    assertEmpty(qBeta, v10)
+        
+    assertEmptyOrNaN(qPval, v6)
+    assertEmptyOrNaN(qPval, v7)
+    assertEmptyOrNaN(qPval, v8)
+    assertEmptyOrNaN(qPval, v9)
+    assertEmptyOrNaN(qPval, v10)
   }
 
   // ensuring that result for one phenotype and dosages is the same as with linreg.
   @Test def testWithTwoCovPhred() {
-    val vds = vds0.linregMultiPheno(Array("sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages = true)
-
+    val vds = vds0.linreg("sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages = true, fields = Array("g.dosage"))
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -130,8 +202,10 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
       assert(D_==(x, value))
     }
 
-    def assertEmpty(q: Querier, v: Variant) =
-      assert(q(annotationMap(v)) == null)
+    def assertEmptyOrNaN(q: Querier, v: Variant) = {
+      val x = q(annotationMap(v))
+      assert(x == null || x.asInstanceOf[IndexedSeq[Double]].apply(0).isNaN)      
+    }
 
     /*
     comparing to output of R code:
@@ -142,7 +216,6 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
     df = data.frame(y, x, c1, c2)
     fit <- lm(y ~ x + c1 + c2, data=df)
     summary(fit)["coefficients"]
-
     */
 
     assertDouble(qBeta, v1, -0.29166985)
@@ -170,6 +243,6 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
     assertDouble(qTstat, v3, 1.5872510)
     assertDouble(qPval, v3, 0.2533675)
 
-    assertEmpty(qBeta, v6)
+    assertEmptyOrNaN(qPval, v6)
   }
 }

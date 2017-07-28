@@ -10,6 +10,10 @@ case class LinearRegressionStats(b: Double, se: Double, t: Double, p: Double) {
   def toAnnotation: Annotation = Annotation(b, se, t, p)
 }
 
+case class LinearRegressionMultiFieldStats(b: Array[Double], se: Array[Double], t: Array[Double], p: Array[Double]) {
+  def toAnnotation: Annotation = Annotation(b: IndexedSeq[Double], se: IndexedSeq[Double], t: IndexedSeq[Double], p: IndexedSeq[Double])
+}
+
 case class LinearRegressionMultiPhenoStats(b: Array[Double], se: Array[Double], t: Array[Double], p: Array[Double]) {
   def toAnnotation: Annotation = Annotation(b: IndexedSeq[Double], se: IndexedSeq[Double], t: IndexedSeq[Double], p: IndexedSeq[Double])
 }
@@ -32,6 +36,28 @@ object LinearRegressionModel {
     val p = 2 * T.cumulative(-math.abs(t), d, true, false)
 
     LinearRegressionStats(b, se, t, p)
+  }
+  
+  def schemaMultiField: TStruct = schemaMultiPheno
+  
+  def fit(X: DenseMatrix[Double], y: Vector[Double], yyp: Double, qt: DenseMatrix[Double], qty: Vector[Double], d: Int): LinearRegressionMultiFieldStats = {
+    val qtx = qt * X
+    val xxp = (X.t * X) - (qtx.t * qtx)
+    val xyp = (X.t * y) - (qtx.t * qty)
+    
+    val dRec = 1.0 / d
+    
+    try {
+      val b = xxp \ xyp
+      val se = sqrt(dRec * (yyp - (xyp dot b)) * diag(inv(xxp)))
+      val t = b :/ se
+      val p = t.map(stat => 2 * T.cumulative(-math.abs(stat), d, true, false))
+      
+      LinearRegressionMultiFieldStats(b.toArray, se.toArray, t.toArray, p.toArray)
+    } catch {
+      case e: breeze.linalg.MatrixSingularException =>
+        LinearRegressionMultiFieldStats(null, null, null, null)
+    }
   }
 
   def schemaMultiPheno = TStruct(
