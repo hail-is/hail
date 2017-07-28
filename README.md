@@ -16,7 +16,7 @@ alias connect-cluster=/path/to/cloud-tools/connect_cluster.py
 alias stop-cluster=/path/to/cloud-tools/stop_cluster.py
 ```
 
-The `start_cluster.py` script references a copy of the initialization script `init_notebook.py` that lives in the publically-readable Google Storage bucket `gs://hail-common/`. 
+The `start_cluster.py` script references a copy of the initialization script `init_notebook.py` that lives in the publicly-readable Google Storage bucket `gs://hail-common/`. 
 
 You don't need a copy of this initialization script on your local machine to use the other scripts, but it's hosted in this repository as a reference. You can also use the initialization script with your own cluster start-up script. 
 
