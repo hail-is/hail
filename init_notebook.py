@@ -31,15 +31,23 @@ if role == 'Master':
 
     # get Hail hash and Spark version to use for Jupyter notebook, if set through cluster startup metadata
     spark = Popen('/usr/share/google/get_metadata_value attributes/SPARK', shell=True, stdout=PIPE).communicate()[0].strip()
-    hash = Popen('/usr/share/google/get_metadata_value attributes/HASH', shell=True, stdout=PIPE).communicate()[0].strip() 
+    hail_version = Popen('/usr/share/google/get_metadata_value attributes/HAIL_VERSION', shell=True, stdout=PIPE).communicate()[0].strip()
+    hash = Popen('/usr/share/google/get_metadata_value attributes/HASH', shell=True, stdout=PIPE).communicate()[0].strip()
+
 
     # default to Spark 2.0.2 if not otherwise specified through metadata
     if not spark:
         spark = '2.0.2'
 
+    # default to version 0.1
+    if not hail_version:
+        hail_version = '0.1'
+
     # default to latest Hail build if none specified through metadata
     if not hash:
-        hash = Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash-spark{}.txt'.format(spark)], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
+        hash = Popen(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'
+            .format(hail_version, spark)], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
+
 
     # Hail jar
     jar = Popen('/usr/share/google/get_metadata_value attributes/JAR', shell=True, stdout=PIPE).communicate()[0].strip()
@@ -47,8 +55,8 @@ if role == 'Master':
         hail_jar = jar.rsplit('/')[-1]
         jar_path = jar
     else:
-        hail_jar = 'hail-hail-is-master-all-spark{0}-{1}.jar'.format(spark, hash)
-        jar_path = 'gs://hail-common/' + hail_jar
+        hail_jar = 'hail-{0}-{1}-Spark-{2}.jar'.format(hail_version, hash, spark)
+        jar_path = 'gs://hail-common/builds/{0}/jars/{1}'.format(hail_version, hail_jar)
 
     # Hail zip
     zip = Popen('/usr/share/google/get_metadata_value attributes/ZIP', shell=True, stdout=PIPE).communicate()[0].strip()
@@ -56,8 +64,8 @@ if role == 'Master':
         hail_zip = zip.rsplit('/')[-1]
         zip_path = zip
     else:    
-        hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash)
-        zip_path = 'gs://hail-common/' + hail_zip
+        hail_zip = 'hail-{0}-{1}.zip'.format(hail_version, hash)
+        zip_path = 'gs://hail-common/builds/{0}/python/{1}'.format(hail_version, hail_zip)
 
     # make directory for Hail and Jupyter notebook related files
     if not os.path.isdir('/home/hail/'):
