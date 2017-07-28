@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
 import is.hail.utils._
-import is.hail.stats.{RegressionUtils, ToNormalizedIndexedRowMatrix}
+import is.hail.stats.{RegressionUtils}
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix, Vectors}
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
