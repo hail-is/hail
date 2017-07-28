@@ -75,9 +75,7 @@ object LinearMixedRegression {
       case LDMatrix(irm, variants, nSamplesUsed) => {
         val variantSet = variants.toSet
         val ldDim = irm.numCols().toInt
-        val localMatrix = new DenseMatrix[Double](ldDim,
-          ldDim,
-          irm.toBlockMatrixDense().toLocalMatrix().toArray)
+        val localMatrix = irm.toBlockMatrixDense().toLocalMatrix().asBreeze().asInstanceOf[DenseMatrix[Double]]
 
         info(s"lmmreg: Computing eigenvectors of LD matrix...")
         val eigK = printTime(eigSymD(localMatrix))

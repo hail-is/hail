@@ -1,7 +1,7 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.{Matrix => BreezeMatrix}
-import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
+import org.apache.spark.mllib.linalg.{Matrix}
 
 /**
   * Adds useful methods to Spark local Matrix interface.

@@ -62,6 +62,10 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, m, n)
   }
+
+  def toLocalMatrix(): DenseMatrix = {
+    ???
+  }
 }
 
 
