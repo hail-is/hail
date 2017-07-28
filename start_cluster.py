@@ -87,12 +87,12 @@ def main(args):
         metadata += ',ZIP={}'.format(args.zip)
 
     # command to start cluster
-    cmd = ' '.join([
-        'gcloud dataproc clusters create',
+    cmd = [
+        'gcloud', 'dataproc', 'clusters', 'create',
         args.name,
         '--image-version={}'.format(image_version),
         '--master-machine-type={}'.format(args.master_machine_type),
-        '--metadata {}'.format(metadata),
+        '--metadata={}'.format(metadata),
         '--master-boot-disk-size={}GB'.format(args.master_boot_disk_size),
         '--num-master-local-ssds={}'.format(args.num_master_local_ssds),
         '--num-preemptible-workers={}'.format(args.num_preemptible_workers),
@@ -104,21 +104,16 @@ def main(args):
         '--zone={}'.format(args.zone),
         '--properties={}'.format(",".join(properties)),
         '--initialization-actions={}'.format(init_actions)
-    ])
+    ]
 
     # spin up cluster
-    try:
-        subprocess.check_output(cmd, shell=True)
-
-    # exit if cluster already exists
-    except subprocess.CalledProcessError:
-        pass
+    subprocess.check_output(cmd)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # required arguments
-    parser.add_argument('--name', '-n', required=True, type=str, help='Name of cluster.')
+    parser.add_argument('--name', '-n', help='Name of cluster.', required=True)
 
     # arguments with default parameters
     parser.add_argument('--hash', default='latest', type=str, help='Hail build to use for notebook initialization.')
@@ -132,14 +127,14 @@ if __name__ == '__main__':
     parser.add_argument('--num-workers', '--n-workers', '-nw', default=2, type=int, help='Number of worker machines.')
     parser.add_argument('--preemptible-worker-boot-disk-size', default=40, type=int, help='Disk size of preemptible machines (in GB).')
     parser.add_argument('--worker-boot-disk-size', default=40, type=int, help='Disk size of worker machines (in GB).')
-    parser.add_argument('--worker-machine-type', '--worker', '-w', type=str, help='Worker machine type.')
-    parser.add_argument('--zone', default='us-central1-b', type=str, help='Compute zone for the cluster.')
-    parser.add_argument('--properties', default='', type=str, help='Additional configuration properties for the cluster.')
-    parser.add_argument('--metadata', default='', type=str, help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...')
+    parser.add_argument('--worker-machine-type', '--worker', '-w', help='Worker machine type.')
+    parser.add_argument('--zone', default='us-central1-b', help='Compute zone for the cluster.')
+    parser.add_argument('--properties', help='Additional configuration properties for the cluster.')
+    parser.add_argument('--metadata', default='', help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...')
 
     # specify custom Hail jar and zip
-    parser.add_argument('--jar', default='', type=str, help='Hail jar to use for Jupyter notebook.')
-    parser.add_argument('--zip', default='', type=str, help='Hail zip to use for Jupyter notebook.')
+    parser.add_argument('--jar', help='Hail jar to use for Jupyter notebook.')
+    parser.add_argument('--zip', help='Hail zip to use for Jupyter notebook.')
 
     # initialization action flags
     parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')

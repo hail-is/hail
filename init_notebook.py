@@ -3,10 +3,10 @@
 import os
 import json
 import time
-from subprocess import call, Popen, PIPE
+from subprocess import call, check_output
 
 # get role of machine (master or worker)
-role = Popen('/usr/share/google/get_metadata_value attributes/dataproc-role', shell=True, stdout=PIPE).communicate()[0]
+role = check_output(['/usr/share/google/get_metadata_value', 'attributes/dataproc-role'])
 
 # initialization actions to perform on master machine only
 if role == 'Master':
@@ -30,11 +30,10 @@ if role == 'Master':
         call(['/home/anaconda2/bin/pip', 'install', pkg])
 
     # get Hail hash and Spark version to use for Jupyter notebook, if set through cluster startup metadata
-    spark = Popen('/usr/share/google/get_metadata_value attributes/SPARK', shell=True, stdout=PIPE).communicate()[0].strip()
-    hail_version = Popen('/usr/share/google/get_metadata_value attributes/HAIL_VERSION', shell=True, stdout=PIPE).communicate()[0].strip()
-    hash = Popen('/usr/share/google/get_metadata_value attributes/HASH', shell=True, stdout=PIPE).communicate()[0].strip()
-
-
+    spark = check_output(['/usr/share/google/get_metadata_value', 'attributes/SPARK'])
+    hail_version = check_output(['/usr/share/google/get_metadata_value', 'attributes/HAIL_VERSION'])
+    hash_name = check_output(['/usr/share/google/get_metadata_value', 'attributes/HASH'])
+    
     # default to Spark 2.0.2 if not otherwise specified through metadata
     if not spark:
         spark = '2.0.2'
@@ -44,28 +43,28 @@ if role == 'Master':
         hail_version = '0.1'
 
     # default to latest Hail build if none specified through metadata
-    if not hash:
-        hash = Popen(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'
-            .format(hail_version, spark)], stdout=PIPE, stderr=PIPE).communicate()[0].strip()
-
+    if not hash_name:
+        hash_name = check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(hail_version, spark)])
 
     # Hail jar
-    jar = Popen('/usr/share/google/get_metadata_value attributes/JAR', shell=True, stdout=PIPE).communicate()[0].strip()
-    if jar:
-        hail_jar = jar.rsplit('/')[-1]
-        jar_path = jar
-    else:
-        hail_jar = 'hail-{0}-{1}-Spark-{2}.jar'.format(hail_version, hash, spark)
+    try:
+        custom_jar = check_output(['/usr/share/google/get_metadata_value', 'attributes/JAR'])
+    except:
+        hail_jar = 'hail-{0}-{1}-Spark-{2}.jar'.format(hail_version, hash_name, spark)
         jar_path = 'gs://hail-common/builds/{0}/jars/{1}'.format(hail_version, hail_jar)
-
+    else:
+        hail_jar = custom_jar.rsplit('/')[-1]
+        jar_path = custom_jar
+     
     # Hail zip
-    zip = Popen('/usr/share/google/get_metadata_value attributes/ZIP', shell=True, stdout=PIPE).communicate()[0].strip()
-    if zip:
-        hail_zip = zip.rsplit('/')[-1]
-        zip_path = zip
-    else:    
-        hail_zip = 'hail-{0}-{1}.zip'.format(hail_version, hash)
+    try:
+        custom_zip = check_output(['/usr/share/google/get_metadata_value', 'attributes/ZIP'])
+    except:
+        hail_zip = 'hail-{0}-{1}.zip'.format(hail_version, hash_name)
         zip_path = 'gs://hail-common/builds/{0}/python/{1}'.format(hail_version, hail_zip)
+    else:
+        hail_zip = custom_zip.rsplit('/')[-1]
+        zip_path = custom_zip
 
     # make directory for Hail and Jupyter notebook related files
     if not os.path.isdir('/home/hail/'):
@@ -125,15 +124,15 @@ if role == 'Master':
     # create Jupyter configuration file
     call(['mkdir', '-p', '/home/anaconda2/etc/jupyter/'])
     with open('/home/anaconda2/etc/jupyter/jupyter_notebook_config.py', 'wb') as f:
-	    opts = [
-		    'c.Application.log_level = "DEBUG"',
-		    'c.NotebookApp.ip = "127.0.0.1"',
-		    'c.NotebookApp.open_browser = False',
-		    'c.NotebookApp.port = 8123',
-		    'c.NotebookApp.token = ""',
-		    'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"'
+        opts = [
+            'c.Application.log_level = "DEBUG"',
+            'c.NotebookApp.ip = "127.0.0.1"',
+            'c.NotebookApp.open_browser = False',
+            'c.NotebookApp.port = 8123',
+            'c.NotebookApp.token = ""',
+            'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"'
         ]
-	    f.write('\n'.join(opts) + '\n')
+        f.write('\n'.join(opts) + '\n')
 
     # setup jupyter-spark extension
     call(['/home/anaconda2/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'jupyter_spark'])
