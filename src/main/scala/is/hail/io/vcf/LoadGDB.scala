@@ -1,5 +1,7 @@
 package is.hail.io.vcf
 
+import java.io.{FileWriter, File}
+
 import com.intel.genomicsdb.GenomicsDBFeatureReader
 import htsjdk.variant.variantcontext.VariantContext
 import htsjdk.variant.vcf.VCFHeader
@@ -46,7 +48,7 @@ object LoadGDB {
       .toMap
 
     if (filters.size > 1 && filters.contains("PASS")) //remove extra PASS filter if there are others
-      filters = filters.tail //FIXME: remove operation on Maps doesn't work -- what is a better way to remove PASS?
+      filters = filters.tail //FIXME: remove operation on Maps doesn't work -- what is a better way to remove PASS at any location?
 
     val infoHeader = header.getInfoHeaderLines
     val infoSignature = LoadVCF.headerSignature(infoHeader)
@@ -79,7 +81,9 @@ object LoadGDB {
     val records = gdbReader
       .iterator
       .asScala
-      .map(vc => reader.readRecord(vc, infoSignature, genotypeSignature))
+      .map(vc => {
+        reader.readRecord(vc, infoSignature, genotypeSignature)
+      })
       .toSeq
 
     val recordRDD = sc.parallelize(records, nPartitions.getOrElse(sc.defaultMinPartitions))
