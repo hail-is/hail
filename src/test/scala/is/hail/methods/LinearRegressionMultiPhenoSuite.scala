@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.annotations.Querier
+import is.hail.annotations.Annotation
 import is.hail.expr.TDouble
 import is.hail.keytable.KeyTable
 import is.hail.utils._
@@ -9,7 +9,13 @@ import is.hail.variant.{Variant, VariantDataset}
 import org.testng.annotations.Test
 
 class LinearRegressionMultiPhenoSuite extends SparkSuite {
-
+  def assertDouble(a: Annotation, value: Double, i: Int = 0) { 
+    assert(D_==(a.asInstanceOf[IndexedSeq[Double]].apply(i), value)) 
+  }
+  def isNaN(a: Annotation): Boolean = a.asInstanceOf[IndexedSeq[Double]].apply(0).isNaN
+  def isNearly1(a: Annotation): Boolean = D_==(a.asInstanceOf[IndexedSeq[Double]].apply(0), 1.0)
+  def assertSingular(a: Annotation) { assert(a == null || isNaN(a) || isNearly1(a)) }
+  
   val covariates: KeyTable = hc.importTable("src/test/resources/regressionLinear.cov",
     types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
   val phenotypes: KeyTable = hc.importTable("src/test/resources/regressionLinear.pheno",
@@ -37,25 +43,7 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
     val qTstat = vds.queryVA("va.linreg.tstat")._2
     val qPval = vds.queryVA("va.linreg.pval")._2
 
-    val annotationMap = vds.variantsAndAnnotations
-      .collect()
-      .toMap
-
-    def assertInt(q: Querier, v: Variant, value: Int) =
-      assert(D_==(q(annotationMap(v)).asInstanceOf[Int], value))
-
-    def assertDouble(q: Querier, v: Variant, value: Double) = {
-      val x = q(annotationMap(v)).asInstanceOf[IndexedSeq[Double]].apply(0)
-      assert(D_==(x, value))
-    }
-
-    def assertDouble1(q: Querier, v: Variant, value: Double) = {
-      val x = q(annotationMap(v)).asInstanceOf[IndexedSeq[Double]].apply(1)
-      assert(D_==(x, value))
-    }
-
-    def assertEmpty(q: Querier, v: Variant) =
-      assert(q(annotationMap(v)) == null)
+    val am = vds.variantsAndAnnotations.collect().toMap
 
     /*
     comparing to output of R code:
@@ -69,16 +57,16 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
 
     */
 
-    assertDouble(qBeta, v1, -0.28589421)
-    assertDouble(qSe, v1, 1.2739153)
-    assertDouble(qTstat, v1, -0.22442167)
-    assertDouble(qPval, v1, 0.84327106)
+    assertDouble(qBeta(am(v1)), -0.28589421)
+    assertDouble(qSe(am(v1)), 1.2739153)
+    assertDouble(qTstat(am(v1)), -0.22442167)
+    assertDouble(qPval(am(v1)), 0.84327106)
 
     // checking that second copy of phenotype gives the same answer
-    assertDouble1(qBeta, v1, -0.28589421)
-    assertDouble1(qSe, v1, 1.2739153)
-    assertDouble1(qTstat, v1, -0.22442167)
-    assertDouble1(qPval, v1, 0.84327106)
+    assertDouble(qBeta(am(v1)), -0.28589421, 1)
+    assertDouble(qSe(am(v1)), 1.2739153, 1)
+    assertDouble(qTstat(am(v1)), -0.22442167, 1)
+    assertDouble(qPval(am(v1)), 0.84327106, 1)
 
 
     /*
@@ -86,52 +74,38 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
     x = c(1, 2, 1, 2, 0, 0)
     */
 
-    assertDouble(qBeta, v2, -0.5417647)
-    assertDouble(qSe, v2, 0.3350599)
-    assertDouble(qTstat, v2, -1.616919)
-    assertDouble(qPval, v2, 0.24728705)
+    assertDouble(qBeta(am(v2)), -0.5417647)
+    assertDouble(qSe(am(v2)),  0.3350599)
+    assertDouble(qTstat(am(v2)), -1.616919)
+    assertDouble(qPval(am(v2)), 0.24728705)
 
     /*
     v3 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
     x = c(0, 0.75, 1, 1, 1, 0.75)
     */
 
-    assertDouble(qBeta, v3, 1.07367185)
-    assertDouble(qSe, v3, 0.6764348)
-    assertDouble(qTstat, v3, 1.5872510)
-    assertDouble(qPval, v3, 0.2533675)
+    assertDouble(qBeta(am(v3)), 1.07367185)
+    assertDouble(qSe(am(v3)), 0.6764348)
+    assertDouble(qTstat(am(v3)), 1.5872510)
+    assertDouble(qPval(am(v3)), 0.2533675)
 
-    assertEmpty(qBeta, v6)
-    assertEmpty(qBeta, v7)
-    assertEmpty(qBeta, v8)
-    assertEmpty(qBeta, v9)
-    assertEmpty(qBeta, v10)
+    assert(qBeta(am(v6)) == null)
+    assert(qBeta(am(v7)) == null)
+    assert(qBeta(am(v8)) == null)
+    assert(qBeta(am(v9)) == null)
+    assert(qBeta(am(v10)) == null)
   }
 
   // ensuring that result for one phenotype and dosages is the same as with linreg.
   @Test def testWithTwoCovPhred() {
     val vds = vds0.linregMultiPheno(Array("sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages = true)
 
-
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
     val qTstat = vds.queryVA("va.linreg.tstat")._2
     val qPval = vds.queryVA("va.linreg.pval")._2
 
-    val annotationMap = vds.variantsAndAnnotations
-      .collect()
-      .toMap
-
-    def assertInt(q: Querier, v: Variant, value: Int) =
-      assert(D_==(q(annotationMap(v)).asInstanceOf[Int], value))
-
-    def assertDouble(q: Querier, v: Variant, value: Double) = {
-      val x = q(annotationMap(v)).asInstanceOf[IndexedSeq[Double]].apply(0)
-      assert(D_==(x, value))
-    }
-
-    def assertEmpty(q: Querier, v: Variant) =
-      assert(q(annotationMap(v)) == null)
+    val am = vds.variantsAndAnnotations.collect().toMap
 
     /*
     comparing to output of R code:
@@ -145,31 +119,31 @@ class LinearRegressionMultiPhenoSuite extends SparkSuite {
 
     */
 
-    assertDouble(qBeta, v1, -0.29166985)
-    assertDouble(qSe, v1, 1.2996510)
-    assertDouble(qTstat, v1, -0.22442167)
-    assertDouble(qPval, v1, 0.84327106)
+    assertDouble(qBeta(am(v1)), -0.29166985)
+    assertDouble(qSe(am(v1)), 1.2996510)
+    assertDouble(qTstat(am(v1)), -0.22442167)
+    assertDouble(qPval(am(v1)), 0.84327106)
 
     /*
     v2 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
     x = c(0.9950495050004902, 1.980198019704931, 0.9950495050004902, 1.980198019704931, 0.009900990296049406, 0.009900990296049406)
     */
 
-    assertDouble(qBeta, v2, -0.5499320)
-    assertDouble(qSe, v2, 0.3401110)
-    assertDouble(qTstat, v2, -1.616919)
-    assertDouble(qPval, v2, 0.24728705)
+    assertDouble(qBeta(am(v2)), -0.5499320)
+    assertDouble(qSe(am(v2)), 0.3401110)
+    assertDouble(qTstat(am(v2)), -1.616919)
+    assertDouble(qPval(am(v2)), 0.24728705)
 
     /*
     v3 has two missing genotypes, comparing to output of R code as above with imputed genotypes:
     x = c(0.009900990296049406, 0.7450495050747477, 0.9900990100009803, 0.9900990100009803, 0.9900990100009803, 0.7450495050747477)
     */
 
-    assertDouble(qBeta, v3, 1.09536219)
-    assertDouble(qSe, v3, 0.6901002)
-    assertDouble(qTstat, v3, 1.5872510)
-    assertDouble(qPval, v3, 0.2533675)
+    assertDouble(qBeta(am(v3)), 1.09536219)
+    assertDouble(qSe(am(v3)), 0.6901002)
+    assertDouble(qTstat(am(v3)), 1.5872510)
+    assertDouble(qPval(am(v3)), 0.2533675)
 
-    assertEmpty(qBeta, v6)
+    assertSingular(qPval(am(v6)))
   }
 }
