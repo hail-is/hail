@@ -6,6 +6,8 @@ import json
 import argparse
 import subprocess
 
+COMPATIBILITY_VERSION = 2
+
 # master machine type to memory map, used for setting spark.driver.memory property
 machine_mem = {
     'n1-standard-1': 3.75,
@@ -58,19 +60,23 @@ def main(args):
         properties.append(args.properties)
 
     # default initialization script to start up cluster with
-    init_actions = args.init
+    init_actions = 'gs://hail-common/init_notebook-{}.py'.format(COMPATIBILITY_VERSION)
+
+    if args.init:
+        init_actions += ',' + args.init
 
     # add VEP action
     if args.vep:
         init_actions += ',' + 'gs://hail-common/vep/vep/vep85-init.sh'
 
     if args.hash == 'latest':
-        hail_hash = subprocess.Popen(['gsutil', 'cat', 'gs://hail-common/latest-hash.txt'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].strip()
+        hail_hash = subprocess.Popen(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'
+            .format(args.version, args.spark)], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].strip()
     else:
         hail_hash = args.hash
 
     # prepare metadata values
-    metadata = 'HASH={0},SPARK={1}'.format(hail_hash, args.spark)
+    metadata = 'HASH={0},SPARK={1},HAIL_VERSION='.format(hail_hash, args.spark)
     if args.metadata:
         metadata += ("," + args.metadata)
 
@@ -110,9 +116,10 @@ if __name__ == '__main__':
     parser.add_argument('--name', '-n', help='Name of cluster.', required=True)
 
     # arguments with default parameters
-    parser.add_argument('--hash', default='latest', help='Hail build to use for notebook initialization.')
-    parser.add_argument('--spark', default='2.0.2', choices=['2.0.2', '2.1.0'], help='Spark version used to build Hail.')
-    parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', help='Master machine type.')
+    parser.add_argument('--hash', default='latest', type=str, help='Hail build to use for notebook initialization.')
+    parser.add_argument('--spark', default='2.0.2', type=str, choices=['2.0.2', '2.1.0'], help='Spark version used to build Hail.')
+    parser.add_argument('--version', default='0.1', type=str, choices=['0.1', 'devel'], help='Hail version to use')
+    parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str, help='Master machine type.')
     parser.add_argument('--master-boot-disk-size', default=100, type=int, help='Disk size of master machine (in GB).')
     parser.add_argument('--num-master-local-ssds', default=0, type=int, help='Number of local SSDs to attach to the master machine.')
     parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-np', default=0, type=int, help='Number of preemptible worker machines.')
@@ -130,7 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--zip', help='Hail zip to use for Jupyter notebook.')
 
     # initialization action flags
-    parser.add_argument('--init', default='gs://hail-common/init_notebook.py', help='Comma-separated list of init scripts to run.')
+    parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')
     parser.add_argument('--vep', action='store_true')
 
     # parse arguments

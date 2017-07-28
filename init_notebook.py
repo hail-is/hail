@@ -3,7 +3,7 @@
 import os
 import json
 import time
-from subprocess import call, check_output, CalledProcessError
+from subprocess import call, check_output
 
 # get role of machine (master or worker)
 role = check_output(['/usr/share/google/get_metadata_value', 'attributes/dataproc-role'])
@@ -31,32 +31,40 @@ if role == 'Master':
 
     # get Hail hash and Spark version to use for Jupyter notebook, if set through cluster startup metadata
     spark = check_output(['/usr/share/google/get_metadata_value', 'attributes/SPARK'])
+    hail_version = check_output(['/usr/share/google/get_metadata_value', 'attributes/HAIL_VERSION'])
     hash_name = check_output(['/usr/share/google/get_metadata_value', 'attributes/HASH'])
+    
     # default to Spark 2.0.2 if not otherwise specified through metadata
     if not spark:
         spark = '2.0.2'
 
+    # default to version 0.1
+    if not hail_version:
+        hail_version = '0.1'
+
     # default to latest Hail build if none specified through metadata
     if not hash_name:
-        hash_name = check_output(['gsutil', 'cat', 'gs://hail-common/latest-hash-spark{}.txt'.format(spark)])
+        hash_name = check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(hail_version, spark)])
 
     # Hail jar
     try:
-        jar = check_output(['/usr/share/google/get_metadata_value', 'attributes/JAR'])
-        hail_jar = jar.rsplit('/')[-1]
-        jar_path = jar
-    except CalledProcessError:
-        hail_jar = 'hail-hail-is-master-all-spark{0}-{1}.jar'.format(spark, hash_name)
-        jar_path = 'gs://hail-common/' + hail_jar
-
+        custom_jar = check_output(['/usr/share/google/get_metadata_value', 'attributes/JAR'])
+    except:
+        hail_jar = 'hail-{0}-{1}-Spark-{2}.jar'.format(hail_version, hash_name, spark)
+        jar_path = 'gs://hail-common/builds/{0}/jars/{1}'.format(hail_version, hail_jar)
+    else:
+        hail_jar = custom_jar.rsplit('/')[-1]
+        jar_path = custom_jar
+     
     # Hail zip
     try:
-        zip_name = check_output(['/usr/share/google/get_metadata_value', 'attributes/ZIP'])
-        hail_zip = zip_name.rsplit('/')[-1]
-        zip_path = zip_name
-    except CalledProcessError:
-        hail_zip = 'pyhail-hail-is-master-{}.zip'.format(hash_name)
-        zip_path = 'gs://hail-common/' + hail_zip
+        custom_zip = check_output(['/usr/share/google/get_metadata_value', 'attributes/ZIP'])
+    except:
+        hail_zip = 'hail-{0}-{1}.zip'.format(hail_version, hash_name)
+        zip_path = 'gs://hail-common/builds/{0}/python/{1}'.format(hail_version, hail_zip)
+    else:
+        hail_zip = custom_zip.rsplit('/')[-1]
+        zip_path = custom_zip
 
     # make directory for Hail and Jupyter notebook related files
     if not os.path.isdir('/home/hail/'):
