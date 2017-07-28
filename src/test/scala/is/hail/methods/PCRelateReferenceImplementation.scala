@@ -11,7 +11,7 @@ object PCRelateReferenceImplementation {
 
     val gts = vds.rdd.map { case (v, (va, gs)) =>
       val a = gs.map(_.gt).toArray
-      val mean = a.flatten.sum.toDouble / a.length
+      val mean = a.flatten.sum.toDouble / a.flatten.length
       a.map { case Some(v) => v.toDouble ; case None => mean }.toArray
     }.collect().flatten
 
@@ -90,13 +90,13 @@ object PCRelateReferenceImplementation {
     }
     val stddev = new BDM[Double](m, n, stddeva)
 
-    // println(g.t)
-    // println("mu")
-    // println(mu_si)
-    // println("gMinusMu")
-    // println(g2mu)
-    // println("stddev")
-    // println(stddev)
+    println(g.t)
+    println("mu")
+    println(mu_si)
+    println("gMinusMu")
+    println(g2mu)
+    println("stddev")
+    println(stddev)
 
     val denom = (stddev.t * stddev)
     val phi = (numer :/ denom) / 4.0
@@ -144,10 +144,11 @@ object PCRelateReferenceImplementation {
 
     val k0a = new Array[Double](n*n)
     i = 0
+    val k0cutoff = math.pow(2.0, (-5.0/2.0))
     while (i < n) {
       var j = 0
       while (j < n) {
-        if (phi(i,j) >= 0.177) {
+        if (phi(i,j) > k0cutoff) {
           var k = 0
           var numer = 0.0
           var denom = 0.0
@@ -157,17 +158,17 @@ object PCRelateReferenceImplementation {
             val mu_ki = mu_si(k,i)
             val mu_kj = mu_si(k,j)
 
-            if (g_ki == g_kj)
+            if (math.abs(g_ki - g_kj) == 2.0)
               numer += 1.0
 
-            denom += mu_ki*mu_ki*(1-mu_ki)*(1-mu_ki) + mu_kj*mu_kj*(1-mu_kj)*(1-mu_kj)
+            denom += mu_ki*mu_ki*(1.0-mu_kj)*(1.0-mu_kj) + mu_kj*mu_kj*(1.0-mu_ki)*(1.0-mu_ki)
 
             k += 1
           }
 
           k0a(j*n + i) = numer / denom
         } else {
-          k0a(j*n + i) = 1 - 4 * phi(i,j) + k2(i,j)
+          k0a(j*n + i) = 1.0 - 4.0 * phi(i,j) + k2(i,j)
         }
 
         j += 1

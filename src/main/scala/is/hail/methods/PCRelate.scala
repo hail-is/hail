@@ -90,25 +90,12 @@ object PCRelate {
     val g = vdsToMeanImputedMatrix(vds)
     val beta = fitBeta(g, pcs, blockSize)
 
-    val pcsArray = pcs.toArray
-    val pcsWithInterceptArray = new Array[Double](pcs.numRows * (pcs.numCols + 1))
-    var i = 0
-    while (i < pcs.numRows) {
-      pcsWithInterceptArray(i) = 1
-      i += 1
-    }
-    i = 0
-    while (i < pcs.numRows * pcs.numCols) {
-      pcsWithInterceptArray(pcs.numRows + i) = pcsArray(i)
-      i += 1
-    }
-    val pcsWithIntercept =
-      new DenseMatrix(pcs.numRows, pcs.numCols + 1, pcsWithInterceptArray)
+    val pcsWithIntercept = prependConstantColumn(1.0, pcs)
 
     val blockedG = dm.from(g, blockSize, blockSize)
     val mu = ((beta * pcsWithIntercept.transpose) / 2.0)
 
-    val gMinusMu = dm.map2 { (g,mu) =>
+    val centeredG = dm.map2 { (g,mu) =>
       if (badgt(g) || badmu(mu))
         0.0
       else
@@ -121,16 +108,17 @@ object PCRelate {
         else
           mu * (1.0 - mu)
     }(blockedG, mu)
-    val phi = (((gMinusMu.t * gMinusMu) :/ (variance.t.sqrt * variance.sqrt)) / 4.0)
+    val stddev = dm.map(math.sqrt _)(variance)
+    val phi = (((centeredG.t * centeredG) :/ (stddev.t * stddev)) / 4.0)
 
-    // println("blockedG spark")
-    // println(blockedG.toLocalMatrix())
-    // println("mu spark")
-    // println(mu.toLocalMatrix())
-    // println("gMinusMu spark")
-    // println(gMinusMu.toLocalMatrix())
-    // println("stddev")
-    // println(variance.sqrt.toLocalMatrix())
+    println("blockedG spark")
+    println(blockedG.toLocalMatrix())
+    println("mu spark")
+    println(mu.toLocalMatrix())
+    println("gMinusMu spark")
+    println(centeredG.toLocalMatrix())
+    println("stddev")
+    println(stddev.toLocalMatrix())
 
     val twoPhi_ii = fTwiddle(phi)
     val normalizedGD = dm.map2WithIndex({
@@ -165,12 +153,28 @@ object PCRelate {
     val ibsZero = ibs0(vds, blockSize)
     val kZero = dm.map4 { (phiHat: Double, denom: Double, k2: Double, ibs0: Double) =>
       if (phiHat <= k0cutoff)
-        1 - 4 * phiHat + k2
+        1.0 - 4.0 * phiHat + k2
       else
         ibs0 / denom
     }(phi, denom, kTwo, ibsZero)
 
     Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
+  }
+
+  private def prependConstantColumn(k: Double, m: DenseMatrix): DenseMatrix = {
+    val a = m.toArray
+    val result = new Array[Double](m.numRows * (m.numCols + 1))
+    var i = 0
+    while (i < m.numRows) {
+      result(i) = 1
+      i += 1
+    }
+    i = 0
+    while (i < m.numRows * m.numCols) {
+      result(m.numRows + i) = a(i)
+      i += 1
+    }
+    new DenseMatrix(m.numRows, m.numCols + 1, result)
   }
 
   def vdsToMeanImputedMatrix(vds: VariantDataset): IndexedRowMatrix = {
@@ -228,6 +232,9 @@ object PCRelate {
     dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize, blockSize)
   }
 
+  /**
+    * this is equivalent to \hat{f} + 1
+    **/
   def fTwiddle(phiHat: M): Array[Double] =
     dm.diagonal(phiHat).map(2.0 * _)
 
