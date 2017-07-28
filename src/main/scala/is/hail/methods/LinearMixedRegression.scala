@@ -75,7 +75,7 @@ object LinearMixedRegression {
       case LDMatrix(irm, variants, nSamplesUsed) => {
         val variantSet = variants.toSet
         val ldDim = irm.numCols().toInt
-        val localMatrix = irm.toBlockMatrixDense().toLocalMatrix().asBreeze().asInstanceOf[DenseMatrix[Double]]
+        val localMatrix = irm.toLocalMatrix().asBreeze().toDenseMatrix
 
         info(s"lmmreg: Computing eigenvectors of LD matrix...")
         val eigK = printTime(eigSymD(localMatrix))
@@ -110,7 +110,7 @@ object LinearMixedRegression {
 
         val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().t
         val sparkU = (sparkGenotypeMatrix * VSSpark).toLocalMatrix()
-        val U = sparkU.asBreeze().asInstanceOf[DenseMatrix[Double]]
+        val U = sparkU.asBreeze().toDenseMatrix
 
         (U, S, rank, fullS)
       }
@@ -128,7 +128,7 @@ object LinearMixedRegression {
 
         val cols = filteredKinshipMatrix.matrix.numCols().toInt
 
-        val rrm = new DenseMatrix[Double](cols, cols, filteredKinshipMatrix.matrix.toBlockMatrix().toLocalMatrix().toArray)
+        val rrm = filteredKinshipMatrix.matrix.toLocalMatrix().asBreeze().toDenseMatrix
 
         info(s"lmmreg: Computing eigenvectors of kinship matrix...")
 
