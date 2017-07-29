@@ -10,7 +10,7 @@ import org.apache.commons.io.output.TeeOutputStream
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
-import org.apache.spark.{AccumulableParam, Partition}
+import org.apache.spark.Partition
 import org.json4s.Extraction.decompose
 import org.json4s.jackson.Serialization
 import org.json4s.{Formats, JValue, NoTypeHints}
@@ -209,23 +209,6 @@ package object utils extends Logging
   def genDNAString: Gen[String] = Gen.stringOf(genBase)
     .resize(12)
     .filter(s => !s.isEmpty)
-
-  implicit def accumulableMapInt[K]: AccumulableParam[mutable.Map[K, Int], K] = new AccumulableParam[mutable.Map[K, Int], K] {
-    def addAccumulator(r: mutable.Map[K, Int], t: K): mutable.Map[K, Int] = {
-      r.updateValue(t, 0, _ + 1)
-      r
-    }
-
-    def addInPlace(r1: mutable.Map[K, Int], r2: mutable.Map[K, Int]): mutable.Map[K, Int] = {
-      for ((k, v) <- r2)
-        r1.updateValue(k, 0, _ + v)
-      r1
-    }
-
-    def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
-      mutable.Map.empty[K, Int]
-  }
-
 
   def prettyIdentifier(str: String): String = {
     if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))

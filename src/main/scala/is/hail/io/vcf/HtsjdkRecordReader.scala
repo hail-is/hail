@@ -6,7 +6,6 @@ import is.hail.annotations._
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.Accumulable
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -79,8 +78,7 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
     (v, va)
   }
 
-  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    vc: VariantContext,
+  def readRecord(vc: VariantContext,
     infoSignature: Option[TStruct],
     genotypeSignature: Type): (Variant, (Annotation, Iterable[T]))
 
@@ -90,8 +88,7 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
 case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordReader[Genotype] {
   def genericGenotypes = false
 
-  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    vc: VariantContext,
+  def readRecord(vc: VariantContext,
     infoSignature: Option[TStruct],
     genotypeSignature: Type): (Variant, (Annotation, Iterable[Genotype])) = {
 
@@ -167,10 +164,8 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
         else
           Genotype.gtIndex(j, i)
 
-        if (g.hasPL && pl(gt) != 0) {
-          reportAcc += VCFReport.GTPLMismatch
+        if (g.hasPL && pl(gt) != 0)
           filter = true
-        }
 
         if (gt != -1)
           gb.setGT(gt)
@@ -178,9 +173,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
 
       val ad = g.getAD
       if (g.hasAD) {
-        if (vcfSettings.skipBadAD && ad.length != nAlleles)
-          reportAcc += VCFReport.ADInvalidNumber
-        else
+        if (ad.length == nAlleles || !vcfSettings.skipBadAD)
           gb.setAD(ad)
       }
 
@@ -188,10 +181,8 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
         var dp = g.getDP
         if (g.hasAD) {
           val adsum = ad.sum
-          if (!filter && dp < adsum) {
-            reportAcc += VCFReport.ADDPMismatch
+          if (dp < adsum)
             filter = true
-          }
         }
 
         gb.setDP(dp)
@@ -208,14 +199,10 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
           if (pl != null) {
             val gqFromPL = Genotype.gqFromPL(pl)
 
-            if (!filter && gq != gqFromPL) {
-              reportAcc += VCFReport.GQPLMismatch
+            if (gq != gqFromPL)
               filter = true
-            }
-          } else if (!filter) {
-            reportAcc += VCFReport.GQMissingPL
+          } else
             filter = true
-          }
         }
       }
 
@@ -227,14 +214,10 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
           val adsum = ad.sum
           if (!g.hasDP)
             gb.setDP(adsum + od)
-          else if (!filter && adsum + od != g.getDP) {
-            reportAcc += VCFReport.ADODDPPMismatch
+          else if (adsum + od != g.getDP)
             filter = true
-          }
-        } else if (!filter) {
-          reportAcc += VCFReport.ODMissingAD
+        } else
           filter = true
-        }
       }
 
       if (filter)
@@ -268,8 +251,7 @@ object GenericRecordReader {
 case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordReader[Annotation] {
   def genericGenotypes = true
 
-  def readRecord(reportAcc: Accumulable[mutable.Map[Int, Int], Int],
-    vc: VariantContext,
+  def readRecord(vc: VariantContext,
     infoSignature: Option[TStruct],
     genotypeSignature: Type): (Variant, (Annotation, Iterable[Annotation])) = {
 

@@ -3,7 +3,6 @@ package is.hail.io.bgen
 import breeze.linalg.DenseVector
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
-import is.hail.io.gen.GenReport._
 import is.hail.utils._
 import is.hail.variant.{DosageGenotype, Genotype, Variant}
 

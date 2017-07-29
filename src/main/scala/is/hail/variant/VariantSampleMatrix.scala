@@ -9,7 +9,7 @@ import is.hail.expr._
 import is.hail.io._
 import is.hail.keytable.KeyTable
 import is.hail.methods.Aggregators.SampleFunctions
-import is.hail.methods.{Aggregators, DuplicateReport, Filter, VEP}
+import is.hail.methods.{Aggregators, Filter, VEP}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
@@ -1016,11 +1016,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
   def variants: RDD[Variant] = rdd.keys
 
   def deduplicate(): VariantSampleMatrix[T] = {
-    DuplicateReport.initialize()
-
-    val acc = DuplicateReport.accumulator
     copy(rdd = rdd.mapPartitions({ it =>
-      new SortedDistinctPairIterator(it, (v: Variant) => acc += v)
+      new SortedDistinctPairIterator(it)
     }, preservesPartitioning = true).asOrderedRDD)
   }
 
