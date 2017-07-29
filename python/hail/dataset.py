@@ -205,40 +205,6 @@ class VariantDataset(object):
         return self._jvds.fileVersion()
 
     @handle_py4j
-    @typecheck_method(key_exprs=oneof(strlike, listof(strlike)),
-               agg_exprs=oneof(strlike, listof(strlike)))
-    def aggregate_by_key(self, key_exprs, agg_exprs):
-        """Aggregate by user-defined key and aggregation expressions to produce a KeyTable.
-        Equivalent to a group-by operation in SQL.
-
-        **Examples**
-
-        Compute the number of LOF heterozygote calls per gene per sample:
-
-        >>> kt_result = (vds
-        ...     .aggregate_by_key(['Sample = s', 'Gene = va.gene'],
-        ...                        'nHet = g.filter(g => g.isHet() && va.consequence == "LOF").count()')
-        ...     .export("test.tsv"))
-
-        This will produce a :class:`KeyTable` with 3 columns (`Sample`, `Gene`, `nHet`).
-
-        :param key_exprs: Named expression(s) for which fields are keys.
-        :type key_exprs: str or list of str
-
-        :param agg_exprs: Named aggregation expression(s).
-        :type agg_exprs: str or list of str
-
-        :rtype: :class:`.KeyTable`
-        """
-
-        if isinstance(key_exprs, list):
-            key_exprs = ",".join(key_exprs)
-        if isinstance(agg_exprs, list):
-            agg_exprs = ",".join(agg_exprs)
-
-        return KeyTable(self.hc, self._jvds.aggregateByKey(key_exprs, agg_exprs))
-
-    @handle_py4j
     @requireTGenotype
     @typecheck_method(expr=oneof(strlike, listof(strlike)),
                propagate_gq=bool)
