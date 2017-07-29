@@ -93,7 +93,7 @@ object KeyTable {
           Parser.parseType(s).asInstanceOf[TStruct]
       }
 
-      val key = (fields.get("key_names"): @unchecked) match {
+      val key = (fields.get("key"): @unchecked) match {
         case Some(JArray(a)) =>
           a.map { case JString(s) => s }.toArray[String]
       }
@@ -668,7 +668,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val json = JObject(
       ("version", JInt(KeyTable.fileVersion)),
-      ("key_names", JArray(key.map(k => JString(k)).toList)),
+      ("key", JArray(key.map(k => JString(k)).toList)),
       ("schema", JString(schemaString)))
 
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(Serialization.writePretty(json, _))
