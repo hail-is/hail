@@ -93,7 +93,7 @@ object KeyTable {
           Parser.parseType(s).asInstanceOf[TStruct]
       }
 
-      val key = (fields.get("key_names"): @unchecked) match {
+      val key = (fields.get("key"): @unchecked) match {
         case Some(JArray(a)) =>
           a.map { case JString(s) => s }.toArray[String]
       }
