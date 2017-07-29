@@ -2561,109 +2561,6 @@ class VariantDataset(object):
         return LDMatrix(jldm)
 
     @handle_py4j
-    @typecheck_method(y=strlike,
-                      covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool,
-                      min_ac=integral,
-                      min_af=numeric)
-    def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
-        r"""Test each variant for association using linear regression.
-
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
-
-        **Examples**
-
-        Run linear regression per variant using a phenotype and two covariates stored in sample annotations:
-
-        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
-
-        **Notes**
-
-        The :py:meth:`.linreg` method computes, for each variant, statistics of
-        the :math:`t`-test for the genotype coefficient of the linear function
-        of best fit from sample genotype and covariates to quantitative
-        phenotype or case-control status. Hail only includes samples for which
-        phenotype and all covariates are defined. For each variant, missing genotypes
-        as the mean of called genotypes.
-
-        By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are defined by the dosage
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
-        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
-        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
-
-        Assuming there are sample annotations ``sa.pheno.height``,
-        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the code:
-
-        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale', 'sa.cov.PC1'])
-
-        considers a model of the form
-
-        .. math::
-
-            \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{gt} + \beta_2 \, \mathrm{age} + \beta_3 \, \mathrm{isFemale} + \beta_4 \, \mathrm{PC1} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)
-
-        where the genotype :math:`\mathrm{gt}` is coded as :math:`0` for HomRef, :math:`1` for
-        Het, and :math:`2` for HomVar, and the Boolean covariate :math:`\mathrm{isFemale}`
-        is coded as :math:`1` for true (female) and :math:`0` for false (male). The null
-        model sets :math:`\beta_1 = 0`.
-
-        Those variants that don't vary across the included samples (e.g., all genotypes
-        are HomRef) will have missing annotations. One can further
-        restrict computation to those variants with at least :math:`k` observed
-        alternate alleles (AC) or alternate allele frequency (AF) at least
-        :math:`p` in the included samples using the options ``min_ac=k`` or
-        ``min_af=p``, respectively. Unlike the :py:meth:`.filter_variants_expr`
-        method, these filters do not remove variants from the underlying
-        variant dataset; rather the linear regression annotations for variants with
-        low AC or AF are set to missing. Adding both filters is equivalent to applying
-        the more stringent of the two.
-
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`__ without identifiers, such as:
-
-        >>> vds_result = vds.linreg('if (sa.pheno.isFemale) sa.pheno.age else (2 * sa.pheno.age + 10)')
-
-        For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
-
-        The standard least-squares linear regression model is derived in Section
-        3.2 of `The Elements of Statistical Learning, 2nd Edition
-        <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__. See
-        equation 3.12 for the t-statistic which follows the t-distribution with
-        :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
-        effect, with :math:`n` samples and :math:`k` covariates in addition to
-        genotype and intercept.
-
-        **Annotations**
-
-        With the default root, the following four variant annotations are added.
-
-        - **va.linreg.beta** (*Double*) -- fit genotype coefficient, :math:`\hat\beta_1`
-        - **va.linreg.se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
-        - **va.linreg.tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-        - **va.linreg.pval** (*Double*) -- :math:`p`-value
-
-        :param str y: Response expression
-
-        :param covariates: list of covariate expressions
-        :type covariates: list of str
-
-        :param str root: Variant annotation path to store result of linear regression.
-
-        :param bool use_dosages: If true, use dosages genotypes rather than hard call genotypes.
-
-        :param int min_ac: Minimum alternate allele count.
-
-        :param float min_af: Minimum alternate allele frequency.
-
-        :return: Variant dataset with linear regression variant annotations.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
@@ -2861,66 +2758,9 @@ class VariantDataset(object):
                       covariates=listof(strlike),
                       root=strlike,
                       use_dosages=bool,
-                      min_ac=integral,
-                      min_af=numeric)
-    def linreg_multi_pheno(self, ys, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
-        r"""Test each variant for association with multiple phenotypes using linear regression.
-
-        This method runs linear regression for multiple phenotypes more efficiently
-        than looping over :py:meth:`.linreg`.
-
-        .. warning::
-
-            :py:meth:`.linreg_multi_pheno` uses the same set of samples for each phenotype,
-            namely the set of samples for which **all** phenotypes and covariates are defined.
-
-        **Annotations**
-
-        With the default root, the following four variant annotations are added.
-        The indexing of these annotations corresponds to that of ``y``.
-
-        - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
-        - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
-        - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-        - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
-
-        :param ys: list of one or more response expressions.
-        :type covariates: list of str
-
-        :param covariates: list of covariate expressions.
-        :type covariates: list of str
-
-        :param str root: Variant annotation path to store result of linear regression.
-
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
-
-        :param int min_ac: Minimum alternate allele count.
-
-        :param float min_af: Minimum alternate allele frequency.
-
-        :return: Variant dataset with linear regression variant annotations.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
-                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
-                                           min_af)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    @typecheck_method(ys=listof(strlike),
-                      covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool,
                       variant_block_size=integral)
-    def linreg3(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
+    def linreg(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
         r"""Test each variant for association with multiple phenotypes using linear regression.
-
-        This method runs linear regression for multiple phenotypes
-        more efficiently than looping over :py:meth:`.linreg`.  This
-        method is more efficient than :py:meth:`.linreg_multi_pheno`
-        but doesn't implicitly filter on allele count or allele
-        frequency.
 
         .. warning::
 
@@ -2957,8 +2797,8 @@ class VariantDataset(object):
 
         """
 
-        jvds = self._jvdf.linreg3(jarray(Env.jvm().java.lang.String, ys),
-                                  jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
+        jvds = self._jvdf.linreg(jarray(Env.jvm().java.lang.String, ys),
+                                 jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
