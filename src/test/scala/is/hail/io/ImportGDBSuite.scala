@@ -122,7 +122,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfGT.zip(gdbGT).forall( { case (it1, it2) => it1.zip(it2).forall( { case (a1, a2) => a1.equals(a2) }) }))
   }
 
-  //FIXME: the genomicsDB DP field has two extra zeroes (genomicsDB bug), also AF floats are off by a little
+  //FIXME: AF floats are off by a little, arrays (length "A") dropping all but first element
   @Test def genomicsDBRDDAnnotations() {
 
     val vcfAnn = vcfVariantSampleMatrix
@@ -137,15 +137,18 @@ class ImportGDBSuite extends SparkSuite {
 
     var count = 0
 
-    val writer = new FileWriter(new File("/Users/jgoldsmi/Desktop/annotations.txt"))
+    //val writer = new FileWriter(new File("/Users/jgoldsmi/Desktop/annotations.txt"))
 
     assert(vcfAnn.zip(gdbAnn).forall( { case (a1, a2) =>
-      writer.write(a1.toString + "\n")
-      writer.write(a2.toString + "\n\n")
+      //writer.write(a1.toString + "\n")
+      //writer.write(a2.toString + "\n\n")
+      println(a1)
+      println(a2)
+      println
       true
     }))
 
-    writer.close()
+    //writer.close()
   }
 
   @Test def genomicsDBSampleAnnotations() {

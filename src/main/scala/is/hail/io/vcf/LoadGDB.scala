@@ -48,7 +48,7 @@ object LoadGDB {
       .toMap
 
     if (filters.size > 1 && filters.contains("PASS")) //remove extra PASS filter if there are others
-      filters = filters.tail //FIXME: remove operation on Maps doesn't work -- what is a better way to remove PASS at any location?
+      filters = filters.tail //FIXME: remove operation on Maps doesn't work -- what is a better way to remove PASS at any location (not just head)?
 
     val infoHeader = header.getInfoHeaderLines
     val infoSignature = LoadVCF.headerSignature(infoHeader)
@@ -78,10 +78,13 @@ object LoadGDB {
         .getSampleNamesOrderedByName
         .toArray(new Array[String](0))
 
+    val writer = new FileWriter(new File("/Users/jgoldsmi/Desktop/vContexts.txt"))
+
     val records = gdbReader
       .iterator
       .asScala
       .map(vc => {
+        writer.write(vc.toString + "\n")
         reader.readRecord(vc, infoSignature, genotypeSignature)
       })
       .toSeq
