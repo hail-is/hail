@@ -902,8 +902,3 @@ class HailContext(object):
 
         jkt = self._jhc.readTable(path)
         return KeyTable(self, jkt)
-
-    @handle_py4j
-    def report(self):
-        """Print information and warnings about VCF + GEN import and deduplication."""
-        self._jhc.report()
