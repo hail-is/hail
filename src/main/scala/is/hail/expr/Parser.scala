@@ -536,23 +536,18 @@ object Parser extends JavaTokenParsers {
     "Empty" ^^ { _ => TStruct.empty } |
       "Interval" ^^ { _ => TInterval } |
       "Boolean" ^^ { _ => TBoolean } |
-      "Char" ^^ { _ => TString } | // FIXME backward-compatibility, remove this at some point
       "Int" ^^ { _ => TInt } |
       "Long" ^^ { _ => TLong } |
       "Float" ^^ { _ => TFloat } |
       "Double" ^^ { _ => TDouble } |
       "String" ^^ { _ => TString } |
-      "Sample" ^^ { _ => TString } | // FIXME back-compatibility
       "AltAllele" ^^ { _ => TAltAllele } |
       "Variant" ^^ { _ => TVariant } |
       "Locus" ^^ { _ => TLocus } |
       "Genotype" ^^ { _ => TGenotype } |
       "Call" ^^ { _ => TCall } |
-      "String" ^^ { _ => TString } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |
       ("Set" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TSet(elementType) } |
-      // back compatibility
-      ("Dict" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TDict(TString, elementType) } |
       ("Dict" ~ "[") ~> type_expr ~ "," ~ type_expr <~ "]" ^^ { case kt ~ _ ~ vt => TDict(kt, vt) } |
       ("Struct" ~ "{") ~> type_fields <~ "}" ^^ { fields =>
         TStruct(fields)

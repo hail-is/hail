@@ -312,7 +312,7 @@ class AggregatorSuite extends SparkSuite {
 
   @Test def testTransformations() {
     Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random.copy(sampleIdGen = Gen.const(Array("a", "b"))))) { vds =>
-      assert(vds.querySamples("samples.map(id => if (id == \"b\") (NA : Sample) else id).map(x => 1).sum()")._1 == 2)
+      assert(vds.querySamples("samples.map(id => if (id == \"b\") (NA : String) else id).map(x => 1).sum()")._1 == 2)
       assert(vds.querySamples("samples.filter(id => true).map(id => 1).sum()")._1 == 2)
       assert(vds.querySamples("samples.filter(id => false).map(id => 1).sum()")._1 == 0)
       assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == 2)
