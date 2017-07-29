@@ -28,9 +28,7 @@ object LinearRegression {
     val completeSampleIndex = (0 until vds.nSamples)
       .filter(i => completeSamplesSet(vds.sampleIds(i)))
       .toArray
-
-    println(vds.nSamples, completeSamplesSet)
-
+    
     val n = y.rows // nCompleteSamples
     val k = cov.cols // nCovariates
     val d = n - k - 1

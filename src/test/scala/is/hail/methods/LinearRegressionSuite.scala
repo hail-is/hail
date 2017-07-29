@@ -15,8 +15,8 @@ class LinearRegressionSuite extends SparkSuite {
     assert(D_==(a.asInstanceOf[IndexedSeq[Double]].apply(0), value, tol))
   }
 
-  def assertEmpty(a: Annotation) {
-    // assert(a == null)
+  def assertNaN(a: Annotation) {
+    assert(a.asInstanceOf[IndexedSeq[Double]].apply(0).isNaN)
   }
 
   val v1 = Variant("1", 1, "C", "T") // x = (0, 1, 0, 0, 0, 1)
@@ -82,11 +82,14 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qTstat(a(v3)), 1.5872510)
     assertDouble(qPval(a(v3)), 0.2533675)
 
-    assertEmpty(qBeta(a(v6)))
-    assertEmpty(qBeta(a(v7)))
-    assertEmpty(qBeta(a(v8)))
-    assertEmpty(qBeta(a(v9)))
-    assertEmpty(qBeta(a(v10)))
+    assertNaN(qSe(a(v6)))
+    assertNaN(qTstat(a(v6)))
+    assertNaN(qPval(a(v6)))
+
+    assertNaN(qSe(a(v7)))
+    assertNaN(qSe(a(v8)))
+    assertNaN(qSe(a(v9)))
+    assertNaN(qSe(a(v10)))
   }
 
   @Test def testWithTwoCovPhred() {
@@ -145,7 +148,7 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qTstat(a(v3)), 1.5872510)
     assertDouble(qPval(a(v3)), 0.2533675)
 
-    assertEmpty(qBeta(a(v6)))
+    assertNaN(qSe(a(v6)))
   }
 
   @Test def testWithTwoCovDosage() {
@@ -204,7 +207,7 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qTstat(a(v3)), 1.5872510)
     assertDouble(qPval(a(v3)), 0.2533675)
 
-    assertEmpty(qBeta(a(v6)))
+    assertNaN(qSe(a(v6)))
   }
 
   @Test def testWithNoCov() {
@@ -246,11 +249,11 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qTstat(a(v2)), -0.9607689)
     assertDouble(qPval(a(v2)), 0.391075888)
 
-    assertEmpty(qBeta(a(v6)))
-    assertEmpty(qBeta(a(v7)))
-    assertEmpty(qBeta(a(v8)))
-    assertEmpty(qBeta(a(v9)))
-    assertEmpty(qBeta(a(v10)))
+    assertNaN(qSe(a(v6)))
+    assertNaN(qSe(a(v7)))
+    assertNaN(qSe(a(v8)))
+    assertNaN(qSe(a(v9)))
+    assertNaN(qSe(a(v10)))
   }
 
   @Test def testWithImportFamBoolean() {
@@ -296,11 +299,11 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qTstat(a(v2)), -1.616919)
     assertDouble(qPval(a(v2)), 0.24728705)
 
-    assertEmpty(qBeta(a(v6)))
-    assertEmpty(qBeta(a(v7)))
-    assertEmpty(qBeta(a(v8)))
-    assertEmpty(qBeta(a(v9)))
-    assertEmpty(qBeta(a(v10)))
+    assertNaN(qSe(a(v6)))
+    assertNaN(qSe(a(v7)))
+    assertNaN(qSe(a(v8)))
+    assertNaN(qSe(a(v9)))
+    assertNaN(qSe(a(v10)))
   }
 
   @Test def testWithImportFam() {
@@ -346,11 +349,11 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qTstat(a(v2)), -1.616919)
     assertDouble(qPval(a(v2)), 0.24728705)
 
-    assertEmpty(qBeta(a(v6)))
-    assertEmpty(qBeta(a(v7)))
-    assertEmpty(qBeta(a(v8)))
-    assertEmpty(qBeta(a(v9)))
-    assertEmpty(qBeta(a(v10)))
+    assertNaN(qSe(a(v6)))
+    assertNaN(qSe(a(v7)))
+    assertNaN(qSe(a(v8)))
+    assertNaN(qSe(a(v9)))
+    assertNaN(qSe(a(v10)))
   }
 
   @Test def testNonNumericPheno() {

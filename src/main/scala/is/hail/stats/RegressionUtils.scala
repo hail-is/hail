@@ -282,7 +282,6 @@ object RegressionUtils {
       (yIS, covIS, vds.sampleIds)
         .zipped
         .filter((y, c, s) => y.forall(_.isDefined) && c.forall(_.isDefined))
-    println(yIS.map(_.toSeq), covIS.map(_.toSeq), vds.sampleIds)
 
     val n = completeSamples.size
     if (n == 0)

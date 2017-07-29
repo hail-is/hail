@@ -2764,7 +2764,7 @@ class VariantDataset(object):
 
         .. warning::
 
-            :py:meth:`.linreg3` uses the same set of samples for each phenotype,
+            :py:meth:`.linreg` uses the same set of samples for each phenotype,
             namely the set of samples for which **all** phenotypes and covariates are defined.
 
         **Annotations**
@@ -3615,7 +3615,7 @@ class VariantDataset(object):
             Persist, like all other :class:`.VariantDataset` functions, is functional.
             Its output must be captured. This is wrong:
             
-            >>> vds = vds.linreg('sa.phenotype') # doctest: +SKIP
+            >>> vds = vds.linreg(['sa.phenotype']) # doctest: +SKIP
             >>> vds.persist() # doctest: +SKIP
             
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
