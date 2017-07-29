@@ -1,10 +1,5 @@
-#!/usr/bin/env python
-
-import os
-import time
-import json
 import argparse
-import subprocess
+from subprocess import check_call, check_output
 
 COMPATIBILITY_VERSION = 2
 
@@ -32,7 +27,38 @@ machine_mem = {
 }
 
 
-def main(args):
+def main(main_parser):
+
+    parser = argparse.ArgumentParser(parents=[main_parser])
+
+    # arguments with default parameters
+    parser.add_argument('--hash', default='latest', type=str, help='Hail build to use for notebook initialization.')
+    parser.add_argument('--spark', default='2.0.2', type=str, choices=['2.0.2', '2.1.0'], help='Spark version used to build Hail.')
+    parser.add_argument('--version', default='0.1', type=str, choices=['0.1', 'devel'], help='Hail version to use')
+    parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str, help='Master machine type.')
+    parser.add_argument('--master-boot-disk-size', default=100, type=int, help='Disk size of master machine (in GB).')
+    parser.add_argument('--num-master-local-ssds', default=0, type=int, help='Number of local SSDs to attach to the master machine.')
+    parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-p', default=0, type=int, help='Number of preemptible worker machines.')
+    parser.add_argument('--num-worker-local-ssds', default=0, type=int, help='Number of local SSDs to attach to each worker machine.')
+    parser.add_argument('--num-workers', '--n-workers', '-w', default=2, type=int, help='Number of worker machines.')
+    parser.add_argument('--preemptible-worker-boot-disk-size', default=40, type=int, help='Disk size of preemptible machines (in GB).')
+    parser.add_argument('--worker-boot-disk-size', default=40, type=int, help='Disk size of worker machines (in GB).')
+    parser.add_argument('--worker-machine-type', '--worker', help='Worker machine type.')
+    parser.add_argument('--zone', default='us-central1-b', help='Compute zone for the cluster.')
+    parser.add_argument('--properties', help='Additional configuration properties for the cluster.')
+    parser.add_argument('--metadata', default='', help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...')
+
+    # specify custom Hail jar and zip
+    parser.add_argument('--jar', help='Hail jar to use for Jupyter notebook.')
+    parser.add_argument('--zip', help='Hail zip to use for Jupyter notebook.')
+
+    # initialization action flags
+    parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')
+    parser.add_argument('--vep', action='store_true')
+
+    # parse arguments
+    args = parser.parse_args()
+
     # Google dataproc image version to use
     if args.spark == '2.0.2':
         image_version = '1.1'
@@ -70,8 +96,7 @@ def main(args):
         init_actions += ',' + 'gs://hail-common/vep/vep/vep85-init.sh'
 
     if args.hash == 'latest':
-        hail_hash = subprocess.Popen(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'
-            .format(args.version, args.spark)], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].strip()
+        hail_hash = check_output(['gsutil', 'cat', 'gs://hail-common/builds/{0}/latest-hash-spark-{1}.txt'.format(args.version, args.spark)]).strip()
     else:
         hail_hash = args.hash
 
@@ -107,40 +132,4 @@ def main(args):
     ]
 
     # spin up cluster
-    subprocess.check_output(cmd)
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-
-    # required arguments
-    parser.add_argument('--name', '-n', help='Name of cluster.', required=True)
-
-    # arguments with default parameters
-    parser.add_argument('--hash', default='latest', type=str, help='Hail build to use for notebook initialization.')
-    parser.add_argument('--spark', default='2.0.2', type=str, choices=['2.0.2', '2.1.0'], help='Spark version used to build Hail.')
-    parser.add_argument('--version', default='0.1', type=str, choices=['0.1', 'devel'], help='Hail version to use')
-    parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str, help='Master machine type.')
-    parser.add_argument('--master-boot-disk-size', default=100, type=int, help='Disk size of master machine (in GB).')
-    parser.add_argument('--num-master-local-ssds', default=0, type=int, help='Number of local SSDs to attach to the master machine.')
-    parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-np', default=0, type=int, help='Number of preemptible worker machines.')
-    parser.add_argument('--num-worker-local-ssds', default=0, type=int, help='Number of local SSDs to attach to each worker machine.')
-    parser.add_argument('--num-workers', '--n-workers', '-nw', default=2, type=int, help='Number of worker machines.')
-    parser.add_argument('--preemptible-worker-boot-disk-size', default=40, type=int, help='Disk size of preemptible machines (in GB).')
-    parser.add_argument('--worker-boot-disk-size', default=40, type=int, help='Disk size of worker machines (in GB).')
-    parser.add_argument('--worker-machine-type', '--worker', '-w', help='Worker machine type.')
-    parser.add_argument('--zone', default='us-central1-b', help='Compute zone for the cluster.')
-    parser.add_argument('--properties', help='Additional configuration properties for the cluster.')
-    parser.add_argument('--metadata', default='', help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...')
-
-    # specify custom Hail jar and zip
-    parser.add_argument('--jar', help='Hail jar to use for Jupyter notebook.')
-    parser.add_argument('--zip', help='Hail zip to use for Jupyter notebook.')
-
-    # initialization action flags
-    parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')
-    parser.add_argument('--vep', action='store_true')
-
-    # parse arguments
-    args = parser.parse_args()
-
-    main(args)
+    check_call(cmd)
