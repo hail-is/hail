@@ -2655,8 +2655,9 @@ class VariantDataset(object):
                       root=strlike,
                       use_dosages=bool,
                       min_ac=integral,
-                      min_af=numeric)
-    def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
+                      min_af=numeric,
+                      fields=listof(strlike))
+    def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0, fields=[]):
         r"""Test each variant for association using linear regression.
 
         .. include:: requireTGenotype.rst
@@ -2668,6 +2669,9 @@ class VariantDataset(object):
         >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
 
         **Notes**
+        
+        This section assumes that the ``fields`` parameter is left empty. See the **Fields** section below for
+        details on how to use this parameter to specify more general models (e.g., with interaction terms).
 
         The :py:meth:`.linreg` method computes, for each variant, statistics of
         the :math:`t`-test for the genotype coefficient of the linear function
@@ -2681,7 +2685,7 @@ class VariantDataset(object):
         :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
         :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
         calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
-
+       
         Assuming there are sample annotations ``sa.pheno.height``,
         ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the code:
 
@@ -2732,9 +2736,37 @@ class VariantDataset(object):
         - **va.linreg.tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
         - **va.linreg.pval** (*Double*) -- :math:`p`-value
 
-        :param str y: Response expression
+        **Fields**
+        
+        In the model above, the phenotype and covariate data remain the same from variant to variant; only the genotype
+        field changes. The ``fields`` parameter may be used to specify a model with one or more fields that change from
+        variant to variant. For example, the code
 
-        :param covariates: list of covariate expressions
+        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.isFemale', 'sa.cov.PC1'], fields=['g.gt', 'g.gt * sa.pheno.age'])
+
+        considers a model of the form
+
+        .. math::
+
+            \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{gt} + \beta_2 \, (\mathrm{gt} * \mathrm{age}) + \beta_3 \, \mathrm{isFemale} + \beta_4 \, \mathrm{PC1} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)
+
+        With the default root, the following four variant annotations are added.
+        The indexing of these annotations corresponds to that of ``fields``.
+
+        - **va.linreg.beta** (*Array[Double]*) -- array of fit coefficients for each field
+        - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors for each field
+        - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics for each field
+        - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values for each field
+        
+        For example, in the model above, ``va.linreg.beta`` would contain :math:`[\hat\beta_1, \hat\beta_2]`.
+        
+        Leaving ``fields`` empty and setting ``use_dosages`` to ``False`` or ``True`` is mathematically
+        equivalent to setting ``fields`` to ``['g.gt']`` or ``['g.dosage']``, respectively. However, the former
+        will have better performance.
+
+        :param str y: Response expression.
+
+        :param covariates: list of covariate expressions.
         :type covariates: list of str
 
         :param str root: Variant annotation path to store result of linear regression.
@@ -2745,11 +2777,14 @@ class VariantDataset(object):
 
         :param float min_af: Minimum alternate allele frequency.
 
+        :param fields: list of field expressions. If empty, genotype will be used.
+        :type fields: list of str
+
         :return: Variant dataset with linear regression variant annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
+        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af, jarray(Env.jvm().java.lang.String, fields))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

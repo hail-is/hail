@@ -36,7 +36,7 @@ object RegressionUtils {
       }
       i += 1
     }
-    assert((mask == null || i == mask.size) && row == nKept)
+    assert((mask == null || i == mask.length) && row == nKept)
 
     val valsArray = vals.result()
     val nMissing = missingSparseIndices.size
@@ -223,7 +223,7 @@ object RegressionUtils {
     yExpr: String,
     covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[Annotation]) = {
 
-    val nCovs = covExpr.size + 1 // intercept
+    val nCovs = covExpr.length + 1 // intercept
 
     val symTab = Map(
       "s" -> (0, TString),
@@ -262,8 +262,8 @@ object RegressionUtils {
     yExpr: Array[String],
     covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[Annotation]) = {
 
-    val nPhenos = yExpr.size
-    val nCovs = covExpr.size + 1 // intercept
+    val nPhenos = yExpr.length
+    val nCovs = covExpr.length + 1 // intercept
 
     if (nPhenos == 0)
       fatal("No phenotypes present.")
@@ -311,7 +311,7 @@ object RegressionUtils {
     }
     true
   }
-
+  
   // Retrofitting for 0.1, will be removed at 2.0 when linreg AC is calculated post-imputation
   def hardCallsWithAC(gs: Iterable[Genotype], nKept: Int, mask: Array[Boolean] = null, impute: Boolean = true): (SparseVector[Double], Double) = {
     val gts = gs.hardCallIterator
@@ -330,7 +330,7 @@ object RegressionUtils {
             sum += gt
             vals += gt.toDouble
           } else {
-            missingSparseIndices += vals.size
+            missingSparseIndices += vals.length
             vals += Double.NaN
           }
         }
@@ -338,10 +338,10 @@ object RegressionUtils {
       }
       i += 1
     }
-    assert((mask == null || i == mask.size) && row == nKept)
+    assert((mask == null || i == mask.length) && row == nKept)
 
     val valsArray = vals.result()
-    val nMissing = missingSparseIndices.size
+    val nMissing = missingSparseIndices.length
     if (impute) {
       val mean = sum.toDouble / (nKept - nMissing)
       i = 0
