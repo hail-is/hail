@@ -1,21 +1,13 @@
 package is.hail.methods
 
 import breeze.linalg._
-import breeze.numerics.sqrt
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
-import net.sourceforge.jdistlib.T
 
 object LinearRegressionMultiPheno {
-  def schema = TStruct(
-    ("beta", TArray(TDouble)),
-    ("se", TArray(TDouble)),
-    ("tstat", TArray(TDouble)),
-    ("pval", TArray(TDouble)))
-
   def apply(vds: VariantDataset, ysExpr: Array[String], covExpr: Array[String], root: String, useDosages: Boolean, minAC: Int, minAF: Double): VariantDataset = {
     require(vds.wasSplit)
 
@@ -54,7 +46,7 @@ object LinearRegressionMultiPheno {
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(LinearRegressionMultiPheno.schema, pathVA)
+    val (newVAS, inserter) = vds.insertVA(LinearRegressionModel.schemaMultiPheno, pathVA)
 
     vds.mapAnnotations { case (v, va, gs) =>
       val (x: Vector[Double], ac) =
@@ -68,25 +60,11 @@ object LinearRegressionMultiPheno {
       // constant checking to be removed in 0.2
       val nonConstant = useDosages || !RegressionUtils.constantVector(x)
       
-      val linregAnnot = if (ac >= combinedMinAC && nonConstant) {
-        val qtx: DenseVector[Double] = QtBc.value * x
-        val qty: DenseMatrix[Double] = QtyBc.value
-        val xxpRec: Double = 1 / ((x dot x) - (qtx dot qtx))
-        val xyp: DenseVector[Double] = (yBc.value.t * x) - (qty.t * qtx)
-        val yyp: DenseVector[Double] = yypBc.value
-
-        val b = xxpRec * xyp
-        val se = sqrt(dRec * (xxpRec * yyp  - (b :* b)))
-        val t = b :/ se
-        val p = t.map(s => 2 * T.cumulative(-math.abs(s), d, true, false))
-
-        Annotation(
-          b.toArray: IndexedSeq[Double],
-          se.toArray: IndexedSeq[Double],
-          t.toArray: IndexedSeq[Double],
-          p.toArray: IndexedSeq[Double])
-      } else
-        null
+      val linregAnnot =
+        if (ac >= combinedMinAC && nonConstant)
+          LinearRegressionModel.fitMultiPheno(x, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d).toAnnotation
+        else
+          null
 
       val newAnnotation = inserter(va, linregAnnot)
       assert(newVAS.typeCheck(newAnnotation))
