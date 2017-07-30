@@ -2,12 +2,13 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{TString, TStruct, TVariant}
+import is.hail.expr.{TArray, TCall, TDouble, TString, TStruct, TVariant}
 import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.rdd.RDD
+import scala.reflect.classTag
 
 import scala.io.Source
 
@@ -19,7 +20,7 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 object BgenLoader {
 
   def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, nPartitions: Option[Int] = None): VariantDataset = {
+    tolerance: Double, nPartitions: Option[Int] = None): GenericDataset = {
     require(files.nonEmpty)
     val samples = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
       .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
@@ -27,8 +28,9 @@ object BgenLoader {
     val duplicateIds = samples.duplicates().toArray
     if (duplicateIds.nonEmpty) {
       val n = duplicateIds.length
-      warn(s"""found $n duplicate sample ${ plural(n, "ID") }
-               |  Duplicate IDs: @1""".stripMargin, duplicateIds)
+      warn(
+        s"""found $n duplicate sample ${ plural(n, "ID") }
+           |  Duplicate IDs: @1""".stripMargin, duplicateIds)
     }
 
     val nSamples = samples.length
@@ -70,17 +72,18 @@ object BgenLoader {
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey)))
+    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey: Annotation)))
 
     val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
-      (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
-    })).toOrderedRDD[Locus](fastKeys)
+      (decoder.getKey: Annotation, (decoder.getAnnotation, decoder.getValue))
+    })).toOrderedRDD(fastKeys)(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
-    new VariantSampleMatrix(hc, VSMMetadata(
+    new GenericDataset(hc, VSMMetadata(
       TString,
       saSignature = TStruct.empty,
       TVariant,
       vaSignature = signature,
+      genotypeSignature = TStruct("GT" -> TCall, "GP" -> TArray(TDouble)),
       globalSignature = TStruct.empty,
       wasSplit = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,

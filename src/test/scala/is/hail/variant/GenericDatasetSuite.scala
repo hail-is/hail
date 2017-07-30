@@ -107,8 +107,8 @@ class GenericDatasetSuite extends SparkSuite {
   @Test def testAnnotate2() {
     val vcf = "src/test/resources/sample.vcf.bgz"
     val vds = hc.importVCF(vcf)
-    val result = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.ad, g.dp, g.gq, g.pl)").toVDS
-    val result2 = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.gp)").toVDS
+    val result = vds.annotateGenotypesExpr("g = Genotype(v, Call(g.gt), g.ad, g.dp, g.gq, g.pl)").toVDS
+    val result2 = vds.annotateGenotypesExpr("g = Genotype(v, Call(g.gt), g.gp)").toVDS
     val result3 = vds.annotateGenotypesExpr("g = Genotype(v, g.gp)").toVDS
     assert(vds.same(result))
 

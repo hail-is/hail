@@ -40,6 +40,8 @@ class ImportPlinkSuite extends SparkSuite {
           true
         } else {
           hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
+            .annotateGenotypesExpr("g = Genotype(g.GT)")
+            .toVDS
             .exportPlink(testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")
@@ -56,6 +58,8 @@ class ImportPlinkSuite extends SparkSuite {
           val exitCodeFam = s"diff ${ uriPath(localTruthRoot) }.fam ${ uriPath(localTestRoot) }.fam" !
           val exitCodeBim = s"diff ${ uriPath(localTruthRoot) }.bim ${ uriPath(localTestRoot) }.bim" !
           val exitCodeBed = s"diff ${ uriPath(localTruthRoot) }.bed ${ uriPath(localTestRoot) }.bed" !
+
+          println(localTruthRoot, localTestRoot, exitCodeFam, exitCodeBim, exitCodeBed)
 
           exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0
         }

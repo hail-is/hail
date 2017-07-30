@@ -1264,7 +1264,7 @@ class VariantDataset(object):
 
         >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
 
-        >>> (vds3.filter_variants_expr("gs.infoScore().score >= 0.9")
+        >>> (vds3.filter_variants_expr("gs.map(g => g.GQ).infoScore().score >= 0.9")
         ...      .export_gen("output/infoscore_filtered"))
 
         **Notes**

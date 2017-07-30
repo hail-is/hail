@@ -157,6 +157,8 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
 
     val vds = hc.importGen("src/test/resources/regressionLinear.gen", "src/test/resources/regressionLinear.sample")
+      .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
+      .toVDS
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linreg(Array("sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), useDosages = true)

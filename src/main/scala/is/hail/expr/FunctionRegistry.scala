@@ -881,6 +881,11 @@ object FunctionRegistry {
     "stop" -> "Generate numbers up to, but not including this number.",
     "step" -> "Difference between each number in the sequence.")
 
+  register("Call", { (gt: java.lang.Integer) => gt },
+    """
+    Construct a :ref:`call` from an integer.
+    """, "gt" -> "integer")(boxedintHr, callHr)
+
   registerSpecial("Genotype", { (vF: () => Any, dosF: () => Any) =>
     val v = vF()
     val dos = dosF()
@@ -908,7 +913,7 @@ object FunctionRegistry {
     if (v == null)
       throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
 
-    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer], if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray)
+    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[Call], if (dos == null) null else dos.asInstanceOf[IndexedSeq[Double]].toArray)
   },
     """
     Construct a :ref:`genotype` object from a variant, a genotype call, and an array of genotype probabilities.
@@ -916,10 +921,24 @@ object FunctionRegistry {
     .. code-block:: text
         :emphasize-lines: 3
 
-        let v = Variant("7:76324539:A:G") and gt = 0 and prob = [0.8, 0.1, 0.1] and
+        let v = Variant("7:76324539:A:G") and gt = Call(0) and prob = [0.8, 0.1, 0.1] and
           g = Genotype(v, gt, prob) in g.isHomRef()
         result: true
-    """, "v" -> "Variant", "gt" -> "Genotype call integer", "prob" -> "Genotype probabilities")(variantHr, boxedintHr, arrayHr[Double], genotypeHr)
+    """, "v" -> "Variant", "gt" -> "Genotype call integer", "prob" -> "Genotype probabilities")(variantHr, callHr, arrayHr[Double], genotypeHr)
+
+  registerSpecial("Genotype", { (gtF: () => Any) =>
+    Genotype(gtF().asInstanceOf[java.lang.Integer])
+  },
+    """
+    Construct a :ref:`genotype` object from a genotype call.
+
+    .. code-block:: text
+        :emphasize-lines: 3
+
+        let v = Variant("7:76324539:A:G") and gt = Call(0) and
+          g = Genotype(v, gt, prob) in g.isHomRef()
+        result: true
+    """, "gt" -> "Genotype call integer")(callHr, genotypeHr)
 
   registerSpecial("Genotype", { (vF: () => Any, gtF: () => Any, adF: () => Any, dpF: () => Any, gqF: () => Any, plF: () => Any) =>
     val v = vF()
@@ -929,7 +948,7 @@ object FunctionRegistry {
     if (v == null)
       throw new HailException("The first argument to Genotype, the Variant, must not be NA.")
 
-    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[java.lang.Integer],
+    Genotype(v.asInstanceOf[Variant].nAlleles, gtF().asInstanceOf[Call],
       if (ad == null) null else ad.asInstanceOf[IndexedSeq[Int]].toArray, dpF().asInstanceOf[java.lang.Integer],
       gqF().asInstanceOf[java.lang.Integer], if (pl == null) null else pl.asInstanceOf[IndexedSeq[Int]].toArray)
   },
@@ -945,7 +964,7 @@ object FunctionRegistry {
         result: true
     """,
     "v" -> "Variant", "c" -> "Call", "ad" -> "Allelic depths", "dp" -> "Depth", "gq" -> "Genotype quality", "pl" -> "Phred-scaled likelihoods"
-  )(variantHr, boxedintHr, arrayHr[Int], boxedintHr, boxedintHr, arrayHr[Int], genotypeHr)
+  )(variantHr, callHr, arrayHr[Int], boxedintHr, boxedintHr, arrayHr[Int], genotypeHr)
 
   register("Variant", { (x: String) => Variant.parse(x) },
     """
@@ -1922,7 +1941,7 @@ object FunctionRegistry {
 
   registerAggregator[Double, java.lang.Double]("min", () => new MinAggregator[Double, java.lang.Double](), minAggDocstring)(aggregableHr(doubleHr), boxeddoubleHr)
 
-  registerAggregator[Genotype, Any]("infoScore", () => new InfoScoreAggregator(),
+  registerAggregator[IndexedSeq[Double], Any]("infoScore", () => new InfoScoreAggregator(),
     """
     Compute the IMPUTE information score.
 
@@ -1931,14 +1950,14 @@ object FunctionRegistry {
     Calculate the info score per variant:
 
     >>> (hc.import_gen("data/example.gen", "data/example.sample")
-    ...    .annotate_variants_expr('va.infoScore = gs.infoScore()'))
+    ...    .annotate_variants_expr('va.infoScore = gs.map(g => g.GP).infoScore()'))
 
     Calculate group-specific info scores per variant:
 
     >>> vds_result = (hc.import_gen("data/example.gen", "data/example.sample")
     ...    .annotate_samples_expr("sa.isCase = pcoin(0.5)")
-    ...    .annotate_variants_expr(["va.infoScore.case = gs.filter(g => sa.isCase).infoScore()",
-    ...                             "va.infoScore.control = gs.filter(g => !sa.isCase).infoScore()"]))
+    ...    .annotate_variants_expr(["va.infoScore.case = gs.filter(g => sa.isCase).map(g => g.GP).infoScore()",
+    ...                             "va.infoScore.control = gs.filter(g => !sa.isCase).map(g => g.GP).infoScore()"]))
 
     **Notes**
 
@@ -1972,9 +1991,9 @@ object FunctionRegistry {
         - The info score Hail reports will be extremely different from qctool when a SNP has a high missing rate.
         - If the genotype data was not imported using the :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen` commands, then the results for all variants will be ``score = NA`` and ``nIncluded = 0``.
         - It only makes sense to compute the info score for an Aggregable[Genotype] per variant. While a per-sample info score will run, the result is meaningless.
-    """)(aggregableHr(genotypeHr),
+    """)(aggregableHr(arrayHr(doubleHr)),
     new HailRep[Any] {
-      def typ = InfoScoreCombiner.signature
+      def typ: Type = InfoScoreCombiner.signature
     })
 
   registerAggregator[Genotype, Any]("hardyWeinberg", () => new HWEAggregator(),

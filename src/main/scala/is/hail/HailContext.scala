@@ -21,6 +21,7 @@ import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
+import scala.reflect.classTag
 
 object HailContext {
 
@@ -223,14 +224,14 @@ class HailContext private(val sc: SparkContext,
   def importBgen(file: String,
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
     importBgens(List(file), sampleFile, tolerance, nPartitions)
   }
 
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -254,7 +255,7 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): VariantDataset = {
+    tolerance: Double = 0.2): GenericDataset = {
     importGens(List(file), sampleFile, chromosome, nPartitions, tolerance)
   }
 
@@ -262,7 +263,7 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): VariantDataset = {
+    tolerance: Double = 0.2): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -300,9 +301,15 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    new VariantSampleMatrix(this,
-      VSMFileMetadata(samples, vaSignature = signature, wasSplit = true),
-      sc.union(results.map(_.rdd)).toOrderedRDD)
+    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
+
+    new GenericDataset(this,
+      VSMFileMetadata(samples,
+        vaSignature = signature,
+        genotypeSignature = TStruct("GT" -> TCall,
+          "GP" -> TArray(TDouble)),
+        wasSplit = true),
+      rdd)
   }
 
   def importTable(inputs: java.util.ArrayList[String],
@@ -357,7 +364,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false): VariantDataset = {
+    quantPheno: Boolean = false): GenericDataset = {
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
@@ -369,7 +376,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false): VariantDataset = {
+    quantPheno: Boolean = false): GenericDataset = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
       nPartitions, delimiter, missing, quantPheno)
   }

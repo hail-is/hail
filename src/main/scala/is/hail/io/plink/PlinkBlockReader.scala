@@ -1,5 +1,6 @@
 package is.hail.io.plink
 
+import is.hail.annotations.Annotation
 import is.hail.io.{IndexedBinaryBlockReader, KeySerializedValueRecord}
 import is.hail.utils.ArrayBuilder
 import is.hail.variant.{Genotype, GenotypeBuilder}
@@ -7,27 +8,22 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 
-class PlinkRecord(nSamples: Int, gb: GenotypeBuilder, gsb: ArrayBuilder[Genotype]) extends KeySerializedValueRecord[Int, Iterable[Genotype]] {
-  override def getValue: Iterable[Genotype] = {
+class PlinkRecord(nSamples: Int) extends KeySerializedValueRecord[Int, IndexedSeq[Annotation]] {
+  override def getValue: IndexedSeq[Annotation] = {
     require(input != null, "called getValue before serialized value was set")
-
-    gsb.clear()
-
-    input
-      .iterator
-      .flatMap { i => Iterator(i & 3, (i >> 2) & 3, (i >> 4) & 3, (i >> 6) & 3) }
-      .take(nSamples)
-      .map(PlinkBlockReader.GT_CONVERSION)
-      .foreach { i =>
-        gb.clear()
-        if (i >= 0)
-          gb.setGT(i)
-        gsb += gb.result()
+    new IndexedSeq[Annotation] {
+      def length: Int = nSamples
+      def apply(i: Int): Annotation = {
+        val x = (input(i / 4) >> ((i & 3) << 1)) & 3
+        val gt = if (x == 1)
+          null
+        else
+          PlinkBlockReader.GT_CONVERSION(x)
+        Annotation(gt)
       }
-    gsb.result()
+    }
   }
 }
-
 
 object PlinkBlockReader {
   final val GT_CONVERSION = Array(2, -1, 1, 0)
@@ -38,12 +34,9 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   val nSamples = job.getInt("nSamples", 0)
   val blockLength = (nSamples + 3) / 4
 
-  val gb = new GenotypeBuilder(2, isLinearScale = false)
-  val gsb = new ArrayBuilder[Genotype]()
-
   seekToFirstBlockInSplit(split.getStart)
 
-  override def createValue(): PlinkRecord = new PlinkRecord(nSamples, gb, gsb)
+  override def createValue(): PlinkRecord = new PlinkRecord(nSamples)
 
   def seekToFirstBlockInSplit(start: Long) {
     variantIndex = math.max(0, (start - 3 + blockLength - 1) / blockLength)
