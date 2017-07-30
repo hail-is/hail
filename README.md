@@ -1,4 +1,7 @@
 # cloudtools
+
+[![PyPI](https://img.shields.io/pypi/v/cloudtools.svg)]()
+
 cloudtools is a small collection of command line tools intended to make using [Hail](https://hail.is) on clusters running in Google Cloud's Dataproc service simpler. 
 
 These tools are written in Python and mostly function as wrappers around the `gcloud` suite of command line tools included in the Google Cloud SDK. 

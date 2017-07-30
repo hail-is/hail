@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='cloudtools',
-	  version='1.0.0',
+	  version='1.0.4',
 	  description='Collection of utilities for working on the Google Cloud Platform.',
 	  url='https://github.com/Nealelab/cloudtools',
 	  author='Liam Abbott',
@@ -14,7 +14,6 @@ setup(name='cloudtools',
 	  ],
 	  keywords='google cloud dataproc spark jupyter hail',
 	  packages=['cloudtools'],
-	  python_requires='==2.7',
 	  entry_points={
 	      'console_scripts': [
 	          'cluster = cloudtools.__main__:main'
