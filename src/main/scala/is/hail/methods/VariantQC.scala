@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
 import is.hail.stats.LeveneHaldane
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset}
+import is.hail.variant.{GenericDataset, Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
 
@@ -72,13 +72,12 @@ class VariantQCCombiner extends Serializable {
         nNotCalled += 1
     }
 
-    if (Genotype.isCalled(g)) {
-      Genotype.dp(g).foreach { v =>
-        dpSC.merge(v)
-      }
-      Genotype.gq(g).foreach { v =>
-        gqSC.merge(v)
-      }
+    Genotype.dp(g).foreach { v =>
+      dpSC.merge(v)
+    }
+
+    Genotype.gq(g).foreach { v =>
+      gqSC.merge(v)
     }
 
     this
@@ -141,15 +140,18 @@ class VariantQCCombiner extends Serializable {
 }
 
 object VariantQC {
-  def results(vds: VariantDataset): RDD[(Variant, VariantQCCombiner)] =
+  def results(vds: GenericDataset): RDD[(Annotation, VariantQCCombiner)] = {
+    val extract = Genotype.buildGenotypeExtractor(vds.genotypeSignature)
     vds
-      .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
+      .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(extract(g)),
         (comb1, comb2) => comb1.merge(comb2))
+  }
 
-  def apply(vds: VariantDataset, root: String): VariantDataset = {
+  def apply(vds: GenericDataset, root: String): GenericDataset = {
+    val extract = Genotype.buildGenotypeExtractor(vds.genotypeSignature)
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature,
       Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
-    vds.mapAnnotationsWithAggregate(new VariantQCCombiner, newVAS)((comb, v, va, s, sa, g) => comb.merge(g),
+    vds.mapAnnotationsWithAggregate(new VariantQCCombiner, newVAS)((comb, v, va, s, sa, g) => comb.merge(extract(g)),
       (comb1, comb2) => comb1.merge(comb2),
       (va, comb) => insertQC(va, comb.asAnnotation))
   }

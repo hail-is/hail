@@ -351,25 +351,6 @@ class VSMSuite extends SparkSuite {
     vds.write(out, overwrite = true)
   }
 
-  @Test def testWritePartitioning() {
-    val path = tmpDir.createTempFile(extension = ".vds")
-
-    hc.importVCF("src/test/resources/sample.vcf", nPartitions = Some(4))
-      .write(path)
-
-    hadoopConf.delete(path + "/partitioner.json.gz", recursive = true)
-
-
-    interceptFatal("missing partitioner") {
-      hc.readVDS(path)
-        .countVariants() // force execution
-    }
-
-    hc.writePartitioning(path)
-
-    assert(hc.readVDS(path).same(hc.importVCF("src/test/resources/sample.vcf")))
-  }
-
   @Test def testAnnotateVariantsKeyTable() {
     forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
       val vds2 = vds.annotateVariantsExpr("va.bar = va")

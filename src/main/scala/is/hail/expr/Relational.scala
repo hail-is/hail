@@ -254,7 +254,6 @@ case class MatrixRead[RPK, RK, T](
 
     val vaSignature = typ.vaType
     val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
-    val isLinearScale = metadata.isLinearScale
 
     val orderedRDD =
       if (dropVariants) {
@@ -272,7 +271,7 @@ case class MatrixRead[RPK, RK, T](
             val v = row.getVariant(0)
             (v,
               (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getGenotypeStream(v, 2, isLinearScale): Iterable[Genotype]))
+                ??? : Iterable[Genotype]))
           }
         }
 

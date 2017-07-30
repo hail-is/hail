@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import is.hail.variant.{GenotypeStream, Variant}
+import is.hail.variant.Variant
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -58,6 +58,4 @@ class RichRow(r: Row) {
   }
 
   def getVariant(i: Int) = Variant.fromRow(r.getAs[Row](i))
-
-  def getGenotypeStream(v: Variant, i: Int, isLinearScale: Boolean) = GenotypeStream.fromRow(v.nAlleles, isLinearScale, r.getAs[Row](i))
 }

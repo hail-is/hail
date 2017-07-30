@@ -47,8 +47,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
-    val isLinearScale = vds.isLinearScale
-
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
     val localGlobalAnnotation = vds.globalAnnotation
@@ -89,7 +87,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
         keepStar = true,
-        isLinearScale = isLinearScale,
         insertSplitAnnots = { (va, index, wasSplit) =>
           insertSplit(insertIndex(va, index), wasSplit)
         },
@@ -548,7 +545,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     ret
   }
 
-  def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds, root, keepStar)
+  def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds.toGDS, root, keepStar).toVDS
 
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     requireSplit("rrm")
@@ -580,6 +577,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   def variantQC(root: String = "va.qc"): VariantDataset = {
     requireSplit("variant QC")
-    VariantQC(vds, root)
+    VariantQC(vds.toGDS, root).toVDS
   }
 }

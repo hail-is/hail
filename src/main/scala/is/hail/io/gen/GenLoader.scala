@@ -65,7 +65,7 @@ object GenLoader {
     if (gp.length != (3 * nSamples))
       fatal("Number of genotype probabilities does not match 3 * number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
-    val gsb = new GenotypeStreamBuilder(2, isLinearScale = true)
+    val gsb = new ArrayBuilder[Genotype]()
     val gb = new GenotypeBuilder(2, isLinearScale = true)
 
     for (i <- gp.indices by 3) {
@@ -83,7 +83,7 @@ object GenLoader {
         gb.setPX(px)
       }
 
-      gsb.write(gb)
+      gsb += gb.result()
     }
 
     val annotations = Annotation(rsid, varid)

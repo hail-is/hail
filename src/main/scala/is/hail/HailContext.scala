@@ -301,7 +301,7 @@ class HailContext private(val sc: SparkContext,
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
     new VariantSampleMatrix(this,
-      VSMFileMetadata(samples, vaSignature = signature, isLinearScale = true, wasSplit = true),
+      VSMFileMetadata(samples, vaSignature = signature, wasSplit = true),
       sc.union(results.map(_.rdd)).toOrderedRDD)
   }
 
@@ -465,10 +465,6 @@ class HailContext private(val sc: SparkContext,
 
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
-
-  def writePartitioning(path: String) {
-    VariantSampleMatrix.writePartitioning(sqlContext, path)
-  }
 
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,

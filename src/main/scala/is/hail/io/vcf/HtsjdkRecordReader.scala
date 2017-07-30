@@ -102,7 +102,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
     val gb = new GenotypeBuilder(v.nAlleles, false) // FIXME: make dependent on fields in genotypes; for now, assumes PLs
 
     val noCall = Genotype()
-    val gsb = new GenotypeStreamBuilder(v.nAlleles, isLinearScale = false)
+    val gsb = new ArrayBuilder[Genotype]()
 
     vc.getGenotypes.iterator.asScala.foreach { g =>
 
@@ -223,7 +223,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
       if (filter)
         gsb += noCall
       else
-        gsb.write(gb)
+        gsb += gb.result()
     }
 
     (v, (va, gsb.result()))
