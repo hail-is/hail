@@ -806,4 +806,17 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def toGDS: GenericDataset = vds.mapValues(g => g: Any).copy(isGenericGenotype = true)
+
+  def deNovo(ped: Pedigree,
+    referenceAF: String,
+    minGQ: Int = 20,
+    minPDeNovo: Double = 0.05,
+    maxParentAB: Double = 0.05,
+    minChildAB: Double = 0.20,
+    minDepthRatio: Double = 0.10): KeyTable = {
+    requireSplit("de novo")
+    vds.requireSampleTString("de novo")
+
+    DeNovo(vds, ped, referenceAF, minGQ, minPDeNovo, maxParentAB, minChildAB, minDepthRatio)
+  }
 }
