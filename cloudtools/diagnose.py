@@ -41,7 +41,10 @@ def main(main_parser):
     config = desc['config']
 
     master = config['masterConfig']['instanceNames'][0]
-    workers = config['workerConfig']['instanceNames'] + config['secondaryWorkerConfig']['instanceNames']
+    try:
+        workers = config['workerConfig']['instanceNames'] + config['secondaryWorkerConfig']['instanceNames']
+    except KeyError:
+        workers = config['workerConfig']['instanceNames']
     zone = re.search('zones\/(?P<zone>\S+)$', config['gceClusterConfig']['zoneUri']).group('zone')
 
     if args.workers:
@@ -53,14 +56,18 @@ def main(main_parser):
         assert args.take > 0 and args.take <= len(workers), "Number of workers to take must be in the range of [0, nWorkers]. Found " + args.take + "."
         workers = workers[:args.take]
 
+        
     def gcloud_ssh(remote, command):
         return 'gcloud compute ssh {remote} --zone {zone} --command "{command}"'.format(remote=remote, zone=zone, command=command)
+
 
     def gcloud_copy_files(remote, src, dest):
         return 'gcloud compute copy-files {remote}:{src} {dest} --zone {zone}'.format(remote=remote, src=src, dest=dest, zone=zone)
 
+
     def gsutil_cp(src, dest):
         return 'gsutil -m cp -r {src} {dest}'.format(src=src, dest=dest)
+
 
     def copy_files_tmp(remote, files, dest, tmp):
         init_cmd = ['mkdir -p {tmp}; rm -r {tmp}/*'.format(tmp=tmp)]
@@ -80,6 +87,7 @@ def main(main_parser):
             
         call(copy_dest_cmd, shell=True)
 
+        
     if not args.no_diagnose:    
         diagnose_tar_path = re.search('Diagnostic results saved in: (?P<tarfile>gs:\/\/\S+diagnostic\.tar)',
                                       str(Popen('gcloud dataproc clusters diagnose {name}'.format(name=args.name),
