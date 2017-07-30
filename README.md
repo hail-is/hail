@@ -104,3 +104,93 @@ To view details on a job that has completed, you can access the Spark history se
 ```
 cluster testcluster connect spark-history
 ```
+
+### Optional command arguments
+
+```
+cluster name start --help
+...
+optional arguments:
+  -h, --help            show this help message and exit
+  --hash HASH           Hail build to use for notebook initialization.
+  --spark {2.0.2,2.1.0}
+                        Spark version used to build Hail.
+  --version {0.1,devel}
+                        Hail version to use
+  --master-machine-type MASTER_MACHINE_TYPE, --master MASTER_MACHINE_TYPE, -m MASTER_MACHINE_TYPE
+                        Master machine type.
+  --master-boot-disk-size MASTER_BOOT_DISK_SIZE
+                        Disk size of master machine (in GB).
+  --num-master-local-ssds NUM_MASTER_LOCAL_SSDS
+                        Number of local SSDs to attach to the master machine.
+  --num-preemptible-workers NUM_PREEMPTIBLE_WORKERS, --n-pre-workers NUM_PREEMPTIBLE_WORKERS, -p NUM_PREEMPTIBLE_WORKERS
+                        Number of preemptible worker machines.
+  --num-worker-local-ssds NUM_WORKER_LOCAL_SSDS
+                        Number of local SSDs to attach to each worker machine.
+  --num-workers NUM_WORKERS, --n-workers NUM_WORKERS, -w NUM_WORKERS
+                        Number of worker machines.
+  --preemptible-worker-boot-disk-size PREEMPTIBLE_WORKER_BOOT_DISK_SIZE
+                        Disk size of preemptible machines (in GB).
+  --worker-boot-disk-size WORKER_BOOT_DISK_SIZE
+                        Disk size of worker machines (in GB).
+  --worker-machine-type WORKER_MACHINE_TYPE, --worker WORKER_MACHINE_TYPE
+                        Worker machine type.
+  --zone ZONE           Compute zone for the cluster.
+  --properties PROPERTIES
+                        Additional configuration properties for the cluster.
+  --metadata METADATA   Comma-separated list of metadata to add:
+                        KEY1=VALUE1,KEY2=VALUE2...
+  --jar JAR             Hail jar to use for Jupyter notebook.
+  --zip ZIP             Hail zip to use for Jupyter notebook.
+  --init INIT           Comma-separated list of init scripts to run.
+  --vep
+  ```
+  ```
+  cluster name submit --help
+  ...
+  optional arguments:
+  -h, --help            show this help message and exit
+  --hash HASH           Hail build to use for notebook initialization.
+  --spark {2.0.2,2.1.0}
+                        Spark version used to build Hail.
+  --version {0.1,devel}
+                        Hail version to use.
+  --jar JAR             Custom Hail jar to use.
+  --zip ZIP             Custom Hail zip to use.
+  --properties PROPERTIES, -p PROPERTIES
+  ```
+  ```
+  cluster name connect --help
+  ...
+  positional arguments:
+  name                  User-supplied name of Dataproc cluster.
+  {start,submit,connect,diagnose,stop}
+                        cloudtools command.
+  {spark-ui,spark-ui1,spark-ui2,spark-history,notebook}
+
+  optional arguments:
+  -h, --help            show this help message and exit
+  --port PORT, -p PORT  Local port to use for SSH tunnel to master node.
+  --zone ZONE, -z ZONE  Compute zone for Google cluster.
+  ```
+  ```
+  cluster name diagnose --help
+  ...
+  optional arguments:
+  -h, --help            show this help message and exit
+  --dest DEST, -d DEST  Directory for diagnose output -- must be local
+  --hail-log HAIL_LOG, -l HAIL_LOG
+                        Path for hail.log file
+  --overwrite           Delete dest directory before adding new files
+  --no-diagnose         Do not run gcloud dataproc clusters diagnose
+  --compress, -z        GZIP all files
+  --workers [WORKERS [WORKERS ...]]
+                        Specific workers to get log files from
+  --take TAKE           Only download logs from the first N workers
+  ```
+  ```
+  cluster name stop --help
+  ...
+  optional arguments:
+  -h, --help            show this help message and exit
+  ```
