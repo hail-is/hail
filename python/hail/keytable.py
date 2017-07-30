@@ -38,7 +38,7 @@ class KeyTable(object):
 
     Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_table`
     or :py:meth:`~hail.KeyTable.from_dataframe`, generated from a variant dataset
-    with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_table`,
+    with :py:meth:`~hail.VariantDataset.make_table`, :py:meth:`~hail.VariantDataset.genotypes_table`,
     :py:meth:`~hail.VariantDataset.samples_table`, or :py:meth:`~hail.VariantDataset.variants_table`.
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).

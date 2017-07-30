@@ -430,60 +430,6 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
 
-  /**
-    * Aggregate by user-defined key and aggregation expressions.
-    *
-    * Equivalent of a group-by operation in SQL.
-    *
-    * @param keyExpr Named expression(s) for which fields are keys
-    * @param aggExpr Named aggregation expression(s)
-    */
-  def aggregateByKey(keyExpr: String, aggExpr: String): KeyTable = {
-    val aggregationST = Map(
-      "global" -> (0, globalSignature),
-      "v" -> (1, vSignature),
-      "va" -> (2, vaSignature),
-      "s" -> (3, sSignature),
-      "sa" -> (4, saSignature),
-      "g" -> (5, genotypeSignature))
-
-    val ec = EvalContext(aggregationST.map { case (name, (i, t)) => name -> (i, TAggregable(t, aggregationST)) })
-
-    val keyEC = EvalContext(Map(
-      "global" -> (0, globalSignature),
-      "v" -> (1, vSignature),
-      "va" -> (2, vaSignature),
-      "s" -> (3, sSignature),
-      "sa" -> (4, saSignature),
-      "g" -> (5, genotypeSignature)))
-
-    val (keyNames, keyTypes, keyF) = Parser.parseNamedExprs(keyExpr, keyEC)
-    val (aggNames, aggTypes, aggF) = Parser.parseNamedExprs(aggExpr, ec)
-
-    val signature = TStruct((keyNames ++ aggNames, keyTypes ++ aggTypes).zipped.toSeq: _*)
-
-    val (zVals, seqOp, combOp, resultOp) = Aggregators.makeFunctions[Annotation](ec, { case (ec, a) =>
-      ec.setAllFromRow(a.asInstanceOf[Row])
-    })
-
-    val localGlobalAnnotation = globalAnnotation
-
-    val ktRDD = mapPartitionsWithAll { it =>
-      it.map { case (v, va, s, sa, g) =>
-        keyEC.setAll(localGlobalAnnotation, v, va, s, sa, g)
-        val key = Annotation.fromSeq(keyF())
-        (key, Row(localGlobalAnnotation, v, va, s, sa, g))
-      }
-    }.aggregateByKey(zVals)(seqOp, combOp)
-      .map { case (k, agg) =>
-        resultOp(agg)
-        Row.fromSeq(k.asInstanceOf[Row].toSeq ++ aggF())
-      }
-
-    KeyTable(hc, ktRDD, signature, keyNames)
-  }
-
-
   def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
 
     val (keysType, keysQuerier) = queryVA(variantKeysVA)

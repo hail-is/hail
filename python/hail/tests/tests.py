@@ -222,10 +222,6 @@ class ContextTests(unittest.TestCase):
 
             dataset.annotate_variants_expr("va.nHet = gs.filter(g => {0}.isHet()).count()".format(gt))
 
-            dataset.aggregate_by_key("Variant = v", "nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt))
-            dataset.aggregate_by_key(["Variant = v"],
-                                     ["nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt)])
-
             dataset.make_table('v = v, info = va.info', 'gt = {0}'.format(gt), ['v'])
 
             dataset.num_partitions()
@@ -387,9 +383,6 @@ class ContextTests(unittest.TestCase):
          .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
-
-        sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet().toInt()).sum().toLong()")
-        sample_split.aggregate_by_key(["Variant = v"], ["nHet = g.map(g => g.isHet().toInt()).sum().toLong()"])
 
         sample2.make_table('v = v, info = va.info', 'gt = g.gt', ['v'])
 
