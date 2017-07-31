@@ -4,26 +4,21 @@ import breeze.linalg.{DenseMatrix => BDM, _}
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
 import is.hail.variant.VariantDataset
+import is.hail.variant.Genotype
 
 object PCRelateReferenceImplementation {
   def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double = 0.0): Map[(String, String), (Double, Double, Double, Double)] = {
     val indexToId: Map[Int, String] = vds.stringSampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
 
     val gts = vds.rdd.map { case (v, (va, gs)) =>
-      val a = gs.map(_.gt).toArray
+      val a = gs.map(Genotype.gt _).toArray
       val mean = a.flatten.sum.toDouble / a.flatten.length
       a.map { case Some(v) => v.toDouble ; case None => mean }.toArray
     }.collect().flatten
 
     val mat = new BDM[Double](vds.nSamples, vds.countVariants().toInt, gts)
 
-    val gtsNonImputed = vds.rdd.map { case (v, (va, gs)) =>
-      gs.map(_.gt).map { case Some(gt) => gt.toDouble ; case None => Double.NaN }.toArray
-    }.collect().flatten
-
-    val matNonImputed = new BDM[Double](vds.nSamples, vds.countVariants().toInt, gtsNonImputed)
-
-    val PCRelate.Result(phi, k0, k1, k2) = forMatrices(mat, matNonImputed, new BDM[Double](pcs.numRows, pcs.numCols, pcs.toArray), maf=0.01)
+    val PCRelate.Result(phi, k0, k1, k2) = forMatrices(mat, new BDM[Double](pcs.numRows, pcs.numCols, pcs.toArray), maf=0.01)
       .map(symmetricMatrixToMap(indexToId,_))
 
     phi.keys.map(k => (k, (phi(k), k0(k), k1(k), k2(k)))).toMap
@@ -37,7 +32,7 @@ object PCRelateReferenceImplementation {
 
   // g : N x M
   // pcs : N x K
-  def forMatrices(g: BDM[Double], gNotImputed: BDM[Double], pcs: BDM[Double], maf: Double = 0.0): PCRelate.Result[BDM[Double]] = {
+  def forMatrices(g: BDM[Double], pcs: BDM[Double], maf: Double = 0.0): PCRelate.Result[BDM[Double]] = {
     val n = g.rows
     val m = g.cols
     require(n == pcs.rows)
@@ -176,8 +171,8 @@ object PCRelateReferenceImplementation {
           var numer = 0.0
           var denom = 0.0
           while (k < m) {
-            val g_ki = gNotImputed(i,k)
-            val g_kj = gNotImputed(j,k)
+            val g_ki = g(i,k)
+            val g_kj = g(j,k)
             val mu_ki = mu_si(k,i)
             val mu_kj = mu_si(k,j)
 
