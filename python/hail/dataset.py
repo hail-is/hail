@@ -4714,7 +4714,7 @@ class VariantDataset(HistoryMixin):
                       y=strlike,
                       covariates=listof(strlike),
                       use_dosages=bool)
-    def skat(self, key_name, variant_keys, single_key, weight_expr = None, y, covariates=[], use_dosages=False):
+    def skat(self, key_name, variant_keys, single_key, y, weight_expr = None, covariates=[], use_dosages=False):
         """Test each keyed group of variants for association by linear SKAT test.
 
         .. include:: requireTGenotype.rst
@@ -4727,8 +4727,8 @@ class VariantDataset(HistoryMixin):
         >>> skat_kt = (hc.read('data/example_burden.vds').skat(key_name='gene',
         ...           variant_keys='va.genes',
         ...           single_key=False,
-        ...           weight_expr='va.weight',
         ...           y='sa.burden.pheno',
+        ...           weight_expr='va.weight',
         ...           covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         .. caution::
@@ -4775,11 +4775,11 @@ class VariantDataset(HistoryMixin):
         :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
                                 rather than as a collection of keys.
 
+        :param str y: Response expression.
+
         :param str weight: Variant expression of numeric type for SKAT weight. When no weight is provided, weights are
                            generated to from a beta distribution (alpha = 1, beta = 25) evalulated at the minor allele
                            frequency of each variant.
-
-        :param str y: Response expression.
 
         :param covariates: list of covariate expressions.
         :type covariates: list of str
