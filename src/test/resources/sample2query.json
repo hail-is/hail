@@ -1,11 +1,11 @@
 {
-    "workspace" : "/Users/jgoldsmi/tdbworkspace",
-    "array" : "my_array_sample2",
+    "workspace" : "src/test/resources/tdbworkspace",
+    "array" : "sample2Array",
     "query_column_ranges" : [ [ [0, 17421565 ] ] ],
-    "vid_mapping_file": "sample2vid.json",
-    "callset_mapping_file": "sample2callsets.json",	
+    "vid_mapping_file": "src/test/resources/sample2vid.json",
+    "callset_mapping_file": "src/test/resources/sample2callsets.json",	
     "query_attributes" : [],
-    "reference_genome" : "/Users/jgoldsmi/build/Homo_sapiens_assembly19.fasta",
-    "vcf_header_filename" : "sample2header.vcf",
+    "reference_genome" : "/seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta",
+    "vcf_header_filename" : "src/test/resources/sample2header.vcf",
     "produce_GT_field" : true
 }

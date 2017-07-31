@@ -5,7 +5,7 @@
                         "tiledb_column_offset": 0
                 }
         },
-        "callset_mapping_file": "sample2callsets.json",
+        "callset_mapping_file": "src/test/resources/sample2callsets.json",
         "fields": {
                 "AD": {
                         "vcf_field_class": ["FORMAT"],
@@ -13,7 +13,8 @@
                 },
                 "DP": {
                         "vcf_field_class": ["FORMAT", "INFO"],
-                        "type": "int"
+                        "type": "int",
+			"VCF_field_combine_operation": "sum"
                 },
                 "GQ": {
                         "vcf_field_class": ["FORMAT"],
@@ -28,6 +29,86 @@
                         "vcf_field_class": ["FORMAT"],
                         "type": "int",
                         "length": "G"
+                },
+		"AC": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "int",
+			"length": "A",
+			"VCF_field_combine_operation": "median"
+                },
+		"AF": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float",
+                        "VCF_field_combine_operation": "mean" 
+                },
+		"AN": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "int",
+                        "VCF_field_combine_operation": "mean" 
+                },		
+		"BaseQRankSum": {
+			"vcf_field_class": ["INFO"],
+			"type": "float"
+		},
+		"ClippingRankSum": {
+			"vcf_field_class": ["INFO"],
+			"type": "float"
+		},
+		"FS": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float",
+                        "VCF_field_combine_operation": "mean" 
+                },
+		"HaplotypeScore": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float",
+                        "VCF_field_combine_operation": "mean"
+                },
+		"InbreedingCoeff": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float",
+                        "VCF_field_combine_operation": "mean"
+                },
+		"MLEAC": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "int",
+			"length": "A",
+                        "VCF_field_combine_operation": "mean"
+                },
+		"MLEAF": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float",
+                        "length": "A",
+			"VCF_field_combine_operation": "mean"
+                },
+		"MQ": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float"
+                },
+		"MQ0": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "int"
+                },
+		"MQRankSum": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float"
+                },
+		"QD": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float",
+                        "VCF_field_combine_operation": "mean"
+                },
+		"ReadPosRankSum": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "float",
+                        "VCF_field_combine_operation": "mean"
+                },
+		"set": {
+                        "vcf_field_class": ["INFO"],
+                        "type": "char",
+			"length": "VAR",
+			"VCF_field_combine_operation": "concatenate"
                 }
+
 	}
 } 

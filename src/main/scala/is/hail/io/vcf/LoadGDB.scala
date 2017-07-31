@@ -1,9 +1,6 @@
 package is.hail.io.vcf
 
-import java.io.{FileWriter, File}
-
 import com.intel.genomicsdb.GenomicsDBFeatureReader
-import htsjdk.variant.variantcontext.VariantContext
 import htsjdk.variant.vcf.VCFHeader
 import is.hail.HailContext
 import is.hail.annotations.Annotation
@@ -40,15 +37,22 @@ object LoadGDB {
       .asInstanceOf[VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
-    var filters: Map[String, String] = header
+    val immutableFilters: Map[String, String] = header
       .getFilterLines
       .toList
       //(ID, description)
       .map(line => (line.getID, ""))
       .toMap
 
-    if (filters.size > 1 && filters.contains("PASS")) //remove extra PASS filter if there are others
-      filters = filters.tail //FIXME: remove operation on Maps doesn't work -- what is a better way to remove PASS at any location (not just head)?
+    val mutableFilters = collection.mutable.Map(immutableFilters.toSeq: _*)
+
+    var filters = immutableFilters
+
+    if (immutableFilters.size > 1 && immutableFilters.contains("PASS")) { //remove extra PASS filter if there are others
+      val mutableFilters = collection.mutable.Map(immutableFilters.toSeq: _*)
+      mutableFilters.remove("PASS")
+      filters = mutableFilters.toMap
+    }
 
     val infoHeader = header.getInfoHeaderLines
     val infoSignature = LoadVCF.headerSignature(infoHeader)
@@ -78,13 +82,10 @@ object LoadGDB {
         .getSampleNamesOrderedByName
         .toArray(new Array[String](0))
 
-    val writer = new FileWriter(new File("/Users/jgoldsmi/Desktop/vContexts.txt"))
-
     val records = gdbReader
       .iterator
       .asScala
       .map(vc => {
-        writer.write(vc.toString + "\n")
         reader.readRecord(vc, infoSignature, genotypeSignature)
       })
       .toSeq

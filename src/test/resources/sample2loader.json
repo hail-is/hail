@@ -3,10 +3,10 @@
     "produce_combined_vcf" : false,
     "produce_tiledb_array" : true,
     "column_partitions" : [
-        {"begin": 0, "workspace":"/Users/jgoldsmi/tdbworkspace", "array":"my_array_sample2"}
+        {"begin": 0, "workspace":"src/test/resources/tdbworkspace", "array":"sample2Array"}
     ],
-    "vid_mapping_file" : "sample2vid.json",
-    "callset_mapping_file" : "sample2callsets.json",
+    "vid_mapping_file" : "src/test/resources/sample2vid.json",
+    "callset_mapping_file" : "src/test/resources/sample2callsets.json",
     "size_per_column_partition": 3000000,
     "treat_deletions_as_intervals" : false,
     "delete_and_create_tiledb_array" : true,
