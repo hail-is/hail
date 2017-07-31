@@ -189,7 +189,7 @@ class PCRelateSuite extends SparkSuite {
     val r = scala.util.Random
 
     val profile225 = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
-    for (fraction <- Seq(0.0625/4//0.125, 0.25, 0.5
+    for (fraction <- Seq(0.0625/16//0.125, 0.25, 0.5
     )) {
       val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
 

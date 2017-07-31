@@ -67,6 +67,9 @@ object PCRelate {
         .mapValues { case (((kin, k0), k1), k2) => (kin, k0, k1, k2) }
   }
 
+  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result[M] =
+    new PCRelate(maf, blockSize)(vds, pcs)
+
   private val signature =
     TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
   private val keys = Array("i", "j")
@@ -77,89 +80,6 @@ object PCRelate {
       keys)
 
   private val k0cutoff = math.pow(2.0, (-5.0/2.0))
-
-  def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result[M] = {
-    require(maf >= 0.0)
-    require(maf <= 1.0)
-    val antimaf = (1.0 - maf)
-    def badmu(mu: Double): Boolean =
-      mu <= maf || mu >= antimaf || mu <= 0.0 || mu >= 1.0
-    def badgt(gt: Double): Boolean =
-      gt != 0.0 && gt != 1.0 && gt != 2.0
-
-    val g = vdsToMeanImputedMatrix(vds)
-    val beta = fitBeta(g, pcs, blockSize)
-
-    val pcsWithIntercept = prependConstantColumn(1.0, pcs)
-
-    val blockedG = dm.from(g, blockSize, blockSize)
-    val mu = ((beta * pcsWithIntercept.transpose) / 2.0)
-
-    val centeredG = dm.map2 { (g,mu) =>
-      if (badgt(g) || badmu(mu))
-        0.0
-      else
-        g - mu * 2.0
-    }(blockedG, mu)
-    val variance = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          mu * (1.0 - mu)
-    }(blockedG, mu)
-    val stddev = dm.map(math.sqrt _)(variance)
-    val phi = (((centeredG.t * centeredG) :/ (stddev.t * stddev)) / 4.0)
-
-    println("blockedG spark")
-    println(blockedG.toLocalMatrix())
-    println("mu spark")
-    println(mu.toLocalMatrix())
-    println("gMinusMu spark")
-    println(centeredG.toLocalMatrix())
-    println("stddev")
-    println(stddev.toLocalMatrix())
-
-    val twoPhi_ii = fTwiddle(phi)
-    val normalizedGD = dm.map2WithIndex({
-      case (_, i, g, mu) =>
-        if (badmu(mu) || badgt(g))
-          0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
-        else {
-          val gd = if (g == 0.0) mu
-          else if (g == 1.0) 0.0
-          else 1.0 - mu
-
-          gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
-        }
-    })(blockedG, mu)
-    val kTwo = ((normalizedGD.t * normalizedGD) :/ (variance.t * variance))
-
-    val mu2 = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          mu * mu
-    }(blockedG, mu)
-    val oneMinusMu2 = dm.map2 {
-      case (g, mu) =>
-        if (badgt(g) || badmu(mu))
-          0.0
-        else
-          (1.0 - mu) * (1.0 - mu)
-    }(blockedG, mu)
-    val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
-    val ibsZero = ibs0(vds, blockSize)
-    val kZero = dm.map4 { (phiHat: Double, denom: Double, k2: Double, ibs0: Double) =>
-      if (phiHat <= k0cutoff)
-        1.0 - 4.0 * phiHat + k2
-      else
-        ibs0 / denom
-    }(phi, denom, kTwo, ibsZero)
-
-    Result(phi, kZero, 1.0 - (kTwo :+ kZero), kTwo)
-  }
 
   private def prependConstantColumn(k: Double, m: DenseMatrix): DenseMatrix = {
     val a = m.toArray
@@ -232,17 +152,115 @@ object PCRelate {
     dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize, blockSize)
   }
 
-  /**
-    * this is equivalent to \hat{f} + 1
-    **/
-  def fTwiddle(phiHat: M): Array[Double] =
-    dm.diagonal(phiHat).map(2.0 * _)
-
   def k1(k2: M, k0: M): M = {
     1.0 - (k2 :+ k0)
   }
 
   def ibs0(vds: VariantDataset, blockSize: Int): M =
     dm.from(IBD.ibs(vds)._1, blockSize, blockSize)
+
+}
+
+class PCRelate(maf: Double, blockSize: Int) extends Serializable {
+  import PCRelate._
+  import dm.ops._
+
+  require(maf >= 0.0)
+  require(maf <= 1.0)
+  val antimaf = (1.0 - maf)
+  def badmu(mu: Double): Boolean =
+    mu <= maf || mu >= antimaf || mu <= 0.0 || mu >= 1.0
+  def badgt(gt: Double): Boolean =
+    gt != 0.0 && gt != 1.0 && gt != 2.0
+
+  def apply(vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
+    val g = vdsToMeanImputedMatrix(vds)
+    val beta = fitBeta(g, pcs, blockSize)
+
+    val pcsWithIntercept = prependConstantColumn(1.0, pcs)
+
+    val blockedG = dm.from(g, blockSize, blockSize)
+    val mu = ((beta * pcsWithIntercept.transpose) / 2.0)
+
+    val variance = dm.map2 {
+      case (g, mu) =>
+        if (badgt(g) || badmu(mu))
+          0.0
+        else
+          mu * (1.0 - mu)
+    }(blockedG, mu)
+
+    val phi = this.phi(mu, variance, blockedG)
+
+    println("blockedG spark")
+    println(blockedG.toLocalMatrix())
+    println("mu spark")
+    println(mu.toLocalMatrix())
+
+    val k2 = this.k2(phi, mu, variance, blockedG)
+    val k0 = this.k0(phi, mu, k2, blockedG, ibs0(vds, blockSize))
+    val k1 = 1.0 - (k2 :+ k0)
+
+    Result(phi, k0, k1, k2)
+  }
+
+  private def phi(mu: M, variance: M, g: M): M = {
+    val centeredG = dm.map2 { (g,mu) =>
+      if (badgt(g) || badmu(mu))
+        0.0
+      else
+        g - mu * 2.0
+    }(g, mu)
+    val stddev = dm.map(math.sqrt _)(variance)
+
+    println("gMinusMu spark")
+    println(centeredG.toLocalMatrix())
+    println("stddev")
+    println(stddev.toLocalMatrix())
+
+    ((centeredG.t * centeredG) :/ (stddev.t * stddev)) / 4.0
+  }
+
+  private def k2(phi: M, mu: M, variance: M, g: M): M = {
+    val twoPhi_ii = dm.diagonal(phi).map(2.0 * _)
+    val normalizedGD = dm.map2WithIndex({
+      case (_, i, g, mu) =>
+        if (badmu(mu) || badgt(g))
+          0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
+        else {
+          val gd = if (g == 0.0) mu
+          else if (g == 1.0) 0.0
+          else 1.0 - mu
+
+          gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
+        }
+    })(g, mu)
+
+    (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
+  }
+
+  private def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
+    val mu2 = dm.map2 {
+      case (g, mu) =>
+        if (badgt(g) || badmu(mu))
+          0.0
+        else
+          mu * mu
+    }(g, mu)
+    val oneMinusMu2 = dm.map2 {
+      case (g, mu) =>
+        if (badgt(g) || badmu(mu))
+          0.0
+        else
+          (1.0 - mu) * (1.0 - mu)
+    }(g, mu)
+    val denom = (mu2.t * oneMinusMu2) :+ (oneMinusMu2.t * mu2)
+    dm.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
+      if (phi <= k0cutoff)
+        1.0 - 4.0 * phi + k2
+      else
+        ibs0 / denom
+    }(phi, denom, k2, ibs0)
+  }
 
 }

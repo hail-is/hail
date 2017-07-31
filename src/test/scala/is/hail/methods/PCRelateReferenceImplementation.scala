@@ -158,10 +158,12 @@ object PCRelateReferenceImplementation {
             val mu_ki = mu_si(k,i)
             val mu_kj = mu_si(k,j)
 
-            if (math.abs(g_ki - g_kj) == 2.0)
-              numer += 1.0
+            if (goodMu(mu_ki) && goodMu(mu_kj) && goodGT(g_ki) && goodGT(g_kj)) {
+              if (math.abs(g_ki - g_kj) == 2.0)
+                numer += 1.0
 
-            denom += mu_ki*mu_ki*(1.0-mu_kj)*(1.0-mu_kj) + mu_kj*mu_kj*(1.0-mu_ki)*(1.0-mu_ki)
+              denom += mu_ki*mu_ki*(1.0-mu_kj)*(1.0-mu_kj) + mu_kj*mu_kj*(1.0-mu_ki)*(1.0-mu_ki)
+            }
 
             k += 1
           }
