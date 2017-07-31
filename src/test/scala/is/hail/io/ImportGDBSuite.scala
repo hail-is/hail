@@ -3,7 +3,6 @@ package is.hail.io
 import is.hail.SparkSuite
 import is.hail.expr.TStruct
 import is.hail.io.vcf.{GenericRecordReader, LoadGDB, LoadVCF}
-import is.hail.variant.GenericDataset
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.testng.annotations.Test
 

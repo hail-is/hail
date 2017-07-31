@@ -111,7 +111,7 @@ compileScala {
 }
 
 dependencies {
-    compile files("../build/target/genomicsdb-0.6.4.jar")
+    compile files("libs/genomicsdb-0.6.4.jar")
     compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
