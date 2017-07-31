@@ -4717,8 +4717,6 @@ class VariantDataset(HistoryMixin):
     def skat(self, key_name, variant_keys, single_key, y, weight_expr = None, covariates=[], use_dosages=False):
         """Test each keyed group of variants for association by linear SKAT test.
 
-        .. include:: requireTGenotype.rst
-
         **Examples**
 
         Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
@@ -4742,7 +4740,7 @@ class VariantDataset(HistoryMixin):
 
         .. caution::
           If a p-value of 0.0 is returned, then the true p-value falls in the range between 0.0 and
-          :math:`2^-52 \approx  2.22 \cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
+          :math:`2^-52 \\approx  2.22 \\cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
           left-hand area, which we then subtract from 1 to get the p-value.
 
         **Notes**
@@ -4752,7 +4750,7 @@ class VariantDataset(HistoryMixin):
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
         The resulting key table provides the variant component score and the p-value for each group, with the latter
-        given by right tail of a weighted sum of :math:`\Chi^2(1)` distributions. For the example above with
+        given by right tail of a weighted sum of :math:`\\Chi^2(1)` distributions. For the example above with
         `key_name='gene'`, the table has the form:
 
         +------+-------+------+
@@ -4766,7 +4764,7 @@ class VariantDataset(HistoryMixin):
         +------+-------+------+
 
         Note that the variant component score `qstat` is related to :math:`Q` in the paper by
-        :math:`\\frac{1}{2\hat\sigma^2} Q` where :math:`\hat\sigma^2` is the unbiased estimator of residual variance.
+        :math:`\\frac{1}{2\\hat\\sigma^2} Q` where :math:`\\hat\\sigma^2` is the unbiased estimator of residual variance.
 
         :param str key_name: Name to assign to key column of returned key tables.
 
@@ -4777,7 +4775,7 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response expression.
 
-        :param str weight: Variant expression of numeric type for SKAT weight. When no weight is provided, weights are
+        :param str weight_expr: Variant expression of numeric type for SKAT weight. When no weight is provided, weights are
                            generated to from a beta distribution (alpha = 1, beta = 25) evalulated at the minor allele
                            frequency of each variant.
 
@@ -4794,7 +4792,6 @@ class VariantDataset(HistoryMixin):
                                     jarray(Env.jvm().java.lang.String, covariates), use_dosages))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(propagate_gq=bool,
                       keep_star_alleles=bool,
                       max_shift=integral)
