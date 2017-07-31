@@ -1274,13 +1274,14 @@ object FunctionRegistry {
     "min" -> "Minimum value of interval.",
     "max" -> "Maximum value of interval, non-inclusive.")
 
-  register("dbeta", { (x: Double, a: Double, b: Double) => dbeta(x,a,b)},
+  register("dbeta", { (x: Double, a: Double, b: Double) => dbeta(x, a, b)},
   """
-  Returns a random draw from a beta distribution on [0,1] defined by the parameters a and b.
+    |Returns the probability density at x of a beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>__
+    |with parameters a (alpha) and b (beta).
   """,
-  "x" -> "Point at which to sample ",
-  "a" -> "the alpha term in the beta distribution, x^{a -1}",
-  "b" -> "the beta term in the beta distribution (1 - x)^{b - 1}")
+  "x" -> "Point in [0,1] at which to sample. If a < 1 then x must be positive. If b < 1 then x must be less than 1.",
+  "a" -> "the alpha term in the beta distribution, x^{a -1}. a > 0",
+  "b" -> "the beta term in the beta distribution (1 - x)^{b - 1}. b > 0")
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() },
     """
     Returns a random draw from a normal distribution with mean ``mean`` and standard deviation ``sd``. ``sd`` should be non-negative. This function is non-deterministic.
@@ -1297,7 +1298,6 @@ object FunctionRegistry {
     Returns left-quantile x for which p = Prob(:math:`Z` < x) with :math:`Z` a standard normal random variable. ``p`` must satisfy 0 < ``p`` < 1. Inverse of pnorm.
     """,
     "p" -> "Probability")
-  //register("dbeta", {(x: Double, a: Double, b: Double) => })
   register("rpois", { (lambda: Double) => rpois(lambda) },
     """
     Returns a random draw from a Poisson distribution with rate parameter ``lambda``. This function is non-deterministic.
