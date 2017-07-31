@@ -102,7 +102,7 @@ class PCRelateSuite extends SparkSuite {
     assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
-  @Test
+  // @Test
   def trivialReferenceMatchesR() {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
@@ -115,56 +115,31 @@ class PCRelateSuite extends SparkSuite {
 
   @Test def baldingNicholsMatchesReference() {
     for {
-      n <- Seq(50, 100//, 500
-      )
-      seed <- Seq(0, 1//, 2
-      )
-      nVariants <- Seq(1000, 10000//, 50000
-      )
+      n <- Seq(50, 100)
+      seed <- Seq(0, 1)
+      nVariants <- Seq(1000, 10000)
     } {
       val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
       val pcs = SamplePCA.justScores(vds, 2)
       val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
       val actual = runPcRelateHail(vds, pcs, maf=0.01)
 
-      printToFile(new java.io.File(s"/tmp/baldingNicholsMatchesReference-$n-$seed-$nVariants.out")) { pw =>
-        pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
-        for ((k, (hkin, hz0, hz1, hz2)) <- actual) {
-          val (rkin, rz0, rz1, rz2) = truth(k)
-          val (s1, s2) = k
-          pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
-        }
-      }
-
-      println(s"$n $seed $nVariants")
       assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
     }
   }
 
-  @Test def baldingNicholsReferenceMatchesR() {
+  // @Test
+  def baldingNicholsReferenceMatchesR() {
     for {
-      n <- Seq(50, 100//, 500
-      )
-      seed <- Seq(0, 1//, 2
-      )
-      nVariants <- Seq(1000, 10000//, 50000
-      )
+      n <- Seq(50, 100)
+      seed <- Seq(0, 1)
+      nVariants <- Seq(1000, 10000)
     } {
       val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
       val pcs = SamplePCA.justScores(vds, 2)
       val truth = runPcRelateR(vds, maf=0.01)
       val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
 
-      printToFile(new java.io.File(s"/tmp/baldingNicholsMatchesReference-$n-$seed-$nVariants.out")) { pw =>
-        pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
-        for ((k, (hkin, hz0, hz1, hz2)) <- actual) {
-          val (rkin, rz0, rz1, rz2) = truth(k)
-          val (s1, s2) = k
-          pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
-        }
-      }
-
-      println(s"$n $seed $nVariants")
       assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
     }
   }
@@ -206,22 +181,11 @@ class PCRelateSuite extends SparkSuite {
       val (truth, truthtime) = time(PCRelateReferenceImplementation(vds, pcs, maf=0.01))
       val (actual, actualtime) = time(runPcRelateHail(vds, pcs, maf=0.01))
 
-      println(s"on fraction: $fraction; reference impl: $truthtime, hail: $actualtime, ratio: ${truthtime / actualtime.toDouble}")
-
-      printToFile(new java.io.File(s"/tmp/thousandGenomesTriosMatchesReference-$fraction.out")) { pw =>
-        pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
-        for ((k, (hkin, hz0, hz1, hz2)) <- actual) {
-          val (rkin, rz0, rz1, rz2) = truth(k)
-          val (s1, s2) = k
-          pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
-        }
-      }
-
       assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
     }
   }
 
-  @Test
+  // @Test
   def thousandGenomesTriosReferenceMatchesR() {
     val trios = Array("HG00702", "HG00656", "HG00657",
       "HG00733", "HG00731", "HG00732",
