@@ -362,7 +362,7 @@ real qfWrapper(real* lb1, real* nc1, int* n1, int r1, real sigma, real c1,
   int fault = *ifault;
 
   DaviesAlgo algoClass;
-
+ 
   real result = algoClass.qf(lambdas, noncentrality, dof, r1, sigma, c1,
                    lim1, acc, trace2, &fault);
   *ifault = fault;
