@@ -9,11 +9,11 @@ import is.hail.variant.{Genotype, VariantDataset}
 object ImputeSexPlink {
 
   def schema: Type = TStruct("isFemale" -> TBoolean,
-    "Fstat" -> TDouble,
-    "nTotal" -> TLong,
-    "nCalled" -> TLong,
-    "expectedHoms" -> TDouble,
-    "observedHoms" -> TLong)
+    "Fstat" -> TFloat64,
+    "nTotal" -> TInt64,
+    "nCalled" -> TInt64,
+    "expectedHoms" -> TFloat64,
+    "observedHoms" -> TInt64)
 
   def determineSex(ibc: InbreedingCombiner, fFemaleThreshold: Double, fMaleThreshold: Double): Option[Boolean] = {
     ibc.Fstat
@@ -36,7 +36,7 @@ object ImputeSexPlink {
     val query = popFrequencyExpr.map { code =>
       val (t, f) = vds.queryVA(code)
       t match {
-        case TDouble => f
+        case TFloat64 => f
         case other => fatal(s"invalid population frequency.  Expected Double, but got `$other'")
       }
     }

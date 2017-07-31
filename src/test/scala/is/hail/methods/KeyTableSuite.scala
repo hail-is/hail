@@ -13,7 +13,7 @@ class KeyTableSuite extends SparkSuite {
   def sampleKT1: KeyTable = {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32))
     val keyNames = Array("Sample")
 
     KeyTable(hc, rdd, signature, keyNames)
@@ -23,7 +23,7 @@ class KeyTableSuite extends SparkSuite {
     val data = Array(Array("Sample1", IndexedSeq(9, 1), 5), Array("Sample2", IndexedSeq(3), 5),
       Array("Sample3", IndexedSeq(2, 3, 4), 5), Array("Sample4", IndexedSeq.empty[Int], 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString), ("field1", TArray(TInt)), ("field2", TInt))
+    val signature = TStruct(("Sample", TString), ("field1", TArray(TInt32)), ("field2", TInt32))
     val keyNames = Array("Sample")
     KeyTable(hc, rdd, signature, keyNames)
   }
@@ -32,7 +32,7 @@ class KeyTableSuite extends SparkSuite {
     val data = Array(Array("Sample1", IndexedSeq(IndexedSeq(9, 10), IndexedSeq(1)), IndexedSeq(5, 6)), Array("Sample2", IndexedSeq(IndexedSeq(3), IndexedSeq.empty[Int]), IndexedSeq(5, 3)),
       Array("Sample3", IndexedSeq(IndexedSeq(2, 3, 4), IndexedSeq(3), IndexedSeq(4, 10)), IndexedSeq.empty[Int]), Array("Sample4", IndexedSeq.empty[Int], IndexedSeq(5)))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString), ("field1", TArray(TArray(TInt))), ("field2", TArray(TInt)))
+    val signature = TStruct(("Sample", TString), ("field1", TArray(TArray(TInt32))), ("field2", TArray(TInt32)))
     val keyNames = Array("Sample")
     KeyTable(hc, rdd, signature, keyNames)
   }
@@ -91,7 +91,7 @@ class KeyTableSuite extends SparkSuite {
   @Test def testFilter() = {
     val data = Array(Array(5, 9, 0), Array(2, 3, 4), Array(1, 2, 3))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("field1", TInt), ("field2", TInt), ("field3", TInt))
+    val signature = TStruct(("field1", TInt32), ("field2", TInt32), ("field3", TInt32))
     val keyNames = Array("field1")
 
     val kt1 = KeyTable(hc, rdd, signature, keyNames)
@@ -188,7 +188,7 @@ class KeyTableSuite extends SparkSuite {
   @Test def testAggregate() {
     val data = Array(Array("Case", 9, 0), Array("Case", 3, 4), Array("Control", 2, 3), Array("Control", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("field1", TString), ("field2", TInt), ("field3", TInt))
+    val signature = TStruct(("field1", TString), ("field2", TInt32), ("field3", TInt32))
     val keyNames = Array("field1")
 
     val kt1 = KeyTable(hc, rdd, signature, keyNames)
@@ -203,7 +203,7 @@ class KeyTableSuite extends SparkSuite {
     kt2.export("test.tsv")
     val result = Array(Array("Case", 12, 12, 16, 2L, 1L), Array("Control", 3, 3, 11, 2L, 0L))
     val resRDD = sc.parallelize(result.map(Row.fromSeq(_)))
-    val resSignature = TStruct(("Status", TString), ("A", TInt), ("B", TInt), ("C", TInt), ("D", TLong), ("E", TLong))
+    val resSignature = TStruct(("Status", TString), ("A", TInt32), ("B", TInt32), ("C", TInt32), ("D", TInt64), ("E", TInt64))
     val ktResult = KeyTable(hc, resRDD, resSignature, key = Array("Status"))
 
     assert(kt2 same ktResult)
@@ -215,7 +215,7 @@ class KeyTableSuite extends SparkSuite {
   @Test def testForallExists() {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32))
     val keyNames = Array("Sample")
 
     val kt = KeyTable(hc, rdd, signature, keyNames)
@@ -228,7 +228,7 @@ class KeyTableSuite extends SparkSuite {
   @Test def testRename() {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32))
     val keyNames = Array("Sample")
 
     val kt = KeyTable(hc, rdd, signature, keyNames)
@@ -252,7 +252,7 @@ class KeyTableSuite extends SparkSuite {
   @Test def testSelect() {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32))
     val keyNames = Array("Sample")
 
     val kt = KeyTable(hc, rdd, signature, keyNames)
@@ -280,7 +280,7 @@ class KeyTableSuite extends SparkSuite {
   @Test def testDrop() {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt))
+    val signature = TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32))
 
     val kt = KeyTable(hc, rdd, signature, Array("Sample"))
     val drop0 = kt.drop(Array.empty[String])
@@ -315,12 +315,12 @@ class KeyTableSuite extends SparkSuite {
     val result2 = Array(Array("Sample1", 9, 5), Array("Sample1", 1, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5),
       Array("Sample3", 3, 5), Array("Sample3", 4, 5))
     val resRDD2 = sc.parallelize(result2.map(Row.fromSeq(_)))
-    val ktResult2 = KeyTable(hc, resRDD2, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), key = Array("Sample"))
+    val ktResult2 = KeyTable(hc, resRDD2, TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32)), key = Array("Sample"))
 
     val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
       Array("Sample1", 1, 5), Array("Sample1", 1, 6), Array("Sample2", 3, 5), Array("Sample2", 3, 3))
     val resRDD3 = sc.parallelize(result3.map(Row.fromSeq(_)))
-    val ktResult3 = KeyTable(hc, resRDD3, TStruct(("Sample", TString), ("field1", TInt), ("field2", TInt)), key = Array("Sample"))
+    val ktResult3 = KeyTable(hc, resRDD3, TStruct(("Sample", TString), ("field1", TInt32), ("field2", TInt32)), key = Array("Sample"))
 
     intercept[HailException](kt1.explode(Array("Sample")))
     assert(ktResult2.same(kt2.explode(Array("field1"))))
@@ -379,7 +379,7 @@ class KeyTableSuite extends SparkSuite {
       .select(Array("v", "va.id"), Array("va.id"))
 
     val kt2 = KeyTable(hc, vds.variants.map(v => Row(v.toString, 5)),
-      TStruct("v" -> TString, "value" -> TInt), Array("v"))
+      TStruct("v" -> TString, "value" -> TInt32), Array("v"))
 
     kt.join(kt2, "inner").toDF(sqlContext).count()
   }
@@ -390,7 +390,7 @@ class KeyTableSuite extends SparkSuite {
       TStruct(
         "f1" -> TString,
         "f2" -> TString,
-        "f3" -> TInt,
+        "f3" -> TInt32,
         "f4" -> TString
       ),
       Array("f3", "f2", "f1"))
@@ -398,7 +398,7 @@ class KeyTableSuite extends SparkSuite {
     val kt2 = KeyTable(hc,
       sc.parallelize(Array(Row(3, "foo", "bar", "qux"))),
       TStruct(
-        "f3" -> TInt,
+        "f3" -> TInt32,
         "f1" -> TString,
         "f2" -> TString,
         "f5" -> TString

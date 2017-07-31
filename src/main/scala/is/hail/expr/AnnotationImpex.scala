@@ -39,10 +39,10 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def importType(t: DataType): Type = t match {
     case BooleanType => TBoolean
-    case IntegerType => TInt
-    case LongType => TLong
-    case FloatType => TFloat
-    case DoubleType => TDouble
+    case IntegerType => TInt32
+    case LongType => TInt64
+    case FloatType => TFloat32
+    case DoubleType => TFloat64
     case StringType => TString
     case BinaryType => TBinary
     case ArrayType(elementType, _) => TArray(importType(elementType))
@@ -113,10 +113,10 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def exportType(t: Type): DataType = (t: @unchecked) match {
     case TBoolean => BooleanType
-    case TInt => IntegerType
-    case TLong => LongType
-    case TFloat => FloatType
-    case TDouble => DoubleType
+    case TInt32 => IntegerType
+    case TInt64 => LongType
+    case TFloat32 => FloatType
+    case TFloat64 => DoubleType
     case TString => StringType
     case TBinary => BinaryType
     case TArray(elementType) => ArrayType(exportType(elementType))
@@ -233,7 +233,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
 
     if (types(0) != TString)
       fatal(s"wrong type for chromosome field: expected String, got ${ types(0) }")
-    if (types(1) != TInt)
+    if (types(1) != TInt32)
       fatal(s"wrong type for pos field: expected Int, got ${ types(1) }")
     if (types(2) != TString)
       fatal(s"wrong type for ref field: expected String, got ${ types(2) }")
@@ -280,10 +280,10 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
     else {
       (t: @unchecked) match {
         case TBoolean => JBool(a.asInstanceOf[Boolean])
-        case TInt => JInt(a.asInstanceOf[Int])
-        case TLong => JInt(a.asInstanceOf[Long])
-        case TFloat => JDouble(a.asInstanceOf[Float])
-        case TDouble => JDouble(a.asInstanceOf[Double])
+        case TInt32 => JInt(a.asInstanceOf[Int])
+        case TInt64 => JInt(a.asInstanceOf[Long])
+        case TFloat32 => JDouble(a.asInstanceOf[Float])
+        case TFloat64 => JDouble(a.asInstanceOf[Double])
         case TString => JString(a.asInstanceOf[String])
         case TArray(elementType) =>
           val arr = a.asInstanceOf[Seq[Any]]
@@ -319,20 +319,20 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
 
     (jv, t) match {
       case (JNull | JNothing, _) => null
-      case (JInt(x), TInt) => x.toInt
-      case (JInt(x), TLong) => x.toLong
-      case (JInt(x), TDouble) => x.toDouble
+      case (JInt(x), TInt32) => x.toInt
+      case (JInt(x), TInt64) => x.toLong
+      case (JInt(x), TFloat64) => x.toDouble
       case (JInt(x), TString) => x.toString
-      case (JDouble(x), TDouble) => x
-      case (JString("Infinity"), TDouble) => Double.PositiveInfinity
-      case (JString("-Infinity"), TDouble) => Double.NegativeInfinity
-      case (JString("Infinity"), TFloat) => Float.PositiveInfinity
-      case (JString("-Infinity"), TFloat) => Float.NegativeInfinity
-      case (JDouble(x), TFloat) => x.toFloat
+      case (JDouble(x), TFloat64) => x
+      case (JString("Infinity"), TFloat64) => Double.PositiveInfinity
+      case (JString("-Infinity"), TFloat64) => Double.NegativeInfinity
+      case (JString("Infinity"), TFloat32) => Float.PositiveInfinity
+      case (JString("-Infinity"), TFloat32) => Float.NegativeInfinity
+      case (JDouble(x), TFloat32) => x.toFloat
       case (JString(x), TString) => x
-      case (JString(x), TInt) =>
+      case (JString(x), TInt32) =>
         x.toInt
-      case (JString(x), TDouble) =>
+      case (JString(x), TFloat64) =>
         if (x.startsWith("-:"))
           x.drop(2).toDouble
         else
@@ -419,7 +419,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       "NA"
     else {
       t match {
-        case TDouble => a.asInstanceOf[Double].formatted("%.4e")
+        case TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
         case TString => a.asInstanceOf[String]
         case d: TDict => JsonMethods.compact(d.toJSON(a))
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
@@ -438,10 +438,10 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
   def importAnnotation(a: String, t: Type): Annotation = {
     (t: @unchecked) match {
       case TString => a
-      case TInt => a.toInt
-      case TLong => a.toLong
-      case TFloat => a.toFloat
-      case TDouble => if (a == "nan") Double.NaN else a.toDouble
+      case TInt32 => a.toInt
+      case TInt64 => a.toLong
+      case TFloat32 => a.toFloat
+      case TFloat64 => if (a == "nan") Double.NaN else a.toDouble
       case TBoolean => a.toBoolean
       case TLocus => Locus.parse(a)
       case TInterval => Locus.parseInterval(a)

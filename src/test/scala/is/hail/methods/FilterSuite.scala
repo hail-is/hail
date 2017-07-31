@@ -76,7 +76,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds2.filterGenotypes("g.ad[0] < 30").expand().collect().count { case (v, va, g) => Genotype.isCalled(g) } == 3)
 
-    assert(vds2.filterGenotypes("g.ad[1].toDouble() / g.dp > 0.05")
+    assert(vds2.filterGenotypes("g.ad[1].toFloat() / g.dp > 0.05")
       .expand().collect()
       .count { case (v, va, g) => Genotype.isCalled(g) } == 3)
 
@@ -154,7 +154,7 @@ class FilterSuite extends SparkSuite {
 
   @Test def testWeirdNames() {
     var vds = hc.importVCF("src/test/resources/sample.vcf")
-    val (sigs, i) = vds.insertVA(TInt, "weird name \t test")
+    val (sigs, i) = vds.insertVA(TInt32, "weird name \t test")
     vds = vds
       .mapAnnotations((v, va, gs) => i(va, 1000))
       .copy(vaSignature = sigs)

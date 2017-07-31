@@ -316,10 +316,10 @@ class ContextTests(unittest.TestCase):
                          .count()[0], 200)
 
         cov = hc.import_table(test_resources + '/regressionLinear.cov',
-                                 types={'Cov1': TDouble(), 'Cov2': TDouble()}).key_by('Sample')
+                              types={'Cov1': TFloat64(), 'Cov2': TFloat64()}).key_by('Sample')
 
         phen1 = hc.import_table(test_resources + '/regressionLinear.pheno', missing='0',
-                                   types={'Pheno': TDouble()}).key_by('Sample')
+                                types={'Pheno': TFloat64()}).key_by('Sample')
         phen2 = hc.import_table(test_resources + '/regressionLogisticBoolean.pheno', missing='0',
                                    types={'isCase': TBoolean()}).key_by('Sample')
 
@@ -696,17 +696,17 @@ class ContextTests(unittest.TestCase):
 
     def test_types(self):
         self.assertEqual(TInt(), TInt())
-        self.assertEqual(TDouble(), TDouble())
-        self.assertEqual(TArray(TDouble()), TArray(TDouble()))
-        self.assertFalse(TArray(TDouble()) == TArray(TFloat()))
-        self.assertFalse(TSet(TDouble()) == TArray(TFloat()))
-        self.assertEqual(TSet(TDouble()), TSet(TDouble()))
+        self.assertEqual(TFloat64(), TFloat64())
+        self.assertEqual(TArray(TFloat64()), TArray(TFloat64()))
+        self.assertFalse(TArray(TFloat64()) == TArray(TFloat()))
+        self.assertFalse(TSet(TFloat64()) == TArray(TFloat()))
+        self.assertEqual(TSet(TFloat64()), TSet(TFloat64()))
         self.assertEqual(TDict(TString(), TArray(TInt())), TDict(TString(), TArray(TInt())))
 
         some_random_types = [
             TInt(),
             TString(),
-            TDouble(),
+            TFloat64(),
             TFloat(),
             TBoolean(),
             TArray(TString()),
@@ -720,14 +720,14 @@ class ContextTests(unittest.TestCase):
             TInterval(),
             TSet(TInterval()),
             TStruct(['a', 'b', 'c'], [TInt(), TInt(), TArray(TString())]),
-            TStruct(['a', 'bb', 'c'], [TDouble(), TInt(), TBoolean()]),
+            TStruct(['a', 'bb', 'c'], [TFloat64(), TInt(), TBoolean()]),
             TStruct(['a', 'b'], [TInt(), TInt()])]
 
         #  copy and reinitialize to check that two initializations produce equality (not reference equality)
         some_random_types_cp = [
             TInt(),
             TString(),
-            TDouble(),
+            TFloat64(),
             TFloat(),
             TBoolean(),
             TArray(TString()),
@@ -741,7 +741,7 @@ class ContextTests(unittest.TestCase):
             TInterval(),
             TSet(TInterval()),
             TStruct(['a', 'b', 'c'], [TInt(), TInt(), TArray(TString())]),
-            TStruct(['a', 'bb', 'c'], [TDouble(), TInt(), TBoolean()]),
+            TStruct(['a', 'bb', 'c'], [TFloat64(), TInt(), TBoolean()]),
             TStruct(['a', 'b'], [TInt(), TInt()])]
 
         for i in range(len(some_random_types)):
@@ -782,7 +782,7 @@ class ContextTests(unittest.TestCase):
 
         d1 = float(5)
         d2 = None
-        dtype = TDouble()
+        dtype = TFloat64()
         self.assertEqual(vds.annotate_global(path, d1, dtype).globals.annotation, d1)
         self.assertEqual(vds.annotate_global(path, d2, dtype).globals.annotation, d2)
 

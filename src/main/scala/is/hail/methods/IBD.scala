@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.HailContext
-import is.hail.expr.{EvalContext, Parser, TDouble, TLong, TString, TStruct, TVariant}
+import is.hail.expr.{EvalContext, Parser, TFloat64, TInt64, TString, TStruct, TVariant}
 import is.hail.keytable.KeyTable
 import is.hail.annotations.Annotation
 import is.hail.expr._
@@ -19,7 +19,7 @@ object IBDInfo {
   }
 
   val signature =
-    TStruct(("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble), ("PI_HAT", TDouble))
+    TStruct(("Z0", TFloat64), ("Z1", TFloat64), ("Z2", TFloat64), ("PI_HAT", TFloat64))
 }
 
 case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
@@ -33,7 +33,7 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
 
 object ExtendedIBDInfo {
   val signature =
-    TStruct(("ibd", IBDInfo.signature), ("ibs0", TLong), ("ibs1", TLong), ("ibs2", TLong))
+    TStruct(("ibd", IBDInfo.signature), ("ibs0", TInt64), ("ibs1", TInt64), ("ibs2", TInt64))
 }
 
 case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {

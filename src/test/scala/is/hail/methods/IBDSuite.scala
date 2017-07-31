@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.{TDouble, TInt, TString}
+import is.hail.expr.{TFloat64, TInt32, TString}
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils.{AbsoluteFuzzyComparable, TextTableReader, _}
 import is.hail.variant._
@@ -70,8 +70,8 @@ class IBDSuite extends SparkSuite {
     hadoopConf.copy(localGenomeFile, genomeFile)
 
     val (_, rdd) = TextTableReader.read(sc)(Array(tmpdir + ".genome"),
-      types = Map(("IID1", TString), ("IID2", TString), ("Z0", TDouble), ("Z1", TDouble), ("Z2", TDouble),
-        ("PI_HAT", TDouble), ("IBS0", TInt), ("IBS1", TInt), ("IBS2", TInt)),
+      types = Map(("IID1", TString), ("IID2", TString), ("Z0", TFloat64), ("Z1", TFloat64), ("Z2", TFloat64),
+        ("PI_HAT", TFloat64), ("IBS0", TInt32), ("IBS1", TInt32), ("IBS2", TInt32)),
       separator = " +"
     )
 

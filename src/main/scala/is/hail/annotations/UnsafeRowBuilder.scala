@@ -125,10 +125,10 @@ class UnsafeRowBuilder(t: TStruct, sizeHint: Int = 128) {
   private def put(value: Annotation, offset: Int, elementType: Type) {
     assert(value != null, s"got a null value of type ${ elementType } at offset $offset")
     elementType match {
-      case TInt | TCall => buffer.storeInt(offset, value.asInstanceOf[Int])
-      case TLong => buffer.storeLong(offset, value.asInstanceOf[Long])
-      case TFloat => buffer.storeFloat(offset, value.asInstanceOf[Float])
-      case TDouble => buffer.storeDouble(offset, value.asInstanceOf[Double])
+      case TInt32 | TCall => buffer.storeInt(offset, value.asInstanceOf[Int])
+      case TInt64 => buffer.storeLong(offset, value.asInstanceOf[Long])
+      case TFloat32 => buffer.storeFloat(offset, value.asInstanceOf[Float])
+      case TFloat64 => buffer.storeDouble(offset, value.asInstanceOf[Double])
       case TBoolean => buffer.storeByte(offset, value.asInstanceOf[Boolean].toByte)
       case TString => putBinary(value.asInstanceOf[String].getBytes(), offset)
       case t: TArray => putArray(value.asInstanceOf[Iterable[_]], offset, t.elementType)
@@ -206,16 +206,16 @@ class UnsafeRowBuilder(t: TStruct, sizeHint: Int = 128) {
 
   private def copyFromUnsafe(ft: Type, o1: Int, o2: Int, mb: MemoryBlock) {
     ft match {
-      case TInt =>
+      case TInt32 =>
         val value = mb.loadInt(o2)
         buffer.storeInt(o1, value)
-      case TFloat =>
+      case TFloat32 =>
         val value = mb.loadFloat(o2)
         buffer.storeFloat(o1, value)
-      case TLong =>
+      case TInt64 =>
         val value = mb.loadLong(o2)
         buffer.storeLong(o1, value)
-      case TDouble =>
+      case TFloat64 =>
         val value = mb.loadDouble(o2)
         buffer.storeDouble(o1, value)
       case TBoolean =>

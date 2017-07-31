@@ -133,7 +133,7 @@ object SplitMulti {
       return vds
     }
 
-    val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
+    val (vas2, insertIndex) = vds.vaSignature.insert(TInt32, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
 
     val vas4 = vas3.getAsOption[TStruct]("info").map { s =>

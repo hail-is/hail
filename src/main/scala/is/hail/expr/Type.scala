@@ -20,7 +20,7 @@ import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 object Type {
-  val genScalar = Gen.oneOf[Type](TBoolean, TInt, TLong, TFloat, TDouble, TString,
+  val genScalar = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
     TVariant, TAltAllele, TGenotype, TLocus, TInterval, TCall)
 
   def genSized(size: Int): Gen[Type] = {
@@ -243,13 +243,13 @@ object TNumeric {
   def promoteNumeric(types: Set[TNumeric]): Type = {
     if (types.size == 1)
       types.head
-    else if (types(TDouble))
-      TDouble
-    else if (types(TFloat))
-      TFloat
+    else if (types(TFloat64))
+      TFloat64
+    else if (types(TFloat32))
+      TFloat32
     else {
-      assert(types(TLong))
-      TLong
+      assert(types(TInt64))
+      TInt64
     }
   }
 }
@@ -262,8 +262,8 @@ abstract class TNumeric extends Type {
 
 abstract class TIntegral extends TNumeric
 
-case object TInt extends TIntegral {
-  override def toString = "Int"
+case object TInt32 extends TIntegral {
+  override def toString = "Int32"
 
   val conv = IntNumericConversion
 
@@ -280,8 +280,8 @@ case object TInt extends TIntegral {
   override def byteSize: Int = 4
 }
 
-case object TLong extends TIntegral {
-  override def toString = "Long"
+case object TInt64 extends TIntegral {
+  override def toString = "Int64"
 
   val conv = LongNumericConversion
 
@@ -298,8 +298,8 @@ case object TLong extends TIntegral {
   override def byteSize: Int = 8
 }
 
-case object TFloat extends TNumeric {
-  override def toString = "Float"
+case object TFloat32 extends TNumeric {
+  override def toString = "Float32"
 
   val conv = FloatNumericConversion
 
@@ -323,8 +323,8 @@ case object TFloat extends TNumeric {
   override def byteSize: Int = 4
 }
 
-case object TDouble extends TNumeric {
-  override def toString = "Double"
+case object TFloat64 extends TNumeric {
+  override def toString = "Float64"
 
   val conv = DoubleNumericConversion
 
@@ -717,11 +717,11 @@ case object TGenotype extends ComplexType {
   override def toString = "Genotype"
 
   val representation: TStruct = TStruct(
-    "gt" -> TInt,
-    "ad" -> TArray(TInt),
-    "dp" -> TInt,
-    "gq" -> TInt,
-    "px" -> TArray(TInt),
+    "gt" -> TInt32,
+    "ad" -> TArray(TInt32),
+    "dp" -> TInt32,
+    "gq" -> TInt32,
+    "px" -> TArray(TInt32),
     "fakeRef" -> TBoolean,
     "isLinearScale" -> TBoolean)
 
@@ -745,7 +745,7 @@ case object TGenotype extends ComplexType {
 case object TCall extends ComplexType {
   override def toString = "Call"
 
-  def representation: Type = TInt
+  def representation: Type = TInt32
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
@@ -821,7 +821,7 @@ case object TVariant extends ComplexType {
 
   val representation: TStruct = TStruct(
     "contig" -> TString,
-    "start" -> TInt,
+    "start" -> TInt32,
     "ref" -> TString,
     "altAlleles" -> TArray(TAltAllele.representation))
 }
@@ -843,7 +843,7 @@ case object TLocus extends ComplexType {
 
   val representation: TStruct = TStruct(
     "contig" -> TString,
-    "position" -> TInt)
+    "position" -> TInt32)
 }
 
 case object TInterval extends ComplexType {

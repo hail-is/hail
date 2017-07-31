@@ -327,34 +327,34 @@ object HtsjdkRecordReader {
     ((value, t): @unchecked) match {
       case (null, _) => null
       case (".", _) => null
-      case (s: String, TArray(TInt)) =>
+      case (s: String, TArray(TInt32)) =>
         s.split(",").map(x => (if (x == ".") null else x.toInt): java.lang.Integer): IndexedSeq[java.lang.Integer]
-      case (s: String, TArray(TDouble)) =>
+      case (s: String, TArray(TFloat64)) =>
         s.split(",").map(x => (if (x == ".") null else x.toDouble): java.lang.Double): IndexedSeq[java.lang.Double]
       case (s: String, TArray(TString)) =>
         s.split(",").map(x => if (x == ".") null else x): IndexedSeq[String]
       case (s: String, TBoolean) => s.toBoolean
       case (b: Boolean, TBoolean) => b
       case (s: String, TString) => s
-      case (s: String, TInt) => s.toInt
-      case (s: String, TDouble) => if (s == "nan") Double.NaN else s.toDouble
+      case (s: String, TInt32) => s.toInt
+      case (s: String, TFloat64) => if (s == "nan") Double.NaN else s.toDouble
 
-      case (i: Int, TInt) => i
-      case (d: Double, TInt) => d.toInt
+      case (i: Int, TInt32) => i
+      case (d: Double, TInt32) => d.toInt
 
-      case (d: Double, TDouble) => d
-      case (f: Float, TDouble) => f.toDouble
+      case (d: Double, TFloat64) => d
+      case (f: Float, TFloat64) => f.toDouble
 
-      case (f: Float, TFloat) => f
-      case (d: Double, TFloat) => d.toFloat
+      case (f: Float, TFloat32) => f
+      case (d: Double, TFloat32) => d.toFloat
 
-      case (l: java.util.List[_], TArray(TInt)) =>
+      case (l: java.util.List[_], TArray(TInt32)) =>
         l.asScala.iterator.map[java.lang.Integer] {
           case "." => null
           case s: String => s.toInt
           case i: Int => i
         }.toArray[java.lang.Integer]: IndexedSeq[java.lang.Integer]
-      case (l: java.util.List[_], TArray(TDouble)) =>
+      case (l: java.util.List[_], TArray(TFloat64)) =>
         l.asScala.iterator.map[java.lang.Double] {
           case "." => null
           case s: String => s.toDouble

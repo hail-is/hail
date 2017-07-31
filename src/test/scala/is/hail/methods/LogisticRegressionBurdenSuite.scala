@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.TestUtils.interceptFatal
-import is.hail.expr.TDouble
+import is.hail.expr.TFloat64
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.io.annotators.IntervalList
@@ -21,24 +21,24 @@ class LogisticRegressionBurdenSuite extends SparkSuite {
   */
   def intervals = IntervalList.read(hc, "src/test/resources/regressionLinear.interval_list")
   def covariates = hc.importTable("src/test/resources/regressionLinear.cov",
-    types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
   def phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
-    types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+    types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   def vdsBurden: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
     .annotateVariantsTable(intervals, root="va.genes", product=true)
-    .annotateVariantsExpr("va.weight = v.start.toDouble")
+    .annotateVariantsExpr("va.weight = v.start.toFloat()")
     .annotateSamplesTable(phenotypes, root="sa.pheno0")
     .annotateSamplesTable(covariates, root="sa.cov")
     .annotateSamplesExpr("sa.pheno = if (sa.pheno0 == 1.0) false else if (sa.pheno0 == 2.0) true else NA: Boolean")
 
   @Test def testMax() {
     val (logregWaldKT, sampleKT) = vdsBurden.logregBurden("gene", "va.genes", singleKey = false,
-      "gs.map(g => g.gt.toDouble).max()", "wald", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      "gs.map(g => g.gt.toFloat()).max()", "wald", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val (logregLRTKT, _) = vdsBurden.logregBurden("gene", "va.genes", singleKey = false,
-      "gs.map(g => g.gt.toDouble).max()", "lrt", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      "gs.map(g => g.gt.toFloat()).max()", "lrt", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     val (logregScoreKT, _) = vdsBurden.logregBurden("gene", "va.genes", singleKey = false,
-      "gs.map(g => g.gt.toDouble).max()", "score", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      "gs.map(g => g.gt.toFloat()).max()", "score", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val sampleMap = keyTableBoxedDoubleToMap[String](sampleKT)
 
@@ -104,17 +104,17 @@ class LogisticRegressionBurdenSuite extends SparkSuite {
   @Test def testFatals() {
     interceptFatal("clashes with reserved wald logreg columns") {
       vdsBurden.logregBurden("pval", "va.genes", singleKey = false,
-        "gs.map(g => g.gt.toDouble).max()", "wald", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+        "gs.map(g => g.gt.toFloat()).max()", "wald", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
 
     interceptFatal("clashes with a sample name") {
       vdsBurden.logregBurden("A", "va.genes", singleKey = false,
-        "gs.map(g => g.gt.toDouble).max()", "wald", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+        "gs.map(g => g.gt.toFloat()).max()", "wald", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
 
     interceptFatal("phenotype must be Boolean or numeric with all present values equal to 0 or 1") {
       vdsBurden.logregBurden("gene", "va.genes", singleKey = false,
-        "gs.map(g => g.gt.toDouble).max()", "wald", "sa.pheno0", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+        "gs.map(g => g.gt.toFloat()).max()", "wald", "sa.pheno0", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
 }

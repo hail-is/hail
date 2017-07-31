@@ -1015,8 +1015,8 @@ object FunctionRegistry {
     "values" -> "Values of Dict.")(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
 
   val combineVariantsStruct = TStruct(Array(("variant", TVariant, "Resulting combined variant."),
-    ("laIndices", TDict(TInt, TInt), "Mapping from new to old allele index for the left variant."),
-    ("raIndices", TDict(TInt, TInt), "Mapping from new to old allele index for the right variant.")
+    ("laIndices", TDict(TInt32, TInt32), "Mapping from new to old allele index for the left variant."),
+    ("raIndices", TDict(TInt32, TInt32), "Mapping from new to old allele index for the right variant.")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 
   registerAnn("combineVariants",
@@ -1100,8 +1100,8 @@ object FunctionRegistry {
     "startLocus" -> "Start position of interval",
     "endLocus" -> "End position of interval")
 
-  val hweStruct = TStruct(Array(("rExpectedHetFrequency", TDouble, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
-    ("pHWE", TDouble, "P-value")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  val hweStruct = TStruct(Array(("rExpectedHetFrequency", TFloat64, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
+    ("pHWE", TFloat64, "P-value")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 
   registerAnn("hwe", hweStruct, { (nHomRef: Int, nHet: Int, nHomVar: Int) =>
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -1155,7 +1155,7 @@ object FunctionRegistry {
   }
 
 
-  val chisqStruct = TStruct(Array(("pValue", TDouble, "p-value"), ("oddsRatio", TDouble, "odds ratio")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  val chisqStruct = TStruct(Array(("pValue", TFloat64, "p-value"), ("oddsRatio", TFloat64, "odds ratio")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
   registerAnn("chisq", chisqStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
     if (c1 < 0 || c2 < 0 || c3 < 0 || c4 < 0)
       fatal(s"got invalid argument to function `chisq': chisq($c1, $c2, $c3, $c4)")
@@ -1184,8 +1184,8 @@ object FunctionRegistry {
     "c1" -> "value for cell 1", "c2" -> "value for cell 2", "c3" -> "value for cell 3", "c4" -> "value for cell 4", "minCellCount" -> "Minimum cell count for using chi-squared approximation"
   )
 
-  val fetStruct = TStruct(Array(("pValue", TDouble, "p-value"), ("oddsRatio", TDouble, "odds ratio"),
-    ("ci95Lower", TDouble, "lower bound for 95% confidence interval"), ("ci95Upper", TDouble, "upper bound for 95% confidence interval")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
+  val fetStruct = TStruct(Array(("pValue", TFloat64, "p-value"), ("oddsRatio", TFloat64, "odds ratio"),
+    ("ci95Lower", TFloat64, "lower bound for 95% confidence interval"), ("ci95Upper", TFloat64, "upper bound for 95% confidence interval")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 
 
   registerAnn("fet", fetStruct, { (c1: Int, c2: Int, c3: Int, c4: Int) =>
@@ -2040,7 +2040,7 @@ object FunctionRegistry {
      (AltAllele(T, C), 44L)]
     """)(aggregableHr(TTHr),
     new HailRep[Any] {
-      def typ = TDict(TTHr.typ, TLong)
+      def typ = TDict(TTHr.typ, TInt64)
     })
 
   registerAggregator[Double, Any]("stats", () => new StatAggregator(),
@@ -2075,8 +2075,8 @@ object FunctionRegistry {
     """)(aggregableHr(doubleHr),
     new HailRep[Any] {
       def typ = TStruct(Array(
-        ("mean", TDouble, "Mean value"), ("stdev", TDouble, "Standard deviation"), ("min", TDouble, "Minimum value"),
-        ("max", TDouble, "Maximum value"), ("nNotMissing", TLong, "Number of non-missing values"), ("sum", TDouble, "Sum of all elements")
+        ("mean", TFloat64, "Mean value"), ("stdev", TFloat64, "Standard deviation"), ("min", TFloat64, "Minimum value"),
+        ("max", TFloat64, "Maximum value"), ("nNotMissing", TInt64, "Number of non-missing values"), ("sum", TFloat64, "Sum of all elements")
       ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
     })
 
@@ -2476,15 +2476,19 @@ object FunctionRegistry {
     }, null)(arrayHr(hrboxedt), arrayHr(hrboxedt), arrayHr(hrboxeds))
   }
 
-  registerMethod("toInt", (s: String) => s.toInt, "Convert value to an Integer.")
-  registerMethod("toLong", (s: String) => s.toLong, "Convert value to a Long.")
-  registerMethod("toFloat", (s: String) => s.toFloat, "Convert value to a Float.")
-  registerMethod("toDouble", (s: String) => s.toDouble, "Convert value to a Double.")
+  registerMethod("toInt", (s: String) => s.toInt, "Convert value to a 32-bit integer.")
+  registerMethod("toInt32", (s: String) => s.toInt, "Convert value to a 32-bit integer.")
+  registerMethod("toInt64", (s: String) => s.toLong, "Convert value to a 64-bit integer.")
+  registerMethod("toFloat32", (s: String) => s.toFloat, "Convert value to a 32-bit floating point number.")
+  registerMethod("toFloat64", (s: String) => s.toDouble, "Convert value to a 64-bit floating point number.")
+  registerMethod("toFloat", (s: String) => s.toDouble, "Convert value to a 64-bit floating point number.")
 
-  registerMethod("toInt", (b: Boolean) => b.toInt, "Convert value to an Integer. Returns 1 if true, else 0.")
-  registerMethod("toLong", (b: Boolean) => b.toLong, "Convert value to a Long. Returns 1L if true, else 0L.")
-  registerMethod("toFloat", (b: Boolean) => b.toFloat, "Convert value to a Float. Returns 1.0 if true, else 0.0.")
-  registerMethod("toDouble", (b: Boolean) => b.toDouble, "Convert value to a Double. Returns 1.0 if true, else 0.0.")
+  registerMethod("toInt", (b: Boolean) => b.toInt, "Convert value to a 32-bit integer. Returns 1 if true, else 0.")
+  registerMethod("toInt32", (b: Boolean) => b.toInt, "Convert value to a 32-bit integer. Returns 1 if true, else 0.")
+  registerMethod("toInt64", (b: Boolean) => b.toLong, "Convert value to a 64-bit integer. Returns 1 if true, else 0.")
+  registerMethod("toFloat32", (b: Boolean) => b.toFloat, "Convert value to a 32-bit floating point number. Returns 1.0 if true, else 0.0.")
+  registerMethod("toFloat64", (b: Boolean) => b.toDouble, "Convert value to a 64-bit floating point number. Returns 1.0 if true, else 0.0.")
+  registerMethod("toFloat", (b: Boolean) => b.toDouble, "Convert value to a 64-bit floating point number. Returns 1.0 if true, else 0.0.")
 
   def registerNumericType[T]()(implicit ev: Numeric[T], hrt: HailRep[T]) {
     // registerNumeric("+", ev.plus)
@@ -2498,10 +2502,12 @@ object FunctionRegistry {
     register("-", ev.negate _, "Returns the negation of this value.")
     register("fromInt", ev.fromInt _, null)
 
-    registerMethod("toInt", ev.toInt _, "Convert value to an Integer.")
-    registerMethod("toLong", ev.toLong _, "Convert value to a Long.")
-    registerMethod("toFloat", ev.toFloat _, "Convert value to a Float.")
-    registerMethod("toDouble", ev.toDouble _, "Convert value to a Double.")
+    registerMethod("toInt", ev.toInt _, "Convert value to a 32-bit integer.")
+    registerMethod("toInt32", ev.toInt _, "Convert value to a 32-bit integer.")
+    registerMethod("toInt64", ev.toLong _, "Convert value to a 64-bit integer.")
+    registerMethod("toFloat32", ev.toFloat _, "Convert value to a 32-bit floating point number.")
+    registerMethod("toFloat64", ev.toDouble _, "Convert value to a 64-bit floating point number.")
+    registerMethod("toFloat", ev.toDouble _, "Convert value to a 64-bit floating point number.")
   }
 
   registerNumeric("**", (x: Double, y: Double) => math.pow(x, y))

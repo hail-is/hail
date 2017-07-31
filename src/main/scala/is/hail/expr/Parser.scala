@@ -434,10 +434,10 @@ object Parser extends JavaTokenParsers {
     }
 
   def primary_expr: Parser[AST] =
-    withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
-      withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TDouble)) |
-      withPos(wholeNumber <~ "[Ll]".r) ^^ (r => Const(r.pos, r.x.toLong, TLong)) |
-      withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt)) |
+    withPos("""-?\d*\.\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64)) |
+      withPos("""-?\d+(\.\d*)?[eE][+-]?\d+[dD]?""".r) ^^ (r => Const(r.pos, r.x.toDouble, TFloat64)) |
+      withPos(wholeNumber <~ "[Ll]".r) ^^ (r => Const(r.pos, r.x.toLong, TInt64)) |
+      withPos(wholeNumber) ^^ (r => Const(r.pos, r.x.toInt, TInt32)) |
       withPos(stringLiteral) ^^ { r => Const(r.pos, r.x, TString) } |
       withPos("NA" ~> ":" ~> type_expr) ^^ (r => Const(r.pos, null, r.x)) |
       withPos(arrayDeclaration) ^^ (r => ArrayConstructor(r.pos, r.x)) |
@@ -536,10 +536,12 @@ object Parser extends JavaTokenParsers {
     "Empty" ^^ { _ => TStruct.empty } |
       "Interval" ^^ { _ => TInterval } |
       "Boolean" ^^ { _ => TBoolean } |
-      "Int" ^^ { _ => TInt } |
-      "Long" ^^ { _ => TLong } |
-      "Float" ^^ { _ => TFloat } |
-      "Double" ^^ { _ => TDouble } |
+      "Int32" ^^ { _ => TInt32 } |
+      "Int64" ^^ { _ => TInt64 } |
+      "Int" ^^ { _ => TInt32 } |
+      "Float32" ^^ { _ => TFloat32 } |
+      "Float64" ^^ { _ => TFloat64 } |
+      "Float" ^^ { _ => TFloat64 } |
       "String" ^^ { _ => TString } |
       "AltAllele" ^^ { _ => TAltAllele } |
       "Variant" ^^ { _ => TVariant } |

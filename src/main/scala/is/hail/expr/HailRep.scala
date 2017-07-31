@@ -15,19 +15,19 @@ trait HailRepFunctions {
   }
 
   implicit object intHr extends HailRep[Int] {
-    def typ = TInt
+    def typ = TInt32
   }
 
   implicit object longHr extends HailRep[Long] {
-    def typ = TLong
+    def typ = TInt64
   }
 
   implicit object floatHr extends HailRep[Float] {
-    def typ = TFloat
+    def typ = TFloat32
   }
 
   implicit object doubleHr extends HailRep[Double] {
-    def typ = TDouble
+    def typ = TFloat64
   }
 
   implicit object boxedboolHr extends HailRep[java.lang.Boolean] {
@@ -35,19 +35,19 @@ trait HailRepFunctions {
   }
 
   implicit object boxedintHr extends HailRep[java.lang.Integer] {
-    def typ = TInt
+    def typ = TInt32
   }
 
   implicit object boxedlongHr extends HailRep[java.lang.Long] {
-    def typ = TLong
+    def typ = TInt64
   }
 
   implicit object boxedfloatHr extends HailRep[java.lang.Float] {
-    def typ = TFloat
+    def typ = TFloat32
   }
 
   implicit object boxeddoubleHr extends HailRep[java.lang.Double] {
-    def typ = TDouble
+    def typ = TFloat64
   }
 
   implicit object stringHr extends HailRep[String] {

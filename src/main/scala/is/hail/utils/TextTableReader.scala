@@ -80,7 +80,7 @@ object TextTableReader {
     val nFields = header.length
     val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
 
-    val regexTypes: Array[Type] = Array(TBoolean, TVariant, TLocus, TInt, TDouble)
+    val regexTypes: Array[Type] = Array(TBoolean, TVariant, TLocus, TInt32, TFloat64)
     val nRegex = regexes.length
 
     val imputation = values.treeAggregate(MultiArray2.fill[Boolean](nFields, nRegex + 1)(true))({ case (ma, line) =>
