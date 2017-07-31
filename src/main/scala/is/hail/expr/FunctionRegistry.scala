@@ -1276,12 +1276,12 @@ object FunctionRegistry {
 
   register("dbeta", { (x: Double, a: Double, b: Double) => dbeta(x, a, b)},
   """
-    |Returns the probability density at x of a beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>__
-    |with parameters a (alpha) and b (beta).
+    Returns the probability density at x of a beta distribution <https://en.wikipedia.org/wiki/Beta_distribution>__
+    with parameters a (alpha) and b (beta).
   """,
   "x" -> "Point in [0,1] at which to sample. If a < 1 then x must be positive. If b < 1 then x must be less than 1.",
-  "a" -> "the alpha term in the beta distribution, x^{a -1}. a > 0",
-  "b" -> "the beta term in the beta distribution (1 - x)^{b - 1}. b > 0")
+  "a" -> "the alpha term in the beta distribution, :math:'x^{a -1}'. a > 0",
+  "b" -> "the beta term in the beta distribution :math:'(1 - x)^{b - 1}'. b > 0")
   register("rnorm", { (mean: Double, sd: Double) => mean + sd * scala.util.Random.nextGaussian() },
     """
     Returns a random draw from a normal distribution with mean ``mean`` and standard deviation ``sd``. ``sd`` should be non-negative. This function is non-deterministic.
