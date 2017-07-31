@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{VSMLocalValue, VSMMetadata, VariantSampleMatrix}
+import is.hail.variant.{VSMLocalValue, VSMMetadata, VariantSampleMatrix, Locus, Variant}
 import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConversions._
@@ -15,7 +15,7 @@ import scala.reflect.ClassTag
 
 object LoadGDB {
 
-  def apply[T](hc: HailContext,
+  def apply[T >: Null](hc: HailContext,
                reader: HtsjdkRecordReader[T],
                loaderJSONFile: String,
                queryJSONFile: String,
@@ -23,7 +23,7 @@ object LoadGDB {
                arrayName: String,
                referenceGenome: String,
                nPartitions: Option[Int] = None,
-               dropSamples: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[T] = {
+               dropSamples: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[Locus, Variant, T] = {
     val sc = hc.sc
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -104,14 +104,13 @@ object LoadGDB {
 
     justVariants.unpersist()
 
-    new VariantSampleMatrix[T](hc, VSMMetadata(
+    new VariantSampleMatrix[Locus, Variant, T](hc, VSMMetadata(
       TString,
       TStruct.empty,
       TVariant,
       variantAnnotationSignatures,
       TStruct.empty,
       genotypeSignature,
-      isGenericGenotype = reader.genericGenotypes,
       wasSplit = noMulti),
       VSMLocalValue(Annotation.empty,
         sampleIds,
