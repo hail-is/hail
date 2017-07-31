@@ -111,7 +111,7 @@ compileScala {
 }
 
 dependencies {
-    compile files("../build/target/genomicsdb-0.6.4.jar")
+    compile group: 'com.intel', name: 'genomicsdb', version: '0.6.4-proto-3.0.0-beta-1'
     compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
@@ -223,6 +223,7 @@ shadowJar {
     from(project.sourceSets.main.output)
     configurations = [project.configurations.runtime]
     dependencies {
+        include(dependency('com.intel:genomicsdb:.*'))
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
@@ -265,6 +266,7 @@ task shadowTestJar(type: ShadowJar) {
     from(project.sourceSets.main.output, project.sourceSets.test.output)
     configurations = [project.configurations.testRuntime]
     dependencies {
+        include(dependency('com.intel:genomicsdb:.*'))
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))

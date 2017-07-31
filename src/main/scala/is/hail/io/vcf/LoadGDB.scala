@@ -44,8 +44,6 @@ object LoadGDB {
       .map(line => (line.getID, ""))
       .toMap
 
-    val mutableFilters = collection.mutable.Map(immutableFilters.toSeq: _*)
-
     var filters = immutableFilters
 
     if (immutableFilters.size > 1 && immutableFilters.contains("PASS")) { //remove extra PASS filter if there are others
