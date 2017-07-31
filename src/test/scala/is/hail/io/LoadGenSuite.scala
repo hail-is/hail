@@ -41,7 +41,7 @@ class LoadGenSuite extends SparkSuite {
 
       var n = 0
       val result = for {g <- gs1} yield {
-        val dosNew = g.gp
+        val dosNew = Genotype.gp(g)
 
         dosNew match {
           case Some(x) =>

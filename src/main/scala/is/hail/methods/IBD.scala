@@ -85,7 +85,7 @@ object IBD {
 
   def ibsForGenotypes(gs: Iterable[Genotype], maybeMaf: Option[Double]): IBSExpectations = {
     def calculateCountsFromMAF(maf: Double) = {
-      val Na = gs.count(_.gt.isDefined) * 2.0
+      val Na = gs.count(g => Genotype.isCalled(g)) * 2.0
       val p = 1 - maf
       val q = maf
       val x = Na * p
@@ -95,7 +95,9 @@ object IBD {
 
     def estimateFrequenciesFromSample = {
       val (na, x) = gs.foldLeft((0, 0d)) { case ((na, sum), g) =>
-        (na + g.gt.map(x => 2).getOrElse(0), sum + g.gt.map(countRefs).getOrElse(0))
+        val gt = Genotype.unboxedGT(g)
+        (na + (if (gt != -1) 2 else 0),
+          sum + (if (gt != -1) countRefs(gt) else 0))
       }
       val Na = na.toDouble
       val y = Na - x
@@ -158,7 +160,12 @@ object IBD {
     val nSamples = vds.nSamples
 
     val chunkedGenotypeMatrix = vds.rdd
-      .map { case (v, (va, gs)) => gs.map(_.gt.map(IBSFFI.gtToCRep).getOrElse(IBSFFI.missingGTCRep)).toArray[Byte] }
+      .map { case (v, (va, gs)) => gs.map(g =>
+        if (Genotype.isCalled(g))
+          IBSFFI.gtToCRep(Genotype.unboxedGT(g))
+        else
+          IBSFFI.missingGTCRep).toArray[Byte]
+      }
       .zipWithIndex()
       .flatMap { case (gts, variantId) =>
         val vid = (variantId % chunkSize).toInt
@@ -263,6 +270,7 @@ object IBD {
 
 
   private val (ibdSignature, ibdMerger) = TStruct(("i", TString), ("j", TString)).merge(ExtendedIBDInfo.signature)
+
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): KeyTable = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => ibdMerger(Annotation(i, j), eibd.toAnnotation).asInstanceOf[Row] }
     KeyTable(sc, ktRdd, ibdSignature, Array("i", "j"))
@@ -318,7 +326,7 @@ object IBDPrune {
     })
 
     val computedIBDs: RDD[((Int, Int), Double)] = IBD.computeIBDMatrix(vds, computeMaf, bounded)
-      .map{case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT)}
+      .map { case ((v1, v2), info) => ((v1, v2), info.ibd.PI_HAT) }
 
     info("Performing IBD Prune")
 

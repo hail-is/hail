@@ -6,6 +6,7 @@ import breeze.linalg.DenseMatrix
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Prop}
+import is.hail.expr.Type
 import is.hail.utils._
 import is.hail.variant._
 import org.testng.annotations.Test
@@ -130,8 +131,8 @@ class GRMSuite extends SparkSuite {
 
     Prop.check(forAll(
       VSMSubgen.realistic.copy(
-        vGen = VariantSubgen.plinkCompatible.gen,
-        tGen = VSMSubgen.realistic.tGen(_).filter(_.isCalled))
+        vGen = _ => VariantSubgen.plinkCompatible.gen,
+        tGen = (t: Type, v: Variant) => VSMSubgen.realistic.tGen(t, v).filter(g => Genotype.isCalled(g)))
         .gen(hc)
         // plink fails with fewer than 2 samples, no variants
         .filter(vsm => vsm.nSamples > 1 && vsm.countVariants > 0)

@@ -83,6 +83,7 @@ object RegressionUtils {
       }
       assert(completeSampleIndex(j) == i)
 
+
       val gt = gts.next()
       i += 1
       if (gt != -1) {

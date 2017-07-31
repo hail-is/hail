@@ -171,7 +171,9 @@ object Gen {
   def chooseWithWeights(weights: Array[Double]): Gen[Int] =
     frequency(weights.zipWithIndex.map { case (w, i) => (w, Gen.const(i)) }: _*)
 
-  def frequency[T, U](wxs: (T, Gen[U])*)(implicit ev: T => scala.math.Numeric[T]#Ops): Gen[U] = {
+  def frequency[T, U](wxs: (T, Gen[U])*)(implicit ev: scala.math.Numeric[T]): Gen[U] = {
+    import Numeric.Implicits._
+
     assert(wxs.nonEmpty)
 
     val running = Array.fill[Double](wxs.length)(0d)
@@ -404,8 +406,12 @@ class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
   // FIXME should be non-strict
   def withFilter(f: (T) => Boolean): Gen[T] = Gen { (p: Parameters) =>
     var x = apply(p)
-    while (!f(x))
+    var i = 0
+    while (!f(x)) {
+      assert(i < 100)
       x = apply(p)
+      i += 1
+    }
     x
   }
 
