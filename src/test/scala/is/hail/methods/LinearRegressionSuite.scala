@@ -103,7 +103,6 @@ class LinearRegressionSuite extends SparkSuite {
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linreg(Array("sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), useDosages = true)
-      .linreg(Array("sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"), useDosages = true)
 
     val qBeta = vds.queryVA("va.linreg.beta")._2
     val qSe = vds.queryVA("va.linreg.se")._2
@@ -147,8 +146,6 @@ class LinearRegressionSuite extends SparkSuite {
     assertDouble(qSe(a(v3)), 0.6901002)
     assertDouble(qTstat(a(v3)), 1.5872510)
     assertDouble(qPval(a(v3)), 0.2533675)
-
-    assertNaN(qSe(a(v6)))
   }
 
   @Test def testWithTwoCovDosage() {
