@@ -36,7 +36,7 @@ object RegressionUtils {
       }
       i += 1
     }
-    assert((mask == null || i == mask.size) && row == nKept)
+    assert((mask == null || i == mask.length) && row == nKept)
 
     val valsArray = vals.result()
     val nMissing = missingSparseIndices.size
@@ -79,7 +79,6 @@ object RegressionUtils {
         i += 1
       }
       assert(completeSampleIndex(j) == i)
-
 
       val gt = gts.next()
       i += 1
@@ -221,7 +220,7 @@ object RegressionUtils {
     yExpr: String,
     covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
 
-    val nCovs = covExpr.size + 1 // intercept
+    val nCovs = covExpr.length + 1 // intercept
 
     val symTab = Map(
       "s" -> (0, TString),
@@ -260,8 +259,8 @@ object RegressionUtils {
     yExpr: Array[String],
     covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 
-    val nPhenos = yExpr.size
-    val nCovs = covExpr.size + 1 // intercept
+    val nPhenos = yExpr.length
+    val nCovs = covExpr.length + 1 // intercept
 
     if (nPhenos == 0)
       fatal("No phenotypes present.")
@@ -308,47 +307,5 @@ object RegressionUtils {
       i += 1
     }
     true
-  }
-
-  // Retrofitting for 0.1, will be removed at 2.0 when linreg AC is calculated post-imputation
-  def hardCallsWithAC(gs: Iterable[Genotype], nKept: Int, mask: Array[Boolean] = null, impute: Boolean = true): (SparseVector[Double], Double) = {
-    val gts = gs.hardCallIterator
-    val rows = new ArrayBuilder[Int]()
-    val vals = new ArrayBuilder[Double]()
-    val missingSparseIndices = new ArrayBuilder[Int]()
-    var i = 0
-    var row = 0
-    var sum = 0
-    while (gts.hasNext) {
-      val gt = gts.next()
-      if (mask == null || mask(i)) {
-        if (gt != 0) {
-          rows += row
-          if (gt != -1) {
-            sum += gt
-            vals += gt.toDouble
-          } else {
-            missingSparseIndices += vals.size
-            vals += Double.NaN
-          }
-        }
-        row += 1
-      }
-      i += 1
-    }
-    assert((mask == null || i == mask.size) && row == nKept)
-
-    val valsArray = vals.result()
-    val nMissing = missingSparseIndices.size
-    if (impute) {
-      val mean = sum.toDouble / (nKept - nMissing)
-      i = 0
-      while (i < nMissing) {
-        valsArray(missingSparseIndices(i)) = mean
-        i += 1
-      }
-    }
-
-    (new SparseVector[Double](rows.result(), valsArray, row), sum.toDouble)
   }
 }

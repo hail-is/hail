@@ -1,13 +1,11 @@
 package is.hail.methods
 
 import breeze.linalg._
-import breeze.numerics.sqrt
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
-import net.sourceforge.jdistlib.T
 
 object LinearRegression {
   def schema = TStruct(
@@ -19,106 +17,162 @@ object LinearRegression {
     ("tstat", TArray(TFloat64)),
     ("pval", TArray(TFloat64)))
 
-  def apply(vds: VariantDataset, ysExpr: Array[String], covExpr: Array[String], root: String, useDosages: Boolean, variantBlockSize: Int): VariantDataset = {
+  def apply(vds: VariantDataset, ysExpr: Array[String], xsExpr: Array[String], covsExpr: Array[String], root: String, variantBlockSize: Int): VariantDataset = {
     require(vds.wasSplit)
+    val rootGA = "global.linreg" // FIXME: pass in
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vds, ysExpr, covExpr)
-
     val completeSampleSet = completeSampleIndex.toSet
     val sampleMask = (0 until vds.nSamples).map(completeSampleSet).toArray
-    val n = y.rows // nCompleteSamples
-    val k = cov.cols // nCovariates
-    val d = n - k - 1
+    
+    val n = ys.rows // nCompleteSamples
+    val nys = ys.cols
+    val nxs = xsExpr.length
+    val ncovs = covs.cols
+    val d = n - nxs - ncovs
     val dRec = 1d / d
 
+    if (nxs == 0) // modify to global only when no field present
+      fatal("Must have at least one field")
+    
     if (d < 1)
-      fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+      fatal(s"$n samples with $nxs ${ plural(nxs, "field") } and $ncovs ${ plural(ncovs, "covariate") } implies $d degrees of freedom.")
 
-    info(s"Running linear regression for ${ y.cols } ${ plural(y.cols, "phenotype") } on $n samples with $k ${ plural(k, "covariate") } including intercept...")
+    info(s"Running linear regression for ${ nys } ${ plural(nys, "phenotype") } on $n samples with $nxs ${ plural(nxs, "field") } and $ncovs ${ plural(ncovs, "covariate") }...")
 
-    val Qt = qr.reduced.justQ(cov).t
-    val Qty = Qt * y
+    val Qt = qr.reduced.justQ(covs).t
+    val Qty = Qt * ys
+    val yyp = ys.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r)
 
+        
+//    val vds1 = vds.annotateGlobal(
+//      Annotation(betaMap, seMap, tstatMap, pvalMap),
+//      TStruct(("beta", TDict(TString, TDouble)), ("se", TDouble), ("tstat", TDouble), ("pval", TDouble)),
+//      rootGA)
+    
     val sc = vds.sparkContext
     val sampleMaskBc = sc.broadcast(sampleMask)
     val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
-    val yBc = sc.broadcast(y)
+    val yBc = sc.broadcast(ys)
     val QtBc = sc.broadcast(Qt)
     val QtyBc = sc.broadcast(Qty)
-    val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
+    val yypBc = sc.broadcast(yyp)
 
     val pathVA = Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD)
-    val (newVAS, inserter) = vds.insertVA(LinearRegression.schema, pathVA)
+    val (newVAS, inserter) = vds.insertVA(LinearRegressionModel.schemaNew, pathVA)
 
-    val newRDD = vds.rdd.mapPartitions({ it =>
-      val missingSamples = new ArrayBuilder[Int]
+    val vas = vds.vaSignature
+    val sas = vds.saSignature
+    
+    // relation to typ?
+    val symTab = Map(
+      "v"      -> (0, TVariant),
+      "va"     -> (1, vas),
+      "s"      -> (2, TString),
+      "sa"     -> (3, sas),
+      "g"      -> (4, TGenotype),
+      "global" -> (5, vds.globalSignature))
 
-      // columns are genotype vectors
-      var X: DenseMatrix[Double] = null
+    val ec = EvalContext(symTab)
+    ec.set(5, vds.globalAnnotation)
 
-      it.grouped(variantBlockSize)
-        .flatMap { git =>
-          val block = git.toArray
-          val blockLength = block.length
+    val samplesIds = vds.sampleIds // filter before broadcast?
+    val sampleAnnotations = vds.sampleAnnotations
 
-          if (X == null || X.cols != blockLength)
-            X = new DenseMatrix[Double](n, blockLength)
+    val sampleIdsBc = sc.broadcast(samplesIds)
+    val sampleAnnotationsBc = sc.broadcast(sampleAnnotations)
 
-          var i = 0
-          while (i < blockLength) {
-            val (_, (_, gs)) = block(i)
-
-            if (useDosages)
-              RegressionUtils.dosages(X(::, i), gs, completeSampleIndexBc.value, missingSamples)
-            else
-              X(::, i) := RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
-
-            i += 1
+    val (types, xs) = Parser.parseExprs(xsExpr.mkString(","), ec)
+   
+    val aToDouble = (types, xsExpr).zipped.map(RegressionUtils.toDouble)
+   
+    
+    if (nxs == 0) {
+      vds
+    } else if (nxs == 1) {
+      val newRDD = vds.rdd.mapPartitions( { it =>
+        val missingSamples = new ArrayBuilder[Int]
+  
+        // columns are genotype vectors
+        var X: DenseMatrix[Double] = null
+  
+        it.grouped(variantBlockSize)
+          .flatMap { git =>
+            val block = git.toArray
+            val blockLength = block.length
+  
+            if (X == null || X.cols != blockLength)
+              X = new DenseMatrix[Double](n, blockLength)
+  
+            var i = 0
+            while (i < blockLength) {
+              val (_, (_, gs)) = block(i)
+              X(::, i) := RegressionUtils.hardCalls(gs, n, sampleMaskBc.value) // FIXME: replace
+              i += 1
+            }
+  
+            val stats = LinearRegressionModel.fitBlock(X, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d: Int, blockLength: Int)
+                                    
+            (block, stats).zipped.map { case ((v, (va, gs)), stat) => (v, (inserter(va, stat.toAnnotation), gs)) }
           }
+      }, preservesPartitioning = true) 
+      
+      vds.copy(
+        rdd = newRDD.asOrderedRDD,
+        vaSignature = newVAS)
+    } else {
+      vds.mapAnnotations{ case (v, va, gs) =>
+        ec.set(0, v)
+        ec.set(1, va)
+  
+        val sampleMask = sampleMaskBc.value
+        val cols = (0 until nxs).toArray
+        val data = Array.ofDim[Double](n * nxs)
+        val sums = Array.ofDim[Double](nxs)
+        val nMissings = Array.ofDim[Int](nxs)
+        val gsIter = gs.iterator
+  
+        val missingRows = new ArrayBuilder[Int]()
+        val missingCols = new ArrayBuilder[Int]()
+  
+        var r = 0
+        var i = 0
+        while (i < sampleMask.length) {
+          val g = gsIter.next()
+          if (sampleMask(i)) {
+            ec.set(2, sampleIdsBc.value(i))
+            ec.set(3, sampleAnnotationsBc.value(i))
+            ec.set(4, g)
 
-          // val AC: DenseMatrix[Double] = sum(X(::, *))
-          val AC: DenseVector[Double] = X.t(*, ::).map(r => sum(r))
-          assert(AC.length == blockLength)
-
-          val qtx: DenseMatrix[Double] = QtBc.value * X
-          val qty: DenseMatrix[Double] = QtyBc.value
-          val xxpRec: DenseVector[Double] = 1.0 / (X.t(*, ::).map(r => r dot r) - qtx.t(*, ::).map(r => r dot r))
-          val ytx: DenseMatrix[Double] = yBc.value.t * X
-          assert(ytx.rows == yBc.value.cols && ytx.cols == blockLength)
-
-          val xyp: DenseMatrix[Double] = ytx - (qty.t * qtx)
-          val yyp: DenseVector[Double] = yypBc.value
-
-          // resuse xyp
-          val b = xyp
-          i = 0
-          while (i < blockLength) {
-            xyp(::, i) :*= xxpRec(i)
-            i += 1
+            (xs(), aToDouble, cols).zipped.map { (e, td, c) =>
+              if (e != null) {
+                val de = td(e)
+                sums(c) += de
+                data(c * n + r) = de
+              } else {
+                nMissings(c) += 1
+                missingRows += r
+                missingCols += c
+              }
+            }
+            r += 1
           }
-
-          val se = sqrt(dRec * (yyp * xxpRec.t - (b :* b)))
-
-          val t = b :/ se
-          val p = t.map(s => 2 * T.cumulative(-math.abs(s), d, true, false))
-
-          block.zipWithIndex.map { case ((v, (va, gs)), i) =>
-            val result = Annotation(
-              n,
-              AC(i),
-              ytx(::, i).toArray: IndexedSeq[Double],
-              b(::, i).toArray: IndexedSeq[Double],
-              se(::, i).toArray: IndexedSeq[Double],
-              t(::, i).toArray: IndexedSeq[Double],
-              p(::, i).toArray: IndexedSeq[Double])
-            val newVA = inserter(va, result)
-            (v, (newVA, gs))
-          }
+          i += 1
         }
-    }, preservesPartitioning = true)
-
-    vds.copy(
-      rdd = newRDD.asOrderedRDD,
-      vaSignature = newVAS)
+        
+        val means = (sums, nMissings).zipped.map { case (sum, nMissing) => sum / (n - nMissing) }
+        i = 0
+        while (i < missingRows.length) {
+          val c = missingCols(i)
+          data(c * n + missingRows(i)) = means(c)
+          i += 1
+        }
+  
+        val X = new DenseMatrix[Double](n, nxs, data)
+        val stat = LinearRegressionModel.fit(X, yBc.value, yypBc.value, QtBc.value, QtyBc.value, d)
+        
+        inserter(va, stat.map(_.toAnnotation).orNull)
+      }.copy(vaSignature = newVAS)
+    }
   }
 }
