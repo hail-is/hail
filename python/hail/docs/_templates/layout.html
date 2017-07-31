@@ -80,6 +80,11 @@
   {# Keep modernizr in head - http://modernizr.com/docs/#installing #}
   <script src="{{ pathto('_static/js/modernizr.min.js', 1) }}"></script>
 
+  {% if pagename == "annotationdb" %}
+    <link rel="stylesheet" href="../annotationdb/bootstrap-treeview.min.css">
+    <link rel="stylesheet" href="../annotationdb/annotationdb.css">
+  {% endif %}
+
 </head>
 
 <body class="wy-body-for-nav" role="document">
@@ -194,6 +199,12 @@
           SphinxRtdTheme.StickyNav.enable();
       });
   </script>
+  {% endif %}
+
+  {% if pagename == "annotationdb" %}
+    <script type="text/javascript" src="../annotationdb/bootstrap-treeview.min.js"></script>
+    <script type="text/javascript" src="../annotationdb/clipboard.min.js"></script>
+    <script type="text/javascript" src="../annotationdb/annotationdb.js"></script>
   {% endif %}
 
   {%- block footer %} {% endblock %}

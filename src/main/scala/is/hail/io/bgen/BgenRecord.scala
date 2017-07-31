@@ -3,7 +3,6 @@ package is.hail.io.bgen
 import breeze.linalg.DenseVector
 import is.hail.annotations._
 import is.hail.io.{ByteArrayReader, KeySerializedValueRecord}
-import is.hail.io.gen.GenReport._
 import is.hail.utils._
 import is.hail.variant.{DosageGenotype, Genotype, Variant}
 
@@ -95,8 +94,8 @@ class BGen12ProbabilityArray(a: Array[Byte], nSamples: Int, nGenotypes: Int, nBi
 }
 
 final class Bgen12GenotypeIterator(a: Array[Byte],
-  nAlleles: Int,
-  nBitsPerProb: Int,
+  val nAlleles: Int,
+  val nBitsPerProb: Int,
   nSamples: Int) extends Iterable[Genotype] {
   private val nGenotypes = triangle(nAlleles)
 
@@ -111,10 +110,10 @@ final class Bgen12GenotypeIterator(a: Array[Byte],
   def isSampleMissing(s: Int): Boolean = (a(8 + s) & 0x80) != 0
 
   def dosages(v: DenseVector[Double], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
-    assert(nAlleles == 2)
-    assert(nBitsPerProb == 8)
-    assert(v.length == completeSampleIndex.length)
-    assert(totalProb == 255)
+    require(nAlleles == 2)
+    require(nBitsPerProb == 8)
+    require(v.length == completeSampleIndex.length)
+    require(totalProb == 255)
 
     val n = v.length
 

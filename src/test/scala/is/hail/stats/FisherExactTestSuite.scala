@@ -78,7 +78,7 @@ class FisherExactTestSuite extends SparkSuite {
       }
 
     property("expr gives same result as class") =
-      forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { (vds: VariantDataset) =>
+      forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { (vds: VariantDataset) =>
         val sampleIds = vds.sampleIds
         val phenotypes = sampleIds.zipWithIndex.map { case (sample, i) =>
           if (i % 3 == 0)

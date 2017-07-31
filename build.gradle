@@ -18,22 +18,18 @@ plugins {
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 repositories {
-    // Get kudu-spark2_2.11 with custom pom from our repo since we can't
-    // figure out how to enable spark2_2.11 profile in standard pom.
-    maven {
-        url 'https://storage.googleapis.com/hail-common/maven-repo'
-    }
     mavenCentral()
     jcenter()
-    maven {
-        url "https://repository.cloudera.com/artifactory/cloudera-repos/" // kudu
-    }
 }
 
 buildScan {
     licenseAgreementUrl = 'https://gradle.com/terms-of-service'
     licenseAgree = 'yes'
 }
+
+String hailVersion = "devel"
+String[] deployedSparkVersions = ["2.0.2", "2.1.0"]
+String gitHash = exec {commandLine 'git', 'rev-parse', '--short', 'HEAD'}
 
 String sparkVersion = System.getProperty("spark.version","2.0.2")
 
@@ -53,7 +49,6 @@ if (sparkVersion ==~ /^2\.1.*/) {
     breezeVersion = '0.11.2'
 }
 
-String kuduSpark = 'spark2'
 String mongoVersion = '2.0.0'
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
@@ -98,8 +93,15 @@ compileJava {
 }
 
 task generateBuildInfo(type: Exec) {
-    commandLine 'sh', 'generate-build-info.sh', sparkVersion
+    commandLine 'sh', 'generate-build-info.sh', sparkVersion, hailVersion
     outputs.upToDateWhen { false }
+}
+
+task generateDistLinks(type: Exec) {
+    executable 'sh'
+    args(['generate-dist-links.sh'])
+    args(hailVersion)
+    args(deployedSparkVersions)
 }
 
 compileScala {
@@ -123,8 +125,6 @@ dependencies {
     compile 'net.jpountz.lz4:lz4:1.3.0'
     compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
     compile 'com.github.samtools:htsjdk:2.5.0'
-    compile 'org.apache.kudu:kudu-client:1.1.0'
-    compile 'org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':1.1.0'
 
     compile 'org.http4s:http4s-core_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-server_' + scalaMajorVersion + ':0.12.3'
@@ -196,21 +196,13 @@ test {
 test.dependsOn(checkSettings)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
-     commandLine 'python', '-m', 'unittest', 'hail.typecheck.tests', 'hail.tests.tests', 'hail.tests.tests_v0_1_cf0e0137a'
+     commandLine 'python', '-m', 'unittest', 'hail.typecheck.tests', 'hail.tests.tests'
      environment SPARK_HOME: sparkHome
      environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
      environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-task doctest_v0_1(type: Exec, dependsOn: shadowJar) {
-    workingDir 'python/hail/docs/'
-    commandLine 'python', 'scripts/doctest_v0_1_cf0e0137a.py'
-    environment SPARK_HOME: sparkHome
-    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
-}
-
-task testAll(dependsOn: ['testPython', 'test', 'doctest_v0_1'])
+task testAll(dependsOn: ['testPython', 'test'])
 
 tasks.withType(ShadowJar) {
     manifest {
@@ -242,9 +234,6 @@ shadowJar {
 
         include(dependency('org.http4s:http4s-core_' + scalaMajorVersion + ':.*'))
 
-        include(dependency('org.apache.kudu:kudu-client:.*'))
-        include(dependency('org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':.*'))
-
         include(dependency('org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':.*'))
         include(dependency('org.mongodb:mongo-java-driver:.*'))
 
@@ -260,8 +249,6 @@ shadowJar {
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('com.google.guava:guava:.*'))
-        include(dependency('org.apache.spark:kudu-client:.*'))
-        include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
 
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
@@ -292,9 +279,6 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.scalaz:scalaz-concurrent_' + scalaMajorVersion + ':.*'))
         include(dependency('org.scalaz:scalaz-stream_' + scalaMajorVersion + ':.*'))
 
-        include(dependency('org.apache.kudu:kudu-client:.*'))
-        include(dependency('org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':.*'))
-
         include(dependency('org.mongodb.spark:mongo-spark-connector_' + scalaMajorVersion + ':.*'))
         include(dependency('org.mongodb:mongo-java-driver:.*'))
 
@@ -310,8 +294,6 @@ task shadowTestJar(type: ShadowJar) {
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
         include(dependency('com.google.guava:guava:.*'))
-        include(dependency('org.apache.spark:kudu-client:.*'))
-        include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
 
         include(dependency('org.ow2.asm:asm:.*'))
         include(dependency('org.ow2.asm:asm-util:.*'))
@@ -357,7 +339,7 @@ task cleanHailDocs(type: Exec) {
 }
 
 task setupDocsDirs(type: Exec, dependsOn: cleanHailDocs) {
-    commandLine 'mkdir', '-p', 'build/tmp/docs/', 'build/www/', 'build/tmp/python/'
+    commandLine 'mkdir', '-p', 'build/www/', 'build/tmp/python/', 'build/tmp/docs', 'build/www/docs'
 }
 
 task copyPDF(type: Copy, dependsOn: setupDocsDirs) {
@@ -372,6 +354,7 @@ task copyWebsiteContent(type: Copy, dependsOn: setupDocsDirs) {
     include '*.css.map'
     include '*.html'
     include '*.png'
+    include 'annotationdb/*'
     into 'build/www'
 }
 
@@ -408,28 +391,32 @@ task makeFunctionsRst(type: Exec, dependsOn: ['shadowJar', 'copyPythonDirToTmp']
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
 }
 
-task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+task makeHailDocs(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'SPHINXOPTS="-tchecktutorial"', 'clean', 'html', 'doctest'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment HAIL_VERSION: hailVersion
+    environment HAIL_RELEASE: hailVersion + '-' + gitHash
 }
 
-task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'copyPythonDirToTmp']) {
+task makeHailDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'makeFunctionsRst', 'generateDistLinks', 'copyPythonDirToTmp']) {
     workingDir 'build/tmp/python/hail/docs'
     commandLine 'make', 'clean', 'html'
     environment SPARK_HOME: sparkHome
     environment SPARK_CLASSPATH: '' + projectDir + '/build/libs/hail-all-spark.jar'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+    environment HAIL_VERSION: hailVersion
+    environment HAIL_RELEASE: hailVersion + '-' + gitHash
 }
 
 task copyHailDocs(type: Exec, dependsOn: ['makeHailDocs', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
 }
 
 task copyHailDocsNoTest(type: Exec, dependsOn: ['makeHailDocsNoTest', 'setupDocsDirs']) {
-    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/hail'
+    commandLine 'mv', 'build/tmp/python/hail/docs/_build/html', 'build/www/docs/stable'
 }
 
 task createWebsite(dependsOn: ['copyPDF', 'copyWebsiteContent', 'buildIndex', 'buildJobs', 'copyHailDocs'])
@@ -444,7 +431,7 @@ task assemblePackage(type: Copy, dependsOn: ['createDocs' , 'shadowJar']) {
     from('python') {
         into 'python'
     }
-    from('build/www/hail') {
+    from('build/www/docs/stable') {
         into 'docs'
     }
     from('scripts') {

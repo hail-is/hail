@@ -176,11 +176,11 @@ class IntervalSuite extends SparkSuite {
 
       val p1 = vdsKeep.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
           intervals.exists(_.contains(v.locus))
-      }.asOrderedRDD))
+      }))
 
       val p2 = vdsRemove.same(vds.copy(rdd = vds.rdd.filter { case (v, _) =>
         intervals.forall(!_.contains(v.locus))
-      }.asOrderedRDD))
+      }))
 
       val p = p1 && p2
       if (!p)

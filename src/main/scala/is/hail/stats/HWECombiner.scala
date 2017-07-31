@@ -18,11 +18,11 @@ class HWECombiner extends Serializable {
   var nHomVar = 0
 
   def merge(gt:Genotype): HWECombiner = {
-    if (gt.isHomRef)
+    if (Genotype.isHomRef(gt))
       nHomRef += 1
-    else if (gt.isHet)
+    else if (Genotype.isHet(gt))
       nHet += 1
-    else if (gt.isHomVar)
+    else if (Genotype.isHomVar(gt))
       nHomVar += 1
 
     this

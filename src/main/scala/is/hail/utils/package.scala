@@ -5,12 +5,13 @@ import java.lang.reflect.Method
 import java.net.URI
 import java.util.zip.Inflater
 
+import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
-import org.apache.spark.{AccumulableParam, Partition}
+import org.apache.spark.Partition
 import org.json4s.Extraction.decompose
 import org.json4s.jackson.Serialization
 import org.json4s.{Formats, JValue, NoTypeHints}
@@ -210,23 +211,6 @@ package object utils extends Logging
     .resize(12)
     .filter(s => !s.isEmpty)
 
-  implicit def accumulableMapInt[K]: AccumulableParam[mutable.Map[K, Int], K] = new AccumulableParam[mutable.Map[K, Int], K] {
-    def addAccumulator(r: mutable.Map[K, Int], t: K): mutable.Map[K, Int] = {
-      r.updateValue(t, 0, _ + 1)
-      r
-    }
-
-    def addInPlace(r1: mutable.Map[K, Int], r2: mutable.Map[K, Int]): mutable.Map[K, Int] = {
-      for ((k, v) <- r2)
-        r1.updateValue(k, 0, _ + v)
-      r1
-    }
-
-    def zero(initialValue: mutable.Map[K, Int]): mutable.Map[K, Int] =
-      mutable.Map.empty[K, Int]
-  }
-
-
   def prettyIdentifier(str: String): String = {
     if (str.matches( """\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       str
@@ -236,9 +220,15 @@ package object utils extends Logging
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
-  def extendOrderingToNull[T](missingGreatest: Boolean)(implicit ord: Ordering[T]): Ordering[Any] = {
-    new Ordering[Any] {
-      def compare(a: Any, b: Any): Int =
+  def annotationOrdering[T](ord: Ordering[T]): Ordering[Annotation] = {
+    new Ordering[Annotation] {
+      def compare(a: Annotation, b: Annotation): Int = ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
+    }
+  }
+
+  def extendOrderingToNull[T](missingGreatest: Boolean)(implicit ord: Ordering[T]): Ordering[T] = {
+    new Ordering[T] {
+      def compare(a: T, b: T): Int =
         if (a == null) {
           if (b == null)
             0 // null, null
@@ -251,7 +241,7 @@ package object utils extends Logging
             // _, null
             if (missingGreatest) -1 else 1
           } else
-            ord.compare(a.asInstanceOf[T], b.asInstanceOf[T])
+            ord.compare(a, b)
         }
     }
   }
@@ -486,4 +476,19 @@ package object utils extends Logging
     finally
       resourceStream.close()
   }
+
+  def roundWithConstantSum(a: Array[Double]): Array[Int] = {
+    val withFloors = a.zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
+    val totalFractional = (withFloors.map { case (i, orig, floor) => orig - floor }.sum + 0.5).toInt
+    withFloors
+      .sortBy { case (_, orig, floor) => floor - orig }
+      .zipWithIndex
+      .map { case ((i, orig, floor), iSort) =>
+        if (iSort < totalFractional)
+          (i, math.ceil(orig))
+        else
+          (i, math.floor(orig))
+    }.sortBy(_._1).map(_._2.toInt)
+  }
+
 }

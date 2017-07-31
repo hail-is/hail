@@ -4,38 +4,18 @@ import warnings
 
 from decorator import decorator
 
-from hail.expr import Type, TGenotype, TString, TVariant
+from hail.expr import Type, TGenotype, TString, TVariant, TArray
 from hail.typecheck import *
 from hail.java import *
 from hail.keytable import KeyTable
 from hail.representation import Interval, Pedigree, Variant
-from hail.utils import Summary, wrap_to_list
+from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
 
 warnings.filterwarnings(module=__name__, action='once')
 
-
-@decorator
-def requireTGenotype(func, vds, *args, **kwargs):
-    if vds._is_generic_genotype:
-        if vds.genotype_schema != TGenotype:
-            coerced_vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
-            return func(coerced_vds, *args, **kwargs)
-        else:
-            raise TypeError("genotype signature must be Genotype, but found '%s'" % type(vds.genotype_schema))
-
-    return func(vds, *args, **kwargs)
-
-
-@decorator
-def convertVDS(func, vds, *args, **kwargs):
-    if vds._is_generic_genotype:
-        if isinstance(vds.genotype_schema, TGenotype):
-            vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
-
-    return func(vds, *args, **kwargs)
-
+vds_type = lazy()
 
 class VariantDataset(object):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
@@ -68,12 +48,22 @@ class VariantDataset(object):
         self._sample_ids = None
         self._num_samples = None
         self._jvdf_cache = None
+        self._jvkdf_cache = None
 
     @staticmethod
     @handle_py4j
     @typecheck(table=KeyTable)
     def from_table(table):
         """Construct a sites-only variant dataset from a key table.
+
+        **Examples**
+
+        Import a text table and construct a sites-only VDS:
+
+        >>> table = hc.import_table('data/variant-lof.tsv', types={'v': TVariant()}).key_by('v')
+        >>> sites_vds = VariantDataset.from_table(table)
+
+        **Notes**
 
         The key table must be keyed by one column of type :py:class:`.TVariant`.
 
@@ -94,15 +84,14 @@ class VariantDataset(object):
     @property
     def _jvdf(self):
         if self._jvdf_cache is None:
-            if self._is_generic_genotype:
-                self._jvdf_cache = Env.hail().variant.GenericDatasetFunctions(self._jvds)
-            else:
-                self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
+            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds.toVDS())
         return self._jvdf_cache
 
     @property
-    def _is_generic_genotype(self):
-        return self._jvds.isGenericGenotype()
+    def _jvkdf(self):
+        if self._jvkdf_cache is None:
+            self._jvkdf_cache = Env.hail().variant.VariantKeyDatasetFunctions(self._jvds.toVKDS())
+        return self._jvkdf_cache
 
     @property
     @handle_py4j
@@ -195,47 +184,12 @@ class VariantDataset(object):
         return self._jvds.fileVersion()
 
     @handle_py4j
-    @typecheck_method(key_exprs=oneof(strlike, listof(strlike)),
-               agg_exprs=oneof(strlike, listof(strlike)))
-    def aggregate_by_key(self, key_exprs, agg_exprs):
-        """Aggregate by user-defined key and aggregation expressions to produce a KeyTable.
-        Equivalent to a group-by operation in SQL.
-
-        **Examples**
-
-        Compute the number of LOF heterozygote calls per gene per sample:
-
-        >>> kt_result = (vds
-        ...     .aggregate_by_key(['Sample = s', 'Gene = va.gene'],
-        ...                        'nHet = g.filter(g => g.isHet() && va.consequence == "LOF").count()')
-        ...     .export("test.tsv"))
-
-        This will produce a :class:`KeyTable` with 3 columns (`Sample`, `Gene`, `nHet`).
-
-        :param key_exprs: Named expression(s) for which fields are keys.
-        :type key_exprs: str or list of str
-
-        :param agg_exprs: Named aggregation expression(s).
-        :type agg_exprs: str or list of str
-
-        :rtype: :class:`.KeyTable`
-        """
-
-        if isinstance(key_exprs, list):
-            key_exprs = ",".join(key_exprs)
-        if isinstance(agg_exprs, list):
-            agg_exprs = ",".join(agg_exprs)
-
-        return KeyTable(self.hc, self._jvds.aggregateByKey(key_exprs, agg_exprs))
-
-    @handle_py4j
-    @requireTGenotype
     @typecheck_method(expr=oneof(strlike, listof(strlike)),
                propagate_gq=bool)
     def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -326,12 +280,7 @@ class VariantDataset(object):
         if isinstance(expr, list):
             expr = ",".join(expr)
 
-        jvds = self._jvdf.annotateGenotypesExpr(expr)
-        vds = VariantDataset(self.hc, jvds)
-        if isinstance(vds.genotype_schema, TGenotype):
-            return VariantDataset(self.hc, vds._jvdf.toVDS())
-        else:
-            return vds
+        return VariantDataset(self.hc, self._jvds.annotateGenotypesExpr(expr))
 
     @handle_py4j
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
@@ -841,7 +790,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @typecheck_method(other=anytype,
+    @typecheck_method(other=vds_type,
                       expr=nullable(strlike),
                       root=nullable(strlike))
     def annotate_variants_vds(self, other, expr=None, root=None):
@@ -915,6 +864,237 @@ class VariantDataset(object):
 
         return VariantDataset(self.hc, jvds)
 
+    def annotate_variants_db(self, annotations, gene_key=None):
+        """
+        Annotate variants using the Hail annotation database.
+
+        .. warning::
+
+            Experimental. Supported only while running Hail on the Google Cloud Platform.
+
+        Documentation describing the annotations that are accessible through this method can be found :ref:`here <sec-annotationdb>`.
+
+        **Examples**
+
+        Annotate variants with CADD raw and PHRED scores:
+
+        >>> vds = vds.annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
+
+        Annotate variants with gene-level PLI score, using the VEP-generated gene symbol to map variants to genes: 
+
+        >>> pli_vds = vds.annotate_variants_db('va.gene.constraint.pli') # doctest: +SKIP
+
+        Again annotate variants with gene-level PLI score, this time using the existing ``va.gene_symbol`` annotation 
+        to map variants to genes:
+
+        >>> vds = vds.annotate_variants_db('va.gene.constraint.pli', gene_key='va.gene_symbol') # doctest: +SKIP
+
+        **Notes**
+
+        Annotations in the database are bi-allelic, so splitting multi-allelic variants in the VDS before using this 
+        method is recommended to capture all appropriate annotations from the database. To do this, run :py:meth:`split_multi` 
+        prior to annotating variants with this method:
+
+        >>> vds = vds.split_multi().annotate_variants_db(['va.cadd.RawScore', 'va.cadd.PHRED']) # doctest: +SKIP
+
+        To add VEP annotations, or to add gene-level annotations without a predefined gene symbol for each variant, the 
+        :py:meth:`~.VariantDataset.annotate_variants_db` method runs Hail's :py:meth:`~.VariantDataset.vep` method on the 
+        VDS. This means that your cluster must be properly initialized to run VEP.
+
+        .. warning::
+
+            If you want to add VEP annotations to your VDS, make sure to add the initialization action 
+            :code:`gs://hail-common/vep/vep/vep85-init.sh` when starting your cluster.
+
+        :param annotations: List of annotations to import from the database.
+        :type annotations: str or list of str 
+
+        :param gene_key: Existing variant annotation used to map variants to gene symbols if importing gene-level 
+            annotations. If not provided, the method will add VEP annotations and parse them as described in the 
+            database documentation to obtain one gene symbol per variant.
+        :type gene_key: str
+
+        :return: Annotated variant dataset.
+        :rtype: :py:class:`.VariantDataset`
+        """
+
+        # import modules needed by this function
+        import sqlite3
+
+        # collect user-supplied annotations, converting str -> list if necessary and dropping duplicates
+        annotations = list(set(wrap_to_list(annotations)))
+
+        # open connection to in-memory SQLite database
+        conn = sqlite3.connect(':memory:')
+
+        # load database with annotation metadata, print error if not on Google Cloud Platform
+        try:
+            f = hadoop_read('gs://annotationdb/ADMIN/annotationdb.sql')
+        except FatalError:
+            raise EnvironmentError('Cannot read from Google Storage. Must be running on Google Cloud Platform to use annotation database.')
+        else:
+            curs = conn.executescript(f.read())
+            f.close()
+
+        # parameter substitution string to put in SQL query
+        like = ' OR '.join('a.annotation LIKE ?' for i in xrange(2*len(annotations)))
+
+        # query to extract path of all needed database files and their respective annotation exprs 
+        qry = """SELECT file_path, annotation, file_type, file_element, f.file_id
+                 FROM files AS f INNER JOIN annotations AS a ON f.file_id = a.file_id
+                 WHERE {}""".format(like)
+
+        # run query and collect results in a file_path: expr dictionary
+        results = curs.execute(qry, [x + '.%' for x in annotations] + annotations).fetchall()
+
+        # all file_ids to be used
+        file_ids = list(set([x[4] for x in results]))
+
+        # parameter substitution string
+        sub = ','.join('?' for x in file_ids)
+
+        # query to fetch count of total annotations in each file
+        qry = """SELECT file_path, COUNT(*)
+                 FROM files AS f INNER JOIN annotations AS a ON f.file_id = a.file_id
+                 WHERE f.file_id IN ({})
+                 GROUP BY file_path""".format(sub)
+
+        # collect counts in file_id: count dictionary
+        cnts = {x[0]: x[1] for x in curs.execute(qry, file_ids).fetchall()}
+
+        # close database connection
+        conn.close()
+
+        # collect dictionary of file_path: expr entries
+        file_exprs = {}
+        for r in results:
+            expr = r[1] + '=' + 'table' if r[2] == 'table' and cnts[r[0]] < 2 else r[1] + '=' + r[2] + '.' + r[3]
+            try:
+                file_exprs[r[0]] += ',' + expr
+            except KeyError:
+                file_exprs[r[0]] = expr
+
+        # are there any gene annotations?
+        are_genes = 'gs://annotationdb/gene/gene.kt' in file_exprs #any([x.startswith('gs://annotationdb/gene/') for x in file_exprs])
+
+        # subset to VEP annotations
+        veps = any([x == 'vep' for x in file_exprs])
+
+        # if VEP annotations are selected, or if gene-level annotations are selected with no specified gene_key, annotate with VEP
+        if veps or (are_genes and not gene_key):
+
+            # VEP annotate the VDS
+            self = self.vep(config='/vep/vep-gcloud.properties', root='va.vep')
+
+            # extract 1 gene symbol per variant from VEP annotations if a gene_key parameter isn't provided
+            if are_genes:
+
+                # hierarchy of possible variant consequences, from most to least severe
+                csq_terms = [
+                    'transcript_ablation',
+                    'splice_acceptor_variant',
+                    'splice_donor_variant',
+                    'stop_gained',
+                    'frameshift_variant',
+                    'stop_lost',
+                    'start_lost',
+                    'transcript_amplification',
+                    'inframe_insertion',
+                    'inframe_deletion',
+                    'missense_variant',
+                    'protein_altering_variant',
+                    'incomplete_terminal_codon_variant',
+                    'stop_retained_variant',
+                    'synonymous_variant',
+                    'splice_region_variant',
+                    'coding_sequence_variant',
+                    'mature_miRNA_variant',
+                    '5_prime_UTR_variant',
+                    '3_prime_UTR_variant',
+                    'non_coding_transcript_exon_variant',
+                    'intron_variant',
+                    'NMD_transcript_variant',
+                    'non_coding_transcript_variant',
+                    'upstream_gene_variant',
+                    'downstream_gene_variant',
+                    'TFBS_ablation',
+                    'TFBS_amplification',
+                    'TF_binding_site_variant',
+                    'regulatory_region_ablation',
+                    'regulatory_region_amplification',
+                    'feature_elongation',
+                    'regulatory_region_variant',
+                    'feature_truncation',
+                    'intergenic_variant'
+                ]
+
+                # add consequence terms as a global annotation
+                self = self.annotate_global('global.csq_terms', csq_terms, TArray(TString()))
+
+                # find 1 transcript/gene per variant using the following method:
+                #   1. define the most severe consequence for each variant according to hierarchy
+                #   2. subset to transcripts with that most severe consequence
+                #   3. if one of the transcripts in the subset is canonical, take that gene/transcript,
+                #      else just take the first gene/transcript in the subset
+                self = (
+                    self
+                    .annotate_variants_expr(
+                        """
+                        va.gene.most_severe_consequence = 
+                            let canonical_consequences = va.vep.transcript_consequences.filter(t => t.canonical == 1).flatMap(t => t.consequence_terms).toSet() in
+                            if (isDefined(canonical_consequences))
+                                orElse(global.csq_terms.find(c => canonical_consequences.contains(c)), 
+                                       va.vep.most_severe_consequence)
+                            else
+                                va.vep.most_severe_consequence
+                        """
+                    )
+                    .annotate_variants_expr(
+                        """
+                        va.gene.transcript = let tc = va.vep.transcript_consequences.filter(t => t.consequence_terms.toSet.contains(va.gene.most_severe_consequence)) in 
+                                             orElse(tc.find(t => t.canonical == 1), tc[0])
+                        """
+                    )
+                )
+
+            # drop VEP annotations if not specifically requested
+            if not veps:
+                self = self.annotate_variants_expr('va = drop(va, vep)')
+
+            # subset VEP annotations if needed
+            subset = ','.join([x.rsplit('.')[-1] for x in annotations if x.startswith('va.vep.')])
+            if subset:
+                self = self.annotate_variants_expr('va.vep = select(va.vep, {})'.format(subset))
+
+        # iterate through files, selected annotations from each file
+        for db_file, expr in file_exprs.iteritems():
+
+            # if database file is a VDS
+            if db_file.endswith('.vds'):
+
+                # annotate analysis VDS with database VDS
+                self = self.annotate_variants_vds(self.hc.read(db_file), expr=expr)
+
+            # if database file is a keytable
+            elif db_file.endswith('.kt'):
+
+                # join on gene symbol for gene annotations
+                if db_file == 'gs://annotationdb/gene/gene.kt':
+                    if gene_key:
+                        vds_key = gene_key
+                    else:
+                        vds_key = 'va.gene.transcript.gene_symbol'
+                else:
+                    vds_key = None
+
+                # annotate analysis VDS with database keytable
+                self = self.annotate_variants_table(self.hc.read_table(db_file), expr=expr, vds_key=vds_key)
+
+            else:
+                continue
+
+        return self
+
     @handle_py4j
     def cache(self):
         """Mark this variant dataset to be cached in memory.
@@ -924,15 +1104,14 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.cache())
+        return VariantDataset(self.hc, self._jvds.cache())
 
     @handle_py4j
-    @requireTGenotype
-    @typecheck_method(right=anytype)
+    @typecheck_method(right=vds_type)
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Example**
         
@@ -1072,13 +1251,12 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(output=strlike,
                       precision=integral)
     def export_gen(self, output, precision=4):
         """Export variant dataset as GEN and SAMPLE file.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -1124,10 +1302,8 @@ class VariantDataset(object):
     @typecheck_method(output=strlike,
                       expr=strlike,
                       types=bool,
-                      export_ref=bool,
-                      export_missing=bool,
                       parallel=bool)
-    def export_genotypes(self, output, expr, types=False, export_ref=False, export_missing=False, parallel=False):
+    def export_genotypes(self, output, expr, types=False, parallel=False):
         """Export genotype-level information to delimited text file.
 
         **Examples**
@@ -1142,14 +1318,9 @@ class VariantDataset(object):
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default if the genotype schema is equal to :py:class:`~hail.expr.TGenotype`. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
+        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per non-missing cell (genotype) in the data set.
 
         The ``expr`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
-
-        .. warning::
-
-            If the genotype schema does not have the type :py:class:`~hail.expr.TGenotype`, all genotypes will be exported unless the value of ``g`` is missing.
-            Use :py:meth:`~hail.VariantDataset.filter_genotypes` to filter out genotypes based on an expression before exporting.
 
         :param str output: Output path.
 
@@ -1157,26 +1328,18 @@ class VariantDataset(object):
 
         :param bool types: Write types of exported columns to a file at (output + ".types")
 
-        :param bool export_ref: If true, export reference genotypes. Only applicable if the genotype schema is :py:class:`~hail.expr.TGenotype`.
-
-        :param bool export_missing: If true, export missing genotypes.
-
         :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
         """
 
-        if self._is_generic_genotype:
-            self._jvdf.exportGenotypes(output, expr, types, export_missing, parallel)
-        else:
-            self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing, parallel)
+        self._jvds.exportGenotypes(output, expr, types, parallel)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(output=strlike,
                       fam_expr=strlike)
     def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -1282,17 +1445,17 @@ class VariantDataset(object):
 
         **Examples**
 
-        Export a four column TSV with ``v``, ``va.pass``, ``va.filters``, and
+        Export a three column TSV with ``v``, ``va.filters``, and
         one computed field: ``1 - va.qc.callRate``.
 
         >>> vds.export_variants('output/file.tsv',
-        ...        'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
+        ...        'VARIANT = v, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
 
         It is also possible to export without identifiers, which will result in
         a file with no header. In this case, the expressions should look like
         the examples below:
 
-        >>> vds.export_variants('output/file.tsv', 'v, va.pass, va.qc.AF')
+        >>> vds.export_variants('output/file.tsv', 'v, va.filters, va.qc.AF')
 
         .. note::
 
@@ -1369,6 +1532,8 @@ class VariantDataset(object):
     def export_vcf(self, output, append_to_header=None, export_pp=False, parallel=False):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+
         **Examples**
 
         Export to VCF as a block-compressed file:
@@ -1419,10 +1584,9 @@ class VariantDataset(object):
         :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
+        self._jvkdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
 
     @handle_py4j
-    @convertVDS
     @typecheck_method(output=strlike,
                       overwrite=bool,
                       parquet_genotypes=bool)
@@ -1443,13 +1607,9 @@ class VariantDataset(object):
 
         """
 
-        if self._is_generic_genotype:
-            self._jvdf.write(output, overwrite)
-        else:
-            self._jvdf.write(output, overwrite, parquet_genotypes)
+        self._jvds.write(output, overwrite, parquet_genotypes)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(expr=strlike,
                       annotation=strlike,
                       subset=bool,
@@ -1465,7 +1625,7 @@ class VariantDataset(object):
         evaluated for each alternate allele, but not for
         the reference allele (i.e. ``aIndex`` will never be zero).
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -1643,15 +1803,13 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterGenotypes(expr, keep)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, self._jvds.filterGenotypes(expr, keep))
 
     @handle_py4j
-    @requireTGenotype
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -1768,6 +1926,7 @@ class VariantDataset(object):
         >>> vds_filtered = vds.filter_samples_table(table, keep=True)
         
         Remove samples in a text file with 1 field, and no header:
+        
         >>> to_remove = hc.import_table('data/exclude_samples.txt', no_header=True).key_by('f0')
         >>> vds_filtered = vds.filter_samples_table(to_remove, keep=False)
         
@@ -1856,6 +2015,8 @@ class VariantDataset(object):
     def filter_intervals(self, intervals, keep=True):
         """Filter variants with an interval or list of intervals.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+
         **Examples**
 
         Filter to one interval:
@@ -1899,8 +2060,17 @@ class VariantDataset(object):
         
         >>> vds_filtered = vds.filter_intervals(Interval.parse('15:100000-200000'))
 
-        :param intervals: interval or list of intervals
+        .. note::
+
+            A :py:class:`.KeyTable` keyed by interval can be used to filter a dataset efficiently as well.
+            See the documentation for :py:meth:`.filter_variants_table` for an example. This is useful for
+            using interval files to filter a dataset.
+
+        :param intervals: Interval(s) to keep or remove.
         :type intervals: :class:`.Interval` or list of :class:`.Interval`
+
+        :param bool keep: Keep variants overlapping an interval if ``True``, remove variants overlapping
+                          an interval if ``False``.
 
         :return: Filtered variant dataset.
         :rtype: :py:class:`.VariantDataset`
@@ -1908,7 +2078,7 @@ class VariantDataset(object):
 
         intervals = wrap_to_list(intervals)
 
-        jvds = self._jvds.filterIntervals([x._jrep for x in intervals], keep)
+        jvds = self._jvkdf.filterIntervals([x._jrep for x in intervals], keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2014,11 +2184,10 @@ class VariantDataset(object):
         return self._globals
 
     @handle_py4j
-    @requireTGenotype
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
         
@@ -2046,11 +2215,10 @@ class VariantDataset(object):
         return KinshipMatrix(jkm)
 
     @handle_py4j
-    @requireTGenotype
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         A hard-called variant dataset is about two orders of magnitude
         smaller than a standard sequencing dataset. Use this
@@ -2065,7 +2233,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.hardCalls())
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(maf=nullable(strlike),
                       bounded=bool,
                       min=nullable(numeric),
@@ -2073,7 +2240,7 @@ class VariantDataset(object):
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -2139,7 +2306,6 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(threshold=numeric,
                       tiebreaking_expr=nullable(strlike),
                       maf=nullable(strlike),
@@ -2148,7 +2314,7 @@ class VariantDataset(object):
         """
         Prune samples from the :py:class:`.VariantDataset` based on :py:meth:`~hail.VariantDataset.ibd` PI_HAT measures of relatedness.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
         
@@ -2197,7 +2363,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(tiebreaking_expr), joption(maf), bounded))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(maf_threshold=numeric,
                       include_par=bool,
                       female_threshold=numeric,
@@ -2207,7 +2372,7 @@ class VariantDataset(object):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -2263,7 +2428,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @typecheck_method(right=anytype)
+    @typecheck_method(right=vds_type)
     def join(self, right):
         """Join two variant datasets.
 
@@ -2285,7 +2450,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(r2=numeric,
                       window=integral,
                       memory_per_core=integral,
@@ -2293,7 +2457,7 @@ class VariantDataset(object):
     def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
         """Prune variants in linkage disequilibrium (LD).
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         Requires :py:class:`~hail.VariantDataset.was_split` equals True.
 
@@ -2359,7 +2523,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(force_local=bool)
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
@@ -2398,7 +2561,6 @@ class VariantDataset(object):
         return LDMatrix(jldm)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(y=strlike,
                       covariates=listof(strlike),
                       root=strlike,
@@ -2408,7 +2570,7 @@ class VariantDataset(object):
     def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
         r"""Test each variant for association using linear regression.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -2512,7 +2674,7 @@ class VariantDataset(object):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         linear regression model.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -2695,7 +2857,6 @@ class VariantDataset(object):
         return linreg_kt, sample_kt
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(ys=listof(strlike),
                       covariates=listof(strlike),
                       root=strlike,
@@ -2747,7 +2908,60 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
+    @typecheck_method(ys=listof(strlike),
+                      covariates=listof(strlike),
+                      root=strlike,
+                      use_dosages=bool,
+                      variant_block_size=integral)
+    def linreg3(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
+        r"""Test each variant for association with multiple phenotypes using linear regression.
+
+        This method runs linear regression for multiple phenotypes
+        more efficiently than looping over :py:meth:`.linreg`.  This
+        method is more efficient than :py:meth:`.linreg_multi_pheno`
+        but doesn't implicitly filter on allele count or allele
+        frequency.
+
+        .. warning::
+
+            :py:meth:`.linreg3` uses the same set of samples for each phenotype,
+            namely the set of samples for which **all** phenotypes and covariates are defined.
+
+        **Annotations**
+
+        With the default root, the following four variant annotations are added.
+        The indexing of the array annotations corresponds to that of ``y``.
+
+        - **va.linreg.nCompleteSamples** (*Int*) -- number of samples used
+        - **va.linreg.AC** (*Double*) -- sum of the genotype values ``x``
+        - **va.linreg.ytx** (*Array[Double]*) -- array of dot products of each phenotype vector ``y`` with the genotype vector ``x``
+        - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
+        - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
+        - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+        - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
+
+        :param ys: list of one or more response expressions.
+        :type covariates: list of str
+
+        :param covariates: list of covariate expressions.
+        :type covariates: list of str
+
+        :param str root: Variant annotation path to store result of linear regression.
+
+        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
+
+        :param int variant_block_size: Number of variant regressions to perform simultaneously.  Larger block size requires more memmory.
+
+        :return: Variant dataset with linear regression variant annotations.
+        :rtype: :py:class:`.VariantDataset`
+
+        """
+
+        jvds = self._jvdf.linreg3(jarray(Env.jvm().java.lang.String, ys),
+                                  jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
     @typecheck_method(kinshipMatrix=KinshipMatrix,
                       y=strlike,
                       covariates=listof(strlike),
@@ -2757,12 +2971,15 @@ class VariantDataset(object):
                       use_ml=bool,
                       delta=nullable(numeric),
                       sparsity_threshold=numeric,
-                      use_dosages=bool)
+                      use_dosages=bool,
+                      n_eigs=nullable(integral),
+                      dropped_variance_fraction=(nullable(float)))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False):
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False,
+               n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -2787,35 +3004,39 @@ class VariantDataset(object):
         - Set the ``global_root`` argument to change the global annotation root in Step 4.
         - Set the ``va_root`` argument to change the variant annotation root in Step 5.
 
-        :py:meth:`.lmmreg` adds 7 or 11 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
+        :py:meth:`.lmmreg` adds 9 or 13 global annotations in Step 4, depending on whether :math:`\delta` is set or fit.
 
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | Annotation                         | Type                 | Value                                                                                                                                                |
-        +====================================+======================+======================================================================================================================================================+
-        | ``global.lmmreg.useML``            | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.beta``             | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaG2``          | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.sigmaE2``          | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.delta``            | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.h2``               | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.evals``            | Array[Double]        | eigenvalues of the kinship matrix in descending order                                                                                                |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.seH2``         | Double               | standard error of :math:`\\hat{h}^2` under asymptotic normal approximation                                                                            |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.normLkhdH2``   | Array[Double]        | likelihood function of :math:`h^2` normalized on the discrete grid ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for percentage ``i``.    |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.maxLogLkhd``   | Double               | (restricted) maximum log likelihood corresponding to :math:`\\hat{\delta}`                                                                            |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logDeltaGrid`` | Array[Double]        | values of :math:`\\mathrm{ln}(\delta)` used in the grid search                                                                                        |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
-        | ``global.lmmreg.fit.logLkhdVals``  | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
-        +------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | Annotation                                   | Type                 | Value                                                                                                                                                |
+        +==============================================+======================+======================================================================================================================================================+
+        | ``global.lmmreg.useML``                      | Boolean              | true if fit by ML, false if fit by REML                                                                                                              |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.beta``                       | Dict[String, Double] | map from *intercept* and the given ``covariates`` expressions to the corresponding fit :math:`\\beta` coefficients                                    |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.sigmaG2``                    | Double               | fit coefficient of genetic variance, :math:`\\hat{\sigma}_g^2`                                                                                        |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.sigmaE2``                    | Double               | fit coefficient of environmental variance :math:`\\hat{\sigma}_e^2`                                                                                   |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.delta``                      | Double               | fit ratio of variance component coefficients, :math:`\\hat{\delta}`                                                                                   |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.h2``                         | Double               | fit narrow-sense heritability, :math:`\\hat{h}^2`                                                                                                     |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.nEigs``                      | Int                  | number of eigenvectors of kinship matrix used to fit model                                                                                           |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.dropped_variance_fraction``  | Double               | specified value of ``dropped_variance_fraction``                                                                                                     |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.evals``                      | Array[Double]        | all eigenvalues of the kinship matrix in descending order                                                                                            |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.seH2``                   | Double               | standard error of :math:`\\hat{h}^2` under asymptotic normal approximation                                                                            |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.normLkhdH2``             | Array[Double]        | likelihood function of :math:`h^2` normalized on the discrete grid ``0.01, 0.02, ..., 0.99``. Index ``i`` is the likelihood for percentage ``i``.    |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.maxLogLkhd``             | Double               | (restricted) maximum log likelihood corresponding to :math:`\\hat{\delta}`                                                                            |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.logDeltaGrid``           | Array[Double]        | values of :math:`\\mathrm{ln}(\delta)` used in the grid search                                                                                        |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
+        | ``global.lmmreg.fit.logLkhdVals``            | Array[Double]        | (restricted) log likelihood of :math:`y` given :math:`X` and :math:`\\mathrm{ln}(\delta)` at the (RE)ML fit of :math:`\\beta` and :math:`\sigma_g^2`   |
+        +----------------------------------------------+----------------------+------------------------------------------------------------------------------------------------------------------------------------------------------+
 
         These global annotations are also added to ``hail.log``, with the ranked evals and :math:`\delta` grid with values in .tsv tabular form.  Use ``grep 'lmmreg:' hail.log`` to find the lines just above each table.
 
@@ -2949,6 +3170,10 @@ class VariantDataset(object):
 
         FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order.
 
+        **Low-rank approximation of kinship for improved performance**
+
+        :py:meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specify the parameter ``n_eigs`` to use only the top ``n_eigs`` eigenvectors. Alternatively, specify ``dropped_variance_fraction`` to use as many eigenvectors as necessary to capture all but at most this fraction of the sample variance (also known as the trace, or the sum of the eigenvalues). For example, ``dropped_variance_fraction=0.01`` will use the minimal number of eigenvectors to account for 99% of the sample variance. Specifying both parameters will apply the more stringent (fewest eigenvectors) of the two.
+
         **Further background**
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
@@ -2965,7 +3190,7 @@ class VariantDataset(object):
 
         :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
 
-        :param bool run_assoc: If true, run association testing in addition to fitting the global model
+        :param bool run_assoc: If true, run association testing in addition to fitting the global model.
 
         :param bool use_ml: Use ML instead of REML throughout.
 
@@ -2974,19 +3199,22 @@ class VariantDataset(object):
 
         :param float sparsity_threshold: Genotype vector sparsity at or below which to use sparse genotype vector in rotation (advanced).
 
-        :param bool use_dosages: If true, use genotype dosage rather than hard call.
+        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
+
+        :param int n_eigs: Number of eigenvectors of the kinship matrix used to fit the model.
+
+        :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
         jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
-                                 use_ml, global_root, va_root, run_assoc,
-                                 joption(delta), sparsity_threshold, use_dosages)
+                                 use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
+                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(test=strlike,
                       y=strlike,
                       covariates=listof(strlike),
@@ -2995,7 +3223,7 @@ class VariantDataset(object):
     def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
         """Test each variant for association using logistic regression.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -3135,7 +3363,7 @@ class VariantDataset(object):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         logistic regression model.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -3241,13 +3469,12 @@ class VariantDataset(object):
         return logreg_kt, sample_kt
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(pedigree=Pedigree)
     def mendel_errors(self, pedigree):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -3402,6 +3629,8 @@ class VariantDataset(object):
         """
         Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+
         **Examples**
 
         1. Simple trimming of a multi-allelic site, no change in variant position
@@ -3418,11 +3647,10 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvds.minRep(max_shift)
+        jvds = self._jvkdf.minRep(max_shift)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(scores=strlike,
                       loadings=nullable(strlike),
                       eigenvalues=nullable(strlike),
@@ -3431,13 +3659,13 @@ class VariantDataset(object):
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
-        Compute the top 10 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC10`` of type Double:
+        Compute the top 5 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
 
-        >>> vds_result = vds.pca('sa.scores')
+        >>> vds_result = vds.pca('sa.scores', k=5)
 
         Compute the top 5 principal component scores, loadings, and eigenvalues, stored as annotations ``sa.scores``, ``va.loadings``, and ``global.evals`` of type Array[Double]:
 
@@ -3563,7 +3791,7 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.persist(storage_level))
+        return VariantDataset(self.hc, self._jvds.persist(storage_level))
 
     def unpersist(self):
         """
@@ -3585,7 +3813,15 @@ class VariantDataset(object):
         """
         Returns the signature of the global annotations contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.global_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.global_schema)
+
 
         :rtype: :class:`.Type`
         """
@@ -3600,7 +3836,14 @@ class VariantDataset(object):
         """
         Returns the signature of the column key (sample) contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.colkey_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.colkey_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3615,7 +3858,14 @@ class VariantDataset(object):
         """
         Returns the signature of the sample annotations contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.sample_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.sample_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3630,7 +3880,14 @@ class VariantDataset(object):
         """
         Returns the signature of the row key (variant) contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.rowkey_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.rowkey_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3645,7 +3902,14 @@ class VariantDataset(object):
         """
         Returns the signature of the variant annotations contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.variant_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.variant_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3660,7 +3924,14 @@ class VariantDataset(object):
         """
         Returns the signature of the genotypes contained in this VDS.
 
+        **Examples**
+
         >>> print(vds.genotype_schema)
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(vds.genotype_schema)
 
         :rtype: :class:`.Type`
         """
@@ -3923,6 +4194,12 @@ class VariantDataset(object):
 
         >>> vds_result = vds.rename_samples({'ID1': 'id1', 'ID2': 'id2'})
 
+        Use a file with an "old_id" and "new_id" column to rename samples:
+
+        >>> mapping_table = hc.import_table('data/sample_mapping.txt')
+        >>> mapping_dict = {row.old_id: row.new_id for row in mapping_table.collect()}
+        >>> vds_result = vds.rename_samples(mapping_dict)
+
         :param dict mapping: Mapping from old to new sample IDs.
 
         :return: Dataset with remapped sample IDs.
@@ -3960,9 +4237,27 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.coalesce(num_partitions, shuffle)
+        jvds = self._jvds.coalesce(num_partitions, shuffle)
         return VariantDataset(self.hc, jvds)
 
+    @handle_py4j
+    @typecheck_method(max_partitions=integral)
+    def naive_coalesce(self, max_partitions):
+        """Naively descrease the number of partitions.
+
+        .. warning ::
+
+          :py:meth:`~hail.VariantDataset.naive_coalesce` simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance, unlike :py:meth:`~hail.VariantDataset.repartition`, so it can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
+
+        :param int max_partitions: Desired number of partitions.  If the current number of partitions is less than ``max_partitions``, do nothing.
+
+        :return: Variant dataset with the number of partitions equal to at most ``max_partitions``
+        :rtype: :class:`.VariantDataset`
+        """
+
+        jvds = self._jvds.naiveCoalesce(max_partitions)
+        return VariantDataset(self.hc, jvds)
+    
     @handle_py4j
     @typecheck_method(force_block=bool,
                       force_gramian=bool)
@@ -4002,7 +4297,7 @@ class VariantDataset(object):
         return KinshipMatrix(self._jvdf.rrm(force_block, force_gramian))
 
     @handle_py4j
-    @typecheck_method(other=anytype,
+    @typecheck_method(other=vds_type,
                       tolerance=numeric)
     def same(self, other, tolerance=1e-6):
         """True if the two variant datasets have the same variants, samples, genotypes, and annotation schemata and values.
@@ -4032,13 +4327,12 @@ class VariantDataset(object):
         return self._jvds.same(other._jvds, tolerance)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(root=strlike,
                       keep_star=bool)
     def sample_qc(self, root='sa.qc', keep_star=False):
         """Compute per-sample QC metrics.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Annotations**
 
@@ -4115,11 +4409,10 @@ class VariantDataset(object):
         return self._jvds.storageLevel()
 
     @handle_py4j
-    @requireTGenotype
     def summarize(self):
         """Returns a summary of useful information about the dataset.
         
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         
         **Examples**
@@ -4282,14 +4575,13 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deleteVaAttribute(ann_path, attribute))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(propagate_gq=bool,
                       keep_star_alleles=bool,
                       max_shift=integral)
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -4417,14 +4709,13 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)
     def tdt(self, pedigree, root='va.tdt'):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -4529,12 +4820,11 @@ class VariantDataset(object):
         self._jvds.typecheck()
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(root=strlike)
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -4553,7 +4843,7 @@ class VariantDataset(object):
         +===========================+========+========================================================+
         | ``callRate``              | Double | Fraction of samples with called genotypes              |
         +---------------------------+--------+--------------------------------------------------------+
-        | ``AF``                    | Double | Calculated minor allele frequency (q)                  |
+        | ``AF``                    | Double | Calculated alternate allele frequency (q)              |
         +---------------------------+--------+--------------------------------------------------------+
         | ``AC``                    | Int    | Count of alternate alleles                             |
         +---------------------------+--------+--------------------------------------------------------+
@@ -4609,12 +4899,11 @@ class VariantDataset(object):
     def vep(self, config, block_size=1000, root='va.vep', csq=False):
         """Annotate variants with VEP.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+
         :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`__
         on the current variant dataset and adds the result as a variant annotation.
-
-        If the variant annotation path defined by ``root`` already exists and its schema matches the VEP schema, then
-        Hail only runs VEP for variants for which the annotation is missing.
 
         **Examples**
 
@@ -4673,7 +4962,7 @@ class VariantDataset(object):
         **Annotations**
 
         Annotations with the following schema are placed in the location specified by ``root``.
-        The schema can be confirmed with :py:attr:`~hail.VariantDataset.variant_schema`, :py:attr:`~hail.VariantDataset.sample_schema`, and :py:attr:`~hail.VariantDataset.global_schema`.
+        The full resulting dataset schema can be queried with :py:attr:`~hail.VariantDataset.variant_schema`.
 
         .. code-block:: text
 
@@ -4818,14 +5107,14 @@ class VariantDataset(object):
 
         :param str root: Variant annotation path to store VEP output.
 
-        :param bool csq: If true, annotates VCF CSQ field as a String.
-            If False, annotates with the full nested struct schema
+        :param bool csq: If ``True``, annotates VCF CSQ field as a String.
+            If ``False``, annotates with the full nested struct schema
 
         :return: An annotated with variant annotations from VEP.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.vep(config, root, csq, block_size)
+        jvds = self._jvkdf.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -4979,3 +5268,5 @@ class VariantDataset(object):
         jkt = self._jvds.makeKT(variant_expr, genotype_expr,
                                 jarray(Env.jvm().java.lang.String, wrap_to_list(key)), separator)
         return KeyTable(self.hc, jkt)
+
+vds_type.set(VariantDataset)

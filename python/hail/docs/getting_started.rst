@@ -14,13 +14,7 @@ You'll need:
 Running Hail locally
 --------------------
 
-Hail uploads distributions to Google Storage as part of our continuous integration suite.
-
-You can download the distribution from these links. Make sure you download the distribution that matches
-your Spark version!
-
-- `Latest stable distribution for Spark 2.0.2 <https://storage.googleapis.com/hail-common/distributions/hail-0.1-latest-spark2.0.2.zip>`_
-- `Latest stable distribution for Spark 2.1.0 <https://storage.googleapis.com/hail-common/distributions/hail-0.1-latest-spark2.1.0.zip>`_
+.. include:: distLinks.rst
 
 Unzip the distribution after you download it. Next, edit and copy the below bash commands to set up the Hail
 environment variables. You may want to add these to your bash dot-file (``~/.bash_profile``, ``~/.bashrc``, etc)
@@ -191,10 +185,8 @@ the same as above, except:
  
     $ pyspark2 --jars build/libs/hail-all-spark.jar \
                --py-files build/distributions/hail-python.zip \
-               --conf spark.hadoop.io.compression.codecs=org.apache.hadoop.io.compress.DefaultCodec,is.hail.io.compress.BGzipCodec,org.apache.hadoop.io.compress.GzipCodec \
                --conf spark.sql.files.openCostInBytes=1099511627776 \
                --conf spark.sql.files.maxPartitionBytes=1099511627776 \
-               --conf spark.hadoop.mapreduce.input.fileinputformat.split.minsize=1099511627776 \
                --conf spark.hadoop.parquet.block.size=1099511627776
 
  - Cloudera's version of ``spark-submit`` is called ``spark2-submit``.

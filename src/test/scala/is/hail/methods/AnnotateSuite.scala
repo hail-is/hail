@@ -43,7 +43,7 @@ class AnnotateSuite extends SparkSuite {
     val q1 = anno1.querySA("sa.`my phenotype`.Status")._2
     val q2 = anno1.querySA("sa.`my phenotype`.qPhen")._2
 
-    assert(anno1.sampleIdsAndAnnotations
+    assert(anno1.stringSampleIdsAndAnnotations
       .forall { case (id, sa) =>
           fileMap.get(id).forall { case (status, qphen) =>
             status.liftedZip(Option(q1(sa))).exists { case (v1, v2) => v1 == v2 } &&
@@ -281,7 +281,7 @@ class AnnotateSuite extends SparkSuite {
     vds = sSample
       .annotateVariantsTable(kt, expr = "va.stuff = table")
 
-    var t = sSample.annotateVariantsVDS(hc.read(importTSVFile), root = Some("va.stuff"))
+    var t = sSample.annotateVariantsVDS(hc.readVDS(importTSVFile), root = Some("va.stuff"))
 
     assert(vds.same(t))
 
@@ -303,7 +303,7 @@ class AnnotateSuite extends SparkSuite {
 
     vds = sSample.annotateVariantsTable(kt2, root = "va.third")
 
-    t = sSample.annotateVariantsVDS(hc.read(importJSONFile), root = Some("va.third"))
+    t = sSample.annotateVariantsVDS(hc.readVDS(importJSONFile), root = Some("va.third"))
 
     assert(vds.same(t))
   }

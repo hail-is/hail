@@ -184,3 +184,25 @@ class ContextTests(unittest.TestCase):
         self.assertRaises(RuntimeError, lambda: f.c(2, 2))
         self.assertRaises(TypeError, lambda: f.d(2, 2, 3))
         self.assertRaises(TypeError, lambda: f.d(2, 2, z='2'))
+
+    def test_lazy(self):
+
+        foo_type = lazy()
+
+        class Foo:
+            def __init__(self):
+                pass
+
+            @typecheck_method(other=foo_type)
+            def bar(self, other):
+                pass
+
+        foo_type.set(Foo)
+
+        foo = Foo()
+        foo2 = Foo()
+
+        foo.bar(foo)
+        foo.bar(foo2)
+
+        self.assertRaises(TypeError, lambda: foo.bar(2))

@@ -14,7 +14,7 @@ object GenotypeSuite {
   def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
     ab.clear()
 
-    val isLinearScale = g.isLinearScale
+    val isLinearScale = g._isLinearScale
     val gb = new GenotypeBuilder(nAlleles, isLinearScale)
 
     gb.set(g)
@@ -31,7 +31,7 @@ object GenotypeSuite {
     }
 
     property("gt") = forAll { g: Genotype =>
-      g.gt.isDefined == g.isCalled
+      Genotype.gt(g).isDefined == Genotype.isCalled(g)
     }
 
     property("gtPairIndex") = forAll(Gen.choose(0, 0x7fff),
@@ -70,27 +70,27 @@ class GenotypeSuite extends TestNGSuite {
     val het = Genotype(Some(1), Some(Array(5, 5)), Some(12), Some(99), Some(Array(100, 0, 1000)))
     val homVar = Genotype(Some(2), Some(Array(2, 10)), Some(12), Some(99), Some(Array(100, 1000, 0)))
 
-    assert(noCall.isNotCalled && !noCall.isCalled && !noCall.isHomRef && !noCall.isHet && !noCall.isHomVar)
-    assert(!homRef.isNotCalled && homRef.isCalled && homRef.isHomRef && !homRef.isHet && !homRef.isHomVar)
-    assert(!het.isNotCalled && het.isCalled && !het.isHomRef && het.isHet && !het.isHomVar)
-    assert(!homVar.isNotCalled && homVar.isCalled && !homVar.isHomRef && !homVar.isHet && homVar.isHomVar)
+    assert(!Genotype.isCalled(noCall) && !Genotype.isHomRef(noCall) && !Genotype.isHet(noCall) && !Genotype.isHomVar(noCall))
+    assert(Genotype.isCalled(homRef) && Genotype.isHomRef(homRef) && !Genotype.isHet(homRef) && !Genotype.isHomVar(homRef))
+    assert(Genotype.isCalled(het) && !Genotype.isHomRef(het) && Genotype.isHet(het) && !Genotype.isHomVar(het))
+    assert(Genotype.isCalled(homVar) && !Genotype.isHomRef(homVar) && !Genotype.isHet(homVar) && Genotype.isHomVar(homVar))
 
-    assert(noCall.gt.isEmpty)
-    assert(homRef.gt.isDefined)
-    assert(het.gt.isDefined)
-    assert(homVar.gt.isDefined)
+    assert(Genotype.gt(noCall).isEmpty)
+    assert(Genotype.gt(homRef).isDefined)
+    assert(Genotype.gt(het).isDefined)
+    assert(Genotype.gt(homVar).isDefined)
 
     testReadWrite(noCall)
     testReadWrite(homRef)
     testReadWrite(het)
     testReadWrite(homVar)
 
-    assert(Genotype(None, None, None, None).pAB().isEmpty)
-    assert(Genotype(None, Some(Array(0, 0)), Some(0), None, None).pAB().isEmpty)
-    assert(D_==(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(99), Some(Array(100, 0, 100))).pAB().get, 1.0))
-    assert(D_==(Genotype(Some(4), Some(Array(16, 16, 16)), Some(48), None, None).pAB().get, 1.0))
-    assert(D_==(Genotype(Some(4), Some(Array(16, 5, 8)), Some(48), None, None).pAB().get, 0.423950))
-    assert(D_==(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(99), Some(Array(200, 0, 100))).pAB().get, 0.423950))
+    assert(Genotype.pAB(Genotype(None, None, None, None)).isEmpty)
+    assert(Genotype.pAB(Genotype(None, Some(Array(0, 0)), Some(0), None, None)).isEmpty)
+    assert(D_==(Genotype.pAB(Genotype(Some(1), Some(Array(16, 16)), Some(33), Some(99), Some(Array(100, 0, 100)))).get, 1.0))
+    assert(D_==(Genotype.pAB(Genotype(Some(4), Some(Array(16, 16, 16)), Some(48), None, None)).get, 1.0))
+    assert(D_==(Genotype.pAB(Genotype(Some(4), Some(Array(16, 5, 8)), Some(48), None, None)).get, 0.423950))
+    assert(D_==(Genotype.pAB(Genotype(Some(1), Some(Array(5, 8)), Some(13), Some(99), Some(Array(200, 0, 100)))).get, 0.423950))
 
     Spec.check()
   }
@@ -144,9 +144,9 @@ class GenotypeSuite extends TestNGSuite {
     val g1 = Genotype.apply(gt = Some(1), px = Some(Array(20, 32648, 100)), isLinearScale = true)
     val g2 = Genotype.apply(gt = Some(2), px = Some(Array(20, 100, 32648)), isLinearScale = true)
 
-    assert(D_==(g0.unboxedDosage, (20 + 2 * 100) / 32768d))
-    assert(D_==(g1.unboxedDosage, (32648 + 2 * 100) / 32768d))
-    assert(D_==(g2.unboxedDosage, (100 + 2 * 32648) / 32768d))
+    assert(D_==(Genotype.unboxedDosage(g0), (20 + 2 * 100) / 32768d))
+    assert(D_==(Genotype.unboxedDosage(g1), (32648 + 2 * 100) / 32768d))
+    assert(D_==(Genotype.unboxedDosage(g2), (100 + 2 * 32648) / 32768d))
   }
 
   @Test def testPlToDosage() {

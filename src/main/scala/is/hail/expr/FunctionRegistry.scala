@@ -662,83 +662,83 @@ object FunctionRegistry {
     "v" -> ":ref:`variant`")(callHr, variantHr, arrayHr(intHr))
 
   registerFieldCode("gt", { (x: Code[Genotype]) =>
-    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("unboxedGT"), boxInt(_))
+    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("_unboxedGT"), boxInt(_))
   }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")
-  registerMethod("call", { (x: Genotype) => x.call }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(genotypeHr, callHr)
+  registerMethod("call", { (x: Genotype) => Genotype.call(x) }, "the integer ``gt = k*(k+1)/2 + j`` for call ``j/k`` (0 = 0/0, 1 = 0/1, 2 = 1/1, 3 = 0/2, etc.).")(genotypeHr, callHr)
   registerMethod("gtj", { (x: Genotype) =>
-    val gt = x.unboxedGT
+    val gt = x._unboxedGT
     if (gt == -1)
       null
     else
       box(Genotype.gtPair(gt).j)
   }, "the index of allele ``j`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
   registerMethod("gtk", { (x: Genotype) =>
-    val gt = x.unboxedGT
+    val gt = x._unboxedGT
     if (gt == -1)
       null
     else
       box(Genotype.gtPair(gt).k)
   }, "the index of allele ``k`` for call ``j/k`` (0 = ref, 1 = first alt allele, etc.).")
   registerFieldCode("ad", { (x: Code[Genotype]) =>
-    CM.ret(arrayToWrappedArray(x.invoke[Array[Int]]("unboxedAD")))
+    CM.ret(arrayToWrappedArray(x.invoke[Array[Int]]("_unboxedAD")))
   }, "allelic depth for each allele.")
   registerFieldCode("dp", { (x: Code[Genotype]) =>
-    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("unboxedDP"), boxInt)
+    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("_unboxedDP"), boxInt)
   }, "the total number of informative reads.")
   registerMethodCode("od", { (x: Code[Genotype]) =>
     CM.ret(x.invoke[Boolean]("hasOD").mux(boxInt(x.invoke[Int]("od_")),Code._null[java.lang.Integer]))
   }, "``od = dp - ad.sum``.")
   registerFieldCode("gq", { (x: Code[Genotype]) =>
-    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("unboxedGQ"), boxInt)
+    nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("_unboxedGQ"), boxInt)
   }, "the difference between the two smallest PL entries.")
   registerFieldCode("pl", { (x: Code[Genotype]) =>
-    CM.ret(arrayToWrappedArray(x.invoke[Array[Int]]("unboxedPL")))
+    CM.ret(arrayToWrappedArray(Code.invokeStatic[Genotype, Genotype, Array[Int]]("unboxedPL", x)))
   }, """
      phred-scaled normalized genotype likelihood values. The conversion between
      ``g.pl`` (Phred-scaled likelihoods) and ``g.gp`` (linear-scaled
      probabilities) assumes a uniform prior.
      """)
   registerFieldCode("gp", { (x: Code[Genotype]) =>
-    CM.ret(arrayToWrappedArray(x.invoke[Array[Double]]("unboxedGP")))
+    CM.ret(arrayToWrappedArray(Code.invokeStatic[Genotype, Genotype, Array[Double]]("unboxedGP", x)))
   }, "the linear-scaled probabilities.")
   registerFieldCode("dosage", { (x: Code[Genotype]) =>
-    nonceToNullable[Double, java.lang.Double](_.ceq(-1d), x.invoke[Double]("unboxedDosage"), boxDouble)
+    nonceToNullable[Double, java.lang.Double](_.ceq(-1d), Code.invokeStatic[Genotype, Genotype, Double]("unboxedDosage", x), boxDouble)
   }, "the expected number of non-reference alleles based on genotype probabilities.")
   registerMethodCode("isHomRef", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(x.invoke[Boolean]("isHomRef")))
+    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHomRef", x)))
   }, "True if this call is ``0/0``.")
   registerMethodCode("isHet", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(x.invoke[Boolean]("isHet")))
+    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHet", x)))
   }, "True if this call is heterozygous.")
   registerMethodCode("isHomVar", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(x.invoke[Boolean]("isHomVar")))
+    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHomVar", x)))
   }, "True if this call is ``j/j`` with ``j>0``.")
   registerMethodCode("isCalledNonRef", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(x.invoke[Boolean]("isCalledNonRef")))
+    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isCalledNonRef", x)))
   }, "True if either ``g.isHet`` or ``g.isHomVar`` is true.")
   registerMethodCode("isHetNonRef", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(x.invoke[Boolean]("isHetNonRef")))
+    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHetNonRef", x)))
   }, "True if this call is ``j/k`` with ``j>0``.")
   registerMethodCode("isHetRef", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(x.invoke[Boolean]("isHetRef")))
+    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isHetRef", x)))
   }, "True if this call is ``0/k`` with ``k>0``.")
   registerMethodCode("isCalled", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(x.invoke[Boolean]("isCalled")))
+    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isCalled", x)))
   }, "True if the genotype is not ``./.``.")
   registerMethodCode("isNotCalled", { (x: Code[Genotype]) =>
-    CM.ret(boxBoolean(x.invoke[Boolean]("isNotCalled")))
+    CM.ret(boxBoolean(Code.invokeStatic[Genotype, Genotype, Boolean]("isNotCalled", x)))
   }, "True if the genotype is ``./.``.")
   registerMethodCode("nNonRefAlleles", { (x: Code[Genotype]) => for (
     (stg, g) <- CM.memoize(x)
   ) yield Code(stg,
-    g.invoke[Boolean]("hasNNonRefAlleles")
-      .mux(boxInt(g.invoke[Int]("nNonRefAlleles_")), Code._null))
+    Code.invokeStatic[Genotype, Genotype, Boolean]("hasNNonRefAlleles", g)
+      .mux(boxInt(Code.invokeStatic[Genotype, Genotype, Int]("nNonRefAlleles_", g)), Code._null))
   }, "the number of called alternate alleles.")
   registerMethodCode("pAB", { (x: Code[Genotype]) => for (
     (stg, g) <- CM.memoize(x)
   ) yield Code(stg,
-    g.invoke[Boolean]("hasPAB")
-      .mux(boxDouble(g.invoke[Double, Double]("pAB_", 0.5)), Code._null))
+      Code.invokeStatic[Genotype, Genotype, Boolean]("hasPAB", g)
+      .mux(boxDouble(Code.invokeStatic[Genotype, Genotype, Double, Double]("pAB_", g, 0.5)), Code._null))
   }, "p-value for pulling the given allelic depth from a binomial distribution with mean 0.5.  Missing if the call is not heterozygous.")
 
   private def intArraySumCode(a: Code[Array[Int]]): CM[Code[Int]] = for (
@@ -754,7 +754,7 @@ object FunctionRegistry {
   )
 
   registerMethodCode("fractionReadsRef", { (x: Code[Genotype]) => for (
-    (stad, ad) <- CM.memoize(x.invoke[Array[Int]]("unboxedAD"));
+    (stad, ad) <- CM.memoize(Code.invokeStatic[Genotype, Genotype, Array[Int]]("unboxedAD", x));
     (stsum, sum) <- CM.memoize(intArraySumCode(ad))
   ) yield Code(stad, stsum, sum.ceq(0).mux(Code._null, boxDouble(ad(0).toD / sum.toD)))
   }, "the ratio of ref reads to the sum of all *informative* reads.")
@@ -1469,13 +1469,13 @@ object FunctionRegistry {
     "delim" -> "Regular expression delimiter.", "n" -> "Number of times the pattern is applied. See the `Java documentation <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#split-java.lang.String-int->`_ for more information."
   )
 
-  registerMethod("oneHotAlleles", (g: Genotype, v: Variant) => g.oneHotAlleles(v).orNull,
+  registerMethod("oneHotAlleles", (g: Genotype, v: Variant) => Genotype.oneHotAlleles(v, g).orNull,
     """
     Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
     """,
     "v" -> ":ref:`variant`")
 
-  registerMethod("oneHotGenotype", (g: Genotype, v: Variant) => g.oneHotGenotype(v).orNull,
+  registerMethod("oneHotGenotype", (g: Genotype, v: Variant) => Genotype.oneHotGenotype(v, g).orNull,
     """
     Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
     """,
@@ -2170,6 +2170,18 @@ object FunctionRegistry {
     """)(
     aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boxeddoubleHr)
 
+  registerLambdaAggregator[Any, (Any) => Any, Boolean]("exists", (f: (Any) => Any) => new ExistsAggregator(f),
+    """
+    Returns true if **any** element in the aggregator satisfies the condition given by ``expr`` and false otherwise.
+    """,
+    "expr" -> "Lambda expression.")(aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boolHr)
+
+  registerLambdaAggregator[Any, (Any) => Any, Boolean]("forall", (f: (Any) => Any) => new ForallAggregator(f),
+    """
+    Returns a true if **all** elements in the array satisfies the condition given by ``expr`` and false otherwise.
+    """,
+    "expr" -> "Lambda expression.")(aggregableHr(TTHr), unaryHr(TTHr, boxedboolHr), boolHr)
+
   registerAggregator("take", (n: Int) => new TakeAggregator(n),
     """
     Take the first ``n`` items of an aggregable.
@@ -2498,6 +2510,14 @@ object FunctionRegistry {
       def typ: Type = hrt.typ
     }
 
+    def extOrd(ascending: Boolean): Ordering[Any] = {
+      val dirOrd = if (ascending) ord else ord.reverse
+      extendOrderingToNull(missingGreatest = true)(
+        new Ordering[Any] {
+          def compare(a: Any, b: Any): Int = dirOrd.compare(a.asInstanceOf[T], b.asInstanceOf[T])
+        })
+    }
+
     // register("<", ord.lt _, null)
     register("<=", ord.lteq _, null)
     // register(">", ord.gt _, null)
@@ -2506,25 +2526,17 @@ object FunctionRegistry {
     registerMethod("min", ord.min _, "Returns the minimum value.")
     registerMethod("max", ord.max _, "Returns the maximum value.")
 
-    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extendOrderingToNull(missingGreatest = true)(ord)), "Sort the collection in ascending order.")(arrayHr(hrboxedt), arrayHr(hrboxedt))
+    registerMethod("sort", (a: IndexedSeq[Any]) => a.sorted(extOrd(ascending = true)), "Sort the collection in ascending order.")(arrayHr(hrboxedt), arrayHr(hrboxedt))
     registerMethod("sort", (a: IndexedSeq[Any], ascending: Boolean) =>
-      a.sorted(extendOrderingToNull(missingGreatest = true)(
-        if (ascending)
-          ord
-        else
-          ord.reverse)), "Sort the collection with the ordering specified by ``ascending``.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
+      a.sorted(extOrd(ascending)), "Sort the collection with the ordering specified by ``ascending``.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
     )(arrayHr(hrboxedt), boolHr, arrayHr(hrboxedt))
 
     registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any) =>
-      a.sortBy(f)(extendOrderingToNull(missingGreatest = true)(ord)), "Sort the collection in ascending order after evaluating ``f`` for each element.", "f" -> "Lambda expression."
+      a.sortBy(f)(extOrd(ascending = true)), "Sort the collection in ascending order after evaluating ``f`` for each element.", "f" -> "Lambda expression."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), arrayHr(TTHr))
 
     registerLambdaMethod("sortBy", (a: IndexedSeq[Any], f: (Any) => Any, ascending: Boolean) =>
-      a.sortBy(f)(extendOrderingToNull(missingGreatest = true)(
-        if (ascending)
-          ord
-        else
-          ord.reverse)), "Sort the collection with the ordering specified by ``ascending`` after evaluating ``f`` for each element.",
+      a.sortBy(f)(extOrd(ascending)), "Sort the collection with the ordering specified by ``ascending`` after evaluating ``f`` for each element.",
       "f" -> "Lambda expression.", "ascending" -> "If true, sort the collection in ascending order. Otherwise, sort in descending order."
     )(arrayHr(TTHr), unaryHr(TTHr, hrboxedt), boolHr, arrayHr(TTHr))
   }

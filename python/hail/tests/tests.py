@@ -91,10 +91,10 @@ class ContextTests(unittest.TestCase):
 
         for (dataset, dataset2) in [(vds, vds2), (gds, gds2)]:
 
-            if dataset._is_generic_genotype:
-                gt = 'g.GT'
-            else:
+            if dataset.genotype_schema == TGenotype():
                 gt = 'g'
+            else:
+                gt = 'g.GT'
 
             dataset.cache()
             dataset2.persist()
@@ -201,12 +201,12 @@ class ContextTests(unittest.TestCase):
                              .annotate('s = s, sa = json(sa)'))
                             .same(hc.import_table('/tmp/samples.tsv', impute=True).key_by('s')))
 
-            if dataset._is_generic_genotype:
-                gt_string = 'gt = g.GT, gq = g.GQ'
-                gt_string2 = 'gt: g.GT, gq: g.GQ'
-            else:
+            if dataset.genotype_schema == TGenotype():
                 gt_string = 'gt = g.gt, gq = g.gq'
                 gt_string2 = 'gt: g.gt, gq: g.gq'
+            else:
+                gt_string = 'gt = g.GT, gq = g.GQ'
+                gt_string2 = 'gt: g.GT, gq: g.GQ'
 
             cols = ['v = v, info = va.info']
             for s in dataset.sample_ids:
@@ -221,10 +221,6 @@ class ContextTests(unittest.TestCase):
              .same(hc.import_table('/tmp/sample_kt.tsv').key_by('v')))
 
             dataset.annotate_variants_expr("va.nHet = gs.filter(g => {0}.isHet()).count()".format(gt))
-
-            dataset.aggregate_by_key("Variant = v", "nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt))
-            dataset.aggregate_by_key(["Variant = v"],
-                                     ["nHet = g.map(g => {0}.isHet().toInt()).sum().toLong()".format(gt)])
 
             dataset.make_table('v = v, info = va.info', 'gt = {0}'.format(gt), ['v'])
 
@@ -256,10 +252,10 @@ class ContextTests(unittest.TestCase):
                            .filter('pcoin(0.1)')
                            .collect())
 
-            if dataset._is_generic_genotype:
-                expr = 'g.GT.isHet() && g.GQ > 20'
-            else:
+            if dataset.genotype_schema == TGenotype():
                 expr = 'g.isHet() && g.gq > 20'
+            else:
+                expr = 'g.GT.isHet() && g.GQ > 20'
 
             (dataset.filter_genotypes(expr)
              .export_genotypes('/tmp/sample2_genotypes.tsv', 'v, s, {0}.nNonRefAlleles()'.format(gt)))
@@ -268,7 +264,10 @@ class ContextTests(unittest.TestCase):
                 (dataset.repartition(16, shuffle=False)
                  .same(dataset)))
 
+            self.assertTrue(dataset.naive_coalesce(2).same(dataset))
+
             print(dataset.storage_level())
+
             dataset.unpersist()
             dataset2.unpersist()
 
@@ -276,6 +275,7 @@ class ContextTests(unittest.TestCase):
         sample.cache()
 
         sample.summarize().report()
+        sample.drop_samples().summarize().report()
 
         sample_split = sample.split_multi()
 
@@ -385,9 +385,6 @@ class ContextTests(unittest.TestCase):
 
         sample_split.annotate_variants_expr("va.nHet = gs.filter(g => g.isHet()).count()")
 
-        sample_split.aggregate_by_key("Variant = v", "nHet = g.map(g => g.isHet().toInt()).sum().toLong()")
-        sample_split.aggregate_by_key(["Variant = v"], ["nHet = g.map(g => g.isHet().toInt()).sum().toLong()"])
-
         sample2.make_table('v = v, info = va.info', 'gt = g.gt', ['v'])
 
         sample.num_partitions()
@@ -413,7 +410,7 @@ class ContextTests(unittest.TestCase):
         variants_py = (sample
                        .annotate_variants_expr('va.hets = gs.filter(g => g.isHet).collect()')
                        .variants_table()
-                       .collect())
+                       .take(5))
 
         VariantDataset.from_table(sample.variants_table())
 
@@ -526,7 +523,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(first3[2].Sample, 'HG00099')
         self.assertTrue(all(x.Status == 'CASE' for x in first3))
 
-        self.assertEqual(range(100), [x.index for x in KeyTable.range(100).collect()])
+        self.assertEqual(range(10), [x.index for x in KeyTable.range(10).collect()])
         self.assertTrue(KeyTable.range(200).indexed('foo').forall('index == foo'))
 
     def test_representation(self):

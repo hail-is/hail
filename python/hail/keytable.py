@@ -8,16 +8,29 @@ from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
 
 
+class Ascending(object):
+    def __init__(self, col):
+        self._jrep = scala_package_object(Env.hail().keytable).asc(col)
+
+
+class Descending(object):
+    def __init__(self, col):
+        self._jrep = scala_package_object(Env.hail().keytable).desc(col)
+
+
 def asc(col):
     """Sort by ``col`` ascending."""
 
-    return scala_package_object(Env.hail().keytable).asc(col)
+    return Ascending(col)
 
 
 def desc(col):
     """Sort by ``col`` descending."""
 
-    return scala_package_object(Env.hail().keytable).desc(col)
+    return Descending(col)
+
+
+kt_type = lazy()
 
 
 class KeyTable(object):
@@ -25,7 +38,7 @@ class KeyTable(object):
 
     Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_table`
     or :py:meth:`~hail.KeyTable.from_dataframe`, generated from a variant dataset
-    with :py:meth:`~hail.VariantDataset.aggregate_by_key`, :py:meth:`~hail.VariantDataset.make_table`,
+    with :py:meth:`~hail.VariantDataset.make_table`, :py:meth:`~hail.VariantDataset.genotypes_table`,
     :py:meth:`~hail.VariantDataset.samples_table`, or :py:meth:`~hail.VariantDataset.variants_table`.
 
     In the examples below, we have imported two key tables from text files (``kt1`` and ``kt2``).
@@ -108,21 +121,14 @@ class KeyTable(object):
     def schema(self):
         """Table schema.
 
-        **Example:**
-
-        Print the table columns / signatures:
+        **Examples**
 
         >>> print(kt1.schema)
-        Struct {
-            ID: Int,
-            HT: Int,
-            SEX: String,
-            X: Int,
-            Z: Int,
-            C1: Int,
-            C2: Int,
-            C3: Int
-        }
+
+        The ``pprint`` module can be used to print the schema in a more human-readable format:
+
+        >>> from pprint import pprint
+        >>> pprint(kt1.schema)
 
         :rtype: :class:`.TStruct`
         """
@@ -176,7 +182,7 @@ class KeyTable(object):
         return self._jkt.count()
 
     @handle_py4j
-    @typecheck_method(other=anytype)
+    @typecheck_method(other=kt_type)
     def same(self, other):
         """Test whether two key tables are identical.
 
@@ -287,7 +293,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.annotate(expr))
 
     @handle_py4j
-    @typecheck_method(right=anytype,
+    @typecheck_method(right=kt_type,
                       how=strlike)
     def join(self, right, how='inner'):
         """Join two key tables together.
@@ -928,7 +934,7 @@ class KeyTable(object):
         self._jkt.unpersist()
 
     @handle_py4j
-    @typecheck_method(cols=tupleof(oneof(strlike, anytype)))
+    @typecheck_method(cols=tupleof(oneof(strlike, Ascending, Descending)))
     def order_by(self, *cols):
         """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
 
@@ -939,7 +945,7 @@ class KeyTable(object):
         :rtype: :class:`.KeyTable`
         """
 
-        jsort_columns = [asc(col) if isinstance(col, str) else col for col in cols]
+        jsort_columns = [asc(col)._jrep if isinstance(col, str) else col._jrep for col in cols]
         return KeyTable(self.hc,
                         self._jkt.orderBy(jarray(Env.hail().keytable.SortColumn, jsort_columns)))
 
@@ -1075,6 +1081,12 @@ class KeyTable(object):
     def from_dataframe(df, key=[]):
         """Convert Spark SQL DataFrame to key table.
 
+        **Examples**
+
+        >>> kt = KeyTable.from_dataframe(df) # doctest: +SKIP
+
+        **Notes**
+
         Spark SQL data types are converted to Hail types as follows:
 
         .. code-block:: text
@@ -1175,7 +1187,7 @@ class KeyTable(object):
         return KeyTable(hc, jkt)
 
     @handle_py4j
-    @typecheck_method(kts=tupleof(anytype))
+    @typecheck_method(kts=tupleof(kt_type))
     def union(self, *kts):
         """Union the rows of multiple tables.
 
@@ -1286,3 +1298,6 @@ class KeyTable(object):
         """
 
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
+
+
+kt_type.set(KeyTable)

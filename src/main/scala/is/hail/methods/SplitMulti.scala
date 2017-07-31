@@ -44,16 +44,17 @@ object SplitMulti {
     val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isLinearScale) }
 
     for (g <- it) {
-
-      val gadsum = g.ad.map(gadx => (gadx, gadx.sum))
+      val gadsum = Genotype.ad(g).map(gadx => (gadx, gadx.sum))
 
       // svj corresponds to the ith allele of v
       for (((svj, i), j) <- splitVariants.iterator.zipWithIndex) {
         val gb = splitGenotypeBuilders(j)
         gb.clear()
 
-        if (!isLinearScale) {
-          g.gt.foreach { ggtx =>
+        if (g == null)
+          gb.setMissing()
+        else if (!isLinearScale) {
+          Genotype.gt(g).foreach { ggtx =>
             val gtx = splitGT(ggtx, i)
             gb.setGT(gtx)
 
@@ -68,12 +69,12 @@ object SplitMulti {
             gb.setAD(Array(sum - gadx(i), gadx(i)))
           }
 
-          g.dp.foreach { dpx => gb.setDP(dpx) }
+          Genotype.dp(g).foreach { dpx => gb.setDP(dpx) }
 
           if (propagateGQ)
-            g.gq.foreach { gqx => gb.setGQ(gqx) }
+            Genotype.gq(g).foreach { gqx => gb.setGQ(gqx) }
 
-          g.pl.foreach { gplx =>
+          Genotype.pl(g).foreach { gplx =>
             val plx = gplx.iterator.zipWithIndex
               .map { case (p, k) => (splitGT(k, i), p) }
               .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
@@ -85,7 +86,7 @@ object SplitMulti {
             }
           }
         } else {
-          val newpx = g.px.map { gpx =>
+          val newpx = Genotype.px(g).map { gpx =>
             val splitpx = gpx.iterator.zipWithIndex
               .map { case (p, k) => (splitGT(k, i), p) }
               .reduceByKeyToArray(3, 0)(_ + _)
@@ -102,7 +103,7 @@ object SplitMulti {
           if (newgt != -1)
             gb.setGT(newgt)
 
-          g.gt.foreach { gtx =>
+          Genotype.gt(g).foreach { gtx =>
             val p = Genotype.gtPair(gtx)
             if (newgt != p.nNonRefAlleles && newgt != -1)
               gb.setFakeRef()

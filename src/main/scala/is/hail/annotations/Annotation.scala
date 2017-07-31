@@ -63,7 +63,7 @@ object Annotation {
     else
       t match {
         case TVariant => a.asInstanceOf[Variant].toRow
-        case TGenotype => a.asInstanceOf[Genotype].toRow
+        case TGenotype => Genotype.toRow(a.asInstanceOf[Genotype])
         case TLocus => a.asInstanceOf[Locus].toRow
 
         case TArray(elementType) =>

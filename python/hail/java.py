@@ -81,11 +81,11 @@ def jset(x):
     return Env.jutils().arrayListToSet(x)
 
 def jindexed_seq_args(x):
-    args = [x] if isinstance(x, str) else x
+    args = [x] if isinstance(x, str) or isinstance(x, unicode) else x
     return jindexed_seq(args)
 
 def jset_args(x):
-    args = [x] if isinstance(x, str) else x
+    args = [x] if isinstance(x, str) or isinstance(x, unicode) else x
     return jset(args)
 
 

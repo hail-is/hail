@@ -20,7 +20,11 @@ object LinearRegressionMultiPheno {
     require(vds.wasSplit)
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenosCovCompleteSamples(vds, ysExpr, covExpr)
-    val sampleMask = vds.sampleIds.map(completeSamples.toSet).toArray
+    val completeSamplesSet = completeSamples.toSet
+    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
+    val completeSampleIndex = (0 until vds.nSamples)
+      .filter(i => completeSamplesSet(vds.sampleIds(i)))
+      .toArray
 
     val n = y.rows
     val k = cov.cols
@@ -43,6 +47,7 @@ object LinearRegressionMultiPheno {
 
     val sc = vds.sparkContext
     val sampleMaskBc = sc.broadcast(sampleMask)
+    val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
     val yBc = sc.broadcast(y)
     val QtBc = sc.broadcast(Qt)
     val QtyBc = sc.broadcast(Qty)
@@ -56,8 +61,8 @@ object LinearRegressionMultiPheno {
         if (!useDosages) // replace by hardCalls in 0.2, with ac post-imputation
           RegressionUtils.hardCallsWithAC(gs, n, sampleMaskBc.value)
         else {
-          val x0 = RegressionUtils.dosages(gs, n, sampleMaskBc.value)
-          (x0, sum(x0))
+          val x = RegressionUtils.dosages(gs, completeSampleIndexBc.value)
+          (x, sum(x))
         }
 
       // constant checking to be removed in 0.2
