@@ -95,7 +95,7 @@ hc = HailContext(log="output/hail.log", quiet=True)
  .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
  .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
  .annotate_samples_expr('sa.cov2 = rnorm(0,1)')
- .linreg('sa.pheno', ['sa.cov1', 'sa.cov2']).annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
+ .linreg(['sa.pheno'], ['sa.cov1', 'sa.cov2']).annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
  .write("data/example_lmmreg.vds", overwrite=True))
 
 (hc.import_vcf('data/example_burden.vcf')
