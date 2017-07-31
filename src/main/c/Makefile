@@ -2,7 +2,7 @@
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
-OBJECTS=ibs.o
+OBJECTS=ibs.o davies.o
 
 CXX ?= c++
 # append existing flags so they override our flags
