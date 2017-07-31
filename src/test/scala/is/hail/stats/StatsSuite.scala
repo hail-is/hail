@@ -81,16 +81,16 @@ class StatsSuite extends SparkSuite {
   @Test def betaTest() {
     val tol = 1e-5
 
-    assert(D_==(dbeta(.2,1,3),1.92, tol))
-    assert(D_==(dbeta(0.70,2,10),0.001515591, tol))
-    assert(D_==(dbeta(.4,5,3),0.96768, tol))
-    assert(D_==(dbeta(.3,7,2),0.0285768, tol))
-    assert(D_==(dbeta(.8,2,2),.96, tol))
-    assert(D_==(dbeta(.1,3,6),0.9920232, tol))
-    assert(D_==(dbeta(.6,3,4),1.3824, tol))
-    assert(D_==(dbeta(.1,1,1),1, tol))
-    assert(D_==(dbeta(.2,4,7),1.761608, tol))
-    assert(D_==(dbeta(.2,1,2),1.6, tol))
+    assert(D_==(dbeta(.2 , 1, 3), 1.92, tol))
+    assert(D_==(dbeta(0.70, 2, 10), 0.001515591, tol))
+    assert(D_==(dbeta(.4, 5, 3), 0.96768, tol))
+    assert(D_==(dbeta(.3, 7, 2), 0.0285768, tol))
+    assert(D_==(dbeta(.8, 2, 2), .96, tol))
+    assert(D_==(dbeta(.1, 3, 6), 0.9920232, tol))
+    assert(D_==(dbeta(.6, 3, 4), 1.3824, tol))
+    assert(D_==(dbeta(.1, 1, 1), 1, tol))
+    assert(D_==(dbeta(.2, 4, 7), 1.761608, tol))
+    assert(D_==(dbeta(.2, 1, 2), 1.6, tol))
 
   }
 }

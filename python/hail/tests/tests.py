@@ -343,20 +343,20 @@ class ContextTests(unittest.TestCase):
             'sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]')
                      .annotate_samples_expr('sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit'))
 
-        covariates2 = hc.import_table("src/test/resources/skat.cov",impute = True).key_by("Sample")
+        covariatesSkat = hc.import_table("src/test/resources/skat.cov",impute = True).key_by("Sample")
 
-        phenotypes2 = hc.import_table("src/test/resources/skat.pheno",types = {"Pheno" :TDouble()}, missing = "0").key_by("Sample")
+        phenotypesSkat = hc.import_table("src/test/resources/skat.pheno",types = {"Pheno" :TDouble()}, missing = "0").key_by("Sample")
 
-        intervals2  = KeyTable.import_interval_list("src/test/resources/skat.interval_list")
+        intervalsSkat  = KeyTable.import_interval_list("src/test/resources/skat.interval_list")
 
-        weights2    = hc.import_table("src/test/resources/skat.weights",types = {"locus":TLocus(),
+        weightsSkat    = hc.import_table("src/test/resources/skat.weights",types = {"locus":TLocus(),
                                                                                "weight":TDouble()}).key_by("locus")
 
         (vds2.split_multi()
-        .annotate_variants_table(intervals2, root="va.genes", product = True)
-        .annotate_variants_table(weights2, root = "va.weight")
-        .annotate_samples_table(phenotypes2, root="sa.pheno")
-        .annotate_samples_table(covariates2, root="sa.cov")
+        .annotate_variants_table(intervalsSkat, root="va.genes", product = True)
+        .annotate_variants_table(weightsSkat, root = "va.weight")
+        .annotate_samples_table(phenotypesSkat, root="sa.pheno")
+        .annotate_samples_table(covariatesSkat, root="sa.cov")
         .annotate_samples_expr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
         .skat(key_name='gene',
               variant_keys='va.genes',

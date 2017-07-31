@@ -4,7 +4,7 @@ import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
-import is.hail.stats.{LargeNSkatModel, RegressionUtils, SkatModel}
+import is.hail.stats.{ RegressionUtils, SkatModel}
 import is.hail.annotations.{Annotation, Querier}
 import breeze.linalg._
 import org.apache.spark.rdd.RDD
@@ -60,10 +60,11 @@ object SkatAgg {
 
     val weightedGenotypes   = new DenseMatrix[Double](n, m, xwArray)
     val qtWeightedGenotypes = new DenseMatrix[Double](k, m, qtxwArray)
+    val GwGrammian = weightedGenotypes.t*weightedGenotypes
+    val QtGwGrammian = qtWeightedGenotypes.t*qtWeightedGenotypes
 
-    val SPG = new SkatModel(weightedGenotypes, qtWeightedGenotypes, sa.q / (2 *  sigmaSq))
-    val ((q, pval),fault) = SPG.computeSkatStats()
-    (SkatStat(q, pval),fault)
+    val SPG = new SkatModel(GwGrammian, QtGwGrammian, sa.q / (2 *  sigmaSq))
+    SPG.computeSkatStats()
   }
 
   def sparseResultOp(sa: SkatAgg[SparseVector[Double]], sigmaSq: Double): (SkatStat, Int) = {
@@ -103,10 +104,11 @@ object SkatAgg {
 
     val weightedGenotypes   = new DenseMatrix[Double](n, m, xwArray)
     val qtWeightedGenotypes = new DenseMatrix[Double](k, m, qtxwArray)
+    val GwGrammian = weightedGenotypes.t*weightedGenotypes
+    val QtGwGrammian = qtWeightedGenotypes.t*qtWeightedGenotypes
 
-    val SPG = new SkatModel(weightedGenotypes, qtWeightedGenotypes, sa.q / (2 *  sigmaSq))
-    val ((q, pval), fault) = SPG.computeSkatStats()
-    (SkatStat(q, pval),fault)
+    val SPG = new SkatModel(GwGrammian, QtGwGrammian, sa.q / (2 *  sigmaSq))
+    SPG.computeSkatStats()
   }
 
   def largeNResultOp[T <: Vector[Double]](sa: SkatAgg[T], sigmaSq: Double): (SkatStat, Int) = {
@@ -147,10 +149,8 @@ object SkatAgg {
     val weightedGenotypesGrammian   = new DenseMatrix[Double](m, m, ZGrammianArray)
     val qtWeightedGenotypesGrammian = new DenseMatrix[Double](m, m, QtZGrammianArray)
 
-    val SPG = new LargeNSkatModel(weightedGenotypesGrammian, qtWeightedGenotypesGrammian, sa.q / (2 *  sigmaSq))
-
-    val ((q, pval), fault) = SPG.computeSkatStats()
-    (SkatStat(q, pval),fault)
+    val SPG = new SkatModel(weightedGenotypesGrammian, qtWeightedGenotypesGrammian, sa.q / (2 *  sigmaSq))
+    SPG.computeSkatStats()
   }
 
 }
@@ -188,14 +188,7 @@ object Skat {
     resultOp:(SkatAgg[T], Double) => (SkatStat, Int)): KeyTable =
   {
 
-
-
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-
-    vds.filterSamples { case (s, sid) =>
-        s in completeSamples
-
-    }
 
     val n = y.size
     val k = cov.cols
@@ -210,12 +203,15 @@ object Skat {
     val res = y - cov * beta
     val sigmaSq = (res dot res) / d
 
-    val filteredVds = vds.filterSamplesList(completeSamples.toSet)
-
-    filteredVds = if (weightExpr == "undefined by user") {
-        filteredVds.annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
+    val filteredVds = if (weightExpr == "undefined by user") {
+         vds.filterSamplesList(completeSamples.toSet)
+        .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
         .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
     }
+    else{
+      vds.filterSamplesList(completeSamples.toSet)
+    }
+
 
     val (keysType, keysQuerier) = filteredVds.queryVA(variantKeys)
     val (weightType, weightQuerier) = filteredVds.queryVA(weightExpr)
@@ -266,10 +262,10 @@ object Skat {
       flag match {
         case 0 =>
         case 1 => info(s"key: $key, required accuracy of 10e-6 NOT achieved")
-        case 2 => info(s"key: $key,round-off error possibly significant")
-        case 3 => info(s"key: $key,invalid parameters")
-        case 4 => info(s"key: $key,unable to locate integration parameter")
-        case 5 => info(s"key: $key,out of memory")
+        case 2 => info(s"key: $key, round-off error possibly significant")
+        case 3 => info(s"key: $key, invalid parameters")
+        case 4 => info(s"key: $key, unable to locate integration parameter")
+        case 5 => info(s"key: $key, out of memory")
       }
         Row(key, skatStat)
     }
