@@ -96,14 +96,6 @@ object PCRelateReferenceImplementation {
     }
     val stddev = new BDM[Double](m, n, stddeva)
 
-    // println(g.t)
-    // println("mu")
-    // println(mu_si)
-    // println("gMinusMu")
-    // println(g2mu)
-    // println("stddev")
-    // println(stddev)
-
     val denom = (stddev.t * stddev)
     val phi = (numer :/ denom) / 4.0
 
@@ -172,9 +164,6 @@ object PCRelateReferenceImplementation {
       i += 1
     }
     val ibs0 = new BDM[Double](n,n,ibs0a)
-
-    // println("ibs0")
-    // println(ibs0)
 
     val k0a = new Array[Double](n*n)
     i = 0
