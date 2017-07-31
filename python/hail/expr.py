@@ -94,7 +94,7 @@ class SingletonType(Singleton, abc.ABCMeta):
 
 class TInt32(Type):
     """
-    Hail type corresponding to 32-bit integers
+    Hail type corresponding to 32-bit integers.
 
     .. include:: hailType.rst
 
@@ -120,11 +120,17 @@ class TInt32(Type):
         if annotation and not isinstance(annotation, int):
             raise TypeCheckError("TInt32 expected type 'int', but found type '%s'" % type(annotation))
 
-TInt = TInt32
+def TInt():
+    """
+    Returns the default 32-bit integer type.
+
+    :rtype: :py:class:`.TInt32`
+    """
+    return TInt32()
 
 class TInt64(Type):
     """
-    Hail type corresponding to 64-bit integers
+    Hail type corresponding to 64-bit integers.
 
     .. include:: hailType.rst
 
@@ -153,7 +159,7 @@ class TInt64(Type):
 
 class TFloat32(Type):
     """
-    Hail type corresponding to 32-bit floating point numbers
+    Hail type for 32-bit floating point numbers.
 
     .. include:: hailType.rst
 
@@ -185,7 +191,7 @@ class TFloat32(Type):
 
 class TFloat64(Type):
     """
-    Hail type corresponding to 64-bit floating point numbers (python default)
+    Hail type for 64-bit floating point numbers.
 
     .. include:: hailType.rst
 
@@ -211,11 +217,16 @@ class TFloat64(Type):
         if annotation and not isinstance(annotation, float):
             raise TypeCheckError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
 
-TFloat = TFloat64
+def TFloat():
+    """
+    Returns the default 64-bit floating-point type.
 
+    :rtype: :py:class:`.TFloat64`
+    """
+    return TInt32()
 class TString(Type):
     """
-    Hail type corresponding to str
+    Hail type corresponding to str.
 
     .. include:: hailType.rst
 
@@ -241,7 +252,7 @@ class TString(Type):
 
 class TBoolean(Type):
     """
-    Hail type corresponding to bool
+    Hail type corresponding to bool.
 
     .. include:: hailType.rst
 
@@ -267,7 +278,7 @@ class TBoolean(Type):
 
 class TArray(Type):
     """
-    Hail type corresponding to list
+    Hail type corresponding to list.
 
     .. include:: hailType.rst
 
@@ -321,7 +332,7 @@ class TArray(Type):
 
 class TSet(Type):
     """
-    Hail type corresponding to set
+    Hail type corresponding to set.
 
     .. include:: hailType.rst
 
@@ -375,7 +386,7 @@ class TSet(Type):
 
 class TDict(Type):
     """
-    Hail type corresponding to dict
+    Hail type corresponding to dict.
 
     .. include:: hailType.rst
 
@@ -456,7 +467,7 @@ class Field(object):
 
 class TStruct(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Struct`
+    Hail type corresponding to :class:`hail.representation.Struct`.
 
     .. include:: hailType.rst
 
@@ -528,7 +539,7 @@ class TStruct(Type):
 
 class TVariant(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Variant`
+    Hail type corresponding to :class:`hail.representation.Variant`.
 
     .. include:: hailType.rst
 
@@ -561,7 +572,7 @@ class TVariant(Type):
 
 class TAltAllele(Type):
     """
-    Hail type corresponding to :class:`hail.representation.AltAllele`
+    Hail type corresponding to :class:`hail.representation.AltAllele`.
 
     .. include:: hailType.rst
 
@@ -594,7 +605,7 @@ class TAltAllele(Type):
 
 class TGenotype(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Genotype`
+    Hail type corresponding to :class:`hail.representation.Genotype`.
 
     .. include:: hailType.rst
 
@@ -627,7 +638,7 @@ class TGenotype(Type):
 
 class TCall(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Call`
+    Hail type corresponding to :class:`hail.representation.Call`.
 
     .. include:: hailType.rst
 
@@ -660,7 +671,7 @@ class TCall(Type):
 
 class TLocus(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Locus`
+    Hail type corresponding to :class:`hail.representation.Locus`.
 
     .. include:: hailType.rst
 
@@ -693,7 +704,7 @@ class TLocus(Type):
 
 class TInterval(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Interval`
+    Hail type corresponding to :class:`hail.representation.Interval`.
 
     .. include:: hailType.rst
 

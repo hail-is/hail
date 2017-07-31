@@ -769,7 +769,7 @@ class ContextTests(unittest.TestCase):
 
         l1 = 5L
         l2 = None
-        ltype = TLong()
+        ltype = TInt64()
         self.assertEqual(vds.annotate_global(path, l1, ltype).globals.annotation, l1)
         self.assertEqual(vds.annotate_global(path, l2, ltype).globals.annotation, l2)
 

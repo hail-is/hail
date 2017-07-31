@@ -1,6 +1,12 @@
 expr
 ====
 
+.. currentmodule:: hail.expr
+
+.. autofunction:: TInt
+
+.. autofunction:: TFloat
+
 
 .. toctree::
     :maxdepth: 2
@@ -14,10 +20,10 @@ expr
 
     hail.expr.Type
     hail.expr.TString
-    hail.expr.TInt
-    hail.expr.TLong
-    hail.expr.TFloat
-    hail.expr.TDouble
+    hail.expr.TInt32
+    hail.expr.TInt64
+    hail.expr.TFloat32
+    hail.expr.TFloat64
     hail.expr.TBoolean
     hail.expr.TArray
     hail.expr.TSet
