@@ -224,9 +224,6 @@ object IBD {
 
     val fused = fusedIbs(vds).cache()
 
-    println("ibs0 in IBD.ibs")
-    println(getIbsAsBlockMatrix(0)(fused).toLocalMatrix())
-
     (getIbsAsBlockMatrix(0)(fused), getIbsAsBlockMatrix(1)(fused), getIbsAsBlockMatrix(2)(fused))
   }
 
