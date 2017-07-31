@@ -724,10 +724,10 @@ class TInterval(Type):
                                  type(annotation))
 
 
-__singletons__ = {'is.hail.expr.TInt$': TInt,
-                  'is.hail.expr.TLong$': TLong,
-                  'is.hail.expr.TFloat$': TFloat,
-                  'is.hail.expr.TDouble$': TFloat64,
+__singletons__ = {'is.hail.expr.TInt32$': TInt32,
+                  'is.hail.expr.TInt64$': TInt64,
+                  'is.hail.expr.TFloat32$': TFloat32,
+                  'is.hail.expr.TFloat64$': TFloat64,
                   'is.hail.expr.TBoolean$': TBoolean,
                   'is.hail.expr.TString$': TString,
                   'is.hail.expr.TVariant$': TVariant,
