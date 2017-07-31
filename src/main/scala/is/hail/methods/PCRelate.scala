@@ -192,10 +192,10 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
     val phi = this.phi(mu, variance, blockedG)
 
-    println("blockedG spark")
-    println(blockedG.toLocalMatrix())
-    println("mu spark")
-    println(mu.toLocalMatrix())
+    // println("blockedG spark")
+    // println(blockedG.toLocalMatrix())
+    // println("mu spark")
+    // println(mu.toLocalMatrix())
 
     val k2 = this.k2(phi, mu, variance, blockedG)
     val k0 = this.k0(phi, mu, k2, blockedG, ibs0(vds, blockSize))
@@ -213,10 +213,10 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     }(g, mu)
     val stddev = dm.map(math.sqrt _)(variance)
 
-    println("gMinusMu spark")
-    println(centeredG.toLocalMatrix())
-    println("stddev")
-    println(stddev.toLocalMatrix())
+    // println("gMinusMu spark")
+    // println(centeredG.toLocalMatrix())
+    // println("stddev")
+    // println(stddev.toLocalMatrix())
 
     ((centeredG.t * centeredG) :/ (stddev.t * stddev)) / 4.0
   }
@@ -240,6 +240,8 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
   }
 
   private def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
+    // println("ibs0 spark")
+    // println(ibs0.toLocalMatrix())
     val mu2 = dm.map2 {
       case (g, mu) =>
         if (badgt(g) || badmu(mu))

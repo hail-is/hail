@@ -17,7 +17,13 @@ object PCRelateReferenceImplementation {
 
     val mat = new BDM[Double](vds.nSamples, vds.countVariants().toInt, gts)
 
-    val PCRelate.Result(phi, k0, k1, k2) = forMatrices(mat, new BDM[Double](pcs.numRows, pcs.numCols, pcs.toArray), maf=0.01)
+    val gtsNonImputed = vds.rdd.map { case (v, (va, gs)) =>
+      gs.map(_.gt).map { case Some(gt) => gt.toDouble ; case None => Double.NaN }.toArray
+    }.collect().flatten
+
+    val matNonImputed = new BDM[Double](vds.nSamples, vds.countVariants().toInt, gtsNonImputed)
+
+    val PCRelate.Result(phi, k0, k1, k2) = forMatrices(mat, matNonImputed, new BDM[Double](pcs.numRows, pcs.numCols, pcs.toArray), maf=0.01)
       .map(symmetricMatrixToMap(indexToId,_))
 
     phi.keys.map(k => (k, (phi(k), k0(k), k1(k), k2(k)))).toMap
@@ -31,7 +37,7 @@ object PCRelateReferenceImplementation {
 
   // g : N x M
   // pcs : N x K
-  def forMatrices(g: BDM[Double], pcs: BDM[Double], maf: Double = 0.0): PCRelate.Result[BDM[Double]] = {
+  def forMatrices(g: BDM[Double], gNotImputed: BDM[Double], pcs: BDM[Double], maf: Double = 0.0): PCRelate.Result[BDM[Double]] = {
     val n = g.rows
     val m = g.cols
     require(n == pcs.rows)
@@ -90,13 +96,13 @@ object PCRelateReferenceImplementation {
     }
     val stddev = new BDM[Double](m, n, stddeva)
 
-    println(g.t)
-    println("mu")
-    println(mu_si)
-    println("gMinusMu")
-    println(g2mu)
-    println("stddev")
-    println(stddev)
+    // println(g.t)
+    // println("mu")
+    // println(mu_si)
+    // println("gMinusMu")
+    // println(g2mu)
+    // println("stddev")
+    // println(stddev)
 
     val denom = (stddev.t * stddev)
     val phi = (numer :/ denom) / 4.0
@@ -142,6 +148,34 @@ object PCRelateReferenceImplementation {
     }
     val k2 = new BDM[Double](n, n, k2a)
 
+    val ibs0a = new Array[Double](n*n)
+    i = 0
+    while (i < n) {
+      var j = 0
+      while (j < n) {
+        var k = 0
+        var count = 0.0
+        while (k < m) {
+          val g_ki = g(i,k)
+          val g_kj = g(j,k)
+
+          if (math.abs(g_ki - g_kj) == 2.0)
+            count += 1.0
+
+          k += 1
+        }
+
+        ibs0a(j*n + i) = count
+
+        j += 1
+      }
+      i += 1
+    }
+    val ibs0 = new BDM[Double](n,n,ibs0a)
+
+    // println("ibs0")
+    // println(ibs0)
+
     val k0a = new Array[Double](n*n)
     i = 0
     val k0cutoff = math.pow(2.0, (-5.0/2.0))
@@ -153,8 +187,8 @@ object PCRelateReferenceImplementation {
           var numer = 0.0
           var denom = 0.0
           while (k < m) {
-            val g_ki = g(i,k)
-            val g_kj = g(j,k)
+            val g_ki = gNotImputed(i,k)
+            val g_kj = gNotImputed(j,k)
             val mu_ki = mu_si(k,i)
             val mu_kj = mu_si(k,j)
 

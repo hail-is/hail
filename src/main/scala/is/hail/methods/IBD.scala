@@ -195,19 +195,19 @@ object IBD {
     }
   }
 
-  private def selectFromFusedIbs(n: Int)(rows: Int, cols: Int, fused: Array[Long]): Array[Double] = {
+  private def selectFromFusedIbs(n: Int)(rowLimit: Int, colLimit: Int, fused: Array[Long]): Array[Double] = {
     assert(n >= 0)
     assert(n <= 2)
-    val arr = new Array[Double](rows * cols)
+    val arr = new Array[Double](rowLimit * colLimit)
     var si = 0
     var sj = 0
-    while (si != rows * cols) {
-      while (sj != cols) {
-        arr(si + sj) = fused(si * 3 + sj * 3 + n).toDouble
+    while (si < rowLimit) {
+      while (sj < colLimit) {
+        arr(sj*rowLimit + si) = fused(si * chunkSize * 3 + sj * 3 + n).toDouble
         sj += 1
       }
       sj = 0
-      si += cols
+      si += 1
     }
     arr
   }
@@ -223,6 +223,9 @@ object IBD {
       }, chunkSize, chunkSize)
 
     val fused = fusedIbs(vds).cache()
+
+    println("ibs0 in IBD.ibs")
+    println(getIbsAsBlockMatrix(0)(fused).toLocalMatrix())
 
     (getIbsAsBlockMatrix(0)(fused), getIbsAsBlockMatrix(1)(fused), getIbsAsBlockMatrix(2)(fused))
   }
