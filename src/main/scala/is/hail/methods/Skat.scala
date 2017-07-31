@@ -162,7 +162,7 @@ object Skat {
     keyName: String,
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: String,
+    weightExpr: Option[String],
     yExpr: String,
     covExpr: Array[String],
     use_dosages: Boolean): KeyTable = {
@@ -180,7 +180,7 @@ object Skat {
     keyName: String,
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: String,
+    weightExpr: Option[String],
     yExpr: String,
     covExpr: Array[String],
     getGenotypes: (Iterable[Genotype], Int) => T,
@@ -203,18 +203,16 @@ object Skat {
     val res = y - cov * beta
     val sigmaSq = (res dot res) / d
 
-    val filteredVds = if (weightExpr == "undefined by user") {
-         vds.filterSamplesList(completeSamples.toSet)
-        .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
-        .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
-    }
-    else{
-      vds.filterSamplesList(completeSamples.toSet)
+    val filteredVds = weightExpr match {
+      case None =>  vds.filterSamplesList(completeSamples.toSet)
+                       .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
+                       .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
+      case _ => vds.filterSamplesList(completeSamples.toSet)
     }
 
 
     val (keysType, keysQuerier) = filteredVds.queryVA(variantKeys)
-    val (weightType, weightQuerier) = filteredVds.queryVA(weightExpr)
+    val (weightType, weightQuerier) = filteredVds.queryVA(weightExpr.get)
 
     val typedWeightQuerier = weightType match {
       case TDouble => weightQuerier.asInstanceOf[Annotation => Double]

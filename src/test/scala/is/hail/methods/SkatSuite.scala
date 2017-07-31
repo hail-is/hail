@@ -220,7 +220,7 @@ class SkatSuite extends SparkSuite {
 
     val useDosages = false
 
-    val kt = vds.skat("gene", "va.genes", singleKey = false, "va.weight",
+    val kt = vds.skat("gene", "va.genes", singleKey = false, Option("va.weight"),
       "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
     val resultsArray = testInR(vds,"gene", "va.genes", singleKey = false,
@@ -254,7 +254,7 @@ class SkatSuite extends SparkSuite {
     val resultsArray = testInR(vds,"gene", "va.genes", singleKey = false,
       "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
-    val kt = vds.skat("gene", "va.genes", singleKey = false, "va.weight",
+    val kt = vds.skat("gene", "va.genes", singleKey = false, Option("va.weight"),
       "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
 
@@ -282,7 +282,7 @@ class SkatSuite extends SparkSuite {
 
     val useDosages = false
 
-    val kt = polymorphicSkat[SparseVector[Double]](vds, "gene", "va.genes", singleKey = false, "va.weight", "sa.pheno",
+    val kt = polymorphicSkat[SparseVector[Double]](vds, "gene", "va.genes", singleKey = false, Option("va.weight"), "sa.pheno",
       Array("sa.cov.Cov1", "sa.cov.Cov2"), RegressionUtils.hardCalls(_,_), SkatAgg.zeroValSparse,
       SkatAgg.largeNResultOp)
 
@@ -424,7 +424,7 @@ class SkatSuite extends SparkSuite {
     val covariates = new Array[String](2)
     for (i <- 1 to 2){covariates(i-1) = "sa.cov.Cov%d".format(i)}
 
-    val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, "va.weight",
+    val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, Option("va.weight"),
                                        "sa.pheno0", covariates, useDosages)
     val resultsArray = testInR(vdsSkat.splitMulti(),"gene", "va.genes", singleKey = false,
                                "va.weight", "sa.pheno0", covariates, useDosages)
@@ -453,7 +453,7 @@ class SkatSuite extends SparkSuite {
     val covariates = new Array[String](2)
     for (i <- 1 to 2){covariates(i-1) = "sa.cov.Cov%d".format(i)}
 
-    val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, "va.weight",
+    val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, Option("va.weight"),
                                        "sa.pheno0", covariates, useDosages)
     val resultsArray = testInR(vdsSkat.splitMulti(),"gene", "va.genes", singleKey = false,
                                "va.weight", "sa.pheno0", covariates, useDosages)
@@ -487,8 +487,8 @@ class SkatSuite extends SparkSuite {
 
     val dosages = (gs:Iterable[Genotype],n:Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
 
-    val kt = polymorphicSkat[DenseVector[Double]](vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false, "va.weight", "sa.pheno0",
-      Array("sa.cov.Cov1", "sa.cov.Cov2"), dosages, SkatAgg.zeroValDense,
+    val kt = polymorphicSkat[DenseVector[Double]](vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
+      Option("va.weight"), "sa.pheno0", Array("sa.cov.Cov1", "sa.cov.Cov2"), dosages, SkatAgg.zeroValDense,
       SkatAgg.largeNResultOp)
 
     val resultsArray = testInR(vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
