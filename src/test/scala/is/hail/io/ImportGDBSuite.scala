@@ -126,14 +126,14 @@ class ImportGDBSuite extends SparkSuite {
 
     val vcfAnn = vcfVariantSampleMatrix
       .rdd
-      .map(_._2._1.asInstanceOf[GenericRow].toSeq(3)) //map out the QUAL field, which is set to missing in GenomicsDB
-      .map(ann => ann.asInstanceOf[GenericRow].toSeq(2)) //TODO: this line maps to a field in the annotation that isn't affected by either bug (above) -- remove this map from tests after genomicsDB fixes issues
+      .map { case (v, (va, gs)) => vcfVariantSampleMatrix.vaSignature.query("va.info")(va) } //map out the QUAL field, which is set to missing in GenomicsDB
+      //.map(ann => ann.asInstanceOf[GenericRow].toSeq(2)) //TODO: this line maps to a field in the annotation that isn't affected by either bug (above) -- remove this map from tests after genomicsDB fixes issues
       .collect
 
     val gdbAnn = gdbVariantSampleMatrix
       .rdd
-      .map(_._2._1.asInstanceOf[GenericRow].toSeq(3))
-      .map(ann => ann.asInstanceOf[GenericRow].toSeq(2))
+      .map { case (v, (va, gs)) => gdbVariantSampleMatrix.vaSignature.query("va.info")(va) }
+      //.map(ann => ann.asInstanceOf[GenericRow].toSeq(2))
       .collect
 
     assert(vcfAnn.zip(gdbAnn).forall( { case (a1, a2) => a1.equals(a2) }))

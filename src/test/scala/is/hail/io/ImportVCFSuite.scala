@@ -1,6 +1,5 @@
 package is.hail.io
 
-import htsjdk.variant.variantcontext.VariantContext
 import is.hail.SparkSuite
 import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF}
 import is.hail.variant.{Call, Genotype, Variant}
