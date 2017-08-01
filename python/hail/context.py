@@ -137,7 +137,7 @@ class HailContext(object):
 
         **Background**
 
-        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`__.
+        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Hail uses `Java regular expression patterns <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__. The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
 
         :param str regex: The regular expression to match.
 
