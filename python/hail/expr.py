@@ -120,13 +120,6 @@ class TInt32(Type):
         if annotation and not isinstance(annotation, int):
             raise TypeCheckError("TInt32 expected type 'int', but found type '%s'" % type(annotation))
 
-def TInt():
-    """
-    Returns the default 32-bit integer type.
-
-    :rtype: :py:class:`.TInt32`
-    """
-    return TInt32()
 
 class TInt64(Type):
     """
@@ -217,13 +210,7 @@ class TFloat64(Type):
         if annotation and not isinstance(annotation, float):
             raise TypeCheckError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
 
-def TFloat():
-    """
-    Returns the default 64-bit floating-point type.
 
-    :rtype: :py:class:`.TFloat64`
-    """
-    return TInt32()
 class TString(Type):
     """
     Hail type corresponding to str.
@@ -751,6 +738,7 @@ __singletons__ = {'is.hail.expr.TInt32$': TInt32,
 import pprint
 
 _old_printer = pprint.PrettyPrinter
+
 
 class TypePrettyPrinter(pprint.PrettyPrinter):
     def _format(self, object, stream, indent, allowance, context, level):
