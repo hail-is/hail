@@ -33,60 +33,14 @@ object VariantSampleMatrix {
 
   def read(hc: HailContext, dirname: String,
     dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
-
-    val sqlContext = hc.sqlContext
-    val sc = hc.sc
-    val hConf = sc.hadoopConfiguration
-
-    val (fileMetadata, parquetGenotypes) = readFileMetadata(hConf, dirname)
-
-    val metadata = fileMetadata.metadata
-
-    val vSignature = metadata.vSignature
-    val genotypeSignature = metadata.genotypeSignature
-
-    val parquetFile = dirname + "/rdd.parquet"
-
-    val localValue =
-      if (dropSamples)
-        fileMetadata.localValue.dropSamples()
-      else
-        fileMetadata.localValue
-
-    val vaImporter = SparkAnnotationImpex.annotationImporter(metadata.vaSignature)
-
-    implicit val kOk = vSignature.orderedKey
-
-    val vImporter = SparkAnnotationImpex.annotationImporter(metadata.vSignature)
-    val gImporter = SparkAnnotationImpex.annotationImporter(metadata.genotypeSignature)
-
-    val orderedRDD =
-      if (dropVariants)
-        OrderedRDD.empty[Annotation, Annotation, (Annotation, Iterable[Annotation])](sc)
-      else {
-        def importRow(r: Row): (Annotation, (Annotation, Iterable[Annotation])) = {
-          val v = vImporter(r.get(0))
-          (v, (vaImporter(r.get(1)),
-            if (dropSamples)
-              Iterable.empty[Annotation]
-            else
-              r.getSeq[Any](2).lazyMap(g => gImporter(g))))
-        }
-
-        val jv = hConf.readFile(dirname + "/partitioner.json.gz")(JsonMethods.parse(_))
-        implicit val pkjr = vSignature.partitionKey.jsonReader
-        val partitioner = jv.fromJSON[OrderedPartitioner[Annotation, Annotation]]
-
-        val columns = someIf(dropSamples, Array("variant", "annotations"))
-        OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])](
-          sqlContext.readParquetSorted(parquetFile, columns).map(importRow), partitioner)
-      }
-
-    new VariantSampleMatrix[Annotation, Annotation, Annotation](hc, metadata, localValue, orderedRDD)
+    val fileMetadata = readFileMetadata(hc.hadoopConf, dirname)
+    new VariantSampleMatrix(hc,
+      fileMetadata.metadata,
+      MatrixRead(hc, dirname, fileMetadata, dropSamples, dropVariants))
   }
 
   def readFileMetadata(hConf: hadoop.conf.Configuration, dirname: String,
-    requireParquetSuccess: Boolean = true): (VSMFileMetadata, Boolean) = {
+    requireParquetSuccess: Boolean = true): VSMFileMetadata = {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"input path ending in `.vds' required, found `$dirname'")
 
@@ -153,15 +107,6 @@ object VariantSampleMatrix {
 
     val wasSplit = getAndCastJSON[JBool]("split").value
 
-    val parquetGenotypes = fields.get("parquetGenotypes") match {
-      case Some(t: JBool) => t.value
-      case Some(other) => fatal(
-        s"""corrupt VDS: invalid metadata
-           |  Expected `JBool' in field `parquetGenotypes', but got `${ other.getClass.getName }'
-           |  Recreate VDS with current version of Hail.""".stripMargin)
-      case _ => false
-    }
-
     val sSignature = fields.get("sample_schema") match {
       case Some(t: JString) => Parser.parseType(t.s)
       case Some(other) => fatal(
@@ -213,8 +158,8 @@ object VariantSampleMatrix {
     val ids = sampleInfo.map(_._1)
     val annotations = sampleInfo.map(_._2)
 
-    (VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
-      VSMLocalValue(globalAnnotation, ids, annotations)), parquetGenotypes)
+    VSMFileMetadata(VSMMetadata(sSignature, saSignature, vSignature, vaSignature, globalSignature, genotypeSignature, wasSplit),
+      VSMLocalValue(globalAnnotation, ids, annotations))
   }
 
   def gen[RPK, RK, T >: Null](hc: HailContext,
@@ -1917,7 +1862,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       fatal("found one or more type check errors")
   }
 
-
   def sampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = sampleIds.zip(sampleAnnotations)
 
   def stringSampleIdsAndAnnotations: IndexedSeq[(Annotation, Annotation)] = stringSampleIds.zip(sampleAnnotations)
@@ -1962,7 +1906,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       Array("v", "s"))
   }
 
-  def writeMetadata(dirname: String, parquetGenotypes: Boolean) {
+  def writeMetadata(dirname: String) {
     if (!dirname.endsWith(".vds") && !dirname.endsWith(".vds/"))
       fatal(s"output path ending in `.vds' required, found `$dirname'")
 
@@ -2007,7 +1951,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val json = JObject(
       ("version", JInt(VariantSampleMatrix.fileVersion)),
       ("split", JBool(wasSplit)),
-      ("parquetGenotypes", JBool(parquetGenotypes)),
       ("sample_schema", JString(sSchemaString)),
       ("sample_annotation_schema", JString(saSchemaString)),
       ("variant_schema", JString(vSchemaString)),
@@ -2118,7 +2061,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
   }
 
-  def write(dirname: String, overwrite: Boolean = false, parquetGenotypes: Boolean = false): Unit = {
+  def write(dirname: String, overwrite: Boolean = false): Unit = {
     require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
 
     if (overwrite)
@@ -2126,7 +2069,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     else if (hadoopConf.exists(dirname))
       fatal(s"file already exists at `$dirname'")
 
-    writeMetadata(dirname, parquetGenotypes)
+    writeMetadata(dirname)
 
     val vExporter = SparkAnnotationImpex.annotationExporter(vSignature)
     val vaExporter = SparkAnnotationImpex.annotationExporter(vaSignature)
@@ -2149,11 +2092,11 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       }
     }
 
-    hc.sqlContext.createDataFrame(rowRDD, makeSchema(parquetGenotypes))
+    hc.sqlContext.createDataFrame(rowRDD, makeSchema())
       .write.parquet(dirname + "/rdd.parquet")
   }
 
-  def makeSchema(parquetGenotypes: Boolean): StructType = {
+  def makeSchema(): StructType = {
     StructType(Array(
       StructField("variant", vSignature.schema, nullable = false),
       StructField("annotations", vaSignature.schema),

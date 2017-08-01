@@ -110,7 +110,6 @@ class AggregatorSuite extends SparkSuite {
       .foreach {
         case (s, sa) =>
           assert(qCallRate(sa) == qCallRateQC(sa))
-          println(gqStatsMean(sa), gqStatsMeanQC(sa))
           assert(Option(gqStatsMean(sa)).zip(Option(gqStatsMeanQC(sa))).forall {
             case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
           })

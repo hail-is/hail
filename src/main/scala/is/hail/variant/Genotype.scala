@@ -177,29 +177,8 @@ class RowGenotype(r: Row) extends Genotype {
 
 object Genotype {
   def buildGenotypeExtractor(t: Type): (Any) => Genotype = {
-    if (t == TGenotype)
-      (a: Any) => a.asInstanceOf[Genotype]
-    else {
-      assert(t.isInstanceOf[TStruct])
-
-      val (gtt, gtq0) = t.queryTyped("GT")
-      val gtq = if (gtt == TCall) gtq0 else (a: Any) => null
-
-      val (adt, adq0) = t.queryTyped("AD")
-      val adq = if (adt == TArray(TInt)) adq0 else (a: Any) => null
-
-      val (dpt, dpq0) = t.queryTyped("DP")
-      val dpq = if (dpt == TArray(TInt)) dpq0 else (a: Any) => null
-
-      val (gqt, gqq0) = t.queryTyped("GQ")
-      val gqq = if (gqt == TInt) gqq0 else (a: Any) => null
-
-      val (plt, plq0) = t.queryTyped("PL")
-      val plq = if (plt == TInt) plq0 else (a: Any) => null
-
-      (a: Any) =>
-        new RowGenotype(Row(gtq(a), adq(a), dpq(a), gqq(0), plq(0)))
-    }
+    assert (t == TGenotype)
+    (a: Any) => a.asInstanceOf[Genotype]
   }
 
   def unboxedGT(g: Genotype): Int = if (g != null) g._unboxedGT else -1
@@ -521,88 +500,6 @@ object Genotype {
     "px" -> TArray(TInt),
     "fakeRef" -> TBoolean,
     "isLinearScale" -> TBoolean)
-
-  final val flagMultiHasGTBit = 0x1
-  final val flagMultiGTRefBit = 0x2
-  final val flagBiGTMask = 0x3
-  final val flagHasADBit = 0x4
-  final val flagHasDPBit = 0x8
-  final val flagHasGQBit = 0x10
-  final val flagHasPLBit = 0x20
-  final val flagSimpleADBit = 0x40
-  final val flagSimpleDPBit = 0x80
-  final val flagSimpleGQBit = 0x100
-  final val flagFakeRefBit = 0x200
-  final val flagMissing = 0x400
-
-  def flagHasGT(isBiallelic: Boolean, flags: Int): Boolean =
-    if (isBiallelic)
-      (flags & flagBiGTMask) != 0
-    else
-      (flags & flagMultiHasGTBit) != 0
-
-  def flagStoresGT(isBiallelic: Boolean, flags: Int): Boolean =
-    isBiallelic || ((flags & flagMultiGTRefBit) != 0)
-
-  def flagGT(isBiallelic: Boolean, flags: Int): Int = {
-    assert(flagStoresGT(isBiallelic, flags))
-    if (isBiallelic)
-      (flags & flagBiGTMask) - 1
-    else {
-      assert((flags & flagMultiGTRefBit) != 0)
-      0
-    }
-  }
-
-  def flagSetGT(isBiallelic: Boolean, flags: Int, gt: Int): Int = {
-    if (isBiallelic) {
-      assert(gt >= 0 && gt <= 2)
-      flags | ((gt & flagBiGTMask) + 1)
-    } else {
-      if (gt == 0)
-        flags | flagMultiHasGTBit | flagMultiGTRefBit
-      else
-        flags | flagMultiHasGTBit
-    }
-  }
-
-  def flagHasAD(flags: Int): Boolean = (flags & flagHasADBit) != 0
-
-  def flagHasDP(flags: Int): Boolean = (flags & flagHasDPBit) != 0
-
-  def flagHasGQ(flags: Int): Boolean = (flags & flagHasGQBit) != 0
-
-  def flagHasPX(flags: Int): Boolean = (flags & flagHasPLBit) != 0
-
-  def flagSetHasAD(flags: Int): Int = flags | flagHasADBit
-
-  def flagSetHasDP(flags: Int): Int = flags | flagHasDPBit
-
-  def flagSetHasGQ(flags: Int): Int = flags | flagHasGQBit
-
-  def flagSetHasPX(flags: Int): Int = flags | flagHasPLBit
-
-  def flagSimpleAD(flags: Int): Boolean = (flags & flagSimpleADBit) != 0
-
-  def flagSimpleDP(flags: Int): Boolean = (flags & flagSimpleDPBit) != 0
-
-  def flagSimpleGQ(flags: Int): Boolean = (flags & flagSimpleGQBit) != 0
-
-  def flagSetSimpleAD(flags: Int): Int = flags | flagSimpleADBit
-
-  def flagSetSimpleDP(flags: Int): Int = flags | flagSimpleDPBit
-
-  def flagSetSimpleGQ(flags: Int): Int = flags | flagSimpleGQBit
-
-  def flagFakeRef(flags: Int): Boolean = (flags & flagFakeRefBit) != 0
-
-  def flagMissing(flags: Int): Boolean = (flags & flagMissing) != 0
-
-  def flagSetFakeRef(flags: Int): Int = flags | flagFakeRefBit
-
-  def flagSetMissing(flags: Int): Int = flags | flagMissing
-
-  def flagUnsetFakeRef(flags: Int): Int = flags ^ flagFakeRefBit
 
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99
