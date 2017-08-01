@@ -3584,7 +3584,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(k=integral,
                       maf=numeric,
                       block_size=integral)
@@ -3593,8 +3592,6 @@ class VariantDataset(object):
         PC-Relate method.
 
         .. include:: experimental.rst
-
-        .. include:: requireTGenotype.rst
 
         **Examples**
 
