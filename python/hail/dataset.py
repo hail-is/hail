@@ -1588,8 +1588,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @typecheck_method(output=strlike,
-                      overwrite=bool,
-                      parquet_genotypes=bool)
+                      overwrite=bool)
     def write(self, output, overwrite=False):
         """Write variant dataset as VDS file.
 
