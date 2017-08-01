@@ -108,7 +108,7 @@ task generateDistLinks(type: Exec) {
 compileScala {
     dependsOn generateBuildInfo
 
-    scalaCompileOptions.additionalParameters = ["-feature"] // , "-Xfatal-warnings"]
+    scalaCompileOptions.additionalParameters = ["-feature", "-Xfatal-warnings"]
 }
 
 dependencies {

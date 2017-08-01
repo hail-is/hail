@@ -26,8 +26,6 @@ class HailContext(object):
 
     :param master: Spark cluster master
 
-    :param local: local resources to use
-
     :param log: log path
 
     :param quiet: suppress log messages
@@ -49,7 +47,6 @@ class HailContext(object):
     @typecheck_method(sc=nullable(SparkContext),
                       app_name=strlike,
                       master=nullable(strlike),
-                      local=strlike,
                       log=strlike,
                       quiet=bool,
                       append=bool,
@@ -57,7 +54,7 @@ class HailContext(object):
                       min_block_size=integral,
                       branching_factor=integral,
                       tmp_dir=strlike)
-    def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
+    def __init__(self, sc=None, app_name="Hail", master=None,
                  log='hail.log', quiet=False, append=False, parquet_compression='snappy',
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
 
@@ -79,7 +76,7 @@ class HailContext(object):
         jsc = sc._jsc.sc() if sc else None
 
         self._jhc = scala_object(self._hail, 'HailContext').apply(
-            jsc, app_name, joption(master), local, log, quiet, append,
+            jsc, app_name, joption(master), log, quiet, append,
             parquet_compression, min_block_size, branching_factor, tmp_dir)
 
         self._jsc = self._jhc.sc()

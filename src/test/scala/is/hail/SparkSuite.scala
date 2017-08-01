@@ -7,11 +7,16 @@ import org.apache.spark.sql.SQLContext
 import org.scalatest.testng.TestNGSuite
 
 object SparkSuite {
-  lazy val hc = HailContext(master = Option(System.getProperty("hail.master")),
-    appName = "Hail.TestNG",
-    local = "local[2]",
-    quiet = true,
-    minBlockSize = 0)
+  lazy val hc: HailContext = {
+    var master: String = System.getProperty("hail.master")
+    if (master == null)
+      master = "local[2]"
+
+    HailContext(master = Option(master),
+      appName = "Hail.TestNG",
+      quiet = true,
+      minBlockSize = 0)
+  }
 }
 
 class SparkSuite extends TestNGSuite {

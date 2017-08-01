@@ -218,7 +218,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
       (root, start)
     else {
       val i = indexstk.head
-      typestk.head match {
+      (typestk.head: @unchecked) match {
         case t: TStruct =>
           (t.fields(i).typ, offsetstk.head + t.byteOffsets(i))
 
@@ -247,7 +247,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def startStruct(init: Boolean = true) {
-    current() match {
+    (current(): @unchecked) match {
       case (t: TStruct, off) =>
         typestk.push(t)
         offsetstk.push(off)
@@ -265,7 +265,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def endStruct() {
-    typestk.head match {
+    (typestk.head: @unchecked) match {
       case t: TStruct =>
         typestk.pop()
         offsetstk.pop()
@@ -277,7 +277,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def startArray(length: Int, init: Boolean = true) {
-    current() match {
+    (current(): @unchecked) match {
       case (t: TArray, off) =>
         region.align(t.contentsAlignment)
         val aoff = region.allocate(t.contentsByteSize(length))
@@ -302,7 +302,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def endArray() {
-    typestk.head match {
+    (typestk.head: @unchecked) match {
       case t: TArray =>
         val aoff = offsetstk.top
         val length = t.loadLength(region, aoff)
@@ -319,7 +319,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
 
   def setMissing() {
     val i = indexstk.head
-    typestk.head match {
+    (typestk.head: @unchecked) match {
       case t: TStruct =>
         region.setBit(offsetstk.head, i)
       case t: TArray =>
@@ -330,7 +330,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def addBoolean(b: Boolean) {
-    current() match {
+    (current(): @unchecked) match {
       case (TBoolean, off) =>
         region.storeByte(off, b.toByte)
         advance()
@@ -338,7 +338,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def addInt(i: Int) {
-    current() match {
+    (current(): @unchecked) match {
       case (TInt32, off) =>
         region.storeInt(off, i)
         advance()
@@ -346,7 +346,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def addLong(l: Long) {
-    current() match {
+    (current(): @unchecked) match {
       case (TInt64, off) =>
         region.storeLong(off, l)
         advance()
@@ -354,7 +354,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def addFloat(f: Float) {
-    current() match {
+    (current(): @unchecked) match {
       case (TFloat32, off) =>
         region.storeFloat(off, f)
         advance()
@@ -362,7 +362,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def addDouble(d: Double) {
-    current() match {
+    (current(): @unchecked) match {
       case (TFloat64, off) =>
         region.storeDouble(off, d)
         advance()
@@ -370,7 +370,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def addBinary(bytes: Array[Byte]) {
-    current() match {
+    (current(): @unchecked) match {
       case (TBinary, off) =>
         region.align(4)
         val boff = region.offset
@@ -496,7 +496,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
     if (a == null)
       setMissing()
     else
-      t match {
+      (t: @unchecked) match {
         case TBoolean => addBoolean(a.asInstanceOf[Boolean])
         case TInt32 => addInt(a.asInstanceOf[Int])
         case TInt64 => addLong(a.asInstanceOf[Long])

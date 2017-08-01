@@ -276,7 +276,7 @@ object ExportVCF {
       sb.append("##fileformat=VCFv4.2\n")
       // FIXME add Hail version
 
-      genotypeSignature match {
+      (genotypeSignature: @unchecked) match {
         case TGenotype =>
           sb.append(
             """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
@@ -426,7 +426,7 @@ object ExportVCF {
           g =>
             sb += '\t'
 
-            genotypeSignature match {
+            (genotypeSignature: @unchecked) match {
               case TGenotype => writeGenotype(sb, g.asInstanceOf[Genotype])
               case sig: TStruct => writeGenotype(sb, sig, genotypeFieldOrder, g.asInstanceOf[Row])
             }

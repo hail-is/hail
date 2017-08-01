@@ -45,7 +45,7 @@ object CassandraImpex {
 
   def exportType(t: Type): DataType = exportType(t, 0)
 
-  def exportType(t: Type, depth: Int): DataType = t match {
+  def exportType(t: Type, depth: Int): DataType = (t: @unchecked) match {
     case TBoolean => DataType.cboolean()
     case TInt32 => DataType.cint()
     case TInt64 => DataType.bigint()
@@ -99,7 +99,7 @@ object CassandraImpex {
     }
   }
 
-  def exportAnnotation(a: Any, t: Type): Any = t match {
+  def exportAnnotation(a: Any, t: Type): Any = (t: @unchecked) match {
     case TBoolean => a
     case TInt32 => a
     case TInt64 => a
