@@ -7,8 +7,13 @@
   {%- set titlesuffix = "" %}
 {%- endif %}
 
-{%- set script_files = script_files + ['../bootstrap.min.js'] %}
+{%- set script_files = script_files + ['../../bootstrap.min.js'] %}
 {%- set css_files = css_files + ['navbar.css', '_static/rtd_modifications.css'] %}
+
+{% if pagename == "annotationdb" %}
+{%- set css_files = css_files + ['_static/annotationdb/bootstrap-treeview.min.css', '_static/annotationdb/annotationdb.css'] %}
+{%- set script_files = script_files + ['_static/annotationdb/bootstrap-treeview.min.js', '_static/annotationdb/clipboard.min.js', '_static/annotationdb/annotationdb.js'] %}
+{% endif %}
 
 <!DOCTYPE html>
 <!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
@@ -81,8 +86,8 @@
   <script src="{{ pathto('_static/js/modernizr.min.js', 1) }}"></script>
 
   {% if pagename == "annotationdb" %}
-    <link rel="stylesheet" href="../annotationdb/bootstrap-treeview.min.css">
-    <link rel="stylesheet" href="../annotationdb/annotationdb.css">
+    <link rel="stylesheet" href="../../annotationdb/bootstrap-treeview.min.css">
+    <link rel="stylesheet" href="../../annotationdb/annotationdb.css">
   {% endif %}
 
 </head>
@@ -199,12 +204,6 @@
           SphinxRtdTheme.StickyNav.enable();
       });
   </script>
-  {% endif %}
-
-  {% if pagename == "annotationdb" %}
-    <script type="text/javascript" src="../annotationdb/bootstrap-treeview.min.js"></script>
-    <script type="text/javascript" src="../annotationdb/clipboard.min.js"></script>
-    <script type="text/javascript" src="../annotationdb/annotationdb.js"></script>
   {% endif %}
 
   {%- block footer %} {% endblock %}
