@@ -1602,8 +1602,6 @@ class VariantDataset(object):
 
         :param bool overwrite: If true, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
 
-        :param bool parquet_genotypes: If true, store genotypes as Parquet rather than Hail's serialization.  The resulting VDS will be larger and slower in Hail but the genotypes will be accessible from other tools that support Parquet.
-
         """
 
         self._jvds.write(output, overwrite)
