@@ -29,11 +29,7 @@ To generate a Hive file:
 
     2. Convert the VCF file into a VDS using Hail::
 
-        >>> hc.import_vcf("sample.vcf.bgz").write("sample.vds", parquet_genotypes=True)
-
-       Note the use of ``parquet_genotypes=True``, which writes the genotype
-       information using Parquet structures, rather than an opaque binary
-       representation that cannot be queried using SQL.
+        >>> hc.import_vcf("sample.vcf.bgz").write("sample.vds")
 
     3. Register the VDS as a Hive table
 
