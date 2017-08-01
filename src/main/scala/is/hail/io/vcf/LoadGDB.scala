@@ -73,12 +73,13 @@ object LoadGDB {
     val sampleIds: Array[String] =
       if (dropSamples)
         Array.empty
-      else gdbReader
-        .query("", 0, 1)
-        .asScala
-        .next
-        .getSampleNamesOrderedByName
-        .toArray(new Array[String](0))
+      else {
+        val it = gdbReader.query("", 0, 1).asScala
+        if (it.hasNext)
+          it.next.getSampleNamesOrderedByName.toArray(new Array[String](0))
+        else
+          Array.empty
+      }
 
     val records = gdbReader
       .iterator

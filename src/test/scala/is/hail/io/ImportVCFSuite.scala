@@ -15,7 +15,6 @@ class ImportVCFSuite extends SparkSuite {
   }
 
   @Test def lineRef() {
-
     val line1 = "20\t10280082\t.\tA\tG\t844.69\tPASS\tAC=1;..."
     assert(LoadVCF.lineRef(line1) == "A")
 
@@ -63,7 +62,6 @@ class ImportVCFSuite extends SparkSuite {
   }
 
   @Test def testGlob() {
-
     val n1 = hc.importVCF("src/test/resources/sample.vcf").countVariants()
     val n2 = hc.importVCF("src/test/resources/samplepart*.vcf").countVariants()
     assert(n1 == n2)
@@ -87,7 +85,6 @@ class ImportVCFSuite extends SparkSuite {
   }
 
   @Test def testMalformed() {
-
     // FIXME abstract
     val e = intercept[SparkException] {
       hc.importVCF("src/test/resources/malformed.vcf").countVariants()

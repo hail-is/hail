@@ -157,7 +157,6 @@ dependencies {
 
     compile 'net.java.dev.jna:jna:4.2.2'
     compile 'net.sourceforge.jdistlib:jdistlib:0.4.5'
-
     
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
