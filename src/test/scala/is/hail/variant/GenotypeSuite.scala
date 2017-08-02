@@ -9,17 +9,13 @@ import org.testng.annotations.Test
 import scala.collection.mutable
 
 object GenotypeSuite {
-  val ab = new ArrayBuilder[Byte]()
-
   def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
-    ab.clear()
 
     val isLinearScale = g._isLinearScale
     val gb = new GenotypeBuilder(nAlleles, isLinearScale)
 
     gb.set(g)
-    gb.write(ab)
-    val g2 = Genotype.read(nAlleles, isLinearScale, new ByteIterator(ab.result()))
+    val g2 = gb.result()
 
     g == g2
   }

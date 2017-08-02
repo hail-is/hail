@@ -84,7 +84,7 @@ class AggregatorSuite extends SparkSuite {
           |sa.test.nInsertion = gs.filter(g => v.altAllele.isInsertion()).map(g => g.nNonRefAlleles()).sum(),
           |sa.test.nDeletion = gs.filter(g => v.altAllele.isDeletion()).map(g => g.nNonRefAlleles()).sum(),
           |sa.test.nTi = gs.filter(g => v.altAllele.isTransition()).map(g => g.nNonRefAlleles()).sum(),
-          |sa.test.nTv = gs.filter(g => v.altAllele.isTransversion()).map(g => g.nNonRefAlleles()).sum  ()
+          |sa.test.nTv = gs.filter(g => v.altAllele.isTransversion()).map(g => g.nNonRefAlleles()).sum()
           |""".stripMargin)
 
     val qCallRate = vds.querySA("sa.test.callrate")._2

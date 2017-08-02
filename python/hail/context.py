@@ -551,16 +551,6 @@ class HailContext(object):
             self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants))
 
     @handle_py4j
-    @typecheck_method(path=strlike)
-    def write_partitioning(self, path):
-        """Write partitioning.json.gz file for legacy VDS file.
-
-        :param str path: path to VDS file.
-        """
-
-        self._jhc.writePartitioning(path)
-
-    @handle_py4j
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       force=bool,
                       force_bgz=bool,

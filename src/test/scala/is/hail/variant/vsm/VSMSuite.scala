@@ -179,17 +179,7 @@ class VSMSuite extends SparkSuite {
 
     p.check()
   }
-
-  @Test def testWriteParquetRead() {
-    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
-      val f = tmpDir.createTempFile(extension = "vds")
-      vds.write(f, parquetGenotypes = true)
-      hc.readVDS(f).same(vds)
-    }
-
-    p.check()
-  }
-
+  
   @Test def testFilterSamples() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
@@ -349,25 +339,6 @@ class VSMSuite extends SparkSuite {
     }
 
     vds.write(out, overwrite = true)
-  }
-
-  @Test def testWritePartitioning() {
-    val path = tmpDir.createTempFile(extension = ".vds")
-
-    hc.importVCF("src/test/resources/sample.vcf", nPartitions = Some(4))
-      .write(path)
-
-    hadoopConf.delete(path + "/partitioner.json.gz", recursive = true)
-
-
-    interceptFatal("missing partitioner") {
-      hc.readVDS(path)
-        .countVariants() // force execution
-    }
-
-    hc.writePartitioning(path)
-
-    assert(hc.readVDS(path).same(hc.importVCF("src/test/resources/sample.vcf")))
   }
 
   @Test def testAnnotateVariantsKeyTable() {

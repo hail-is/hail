@@ -3,7 +3,7 @@ package is.hail.variant
 import java.util
 
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.{TArray, TBoolean, TInt, TStruct, Type}
+import is.hail.expr.{TArray, TBoolean, TCall, TGenotype, TInt, TStruct, Type}
 import is.hail.utils.{ByteIterator, _}
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
@@ -176,6 +176,11 @@ class RowGenotype(r: Row) extends Genotype {
 }
 
 object Genotype {
+  def buildGenotypeExtractor(t: Type): (Any) => Genotype = {
+    assert (t == TGenotype)
+    (a: Any) => a.asInstanceOf[Genotype]
+  }
+
   def unboxedGT(g: Genotype): Int = if (g != null) g._unboxedGT else -1
 
   def unboxedAD(g: Genotype): Array[Int] = if (g != null) g._unboxedAD else null
@@ -496,88 +501,6 @@ object Genotype {
     "fakeRef" -> TBoolean,
     "isLinearScale" -> TBoolean)
 
-  final val flagMultiHasGTBit = 0x1
-  final val flagMultiGTRefBit = 0x2
-  final val flagBiGTMask = 0x3
-  final val flagHasADBit = 0x4
-  final val flagHasDPBit = 0x8
-  final val flagHasGQBit = 0x10
-  final val flagHasPLBit = 0x20
-  final val flagSimpleADBit = 0x40
-  final val flagSimpleDPBit = 0x80
-  final val flagSimpleGQBit = 0x100
-  final val flagFakeRefBit = 0x200
-  final val flagMissing = 0x400
-
-  def flagHasGT(isBiallelic: Boolean, flags: Int): Boolean =
-    if (isBiallelic)
-      (flags & flagBiGTMask) != 0
-    else
-      (flags & flagMultiHasGTBit) != 0
-
-  def flagStoresGT(isBiallelic: Boolean, flags: Int): Boolean =
-    isBiallelic || ((flags & flagMultiGTRefBit) != 0)
-
-  def flagGT(isBiallelic: Boolean, flags: Int): Int = {
-    assert(flagStoresGT(isBiallelic, flags))
-    if (isBiallelic)
-      (flags & flagBiGTMask) - 1
-    else {
-      assert((flags & flagMultiGTRefBit) != 0)
-      0
-    }
-  }
-
-  def flagSetGT(isBiallelic: Boolean, flags: Int, gt: Int): Int = {
-    if (isBiallelic) {
-      assert(gt >= 0 && gt <= 2)
-      flags | ((gt & flagBiGTMask) + 1)
-    } else {
-      if (gt == 0)
-        flags | flagMultiHasGTBit | flagMultiGTRefBit
-      else
-        flags | flagMultiHasGTBit
-    }
-  }
-
-  def flagHasAD(flags: Int): Boolean = (flags & flagHasADBit) != 0
-
-  def flagHasDP(flags: Int): Boolean = (flags & flagHasDPBit) != 0
-
-  def flagHasGQ(flags: Int): Boolean = (flags & flagHasGQBit) != 0
-
-  def flagHasPX(flags: Int): Boolean = (flags & flagHasPLBit) != 0
-
-  def flagSetHasAD(flags: Int): Int = flags | flagHasADBit
-
-  def flagSetHasDP(flags: Int): Int = flags | flagHasDPBit
-
-  def flagSetHasGQ(flags: Int): Int = flags | flagHasGQBit
-
-  def flagSetHasPX(flags: Int): Int = flags | flagHasPLBit
-
-  def flagSimpleAD(flags: Int): Boolean = (flags & flagSimpleADBit) != 0
-
-  def flagSimpleDP(flags: Int): Boolean = (flags & flagSimpleDPBit) != 0
-
-  def flagSimpleGQ(flags: Int): Boolean = (flags & flagSimpleGQBit) != 0
-
-  def flagSetSimpleAD(flags: Int): Int = flags | flagSimpleADBit
-
-  def flagSetSimpleDP(flags: Int): Int = flags | flagSimpleDPBit
-
-  def flagSetSimpleGQ(flags: Int): Int = flags | flagSimpleGQBit
-
-  def flagFakeRef(flags: Int): Boolean = (flags & flagFakeRefBit) != 0
-
-  def flagMissing(flags: Int): Boolean = (flags & flagMissing) != 0
-
-  def flagSetFakeRef(flags: Int): Int = flags | flagFakeRefBit
-
-  def flagSetMissing(flags: Int): Int = flags | flagMissing
-
-  def flagUnsetFakeRef(flags: Int): Int = flags ^ flagFakeRefBit
-
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99
     var m2 = 99
@@ -770,211 +693,6 @@ object Genotype {
       gtIndex(i, j)
   }
 
-  def read(nAlleles: Int, isLinearScale: Boolean, a: ByteIterator): Genotype = {
-    val isBiallelic = nAlleles == 2
-
-    val flags = a.readULEB128()
-    if (flagMissing(flags))
-      return null
-
-    val gt: Int =
-      if (flagHasGT(isBiallelic, flags)) {
-        if (flagStoresGT(isBiallelic, flags))
-          flagGT(isBiallelic, flags)
-        else
-          a.readULEB128()
-      } else
-        -1
-
-    val ad: Array[Int] =
-      if (flagHasAD(flags)) {
-        val ada = new Array[Int](nAlleles)
-        if (flagSimpleAD(flags)) {
-          assert(gt >= 0)
-          val p = Genotype.gtPair(gt)
-          ada(p.j) = a.readULEB128()
-          if (p.j != p.k)
-            ada(p.k) = a.readULEB128()
-        } else {
-          for (i <- ada.indices)
-            ada(i) = a.readULEB128()
-        }
-        ada
-      } else
-        null
-
-    val dp =
-      if (flagHasDP(flags)) {
-        if (flagHasAD(flags)) {
-          var i = 0
-          var adsum = 0
-          while (i < ad.length) {
-            adsum += ad(i)
-            i += 1
-          }
-          if (flagSimpleDP(flags))
-            adsum
-          else
-            adsum + a.readULEB128()
-        } else
-          a.readULEB128()
-      } else
-        -1 // None
-
-    val px: Array[Int] =
-      if (flagHasPX(flags)) {
-        val pxa = new Array[Int](triangle(nAlleles))
-        if (gt >= 0) {
-          var i = 0
-          while (i < gt) {
-            pxa(i) = a.readULEB128()
-            i += 1
-          }
-          i += 1
-          while (i < pxa.length) {
-            pxa(i) = a.readULEB128()
-            i += 1
-          }
-
-          if (isLinearScale)
-            pxa(gt) = 32768 - pxa.sum // original values summed to 32768 or 1.0 in probability
-
-        } else {
-          var i = 0
-          while (i < pxa.length) {
-            pxa(i) = a.readULEB128()
-            i += 1
-          }
-        }
-
-        pxa
-      } else
-        null
-
-    val gq: Int =
-      if (flagHasGQ(flags)) {
-        if (flagSimpleGQ(flags))
-          gqFromPL(px)
-        else
-          a.readULEB128()
-      } else
-        -1
-
-    new GenericGenotype(gt, ad, dp, gq, px, flagFakeRef(flags), isLinearScale)
-  }
-
-  def readHardCall(nAlleles: Int, isLinearScale: Boolean, a: ByteIterator): Int = {
-    val isBiallelic = nAlleles == 2
-
-    val flags = a.readULEB128()
-
-    val gt: Int =
-      if (flagHasGT(isBiallelic, flags)) {
-        if (flagStoresGT(isBiallelic, flags))
-          flagGT(isBiallelic, flags)
-        else
-          a.readULEB128()
-      } else
-        -1
-
-    var count = 0
-
-    if (flagHasAD(flags)) {
-      if (flagSimpleAD(flags)) {
-        count += 1
-        val p = Genotype.gtPair(gt)
-        if (p.j != p.k)
-          count += 1
-      } else
-        count += nAlleles
-    }
-
-    if (flagHasDP(flags) && !(flagHasAD(flags) && flagSimpleDP(flags)))
-      count += 1
-
-    if (flagHasPX(flags))
-      if (gt >= 0)
-        count += triangle(nAlleles) - 1
-      else
-        count += triangle(nAlleles)
-
-    if (flagHasGQ(flags) && !flagSimpleGQ(flags))
-      count += 1
-
-    a.skipLEB128(count)
-
-    gt
-  }
-
-  def readDosage(isLinearScale: Boolean, a: ByteIterator): Double = {
-    val nAlleles = 2
-    val isBiallelic = true
-
-    val flags = a.readULEB128()
-
-    val gt: Int =
-      if (flagHasGT(isBiallelic, flags)) {
-        if (flagStoresGT(isBiallelic, flags))
-          flagGT(isBiallelic, flags)
-        else
-          a.readULEB128()
-      } else
-        -1
-
-    var count = 0
-
-    if (flagHasAD(flags)) {
-      if (flagSimpleAD(flags)) {
-        count += 1
-        val p = Genotype.gtPair(gt)
-        if (p.j != p.k)
-          count += 1
-      } else
-        count += nAlleles
-    }
-
-    if (flagHasDP(flags) && !(flagHasAD(flags) && flagSimpleDP(flags)))
-      count += 1
-
-    a.skipLEB128(count)
-
-    val dosage: Double =
-      if (flagHasPX(flags)) {
-        var px0 = 0
-        var px1 = 0
-        var px2 = 0
-
-        if (gt == 0) {
-          px1 = a.readULEB128()
-          px2 = a.readULEB128()
-          if (isLinearScale) px0 = 32768 - (px1 + px2)
-        } else if (gt == 1) {
-          px0 = a.readULEB128()
-          px2 = a.readULEB128()
-          if (isLinearScale) px1 = 32768 - (px0 + px2)
-        } else if (gt == 2) {
-          px0 = a.readULEB128()
-          px1 = a.readULEB128()
-          if (isLinearScale) px2 = 32768 - (px0 + px1)
-        } else {
-          px0 = a.readULEB128()
-          px1 = a.readULEB128()
-          px2 = a.readULEB128()
-        }
-
-        if (isLinearScale)
-          (px1 + 2 * px2) * Genotype.gpNorm
-        else
-          Genotype.plToDosage(px0, px1, px2)
-      } else
-        -1d
-
-    if (flagHasGQ(flags) && !flagSimpleGQ(flags))
-      a.skipLEB128(1)
-
-    dosage
-  }
-
   def genDosageGenotype(v: Variant): Gen[Genotype] = {
     val nAlleles = v.nAlleles
     val nGenotypes = triangle(nAlleles)
@@ -1122,115 +840,6 @@ class GenericGenotype(val _unboxedGT: Int,
   }
 }
 
-class MutableGenotype(nAlleles: Int) extends Genotype {
-  var _unboxedGT: Int = -1
-  private val _ad: Array[Int] = Array.ofDim[Int](nAlleles)
-  private var _hasAD = false
-  var _unboxedDP: Int = -1
-  var _unboxedGQ: Int = -1
-  private val _px: Array[Int] = Array.ofDim[Int](triangle(nAlleles))
-  private var _hasPX = false
-  var _fakeRef: Boolean = false
-  var _isLinearScale: Boolean = false
-
-  def _unboxedAD: Array[Int] = if (_hasAD) _ad else null
-
-  def _unboxedPX: Array[Int] = if (_hasPX) _px else null
-
-  def read(nAlleles: Int, isLinearScale: Boolean, a: ByteIterator): Boolean = {
-    val isBiallelic = nAlleles == 2
-
-    val flags = a.readULEB128()
-
-    val missing = Genotype.flagMissing(flags)
-    if (missing)
-      return false
-
-    _hasAD = Genotype.flagHasAD(flags)
-    _hasPX = Genotype.flagHasPX(flags)
-
-    _unboxedGT =
-      if (Genotype.flagHasGT(isBiallelic, flags)) {
-        if (Genotype.flagStoresGT(isBiallelic, flags))
-          Genotype.flagGT(isBiallelic, flags)
-        else
-          a.readULEB128()
-      } else
-        -1
-
-    if (_hasAD) {
-      if (Genotype.flagSimpleAD(flags)) {
-        assert(_unboxedGT >= 0)
-        val p = Genotype.gtPair(_unboxedGT)
-        _ad(p.j) = a.readULEB128()
-        if (p.j != p.k)
-          _ad(p.k) = a.readULEB128()
-      } else {
-        for (i <- _ad.indices)
-          _ad(i) = a.readULEB128()
-      }
-    }
-
-    _unboxedDP =
-      if (Genotype.flagHasDP(flags)) {
-        if (_hasAD) {
-          var i = 0
-          var adsum = 0
-          while (i < _ad.length) {
-            adsum += _ad(i)
-            i += 1
-          }
-          if (Genotype.flagSimpleDP(flags))
-            adsum
-          else
-            adsum + a.readULEB128()
-        } else
-          a.readULEB128()
-      } else
-        -1
-
-    if (_hasPX) {
-      if (_unboxedGT >= 0) {
-        var i = 0
-        while (i < _unboxedGT) {
-          _px(i) = a.readULEB128()
-          i += 1
-        }
-        i += 1
-        while (i < _px.length) {
-          _px(i) = a.readULEB128()
-          i += 1
-        }
-        if (isLinearScale)
-          _px(_unboxedGT) = 32768 - _px.sum // original values summed to 32768 or 1.0 in probability
-        else
-          _px(_unboxedGT) = 0
-      } else {
-        var i = 0
-        while (i < _px.length) {
-          _px(i) = a.readULEB128()
-          i += 1
-        }
-      }
-    }
-
-    _unboxedGQ =
-      if (Genotype.flagHasGQ(flags)) {
-        if (Genotype.flagSimpleGQ(flags))
-          Genotype.gqFromPL(_px)
-        else
-          a.readULEB128()
-      } else
-        -1
-
-    _fakeRef = Genotype.flagFakeRef(flags)
-
-    this._isLinearScale = isLinearScale
-
-    true
-  }
-}
-
 class DosageGenotype(var _unboxedGT: Int,
   var _unboxedPX: Array[Int]) extends Genotype {
 
@@ -1250,20 +859,25 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
   val isBiallelic = nAlleles == 2
   val nGenotypes = triangle(nAlleles)
 
-  var flags: Int = 0
-
-  private var gt: Int = 0
+  private var gt: Int = -1
   private var ad: Array[Int] = _
-  private var dp: Int = 0
-  private var gq: Int = 0
+  private var dp: Int = -1
+  private var gq: Int = -1
   private var px: Array[Int] = _
+  private var fakeRef: Boolean = false
+  private var missing: Boolean = false
 
   def clear() {
-    flags = 0
+    gt = -1
+    dp = -1
+    gq = -1
+    ad = null
+    px = null
+    fakeRef = false
+    missing = false
   }
 
-  def hasGT: Boolean =
-    Genotype.flagHasGT(isBiallelic, flags)
+  def hasGT: Boolean = gt >= 0
 
   def setGT(newGT: Int) {
     if (newGT < 0)
@@ -1272,47 +886,44 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
       fatal(s"invalid GT value `$newGT': value larger than maximum number of genotypes $nGenotypes")
     if (hasGT)
       fatal(s"invalid GT, genotype already had GT")
-    flags = Genotype.flagSetGT(isBiallelic, flags, newGT)
     gt = newGT
   }
 
   def setAD(newAD: Array[Int]) {
     if (newAD.length != nAlleles)
       fatal(s"invalid AD field `${ newAD.mkString(",") }': expected $nAlleles values, but got ${ newAD.length }.")
-    flags = Genotype.flagSetHasAD(flags)
     ad = newAD
   }
 
   def setDP(newDP: Int) {
     if (newDP < 0)
       fatal(s"invalid DP field `$newDP': negative value")
-    flags = Genotype.flagSetHasDP(flags)
     dp = newDP
   }
 
   def setGQ(newGQ: Int) {
     if (newGQ < 0)
       fatal(s"invalid GQ field `$newGQ': negative value")
-    flags = Genotype.flagSetHasGQ(flags)
     gq = newGQ
   }
 
   def setPX(newPX: Array[Int]) {
     if (newPX.length != nGenotypes)
       fatal(s"invalid PL field `${ newPX.mkString(",") }': expected $nGenotypes values, but got ${ newPX.length }.")
-    flags = Genotype.flagSetHasPX(flags)
     px = newPX
   }
 
   def setFakeRef() {
-    flags = Genotype.flagSetFakeRef(flags)
+    fakeRef = true
   }
 
   def setMissing() {
-    flags = Genotype.flagSetMissing(flags)
+    missing = true
   }
 
   def set(g: Genotype) {
+    assert(g._isLinearScale == isLinearScale)
+
     if (g == null) {
       setMissing()
     } else {
@@ -1327,112 +938,10 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
     }
   }
 
-  def write(b: ArrayBuilder[Byte]) {
-    val missing = Genotype.flagMissing(flags)
-    if (missing) {
-      b.writeULEB128(flags)
-      return
-    }
-
-    val hasGT = Genotype.flagHasGT(isBiallelic, flags)
-    val hasAD = Genotype.flagHasAD(flags)
-    val hasDP = Genotype.flagHasDP(flags)
-    val hasGQ = Genotype.flagHasGQ(flags)
-    val hasPX = Genotype.flagHasPX(flags)
-
-    if (isLinearScale) {
-      if (hasPX) {
-        Genotype.gtFromLinear(px) match {
-          case Some(gt2) => assert(hasGT && gt == gt2)
-          case None => assert(!hasGT)
-        }
-      } else
-        assert(!hasGT)
-    }
-
-    var j = 0
-    var k = 0
-    if (hasGT) {
-      val p = Genotype.gtPair(gt)
-      j = p.j
-      k = p.k
-      if (hasAD) {
-        var i = 0
-        var simple = true
-        while (i < ad.length && simple) {
-          if (i != j && i != k && ad(i) != 0)
-            simple = false
-          i += 1
-        }
-        if (simple)
-          flags = Genotype.flagSetSimpleAD(flags)
-      }
-    }
-
-    var adsum = 0
-    if (hasAD && hasDP) {
-      adsum = ad.sum
-      if (adsum == dp)
-        flags = Genotype.flagSetSimpleDP(flags)
-    }
-
-    if (hasPX && hasGQ) {
-      val gqFromPL = Genotype.gqFromPL(px)
-      if (gq == gqFromPL)
-        flags = Genotype.flagSetSimpleGQ(flags)
-    }
-
-    /*
-    println("flags:")
-    if (Genotype.flagHasGT(isBiallelic, flags))
-      println(s"  gt = $gt")
-    if (Genotype.flagHasDP(flags))
-      println(s"  dp = $dp")
-    */
-
-    b.writeULEB128(flags)
-
-    if (hasGT && !Genotype.flagStoresGT(isBiallelic, flags))
-      b.writeULEB128(gt)
-
-    if (hasAD) {
-      if (Genotype.flagSimpleAD(flags)) {
-        b.writeULEB128(ad(j))
-        if (k != j)
-          b.writeULEB128(ad(k))
-      } else
-        ad.foreach(b.writeULEB128)
-    }
-
-    if (hasDP) {
-      if (hasAD) {
-        if (!Genotype.flagSimpleDP(flags))
-          b.writeULEB128(dp - adsum)
-      } else
-        b.writeULEB128(dp)
-    }
-
-    if (hasPX) {
-      if (hasGT) {
-        var i = 0
-        while (i < gt) {
-          b.writeULEB128(px(i))
-          i += 1
-        }
-        i += 1
-        while (i < px.length) {
-          b.writeULEB128(px(i))
-          i += 1
-        }
-      } else
-        px.foreach(b.writeULEB128)
-    }
-
-    if (hasGQ) {
-      if (!Genotype.flagSimpleGQ(flags))
-        b.writeULEB128(gq)
-    }
+  def result(): Genotype = {
+    if (missing)
+      null
+    else
+      new GenericGenotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
   }
 }
-
-

@@ -1588,9 +1588,8 @@ class VariantDataset(object):
 
     @handle_py4j
     @typecheck_method(output=strlike,
-                      overwrite=bool,
-                      parquet_genotypes=bool)
-    def write(self, output, overwrite=False, parquet_genotypes=False):
+                      overwrite=bool)
+    def write(self, output, overwrite=False):
         """Write variant dataset as VDS file.
 
         **Examples**
@@ -1603,11 +1602,9 @@ class VariantDataset(object):
 
         :param bool overwrite: If true, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
 
-        :param bool parquet_genotypes: If true, store genotypes as Parquet rather than Hail's serialization.  The resulting VDS will be larger and slower in Hail but the genotypes will be accessible from other tools that support Parquet.
-
         """
 
-        self._jvds.write(output, overwrite, parquet_genotypes)
+        self._jvds.write(output, overwrite)
 
     @handle_py4j
     @typecheck_method(expr=strlike,

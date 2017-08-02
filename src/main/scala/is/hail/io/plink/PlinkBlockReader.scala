@@ -1,12 +1,13 @@
 package is.hail.io.plink
 
 import is.hail.io.{IndexedBinaryBlockReader, KeySerializedValueRecord}
-import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder}
+import is.hail.utils.ArrayBuilder
+import is.hail.variant.{Genotype, GenotypeBuilder}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit
 
-class PlinkRecord(nSamples: Int, gb: GenotypeBuilder, gsb: GenotypeStreamBuilder) extends KeySerializedValueRecord[Int, Iterable[Genotype]] {
+class PlinkRecord(nSamples: Int, gb: GenotypeBuilder, gsb: ArrayBuilder[Genotype]) extends KeySerializedValueRecord[Int, Iterable[Genotype]] {
   override def getValue: Iterable[Genotype] = {
     require(input != null, "called getValue before serialized value was set")
 
@@ -21,7 +22,7 @@ class PlinkRecord(nSamples: Int, gb: GenotypeBuilder, gsb: GenotypeStreamBuilder
         gb.clear()
         if (i >= 0)
           gb.setGT(i)
-        gsb.write(gb)
+        gsb += gb.result()
       }
     gsb.result()
   }
@@ -38,7 +39,7 @@ class PlinkBlockReader(job: Configuration, split: FileSplit) extends IndexedBina
   val blockLength = (nSamples + 3) / 4
 
   val gb = new GenotypeBuilder(2, isLinearScale = false)
-  val gsb = new GenotypeStreamBuilder(2, isLinearScale = false)
+  val gsb = new ArrayBuilder[Genotype]()
 
   seekToFirstBlockInSplit(split.getStart)
 

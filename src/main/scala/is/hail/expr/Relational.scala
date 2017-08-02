@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.methods.Aggregators
 import is.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
-import is.hail.variant.{Genotype, Locus, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
+import is.hail.variant.{Genotype, Locus, VSMFileMetadata, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.utils._
@@ -113,7 +113,7 @@ object NewAST {
 
     rewrite(ast)
   }
-  
+
   def rewriteBottomUp[RPK, RK, T](ast: MatrixAST[RPK, RK, T], rule: PartialFunction[NewAST, NewAST]): MatrixAST[RPK, RK, T] =
     genericRewriteBottomUp(ast, rule).asInstanceOf[MatrixAST[RPK, RK, T]]
 
@@ -178,13 +178,13 @@ object MatrixAST {
   def optimize[RPK, RK, T](ast: MatrixAST[RPK, RK, T]): MatrixAST[RPK, RK, T] = {
     NewAST.rewriteTopDown(ast, {
       case FilterVariants(
-      MatrixRead(hc, path, metadata, dropSamples, _, typ, kOk),
+      MatrixRead(hc, path, fileMetadata, dropSamples, _),
       Const(_, false, TBoolean)) =>
-        MatrixRead(hc, path, metadata, dropSamples, dropVariants = true, typ, kOk)
+        MatrixRead(hc, path, fileMetadata, dropSamples, dropVariants = true)
       case FilterSamples(
-      MatrixRead(hc, path, metadata, _, dropVariants, typ, kOk),
+      MatrixRead(hc, path, fileMetadata, _, dropVariants),
       Const(_, false, TBoolean)) =>
-        MatrixRead(hc, path, metadata, dropSamples = true, dropVariants, typ, kOk)
+        MatrixRead(hc, path, fileMetadata, dropSamples = true, dropVariants)
 
       case FilterVariants(m, Const(_, true, TBoolean)) =>
         m
@@ -229,75 +229,66 @@ case class MatrixLiteral[RPK, RK, T](
   override def toString: String = "MatrixLiteral(...)"
 }
 
-case class MatrixRead[RPK, RK, T](
+case class MatrixRead(
   hc: HailContext,
   path: String,
-  metadata: VSMMetadata,
+  fileMetadata: VSMFileMetadata,
   dropSamples: Boolean,
-  dropVariants: Boolean,
-  typ: MatrixType,
-  kOk: OrderedKey[RPK, RK])(implicit ev: T =:= Genotype) extends MatrixAST[RPK, RK, T] {
+  dropVariants: Boolean) extends MatrixAST[Annotation, Annotation, Annotation] {
+
+  val kOk: OrderedKey[Annotation, Annotation] = fileMetadata.metadata.vSignature.orderedKey
+
+  def typ: MatrixType = MatrixType(fileMetadata.metadata)
 
   def children: IndexedSeq[NewAST] = Array.empty[NewAST]
 
-  def copy(newChildren: IndexedSeq[NewAST]): MatrixRead[RPK, RK, T] = {
+  def copy(newChildren: IndexedSeq[NewAST]): MatrixRead = {
     assert(newChildren.isEmpty)
     this
   }
 
-  def execute(hc: HailContext): MatrixValue[RPK, RK, T] = {
-    val sc = hc.sc
-    val hConf = sc.hadoopConfiguration
-    val sqlContext = hc.sqlContext
+  def execute(hc: HailContext): MatrixValue[Annotation, Annotation, Annotation] = {
+    val metadata = fileMetadata.metadata
+    val localValue =
+      if (dropSamples)
+        fileMetadata.localValue.dropSamples()
+      else
+        fileMetadata.localValue
 
     val parquetFile = path + "/rdd.parquet"
 
-    val vaSignature = typ.vaType
-    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
-    val isLinearScale = metadata.isLinearScale
+    implicit val localKOk = kOk
 
     val orderedRDD =
-      if (dropVariants) {
-        OrderedRDD.empty[Locus, Variant, (Annotation, Iterable[Genotype])](sc)
-      } else {
-        val rdd = if (dropSamples)
-          sqlContext.readParquetSorted(parquetFile, Some(Array("variant", "annotations")))
-            .map(row => (row.getVariant(0),
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                Iterable.empty[Genotype])))
-        else {
-          val rdd = sqlContext.readParquetSorted(parquetFile)
+      if (dropVariants)
+        OrderedRDD.empty[Annotation, Annotation, (Annotation, Iterable[Annotation])](hc.sc)
+      else {
+        val vImporter = SparkAnnotationImpex.annotationImporter(typ.vType)
+        val vaImporter = SparkAnnotationImpex.annotationImporter(typ.vaType)
+        val gImporter = SparkAnnotationImpex.annotationImporter(typ.genotypeType)
 
-          rdd.map { row =>
-            val v = row.getVariant(0)
-            (v,
-              (if (vaRequiresConversion) SparkAnnotationImpex.importAnnotation(row.get(1), vaSignature) else row.get(1),
-                row.getGenotypeStream(v, 2, isLinearScale): Iterable[Genotype]))
-          }
+        val localDropSamples = dropSamples
+        val importRow = (r: Row) => {
+          val v = vImporter(r.get(0))
+          (v, (vaImporter(r.get(1)),
+            if (localDropSamples)
+              Iterable.empty[Annotation]
+            else
+              r.getSeq[Any](2).lazyMap(g => gImporter(g))))
         }
 
-        val partitioner: OrderedPartitioner[Locus, Variant] =
-          try {
-            val jv = hConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))
-            jv.fromJSON[OrderedPartitioner[Locus, Variant]]
-          } catch {
-            case _: FileNotFoundException =>
-              fatal("missing partitioner.json.gz when loading VDS, create with HailContext.write_partitioning.")
-          }
+        val jv = hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))
+        implicit val pkjr = typ.vType.partitionKey.jsonReader
+        val partitioner = jv.fromJSON[OrderedPartitioner[Annotation, Annotation]]
 
-        OrderedRDD(rdd, partitioner)
+        val columns = someIf(dropSamples, Array("variant", "annotations"))
+        OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])](
+          hc.sqlContext.readParquetSorted(parquetFile, columns).map(importRow), partitioner)
       }
 
-    val (fileMetadata, _) = VariantSampleMatrix.readFileMetadata(hConf, path)
-    val localValue = fileMetadata.localValue
-
     MatrixValue(
-      if (dropSamples)
-        localValue.dropSamples()
-      else
-        localValue,
+      localValue,
       orderedRDD)
-      .asInstanceOf[MatrixValue[RPK, RK, T]]
   }
 
   override def toString: String = s"MatrixRead($path, dropSamples = $dropSamples, dropVariants = $dropVariants)"
@@ -341,6 +332,7 @@ case class FilterVariants[RPK, RK, T >: Null](
   child: MatrixAST[RPK, RK, T],
   pred: AST)(implicit tct: ClassTag[T]) extends MatrixAST[RPK, RK, T] {
   implicit val kOk: OrderedKey[RPK, RK] = child.kOk
+
   import kOk._
 
   def children: IndexedSeq[NewAST] = Array(child)

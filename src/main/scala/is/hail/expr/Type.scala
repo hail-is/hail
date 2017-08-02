@@ -111,10 +111,17 @@ sealed abstract class Type extends Serializable { self =>
   def query(fields: String*): Querier = query(fields.toList)
 
   def query(path: List[String]): Querier = {
+    val (t, q) = queryTyped(path)
+    q
+  }
+
+  def queryTyped(fields: String*): (Type, Querier) = queryTyped(fields.toList)
+
+  def queryTyped(path: List[String]): (Type, Querier) = {
     if (path.nonEmpty)
       throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
-      identity[Annotation]
+      (this, identity[Annotation])
   }
 
   def toPrettyString(indent: Int = 0, compact: Boolean = false, printAttrs: Boolean = false): String = {
@@ -938,19 +945,19 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     updateFieldAttributes(path, attributes => attributes - attr)
   }
 
-  override def query(p: List[String]): Querier = {
+  override def queryTyped(p: List[String]): (Type, Querier) = {
     if (p.isEmpty)
-      identity[Annotation]
+      (this, identity[Annotation])
     else {
       selfField(p.head) match {
         case Some(f) =>
-          val q = f.typ.query(p.tail)
+          val (t, q) = f.typ.queryTyped(p.tail)
           val localIndex = f.index
-          a =>
+          (t, (a: Any) =>
             if (a == Annotation.empty)
               null
             else
-              q(a.asInstanceOf[Row].get(localIndex))
+              q(a.asInstanceOf[Row].get(localIndex)))
         case None => throw new AnnotationPathException(s"struct has no field ${ p.head }")
       }
     }

@@ -40,7 +40,7 @@ class FilterSuite extends SparkSuite {
 
     assert(sQcVds.filterSamplesExpr("sa.qc.nCalled == 337").nSamples == 17)
 
-    assert(sQcVds.filterSamplesExpr("sa.qc.dpMean > 60").nSamples == 7)
+    assert(sQcVds.filterSamplesExpr("sa.qc.dpMean > 60").nSamples == 6)
 
     assert(sQcVds.filterSamplesExpr("if (\"^C1048\" ~ s) {sa.qc.rTiTv > 3.5 && sa.qc.nSingleton < 10000000} else sa.qc.rTiTv > 3")
       .nSamples == 16)

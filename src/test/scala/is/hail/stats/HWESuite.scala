@@ -10,8 +10,8 @@ import org.testng.annotations.Test
 class HWESuite extends SparkSuite {
 
   @Test def test() {
-    val r = VariantQC.results(hc.importVCF("src/test/resources/HWE_test.vcf"))
-      .map { case (v, a) => (v.start, a.HWEStats) }
+    val r = VariantQC.results(hc.importVCF("src/test/resources/HWE_test.vcf").toGDS)
+      .map { case (v, a) => (v.asInstanceOf[Variant].start, a.HWEStats) }
       .collectAsMap()
 
     assert(r(1) == (Some(0.0), 0.5))
