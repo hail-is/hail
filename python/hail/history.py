@@ -67,19 +67,16 @@ def record_classmethod(func, cls, *args, **kwargs):
     return result
 
 
-def write_history(path_arg_name):
+def write_history(path_arg_name, is_dir=False):
     def _write(f, obj, *args, **kwargs):
         postnl_args, kwargs_not_default = parse_args(f, args, kwargs)
         argnames = inspect.getcallargs(f, obj, *args, **kwargs)
         result = f(obj, *args, **kwargs)
 
         output_path = argnames[path_arg_name]
-        try:
-            if Env.jutils().isDir(output_path, Env.hc()._jhc):
-                output_path = output_path + "/history.txt"
-            else:
-                output_path += ".history.txt"
-        except:
+        if is_dir:
+            output_path = output_path + "/history.txt"
+        else:
             output_path += ".history.txt"
 
         (obj._history

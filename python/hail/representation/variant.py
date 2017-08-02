@@ -2,6 +2,7 @@ from hail.java import scala_object, Env, handle_py4j
 from hail.typecheck import *
 from hail.history import *
 
+
 class Variant(HasHistory):
     """
     An object that represents a genomic polymorphism.
@@ -29,6 +30,7 @@ class Variant(HasHistory):
         self._contig = contig
         self._start = start
         self._ref = ref
+        super(Variant, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()
@@ -273,6 +275,7 @@ class AltAllele(HasHistory):
         self._init_from_java(jaa)
         self._ref = ref
         self._alt = alt
+        super(AltAllele, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()
@@ -422,6 +425,7 @@ class AltAllele(HasHistory):
         """
         return self._jrep.altAlleleType()
 
+
 class Locus(HasHistory):
     """
     An object that represents a location in the genome.
@@ -440,6 +444,7 @@ class Locus(HasHistory):
         self._init_from_java(jrep)
         self._contig = contig
         self._position = position
+        super(Locus, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()

@@ -50,6 +50,7 @@ class VariantDataset(HasHistory):
         self._num_samples = None
         self._jvdf_cache = None
         self._jvkdf_cache = None
+        super(VariantDataset, self).__init__()
 
     @classmethod
     @handle_py4j
@@ -1606,7 +1607,7 @@ class VariantDataset(HasHistory):
         self._jvkdf.exportVCF(output, joption(append_to_header), parallel)
 
     @handle_py4j
-    @write_history('output')
+    @write_history('output', is_dir=True)
     @typecheck_method(output=strlike,
                       overwrite=bool)
     def write(self, output, overwrite=False):

@@ -40,6 +40,7 @@ class Trio(HasHistory):
         self._father = father
         self._mother = mother
         self._is_female = is_female
+        super(Trio, self).__init__()
 
     @classmethod
     def _from_java(cls, jrep):
@@ -163,7 +164,7 @@ class Trio(HasHistory):
         return self._complete
 
 
-class Pedigree(object):
+class Pedigree(HasHistory):
     """Class containing a list of trios, with extra functionality.
 
     :param trios: list of trio objects to include in pedigree
@@ -177,6 +178,7 @@ class Pedigree(object):
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = trios
         self._history = None
+        super(Pedigree, self).__init__()
 
     @classmethod
     def _from_java(cls, jrep):

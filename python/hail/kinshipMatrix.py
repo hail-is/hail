@@ -5,6 +5,7 @@ from hail.history import *
 from hail.java import *
 from hail.expr import Type, TString
 
+
 class KinshipMatrix(HasHistory):
     """
     Represents a symmetric matrix encoding the relatedness of each pair of samples in the accompanying sample list.
@@ -15,6 +16,7 @@ class KinshipMatrix(HasHistory):
     def __init__(self, jkm):
         self._key_schema = None
         self._jkm = jkm
+        super(KinshipMatrix, self).__init__()
 
     @property
     @handle_py4j

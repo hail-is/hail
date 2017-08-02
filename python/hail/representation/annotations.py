@@ -35,6 +35,7 @@ class Struct(HasHistory):
     @record_init
     def __init__(self, attributes):
         self._attrs = attributes
+        super(Struct, self).__init__()
 
     def __getattr__(self, item):
         assert (self._attrs)

@@ -28,6 +28,7 @@ class Interval(HasHistory):
                             (str(type(start)), str(type(end))))
         jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep)
         self._init_from_java(jrep)
+        super(Interval, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()

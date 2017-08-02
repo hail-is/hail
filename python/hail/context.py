@@ -13,7 +13,7 @@ from hail.utils import wrap_to_list
 from hail.history import *
 
 
-class HailContext(object):
+class HailContext(HasHistory):
     """The main entry point for Hail functionality.
 
     .. warning::
@@ -90,8 +90,7 @@ class HailContext(object):
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
-
-        self._history = None
+        super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self

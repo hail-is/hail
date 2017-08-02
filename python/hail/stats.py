@@ -13,6 +13,7 @@ class BetaDist(HasHistory):
     def __init__(self, a, b):
         self.a = a
         self.b = b
+        super(BetaDist, self).__init__()
 
     def _jrep(self):
         return Env.hail().stats.BetaDist.apply(float(self.a), float(self.b))
@@ -31,6 +32,7 @@ class UniformDist(HasHistory):
             raise ValueError("min must be less than max")
         self.minVal = minVal
         self.maxVal = maxVal
+        super(UniformDist, self).__init__()
 
     def _jrep(self):
         return Env.hail().stats.UniformDist.apply(float(self.minVal), float(self.maxVal))
@@ -58,6 +60,7 @@ class TruncatedBetaDist(HasHistory):
         self.maxVal = maxVal
         self.a = a
         self.b = b
+        super(TruncatedBetaDist, self).__init__()
 
     def _jrep(self):
         return Env.hail().stats.TruncatedBetaDist.apply(float(self.a), float(self.b), float(self.minVal), float(self.maxVal))

@@ -13,16 +13,15 @@ class Ascending(HasHistory):
     @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).asc(col)
-        self._history = None
-
-    def _set_history(self, history):
-        self._history = history
+        super(Ascending, self).__init__()
 
 
 class Descending(HasHistory):
     @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).desc(col)
+        super(Descending, self).__init__()
+
 
 def asc(col):
     """Sort by ``col`` ascending."""
@@ -89,6 +88,8 @@ class KeyTable(HasHistory):
         self._num_columns = None
         self._key = None
         self._column_names = None
+
+        super(KeyTable, self).__init__()
 
     def __repr__(self):
         return self._jkt.toString()
@@ -914,7 +915,7 @@ class KeyTable(HasHistory):
         self._jkt.typeCheck()
 
     @handle_py4j
-    @write_history('output')
+    @write_history('output', is_dir=True)
     @typecheck_method(output=strlike,
                       overwrite=bool)
     def write(self, output, overwrite=False):
