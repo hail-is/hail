@@ -3,7 +3,7 @@ from hail.typecheck import *
 from hail.history import *
 
 
-class Variant(HasHistory):
+class Variant(HistoryMixin):
     """
     An object that represents a genomic polymorphism.
 
@@ -261,7 +261,7 @@ class Variant(HasHistory):
         return self._jrep.inYNonPar()
 
 
-class AltAllele(HasHistory):
+class AltAllele(HistoryMixin):
     """
     An object that represents an allele in a polymorphism deviating from the reference allele.
 
@@ -428,7 +428,7 @@ class AltAllele(HasHistory):
         return self._jrep.altAlleleType()
 
 
-class Locus(HasHistory):
+class Locus(HistoryMixin):
     """
     An object that represents a location in the genome.
 

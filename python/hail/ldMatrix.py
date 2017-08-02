@@ -2,7 +2,7 @@ from hail.representation import Variant
 from hail.history import *
 
 
-class LDMatrix(HasHistory):
+class LDMatrix(HistoryMixin):
     """
     Represents a symmetric matrix encoding the Pearson correlation between each pair of variants in the accompanying variant list.
     """

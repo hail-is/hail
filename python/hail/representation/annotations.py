@@ -2,7 +2,7 @@ from hail.typecheck import *
 from hail.history import *
 
 
-class Struct(HasHistory):
+class Struct(HistoryMixin):
     """
     Nested annotation structure.
 

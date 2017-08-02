@@ -3,7 +3,7 @@ from hail.typecheck import *
 from hail.history import *
 
 
-class BetaDist(HasHistory):
+class BetaDist(HistoryMixin):
     """
     Represents a beta distribution with parameters a and b.
     """
@@ -20,7 +20,7 @@ class BetaDist(HasHistory):
         return Env.hail().stats.BetaDist.apply(float(self.a), float(self.b))
 
 
-class UniformDist(HasHistory):
+class UniformDist(HistoryMixin):
     """
     Represents a uniform distribution on the interval [minVal, maxVal].
     """
@@ -39,7 +39,7 @@ class UniformDist(HasHistory):
         return Env.hail().stats.UniformDist.apply(float(self.minVal), float(self.maxVal))
 
 
-class TruncatedBetaDist(HasHistory):
+class TruncatedBetaDist(HistoryMixin):
     """
     Represents a truncated beta distribution with parameters a and b and support [minVal, maxVal]. Draws are made
     via rejection sampling, which may be slow if the probability mass of Beta(a,b) over [minVal, maxVal] is small.

@@ -3,7 +3,7 @@ from hail.typecheck import *
 from hail.history import *
 
 
-class Genotype(HasHistory):
+class Genotype(HistoryMixin):
     """
     An object that represents an individual's genotype at a genomic locus.
 
@@ -339,7 +339,7 @@ class Genotype(HasHistory):
         return from_option(self._jgenotype.fractionReadsRef(self._jrep))
 
 
-class Call(HasHistory):
+class Call(HistoryMixin):
     """
     An object that represents an individual's call at a genomic locus.
 

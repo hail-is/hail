@@ -2,7 +2,7 @@ from hail.java import *
 from hail.typecheck import *
 from hail.history import *
 
-class Trio(HasHistory):
+class Trio(HistoryMixin):
     """Class containing information about nuclear family relatedness and sex.
 
     :param str proband: Sample ID of proband.
@@ -164,7 +164,7 @@ class Trio(HasHistory):
         return self._complete
 
 
-class Pedigree(HasHistory):
+class Pedigree(HistoryMixin):
     """Class containing a list of trios, with extra functionality.
 
     :param trios: list of trio objects to include in pedigree

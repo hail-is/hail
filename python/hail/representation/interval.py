@@ -5,7 +5,7 @@ from hail.history import *
 
 interval_type = lazy()
 
-class Interval(HasHistory):
+class Interval(HistoryMixin):
     """
     A genomic interval marked by start and end loci.
 

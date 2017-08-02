@@ -6,7 +6,7 @@ from hail.java import *
 from hail.expr import Type, TString
 
 
-class KinshipMatrix(HasHistory):
+class KinshipMatrix(HistoryMixin):
     """
     Represents a symmetric matrix encoding the relatedness of each pair of samples in the accompanying sample list.
     

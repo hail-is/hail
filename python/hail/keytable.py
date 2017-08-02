@@ -9,14 +9,14 @@ from pyspark.sql import DataFrame
 from hail.history import *
 
 
-class Ascending(HasHistory):
+class Ascending(HistoryMixin):
     @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).asc(col)
         super(Ascending, self).__init__()
 
 
-class Descending(HasHistory):
+class Descending(HistoryMixin):
     @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).desc(col)
@@ -38,7 +38,7 @@ def desc(col):
 kt_type = lazy()
 
 
-class KeyTable(HasHistory):
+class KeyTable(HistoryMixin):
     """Hail's version of a SQL table where columns can be designated as keys.
 
     Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_table`

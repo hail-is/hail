@@ -13,7 +13,7 @@ from hail.utils import wrap_to_list
 from hail.history import *
 
 
-class HailContext(HasHistory):
+class HailContext(HistoryMixin):
     """The main entry point for Hail functionality.
 
     .. warning::

@@ -38,7 +38,7 @@ def record_method(func, obj, *args, **kwargs):
     postnl_args, kwargs_not_default = parse_args(func, args, kwargs)
 
     def set_history(item, index=None, key_name=None):
-        if isinstance(item, HasHistory):
+        if isinstance(item, HistoryMixin):
             item._set_history(obj
                               ._get_history()
                               .add_method(func.__name__, postnl_args, kwargs_not_default, index=index, key_name=key_name))
@@ -48,7 +48,7 @@ def record_method(func, obj, *args, **kwargs):
         for k, r in result.iteritems():
             set_history(r, key_name=k)
     elif isinstance(result, list) or isinstance(result, tuple):
-        for i, r in enumerate(list(result)):
+        for i, r in enumerate(result):
             set_history(r, index=i)
     else:
         set_history(result)
@@ -91,7 +91,7 @@ def format_args(arg, stmts):
     elif isinstance(arg, dict):
         return {format_args(k, stmts): format_args(v, stmts) for k, v in arg.iteritems()}
     else:
-        if isinstance(arg, HasHistory):
+        if isinstance(arg, HistoryMixin):
             h = arg._get_history()
             stmts += remove_dup_stmts(stmts, h.stmts)
             return h
@@ -155,7 +155,7 @@ class History(object):
             return history
 
 
-class HasHistory(object):
+class HistoryMixin(object):
     def __init__(self):
         self._history = None
 

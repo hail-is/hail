@@ -18,7 +18,7 @@ warnings.filterwarnings(module=__name__, action='once')
 
 vds_type = lazy()
 
-class VariantDataset(HasHistory):
+class VariantDataset(HistoryMixin):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
     Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods,
