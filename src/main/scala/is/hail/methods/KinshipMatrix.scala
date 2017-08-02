@@ -15,7 +15,7 @@ import scala.collection.Searching._
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) extends SimilarityMatrix{
+case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) extends SimilarityMatrix {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   def requireSampleTString(method: String) {

@@ -7,7 +7,6 @@ import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix, Vectors}
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 
-
 object LDMatrix {
   /**
     * Computes the LD matrix for the given VDS.
@@ -17,7 +16,6 @@ object LDMatrix {
   def apply(vds : VariantDataset, optComputeLocally: Option[Boolean]): LDMatrix = {
     val nSamples = vds.nSamples
     val nVariants = vds.countVariants()
-
 
     val filteredNormalizedHardCalls = vds.rdd.flatMap { 
       case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, nSamples).map(x => (v, x))
@@ -58,9 +56,7 @@ object LDMatrix {
     }
 
     val scaledIndexedRowMatrix = new IndexedRowMatrix(indexedRowMatrix.rows
-      .map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))},
-      variantsKept.length,
-      variantsKept.length)
+      .map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
 
     persistedVDS.unpersist()
 
@@ -75,7 +71,7 @@ object LDMatrix {
   * @param nSamples Number of samples used to compute this matrix.
   */
 case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) extends SimilarityMatrix {
-  def toLocalMatrix(): Matrix = {
+  def toLocalMatrix: Matrix = {
     matrix.toBlockMatrixDense().toLocalMatrix()
   }
 }
