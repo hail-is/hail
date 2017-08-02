@@ -5,7 +5,7 @@ from hail.history import *
 
 interval_type = lazy()
 
-class Interval(object):
+class Interval(HasHistory):
     """
     A genomic interval marked by start and end loci.
 
@@ -28,7 +28,6 @@ class Interval(object):
                             (str(type(start)), str(type(end))))
         jrep = scala_object(Env.hail().variant, 'Locus').makeInterval(start._jrep, end._jrep)
         self._init_from_java(jrep)
-        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -45,9 +44,6 @@ class Interval(object):
     def _init_from_java(self, jrep):
         self._jrep = jrep
         self._start = Locus._from_java(self._jrep.start())
-
-    def _set_history(self, history):
-        self._history = history
 
     @classmethod
     def _from_java(cls, jrep):

@@ -2,7 +2,7 @@ from hail.java import Env
 from hail.typecheck import *
 from hail.history import *
 
-class BetaDist:
+class BetaDist(HasHistory):
     """
     Represents a beta distribution with parameters a and b.
     """
@@ -13,16 +13,12 @@ class BetaDist:
     def __init__(self, a, b):
         self.a = a
         self.b = b
-        self._history = None
 
     def _jrep(self):
         return Env.hail().stats.BetaDist.apply(float(self.a), float(self.b))
 
-    def _set_history(self, history):
-        self._history = history
 
-
-class UniformDist:
+class UniformDist(HasHistory):
     """
     Represents a uniform distribution on the interval [minVal, maxVal].
     """
@@ -35,16 +31,12 @@ class UniformDist:
             raise ValueError("min must be less than max")
         self.minVal = minVal
         self.maxVal = maxVal
-        self._history = None
 
     def _jrep(self):
         return Env.hail().stats.UniformDist.apply(float(self.minVal), float(self.maxVal))
 
-    def _set_history(self, history):
-        self._history = history
 
-
-class TruncatedBetaDist:
+class TruncatedBetaDist(HasHistory):
     """
     Represents a truncated beta distribution with parameters a and b and support [minVal, maxVal]. Draws are made
     via rejection sampling, which may be slow if the probability mass of Beta(a,b) over [minVal, maxVal] is small.
@@ -66,10 +58,6 @@ class TruncatedBetaDist:
         self.maxVal = maxVal
         self.a = a
         self.b = b
-        self._history = None
 
     def _jrep(self):
         return Env.hail().stats.TruncatedBetaDist.apply(float(self.a), float(self.b), float(self.minVal), float(self.maxVal))
-
-    def _set_history(self, history):
-        self._history = history

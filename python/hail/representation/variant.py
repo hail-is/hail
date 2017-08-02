@@ -2,7 +2,7 @@ from hail.java import scala_object, Env, handle_py4j
 from hail.typecheck import *
 from hail.history import *
 
-class Variant(object):
+class Variant(HasHistory):
     """
     An object that represents a genomic polymorphism.
 
@@ -29,7 +29,6 @@ class Variant(object):
         self._contig = contig
         self._start = start
         self._ref = ref
-        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -46,9 +45,6 @@ class Variant(object):
     def _init_from_java(self, jrep):
         self._jrep = jrep
         self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
-
-    def _set_history(self, history):
-        self._history = history
 
     @classmethod
     def _from_java(cls, jrep):
@@ -262,7 +258,7 @@ class Variant(object):
         return self._jrep.inYNonPar()
 
 
-class AltAllele(object):
+class AltAllele(HasHistory):
     """
     An object that represents an allele in a polymorphism deviating from the reference allele.
 
@@ -277,7 +273,6 @@ class AltAllele(object):
         self._init_from_java(jaa)
         self._ref = ref
         self._alt = alt
-        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -293,9 +288,6 @@ class AltAllele(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-
-    def _set_history(self, history):
-        self._history = history
 
     @classmethod
     def _from_java(cls, jaa):
@@ -430,7 +422,7 @@ class AltAllele(object):
         """
         return self._jrep.altAlleleType()
 
-class Locus(object):
+class Locus(HasHistory):
     """
     An object that represents a location in the genome.
 
@@ -448,7 +440,6 @@ class Locus(object):
         self._init_from_java(jrep)
         self._contig = contig
         self._position = position
-        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -464,9 +455,6 @@ class Locus(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-
-    def _set_history(self, history):
-        self._history = history
 
     @classmethod
     def _from_java(cls, jrep):

@@ -39,7 +39,7 @@ def record_method(func, obj, *args, **kwargs):
     postnl_args, kwargs_not_default = parse_args(func, args, kwargs)
 
     def set_history(item, index=None, key_name=None):
-        if hasattr(item, "_history"):
+        if isinstance(item, HasHistory):
             item._set_history(obj._history.add_method(func.__name__,
                                                       postnl_args,
                                                       kwargs_not_default,
@@ -98,7 +98,7 @@ def format_args(arg, stmts):
     elif isinstance(arg, dict):
         return {format_args(k, stmts): format_args(v, stmts) for k, v in arg.iteritems()}
     else:
-        if hasattr(arg, "_history"):
+        if isinstance(arg, HasHistory):
             stmts += remove_dup_stmts(stmts, arg._history.stmts)
             return arg._history
         else:
@@ -107,6 +107,7 @@ def format_args(arg, stmts):
 
 def remove_dup_stmts(stmts1, stmts2):
     return [s2 for s1, s2 in itertools.izip_longest(stmts1, stmts2) if s2 and s1 != s2]
+
 
 class History(object):
     def __init__(self, expr="", stmts=[]):
@@ -154,3 +155,15 @@ class History(object):
             history += (stmt + "\n\n")
         history += ("(" + self.expr + ")")
         return autopep8.fix_code(history)
+
+
+class HasHistory(object):
+    def __init__(self):
+        self._history = None
+
+    def _set_history(self, history):
+        self._history = history
+
+    def with_id(self, id):
+        self._set_history(self._history.set_varid(id))
+        return self

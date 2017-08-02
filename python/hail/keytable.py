@@ -9,7 +9,7 @@ from pyspark.sql import DataFrame
 from hail.history import *
 
 
-class Ascending(object):
+class Ascending(HasHistory):
     @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).asc(col)
@@ -19,14 +19,10 @@ class Ascending(object):
         self._history = history
 
 
-class Descending(object):
+class Descending(HasHistory):
     @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).desc(col)
-        self._history = None
-
-    def _set_history(self, history):
-        self._history = history
 
 def asc(col):
     """Sort by ``col`` ascending."""
@@ -43,7 +39,7 @@ def desc(col):
 kt_type = lazy()
 
 
-class KeyTable(object):
+class KeyTable(HasHistory):
     """Hail's version of a SQL table where columns can be designated as keys.
 
     Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_table`
@@ -93,17 +89,9 @@ class KeyTable(object):
         self._num_columns = None
         self._key = None
         self._column_names = None
-        self._history = None
 
     def __repr__(self):
         return self._jkt.toString()
-
-    def _set_history(self, history):
-        self._history = history
-
-    def with_id(self, id):
-        self._set_history(self._history.set_varid(id))
-        return self
 
     @classmethod
     @handle_py4j

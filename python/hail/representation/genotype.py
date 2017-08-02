@@ -2,7 +2,8 @@ from hail.java import *
 from hail.typecheck import *
 from hail.history import *
 
-class Genotype(object):
+
+class Genotype(HasHistory):
     """
     An object that represents an individual's genotype at a genomic locus.
 
@@ -54,8 +55,6 @@ class Genotype(object):
         self._pl = pl
         self._init_from_java(jrep)
 
-        self._history = None
-
     def __str__(self):
         return self._jrep.toString()
 
@@ -76,9 +75,6 @@ class Genotype(object):
 
     def _init_from_java(self, jrep):
         self._jrep = jrep
-
-    def _set_history(self, history):
-        self._history = history
 
     @classmethod
     def _from_java(cls, jrep):
@@ -341,7 +337,7 @@ class Genotype(object):
         return from_option(self._jgenotype.fractionReadsRef(self._jrep))
 
 
-class Call(object):
+class Call(HasHistory):
     """
     An object that represents an individual's call at a genomic locus.
 
@@ -361,7 +357,6 @@ class Call(object):
 
         jrep = Call._call_jobject.apply(call)
         self._init_from_java(jrep)
-        self._history = None
 
     def __str__(self):
         return self._jrep.toString()
@@ -378,9 +373,6 @@ class Call(object):
     def _init_from_java(self, jrep):
         self._jcall = Call._call_jobject
         self._jrep = jrep
-
-    def _set_history(self, history):
-        self._history = history
 
     @classmethod
     def _from_java(cls, jrep):

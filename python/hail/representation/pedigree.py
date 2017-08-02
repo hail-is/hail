@@ -2,7 +2,7 @@ from hail.java import *
 from hail.typecheck import *
 from hail.history import *
 
-class Trio(object):
+class Trio(HasHistory):
     """Class containing information about nuclear family relatedness and sex.
 
     :param str proband: Sample ID of proband.
@@ -40,7 +40,6 @@ class Trio(object):
         self._father = father
         self._mother = mother
         self._is_female = is_female
-        self._history = None
 
     @classmethod
     def _from_java(cls, jrep):
@@ -67,9 +66,6 @@ class Trio(object):
     @handle_py4j
     def __hash__(self):
         return self._jrep.hashCode()
-
-    def _set_history(self, history):
-        self._history = history
 
     @property
     @handle_py4j

@@ -2,20 +2,12 @@ from hail.representation import Variant
 from hail.history import *
 
 
-class LDMatrix:
+class LDMatrix(HasHistory):
     """
     Represents a symmetric matrix encoding the Pearson correlation between each pair of variants in the accompanying variant list.
     """
     def __init__(self, jldm):
         self._jldm = jldm
-        self._history = None
-
-    def _set_history(self, history):
-        self._history = history
-
-    def with_id(self, id):
-        self._set_history(self._history.set_varid(id))
-        return self
 
     def variant_list(self):
         """
