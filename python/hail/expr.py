@@ -1,7 +1,6 @@
 import abc
 from hail.java import scala_object, Env, jset
 from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call
-from hail.history import *
 
 
 class TypeCheckError(Exception):
@@ -27,7 +26,6 @@ class Type(object):
 
     def __init__(self, jtype):
         self._jtype = jtype
-        self._history = None
 
     def __repr__(self):
         return str(self)
@@ -40,9 +38,6 @@ class Type(object):
 
     def __hash__(self):
         return self._jtype.hashCode()
-
-    def _set_history(self, history):
-        self._history = history
 
     def pretty(self, indent=0, attrs=False):
         """Returns a prettily formatted string representation of the type.
@@ -109,7 +104,6 @@ class TInt32(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TInt32, self).__init__(scala_object(Env.hail().expr, 'TInt32'))
 
@@ -126,6 +120,8 @@ class TInt32(Type):
         if annotation and not isinstance(annotation, int):
             raise TypeCheckError("TInt32 expected type 'int', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TInt()"
 
 class TInt64(Type):
     """
@@ -139,7 +135,6 @@ class TInt64(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TInt64, self).__init__(scala_object(Env.hail().expr, 'TInt64'))
 
@@ -156,6 +151,9 @@ class TInt64(Type):
         if annotation and not (isinstance(annotation, long) or isinstance(annotation, int)):
             raise TypeCheckError("TInt64 expected type 'int' or 'long', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TLong()"
+
 
 class TFloat32(Type):
     """
@@ -169,7 +167,6 @@ class TFloat32(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TFloat32, self).__init__(scala_object(Env.hail().expr, 'TFloat32'))
 
@@ -189,6 +186,9 @@ class TFloat32(Type):
         if annotation and not isinstance(annotation, float):
             raise TypeCheckError("TFloat32 expected type 'float', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TFloat()"
+
 
 class TFloat64(Type):
     """
@@ -202,7 +202,6 @@ class TFloat64(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TFloat64, self).__init__(scala_object(Env.hail().expr, 'TFloat64'))
 
@@ -219,6 +218,9 @@ class TFloat64(Type):
         if annotation and not isinstance(annotation, float):
             raise TypeCheckError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TDouble()"
+
 
 class TString(Type):
     """
@@ -232,7 +234,6 @@ class TString(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TString, self).__init__(scala_object(Env.hail().expr, 'TString'))
 
@@ -245,6 +246,9 @@ class TString(Type):
     def _typecheck(self, annotation):
         if annotation and not (isinstance(annotation, str) or isinstance(annotation, unicode)):
             raise TypeCheckError("TString expected type 'str', but found type '%s'" % type(annotation))
+
+    def __repr__(self):
+        return "TString()"
 
 
 class TBoolean(Type):
@@ -259,7 +263,6 @@ class TBoolean(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TBoolean, self).__init__(scala_object(Env.hail().expr, 'TBoolean'))
 
@@ -272,6 +275,9 @@ class TBoolean(Type):
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, bool):
             raise TypeCheckError("TBoolean expected type 'bool', but found type '%s'" % type(annotation))
+
+    def __repr__(self):
+        return "TBoolean()"
 
 
 class TArray(Type):
@@ -290,7 +296,6 @@ class TArray(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    @record_init
     def __init__(self, element_type):
         """
         :param :class:`.Type` element_type: Hail type of array element
@@ -328,6 +333,9 @@ class TArray(Type):
             for elt in annotation:
                 self.element_type._typecheck(elt)
 
+    def __repr__(self):
+        return "TArray({})".format(repr(self.element_type))
+
 
 class TSet(Type):
     """
@@ -345,7 +353,6 @@ class TSet(Type):
     :vartype element_type: :class:`.Type`
     """
 
-    @record_init
     def __init__(self, element_type):
         """
         :param :class:`.Type` element_type: Hail type of set element
@@ -383,6 +390,9 @@ class TSet(Type):
             for elt in annotation:
                 self.element_type._typecheck(elt)
 
+    def __repr__(self):
+        return "TSet({})".format(repr(self.element_type))
+
 
 class TDict(Type):
     """
@@ -404,7 +414,6 @@ class TDict(Type):
     :vartype value_type: :class:`.Type`
     """
 
-    @record_init
     def __init__(self, key_type, value_type):
         jtype = scala_object(Env.hail().expr, 'TDict').apply(key_type._jtype, value_type._jtype)
         self.key_type = key_type
@@ -445,6 +454,8 @@ class TDict(Type):
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)
 
+    def __repr__(self):
+        return "TDict({}, {})".format(repr(self.key_type), repr(self.value_type))
 
 class Field(object):
     """
@@ -484,10 +495,12 @@ class TStruct(Type):
     :vartype fields: list of :class:`.Field`
     """
 
-    @record_init
     def __init__(self, names, types):
         """
         """
+
+        self._names = names
+        self._types = types
 
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
@@ -538,6 +551,9 @@ class TStruct(Type):
                                          ([f.name for f in self.fields], annotation._attrs))
                 f.typ._typecheck((annotation[f.name]))
 
+    def __repr__(self):
+        return "TStruct({}, {})".format(repr(self._names), repr(self._types))
+
 
 class TVariant(Type):
     """
@@ -551,7 +567,6 @@ class TVariant(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TVariant, self).__init__(scala_object(Env.hail().expr, 'TVariant'))
 
@@ -572,6 +587,9 @@ class TVariant(Type):
             raise TypeCheckError('TVariant expected type hail.representation.Variant, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TVariant()"
+
 
 class TAltAllele(Type):
     """
@@ -585,7 +603,6 @@ class TAltAllele(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TAltAllele, self).__init__(scala_object(Env.hail().expr, 'TAltAllele'))
 
@@ -606,6 +623,9 @@ class TAltAllele(Type):
             raise TypeCheckError('TAltAllele expected type hail.representation.AltAllele, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TAltAllele()"
+
 
 class TGenotype(Type):
     """
@@ -619,7 +639,6 @@ class TGenotype(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TGenotype, self).__init__(scala_object(Env.hail().expr, 'TGenotype'))
 
@@ -640,6 +659,9 @@ class TGenotype(Type):
             raise TypeCheckError('TGenotype expected type hail.representation.Genotype, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TGenotype()"
+
 
 class TCall(Type):
     """
@@ -653,7 +675,6 @@ class TCall(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TCall, self).__init__(scala_object(Env.hail().expr, 'TCall'))
 
@@ -674,6 +695,9 @@ class TCall(Type):
             raise TypeCheckError('TCall expected type hail.representation.Call, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TCall()"
+
 
 class TLocus(Type):
     """
@@ -687,7 +711,6 @@ class TLocus(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TLocus, self).__init__(scala_object(Env.hail().expr, 'TLocus'))
 
@@ -708,6 +731,9 @@ class TLocus(Type):
             raise TypeCheckError('TLocus expected type hail.representation.Locus, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TLocus()"
+
 
 class TInterval(Type):
     """
@@ -721,7 +747,6 @@ class TInterval(Type):
     """
     __metaclass__ = SingletonType
 
-    @record_init
     def __init__(self):
         super(TInterval, self).__init__(scala_object(Env.hail().expr, 'TInterval'))
 
@@ -741,6 +766,9 @@ class TInterval(Type):
         if annotation and not isinstance(annotation, Interval):
             raise TypeCheckError('TInterval expected type hail.representation.Interval, but found %s' %
                                  type(annotation))
+
+    def __repr__(self):
+        return "TInterval()"
 
 
 __singletons__ = {'is.hail.expr.TInt32$': TInt32,
