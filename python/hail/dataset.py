@@ -1116,6 +1116,7 @@ class VariantDataset(object):
         return self
 
     @handle_py4j
+    @record_method
     def cache(self):
         """Mark this variant dataset to be cached in memory.
 
