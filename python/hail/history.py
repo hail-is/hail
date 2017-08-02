@@ -1,6 +1,5 @@
 from __future__ import print_function  # Python 2 and 3 print compatibility
 
-import autopep8
 import datetime
 import inspect
 import itertools
@@ -151,7 +150,11 @@ class History(object):
         for stmt in self.stmts:
             history += (stmt + "\n\n")
         history += ("(" + self.expr + ")")
-        return autopep8.fix_code(history)
+        try:
+            import autopep8
+            return autopep8.fix_code(history)
+        except:
+            return history
 
 
 class HasHistory(object):
