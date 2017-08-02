@@ -205,7 +205,7 @@ object LoadVCF {
           lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
         // FIXME this doesn't filter symbolic, but also avoids decoding the line.  Won't cause errors but might cause unnecessary shuffles
       }.value)
-      .map(_.map(lineVariant).value)
+      .map(_.map(lineVariant).value.minRep)
     justVariants.persist(StorageLevel.MEMORY_AND_DISK)
 
     val noMulti = justVariants.forall(_.nAlleles == 2)

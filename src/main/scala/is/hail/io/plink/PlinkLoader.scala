@@ -126,11 +126,11 @@ object PlinkLoader {
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1 }
+    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1.minRep }
     val variantRDD = rdd.map {
       case (_, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
-        (v, (Annotation(rsId), vr.getValue))
+        (v.minRep, (Annotation(rsId), vr.getValue))
     }.toOrderedRDD(fastKeys)
 
     new VariantSampleMatrix(hc, VSMMetadata(

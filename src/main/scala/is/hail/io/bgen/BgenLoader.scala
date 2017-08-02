@@ -70,10 +70,10 @@ object BgenLoader {
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey)))
+    val fastKeys = sc.union(results.map(_.rdd.map(_._2.getKey.minRep)))
 
     val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
-      (decoder.getKey, (decoder.getAnnotation, decoder.getValue))
+      (decoder.getKey.minRep, (decoder.getAnnotation, decoder.getValue))
     })).toOrderedRDD[Locus](fastKeys)
 
     new VariantSampleMatrix(hc, VSMMetadata(

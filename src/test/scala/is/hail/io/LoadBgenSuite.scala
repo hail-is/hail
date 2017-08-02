@@ -118,7 +118,7 @@ class LoadBgenSuite extends SparkSuite {
       .filter(_.countVariants > 0)
       .map(_.copy(wasSplit = true));
       nPartitions <- choose(1, 10))
-      yield (vds, nPartitions)
+      yield (vds.minRep(), nPartitions)
 
     val sampleRenameFile = tmpDir.createTempFile(prefix = "sample_rename")
     hadoopConf.writeTextFile(sampleRenameFile)(_.write("NA\tfdsdakfasdkfla"))

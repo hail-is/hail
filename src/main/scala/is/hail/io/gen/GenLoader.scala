@@ -88,6 +88,6 @@ object GenLoader {
 
     val annotations = Annotation(rsid, varid)
 
-    (variant, (annotations, gsb.result()))
+    (variant.minRep, (annotations, gsb.result()))
   }
 }

@@ -75,7 +75,7 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
       case None => Annotation(rsid, vc.getPhredScaledQual, filters)
     }
 
-    (v, va)
+    (v.minRep, va)
   }
 
   def readRecord(vc: VariantContext,
