@@ -13,7 +13,7 @@ class ImportGDBSuite extends SparkSuite {
   val query = "src/test/resources/sample2query.json"
   val workspace = "src/test/resources/tdbworkspace"
   val arrName = "sample2Array"
-  val ref = "Homo_sapiens_assembly19.fasta"
+  val ref = "src/test/resources/Homo_sapiens_assembly19.fasta"
 
   @Test def genomicsDBIterator() {
     val reader = new GenericRecordReader(Set.empty)

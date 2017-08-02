@@ -5,7 +5,7 @@
     "vid_mapping_file": "src/test/resources/sample2vid.json",
     "callset_mapping_file": "src/test/resources/sample2callsets.json",	
     "query_attributes" : [],
-    "reference_genome" : "Homo_sapiens_assembly19.fasta",
+    "reference_genome" : "src/test/resources/Homo_sapiens_assembly19.fasta",
     "vcf_header_filename" : "src/test/resources/sample2header.vcf",
     "produce_GT_field" : true
 }
