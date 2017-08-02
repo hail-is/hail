@@ -114,6 +114,7 @@ class HailContext(object):
             sys.stderr.write('WARNING: This is an unstable development build.')
 
     def _set_history(self, history):
+        assert self._history is None, "Cannot set history for HailContext more than once."
         self._history = history.set_varid("hc")
         
     @staticmethod
