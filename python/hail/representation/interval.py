@@ -47,6 +47,7 @@ class Interval(HasHistory):
         self._start = Locus._from_java(self._jrep.start())
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         interval = Interval.__new__(cls)
         interval._init_from_java(jrep)

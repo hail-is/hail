@@ -39,11 +39,9 @@ def record_method(func, obj, *args, **kwargs):
 
     def set_history(item, index=None, key_name=None):
         if isinstance(item, HasHistory):
-            item._set_history(obj._history.add_method(func.__name__,
-                                                      postnl_args,
-                                                      kwargs_not_default,
-                                                      index=index,
-                                                      key_name=key_name))
+            item._set_history(obj
+                              ._get_history()
+                              .add_method(func.__name__, postnl_args, kwargs_not_default, index=index, key_name=key_name))
 
     result = func(obj, *args, **kwargs)
     if isinstance(result, dict):

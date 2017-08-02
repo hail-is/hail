@@ -49,6 +49,7 @@ class Variant(HasHistory):
         self._alt_alleles = map(AltAllele._from_java, [jrep.altAlleles().apply(i) for i in xrange(jrep.nAltAlleles())])
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         v = Variant.__new__(cls)
         v._init_from_java(jrep)
@@ -293,6 +294,7 @@ class AltAllele(HasHistory):
         self._jrep = jrep
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jaa):
         aa = AltAllele.__new__(cls)
         aa._init_from_java(jaa)
@@ -462,6 +464,7 @@ class Locus(HasHistory):
         self._jrep = jrep
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         l = Locus.__new__(cls)
         l._init_from_java(jrep)

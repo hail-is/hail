@@ -78,6 +78,7 @@ class Genotype(HasHistory):
         self._jrep = jrep
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         if not Genotype._genotype_jobject:
             Genotype._genotype_jobject = scala_object(Env.hail().variant, 'Genotype')
@@ -377,6 +378,7 @@ class Call(HasHistory):
         self._jrep = jrep
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         c = Call.__new__(cls)
         c._init_from_java(jrep)

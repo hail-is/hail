@@ -40,9 +40,9 @@ class Trio(HasHistory):
         self._father = father
         self._mother = mother
         self._is_female = is_female
-        super(Trio, self).__init__()
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         trio = Trio.__new__(cls)
         trio._jrep = jrep
@@ -177,10 +177,9 @@ class Pedigree(HasHistory):
 
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = trios
-        self._history = None
-        super(Pedigree, self).__init__()
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         ped = Pedigree.__new__(cls)
         ped._jrep = jrep
@@ -196,9 +195,6 @@ class Pedigree(HasHistory):
     @handle_py4j
     def __hash__(self):
         return self._jrep.hashCode()
-
-    def _set_history(self, history):
-        self._history = history
 
     @classmethod
     @handle_py4j

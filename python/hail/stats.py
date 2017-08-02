@@ -2,6 +2,7 @@ from hail.java import Env
 from hail.typecheck import *
 from hail.history import *
 
+
 class BetaDist(HasHistory):
     """
     Represents a beta distribution with parameters a and b.
