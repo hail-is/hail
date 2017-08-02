@@ -50,12 +50,11 @@ def record_method(func, obj, *args, **kwargs):
     if isinstance(result, dict):
         for k, r in result.iteritems():
             set_history(r, key_name=k)
+    elif isinstance(result, list) or isinstance(result, tuple):
+        for i, r in enumerate(list(result)):
+            set_history(r, index=i)
     else:
-        try:
-            for i, r in enumerate(list(result)):
-                set_history(r, index=i)
-        except:
-            set_history(result)
+        set_history(result)
     return result
 
 
@@ -96,8 +95,9 @@ def format_args(arg, stmts):
         return {format_args(k, stmts): format_args(v, stmts) for k, v in arg.iteritems()}
     else:
         if isinstance(arg, HasHistory):
-            stmts += remove_dup_stmts(stmts, arg._history.stmts)
-            return arg._history
+            h = arg._get_history()
+            stmts += remove_dup_stmts(stmts, h.stmts)
+            return h
         else:
             return arg
 
@@ -160,6 +160,9 @@ class HasHistory(object):
 
     def _set_history(self, history):
         self._history = history
+
+    def _get_history(self):
+        return self._history
 
     def with_id(self, id):
         self._set_history(self._history.set_varid(id))
