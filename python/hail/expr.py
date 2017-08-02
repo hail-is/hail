@@ -499,9 +499,6 @@ class TStruct(Type):
         """
         """
 
-        self._names = names
-        self._types = types
-
         if len(names) != len(types):
             raise ValueError('length of names and types not equal: %d and %d' % (len(names), len(types)))
         jtype = scala_object(Env.hail().expr, 'TStruct').apply(names, map(lambda t: t._jtype, types))
@@ -552,7 +549,8 @@ class TStruct(Type):
                 f.typ._typecheck((annotation[f.name]))
 
     def __repr__(self):
-        return "TStruct({}, {})".format(repr(self._names), repr(self._types))
+        names, types = zip(*[(fd.name, fd.typ) for fd in self.fields])
+        return "TStruct({}, {})".format(repr(list(names)), repr(list(types)))
 
 
 class TVariant(Type):
