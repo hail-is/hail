@@ -16,7 +16,6 @@ class KinshipMatrix(HistoryMixin):
     def __init__(self, jkm):
         self._key_schema = None
         self._jkm = jkm
-        super(KinshipMatrix, self).__init__()
 
     @property
     @handle_py4j

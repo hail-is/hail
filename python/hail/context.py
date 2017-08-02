@@ -47,6 +47,7 @@ class HailContext(HistoryMixin):
     :vartype sc: :class:`.pyspark.SparkContext`
     """
 
+    @record_init
     @typecheck_method(sc=nullable(SparkContext),
                       app_name=strlike,
                       master=nullable(strlike),
@@ -58,7 +59,6 @@ class HailContext(HistoryMixin):
                       min_block_size=integral,
                       branching_factor=integral,
                       tmp_dir=strlike)
-    @record_init
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log='hail.log', quiet=False, append=False, parquet_compression='snappy',
                  min_block_size=1, branching_factor=50, tmp_dir='/tmp'):
@@ -471,7 +471,6 @@ class HailContext(HistoryMixin):
 
         jkt = self._jhc.importTable(paths, key, min_partitions, jtypes, comment, delimiter, missing,
                                     no_header, impute, quote)
-
         return KeyTable(self, jkt)
 
     @handle_py4j

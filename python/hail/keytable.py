@@ -13,14 +13,12 @@ class Ascending(HistoryMixin):
     @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).asc(col)
-        super(Ascending, self).__init__()
 
 
 class Descending(HistoryMixin):
     @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).desc(col)
-        super(Descending, self).__init__()
 
 
 def asc(col):
@@ -88,8 +86,6 @@ class KeyTable(HistoryMixin):
         self._num_columns = None
         self._key = None
         self._column_names = None
-
-        super(KeyTable, self).__init__()
 
     def __repr__(self):
         return self._jkt.toString()

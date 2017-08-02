@@ -174,7 +174,6 @@ class Pedigree(HistoryMixin):
     @handle_py4j
     @record_init
     def __init__(self, trios):
-
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = trios
 

@@ -30,7 +30,6 @@ class Variant(HistoryMixin):
         self._contig = contig
         self._start = start
         self._ref = ref
-        super(Variant, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()
@@ -276,7 +275,6 @@ class AltAllele(HistoryMixin):
         self._init_from_java(jaa)
         self._ref = ref
         self._alt = alt
-        super(AltAllele, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()
@@ -446,7 +444,6 @@ class Locus(HistoryMixin):
         self._init_from_java(jrep)
         self._contig = contig
         self._position = position
-        super(Locus, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()

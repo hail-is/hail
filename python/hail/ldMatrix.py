@@ -8,7 +8,6 @@ class LDMatrix(HistoryMixin):
     """
     def __init__(self, jldm):
         self._jldm = jldm
-        super(LDMatrix, self).__init__()
 
     def variant_list(self):
         """

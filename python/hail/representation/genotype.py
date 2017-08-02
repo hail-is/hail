@@ -54,7 +54,6 @@ class Genotype(HistoryMixin):
         self._gq = gq
         self._pl = pl
         self._init_from_java(jrep)
-        super(Genotype, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()
@@ -359,7 +358,6 @@ class Call(HistoryMixin):
 
         jrep = Call._call_jobject.apply(call)
         self._init_from_java(jrep)
-        super(Call, self).__init__()
 
     def __str__(self):
         return self._jrep.toString()
