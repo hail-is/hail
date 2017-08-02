@@ -179,17 +179,7 @@ class VSMSuite extends SparkSuite {
 
     p.check()
   }
-
-  @Test def testWriteParquetRead() {
-    val p = forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
-      val f = tmpDir.createTempFile(extension = "vds")
-      vds.write(f)
-      hc.readVDS(f).same(vds)
-    }
-
-    p.check()
-  }
-
+  
   @Test def testFilterSamples() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.gz", force = true)
     val vdsAsMap = vds.mapWithKeys((v, s, g) => ((v, s), g)).collectAsMap()
