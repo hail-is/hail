@@ -935,8 +935,7 @@ object FunctionRegistry {
     .. code-block:: text
         :emphasize-lines: 3
 
-        let v = Variant("7:76324539:A:G") and gt = Call(0) and
-          g = Genotype(v, gt, prob) in g.isHomRef()
+        Genotype(Call(0)).isHomRef()
         result: true
     """, "gt" -> "Genotype call integer")(callHr, genotypeHr)
 
@@ -1989,8 +1988,7 @@ object FunctionRegistry {
     .. warning::
 
         - The info score Hail reports will be extremely different from qctool when a SNP has a high missing rate.
-        - If the genotype data was not imported using the :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen` commands, then the results for all variants will be ``score = NA`` and ``nIncluded = 0``.
-        - It only makes sense to compute the info score for an Aggregable[Genotype] per variant. While a per-sample info score will run, the result is meaningless.
+        - It only makes sense to compute the info score per variant. While a per-sample info score will run, the result is meaningless.
     """)(aggregableHr(arrayHr(doubleHr)),
     new HailRep[Any] {
       def typ: Type = InfoScoreCombiner.signature

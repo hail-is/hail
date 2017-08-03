@@ -59,8 +59,6 @@ class ImportPlinkSuite extends SparkSuite {
           val exitCodeBim = s"diff ${ uriPath(localTruthRoot) }.bim ${ uriPath(localTestRoot) }.bim" !
           val exitCodeBed = s"diff ${ uriPath(localTruthRoot) }.bed ${ uriPath(localTestRoot) }.bed" !
 
-          println(localTruthRoot, localTestRoot, exitCodeFam, exitCodeBim, exitCodeBed)
-
           exitCodeFam == 0 && exitCodeBim == 0 && exitCodeBed == 0
         }
       }
