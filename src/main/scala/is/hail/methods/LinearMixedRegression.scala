@@ -112,10 +112,11 @@ object LinearMixedRegression {
         val sparkU = (sparkGenotypeMatrix * VSSpark).toLocalMatrix()
         val U = sparkU.asBreeze().toDenseMatrix
 
+        filteredVDS.unpersist()
+
         (U, S, rank, fullS)
       }
-      case KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, nVariantsUsed) => {
-        val kinshipMatrix = similarityMatrix.asInstanceOf[KinshipMatrix]
+      case kinshipMatrix @ KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, nVariantsUsed) => {
         val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
           kinshipMatrix
         else {
@@ -125,8 +126,6 @@ object LinearMixedRegression {
               "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
           fkm
         }
-
-        val cols = filteredKinshipMatrix.matrix.numCols().toInt
 
         val rrm = filteredKinshipMatrix.matrix.toLocalMatrix().asBreeze().toDenseMatrix
 
@@ -300,7 +299,6 @@ class FullRankScalerLMM(
 
     val b: Double = xQty / xQtx
     val s2 = invDf * (yQty - xQty * b)
-
     val chi2 = n * (logNullS2 - math.log(s2))
     val p = chiSquaredTail(1, chi2)
 
@@ -504,7 +502,6 @@ object DiagLMM {
 
       (FastMath.exp(maxlogDelta), GlobalFitLMM(maxLogLkhd, gridLogLkhd, sigmaH2, h2NormLkhd))
     }
-
 
     def fitUsingDelta(delta: Double, optGlobalFit: Option[GlobalFitLMM]): DiagLMM = {
       val invDelta = 1 / delta

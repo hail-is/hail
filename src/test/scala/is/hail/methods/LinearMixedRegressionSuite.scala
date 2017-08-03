@@ -540,7 +540,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
   lazy val vdsSmallRRM = vdsSmall.rrm()
   
   @Test def testSmall() {
-
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno")
 
     val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
@@ -550,7 +549,6 @@ class LinearMixedRegressionSuite extends SparkSuite {
     globalLMMCompare(vdsLmmregLowRank, vdsLmmregLD)
     globalLMMCompare(vdsLmmregLowRank, vdsLmmreg)
 
-    assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
     assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
   }
 
