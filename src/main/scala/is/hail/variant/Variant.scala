@@ -45,9 +45,6 @@ object AltAllele {
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
 
-  val expandedType: TStruct = TStruct("ref" -> TString,
-    "alt" -> TString)
-
   def fromRow(r: Row): AltAllele =
     AltAllele(r.getString(0), r.getString(1))
 
@@ -182,12 +179,6 @@ object Variant {
       StructField("ref", StringType, nullable = false),
       StructField("altAlleles", ArrayType(AltAllele.sparkSchema, containsNull = false),
         nullable = false)))
-
-  def expandedType: TStruct =
-    TStruct("contig" -> TString,
-      "start" -> TInt,
-      "ref" -> TString,
-      "altAlleles" -> TArray(AltAllele.expandedType))
 
   def fromRow(r: Row) =
     Variant(r.getAs[String](0),
