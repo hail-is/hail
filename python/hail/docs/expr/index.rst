@@ -1,13 +1,6 @@
 expr
 ====
 
-.. currentmodule:: hail.expr
-
-.. autofunction:: TInt
-
-.. autofunction:: TFloat
-
-
 .. toctree::
     :maxdepth: 2
 
