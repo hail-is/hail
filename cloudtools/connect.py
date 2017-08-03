@@ -7,7 +7,7 @@ def main(main_parser):
 
     parser = argparse.ArgumentParser(parents=[main_parser])
 
-    parser.add_argument('service', type=str, nargs='?', default='spark-ui', choices=['spark-ui', 'spark-ui1', 'spark-ui2', 'spark-history', 'notebook'])
+    parser.add_argument('service', type=str, nargs='?', default='notebook', choices=['spark-ui', 'spark-ui1', 'spark-ui2', 'spark-history', 'notebook'])
     parser.add_argument('--port', '-p', default='10000', type=str, help='Local port to use for SSH tunnel to master node.')
     parser.add_argument('--zone', '-z', default='us-central1-b', type=str, help='Compute zone for Google cluster.')
 
