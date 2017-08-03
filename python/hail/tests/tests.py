@@ -698,8 +698,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(TInt32(), TInt32())
         self.assertEqual(TFloat64(), TFloat64())
         self.assertEqual(TArray(TFloat64()), TArray(TFloat64()))
-        self.assertFalse(TArray(TFloat64()) == TArray(TFloat64()))
-        self.assertFalse(TSet(TFloat64()) == TArray(TFloat64()))
+        self.assertNotEqual(TArray(TFloat64()), TArray(TFloat32()))
+        self.assertNotEqual(TSet(TFloat64()), TArray(TFloat64()))
         self.assertEqual(TSet(TFloat64()), TSet(TFloat64()))
         self.assertEqual(TDict(TString(), TArray(TInt32())), TDict(TString(), TArray(TInt32())))
 
