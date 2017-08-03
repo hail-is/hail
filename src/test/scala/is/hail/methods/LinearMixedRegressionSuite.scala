@@ -12,11 +12,6 @@ import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
 class LinearMixedRegressionSuite extends SparkSuite {
-
-  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
-    val d1 = a.asInstanceOf[Double]
-    assert(D_==(d1, value, tol), s"$d1 did not equal $value with tol $tol")
-  }
   
   @Test def lmmSmallExampleTest() {
 
@@ -126,10 +121,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
     (0 until mG).foreach { j =>
       val v = Variant("1", j + 1, "A", "C")
       val (beta, sg2, chi2, pval) = directResult(v)
-      assertDouble(qBeta(a(v)), beta)
-      assertDouble(qSg2(a(v)), sg2)
-      assertDouble(qChi2(a(v)), chi2)
-      assertDouble(qPval(a(v)), pval)
+      TestUtils.assertDouble(qBeta(a(v)), beta)
+      TestUtils.assertDouble(qSg2(a(v)), sg2)
+      TestUtils.assertDouble(qChi2(a(v)), chi2)
+      TestUtils.assertDouble(qPval(a(v)), pval)
     }
     
     // test dosages
@@ -162,10 +157,10 @@ class LinearMixedRegressionSuite extends SparkSuite {
     (0 until 2).foreach { j =>
       val v = Variant("1", j + 1, "A", "C")
       val (beta, sg2, chi2, pval) = directResult1(v)
-      assertDouble(qBeta1(a1(v)), beta, 1e-3)
-      assertDouble(qSg21(a1(v)), sg2, 1e-3)
-      assertDouble(qChi21(a1(v)), chi2, 1e-3)
-      assertDouble(qPval1(a1(v)), pval, 1e-3)
+      TestUtils.assertDouble(qBeta1(a1(v)), beta, 1e-3)
+      TestUtils.assertDouble(qSg21(a1(v)), sg2, 1e-3)
+      TestUtils.assertDouble(qChi21(a1(v)), chi2, 1e-3)
+      TestUtils.assertDouble(qPval1(a1(v)), pval, 1e-3)
     }
   }
 
@@ -276,8 +271,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     (0 until mG).foreach { j =>
       val v = Variant("1", j + 1, "A", "C")
       val (beta, sg2) = directResult(v)
-      assertDouble(qBeta(a(v)), beta)
-      assertDouble(qSg2(a(v)), sg2)
+      TestUtils.assertDouble(qBeta(a(v)), beta)
+      TestUtils.assertDouble(qSg2(a(v)), sg2)
     }
   }
 
@@ -511,8 +506,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val m = vds1Annotations.length
 
     (0 until m).foreach { j =>
-      assertDouble(qBeta1(vds1Annotations(j)).asInstanceOf[Double], qBeta2(vds2Annotations(j)).asInstanceOf[Double], 1e-2)
-      assertDouble(qSg21(vds1Annotations(j)).asInstanceOf[Double], qSg22(vds2Annotations(j)).asInstanceOf[Double], 1e-2 )
+      TestUtils.assertDouble(qBeta1(vds1Annotations(j)).asInstanceOf[Double], qBeta2(vds2Annotations(j)).asInstanceOf[Double], 1e-2)
+      TestUtils.assertDouble(qSg21(vds1Annotations(j)).asInstanceOf[Double], qSg22(vds2Annotations(j)).asInstanceOf[Double], 1e-2 )
     }
   }
 

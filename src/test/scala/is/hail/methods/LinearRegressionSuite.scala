@@ -14,10 +14,6 @@ class LinearRegressionSuite extends SparkSuite {
     assert(D_==(a.asInstanceOf[Int], value))
   }
 
-  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
-    assert(D_==(a.asInstanceOf[Double], value, tol))
-  }
-
   def assertEmpty(a: Annotation) {
     assert(a == null)
   }

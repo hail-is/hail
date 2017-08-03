@@ -5,6 +5,7 @@ import is.hail.annotations.{Annotation, Querier}
 import is.hail.expr.{TBoolean, TDouble}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
+import is.hail.TestUtils._
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 
@@ -12,10 +13,6 @@ class LogisticRegressionSuite extends SparkSuite {
 
   def assertInt(a: Annotation, value: Int) {
     assert(D_==(a.asInstanceOf[Int], value))
-  }
-
-  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
-    assert(D_==(a.asInstanceOf[Double], value, tol))
   }
 
   def assertConsistentWithConstant(converged: Annotation, pval: Annotation) {
