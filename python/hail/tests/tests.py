@@ -120,12 +120,12 @@ class ContextTests(unittest.TestCase):
              .count())
 
             loci_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
-                       .annotate('locus = Locus(chr, pos.toInt())').key_by('locus'))
+                       .annotate('locus = Locus(chr, pos.toInt32())').key_by('locus'))
             (dataset.annotate_variants_table(loci_tb, root='va.locus_annot')
              .count())
 
             variants_tb = (hc.import_table(test_resources + '/variantAnnotations.tsv')
-                           .annotate('variant = Variant(Chromosome, Position.toInt(), Ref, Alt)').key_by('variant'))
+                           .annotate('variant = Variant(Chromosome, Position.toInt32(), Ref, Alt)').key_by('variant'))
             (dataset.annotate_variants_table(variants_tb, root='va.table')
              .count())
 
@@ -142,13 +142,13 @@ class ContextTests(unittest.TestCase):
              .count()[0] == 56)
 
             locus_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
-                        .annotate('locus = Locus(chr, pos.toInt())')
+                        .annotate('locus = Locus(chr, pos.toInt32())')
                         .key_by('locus'))
 
             (dataset.annotate_variants_table(locus_tb, root='va.locus_annot').count())
 
             tb = (hc.import_table(test_resources + '/variantAnnotations.tsv')
-                  .annotate('variant = Variant(Chromosome, Position.toInt(), Ref, Alt)')
+                  .annotate('variant = Variant(Chromosome, Position.toInt32(), Ref, Alt)')
                   .key_by('variant'))
             (dataset.annotate_variants_table(tb, root='va.table').count())
 
