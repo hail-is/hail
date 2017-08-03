@@ -492,8 +492,6 @@ class HailContext private(val sc: SparkContext,
       rdd = m.rdd.mapValuesWithKey { case (v, (va, gs)) =>
         (va, gs.map { t =>
           val g = extractG(t)
-          if (Genotype.ad(g).exists(_.length != v.nGenotypes))
-            println("t", t, "v", v, "g", g)
           if (Genotype.ad(g).exists(_.length != v.nAlleles))
             null
           else {
