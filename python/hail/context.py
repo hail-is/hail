@@ -557,14 +557,10 @@ class HailContext(object):
                       header_file=nullable(strlike),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      store_gq=bool,
-                      pp_as_pl=bool,
-                      skip_bad_ad=bool,
                       generic=bool,
                       call_fields=oneof(strlike, listof(strlike)))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
-                   call_fields=[]):
+                   drop_samples=False, generic=False, call_fields=[]):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -669,16 +665,6 @@ class HailContext(object):
             dataset.  Don't load sample ids, sample annotations or
             genotypes.
 
-        :param bool store_gq: If True, store GQ FORMAT field instead of computing from PL. Only applies if ``generic=False``.
-
-        :param bool pp_as_pl: If True, store PP FORMAT field as PL.  EXPERIMENTAL. Only applies if ``generic=False``.
-
-        :param bool skip_bad_ad: If True, set AD FORMAT field with
-            wrong number of elements to missing, rather than setting
-            the entire genotype to missing. Only applies if ``generic=False``.
-
-        :param bool generic: If True, read the genotype with a generic schema.
-
         :param call_fields: FORMAT fields in VCF to treat as a :py:class:`~hail.type.TCall`. Only applies if ``generic=True``.
         :type call_fields: str or list of str
 
@@ -692,8 +678,7 @@ class HailContext(object):
                                                joption(min_partitions), drop_samples, jset_args(call_fields))
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(min_partitions), drop_samples, store_gq,
-                                        pp_as_pl, skip_bad_ad)
+                                        joption(min_partitions), drop_samples)
 
         return VariantDataset(self, jvds)
 
