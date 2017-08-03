@@ -14,9 +14,9 @@ import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
 import is.hail.variant.{GenericDataset, Genotype, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.hadoop
-import org.apache.log4j.{LogManager, PropertyConfigurator}
+import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 
 import scala.collection.JavaConverters._
@@ -26,6 +26,8 @@ import scala.language.existentials
 object HailContext {
 
   val tera = 1024L * 1024L * 1024L * 1024L
+
+  val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
   def configureAndCreateSparkContext(appName: String, master: Option[String], local: String,
     parquetCompression: String, blockSize: Long): SparkContext = {
@@ -44,6 +46,7 @@ object HailContext {
           conf.setMaster(local)
     }
 
+    conf.set("spark.logConf", "true")
     conf.set("spark.ui.showConsoleProgress", "false")
 
     conf.set(
@@ -101,7 +104,7 @@ object HailContext {
     sqlFileKeys.foreach { k =>
       val param = conf.getLong(k, 0)
       if (param < enoughGigs)
-        problems += s"Invalid config parameter '$k=': too small. Found $param, require at least 50G"
+        problems += s"Invalid config parameter '$k': too small. Found $param, require at least 50G"
     }
 
     if (problems.nonEmpty)
@@ -112,25 +115,20 @@ object HailContext {
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean) {
     val logProps = new Properties()
-    if (quiet) {
-      logProps.put("log4j.rootLogger", "OFF, stderr")
-      logProps.put("log4j.appender.stderr", "org.apache.log4j.ConsoleAppender")
-      logProps.put("log4j.appender.stderr.Target", "System.err")
-      logProps.put("log4j.appender.stderr.threshold", "OFF")
-      logProps.put("log4j.appender.stderr.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.stderr.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
-    } else {
-      logProps.put("log4j.rootLogger", "INFO, logfile")
-      logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-      logProps.put("log4j.appender.logfile.append", append.toString)
-      logProps.put("log4j.appender.logfile.file", logFile)
-      logProps.put("log4j.appender.logfile.threshold", "INFO")
-      logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.logfile.layout.ConversionPattern", "%d{yyyy-MM-dd HH:mm:ss} %-5p %c{1}:%L - %m%n")
-    }
+
+    logProps.put("log4j.rootLogger", "INFO, logfile")
+    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
+    logProps.put("log4j.appender.logfile.append", append.toString)
+    logProps.put("log4j.appender.logfile.file", logFile)
+    logProps.put("log4j.appender.logfile.threshold", "INFO")
+    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
+    logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
 
     LogManager.resetConfiguration()
     PropertyConfigurator.configure(logProps)
+
+    if (!quiet)
+      consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
   }
 
   def apply(sc: SparkContext = null,
@@ -174,25 +172,20 @@ object HailContext {
         "org.apache.hadoop.io.compress.GzipCodec"
     )
 
-    sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
     ProgressBarBuilder.build(sparkContext)
-
-    log.info(s"Spark properties: ${
-      sparkContext.getConf.getAll.map { case (k, v) =>
-        s"$k=$v"
-      }.mkString(", ")
-    }")
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
+    sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
     val welcomeMessage =
-      """Welcome to
+      """
+        |Welcome to
         |     __  __     <>__
         |    / /_/ /__  __/ /
         |   / __  / _ `/ / /
         |  /_/ /_/\_,_/_/_/   version """.stripMargin + is.hail.HAIL_PRETTY_VERSION
-    println(welcomeMessage)
-    log.info(welcomeMessage)
+
+    info(welcomeMessage)
     hc
   }
 }

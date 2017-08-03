@@ -1,5 +1,11 @@
+import SocketServer
+import socket
+import sys
+from threading import Thread
+
 import py4j
 from decorator import decorator
+
 
 class FatalError(Exception):
     """:class:`.FatalError` is an error thrown by Hail method failures"""
@@ -77,12 +83,15 @@ def from_option(x):
 def jindexed_seq(x):
     return Env.jutils().arrayListToISeq(x)
 
+
 def jset(x):
     return Env.jutils().arrayListToSet(x)
+
 
 def jindexed_seq_args(x):
     args = [x] if isinstance(x, str) or isinstance(x, unicode) else x
     return jindexed_seq(args)
+
 
 def jset_args(x):
     args = [x] if isinstance(x, str) or isinstance(x, unicode) else x
@@ -119,3 +128,42 @@ def handle_py4j(func, *args, **kwargs):
         else:
             raise e
     return r
+
+
+class LoggingTCPHandler(SocketServer.StreamRequestHandler):
+    def handle(self):
+        for line in self.rfile:
+            sys.stderr.write(line)
+
+
+class SimpleServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, server_address, RequestHandlerClass):
+        SocketServer.TCPServer.__init__(self, server_address, RequestHandlerClass)
+
+
+def connect_logger(host, port):
+    server = None
+    tries = 0
+    max_tries = 25
+    while not server:
+        try:
+            server = SimpleServer((host, port), LoggingTCPHandler)
+        except socket.error:
+            port += 1
+            tries += 1
+
+            if tries >= max_tries:
+                sys.stderr.write(
+                    'WARNING: Could not find a free port for logger, maximum retries {} exceeded.'.format(max_tries))
+                return
+
+    t = Thread(target=server.serve_forever, args=())
+
+    # The thread should be a daemon so that it shuts down when the parent thread is killed
+    t.daemon = True
+
+    t.start()
+    Env.jutils().addSocketAppender(host, port)
