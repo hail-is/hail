@@ -62,9 +62,13 @@ class LoadBgenSuite extends SparkSuite {
 
       hc.indexBgen(bgen)
       val bgenVDS = hc.importBgen(bgen, sampleFile = Some(sampleFile), nPartitions = Some(10))
+        .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
+        .toVDS
       assert(bgenVDS.nSamples == nSamples && bgenVDS.countVariants() == nVariants)
 
       val genVDS = hc.importGen(gen, sampleFile)
+        .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
+        .toVDS
 
       val varidBgenQuery = bgenVDS.vaSignature.query("varid")
       val varidGenQuery = genVDS.vaSignature.query("varid")
@@ -156,6 +160,8 @@ class LoadBgenSuite extends SparkSuite {
 
         hc.indexBgen(bgenFile)
         val importedVds = hc.importBgen(bgenFile, sampleFile = Some(sampleFile), nPartitions = Some(nPartitions))
+          .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
+          .toVDS
           .cache()
 
         assert(importedVds.nSamples == vds.nSamples)
@@ -218,41 +224,6 @@ class LoadBgenSuite extends SparkSuite {
     packedInput
   }
 
-  @Test def testDosage() {
-    val sc = hc.sc
-    hc.indexBgen("src/test/resources/example.8bits.bgen")
-    val vds = hc.importBgen("src/test/resources/example.8bits.bgen", nPartitions = Some(8))
-
-    val mask = Array.fill(vds.nSamples)(true)
-    val incompleteSampleIndices = Array(13, 172, 273, 319, 441)
-    for (i <- incompleteSampleIndices)
-      mask(i) = false
-
-    val nKept = vds.nSamples - incompleteSampleIndices.length
-    val maskBc = sc.broadcast(mask)
-
-    val completeSampleIndices = (0 until vds.nSamples)
-      .filter(mask)
-      .toArray
-    assert(completeSampleIndices.length == nKept)
-    val completeSampleIndicesBc = sc.broadcast(completeSampleIndices)
-
-    vds.rdd.foreachPartition { it =>
-      val missingSamples = new ArrayBuilder[Int]()
-      val dosages2 = new DenseVector[Double](nKept)
-      
-      it.foreach { case (v, (va, gs)) =>
-        val dosages1 = new DenseVector[Double](nKept)
-        RegressionUtils.dosages(dosages1, gs, completeSampleIndicesBc.value, missingSamples)
-
-        gs.asInstanceOf[Bgen12GenotypeIterator].dosages(dosages2, completeSampleIndicesBc.value, missingSamples)
-        
-        for (i <- 0 until nKept)
-          simpleAssert(dosages1(i) - dosages2(i) < 1e-3)
-      }
-    }
-  }
-
   object TestProbIterator extends Properties("ImportBGEN") {
     val probIteratorGen = for (
       nBitsPerProb <- Gen.choose(1, 32);
@@ -301,6 +272,8 @@ class LoadBgenSuite extends SparkSuite {
   @Test def testReIterate() {
     hc.indexBgen("src/test/resources/example.v11.bgen")
     val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"))
+      .annotateGenotypesExpr("g = Genotype(v, g.GT, g.GP)")
+      .toVDS
 
     assert(vds.annotateVariantsExpr("va.cr1 = gs.fraction(g => g.isCalled())")
       .annotateVariantsExpr("va.cr2 = gs.fraction(g => g.isCalled())")

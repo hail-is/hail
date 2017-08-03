@@ -53,10 +53,7 @@ object RegressionUtils {
   }
 
   def dosages(x: DenseVector[Double], gs: Iterable[Genotype], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
-    gs match {
-      case bgenGs: Bgen12GenotypeIterator => bgenGs.dosages(x, completeSampleIndex, missingSamples)
-      case _ => genericDosages(x, gs, completeSampleIndex, missingSamples)
-    }
+     genericDosages(x, gs, completeSampleIndex, missingSamples)
   }
 
   def dosages(gs: Iterable[Genotype], completeSampleIndex: Array[Int]): DenseVector[Double] = {
