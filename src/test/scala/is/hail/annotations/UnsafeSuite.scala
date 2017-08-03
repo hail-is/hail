@@ -44,7 +44,7 @@ class UnsafeSuite extends SparkSuite {
     rng.reSeed(Prop.seed)
 
     Prop.forAll(g) { case (t, a) =>
-      val urb = new UnsafeRowBuilder(t, debug = globalDebug)
+      val urb = new UnsafeRowBuilder(t)
       urb.setAll(a.asInstanceOf[Row])
       val unsafeRow = urb.result()
 
@@ -76,7 +76,7 @@ class UnsafeSuite extends SparkSuite {
     } yield (x, r)
 
     Prop.forAll(g2) { case ((t, a), r) =>
-      val urb = new UnsafeRowBuilder(t, debug = globalDebug)
+      val urb = new UnsafeRowBuilder(t)
       val row = a.asInstanceOf[Row]
       var i = 0
       urb.setAll(row)
@@ -85,7 +85,7 @@ class UnsafeSuite extends SparkSuite {
       val p1 = ur1 == row
 
       val t2 = TStruct(r.map(t.fields).map(f => f.name -> f.typ): _*)
-      val urb2 = new UnsafeRowBuilder(t2, debug = globalDebug)
+      val urb2 = new UnsafeRowBuilder(t2)
 
       i = 0
 

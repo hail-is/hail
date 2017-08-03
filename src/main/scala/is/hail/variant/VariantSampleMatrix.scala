@@ -2101,7 +2101,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       StructField("variant", vSignature.schema, nullable = false),
       StructField("annotations", vaSignature.schema),
       StructField("gs",
-        ArrayType(genotypeSignature.schema, containsNull = false),
+        ArrayType(genotypeSignature.schema),
         nullable = false)
     ))
   }
