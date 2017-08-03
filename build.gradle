@@ -125,6 +125,8 @@ dependencies {
     compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
     compile 'com.github.samtools:htsjdk:2.5.0'
 
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+
     compile 'org.http4s:http4s-core_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-server_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-argonaut_' + scalaMajorVersion + ':0.12.3'
@@ -221,6 +223,8 @@ shadowJar {
     from(project.sourceSets.main.output)
     configurations = [project.configurations.runtime]
     dependencies {
+        include(dependency('org.slf4j:slf4j-api:1.7.25'))
+
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
@@ -263,6 +267,8 @@ task shadowTestJar(type: ShadowJar) {
     from(project.sourceSets.main.output, project.sourceSets.test.output)
     configurations = [project.configurations.testRuntime]
     dependencies {
+        include(dependency('org.slf4j:slf4j-api:1.7.25'))
+
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
