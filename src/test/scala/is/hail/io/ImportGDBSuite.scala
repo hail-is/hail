@@ -3,7 +3,6 @@ package is.hail.io
 import is.hail.SparkSuite
 import is.hail.expr.TStruct
 import is.hail.io.vcf.{GenericRecordReader, LoadGDB, LoadVCF}
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.testng.annotations.Test
 import com.intel.genomicsdb.GenomicsDBFeatureReader
 
@@ -17,7 +16,6 @@ class ImportGDBSuite extends SparkSuite {
 
   @Test def genomicsDBIterator() {
     val reader = new GenericRecordReader(Set.empty)
-    val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, query, workspace, arrName, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
     val numVariants = vcfVariantSampleMatrix.countVariants()
@@ -93,6 +91,8 @@ class ImportGDBSuite extends SparkSuite {
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, query, workspace, arrName, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
+    println(vcfVariantSampleMatrix.count().toString())
+    println(gdbVariantSampleMatrix.count().toString())
     assert(vcfVariantSampleMatrix.count == gdbVariantSampleMatrix.count) //(numSamples, numVariants)
 
     assert(vcfVariantSampleMatrix.variants.collect.sameElements(gdbVariantSampleMatrix.variants.collect))
