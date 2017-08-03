@@ -196,15 +196,6 @@ test {
 
 test.dependsOn(checkSettings)
 
-/*
-task downloadFastaFile(type: Download) {
-    src 'https://storage.googleapis.com/gnomad-resources/Homo_sapiens_assembly19.fasta'
-    dest "src/test/resources"
-}
-
-test.dependsOn(downloadFastaFile)
-*/
-
 task testPython(type: Exec, dependsOn: shadowJar) {
      commandLine 'python', '-m', 'unittest', 'hail.typecheck.tests', 'hail.tests.tests'
      environment SPARK_HOME: sparkHome
