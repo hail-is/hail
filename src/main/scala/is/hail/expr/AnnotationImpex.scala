@@ -100,7 +100,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Interval(importAnnotation(r.get(0), TLocus).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus).asInstanceOf[Locus])
         case TStruct(fields) =>
           if (fields.isEmpty)
-            Annotation.empty
+            a != null
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
@@ -179,7 +179,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Row(exportAnnotation(i.start, TLocus), exportAnnotation(i.end, TLocus))
         case TStruct(fields) =>
           if (fields.isEmpty)
-            true
+            a != null
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map {

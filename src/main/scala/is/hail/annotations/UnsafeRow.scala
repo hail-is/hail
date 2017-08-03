@@ -4,7 +4,7 @@ import is.hail.expr._
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 
-class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: Int, debug: Boolean = false) extends Row {
+class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: Int) extends Row {
 
   def length: Int = t.size
 
@@ -13,16 +13,12 @@ class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: In
     assert(offset > 0 && (offset & 0x3) == 0, s"invalid binary start: $offset")
     val binLength = mb.loadInt(start)
     val b = mb.loadBytes(start + 4, binLength)
-    if (debug)
-      println(s"from absolute offset $start, read length ${ binLength }, bytes='${ new String(b) }'")
 
     b
   }
 
   private def readArray(offset: Int, t: Type): IndexedSeq[Any] = {
     val start = mb.loadInt(offset)
-    if (debug)
-      println(s"reading array from ${ offset }+${ mbOffset }=${ offset + mbOffset } -> $start")
 
     assert(start > 0 && (start & 0x3) == 0, s"invalid array start: $offset")
 
@@ -30,9 +26,6 @@ class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: In
     val missingBytes = (arrLength + 7) / 8
     val elemsStart = UnsafeUtils.roundUpAlignment(start + 4 + missingBytes, t.alignment)
     val eltSize = UnsafeUtils.arrayElementSize(t)
-
-    if (debug)
-      println(s"reading array from absolute offset $start. Length=$arrLength, elemsStart=$elemsStart, elemSize=$eltSize")
 
     val a = new Array[Any](arrLength)
 
@@ -54,9 +47,7 @@ class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: In
   }
 
   private def readStruct(offset: Int, t: TStruct): UnsafeRow = {
-    if (debug)
-      println(s"reading struct $t from offset ${ offset }+${ mbOffset }=${ offset + mbOffset }")
-    new UnsafeRow(t, mb, offset, debug)
+    new UnsafeRow(t, mb, offset)
   }
 
   private def read(offset: Int, t: Type): Any = {
@@ -81,8 +72,6 @@ class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: In
       case TAltAllele => AltAllele.fromRow(readStruct(offset, TAltAllele.representation))
       case TGenotype => Genotype.fromRow(readStruct(offset, TGenotype.representation))
       case TInterval => Locus.intervalFromRow(readStruct(offset, TInterval.representation))
-
-      case _ => ???
     }
   }
 
@@ -99,7 +88,7 @@ class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: In
       read(mbOffset + offset, t.fields(i).typ)
   }
 
-  def copy(): Row = new UnsafeRow(t, mb.copy(), mbOffset, debug)
+  def copy(): Row = new UnsafeRow(t, mb.copy(), mbOffset)
 
   override def getInt(i: Int): Int = {
     assertDefined(i)
