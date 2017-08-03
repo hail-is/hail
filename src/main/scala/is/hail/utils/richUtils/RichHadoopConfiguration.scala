@@ -17,7 +17,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def fileSystem(filename: String): hadoop.fs.FileSystem =
     new hadoop.fs.Path(filename).getFileSystem(hConf)
 
-  private def create(filename: String): OutputStream = {
+  def create(filename: String): OutputStream = {
     val fs = fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val os = fs.create(hPath)
@@ -30,7 +30,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       os
   }
 
-  private def open(filename: String): InputStream = {
+  def open(filename: String): InputStream = {
     val fs = fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val is = fs.open(hPath)

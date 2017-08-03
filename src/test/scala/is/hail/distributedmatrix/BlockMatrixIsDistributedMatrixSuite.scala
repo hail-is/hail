@@ -312,4 +312,27 @@ class BlockMatrixIsDistributedMatrixSuite extends SparkSuite {
     BlockMatrixIsDistributedMatrix.from(sc, sparkLocal, numRows - 1, numCols - 1).blocks.count()
   }
 
+  @Test
+  def readWriteIdentityTrivial() {
+    val actual = toBM(Seq(
+      Array[Double](1,2,3,4),
+      Array[Double](5,6,7,8),
+      Array[Double](9,10,11,12),
+      Array[Double](13,14,15,16)))
+
+    val fname = tmpDir.createTempFile("test")
+    dm.write(actual, fname)
+    assert(actual.toLocalMatrix() == dm.read(hc, fname).toLocalMatrix())
+  }
+
+  @Test
+  def readWriteIdentityRandom() {
+    forAll(blockMatrixGen) { (bm: BlockMatrix) =>
+      val fname = tmpDir.createTempFile("test")
+      dm.write(bm, fname)
+      assert(bm.toLocalMatrix() == dm.read(hc, fname).toLocalMatrix())
+      true
+    }.check()
+  }
+
 }
