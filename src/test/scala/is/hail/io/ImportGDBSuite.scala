@@ -163,7 +163,7 @@ class ImportGDBSuite extends SparkSuite {
     val gdbFilters = gdbVariantSampleMatrix
       .rdd
       .map { case (_, (va, _)) => gdbQuery(va) }
-      .collect
+      .collect                                      
 
     assert(vcfFilters.sameElements(gdbFilters))
   }
