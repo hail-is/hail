@@ -34,7 +34,7 @@
                         "vcf_field_class": ["INFO"],
                         "type": "int",
 			"length": "A",
-			"VCF_field_combine_operation": "median"
+			"VCF_field_combine_operation": "mean"
                 },
 		"AF": {
                         "vcf_field_class": ["INFO"],

@@ -91,8 +91,6 @@ class ImportGDBSuite extends SparkSuite {
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, query, workspace, arrName, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
-    println(vcfVariantSampleMatrix.count().toString())
-    println(gdbVariantSampleMatrix.count().toString())
     assert(vcfVariantSampleMatrix.count == gdbVariantSampleMatrix.count) //(numSamples, numVariants)
 
     assert(vcfVariantSampleMatrix.variants.collect.sameElements(gdbVariantSampleMatrix.variants.collect))
@@ -107,12 +105,12 @@ class ImportGDBSuite extends SparkSuite {
 
     val vcfGT = vcfVariantSampleMatrix
       .rdd
-      .map(_._2._2)
+      .map { case (_, (_, gt)) => gt }
       .collect
 
     val gdbGT = gdbVariantSampleMatrix
       .rdd
-      .map(_._2._2)
+      .map { case (_, (_, gt)) => gt }
       .collect
 
     assert(vcfGT.zip(gdbGT).forall( { case (it1, it2) => it1.zip(it2).forall( { case (a1, a2) => a1.equals(a2) }) }))
@@ -124,7 +122,7 @@ class ImportGDBSuite extends SparkSuite {
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, query, workspace, arrName, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
-    val vcfVAInfo = vcfVariantSampleMatrix.queryVA("va.info.AN")._2 //TODO: remove "AN" once above issues are fixed
+    val vcfVAInfo = vcfVariantSampleMatrix.queryVA("va.info.AN")._2 //TODO: remove ".AN" once above issues are fixed
     val vcfAnn = vcfVariantSampleMatrix
       .rdd
       .map { case (_, (va, _)) => vcfVAInfo(va) } //map out the QUAL field, which is set to missing in GenomicsDB
@@ -148,5 +146,25 @@ class ImportGDBSuite extends SparkSuite {
     val gdbSA = gdbVariantSampleMatrix.sampleAnnotations
 
     assert(vcfSA.equals(gdbSA))
+  }
+
+  @Test def genomicsDBFilters() {
+    val reader = new GenericRecordReader(Set.empty)
+    val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, query, workspace, arrName, ref)
+    val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
+
+    val vcfQuery = vcfVariantSampleMatrix.queryVA("va.filters")._2
+    val vcfFilters = vcfVariantSampleMatrix
+      .rdd
+      .map { case (_, (va, _)) => vcfQuery(va) }
+      .collect
+
+    val gdbQuery = gdbVariantSampleMatrix.queryVA("va.filters")._2
+    val gdbFilters = gdbVariantSampleMatrix
+      .rdd
+      .map { case (_, (va, _)) => gdbQuery(va) }
+      .collect
+
+    assert(vcfFilters.sameElements(gdbFilters))
   }
 }
