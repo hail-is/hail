@@ -101,16 +101,6 @@ class ExportVcfSuite extends SparkSuite {
     assert(hc.importVCF(out2).same(vds))
   }
 
-  @Test def testPPs() {
-    val vds = hc.importVCF("src/test/resources/sample.PPs.vcf", ppAsPL = true)
-    val out = tmpDir.createTempFile("exportPPs", ".vcf")
-    vds.exportVCF(out, exportPP = true)
-
-    val vdsNew = hc.importVCF(out, nPartitions = Some(10), ppAsPL = true)
-
-    assert(vds.same(vdsNew, 1e-3))
-  }
-
   @Test def testGeneratedInfo() {
     val out = tmpDir.createTempFile("export", ".vcf")
     hc.importVCF("src/test/resources/sample2.vcf")

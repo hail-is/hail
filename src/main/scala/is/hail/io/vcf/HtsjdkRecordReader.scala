@@ -62,8 +62,8 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
             case e: Exception =>
               fatal(
                 s"""variant $v: INFO field ${ f.name }:
-                    |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
-                    |  caught $e""".stripMargin)
+                   |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
+                   |  caught $e""".stripMargin)
           }
         }: _*)
       assert(sig.typeCheck(a))
@@ -84,152 +84,6 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
 
   def genericGenotypes: Boolean
 }
-
-case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordReader[Genotype] {
-  def genericGenotypes = false
-
-  def readRecord(vc: VariantContext,
-    infoSignature: Option[TStruct],
-    genotypeSignature: Type): (Variant, (Annotation, Iterable[Genotype])) = {
-
-    val (v, va) = readVariantInfo(vc, infoSignature)
-
-    val nAlleles = v.nAlleles
-
-    if (vcfSettings.dropSamples)
-      return (v, (va, Iterable.empty))
-
-    val gb = new GenotypeBuilder(v.nAlleles, false) // FIXME: make dependent on fields in genotypes; for now, assumes PLs
-
-    val noCall = Genotype()
-    val gsb = new ArrayBuilder[Genotype]()
-
-    vc.getGenotypes.iterator.asScala.foreach { g =>
-
-      val alleles = g.getAlleles.asScala
-      assert(alleles.length == 1 || alleles.length == 2,
-        s"expected 1 or 2 alleles in genotype, but found ${ alleles.length }")
-      val a0 = alleles(0)
-      val a1 = if (alleles.length == 2)
-        alleles(1)
-      else
-        a0
-
-      assert(a0.isCalled || a0.isNoCall)
-      assert(a1.isCalled || a1.isNoCall)
-      assert(a0.isCalled == a1.isCalled)
-
-      var filter = false
-      gb.clear()
-
-      var pl = if (vcfSettings.ppAsPL) {
-        val str = g.getAnyAttribute("PP")
-        if (str != null)
-          str.asInstanceOf[String].split(",").map(_.toInt)
-        else null
-      }
-      else g.getPL
-
-      // support haploid genotypes
-      if (alleles.length == 1 && pl != null) {
-        val expandedPL = Array.fill(v.nGenotypes)(HtsjdkRecordReader.haploidNonsensePL)
-        var i = 0
-        while (i < pl.length) {
-          expandedPL(triangle(i + 1) - 1) = pl(i)
-          i += 1
-        }
-        pl = expandedPL
-      }
-
-      if (g.hasPL) {
-        val minPL = pl.min
-        if (minPL != 0) {
-          pl = pl.clone()
-          var i = 0
-          while (i < pl.length) {
-            pl(i) -= minPL
-            i += 1
-          }
-        }
-      }
-
-      var gt = -1 // notCalled
-
-      if (a0.isCalled) {
-        val i = vc.getAlleleIndex(a0)
-        val j = vc.getAlleleIndex(a1)
-
-        gt = if (i <= j)
-          Genotype.gtIndex(i, j)
-        else
-          Genotype.gtIndex(j, i)
-
-        if (g.hasPL && pl(gt) != 0)
-          filter = true
-
-        if (gt != -1)
-          gb.setGT(gt)
-      }
-
-      val ad = g.getAD
-      if (g.hasAD) {
-        if (ad.length == nAlleles || !vcfSettings.skipBadAD)
-          gb.setAD(ad)
-      }
-
-      if (g.hasDP) {
-        var dp = g.getDP
-        if (g.hasAD) {
-          val adsum = ad.sum
-          if (dp < adsum)
-            filter = true
-        }
-
-        gb.setDP(dp)
-      }
-
-      if (pl != null)
-        gb.setPX(pl)
-
-      if (g.hasGQ) {
-        val gq = g.getGQ
-        gb.setGQ(gq)
-
-        if (!vcfSettings.storeGQ) {
-          if (pl != null) {
-            val gqFromPL = Genotype.gqFromPL(pl)
-
-            if (gq != gqFromPL)
-              filter = true
-          } else
-            filter = true
-        }
-      }
-
-      val odObj = g.getExtendedAttribute("OD")
-      if (odObj != null) {
-        val od = odObj.asInstanceOf[String].toInt
-
-        if (g.hasAD) {
-          val adsum = ad.sum
-          if (!g.hasDP)
-            gb.setDP(adsum + od)
-          else if (adsum + od != g.getDP)
-            filter = true
-        } else
-          filter = true
-      }
-
-      if (filter)
-        gsb += noCall
-      else
-        gsb += gb.result()
-    }
-
-    (v, (va, gsb.result()))
-  }
-}
-
 
 object GenericRecordReader {
   val haploidRegex = """^([0-9]+)$""".r
@@ -285,7 +139,13 @@ case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordRead
             if (f.name == "GT")
               gt
             else {
-              val x = g.getAnyAttribute(f.name)
+              var x = g.getAnyAttribute(f.name)
+              // getAnyAttribute returns empty list for missing AD, PL
+              if (f.name == "AD" && !g.hasAD)
+                x = null
+              if (f.name == "PL" && !g.hasPL)
+               x = null
+
               if (x == null || f.typ != TCall)
                 x
               else {
@@ -295,20 +155,37 @@ case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordRead
                   case e: Exception =>
                     fatal(
                       s"""variant $v: Genotype field ${ f.name }:
-                 |  unable to convert $x (of class ${ x.getClass.getCanonicalName }) to ${ f.typ }:
-                 |  caught $e""".stripMargin)
+                         |  unable to convert $x (of class ${ x.getClass.getCanonicalName }) to ${ f.typ }:
+                         |  caught $e""".stripMargin)
                 }
               }
             }
 
           try {
-            HtsjdkRecordReader.cast(a, f.typ)
+            var r = HtsjdkRecordReader.cast(a, f.typ)
+
+            // handle diploid
+            if (f.name == "PL" && r != null) {
+              val pl = r.asInstanceOf[IndexedSeq[Int]]
+
+              if (alleles.length == 1) {
+                val expandedPL = Array.fill(v.nGenotypes)(HtsjdkRecordReader.haploidNonsensePL)
+                var i = 0
+                while (i < pl.length) {
+                  expandedPL(triangle(i + 1) - 1) = pl(i)
+                  i += 1
+                }
+                r = expandedPL: IndexedSeq[Int]
+              }
+            }
+
+            r
           } catch {
             case e: Exception =>
               fatal(
                 s"""variant $v: Genotype field ${ f.name }:
-                 |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
-                 |  caught $e""".stripMargin)
+                   |  unable to convert $a (of class ${ a.getClass.getCanonicalName }) to ${ f.typ }:
+                   |  caught $e""".stripMargin)
           }
         }: _*)
       assert(genotypeSignature.typeCheck(a))

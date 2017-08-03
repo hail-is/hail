@@ -16,11 +16,6 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.reflect.ClassTag
 
-case class VCFSettings(storeGQ: Boolean = false,
-  dropSamples: Boolean = false,
-  ppAsPL: Boolean = false,
-  skipBadAD: Boolean = false)
-
 object LoadVCF {
 
   def globAllVCFs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
@@ -82,9 +77,9 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int, genericGenotypes: Boolean = false, callFields: Set[String] = Set.empty[String]): Field = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String] = Set.empty[String]): Field = {
     val id = line.getID
-    val isCall = genericGenotypes && (id == "GT" || callFields.contains(id))
+    val isCall = id == "GT" || callFields.contains(id)
 
     val baseType = (line.getType, isCall) match {
       case (VCFHeaderLineType.Integer, false) => TInt32
@@ -109,21 +104,21 @@ object LoadVCF {
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    genericGenotypes: Boolean = false, callFields: Set[String] = Set.empty[String]): Option[TStruct] = {
+    callFields: Set[String] = Set.empty[String]): Option[TStruct] = {
     if (lines.size > 0)
       Some(TStruct(lines
         .zipWithIndex
-        .map { case (line, i) => headerField(line, i, genericGenotypes, callFields) }
+        .map { case (line, i) => headerField(line, i, callFields) }
         .toArray))
     else None
   }
 
-  def apply[T >: Null](hc: HailContext,
-    reader: HtsjdkRecordReader[T],
+  def apply(hc: HailContext,
+    reader: GenericRecordReader,
     file1: String,
     files: Array[String] = null,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[Locus, Variant, T] = {
+    dropSamples: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val hConf = hc.hadoopConf
     val sc = hc.sc
     val headerLines = hConf.readFile(file1) { s =>
@@ -157,11 +152,10 @@ object LoadVCF {
     val infoSignature = headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val genotypeSignature: Type =
-      if (reader.genericGenotypes) {
-        val callFields = reader.asInstanceOf[GenericRecordReader].callFields
-        headerSignature(formatHeader, genericGenotypes = true, callFields).getOrElse(TStruct.empty)
-      } else TGenotype
+    val genotypeSignature: Type = {
+      val callFields = reader.callFields
+      headerSignature(formatHeader, callFields).getOrElse(TStruct.empty)
+    }
 
     val variantAnnotationSignatures = TStruct(
       Array(
