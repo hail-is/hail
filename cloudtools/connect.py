@@ -1,17 +1,34 @@
 import os
-import signal
-import argparse
-from subprocess import Popen, check_call, check_output, CalledProcessError
+from subprocess import Popen, check_call
 
-def main(main_parser):
 
-    parser = argparse.ArgumentParser(parents=[main_parser])
+def init_parser(parser):
+    parser.add_argument('name', type=str, help='Cluster name.')
+    parser.add_argument('service', type=str,
+                        choices=['notebook', 'nb', 'spark-ui', 'ui', 'spark-ui1', 'ui1',
+                                 'spark-ui2', 'ui2', 'spark-history', 'hist'],
+                        help='Web service to launch.')
+    parser.add_argument('--port', '-p', default='10000', type=str,
+                        help='Local port to use for SSH tunnel to master node (default: %(default)s).')
+    parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
+                        help='Compute zone for Dataproc cluster (default: %(default)s).')
 
-    parser.add_argument('service', type=str, nargs='?', default='spark-ui', choices=['spark-ui', 'spark-ui1', 'spark-ui2', 'spark-history', 'notebook'])
-    parser.add_argument('--port', '-p', default='10000', type=str, help='Local port to use for SSH tunnel to master node.')
-    parser.add_argument('--zone', '-z', default='us-central1-b', type=str, help='Compute zone for Google cluster.')
 
-    args = parser.parse_args()
+def main(args):
+    print("Connecting to cluster '{}'...".format(args.name))
+
+    # shortcut mapping
+    shortcut = {
+        'ui': 'spark-ui',
+        'ui1': 'spark-ui1',
+        'ui2': 'spark-ui2',
+        'hist': 'history',
+        'nb': 'notebook'
+    }
+
+    service = args.service
+    if service in shortcut:
+        service = shortcut[service]
 
     # Dataproc port mapping
     dataproc_ports = {
@@ -21,7 +38,7 @@ def main(main_parser):
         'spark-history': 18080,
         'notebook': 8123
     }
-    connect_port = dataproc_ports[args.service]
+    connect_port = dataproc_ports[service]
 
     # open SSH tunnel to master node
     cmd = [
