@@ -706,7 +706,7 @@ class ContextTests(unittest.TestCase):
         some_random_types = [
             TInt32(),
             TString(),
-            TFloat64(),
+            TFloat32(),
             TFloat64(),
             TBoolean(),
             TArray(TString()),
@@ -727,7 +727,7 @@ class ContextTests(unittest.TestCase):
         some_random_types_cp = [
             TInt32(),
             TString(),
-            TFloat64(),
+            TFloat32(),
             TFloat64(),
             TBoolean(),
             TArray(TString()),
