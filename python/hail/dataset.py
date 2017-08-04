@@ -376,7 +376,7 @@ class VariantDataset(object):
 
         To create an annotation for only a subset of samples based on an existing annotation:
 
-        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Double')
+        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Float64')
 
         .. note::
 
