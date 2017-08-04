@@ -34,11 +34,12 @@ case class QueryJSON(workspace: String,
 
 object LoadGDB {
 
+  /*
   def createQueryJSON(): String = {
     val tempFile = File.createTempFile("sample2query", ".json")
     val tempFilePath = tempFile.getCanonicalFile
     jackson.Serialization.writePretty(QueryJSON, java.io.Writer)
-  }
+  }*/
 
   def apply[T >: Null](hc: HailContext,
                reader: HtsjdkRecordReader[T],
