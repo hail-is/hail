@@ -4740,7 +4740,7 @@ class VariantDataset(HistoryMixin):
 
         .. caution::
           If a p-value of 0.0 is returned, then the true p-value falls in the range between 0.0 and
-          :math:`2^-52 \\approx  2.22 \\cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
+          :math:`2^{-52} \\approx  2.22 \\cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
           left-hand area, which we then subtract from 1 to get the p-value.
 
         **Notes**
@@ -4750,21 +4750,40 @@ class VariantDataset(HistoryMixin):
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
         The resulting key table provides the variant component score and the p-value for each group, with the latter
-        given by right tail of a weighted sum of :math:`\\Chi^2(1)` distributions. For the example above with
+        given by right tail of a weighted sum of :math:`\\chi^2(1)` distributions. For the example above with
         `key_name='gene'`, the table has the form:
 
-        +------+-------+------+
-        | gene | qstat | pval |
-        +======+=======+======+
-        | geneA| 4.136 | 0.205|
-        +------+-------+------+
-        | geneB| 5.659 | 0.195|
-        +------+-------+------+
-        | geneC| 4.122 | 0.192|
-        +------+-------+------+
+        +------+-------+------+-------+
+        | gene | qstat | pval | fault |
+        +======+=======+======+=======+
+        | geneA| 4.136 | 0.205|   0   |
+        +------+-------+------+-------+
+        | geneB| 5.659 | 0.195|   0   |
+        +------+-------+------+-------+
+        | geneC| 4.122 | 0.192|   0   |
+        +------+-------+------+-------+
 
-        Note that the variant component score `qstat` is related to :math:`Q` in the paper by
-        :math:`\\frac{1}{2\\hat\\sigma^2} Q` where :math:`\\hat\\sigma^2` is the unbiased estimator of residual variance.
+        Note that the variant component score qstat is related to :math:`Q` in the paper by
+        :math:`\\frac{1}{2\\hat{\\sigma}^2}Q` where :math:`\\hat{\\sigma}^2` is the unbiased estimator of residual variance.
+
+        The key table also includes the fault flag returned by Davies' algorithm, an integer indicating any issues
+        with the computation. These are described in the following table from Davies' original code.
+
+        +-------------+-----------------------------------------+
+        | fault value |               Description               |
+        +=============+=========================================+
+        |      0      |                no issues                |
+        +------+------+-----------------------------------------+
+        |      1      |       accuracy 1e-6 NOT achieved        |
+        +------+------+-----------------------------------------+
+        |      2      |   round-off error possibly significant  |
+        +------+------+-----------------------------------------+
+        |      3      |            invalid parameters           |
+        +------+------+-----------------------------------------+
+        |      4      | unable to locate integration parameters |
+        +------+------+-----------------------------------------+
+        |      5      |               out of memory             |
+        +------+------+-----------------------------------------+
 
         :param str key_name: Name to assign to key column of returned key tables.
 
@@ -4785,6 +4804,7 @@ class VariantDataset(HistoryMixin):
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
         :return: Key table of SKAT results.
+
         :rtype: :py:class:`.KeyTable`
         """
 
