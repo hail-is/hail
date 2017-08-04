@@ -13,48 +13,68 @@ import org.json4s._
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.reflect.ClassTag
-import java.io.File
+import java.io.{FileWriter, File}
 
 
 case class QueryJSON(workspace: String,
-                     array: List[String],
-                     query_column_ranges: List[List[Int]],
+                     array: String,
+                     vid_mapping_file: String,
+                     callset_mapping_file: String,
+                     vcf_header_filename: Option[String],
+                     reference_genome: String,
+                     query_column_ranges: List[List[Int]] = List(List(0, 17421565)),
                      query_attributes: List[String] = List(),
                      query_row_ranges: Option[List[List[Int]]] = None,
-                     vid_mapping_file: Option[String],
-                     callset_mapping_file: Option[String],
-                     reference_genome: String,
-                     vcf_header_filename: Option[String],
-                     max_diploid_alt_alleles_that_can_be_genotyped: Int = 50,
+                     max_diploid_alt_alleles_that_can_be_genotyped: Option[Int] = None,
                      vcf_output_filename: Option[List[String]] = None,
                      vcf_output_format: Option[String] = None,
                      produce_GT_field: Boolean = true,
-                     index_output_VCF: Boolean = false,
-                     combined_vcf_records_buffer_size_limit: Int = 1048576)
+                     index_output_VCF: Option[Boolean] = None,
+                     combined_vcf_records_buffer_size_limit: Option[Int] = None)
 
 object LoadGDB {
 
-  /*
-  def createQueryJSON(): String = {
+  def createQueryJSON(tiledbworkspace: String,
+                      arrayName: String,
+                      vid_mapping_file: String,
+                      callsets_mapping_file: String,
+                      vcfHeaderPath: Option[String], //might not need this b/c won't be generating vcf headers from given gdb arrays in the future
+                      refGenome: String): File = {
     val tempFile = File.createTempFile("sample2query", ".json")
-    val tempFilePath = tempFile.getCanonicalFile
-    jackson.Serialization.writePretty(QueryJSON, java.io.Writer)
-  }*/
+    jackson.Serialization.writePretty(QueryJSON(tiledbworkspace,
+      arrayName,
+      vid_mapping_file,
+      callsets_mapping_file,
+      vcfHeaderPath,
+      refGenome),
+      new FileWriter(tempFile))
+    tempFile.getCanonicalFile
+  }
 
+  /* PATH PARAMETERS REQUIRE ABSOLUTE PATHS */
   def apply[T >: Null](hc: HailContext,
                reader: HtsjdkRecordReader[T],
                loaderJSONFile: String,
-               queryJSONFile: String,
                tiledbWorkspace: String,
                arrayName: String,
-               referenceGenome: String,
+               vid_mapping_file: String,
+               callsets_mapping_file: String,
+               vcfHeaderPath: Option[String],
+               refGenome: String,
                nPartitions: Option[Int] = None,
                dropSamples: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[Locus, Variant, T] = {
     val sc = hc.sc
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
 
-    val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile, queryJSONFile, codec)
+    val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile,
+      createQueryJSON(tiledbWorkspace,
+        arrayName,
+        vid_mapping_file,
+        callsets_mapping_file,
+        vcfHeaderPath,
+        refGenome).getCanonicalPath,
+      codec)
 
     val header = gdbReader
       .getHeader
