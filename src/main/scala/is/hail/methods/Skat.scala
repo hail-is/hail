@@ -212,7 +212,10 @@ object Skat {
 
 
     val (keysType, keysQuerier) = filteredVds.queryVA(variantKeys)
-    val (weightType, weightQuerier) = filteredVds.queryVA(weightExpr.get)
+    val (weightType, weightQuerier) =  weightExpr match {
+      case None => filteredVds.queryVA("va.weight")
+      case _    => filteredVds.queryVA(weightExpr.get)
+    }
 
     val typedWeightQuerier = weightType match {
       case TDouble => weightQuerier.asInstanceOf[Annotation => Double]
