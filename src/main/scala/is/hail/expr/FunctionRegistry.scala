@@ -1121,9 +1121,9 @@ object FunctionRegistry {
     Compute HWE p-value per variant:
 
     >>> (vds.annotate_variants_expr('va.hwe = '
-    ...     'let nHomRef = gs.filter(g => g.isHomRef()).count().toInt() and '
-    ...     'nHet = gs.filter(g => g.isHet()).count().toInt() and '
-    ...     'nHomVar = gs.filter(g => g.isHomVar()).count().toInt() in '
+    ...     'let nHomRef = gs.filter(g => g.isHomRef()).count().toInt32() and '
+    ...     'nHet = gs.filter(g => g.isHet()).count().toInt32() and '
+    ...     'nHomVar = gs.filter(g => g.isHomVar()).count().toInt32`() in '
     ...     'hwe(nHomRef, nHet, nHomVar)'))
 
     **Notes**
