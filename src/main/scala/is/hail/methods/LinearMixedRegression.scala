@@ -90,6 +90,9 @@ object LinearMixedRegression {
 
         val nEigs = computeNEigs(fullS, optNEigs, optDroppedVarianceFraction, rank)
 
+        require(nEigs.toLong * vds.nSamples < Integer.MAX_VALUE,
+          "The number of eigenvalues multiplied by the number of samples was greater than 2^31, the maximum size of local matrix.")
+
         val S = fullS((fullNEigs - nEigs) until fullNEigs)
         val V = fullV(::, (fullNEigs - nEigs) until fullNEigs)
 
