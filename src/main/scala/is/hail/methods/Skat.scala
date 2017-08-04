@@ -4,13 +4,21 @@ import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
-import is.hail.stats.{ RegressionUtils, SkatModel}
-import is.hail.annotations.{Annotation, Querier}
+import is.hail.stats.{ RegressionUtils, SkatModel }
+import is.hail.annotations.Annotation
 import breeze.linalg._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-case class SkatStat(q: Double, pval: Double)
+object SkatStat {
+  val schema = TStruct(
+    ("q", TDouble),
+    ("pval", TDouble),
+    ("fault", TInt))
+}
+
+case class SkatStat(q: Double, pval: Double, fault: Int) {
+  def toAnnotation = Annotation(q, pval,fault)
+}
 
 case class SkatTuple[T <: Vector[Double]](q: Double, xw: T, qtxw: DenseVector[Double])
 
@@ -24,7 +32,7 @@ object SkatAgg {
   def combOp[T <: Vector[Double]](sa: SkatAgg[T], sa2: SkatAgg[T]): SkatAgg[T] =
     SkatAgg[T](sa.q + sa2.q, sa.xws ++ sa2.xws.result(), sa.qtxws ++ sa2.qtxws.result())
 
-  def denseResultOp(sa: SkatAgg[DenseVector[Double]], sigmaSq: Double): (SkatStat, Int) = {
+  def denseResultOp(sa: SkatAgg[DenseVector[Double]], sigmaSq: Double): SkatStat = {
 
     val m = sa.xws.length
     val n = sa.xws(0).size
@@ -67,7 +75,7 @@ object SkatAgg {
     SPG.computeSkatStats()
   }
 
-  def sparseResultOp(sa: SkatAgg[SparseVector[Double]], sigmaSq: Double): (SkatStat, Int) = {
+  def sparseResultOp(sa: SkatAgg[SparseVector[Double]], sigmaSq: Double): SkatStat = {
 
     val m = sa.xws.length
     val n = sa.xws(0).size
@@ -111,7 +119,7 @@ object SkatAgg {
     SPG.computeSkatStats()
   }
 
-  def largeNResultOp[T <: Vector[Double]](sa: SkatAgg[T], sigmaSq: Double): (SkatStat, Int) = {
+  def largeNResultOp[T <: Vector[Double]](sa: SkatAgg[T], sigmaSq: Double): SkatStat = {
     val m = sa.xws.length
     val n = sa.xws(0).size
     val k = sa.qtxws(0).length
@@ -185,7 +193,7 @@ object Skat {
     covExpr: Array[String],
     getGenotypes: (Iterable[Genotype], Int) => T,
     zero: SkatAgg[T],
-    resultOp:(SkatAgg[T], Double) => (SkatStat, Int)): KeyTable =
+    resultOp:(SkatAgg[T], Double) => SkatStat): KeyTable =
   {
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
@@ -258,9 +266,9 @@ object Skat {
     val aggregatedKT = keyedRdd.aggregateByKey(zero)(SkatAgg.seqOp, SkatAgg.combOp)
 
     val skatRDD = aggregatedKT.map { case (key, value) =>
-      val (skatStat,flag) = if (value.xws.length * n < Int.MaxValue) {resultOp(value, sigmaSq)}
+      val skatStat = if (value.xws.length * n < Int.MaxValue) {resultOp(value, sigmaSq)}
                     else {SkatAgg.largeNResultOp(value,sigmaSq)}
-      flag match {
+      skatStat.fault match {
         case 0 =>
         case 1 => info(s"key: $key, required accuracy of 10e-6 NOT achieved")
         case 2 => info(s"key: $key, round-off error possibly significant")
@@ -268,10 +276,11 @@ object Skat {
         case 4 => info(s"key: $key, unable to locate integration parameter")
         case 5 => info(s"key: $key, out of memory")
       }
-        Row(key, skatStat)
+
+        Row(key, skatStat.q, skatStat.pval, skatStat.fault)
     }
 
-    val (skatSignature, _) = TStruct(keyName -> keyType.asInstanceOf[Type]).merge(TStruct(("qstat", TDouble),("pval", TDouble)))
+    val (skatSignature, _) = TStruct(keyName -> keyType.asInstanceOf[Type]).merge(SkatStat.schema)
 
    new KeyTable(filteredVds.hc, skatRDD, skatSignature, key = Array(keyName))
   }

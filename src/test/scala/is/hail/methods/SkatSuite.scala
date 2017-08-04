@@ -232,7 +232,8 @@ class SkatSuite extends SparkSuite {
     var i = 0
 
     while(i < resultsArray.size){
-      val SkatStat(qstat, pval) = rows(i).get(1)
+      val qstat = rows(i).get(1).asInstanceOf[Double]
+      val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
       val pvalR  = resultsArray(i)(2).asInstanceOf[Double]
@@ -264,7 +265,8 @@ class SkatSuite extends SparkSuite {
     var i = 0
 
     while(i < resultsArray.size){
-      val SkatStat(qstat, pval) = rows(i).get(1)
+      val qstat = rows(i).get(1).asInstanceOf[Double]
+      val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
       val pvalR =  resultsArray(i)(2).asInstanceOf[Double]
@@ -295,7 +297,8 @@ class SkatSuite extends SparkSuite {
     var i = 0
 
     while(i < resultsArray.size){
-      val SkatStat(qstat, pval) = rows(i).get(1)
+      val qstat = rows(i).get(1).asInstanceOf[Double]
+      val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
       val pvalR  = resultsArray(i)(2).asInstanceOf[Double]
@@ -435,7 +438,9 @@ class SkatSuite extends SparkSuite {
     val tol = 1e-5
 
     while(i < resultsArray.size){
-      val SkatStat(qstat, pval) = rows(i).get(1)
+
+      val qstat = rows(i).get(1).asInstanceOf[Double]
+      val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
       val pvalR  = resultsArray(i)(2).asInstanceOf[Double]
@@ -464,7 +469,8 @@ class SkatSuite extends SparkSuite {
     val tol = 1e-5
 
     while(i < resultsArray.size){
-      val SkatStat(qstat, pval) = rows(i).get(1)
+      val qstat = rows(i).get(1).asInstanceOf[Double]
+      val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
       val pvalR = resultsArray(i)(2).asInstanceOf[Double]
@@ -500,7 +506,8 @@ class SkatSuite extends SparkSuite {
     val tol = 1e-5
 
     while (i < resultsArray.size) {
-      val SkatStat(qstat, pval) = rows(i).get(1)
+      val qstat = rows(i).get(1).asInstanceOf[Double]
+      val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
       val pvalR = resultsArray(i)(2).asInstanceOf[Double]

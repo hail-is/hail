@@ -24,18 +24,6 @@ import com.sun.jna.ptr.IntByReference
   *     SKAT statistic and p-value computed by Davies Algorithm returned as a instance
   *     of the SkatStat class. With the statistics a integer indicating any issues
   *     running Davies Algorithm is also returned.
-
-object SkatModel {
-
-
-  def synQf(lb1: Array[Double], nc1: Array[Double], n1: Array[Int], r1: Int,
-    sigma: Double, c1: Double, lim1: Int, acc: Double, trace: Array[Double],
-    ifault: IntByReference): Double = {
-      this.synchronized{
-        qfWrapper(lb1, nc1, n1, r1, sigma, c1, lim1, acc, trace, ifault)
-  }
-}
-}
   */
 class
 SkatModel(GwGrammian: DenseMatrix[Double], QtGwGrammian: DenseMatrix[Double], skatStat: Double){
@@ -54,7 +42,7 @@ SkatModel(GwGrammian: DenseMatrix[Double], QtGwGrammian: DenseMatrix[Double], sk
 
   Native.register("hail")
 
-  def computeSkatStats(): (SkatStat,Int) = {
+  def computeSkatStats(): SkatStat = {
 
     val variantGrammian = 0.5 * (GwGrammian - QtGwGrammian)
     val allEvals = eigSymD.justEigenvalues(variantGrammian).toArray
@@ -81,6 +69,6 @@ SkatModel(GwGrammian: DenseMatrix[Double], QtGwGrammian: DenseMatrix[Double], sk
     val iterations = 10000
     val x = qfWrapper(evals, noncentrality, dof, terms, s, skatStat, iterations, accuracy, trace, fault)
 
-    (SkatStat(skatStat, 1-x),fault.getValue)
+    SkatStat(skatStat, 1-x,fault.getValue)
   }
 }
