@@ -11,9 +11,9 @@ import org.apache.spark.sql.Row
 
 object SkatStat {
   val schema = TStruct(
-    ("q", TDouble),
-    ("pval", TDouble),
-    ("fault", TInt))
+    ("q", TFloat64),
+    ("pval", TFloat64),
+    ("fault", TInt32))
 }
 
 case class SkatStat(q: Double, pval: Double, fault: Int) {
@@ -226,10 +226,10 @@ object Skat {
     }
 
     val typedWeightQuerier = weightType match {
-      case TDouble => weightQuerier.asInstanceOf[Annotation => Double]
-      case TInt => weightQuerier.asInstanceOf[Annotation => Double]
-      case TLong => weightQuerier.asInstanceOf[Annotation => Double]
-      case TFloat => weightQuerier.asInstanceOf[Annotation => Double]
+      case TFloat64 => weightQuerier.asInstanceOf[Annotation => Double]
+      case TFloat32 => weightQuerier.asInstanceOf[Annotation => Double]
+      case TInt64 => weightQuerier.asInstanceOf[Annotation => Double]
+      case TInt32 => weightQuerier.asInstanceOf[Annotation => Double]
       case _ => fatal("Weight must evaluate to numeric type")
     }
 
