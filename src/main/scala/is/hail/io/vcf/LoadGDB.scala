@@ -8,12 +8,37 @@ import is.hail.expr.{TStruct, _}
 import is.hail.utils._
 import is.hail.variant.{VSMLocalValue, VSMMetadata, VariantSampleMatrix, Locus, Variant}
 import org.apache.spark.storage.StorageLevel
+import org.json4s._
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.reflect.ClassTag
+import java.io.File
+
+
+case class QueryJSON(workspace: String,
+                     array: List[String],
+                     query_column_ranges: List[List[Int]],
+                     query_attributes: List[String] = List(),
+                     query_row_ranges: Option[List[List[Int]]] = None,
+                     vid_mapping_file: Option[String],
+                     callset_mapping_file: Option[String],
+                     reference_genome: String,
+                     vcf_header_filename: Option[String],
+                     max_diploid_alt_alleles_that_can_be_genotyped: Int = 50,
+                     vcf_output_filename: Option[List[String]] = None,
+                     vcf_output_format: Option[String] = None,
+                     produce_GT_field: Boolean = true,
+                     index_output_VCF: Boolean = false,
+                     combined_vcf_records_buffer_size_limit: Int = 1048576)
 
 object LoadGDB {
+
+  def createQueryJSON(): String = {
+    val tempFile = File.createTempFile("sample2query", ".json")
+    val tempFilePath = tempFile.getCanonicalFile
+    jackson.Serialization.writePretty(QueryJSON, java.io.Writer)
+  }
 
   def apply[T >: Null](hc: HailContext,
                reader: HtsjdkRecordReader[T],
@@ -28,9 +53,7 @@ object LoadGDB {
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
 
-    val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile, tiledbWorkspace, arrayName, referenceGenome, codec)
-
-    gdbReader.initialize(loaderJSONFile, queryJSONFile, codec) //query file contains path to VCF header
+    val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile, queryJSONFile, codec)
 
     val header = gdbReader
       .getHeader
