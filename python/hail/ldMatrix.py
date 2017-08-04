@@ -1,3 +1,4 @@
+from hail.java import *
 from hail.representation import Variant
 
 class LDMatrix:
@@ -43,3 +44,19 @@ class LDMatrix:
 
         j_local_mat = self._jldm.toLocalMatrix()
         return DenseMatrix(j_local_mat.numRows(), j_local_mat.numCols(), list(j_local_mat.toArray()), j_local_mat.isTransposed())
+
+    def write(self, fname):
+        """
+        Writes the LD matrix to a file.
+
+        :param fname: the path to which to write the LD matrix
+        :type fname: str
+        """
+
+        self._jldm.write(fname)
+
+
+    @staticmethod
+    def read(fname):
+        jldm = Env.hail().methods.LDMatrix.read(Env.hc()._jhc, fname)
+        return LDMatrix(jldm)

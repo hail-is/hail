@@ -4,8 +4,12 @@ import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMat
 import is.hail.utils._
 import is.hail.stats.RegressionUtils
 import is.hail.variant.{Variant, VariantDataset}
-import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix, Vectors}
+import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix, Vectors, DenseVector}
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
+import org.apache.hadoop.io._
+import java.io._
+import org.json4s._
+import java.net._
 
 object LDMatrix {
   /**
@@ -60,6 +64,24 @@ object LDMatrix {
 
     LDMatrix(scaledIndexedRowMatrix, variantsKept, nSamples)
   }
+
+  private val metadataRelativePath = "/metadata.json"
+  private val matrixRelativePath = "/matrix"
+  def read(hc: HailContext, uri: String): LDMatrix = {
+    val hadoop = hc.hadoopConf
+    hadoop.mkDir(uri)
+
+    val rdd = hc.sc.sequenceFile[LongWritable, ArrayPrimitiveWritable](uri+matrixRelativePath).map { case (lw, apw) =>
+      new IndexedRow(lw.get(), new DenseVector(apw.get().asInstanceOf[Array[Double]]))
+    }
+
+    val LDMatrixMetadata(variants, nSamples) =
+      using(new InputStreamReader(hc.hadoopConf.open(uri+metadataRelativePath))) { isr =>
+        jackson.Serialization.read[LDMatrixMetadata](isr)
+      }
+
+    new LDMatrix(new IndexedRowMatrix(rdd), variants, nSamples)
+  }
 }
 
 /**
@@ -69,7 +91,25 @@ object LDMatrix {
   * @param nSamples Number of samples used to compute this matrix.
   */
 case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) {
+  import LDMatrix._
+
   def toLocalMatrix: Matrix = {
     matrix.toBlockMatrixDense().toLocalMatrix()
   }
+
+  def write(uri: String) {
+    val hadoop = matrix.rows.sparkContext.hadoopConfiguration
+    hadoop.mkDir(uri)
+
+    matrix.rows.map { case IndexedRow(i, v) => (new LongWritable(i), new ArrayPrimitiveWritable(v.toArray)) }
+      .saveAsSequenceFile(uri+matrixRelativePath)
+
+    using(hadoop.create(uri+metadataRelativePath)) { os =>
+      jackson.Serialization.write(
+        LDMatrixMetadata(variants, nSamples),
+        os)
+    }
+  }
 }
+
+case class LDMatrixMetadata(variants: Array[Variant], nSamples: Int)

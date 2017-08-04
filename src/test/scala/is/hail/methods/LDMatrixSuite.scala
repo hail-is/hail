@@ -80,4 +80,22 @@ class LDMatrixSuite extends SparkSuite {
 
   }
 
+  @Test
+  def readWriteIdentityLocalLDMatrix() {
+    val actual = localLDMatrix
+
+    val fname = tmpDir.createTempFile("test")
+    actual.write(fname)
+    assert(actual.toLocalMatrix() == LDMatrix.read(hc, fname).toLocalMatrix())
+  }
+
+  @Test
+  def readWriteIdentityDistLDMatrix() {
+    val actual = distLDMatrix
+
+    val fname = tmpDir.createTempFile("test")
+    actual.write(fname)
+    assert(actual.toLocalMatrix() == LDMatrix.read(hc, fname).toLocalMatrix())
+  }
+
 }

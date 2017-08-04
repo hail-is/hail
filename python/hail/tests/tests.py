@@ -344,6 +344,9 @@ class ContextTests(unittest.TestCase):
 
         km = vds_kinship.rrm(False, False)
         ldMatrix = vds_kinship.ld_matrix()
+        ldMatrix.write('/tmp/ldmatrix')
+        LDMatrix.read('/tmp/ldmatrix').to_local_matrix()
+
         vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
         vds_assoc.export_variants('/tmp/lmmreg.tsv', 'Variant = v, va.lmmreg.*')
