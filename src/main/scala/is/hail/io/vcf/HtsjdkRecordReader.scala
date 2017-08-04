@@ -137,7 +137,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
           try {
             var r = HtsjdkRecordReader.cast(a, f.typ)
 
-            // handle diploid
+            // handle haploid
             if (f.name == "PL" && r != null) {
               val pl = r.asInstanceOf[IndexedSeq[Int]]
 

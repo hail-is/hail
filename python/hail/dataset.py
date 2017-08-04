@@ -1528,9 +1528,8 @@ class VariantDataset(object):
     @handle_py4j
     @typecheck_method(output=strlike,
                       append_to_header=nullable(strlike),
-                      export_pp=bool,
                       parallel=bool)
-    def export_vcf(self, output, append_to_header=None, export_pp=False, parallel=False):
+    def export_vcf(self, output, append_to_header=None, parallel=False):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
@@ -1560,7 +1559,7 @@ class VariantDataset(object):
         Hail only exports the contents of ``va.info`` to the INFO field. No other annotations besides ``va.info`` are exported.
 
         The genotype schema must have the type :py:class:`~hail.expr.TGenotype` or :py:class:`~hail.expr.TStruct`. If the type is
-        :py:class:`~hail.expr.TGenotype`, then the FORMAT fields will be GT, AD, DP, GQ, and PL (or PP if ``export_pp`` is True).
+        :py:class:`~hail.expr.TGenotype`, then the FORMAT fields will be GT, AD, DP, GQ, and PL.
         If the type is :py:class:`~hail.expr.TStruct`, then the exported FORMAT fields will be the names of each field of the Struct.
         Each field must have a type of String, Char, Int, Double, or Call. Arrays and Sets are also allowed as long as they are not nested.
         For example, a field with type ``Array[Int]`` can be exported but not a field with type ``Array[Array[Int]]``.
@@ -1580,12 +1579,10 @@ class VariantDataset(object):
         :param append_to_header: Path of file to append to VCF header.
         :type append_to_header: str or None
 
-        :param bool export_pp: If true, export linear-scaled probabilities (Hail's `pp` field on genotype) as the VCF PP FORMAT field.
-
         :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvkdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
+        self._jvkdf.exportVCF(output, joption(append_to_header), parallel)
 
     @handle_py4j
     @typecheck_method(output=strlike,
