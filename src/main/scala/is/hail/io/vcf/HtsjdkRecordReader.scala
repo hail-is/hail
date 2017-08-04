@@ -22,7 +22,7 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   }
 }
 
-abstract class HtsjdkRecordReader[T] extends Serializable {
+class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
 
   import HtsjdkRecordReader._
 
@@ -80,33 +80,6 @@ abstract class HtsjdkRecordReader[T] extends Serializable {
 
   def readRecord(vc: VariantContext,
     infoSignature: Option[TStruct],
-    genotypeSignature: Type): (Variant, (Annotation, Iterable[T]))
-
-  def genericGenotypes: Boolean
-}
-
-object GenericRecordReader {
-  val haploidRegex = """^([0-9]+)$""".r
-  val diploidRegex = """^([0-9]+)([|/]([0-9]+))$""".r
-
-  def getCall(gt: String, nAlleles: Int): Call = {
-    val call: Call = gt match {
-      case diploidRegex(a0, _, a1) => Call(Genotype.gtIndexWithSwap(a0.toInt, a1.toInt))
-      case VCFConstants.EMPTY_GENOTYPE => null
-      case haploidRegex(a0) => Call(Genotype.gtIndexWithSwap(a0.toInt, a0.toInt))
-      case VCFConstants.EMPTY_ALLELE => null
-      case _ => fatal(s"Invalid input format for Call type. Found `$gt'.")
-    }
-    Call.check(call, nAlleles)
-    call
-  }
-}
-
-case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordReader[Annotation] {
-  def genericGenotypes: Boolean = true
-
-  def readRecord(vc: VariantContext,
-    infoSignature: Option[TStruct],
     genotypeSignature: Type): (Variant, (Annotation, Iterable[Annotation])) = {
 
     val (v, va) = readVariantInfo(vc, infoSignature)
@@ -144,7 +117,7 @@ case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordRead
               if (f.name == "AD" && !g.hasAD)
                 x = null
               if (f.name == "PL" && !g.hasPL)
-               x = null
+                x = null
 
               if (x == null || f.typ != TCall)
                 x
@@ -193,6 +166,23 @@ case class GenericRecordReader(callFields: Set[String]) extends HtsjdkRecordRead
     }.toArray
 
     (v, (va, gs))
+  }
+}
+
+object GenericRecordReader {
+  val haploidRegex = """^([0-9]+)$""".r
+  val diploidRegex = """^([0-9]+)([|/]([0-9]+))$""".r
+
+  def getCall(gt: String, nAlleles: Int): Call = {
+    val call: Call = gt match {
+      case diploidRegex(a0, _, a1) => Call(Genotype.gtIndexWithSwap(a0.toInt, a1.toInt))
+      case VCFConstants.EMPTY_GENOTYPE => null
+      case haploidRegex(a0) => Call(Genotype.gtIndexWithSwap(a0.toInt, a0.toInt))
+      case VCFConstants.EMPTY_ALLELE => null
+      case _ => fatal(s"Invalid input format for Call type. Found `$gt'.")
+    }
+    Call.check(call, nAlleles)
+    call
   }
 }
 

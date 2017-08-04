@@ -114,7 +114,7 @@ object LoadVCF {
   }
 
   def apply(hc: HailContext,
-    reader: GenericRecordReader,
+    reader: HtsjdkRecordReader,
     file1: String,
     files: Array[String] = null,
     nPartitions: Option[Int] = None,

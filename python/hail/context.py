@@ -668,6 +668,8 @@ class HailContext(object):
         :param call_fields: FORMAT fields in VCF to treat as a :py:class:`~hail.type.TCall`. Only applies if ``generic=True``.
         :type call_fields: str or list of str
 
+        :param bool generic: If True, read the genotype with a generic schema.
+
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
 

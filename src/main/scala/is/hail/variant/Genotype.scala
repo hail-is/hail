@@ -199,7 +199,7 @@ object Genotype {
       val dpq = queryOpt[java.lang.Integer]("DP")
       val gqq = queryOpt[java.lang.Integer]("GQ")
       val plq = queryOpt[IndexedSeq[Int]]("PL")
-      val gpq = queryOpt[IndexedSeq[Double]]("GQ")
+      val gpq = queryOpt[IndexedSeq[Double]]("GP")
 
       if (plq.isDefined || gpq.isEmpty)
         (a: Any) =>

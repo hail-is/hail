@@ -529,7 +529,7 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val reader = new GenericRecordReader(callFields)
+    val reader = new HtsjdkRecordReader(callFields)
     val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
 
     hadoopConf.set("io.compression.codecs", codecs)
