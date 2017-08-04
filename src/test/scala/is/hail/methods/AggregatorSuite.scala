@@ -4,7 +4,7 @@ import is.hail.check.{Gen, Parameters, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
-import is.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{Genotype, VSMSubgen, VariantDataset, VariantSampleMatrix}
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
@@ -51,8 +51,8 @@ class AggregatorSuite extends SparkSuite {
         })
 
         val gqSC = gs.aggregate(new StatCounter())({ case (s, g) =>
-          if (g.isHet)
-            g.gq.foreach(x => s.merge(x))
+          if (Genotype.isHet(g))
+            Genotype.gq(g).foreach(x => s.merge(x))
           s
         }, { case (s1, s2) => s1.merge(s2) })
 
@@ -63,7 +63,7 @@ class AggregatorSuite extends SparkSuite {
           case (a, b) => D_==(a.asInstanceOf[Double], b.asInstanceOf[Double])
         })
 
-        val lowGqGtsData = gs.filter(_.gq.exists(_ < 60))
+        val lowGqGtsData = gs.filter(Genotype.gq(_).exists(_ < 60))
         assert(Option(lowGqGts(va)).map(_.asInstanceOf[IndexedSeq[_]]).contains(lowGqGtsData.toIndexedSeq))
 
       }
@@ -84,7 +84,7 @@ class AggregatorSuite extends SparkSuite {
           |sa.test.nInsertion = gs.filter(g => v.altAllele.isInsertion()).map(g => g.nNonRefAlleles()).sum(),
           |sa.test.nDeletion = gs.filter(g => v.altAllele.isDeletion()).map(g => g.nNonRefAlleles()).sum(),
           |sa.test.nTi = gs.filter(g => v.altAllele.isTransition()).map(g => g.nNonRefAlleles()).sum(),
-          |sa.test.nTv = gs.filter(g => v.altAllele.isTransversion()).map(g => g.nNonRefAlleles()).sum  ()
+          |sa.test.nTv = gs.filter(g => v.altAllele.isTransversion()).map(g => g.nNonRefAlleles()).sum()
           |""".stripMargin)
 
     val qCallRate = vds.querySA("sa.test.callrate")._2
@@ -100,8 +100,8 @@ class AggregatorSuite extends SparkSuite {
     val nHomVar = vds.querySA("sa.test.nHomVar")._2
 
     val gqHetMap = vds.aggregateBySample(new StatCounter())({ case (s, g) =>
-      if (g.isHet)
-        g.gq.foreach(x => s.merge(x))
+      if (Genotype.isHet(g))
+        Genotype.gq(g).foreach(x => s.merge(x))
       s
     }, { case (s1, s2) => s1.merge(s2) })
       .collect().toMap
@@ -195,7 +195,7 @@ class AggregatorSuite extends SparkSuite {
 
       val frequencies = r.getAs[IndexedSeq[Long]](1)
 
-      val definedGq = gs.flatMap(_.gq)
+      val definedGq = gs.flatMap(Genotype.gq)
 
       assert(frequencies(0) == definedGq.count(gq => gq < 5))
       assert(frequencies(1) == definedGq.count(gq => gq >= 5 && gq < 10))
@@ -208,7 +208,7 @@ class AggregatorSuite extends SparkSuite {
       val nLess = r.getAs[Long](2)
       val nGreater = r.getAs[Long](3)
 
-      val definedGq = gs.flatMap(_.gq)
+      val definedGq = gs.flatMap(Genotype.gq)
 
       assert(nLess == definedGq.count(_ < 22))
       assert(nGreater == definedGq.count(_ > 80))
@@ -311,22 +311,31 @@ class AggregatorSuite extends SparkSuite {
   }
 
   @Test def testTransformations() {
-    Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random.copy(sampleIdGen = Gen.const(Array("a", "b"))))) { vds =>
-      assert(vds.querySamples("samples.map(id => if (id == \"b\") (NA : String) else id).map(x => 1).sum()")._1 == 2)
-      assert(vds.querySamples("samples.filter(id => true).map(id => 1).sum()")._1 == 2)
-      assert(vds.querySamples("samples.filter(id => false).map(id => 1).sum()")._1 == 0)
-      assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == 2)
-      assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
-      assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 6)
-      assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 4)
-      assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 4)
+    val p = Prop.forAll(
+      for {
+        vds <- VariantSampleMatrix.gen(hc, VSMSubgen.random
+          .copy(sGen = _ => Gen.oneOf("a", "b")))
+          .filter(vds => vds.nSamples > 0);
+        s <- Gen.choose(0, vds.nSamples - 1)
+      } yield {
+        val s1 = vds.sampleIds(0)
+        assert(vds.querySamples(s"""samples.map(id => if (id == "$s1") (NA : String) else id).map(x => 1).sum()""")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.filter(id => true).map(id => 1).sum()")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.filter(id => false).map(id => 1).sum()")._1 == 0)
+        assert(vds.querySamples("samples.flatMap(g => [1]).sum()")._1 == vds.nSamples)
+        assert(vds.querySamples("samples.flatMap(g => [0][:0]).sum()")._1 == 0)
+        assert(vds.querySamples("samples.flatMap(g => [1,2]).sum()")._1 == 3 * vds.nSamples)
+        assert(vds.querySamples("samples.flatMap(g => [1,2]).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
+        assert(vds.querySamples("samples.flatMap(g => [1,2,2].toSet()).filter(x => x % 2 == 0).sum()")._1 == 2 * vds.nSamples)
 
-      vds.annotateVariantsExpr("""va = gs.filter(g => s == "a").map(g => 1).sum()""")
-        .rdd
-        .collect()
-        .foreach { case (_, (va, _)) => assert(va == 1) }
-      true
-    }.check()
+        vds.annotateVariantsExpr(s"""va = gs.filter(g => s == "$s1").map(g => 1).sum()""")
+          .rdd
+          .collect()
+          .foreach { case (_, (va, _)) => assert(va == 1) }
+        true
+      })
+
+    p.check()
   }
 
   @Test def testQueryGenotypes() {
@@ -337,7 +346,7 @@ class AggregatorSuite extends SparkSuite {
         countResult.exists(x => D_==(x, queryResult.asInstanceOf[Double]))
       val filterCountResult = Some(vds.expand().count()).flatMap { r =>
         if (r == 0) None else Some(vds.expand().filter { case (v, _, g) =>
-          (v.start % 2 == 1) && g.isCalled
+          (v.start % 2 == 1) && g != null && Genotype.isCalled(g)
         }.count().toDouble / r)
       }
       val queryResult2 = vds.queryGenotypes("gs.fraction(g => (v.start % 2 == 1) && g.isCalled)")._1

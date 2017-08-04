@@ -16,12 +16,12 @@ class ImportPlinkSuite extends SparkSuite {
 
   object Spec extends Properties("ImportPlink") {
     val compGen = for {
-      vds <- VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random).map(_.cache().splitMulti())
+      vds <- VariantSampleMatrix.gen(hc, VSMSubgen.random).map(_.cache().splitMulti())
       nPartitions <- choose(1, PlinkLoader.expectedBedSize(vds.nSamples, vds.countVariants()).toInt.min(10))
     } yield (vds, nPartitions)
 
     property("import generates same output as export") =
-      forAll(compGen) { case (vds: VariantSampleMatrix[Genotype], nPartitions: Int) =>
+      forAll(compGen) { case (vds: VariantDataset, nPartitions: Int) =>
 
         val truthRoot = tmpDir.createTempFile("truth")
         val testRoot = tmpDir.createTempFile("test")
@@ -40,6 +40,8 @@ class ImportPlinkSuite extends SparkSuite {
           true
         } else {
           hc.importPlinkBFile(truthRoot, nPartitions = Some(nPartitions))
+            .annotateGenotypesExpr("g = Genotype(g.GT)")
+            .toVDS
             .exportPlink(testRoot)
 
           val localTruthRoot = tmpDir.createLocalTempFile("truth")

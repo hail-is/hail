@@ -12,6 +12,7 @@ import is.hail.utils._
 import org.json4s._
 
 import scala.collection.mutable
+import scala.math.Ordering
 import scala.reflect.{ClassTag, classTag}
 import scala.util.Random
 import scala.util.hashing.{MurmurHash3, byteswap32}
@@ -36,7 +37,7 @@ case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int)
   /**
     * Code mostly copied from:
     *   org.apache.spark.RangePartitioner.getPartition(key: Any)
-    *   version 1.5.0
+    * version 1.5.0
     **/
   def getPartitionT(key: PK): Int = {
 
@@ -75,9 +76,14 @@ case class OrderedPartitioner[PK, K](rangeBounds: Array[PK], numPartitions: Int)
       .append(kOk)
       .toHashCode
 
-  def mapMonotonic[K2](implicit k2Ok: OrderedKey[PK, K2]): OrderedPartitioner[PK, K2] = {
-    new OrderedPartitioner(rangeBounds, numPartitions)
-  }
+  def mapMonotonic[PK2, K2](partitionF: (PK) => PK2)(implicit k2Ok: OrderedKey[PK2, K2]): OrderedPartitioner[PK2, K2] =
+    new OrderedPartitioner[PK2, K2](rangeBounds.map(partitionF).toArray(k2Ok.pkct), numPartitions)(k2Ok)
+
+  def mapMonotonic[PK2, K2](okf: OrderedKeyFunction[PK, K, PK2, K2]): OrderedPartitioner[PK2, K2] =
+    mapMonotonic[PK2, K2](okf.partitionF _)(okf.k2ok)
+
+  def projectToPartitionKey(): OrderedPartitioner[PK, PK] =
+    new OrderedPartitioner(rangeBounds, numPartitions)(kOk.partitionOrderedKey)
 }
 
 object OrderedPartitioner {
@@ -114,11 +120,11 @@ object OrderedPartitioner {
   /**
     * Copied from:
     *   org.apache.spark.RangePartitioner
-    *   version 1.5.0
+    * version 1.5.0
     *
     * Sketches the input RDD via reservoir sampling on each partition.
     *
-    * @param rdd the input RDD to sketch
+    * @param rdd                    the input RDD to sketch
     * @param sampleSizePerPartition max sample size per partition
     * @return (total number of items, an array of (partitionId, number of items, sample))
     */
@@ -140,7 +146,7 @@ object OrderedPartitioner {
   /**
     * Copied from:
     *   org.apache.spark.RangePartitioner
-    *   version 1.5.0
+    * version 1.5.0
     *
     * Determines the bounds for range partitioning from candidates with weights indicating how many
     * items each represents. Usually this is 1 over the probability used to sample this candidate.
@@ -183,13 +189,13 @@ object OrderedPartitioner {
   /**
     * Copied from:
     *   org.apache.spark.util.random.SamplingUtils
-    *   version 1.5.0
+    * version 1.5.0
     *
     * Reservoir sampling implementation that also returns the input size.
     *
     * @param input input size
-    * @param k reservoir size
-    * @param seed random seed
+    * @param k     reservoir size
+    * @param seed  random seed
     * @return (samples, input size)
     */
   def reservoirSampleAndCount[T: ClassTag](
@@ -229,7 +235,7 @@ object OrderedPartitioner {
   /**
     * Copied from:
     *   org.apache.spark.util.random.XORShiftRandom
-    *   version 1.5.0
+    * version 1.5.0
     *
     * Hash seeds to have 0 / 1 bits throughout.
     **/
@@ -242,7 +248,7 @@ object OrderedPartitioner {
   /**
     * Copied from:
     *   org.apache.spark.util.random.XORShiftRandom
-    *   version 1.5.0
+    * version 1.5.0
     */
   class XORShiftRandom(init: Long) extends JavaRandom(init) {
 
@@ -268,7 +274,7 @@ object OrderedPartitioner {
   /**
     * Copied from:
     *   org.apache.spark.util.CollectionUtils
-    *   version 1.5.0
+    * version 1.5.0
     */
   def makeBinarySearch[K: Ordering : ClassTag]: (Array[K], K) => Int = {
     // For primitive keys, we can use the natural ordering. Otherwise, use the Ordering comparator.

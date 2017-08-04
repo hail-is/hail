@@ -115,26 +115,26 @@ object CalculateConcordance {
           case (Some((_, leftGS)), Some((_, rightGS))) =>
             var i = 0
             rightGS.foreach { g =>
-              arr(rightMapping(i)) = g.unboxedGT
+              arr(rightMapping(i)) = Genotype.unboxedGT(g)
               i += 1
             }
             assert(i == nSamples)
             i = 0
             leftGS.foreach { g =>
-              comb(i).mergeBoth(g.unboxedGT, arr(i))
+              comb(i).mergeBoth(Genotype.unboxedGT(g), arr(i))
               i += 1
             }
           case (None, Some((_, rightGS))) =>
             var i = 0
             rightGS.foreach { g =>
-              comb(rightMapping(i)).mergeRight(g.unboxedGT)
+              comb(rightMapping(i)).mergeRight(Genotype.unboxedGT(g))
               i += 1
             }
             assert(i == nSamples)
           case (Some((_, leftGS)), None) =>
             var i = 0
             leftGS.foreach { g =>
-              comb(i).mergeLeft(g.unboxedGT)
+              comb(i).mergeLeft(Genotype.unboxedGT(g))
               i += 1
             }
         }
@@ -156,21 +156,21 @@ object CalculateConcordance {
           case (Some((_, leftGS)), Some((_, rightGS))) =>
             var i = 0
             rightGS.foreach { g =>
-              arr(rightMapping(i)) = g.unboxedGT
+              arr(rightMapping(i)) = Genotype.unboxedGT(g)
               i += 1
             }
             assert(i == nSamples)
             i = 0
             leftGS.foreach { g =>
-              comb.mergeBoth(g.unboxedGT, arr(i))
+              comb.mergeBoth(Genotype.unboxedGT(g), arr(i))
               i += 1
             }
           case (None, Some((_, gs2))) =>
             gs2.foreach { g =>
-              comb.mergeRight(g.unboxedGT)
+              comb.mergeRight(Genotype.unboxedGT(g))
             }
           case (Some((_, gs1)), None) =>
-            gs1.foreach { g => comb.mergeLeft(g.unboxedGT) }
+            gs1.foreach { g => comb.mergeLeft(Genotype.unboxedGT(g)) }
         }
         val r = Row(v, comb.nDiscordant, comb.toAnnotation)
         assert(variantSchema.typeCheck(r))

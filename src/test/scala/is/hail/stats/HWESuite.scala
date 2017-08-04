@@ -10,8 +10,8 @@ import org.testng.annotations.Test
 class HWESuite extends SparkSuite {
 
   @Test def test() {
-    val r = VariantQC.results(hc.importVCF("src/test/resources/HWE_test.vcf"))
-      .map { case (v, a) => (v.start, a.HWEStats) }
+    val r = VariantQC.results(hc.importVCF("src/test/resources/HWE_test.vcf").toGDS)
+      .map { case (v, a) => (v.asInstanceOf[Variant].start, a.HWEStats) }
       .collectAsMap()
 
     assert(r(1) == (Some(0.0), 0.5))
@@ -23,7 +23,7 @@ class HWESuite extends SparkSuite {
   }
 
   @Test def testExpr() {
-    val p = Prop.forAll(VariantSampleMatrix.gen[Genotype](hc, VSMSubgen.random)) { vds: VariantDataset =>
+    val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds: VariantDataset =>
       val vds2 = vds.splitMulti()
         .variantQC()
         .annotateVariantsExpr("va.hweExpr = hwe(va.qc.nHomRef, va.qc.nHet, va.qc.nHomVar)")

@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{AltAlleleType, Genotype, Variant, VariantDataset}
+import is.hail.variant.{AltAlleleType, GenericDataset, Genotype, Variant, VariantDataset}
 import org.apache.spark.util.StatCounter
 
 import scala.collection.mutable
@@ -71,19 +71,10 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
 
   def merge(v: Variant, acs: Array[Int], g: Genotype): SampleQCCombiner = {
 
-    val gt = g.unboxedGT
+    val gt = Genotype.unboxedGT(g)
     if (gt < 0)
       nNotCalled += 1
     else {
-
-      // FIXME these should probably get merged if gt is uncalled,
-      // but don't want to break behavior without a version change
-      if (g.unboxedDP >= 0)
-        dpSC.merge(g.unboxedDP)
-
-      if (g.unboxedGQ >= 0)
-        gqSC.merge(g.unboxedGQ)
-
       if (gt == 0) {
         nHomRef += 1
       } else {
@@ -121,6 +112,12 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
           nHomVar += 1
       }
     }
+
+    if (Genotype.unboxedDP(g) >= 0)
+      dpSC.merge(Genotype.unboxedDP(g))
+
+    if (Genotype.unboxedGQ(g) >= 0)
+      gqSC.merge(Genotype.unboxedGQ(g))
 
     this
   }
@@ -169,7 +166,9 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
 }
 
 object SampleQC {
-  def results(vds: VariantDataset, keepStar: Boolean): Map[Annotation, SampleQCCombiner] = {
+  def results(vds: GenericDataset, keepStar: Boolean): Map[Annotation, SampleQCCombiner] = {
+    val extract = Genotype.buildGenotypeExtractor(vds.genotypeSignature)
+
     val depth = treeAggDepth(vds.hc, vds.nPartitions)
     vds.sampleIds.iterator
       .zip(
@@ -177,18 +176,20 @@ object SampleQC {
           .rdd
           .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner(keepStar)))({ case (acc, (v, (va, gs))) =>
 
-            val acs = Array.fill(v.nAlleles)(0)
-            gs.foreach { g =>
-              if (g.unboxedGT >= 0) {
-                val gtPair = Genotype.gtPair(g.unboxedGT)
+            val acs = Array.fill(v.asInstanceOf[Variant].nAlleles)(0)
+            gs.foreach { a =>
+              val g = extract(a)
+              if (Genotype.unboxedGT(g) >= 0) {
+                val gtPair = Genotype.gtPair(Genotype.unboxedGT(g))
                 acs(gtPair.j) += 1
                 acs(gtPair.k) += 1
               }
             }
 
             var i = 0
-            gs.foreach { g =>
-              acc(i).merge(v, acs, g)
+            gs.foreach { a =>
+              val g = extract(a)
+              acc(i).merge(v.asInstanceOf[Variant], acs, g)
               i += 1
             }
 
@@ -202,7 +203,7 @@ object SampleQC {
       .toMap
   }
 
-  def apply(vds: VariantDataset, root: String, keepStar: Boolean): VariantDataset = {
+  def apply(vds: GenericDataset, root: String, keepStar: Boolean): GenericDataset = {
 
     val r = results(vds, keepStar)
     vds.annotateSamples(SampleQCCombiner.signature,

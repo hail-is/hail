@@ -751,7 +751,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     ElasticsearchConnector.export(this, host, port, index, indexType, blockSize)
   }
   
-  def repartition(n: Int): KeyTable = copy(rdd = rdd.repartition(n))
+  def repartition(n: Int, shuffle: Boolean = true): KeyTable = copy(rdd = rdd.coalesce(n, shuffle))
 
   def union(kts: java.util.ArrayList[KeyTable]): KeyTable = union(kts.asScala.toArray: _*)
 

@@ -179,12 +179,12 @@ Comparison
         3 >= 9
         False
 
- - ``~`` -- True if a regular expression pattern matches the target string.
+ - ``~`` -- True if a `Java regular expression pattern <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__ matches the target string. The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
 
     .. code-block:: text
         :emphasize-lines: 2
 
-        "1KG" ~ "Cohort_1KG_NA12878"
+        "_NA12878$" ~ "Cohort_1KG_NA12878"
         True
 
 -------

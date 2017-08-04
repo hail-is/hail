@@ -1,34 +1,18 @@
 package is.hail.variant
 
-import java.io.FileNotFoundException
-
-import is.hail.HailContext
-import is.hail.annotations._
-import is.hail.expr._
 import is.hail.annotations.{Annotation, _}
-import is.hail.expr.{EvalContext, JSONAnnotationImpex, Parser, SparkAnnotationImpex, TAggregable, TString, TStruct, Type, _}
+import is.hail.expr.{EvalContext, Parser, TAggregable, TString, TStruct, Type, _}
 import is.hail.io.plink.ExportBedBimFam
-import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable
 import is.hail.methods._
-import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
 import is.hail.stats.ComputeRRM
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
-import org.apache.hadoop
-import org.apache.kudu.spark.kudu._
-import org.apache.kudu.spark.kudu.{KuduContext, _}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.{ArrayType, StringType, StructField, StructType}
 import org.apache.spark.storage.StorageLevel
-import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.mutable
-import scala.io.Source
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 object VariantDataset {
 
@@ -50,62 +34,12 @@ object VariantDataset {
       vaSignature = kt.valueSignature,
       globalSignature = TStruct.empty)
 
-    new VariantSampleMatrix[Genotype](kt.hc, metadata,
+    new VariantSampleMatrix[Locus, Variant, Genotype](kt.hc, metadata,
       VSMLocalValue(Annotation.empty, Array.empty[Annotation], Array.empty[Annotation]), rdd)
   }
-
-  def readKudu(hc: HailContext, dirname: String, tableName: String,
-    master: String): VariantDataset = {
-
-    val (fileMetadata, _) = VariantSampleMatrix.readFileMetadata(hc.hadoopConf, dirname, requireParquetSuccess = false)
-    val vaSignature = fileMetadata.metadata.vaSignature
-    val isLinearScale = fileMetadata.metadata.isLinearScale
-
-    val df = hc.sqlContext.read.options(
-      Map("kudu.table" -> tableName, "kudu.master" -> master)).kudu
-
-    val rowType = kuduRowType(vaSignature)
-    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
-
-    // Kudu key fields are always first, so we have to reorder the fields we get back
-    // to be in the column order for the flattened schema *before* we unflatten
-    val indices: Array[Int] = schema.fields.zipWithIndex.map { case (field, rowIdx) =>
-      df.schema.fieldIndex(field.name)
-    }
-
-    val rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))] = df.rdd.map { row =>
-      val importedRow = KuduAnnotationImpex.importAnnotation(
-        KuduAnnotationImpex.reorder(row, indices), rowType).asInstanceOf[Row]
-      val v = importedRow.getVariant(0)
-      (v,
-        (importedRow.get(1),
-          importedRow.getGenotypeStream(v, 2, isLinearScale)))
-    }.spanByKey().map(kv => {
-      // combine variant rows with different sample groups (no shuffle)
-      val variant = kv._1
-      val annotations = kv._2.head._1
-      // just use first annotation
-      val genotypes = kv._2.flatMap(_._2) // combine genotype streams
-      (variant, (annotations, genotypes))
-    })
-    new VariantSampleMatrix[Genotype](hc, fileMetadata, rdd.toOrderedRDD)
-  }
-
-  def kuduRowType(vaSignature: Type): Type = TStruct("variant" -> Variant.expandedType,
-    "annotations" -> vaSignature,
-    "gs" -> GenotypeStream.t,
-    "sample_group" -> TString)
-
-  private def makeSchemaForKudu(vaSignature: Type): StructType =
-    StructType(Array(
-      StructField("variant", Variant.sparkSchema, nullable = false),
-      StructField("annotations", vaSignature.schema, nullable = false),
-      StructField("gs", GenotypeStream.schema, nullable = false),
-      StructField("sample_group", StringType, nullable = false)
-    ))
 }
 
-class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) extends AnyVal {
+class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   private def requireSplit(methodName: String) {
     if (!vds.wasSplit)
@@ -113,8 +47,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
-    val isLinearScale = vds.isLinearScale
-
     val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
     val localGlobalAnnotation = vds.globalAnnotation
@@ -155,7 +87,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
         keepStar = true,
-        isLinearScale = isLinearScale,
         insertSplitAnnots = { (va, index, wasSplit) =>
           insertSplit(insertIndex(va, index), wasSplit)
         },
@@ -173,37 +104,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       }
 
     }.copy(vaSignature = finalType)
-  }
-
-  def annotateGenotypesExpr(expr: String): GenericDataset = vds.toGDS.annotateGenotypesExpr(expr)
-
-  def cache(): VariantDataset = persist("MEMORY_ONLY")
-
-  def persist(storageLevel: String = "MEMORY_AND_DISK"): VariantDataset = {
-    val level = try {
-      StorageLevel.fromString(storageLevel)
-    } catch {
-      case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
-    }
-
-    val wgs = vds.withGenotypeStream()
-    wgs.copy(rdd = wgs.rdd.persist(level))
-  }
-
-  def withGenotypeStream(): VariantDataset = {
-    val isLinearScale = vds.isLinearScale
-    vds.copy(rdd = vds.rdd.mapValuesWithKey[(Annotation, Iterable[Genotype])] { case (v, (va, gs)) =>
-      (va, gs.toGenotypeStream(v, isLinearScale))
-    }.asOrderedRDD)
-  }
-
-  def coalesce(k: Int, shuffle: Boolean = true): VariantDataset = {
-    val start = if (shuffle)
-      withGenotypeStream()
-    else vds
-
-    start.copy(rdd = start.rdd.coalesce(k, shuffle = shuffle)(null).asOrderedRDD)
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
@@ -262,8 +162,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
       sb += ' '
       sb.append(v.alt)
 
-      for (gt <- gs) {
-        val gp = gt.gp.getOrElse(emptyGP)
+      for (g <- gs) {
+        val gp = Genotype.gp(g).getOrElse(emptyGP)
         sb += ' '
         sb.append(formatGP(gp(0)))
         sb += ' '
@@ -306,18 +206,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
     writeSampleFile()
     writeGenFile()
-  }
-
-  def exportGenotypes(path: String, expr: String, typeFile: Boolean,
-    printRef: Boolean = false, printMissing: Boolean = false, parallel: Boolean = false) {
-
-    val localPrintRef = printRef
-    val localPrintMissing = printMissing
-
-    val filterF: Genotype => Boolean =
-      g => (!g.isHomRef || localPrintRef) && (!g.isNotCalled || localPrintMissing)
-
-    vds.exportGenotypes(path, expr, typeFile, filterF, parallel)
   }
 
   def exportPlink(path: String, famExpr: String = "id = s") {
@@ -416,24 +304,13 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param path     output path
-    * @param append   append file to header
-    * @param exportPP export Hail PLs as a PP format field
-    * @param parallel export VCF in parallel using the path argument as a directory
-    */
-  def exportVCF(path: String, append: Option[String] = None, exportPP: Boolean = false, parallel: Boolean = false) {
-    ExportVCF(vds.toGDS, path, append, exportPP, parallel)
-  }
-
-  /**
-    *
-    * @param filterExpr             Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
-    * @param annotationExpr         Annotation modifying expression involving v (new variant), va (old variant annotations),
-    *                               and aIndices (maps from new to old indices)
+    * @param filterExpr Filter expression involving v (variant), va (variant annotations), and aIndex (allele index)
+    * @param annotationExpr Annotation modifying expression involving v (new variant), va (old variant annotations),
+    * and aIndices (maps from new to old indices)
     * @param filterAlteredGenotypes any call that contains a filtered allele is set to missing instead
-    * @param keep                   Keep variants matching condition
-    * @param subset                 subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
-    * @param maxShift               Maximum possible position change during minimum representation calculation
+    * @param keep Keep variants matching condition
+    * @param subset subsets the PL and AD. Genotype and GQ are set based on the resulting PLs.  Downcodes by default.
+    * @param maxShift Maximum possible position change during minimum representation calculation
     */
   def filterAlleles(filterExpr: String, annotationExpr: String = "va = va", filterAlteredGenotypes: Boolean = false,
     keep: Boolean = true, subset: Boolean = true, maxShift: Int = 100, keepStar: Boolean = false): VariantDataset = {
@@ -443,8 +320,8 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   /**
     *
     * @param filterExpr filter expression involving v (Variant), va (variant annotations), s (sample),
-    *                   sa (sample annotations), and g (genotype), which returns a boolean value
-    * @param keep       keep genotypes where filterExpr evaluates to true
+    * sa (sample annotations), and g (genotype), which returns a boolean value
+    * @param keep keep genotypes where filterExpr evaluates to true
     */
   def filterGenotypes(filterExpr: String, keep: Boolean = true): VariantDataset = {
     val vas = vds.vaSignature
@@ -504,17 +381,22 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def hardCalls(): VariantDataset = {
-    vds.mapValues { g => Genotype(g.gt, g.fakeRef) }
+    vds.mapValues { g =>
+      if (g == null)
+        g
+      else
+        Genotype(g._unboxedGT, g._fakeRef)
+    }
   }
 
   /**
     *
     * @param computeMafExpr An expression for the minor allele frequency of the current variant, `v', given
-    *                       the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
-    * @param bounded        Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
-    *                       (e.g. outside of [0,1]).
-    * @param minimum        Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
-    * @param maximum        Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
+    * the variant annotations `va'. If unspecified, MAF will be estimated from the dataset
+    * @param bounded Allows the estimations for Z0, Z1, Z2, and PI_HAT to take on biologically-nonsense values
+    * (e.g. outside of [0,1]).
+    * @param minimum Sample pairs with a PI_HAT below this value will not be included in the output. Must be in [0,1]
+    * @param maximum Sample pairs with a PI_HAT above this value will not be included in the output. Must be in [0,1]
     */
   def ibd(computeMafExpr: Option[String] = None, bounded: Boolean = true,
     minimum: Option[Double] = None, maximum: Option[Double] = None): KeyTable = {
@@ -531,11 +413,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param mafThreshold     Minimum minor allele frequency threshold
-    * @param includePAR       Include pseudoautosomal regions
+    * @param mafThreshold Minimum minor allele frequency threshold
+    * @param includePAR Include pseudoautosomal regions
     * @param fFemaleThreshold Samples are called females if F < femaleThreshold
-    * @param fMaleThreshold   Samples are called males if F > maleThreshold
-    * @param popFreqExpr      Use an annotation expression for estimate of MAF rather than computing from the data
+    * @param fMaleThreshold Samples are called males if F > maleThreshold
+    * @param popFreqExpr Use an annotation expression for estimate of MAF rather than computing from the data
     */
   def imputeSex(mafThreshold: Double = 0.0, includePAR: Boolean = false, fFemaleThreshold: Double = 0.2,
     fMaleThreshold: Double = 0.8, popFreqExpr: Option[String] = None): VariantDataset = {
@@ -563,25 +445,15 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LDPrune(vds, r2Threshold, windowSize, nCores, memoryPerCore * 1024L * 1024L)
   }
 
-  def linreg(y: String, covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
-    requireSplit("linear regression")
-    LinearRegression(vds, y, covariates, root, useDosages, minAC, minAF)
-  }
-
   def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
     requireSplit("linear burden regression")
     vds.requireSampleTString("linear burden regression")
     LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
   }
 
-  def linregMultiPheno(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
-    requireSplit("linear regression for multiple phenotypes")
-    LinearRegressionMultiPheno(vds, ys, covariates, root, useDosages, minAC, minAF)
-  }
-
-  def linreg3(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, variantBlockSize: Int = 16): VariantDataset = {
+  def linreg(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, variantBlockSize: Int = 16): VariantDataset = {
     requireSplit("linear regression 3")
-    LinearRegression3(vds, ys, covariates, root, useDosages, variantBlockSize)
+    LinearRegression(vds, ys, covariates, root, useDosages, variantBlockSize)
   }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,
@@ -618,9 +490,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 
-  def makeSchemaForKudu(): StructType =
-    makeSchema(parquetGenotypes = false).add(StructField("sample_group", StringType, nullable = false))
-
   def mendelErrors(ped: Pedigree): (KeyTable, KeyTable, KeyTable, KeyTable) = {
     requireSplit("mendel errors")
     vds.requireSampleTString("mendel errors")
@@ -632,11 +501,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   /**
     *
-    * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
-    * @param k            Number of principal components
+    * @param scoresRoot Sample annotation path for scores (period-delimited path starting in 'sa')
+    * @param k Number of principal components
     * @param loadingsRoot Variant annotation path for site loadings (period-delimited path starting in 'va')
-    * @param eigenRoot    Global annotation path for eigenvalues (period-delimited path starting in 'global'
-    * @param asArrays     Store score and loading results as arrays, rather than structs
+    * @param eigenRoot Global annotation path for eigenvalues (period-delimited path starting in 'global'
+    * @param asArrays Store score and loading results as arrays, rather than structs
     */
   def pca(scoresRoot: String, k: Int = 10, loadingsRoot: Option[String] = None, eigenRoot: Option[String] = None,
     asArrays: Boolean = false): VariantDataset = {
@@ -666,22 +535,22 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     ret
   }
 
-  def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds, root, keepStar)
+  def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds.toGDS, root, keepStar).toVDS
 
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     requireSplit("rrm")
     info(s"rrm: Computing Realized Relationship Matrix...")
     val (rrm, m) = ComputeRRM(vds, forceBlock, forceGramian)
     info(s"rrm: RRM computed using $m variants.")
-    KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.stringSampleIds.toArray, m)
+    KinshipMatrix(vds.hc, vds.sSignature, rrm, vds.sampleIds.toArray, m)
   }
 
 
   /**
     *
     * @param propagateGQ Propagate GQ instead of computing from PL
-    * @param keepStar    Do not filter * alleles
-    * @param maxShift    Maximum possible position change during minimum representation calculation
+    * @param keepStar Do not filter * alleles
+    * @param maxShift Maximum possible position change during minimum representation calculation
     */
   def splitMulti(propagateGQ: Boolean = false, keepStar: Boolean = false,
     maxShift: Int = 100): VariantDataset = {
@@ -698,112 +567,6 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def variantQC(root: String = "va.qc"): VariantDataset = {
     requireSplit("variant QC")
-    VariantQC(vds, root)
+    VariantQC(vds.toGDS, root).toVDS
   }
-
-  def write(dirname: String, overwrite: Boolean = false, parquetGenotypes: Boolean = false) {
-    require(dirname.endsWith(".vds"), "variant dataset write paths must end in '.vds'")
-
-    if (overwrite)
-      vds.hadoopConf.delete(dirname, recursive = true)
-    else if (vds.hadoopConf.exists(dirname))
-      fatal(s"file already exists at `$dirname'")
-
-    vds.writeMetadata(dirname, parquetGenotypes = parquetGenotypes)
-
-    val vaSignature = vds.vaSignature
-    val vaRequiresConversion = SparkAnnotationImpex.requiresConversion(vaSignature)
-
-    val genotypeSignature = vds.genotypeSignature
-    require(genotypeSignature == TGenotype, s"Expecting a genotype signature of TGenotype, but found `${ genotypeSignature.toPrettyString() }'")
-
-    vds.hadoopConf.writeTextFile(dirname + "/partitioner.json.gz") { out =>
-      Serialization.write(vds.rdd.orderedPartitioner.toJSON, out)
-    }
-
-    val isLinearScale = vds.isLinearScale
-    val rowRDD = vds.rdd.map { case (v, (va, gs)) =>
-      Row.fromSeq(Array(v.toRow,
-        if (vaRequiresConversion) SparkAnnotationImpex.exportAnnotation(va, vaSignature) else va,
-        if (parquetGenotypes)
-          gs.lazyMap(_.toRow).toArray[Row]: IndexedSeq[Row]
-        else
-          gs.toGenotypeStream(v, isLinearScale).toRow))
-    }
-    vds.hc.sqlContext.createDataFrame(rowRDD, makeSchema(parquetGenotypes = parquetGenotypes))
-      .write.parquet(dirname + "/rdd.parquet")
-  }
-
-  def makeSchema(parquetGenotypes: Boolean): StructType = {
-    require(!(parquetGenotypes && vds.isGenericGenotype))
-    StructType(Array(
-      StructField("variant", Variant.sparkSchema, nullable = false),
-      StructField("annotations", vds.vaSignature.schema),
-      StructField("gs",
-        if (parquetGenotypes)
-          ArrayType(Genotype.sparkSchema, containsNull = false)
-        else
-          GenotypeStream.schema,
-        nullable = false)
-    ))
-  }
-
-  def writeKudu(dirname: String, tableName: String,
-    master: String, vcfSeqDict: String, rowsPerPartition: Int,
-    sampleGroup: String, drop: Boolean = false) {
-    requireSplit("write Kudu")
-
-    vds.writeMetadata(dirname, parquetGenotypes = false)
-
-    val vaSignature = vds.vaSignature
-    val isLinearScale = vds.isLinearScale
-
-    val rowType = VariantDataset.kuduRowType(vaSignature)
-    val rowRDD = vds.rdd
-      .map { case (v, (va, gs)) =>
-        KuduAnnotationImpex.exportAnnotation(Annotation(
-          v.toRow,
-          va,
-          gs.toGenotypeStream(v, isLinearScale).toRow,
-          sampleGroup), rowType).asInstanceOf[Row]
-      }
-
-    val schema: StructType = KuduAnnotationImpex.exportType(rowType).asInstanceOf[StructType]
-    println(s"schema = $schema")
-    val df = vds.hc.sqlContext.createDataFrame(rowRDD, schema)
-
-    val kuduContext = new KuduContext(master)
-    if (drop) {
-      KuduUtils.dropTable(master, tableName)
-      Thread.sleep(10 * 1000) // wait to avoid overwhelming Kudu service queue
-    }
-    if (!KuduUtils.tableExists(master, tableName)) {
-      val hConf = vds.hc.sqlContext.sparkContext.hadoopConfiguration
-      val headerLines = hConf.readFile(vcfSeqDict) { s =>
-        Source.fromInputStream(s)
-          .getLines()
-          .takeWhile { line => line(0) == '#' }
-          .toArray
-      }
-      val codec = new htsjdk.variant.vcf.VCFCodec()
-      val seqDict = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
-        .getHeaderValue
-        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
-        .getSequenceDictionary
-
-      val keys = Seq("variant__contig", "variant__start", "variant__ref",
-        "variant__altAlleles_0__alt", "sample_group")
-      kuduContext.createTable(tableName, schema, keys,
-        KuduUtils.createTableOptions(schema, keys, seqDict, rowsPerPartition))
-    }
-    df.write
-      .options(Map("kudu.master" -> master, "kudu.table" -> tableName))
-      .mode("append")
-      // FIXME inlined since .kudu wouldn't work for some reason
-      .format("org.apache.kudu.spark.kudu").save
-
-    info("Written to Kudu")
-  }
-
-  def toGDS: GenericDataset = vds.mapValues(g => g: Any).copy(isGenericGenotype = true)
 }

@@ -119,7 +119,7 @@ class ExprSuite extends SparkSuite {
     a(5) = "this is a String, there are many like it, but this one is mine"
     a(6) = IndexedSeq(1, 2, null, 6, 3, 3, -1, 8)
     a(7) = null // m
-    a(8) = Array[Any](Annotation(23, "foo"), Annotation.empty): IndexedSeq[Any]
+    a(8) = Array[Any](Annotation(23, "foo"), null): IndexedSeq[Any]
     a(9) = Annotation(
       Genotype(),
       Genotype(gt = Some(0)),

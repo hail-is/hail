@@ -15,27 +15,6 @@ from hail.ldMatrix import LDMatrix
 
 warnings.filterwarnings(module=__name__, action='once')
 
-
-@decorator
-def requireTGenotype(func, vds, *args, **kwargs):
-    if vds._is_generic_genotype:
-        if vds.genotype_schema != TGenotype:
-            coerced_vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
-            return func(coerced_vds, *args, **kwargs)
-        else:
-            raise TypeError("genotype signature must be Genotype, but found '%s'" % type(vds.genotype_schema))
-
-    return func(vds, *args, **kwargs)
-
-
-@decorator
-def convertVDS(func, vds, *args, **kwargs):
-    if vds._is_generic_genotype:
-        if isinstance(vds.genotype_schema, TGenotype):
-            vds = VariantDataset(vds.hc, vds._jvdf.toVDS())
-
-    return func(vds, *args, **kwargs)
-
 vds_type = lazy()
 
 class VariantDataset(object):
@@ -69,6 +48,7 @@ class VariantDataset(object):
         self._sample_ids = None
         self._num_samples = None
         self._jvdf_cache = None
+        self._jvkdf_cache = None
 
     @staticmethod
     @handle_py4j
@@ -104,15 +84,14 @@ class VariantDataset(object):
     @property
     def _jvdf(self):
         if self._jvdf_cache is None:
-            if self._is_generic_genotype:
-                self._jvdf_cache = Env.hail().variant.GenericDatasetFunctions(self._jvds)
-            else:
-                self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds)
+            self._jvdf_cache = Env.hail().variant.VariantDatasetFunctions(self._jvds.toVDS())
         return self._jvdf_cache
 
     @property
-    def _is_generic_genotype(self):
-        return self._jvds.isGenericGenotype()
+    def _jvkdf(self):
+        if self._jvkdf_cache is None:
+            self._jvkdf_cache = Env.hail().variant.VariantKeyDatasetFunctions(self._jvds.toVKDS())
+        return self._jvkdf_cache
 
     @property
     @handle_py4j
@@ -205,13 +184,12 @@ class VariantDataset(object):
         return self._jvds.fileVersion()
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(expr=oneof(strlike, listof(strlike)),
                propagate_gq=bool)
     def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -302,12 +280,7 @@ class VariantDataset(object):
         if isinstance(expr, list):
             expr = ",".join(expr)
 
-        jvds = self._jvdf.annotateGenotypesExpr(expr)
-        vds = VariantDataset(self.hc, jvds)
-        if isinstance(vds.genotype_schema, TGenotype):
-            return VariantDataset(self.hc, vds._jvdf.toVDS())
-        else:
-            return vds
+        return VariantDataset(self.hc, self._jvds.annotateGenotypesExpr(expr))
 
     @handle_py4j
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
@@ -1131,15 +1104,14 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.cache())
+        return VariantDataset(self.hc, self._jvds.cache())
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(right=vds_type)
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Example**
         
@@ -1279,13 +1251,12 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(output=strlike,
                       precision=integral)
     def export_gen(self, output, precision=4):
         """Export variant dataset as GEN and SAMPLE file.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -1293,8 +1264,9 @@ class VariantDataset(object):
 
         >>> vds3 = hc.import_bgen("data/example3.bgen", sample_file="data/example3.sample")
 
-        >>> (vds3.filter_variants_expr("gs.infoScore().score >= 0.9")
-        ...      .export_gen("output/infoscore_filtered"))
+        >>> (vds3.filter_variants_expr('gs.map(g => g.GP).infoScore().score >= 0.9')
+        ...      .annotate_genotypes_expr('g = Genotype(v, g.GT, g.GP)')
+        ...      .export_gen('output/infoscore_filtered'))
 
         **Notes**
 
@@ -1331,10 +1303,8 @@ class VariantDataset(object):
     @typecheck_method(output=strlike,
                       expr=strlike,
                       types=bool,
-                      export_ref=bool,
-                      export_missing=bool,
                       parallel=bool)
-    def export_genotypes(self, output, expr, types=False, export_ref=False, export_missing=False, parallel=False):
+    def export_genotypes(self, output, expr, types=False, parallel=False):
         """Export genotype-level information to delimited text file.
 
         **Examples**
@@ -1349,14 +1319,9 @@ class VariantDataset(object):
 
         **Notes**
 
-        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per cell (genotype) in the data set, though HomRef and missing genotypes are not output by default if the genotype schema is equal to :py:class:`~hail.expr.TGenotype`. Use the ``export_ref`` and ``export_missing`` parameters to force export of HomRef and missing genotypes, respectively.
+        :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per non-missing cell (genotype) in the data set.
 
         The ``expr`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
-
-        .. warning::
-
-            If the genotype schema does not have the type :py:class:`~hail.expr.TGenotype`, all genotypes will be exported unless the value of ``g`` is missing.
-            Use :py:meth:`~hail.VariantDataset.filter_genotypes` to filter out genotypes based on an expression before exporting.
 
         :param str output: Output path.
 
@@ -1364,26 +1329,18 @@ class VariantDataset(object):
 
         :param bool types: Write types of exported columns to a file at (output + ".types")
 
-        :param bool export_ref: If true, export reference genotypes. Only applicable if the genotype schema is :py:class:`~hail.expr.TGenotype`.
-
-        :param bool export_missing: If true, export missing genotypes.
-
         :param bool parallel: If true, writes a set of files (one per partition) rather than serially concatenating these files.
         """
 
-        if self._is_generic_genotype:
-            self._jvdf.exportGenotypes(output, expr, types, export_missing, parallel)
-        else:
-            self._jvdf.exportGenotypes(output, expr, types, export_ref, export_missing, parallel)
+        self._jvds.exportGenotypes(output, expr, types, parallel)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(output=strlike,
                       fam_expr=strlike)
     def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -1489,17 +1446,17 @@ class VariantDataset(object):
 
         **Examples**
 
-        Export a four column TSV with ``v``, ``va.pass``, ``va.filters``, and
+        Export a three column TSV with ``v``, ``va.filters``, and
         one computed field: ``1 - va.qc.callRate``.
 
         >>> vds.export_variants('output/file.tsv',
-        ...        'VARIANT = v, PASS = va.pass, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
+        ...        'VARIANT = v, FILTERS = va.filters, MISSINGNESS = 1 - va.qc.callRate')
 
         It is also possible to export without identifiers, which will result in
         a file with no header. In this case, the expressions should look like
         the examples below:
 
-        >>> vds.export_variants('output/file.tsv', 'v, va.pass, va.qc.AF')
+        >>> vds.export_variants('output/file.tsv', 'v, va.filters, va.qc.AF')
 
         .. note::
 
@@ -1576,6 +1533,8 @@ class VariantDataset(object):
     def export_vcf(self, output, append_to_header=None, export_pp=False, parallel=False):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+
         **Examples**
 
         Export to VCF as a block-compressed file:
@@ -1626,14 +1585,12 @@ class VariantDataset(object):
         :param bool parallel: If true, return a set of VCF files (one per partition) rather than serially concatenating these files.
         """
 
-        self._jvdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
+        self._jvkdf.exportVCF(output, joption(append_to_header), export_pp, parallel)
 
     @handle_py4j
-    @convertVDS
     @typecheck_method(output=strlike,
-                      overwrite=bool,
-                      parquet_genotypes=bool)
-    def write(self, output, overwrite=False, parquet_genotypes=False):
+                      overwrite=bool)
+    def write(self, output, overwrite=False):
         """Write variant dataset as VDS file.
 
         **Examples**
@@ -1646,17 +1603,11 @@ class VariantDataset(object):
 
         :param bool overwrite: If true, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
 
-        :param bool parquet_genotypes: If true, store genotypes as Parquet rather than Hail's serialization.  The resulting VDS will be larger and slower in Hail but the genotypes will be accessible from other tools that support Parquet.
-
         """
 
-        if self._is_generic_genotype:
-            self._jvdf.write(output, overwrite)
-        else:
-            self._jvdf.write(output, overwrite, parquet_genotypes)
+        self._jvds.write(output, overwrite)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(expr=strlike,
                       annotation=strlike,
                       subset=bool,
@@ -1672,7 +1623,7 @@ class VariantDataset(object):
         evaluated for each alternate allele, but not for
         the reference allele (i.e. ``aIndex`` will never be zero).
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -1850,15 +1801,13 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.filterGenotypes(expr, keep)
-        return VariantDataset(self.hc, jvds)
+        return VariantDataset(self.hc, self._jvds.filterGenotypes(expr, keep))
 
     @handle_py4j
-    @requireTGenotype
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -2064,6 +2013,8 @@ class VariantDataset(object):
     def filter_intervals(self, intervals, keep=True):
         """Filter variants with an interval or list of intervals.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+
         **Examples**
 
         Filter to one interval:
@@ -2125,7 +2076,7 @@ class VariantDataset(object):
 
         intervals = wrap_to_list(intervals)
 
-        jvds = self._jvds.filterIntervals([x._jrep for x in intervals], keep)
+        jvds = self._jvkdf.filterIntervals([x._jrep for x in intervals], keep)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -2231,11 +2182,10 @@ class VariantDataset(object):
         return self._globals
 
     @handle_py4j
-    @requireTGenotype
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
         
@@ -2263,11 +2213,10 @@ class VariantDataset(object):
         return KinshipMatrix(jkm)
 
     @handle_py4j
-    @requireTGenotype
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         A hard-called variant dataset is about two orders of magnitude
         smaller than a standard sequencing dataset. Use this
@@ -2282,7 +2231,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.hardCalls())
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(maf=nullable(strlike),
                       bounded=bool,
                       min=nullable(numeric),
@@ -2290,7 +2238,7 @@ class VariantDataset(object):
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -2356,7 +2304,6 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(threshold=numeric,
                       tiebreaking_expr=nullable(strlike),
                       maf=nullable(strlike),
@@ -2365,7 +2312,7 @@ class VariantDataset(object):
         """
         Prune samples from the :py:class:`.VariantDataset` based on :py:meth:`~hail.VariantDataset.ibd` PI_HAT measures of relatedness.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
         
@@ -2414,7 +2361,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(tiebreaking_expr), joption(maf), bounded))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(maf_threshold=numeric,
                       include_par=bool,
                       female_threshold=numeric,
@@ -2424,7 +2370,7 @@ class VariantDataset(object):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -2502,7 +2448,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(r2=numeric,
                       window=integral,
                       memory_per_core=integral,
@@ -2510,7 +2455,7 @@ class VariantDataset(object):
     def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
         """Prune variants in linkage disequilibrium (LD).
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         Requires :py:class:`~hail.VariantDataset.was_split` equals True.
 
@@ -2576,7 +2521,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(force_local=bool)
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
@@ -2615,110 +2559,6 @@ class VariantDataset(object):
         return LDMatrix(jldm)
 
     @handle_py4j
-    @requireTGenotype
-    @typecheck_method(y=strlike,
-                      covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool,
-                      min_ac=integral,
-                      min_af=numeric)
-    def linreg(self, y, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
-        r"""Test each variant for association using linear regression.
-
-        .. include:: requireTGenotype.rst
-
-        **Examples**
-
-        Run linear regression per variant using a phenotype and two covariates stored in sample annotations:
-
-        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale'])
-
-        **Notes**
-
-        The :py:meth:`.linreg` method computes, for each variant, statistics of
-        the :math:`t`-test for the genotype coefficient of the linear function
-        of best fit from sample genotype and covariates to quantitative
-        phenotype or case-control status. Hail only includes samples for which
-        phenotype and all covariates are defined. For each variant, missing genotypes
-        as the mean of called genotypes.
-
-        By default, genotypes values are given by hard call genotypes (``g.gt``).
-        If ``use_dosages=True``, then genotype values are defined by the dosage
-        :math:`\mathrm{P}(\mathrm{Het}) + 2 \cdot \mathrm{P}(\mathrm{HomVar})`. For Phred-scaled values,
-        :math:`\mathrm{P}(\mathrm{Het})` and :math:`\mathrm{P}(\mathrm{HomVar})` are
-        calculated by normalizing the PL likelihoods (converted from the Phred-scale) to sum to 1.
-
-        Assuming there are sample annotations ``sa.pheno.height``,
-        ``sa.pheno.age``, ``sa.pheno.isFemale``, and ``sa.cov.PC1``, the code:
-
-        >>> vds_result = vds.linreg('sa.pheno.height', covariates=['sa.pheno.age', 'sa.pheno.isFemale', 'sa.cov.PC1'])
-
-        considers a model of the form
-
-        .. math::
-
-            \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{gt} + \beta_2 \, \mathrm{age} + \beta_3 \, \mathrm{isFemale} + \beta_4 \, \mathrm{PC1} + \varepsilon, \quad \varepsilon \sim \mathrm{N}(0, \sigma^2)
-
-        where the genotype :math:`\mathrm{gt}` is coded as :math:`0` for HomRef, :math:`1` for
-        Het, and :math:`2` for HomVar, and the Boolean covariate :math:`\mathrm{isFemale}`
-        is coded as :math:`1` for true (female) and :math:`0` for false (male). The null
-        model sets :math:`\beta_1 = 0`.
-
-        Those variants that don't vary across the included samples (e.g., all genotypes
-        are HomRef) will have missing annotations. One can further
-        restrict computation to those variants with at least :math:`k` observed
-        alternate alleles (AC) or alternate allele frequency (AF) at least
-        :math:`p` in the included samples using the options ``min_ac=k`` or
-        ``min_af=p``, respectively. Unlike the :py:meth:`.filter_variants_expr`
-        method, these filters do not remove variants from the underlying
-        variant dataset; rather the linear regression annotations for variants with
-        low AC or AF are set to missing. Adding both filters is equivalent to applying
-        the more stringent of the two.
-
-        Phenotype and covariate sample annotations may also be specified using `programmatic expressions <exprlang.html>`__ without identifiers, such as:
-
-        >>> vds_result = vds.linreg('if (sa.pheno.isFemale) sa.pheno.age else (2 * sa.pheno.age + 10)')
-
-        For Boolean covariate types, true is coded as 1 and false as 0. In particular, for the sample annotation ``sa.fam.isCase`` added by importing a FAM file with case-control phenotype, case is 1 and control is 0.
-
-        The standard least-squares linear regression model is derived in Section
-        3.2 of `The Elements of Statistical Learning, 2nd Edition
-        <http://statweb.stanford.edu/~tibs/ElemStatLearn/printings/ESLII_print10.pdf>`__. See
-        equation 3.12 for the t-statistic which follows the t-distribution with
-        :math:`n - k - 2` degrees of freedom, under the null hypothesis of no
-        effect, with :math:`n` samples and :math:`k` covariates in addition to
-        genotype and intercept.
-
-        **Annotations**
-
-        With the default root, the following four variant annotations are added.
-
-        - **va.linreg.beta** (*Double*) -- fit genotype coefficient, :math:`\hat\beta_1`
-        - **va.linreg.se** (*Double*) -- estimated standard error, :math:`\widehat{\mathrm{se}}`
-        - **va.linreg.tstat** (*Double*) -- :math:`t`-statistic, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-        - **va.linreg.pval** (*Double*) -- :math:`p`-value
-
-        :param str y: Response expression
-
-        :param covariates: list of covariate expressions
-        :type covariates: list of str
-
-        :param str root: Variant annotation path to store result of linear regression.
-
-        :param bool use_dosages: If true, use dosages genotypes rather than hard call genotypes.
-
-        :param int min_ac: Minimum alternate allele count.
-
-        :param float min_af: Minimum alternate allele frequency.
-
-        :return: Variant dataset with linear regression variant annotations.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvdf.linreg(y, jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac, min_af)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
@@ -2729,7 +2569,7 @@ class VariantDataset(object):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         linear regression model.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -2912,76 +2752,17 @@ class VariantDataset(object):
         return linreg_kt, sample_kt
 
     @handle_py4j
-    @requireTGenotype
-    @typecheck_method(ys=listof(strlike),
-                      covariates=listof(strlike),
-                      root=strlike,
-                      use_dosages=bool,
-                      min_ac=integral,
-                      min_af=numeric)
-    def linreg_multi_pheno(self, ys, covariates=[], root='va.linreg', use_dosages=False, min_ac=1, min_af=0.0):
-        r"""Test each variant for association with multiple phenotypes using linear regression.
-
-        This method runs linear regression for multiple phenotypes more efficiently
-        than looping over :py:meth:`.linreg`.
-
-        .. warning::
-
-            :py:meth:`.linreg_multi_pheno` uses the same set of samples for each phenotype,
-            namely the set of samples for which **all** phenotypes and covariates are defined.
-
-        **Annotations**
-
-        With the default root, the following four variant annotations are added.
-        The indexing of these annotations corresponds to that of ``y``.
-
-        - **va.linreg.beta** (*Array[Double]*) -- array of fit genotype coefficients, :math:`\hat\beta_1`
-        - **va.linreg.se** (*Array[Double]*) -- array of estimated standard errors, :math:`\widehat{\mathrm{se}}`
-        - **va.linreg.tstat** (*Array[Double]*) -- array of :math:`t`-statistics, equal to :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-        - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
-
-        :param ys: list of one or more response expressions.
-        :type covariates: list of str
-
-        :param covariates: list of covariate expressions.
-        :type covariates: list of str
-
-        :param str root: Variant annotation path to store result of linear regression.
-
-        :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
-
-        :param int min_ac: Minimum alternate allele count.
-
-        :param float min_af: Minimum alternate allele frequency.
-
-        :return: Variant dataset with linear regression variant annotations.
-        :rtype: :py:class:`.VariantDataset`
-        """
-
-        jvds = self._jvdf.linregMultiPheno(jarray(Env.jvm().java.lang.String, ys),
-                                           jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, min_ac,
-                                           min_af)
-        return VariantDataset(self.hc, jvds)
-
-    @handle_py4j
-    @requireTGenotype
     @typecheck_method(ys=listof(strlike),
                       covariates=listof(strlike),
                       root=strlike,
                       use_dosages=bool,
                       variant_block_size=integral)
-    def linreg3(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
+    def linreg(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
         r"""Test each variant for association with multiple phenotypes using linear regression.
-
-        This method runs linear regression for multiple phenotypes
-        more efficiently than looping over :py:meth:`.linreg`.  This
-        method is more efficient than :py:meth:`.linreg_multi_pheno`
-        but doesn't implicitly filter on allele count or allele
-        frequency.
 
         .. warning::
 
-            :py:meth:`.linreg3` uses the same set of samples for each phenotype,
+            :py:meth:`.linreg` uses the same set of samples for each phenotype,
             namely the set of samples for which **all** phenotypes and covariates are defined.
 
         **Annotations**
@@ -3014,12 +2795,11 @@ class VariantDataset(object):
 
         """
 
-        jvds = self._jvdf.linreg3(jarray(Env.jvm().java.lang.String, ys),
-                                  jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
+        jvds = self._jvdf.linreg(jarray(Env.jvm().java.lang.String, ys),
+                                 jarray(Env.jvm().java.lang.String, covariates), root, use_dosages, variant_block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(kinshipMatrix=KinshipMatrix,
                       y=strlike,
                       covariates=listof(strlike),
@@ -3037,7 +2817,7 @@ class VariantDataset(object):
                n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -3273,7 +3053,6 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(test=strlike,
                       y=strlike,
                       covariates=listof(strlike),
@@ -3282,7 +3061,7 @@ class VariantDataset(object):
     def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
         """Test each variant for association using logistic regression.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -3422,7 +3201,7 @@ class VariantDataset(object):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         logistic regression model.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -3528,13 +3307,12 @@ class VariantDataset(object):
         return logreg_kt, sample_kt
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(pedigree=Pedigree)
     def mendel_errors(self, pedigree):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -3689,6 +3467,8 @@ class VariantDataset(object):
         """
         Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+
         **Examples**
 
         1. Simple trimming of a multi-allelic site, no change in variant position
@@ -3705,11 +3485,10 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvds.minRep(max_shift)
+        jvds = self._jvkdf.minRep(max_shift)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(scores=strlike,
                       loadings=nullable(strlike),
                       eigenvalues=nullable(strlike),
@@ -3718,7 +3497,7 @@ class VariantDataset(object):
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -3834,7 +3613,7 @@ class VariantDataset(object):
             Persist, like all other :class:`.VariantDataset` functions, is functional.
             Its output must be captured. This is wrong:
             
-            >>> vds = vds.linreg('sa.phenotype') # doctest: +SKIP
+            >>> vds = vds.linreg(['sa.phenotype']) # doctest: +SKIP
             >>> vds.persist() # doctest: +SKIP
             
             The above code does NOT persist ``vds``. Instead, it copies ``vds`` and persists that result. 
@@ -3850,7 +3629,7 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.persist(storage_level))
+        return VariantDataset(self.hc, self._jvds.persist(storage_level))
 
     def unpersist(self):
         """
@@ -4296,7 +4075,7 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.coalesce(num_partitions, shuffle)
+        jvds = self._jvds.coalesce(num_partitions, shuffle)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
@@ -4386,13 +4165,12 @@ class VariantDataset(object):
         return self._jvds.same(other._jvds, tolerance)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(root=strlike,
                       keep_star=bool)
     def sample_qc(self, root='sa.qc', keep_star=False):
         """Compute per-sample QC metrics.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Annotations**
 
@@ -4469,11 +4247,10 @@ class VariantDataset(object):
         return self._jvds.storageLevel()
 
     @handle_py4j
-    @requireTGenotype
     def summarize(self):
         """Returns a summary of useful information about the dataset.
         
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         
         **Examples**
@@ -4636,14 +4413,13 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deleteVaAttribute(ann_path, attribute))
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(propagate_gq=bool,
                       keep_star_alleles=bool,
                       max_shift=integral)
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -4771,14 +4547,13 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)
     def tdt(self, pedigree, root='va.tdt'):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -4883,12 +4658,11 @@ class VariantDataset(object):
         self._jvds.typecheck()
 
     @handle_py4j
-    @requireTGenotype
     @typecheck_method(root=strlike)
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
-        .. include:: requireTGenotype.rst
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
         **Examples**
 
@@ -4962,6 +4736,8 @@ class VariantDataset(object):
                       csq=bool)
     def vep(self, config, block_size=1000, root='va.vep', csq=False):
         """Annotate variants with VEP.
+
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
 
         :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`__
@@ -5176,7 +4952,7 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvds.vep(config, root, csq, block_size)
+        jvds = self._jvkdf.vep(config, root, csq, block_size)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

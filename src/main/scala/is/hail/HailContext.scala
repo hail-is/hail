@@ -11,7 +11,7 @@ import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, Genotype, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, Genotype, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -21,6 +21,7 @@ import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
+import scala.reflect.classTag
 
 object HailContext {
 
@@ -223,14 +224,14 @@ class HailContext private(val sc: SparkContext,
   def importBgen(file: String,
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
     importBgens(List(file), sampleFile, tolerance, nPartitions)
   }
 
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -254,7 +255,7 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): VariantDataset = {
+    tolerance: Double = 0.2): GenericDataset = {
     importGens(List(file), sampleFile, chromosome, nPartitions, tolerance)
   }
 
@@ -262,7 +263,7 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): VariantDataset = {
+    tolerance: Double = 0.2): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -300,9 +301,15 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    new VariantSampleMatrix(this,
-      VSMFileMetadata(samples, vaSignature = signature, isLinearScale = true, wasSplit = true),
-      sc.union(results.map(_.rdd)).toOrderedRDD)
+    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
+
+    new GenericDataset(this,
+      VSMFileMetadata(samples,
+        vaSignature = signature,
+        genotypeSignature = TStruct("GT" -> TCall,
+          "GP" -> TArray(TDouble)),
+        wasSplit = true),
+      rdd)
   }
 
   def importTable(inputs: java.util.ArrayList[String],
@@ -357,7 +364,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false): VariantDataset = {
+    quantPheno: Boolean = false): GenericDataset = {
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
@@ -369,17 +376,16 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false): VariantDataset = {
+    quantPheno: Boolean = false): GenericDataset = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
       nPartitions, delimiter, missing, quantPheno)
   }
 
-  def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[_]], inputs: Array[String]) {
+  def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[_, _, _]], inputs: Array[String]) {
     val sampleIds = datasets.head.sampleIds
     val vaSchema = datasets.head.vaSignature
     val wasSplit = datasets.head.wasSplit
     val genotypeSchema = datasets.head.genotypeSignature
-    val isGenericGenotype = datasets.head.isGenericGenotype
     val reference = inputs(0)
 
     datasets.indices.tail.foreach { i =>
@@ -387,7 +393,6 @@ class HailContext private(val sc: SparkContext,
       val ids = vds.sampleIds
       val vas = vds.vaSignature
       val gsig = vds.genotypeSignature
-      val isGenGt = vds.isGenericGenotype
       val path = inputs(i)
       if (ids != sampleIds) {
         fatal(
@@ -415,14 +420,6 @@ class HailContext private(val sc: SparkContext,
           genotypeSchema.toPrettyString(compact = true, printAttrs = true),
           gsig.toPrettyString(compact = true, printAttrs = true)
         )
-      } else if (isGenGt != isGenericGenotype) {
-        fatal(
-          s"""cannot read datasets with different data formats
-             |  Generic genotypes in reference file $reference: @1
-             |  Generic genotypes in file $path: @2""".stripMargin,
-          isGenericGenotype.toString,
-          isGenGt.toString
-        )
       }
     }
 
@@ -430,10 +427,10 @@ class HailContext private(val sc: SparkContext,
       info(s"Using sample and global annotations from ${ inputs(0) }")
   }
 
-  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_] =
+  def read(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] =
     readAll(List(file), dropSamples, dropVariants)
 
-  def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_] = {
+  def readAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantSampleMatrix[_, _, _] = {
     val inputs = hadoopConf.globAll(files)
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
@@ -448,12 +445,14 @@ class HailContext private(val sc: SparkContext,
     checkDatasetSchemasCompatible(vsms, inputs)
 
     // I can't figure out how to write this with existentials -cs
-    if (vsms(0).isGenericGenotype) {
-      val gdses = vsms.asInstanceOf[Array[GenericDataset]]
+    if (vsms(0).genotypeSignature == TGenotype) {
+      val gdses = vsms.asInstanceOf[Array[VariantSampleMatrix[Annotation, Annotation, Annotation]]]
+      implicit val kOk = gdses(0).kOk
       gdses(0).copy(
         rdd = sc.union(gdses.map(_.rdd)).toOrderedRDD)
     } else {
       val vdses = vsms.asInstanceOf[Array[VariantDataset]]
+      implicit val kOk = vdses(0).kOk
       vdses(0).copy(
         rdd = sc.union(vdses.map(_.rdd)).toOrderedRDD)
     }
@@ -462,41 +461,17 @@ class HailContext private(val sc: SparkContext,
   def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset =
     readVDSAll(List(file), dropSamples, dropVariants)
 
-  def readVDSAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset = {
-    val vds = readAll(files, dropSamples, dropVariants)
-
-    if (vds.isGenericGenotype)
-      fatal("Cannot read datasets with generic genotypes as VDS.  Read as GDS.")
-    vds.asInstanceOf[VariantDataset]
-  }
+  def readVDSAll(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): VariantDataset =
+    readAll(files, dropSamples, dropVariants).toVDS
 
   def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset =
     readAllGDS(List(file), dropSamples, dropVariants)
 
-  def readAllGDS(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset = {
-    val vds = readAll(files, dropSamples, dropVariants)
-
-    if (!vds.isGenericGenotype)
-      fatal("Cannot read dataset without generic genotypes as GDS.  Read as VDS.")
-    vds.asInstanceOf[GenericDataset]
-  }
+  def readAllGDS(files: Seq[String], dropSamples: Boolean = false, dropVariants: Boolean = false): GenericDataset =
+    readAll(files, dropSamples, dropVariants).toGDS
 
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
-
-  /**
-    *
-    * @param path   path to Kudu database
-    * @param table  table name
-    * @param master Kudu master address
-    */
-  def readKudu(path: String, table: String, master: String): VariantDataset = {
-    VariantDataset.readKudu(this, path, table, master)
-  }
-
-  def writePartitioning(path: String) {
-    VariantSampleMatrix.writePartitioning(sqlContext, path)
-  }
 
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
@@ -543,7 +518,7 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String]): GenericDataset = {
+    callFields: Set[String] = Set.empty[String]): VariantSampleMatrix[Locus, Variant, Annotation] = {
     importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields)
   }
 
@@ -552,7 +527,7 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String]): GenericDataset = {
+    callFields: Set[String] = Set.empty[String]): VariantSampleMatrix[Locus, Variant, Annotation] = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
@@ -565,11 +540,11 @@ class HailContext private(val sc: SparkContext,
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
     val reader = new GenericRecordReader(callFields)
-    val gds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
+    val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
 
     hadoopConf.set("io.compression.codecs", codecs)
 
-    gds
+    vkds
   }
 
   def indexBgen(file: String) {

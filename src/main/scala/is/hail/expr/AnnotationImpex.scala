@@ -53,6 +53,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         }: _*)
   }
 
+  def annotationImporter(t: Type): (Any) => Annotation = {
+    if (requiresConversion(t))
+      (a: Any) => importAnnotation(a, t)
+    else
+      (a: Any) => a
+  }
+
   def importAnnotation(a: Any, t: Type): Annotation = {
     if (a == null)
       null
@@ -93,7 +100,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Interval(importAnnotation(r.get(0), TLocus).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus).asInstanceOf[Locus])
         case TStruct(fields) =>
           if (fields.isEmpty)
-            null
+            if (a.asInstanceOf[Boolean]) Annotation.empty else null
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map { case (v, f) =>
@@ -135,6 +142,13 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
             StructField(escapeColumnName(f.name), f.typ.schema)))
   }
 
+  def annotationExporter(t: Type): (Annotation) => Any = {
+    if (requiresConversion(t))
+      (a: Annotation) => exportAnnotation(a, t)
+    else
+      (a: Annotation) => a
+  }
+
   def exportAnnotation(a: Annotation, t: Type): Any = {
     if (a == null)
       null
@@ -150,8 +164,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
               Row.fromSeq(Seq(exportAnnotation(k, keyType), exportAnnotation(v, valueType)))
             }.toIndexedSeq
         case TGenotype =>
-          val g = a.asInstanceOf[Genotype]
-          g.toRow
+          Genotype.toRow(a.asInstanceOf[Genotype])
         case TAltAllele =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
@@ -166,7 +179,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Row(exportAnnotation(i.start, TLocus), exportAnnotation(i.end, TLocus))
         case TStruct(fields) =>
           if (fields.isEmpty)
-            null
+            a != null
           else {
             val r = a.asInstanceOf[Row]
             Annotation.fromSeq(r.toSeq.zip(fields).map {
@@ -285,7 +298,7 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
             "value" -> exportAnnotation(v, valueType))
           }.toList)
         case TCall => JInt(a.asInstanceOf[Int])
-        case TGenotype => a.asInstanceOf[Genotype].toJSON
+        case TGenotype => Genotype.toJSON(a.asInstanceOf[Genotype])
         case TAltAllele => a.asInstanceOf[AltAllele].toJSON
         case TVariant => a.asInstanceOf[Variant].toJSON
         case TLocus => a.asInstanceOf[Locus].toJSON

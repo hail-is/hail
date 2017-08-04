@@ -45,9 +45,6 @@ object AltAllele {
     StructField("ref", StringType, nullable = false),
     StructField("alt", StringType, nullable = false)))
 
-  val expandedType: TStruct = TStruct("ref" -> TString,
-    "alt" -> TString)
-
   def fromRow(r: Row): AltAllele =
     AltAllele(r.getString(0), r.getString(1))
 
@@ -183,12 +180,6 @@ object Variant {
       StructField("altAlleles", ArrayType(AltAllele.sparkSchema, containsNull = false),
         nullable = false)))
 
-  def expandedType: TStruct =
-    TStruct("contig" -> TString,
-      "start" -> TInt,
-      "ref" -> TString,
-      "altAlleles" -> TArray(AltAllele.expandedType))
-
   def fromRow(r: Row) =
     Variant(r.getAs[String](0),
       r.getAs[Int](1),
@@ -201,13 +192,13 @@ object Variant {
     new OrderedKey[Locus, Variant] {
       def project(key: Variant): Locus = key.locus
 
-      def kOrd: Ordering[Variant] = implicitly[Ordering[Variant]]
+      val kOrd: Ordering[Variant] = Variant.order
 
-      def pkOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
+      val pkOrd: Ordering[Locus] = Locus.order
 
-      def kct: ClassTag[Variant] = implicitly[ClassTag[Variant]]
+      val kct: ClassTag[Variant] = implicitly[ClassTag[Variant]]
 
-      def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
+      val pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
     }
 
   def variantUnitRdd(sc: SparkContext, input: String): RDD[(Variant, Unit)] =
@@ -225,7 +216,7 @@ object Variant {
         }.value
       }
 
-  implicit def variantOrder: Ordering[Variant] = new Ordering[Variant] {
+  implicit def order: Ordering[Variant] = new Ordering[Variant] {
     def compare(x: Variant, y: Variant): Int = x.compare(y)
   }
 }

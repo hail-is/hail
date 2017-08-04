@@ -16,13 +16,13 @@ object LocusImplicits {
   implicit val orderedKey = new OrderedKey[Locus, Locus] {
     def project(key: Locus): Locus = key
 
-    def kOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
+    val kOrd: Ordering[Locus] = Locus.order
 
-    def pkOrd: Ordering[Locus] = implicitly[Ordering[Locus]]
+    val pkOrd: Ordering[Locus] = Locus.order
 
-    def kct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
+    val kct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
 
-    def pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
+    val pkct: ClassTag[Locus] = implicitly[ClassTag[Locus]]
   }
 }
 
@@ -34,9 +34,16 @@ object Locus {
       StructField("contig", StringType, nullable = false),
       StructField("position", IntegerType, nullable = false)))
 
-  def expandedType: TStruct = TStruct(
-    "contig" -> TString,
-    "position" -> TInt)
+  def fromRow(r: Row): Locus = {
+    Locus(r.getAs[String](0), r.getInt(1))
+  }
+
+  def intervalFromRow(r: Row): Interval[Locus] = {
+    Interval[Locus](
+      Locus.fromRow(r.getAs[Row](0)),
+      Locus.fromRow(r.getAs[Row](1))
+    )
+  }
 
   def gen(contigs: Seq[String]): Gen[Locus] =
     Gen.zip(Gen.oneOfSeq(contigs), Gen.posInt)
@@ -106,9 +113,12 @@ object Locus {
   def parseIntervals(arr: Array[String]): Array[Interval[Locus]] = arr.map(parseInterval)
 
   def makeInterval(start: Locus, end: Locus): Interval[Locus] = Interval(start, end)
+
+  implicit val order: Ordering[Locus] = new Ordering[Locus] {
+    def compare(x: Locus, y: Locus): Int = x.compare(y)
+  }
 }
 
-@SerialVersionUID(9197069433877243281L)
 case class Locus(contig: String, position: Int) extends Ordered[Locus] {
   def compare(that: Locus): Int = {
     var c = Contig.compare(contig, that.contig)

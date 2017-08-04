@@ -89,7 +89,7 @@ object MendelErrors {
     val zeroVal: MultiArray2[GenotypeType] = MultiArray2.fill(trios.length, 3)(NoCall)
 
     def seqOp(a: MultiArray2[GenotypeType], s: Annotation, g: Genotype): MultiArray2[GenotypeType] = {
-      sampleTrioRolesBc.value.get(s.asInstanceOf[String]).foreach(l => l.foreach { case (ti, ri) => a.update(ti, ri, g.gtType) })
+      sampleTrioRolesBc.value.get(s.asInstanceOf[String]).foreach(l => l.foreach { case (ti, ri) => a.update(ti, ri, Genotype.gtType(g)) })
       a
     }
 

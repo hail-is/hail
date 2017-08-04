@@ -9,21 +9,7 @@ import org.testng.annotations.Test
 class GenericDatasetSuite extends SparkSuite {
 
   @Test def testReadWrite() {
-    val path = tmpDir.createTempFile(extension = ".vds")
-
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Some(4))
-    assert(!vds.isGenericGenotype)
-
-    val gds = vds.toGDS
-    assert(gds.isGenericGenotype && gds.genotypeSignature == TGenotype)
-
-    gds.write(path)
-
-    intercept[HailException] {
-      hc.readVDS(path)
-    }
-
-    assert(gds same hc.readGDS(path))
+    val path = tmpDir.createTempFile(extension = "vds")
 
     val p = forAll(VariantSampleMatrix.genGeneric(hc)) { gds =>
       val f = tmpDir.createTempFile(extension = "vds")
@@ -58,14 +44,14 @@ class GenericDatasetSuite extends SparkSuite {
   }
 
   @Test def testExportVCF() {
-    val gds_exportvcf_path = tmpDir.createTempFile(extension = ".vcf")
+    val gds_exportvcf_path = tmpDir.createTempFile(extension = "vcf")
     val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz", nPartitions = Some(4))
     gds.exportVCF(gds_exportvcf_path)
     assert(gds.same(hc.importVCFGeneric(gds_exportvcf_path)))
 
     // not TGenotype or TStruct signature
     intercept[HailException] {
-      val path = tmpDir.createTempFile(extension = ".vcf")
+      val path = tmpDir.createTempFile(extension = "vcf")
       gds
         .annotateGenotypesExpr("g = 5")
         .exportVCF(path)
@@ -106,18 +92,6 @@ class GenericDatasetSuite extends SparkSuite {
     hc.importVCF(path).write(path2)
   }
 
-  @Test def testSummarize() {
-    val vcf = "src/test/resources/sample.vcf.bgz"
-    val vds = hc.importVCF(vcf)
-    val gds = hc.importVCFGeneric(vcf).annotateGenotypesExpr("g = g.GT")
-    assert(vds.summarize() == gds.summarize())
-
-    assert(gds
-      .filterGenotypes("false")
-      .summarize()
-      .callRate.get == 0)
-  }
-
   @Test def testPersistCoalesce() {
     val vcf = "src/test/resources/sample.vcf.bgz"
 
@@ -130,20 +104,11 @@ class GenericDatasetSuite extends SparkSuite {
       gds_coalesce.nPartitions == 5)
   }
 
-  @Test def testExportGenotypes() {
-    val gds = hc.importVCFGeneric("src/test/resources/sample.vcf.bgz").annotateGenotypesExpr("g = g.GT")
-    val path = tmpDir.createTempFile("testExportGenotypes", ".tsv")
-    gds.exportGenotypes(path, "s, v, g", false)
-    val summary = gds.summarize()
-    val nNotMissing = summary.callRate.get * summary.variants * summary.samples
-    assert(sc.textFile(path).count() == nNotMissing)
-  }
-
   @Test def testAnnotate2() {
     val vcf = "src/test/resources/sample.vcf.bgz"
     val vds = hc.importVCF(vcf)
-    val result = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.ad, g.dp, g.gq, g.pl)").toVDS
-    val result2 = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.gp)").toVDS
+    val result = vds.annotateGenotypesExpr("g = Genotype(v, Call(g.gt), g.ad, g.dp, g.gq, g.pl)").toVDS
+    val result2 = vds.annotateGenotypesExpr("g = Genotype(v, Call(g.gt), g.gp)").toVDS
     val result3 = vds.annotateGenotypesExpr("g = Genotype(v, g.gp)").toVDS
     assert(vds.same(result))
 
@@ -152,7 +117,7 @@ class GenericDatasetSuite extends SparkSuite {
         (data1, data2) match {
           case (Some((va1, gs1)), Some((va2, gs2))) =>
             gs1.zip(gs2).forall { case (g1, g2) =>
-              (g1.gp, g2.gp) match {
+              (Genotype.gp(g1), Genotype.gp(g2)) match {
                 case (Some(x), Some(y)) => x.zip(y).forall { case (d1, d2) => math.abs(d1 - d2) < 1e-4 }
                 case (None, None) => true
                 case _ => false
@@ -167,7 +132,9 @@ class GenericDatasetSuite extends SparkSuite {
     def compareGenotypes(vds1: VariantDataset, vds2: VariantDataset): Boolean = {
       vds1.rdd.fullOuterJoin(vds2.rdd).forall { case (v, (data1, data2)) =>
         (data1, data2) match {
-          case (Some((va1, gs1)), Some((va2, gs2))) => gs1.zip(gs2).forall { case (g1, g2) => g1.unboxedGT == g2.unboxedGT }
+          case (Some((va1, gs1)), Some((va2, gs2))) =>
+            gs1.zip(gs2).forall { case (g1, g2) =>
+              Genotype.unboxedGT(g1) == Genotype.unboxedGT(g2) }
           case _ => false
         }
       }

@@ -27,7 +27,7 @@ class CallStatsCombiner(v: Variant) extends Serializable {
   val genotypeCount = new Array[Int](v.nGenotypes)
 
   def merge(g: Genotype): CallStatsCombiner = {
-    g.gt.foreach { gt =>
+    Genotype.gt(g).foreach { gt =>
       val p = Genotype.gtPair(gt)
       alleleCount(p.j) += 1
       alleleCount(p.k) += 1

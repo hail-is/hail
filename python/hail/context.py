@@ -137,7 +137,7 @@ class HailContext(object):
 
         **Background**
 
-        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`__.
+        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Hail uses `Java regular expression patterns <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__. The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
 
         :param str regex: The regular expression to match.
 
@@ -549,16 +549,6 @@ class HailContext(object):
         return VariantDataset(
             self,
             self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants))
-
-    @handle_py4j
-    @typecheck_method(path=strlike)
-    def write_partitioning(self, path):
-        """Write partitioning.json.gz file for legacy VDS file.
-
-        :param str path: path to VDS file.
-        """
-
-        self._jhc.writePartitioning(path)
 
     @handle_py4j
     @typecheck_method(path=oneof(strlike, listof(strlike)),
