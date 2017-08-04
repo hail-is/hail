@@ -120,10 +120,10 @@ class SkatSuite extends SparkSuite {
     val (weightType, weightQuerier) = filteredVds.queryVA(weightExpr)
 
     val typedWeightQuerier = weightType match {
-      case TDouble => weightQuerier.asInstanceOf[Annotation => Double]
-      case TInt => weightQuerier.asInstanceOf[Annotation => Double]
-      case TLong => weightQuerier.asInstanceOf[Annotation => Double]
-      case TFloat => weightQuerier.asInstanceOf[Annotation => Double]
+      case TFloat64 => weightQuerier.asInstanceOf[Annotation => Double]
+      case TFloat32 => weightQuerier.asInstanceOf[Annotation => Double]
+      case TInt64 => weightQuerier.asInstanceOf[Annotation => Double]
+      case TInt32 => weightQuerier.asInstanceOf[Annotation => Double]
       case _ => fatal("Weight must be a numeric type")
     }
 
@@ -169,7 +169,7 @@ class SkatSuite extends SparkSuite {
 
     aggregatedKT.collect().map { case (key, safr) => {
       val (xs, weights) = resultOp(safr, n)
-      
+
       //write files to a location R script can read
       val inputFileG = tmpDir.createLocalTempFile("skatGMatrix", ".txt")
       hadoopConf.writeTextFile(inputFileG) {
@@ -199,10 +199,10 @@ class SkatSuite extends SparkSuite {
 
 
   def covariates = hc.importTable("src/test/resources/regressionLinear.cov",
-    types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
 
   def phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
-    types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+    types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   def intervals = IntervalList.read(hc, "src/test/resources/regressionLinear.interval_list")
 
@@ -368,7 +368,7 @@ class SkatSuite extends SparkSuite {
 
     val startIndex = 96
     val endIndex = 116
-    
+
     for(i <- startIndex-1 to endIndex){
 
       if(i == startIndex - 1)
@@ -407,12 +407,12 @@ class SkatSuite extends SparkSuite {
     impute = true).keyBy("Sample")
 
   def phenotypesSkat = hc.importTable("src/test/resources/skat.pheno",
-    types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+    types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   def intervalsSkat = IntervalList.read(hc, "src/test/resources/skat.interval_list")
 
   def weightsSkat = hc.importTable("src/test/resources/skat.weights",
-    types = Map("locus" -> TLocus, "weight" -> TDouble)).keyBy("locus")
+    types = Map("locus" -> TLocus, "weight" -> TFloat64)).keyBy("locus")
 
   def vdsSkat: VariantDataset = hc.importVCF("src/test/resources/sample2.vcf")
     .annotateVariantsTable(intervalsSkat, root="va.genes", product = true)
