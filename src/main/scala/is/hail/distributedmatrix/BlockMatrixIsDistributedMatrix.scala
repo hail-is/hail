@@ -332,14 +332,15 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     *
     **/
   def write(m: M, uriString: String) {
+    val hadoop = m.blocks.sparkContext.hadoopConfiguration
+    hadoop.mkDir(uriString)
     val uri = URI.create(uriString+"/")
-    new File(uri).mkdirs()
 
     m.blocks.map { case ((i, j), m) =>
       (new PairWriter(i, j), new MatrixWriter(m.numRows, m.numCols, m.toArray)) }
       .saveAsSequenceFile(uri.resolve(matrixFileName).toString)
 
-    using(m.blocks.sparkContext.hadoopConfiguration.create(uri.resolve(metadataFileName).toString())) { os =>
+    using(hadoop.create(uri.resolve(metadataFileName).toString())) { os =>
       jackson.Serialization.write(
         BlockMatrixMetadata(m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols()),
         os)
@@ -353,8 +354,9 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     *
     **/
   def read(hc: HailContext, uriString: String): M = {
+    val hadoop = hc.hadoopConf
+    hadoop.mkDir(uriString)
     val uri = URI.create(uriString+"/")
-    new File(uri).mkdirs()
 
     val rdd = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri.resolve(matrixFileName).toString).map { case (pw, mw) =>
       ((pw.i, pw.j), mw.toDenseMatrix(): Matrix)
