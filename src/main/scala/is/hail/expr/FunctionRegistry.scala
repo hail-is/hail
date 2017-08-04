@@ -2476,19 +2476,15 @@ object FunctionRegistry {
     }, null)(arrayHr(hrboxedt), arrayHr(hrboxedt), arrayHr(hrboxeds))
   }
 
-  registerMethod("toInt", (s: String) => s.toInt, "Convert value to a 32-bit integer.")
   registerMethod("toInt32", (s: String) => s.toInt, "Convert value to a 32-bit integer.")
   registerMethod("toInt64", (s: String) => s.toLong, "Convert value to a 64-bit integer.")
   registerMethod("toFloat32", (s: String) => s.toFloat, "Convert value to a 32-bit floating point number.")
   registerMethod("toFloat64", (s: String) => s.toDouble, "Convert value to a 64-bit floating point number.")
-  registerMethod("toFloat", (s: String) => s.toDouble, "Convert value to a 64-bit floating point number.")
 
-  registerMethod("toInt", (b: Boolean) => b.toInt, "Convert value to a 32-bit integer. Returns 1 if true, else 0.")
   registerMethod("toInt32", (b: Boolean) => b.toInt, "Convert value to a 32-bit integer. Returns 1 if true, else 0.")
   registerMethod("toInt64", (b: Boolean) => b.toLong, "Convert value to a 64-bit integer. Returns 1 if true, else 0.")
   registerMethod("toFloat32", (b: Boolean) => b.toFloat, "Convert value to a 32-bit floating point number. Returns 1.0 if true, else 0.0.")
   registerMethod("toFloat64", (b: Boolean) => b.toDouble, "Convert value to a 64-bit floating point number. Returns 1.0 if true, else 0.0.")
-  registerMethod("toFloat", (b: Boolean) => b.toDouble, "Convert value to a 64-bit floating point number. Returns 1.0 if true, else 0.0.")
 
   def registerNumericType[T]()(implicit ev: Numeric[T], hrt: HailRep[T]) {
     // registerNumeric("+", ev.plus)
@@ -2502,12 +2498,10 @@ object FunctionRegistry {
     register("-", ev.negate _, "Returns the negation of this value.")
     register("fromInt", ev.fromInt _, null)
 
-    registerMethod("toInt", ev.toInt _, "Convert value to a 32-bit integer.")
     registerMethod("toInt32", ev.toInt _, "Convert value to a 32-bit integer.")
     registerMethod("toInt64", ev.toLong _, "Convert value to a 64-bit integer.")
     registerMethod("toFloat32", ev.toFloat _, "Convert value to a 32-bit floating point number.")
     registerMethod("toFloat64", ev.toDouble _, "Convert value to a 64-bit floating point number.")
-    registerMethod("toFloat", ev.toDouble _, "Convert value to a 64-bit floating point number.")
   }
 
   registerNumeric("**", (x: Double, y: Double) => math.pow(x, y))

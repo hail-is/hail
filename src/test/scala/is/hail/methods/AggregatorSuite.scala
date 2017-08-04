@@ -20,7 +20,7 @@ class AggregatorSuite extends SparkSuite {
       .annotateVariantsExpr(
         """va.test.callrate = gs.fraction(g => g.isCalled()),
           |va.test.AC = gs.map(g => g.nNonRefAlleles()).sum(),
-          |va.test.AF = gs.map(g => g.nNonRefAlleles()).stats().sum.toFloat() / gs.filter(g => g.isCalled()).count() / 2.0,
+          |va.test.AF = gs.map(g => g.nNonRefAlleles()).stats().sum.toFloat64() / gs.filter(g => g.isCalled()).count() / 2.0,
           |va.test.gqstats = gs.map(g => g.gq).stats(), va.test.gqhetstats = gs.filter(g => g.isHet()).map(g => g.gq).stats(),
           |va.lowGqGts = gs.filter(g => g.gq < 60).collect()""".stripMargin)
 

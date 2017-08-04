@@ -67,8 +67,8 @@ class ExprSuite extends SparkSuite {
 
     assert(run[Int](""""abc".length""").contains(3))
     assert(run[IndexedSeq[String]](""""a,b,c".split(",")""").contains(Array("a", "b", "c"): IndexedSeq[String]))
-    assert(run[Int]("(3.0).toInt()").contains(3))
-    assert(run[Double]("(3).toFloat()").contains(3.0))
+    assert(run[Int]("(3.0).toInt32()").contains(3))
+    assert(run[Double]("(3).toFloat64()").contains(3.0))
   }
 
   @Test def exprTest() {
@@ -163,7 +163,7 @@ class ExprSuite extends SparkSuite {
       (t, Option(f()).map(_.asInstanceOf[T]))
     }
 
-    assert(eval[Int]("is.toInt()").contains(-37))
+    assert(eval[Int]("is.toInt32()").contains(-37))
 
     assert(eval[Boolean]("!true").contains(false))
     assert(eval[Boolean]("!isMissing(i)").contains(true))
@@ -721,13 +721,13 @@ class ExprSuite extends SparkSuite {
       eval[Double](""" log(Variant("22", 123, "A", "T")) """)
     }
 
-    assert(eval[Int]("[0, 0.toInt64()][0].toInt()").contains(0))
-    assert(eval[Int]("[0, 0.toFloat32()][0].toInt()").contains(0))
-    assert(eval[Int]("[0, 0.toFloat()][0].toInt()").contains(0))
+    assert(eval[Int]("[0, 0.toInt64()][0].toInt32()").contains(0))
+    assert(eval[Int]("[0, 0.toFloat32()][0].toInt32()").contains(0))
+    assert(eval[Int]("[0, 0.toFloat64()][0].toInt32()").contains(0))
     assert(eval[Boolean]("[NA:Int] == [0]").contains(false))
     assert(eval[Boolean]("[NA:Int64] == [0.toInt64()]").contains(false))
     assert(eval[Boolean]("[NA:Float32] == [0.toFloat32()]").contains(false))
-    assert(eval[Boolean]("[NA:Float] == [0.toFloat()]").contains(false))
+    assert(eval[Boolean]("[NA:Float] == [0.toFloat64()]").contains(false))
 
     assert(eval[IndexedSeq[Int]]("range(5)").contains(IndexedSeq(0, 1, 2, 3, 4)))
     assert(eval[IndexedSeq[Int]]("range(1)").contains(IndexedSeq(0)))
@@ -1050,12 +1050,12 @@ class ExprSuite extends SparkSuite {
     assert(Parser.parseExpr("if (c) 0 else l", ec)._1 == TInt64)
     assert(Parser.parseExpr("if (c) f else 0", ec)._1 == TFloat32)
     assert(Parser.parseExpr("if (c) 0 else 0.0", ec)._1 == TFloat64)
-    assert(eval[Int]("(if (true) 0 else 0.toInt64()).toInt()") == (TInt32, Some(0)))
-    assert(eval[Int]("(if (true) 0 else 0.toFloat32()).toInt()") == (TInt32, Some(0)))
+    assert(eval[Int]("(if (true) 0 else 0.toInt64()).toInt32()") == (TInt32, Some(0)))
+    assert(eval[Int]("(if (true) 0 else 0.toFloat32()).toInt32()") == (TInt32, Some(0)))
   }
 
   @Test def testRegistryTypeCheck() {
-    val expr = """let v = Variant("1:650000:A:T") and ref = v.ref and isHet = v.isAutosomal and s = "1" in s.toInt"""
+    val expr = """let v = Variant("1:650000:A:T") and ref = v.ref and isHet = v.isAutosomal and s = "1" in s.toInt32()"""
     val (t, f) = Parser.parseExpr(expr, EvalContext())
     assert(f().asInstanceOf[Int] == 1 && t == TInt32)
   }

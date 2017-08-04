@@ -76,7 +76,7 @@ class FilterSuite extends SparkSuite {
 
     assert(vds2.filterGenotypes("g.ad[0] < 30").expand().collect().count { case (v, va, g) => Genotype.isCalled(g) } == 3)
 
-    assert(vds2.filterGenotypes("g.ad[1].toFloat() / g.dp > 0.05")
+    assert(vds2.filterGenotypes("g.ad[1].toFloat64() / g.dp > 0.05")
       .expand().collect()
       .count { case (v, va, g) => Genotype.isCalled(g) } == 3)
 

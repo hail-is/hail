@@ -159,7 +159,7 @@ class IBDSuite extends SparkSuite {
   @Test def ibdPrune() {
     val vds = hc.baldingNicholsModel(1, 3, 5, seed = 0)
 
-    val prunedVDS = vds.ibdPrune(0.0, Some("if (s1.toInt < s2.toInt) 1 else if (s1.toInt == s2.toInt) 0 else -1"), bounded = true)
+    val prunedVDS = vds.ibdPrune(0.0, Some("if (s1.toInt32() < s2.toInt32()) 1 else if (s1.toInt32() == s2.toInt32()) 0 else -1"), bounded = true)
     assert(prunedVDS.sampleIds.length == 1)
     assert(prunedVDS.sampleIds(0) == "2")
 

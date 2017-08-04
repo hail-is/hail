@@ -132,7 +132,7 @@ class AnnotateSuite extends SparkSuite {
     }
     val kt1 = hc.importTable("src/test/resources/variantAnnotations.tsv",
       types = Map("Rand1" -> TFloat64, "Rand2" -> TFloat64))
-      .annotate("Variant = Variant(Chromosome, Position.toInt(), Ref, Alt)")
+      .annotate("Variant = Variant(Chromosome, Position.toInt32(), Ref, Alt)")
       .keyBy("Variant")
 
     val anno1 = vds.annotateVariantsTable(kt1,
@@ -156,7 +156,7 @@ class AnnotateSuite extends SparkSuite {
 
     val kt3 = hc.importTable("src/test/resources/variantAnnotations.split.*.tsv",
       types = Map("Rand1" -> TFloat64, "Rand2" -> TFloat64))
-      .annotate("v = Variant(Chromosome, Position.toInt(), Ref, Alt)")
+      .annotate("v = Variant(Chromosome, Position.toInt32(), Ref, Alt)")
       .keyBy("v")
     val anno1glob = vds.annotateVariantsTable(kt3,
       expr = "va.stuff = select(table, Rand1, Rand2, Gene)")
@@ -452,14 +452,14 @@ class AnnotateSuite extends SparkSuite {
 
     val kt = hc.importTable("src/test/resources/sample2_va_positions.tsv",
       types = Map("Rand1" -> TFloat64, "Rand2" -> TFloat64))
-      .annotate("loc = Locus(Chromosome, Position.toInt())")
+      .annotate("loc = Locus(Chromosome, Position.toInt32())")
       .keyBy("loc")
 
     val byPosition = vds.annotateVariantsTable(kt, expr = "va.stuff = select(table, Rand1, Rand2)")
 
     val kt2 = hc.importTable("src/test/resources/sample2_va_nomulti.tsv",
       types = Map("Rand1" -> TFloat64, "Rand2" -> TFloat64))
-      .annotate("v = Variant(Chromosome, Position.toInt(), Ref, Alt)")
+      .annotate("v = Variant(Chromosome, Position.toInt32(), Ref, Alt)")
       .keyBy("v")
     val byVariant = vds.annotateVariantsTable(kt2,
       expr = "va.stuff = select(table, Rand1, Rand2)")

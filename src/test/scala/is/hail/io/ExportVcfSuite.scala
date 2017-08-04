@@ -144,7 +144,7 @@ class ExportVcfSuite extends SparkSuite {
 
     val out2 = tmpDir.createTempFile("cast2", ".vcf")
     hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat()")
+      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat64()")
       .exportVCF(out2)
 
     intercept[HailException] {
