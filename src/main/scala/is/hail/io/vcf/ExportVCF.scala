@@ -231,7 +231,7 @@ object ExportVCF {
     }
   }
 
-  def apply[T >: Null](vkds: VariantSampleMatrix[Locus, Variant, T], path: String, append: Option[String] = None, exportPP: Boolean = false,
+  def apply[T >: Null](vkds: VariantSampleMatrix[Locus, Variant, T], path: String, append: Option[String] = None,
     parallel: Boolean = false) {
     val vas = vkds.vaSignature
 
@@ -239,10 +239,7 @@ object ExportVCF {
 
     val (genotypeFormatField, genotypeFieldOrder) = genotypeSignature match {
       case TGenotype =>
-        if (exportPP)
-          ("GT:AD:DP:GQ:PP", null)
-        else
-          ("GT:AD:DP:GQ:PL", null)
+        ("GT:AD:DP:GQ:PL", null)
 
       case sig: TStruct =>
         val fields = sig.fields
@@ -281,16 +278,8 @@ object ExportVCF {
 
       genotypeSignature match {
         case TGenotype =>
-          if (exportPP)
-            sb.append(
-              """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-              |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
-              |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-              |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-              |##FORMAT=<ID=PP,Number=G,Type=Integer,Description="Normalized, Phred-scaled posterior probabilities for genotypes as defined in the VCF specification">""".stripMargin)
-          else
-            sb.append(
-              """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+          sb.append(
+            """##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
               |##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
               |##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
               |##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
