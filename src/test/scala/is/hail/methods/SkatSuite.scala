@@ -232,6 +232,7 @@ class SkatSuite extends SparkSuite {
     var i = 0
 
     while(i < resultsArray.size){
+
       val qstat = rows(i).get(1).asInstanceOf[Double]
       val pval = rows(i).get(2).asInstanceOf[Double]
 
