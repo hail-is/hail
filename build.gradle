@@ -149,7 +149,7 @@ dependencies {
 
     compile 'org.apache.solr:solr-solrj:6.2.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
-    compile 'org.elasticsearch:elasticsearch-spark-20_2.11:6.0.0-alpha2'
+    compile 'org.elasticsearch:elasticsearch-spark-20_2.11:5.5.1'
 
     compile 'com.jayway.restassured:rest-assured:2.8.0'
 
