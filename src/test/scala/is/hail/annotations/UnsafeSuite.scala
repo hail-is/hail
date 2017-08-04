@@ -128,9 +128,9 @@ class UnsafeSuite extends SparkSuite {
     }
 
     val t1 = makeStruct( // missing byte is 0
-      TInt, //4-8
-      TInt, //8-12
-      TDouble, //16-24
+      TInt32, //4-8
+      TInt32, //8-12
+      TFloat64, //16-24
       TBoolean, //1-2
       TBoolean, //2-3
       TBoolean, //3-4
@@ -141,23 +141,23 @@ class UnsafeSuite extends SparkSuite {
 
     val t2 = makeStruct( //missing bytes 0, 1
       TBoolean, //2-3
-      TInt, //4-8
-      TInt, //8-12
-      TDouble, //16-24
-      TInt, //12-16
-      TInt, //24-28
-      TDouble, //32-40
-      TInt, //28-32
+      TInt32, //4-8
+      TInt32, //8-12
+      TFloat64, //16-24
+      TInt32, //12-16
+      TInt32, //24-28
+      TFloat64, //32-40
+      TInt32, //28-32
       TBoolean, //3-4
-      TDouble, //40-48
+      TFloat64, //40-48
       TBoolean) //48-49
 
     assert(t2.byteOffsets.toSeq == Seq(2, 4, 8, 16, 12, 24, 32, 28, 3, 40, 48))
     assert(t2.byteSize == 49)
 
-    val t3 = makeStruct((0 until 512).map(_ => TDouble): _*)
+    val t3 = makeStruct((0 until 512).map(_ => TFloat64): _*)
     assert(t3.byteSize == (512 / 8) + 512 * 8)
-    val t4 = makeStruct((0 until 256).flatMap(_ => Iterator(TInt, TInt, TDouble, TBoolean)): _*)
+    val t4 = makeStruct((0 until 256).flatMap(_ => Iterator(TInt32, TInt32, TFloat64, TBoolean)): _*)
     assert(t4.byteSize == 256 * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
   }
 

@@ -307,7 +307,7 @@ class HailContext private(val sc: SparkContext,
       VSMFileMetadata(samples,
         vaSignature = signature,
         genotypeSignature = TStruct("GT" -> TCall,
-          "GP" -> TArray(TDouble)),
+          "GP" -> TArray(TFloat64)),
         wasSplit = true),
       rdd)
   }
@@ -596,17 +596,17 @@ class HailContext private(val sc: SparkContext,
       "sa" -> TStruct(
         "cohort" -> TString,
         "covariates" -> TStruct(
-          "PC1" -> TDouble,
-          "PC2" -> TDouble,
-          "PC3" -> TDouble,
-          "age" -> TInt,
+          "PC1" -> TFloat64,
+          "PC2" -> TFloat64,
+          "PC3" -> TFloat64,
+          "age" -> TInt32,
           "isFemale" -> TBoolean
         )),
       "va" -> TStruct(
         "info" -> TStruct(
-          "AC" -> TArray(TInt),
-          "AN" -> TInt,
-          "AF" -> TArray(TDouble)),
+          "AC" -> TArray(TInt32),
+          "AN" -> TInt32,
+          "AF" -> TArray(TFloat64)),
         "transcripts" -> TArray(TStruct(
           "gene" -> TString,
           "isoform" -> TString,

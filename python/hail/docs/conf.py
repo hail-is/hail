@@ -100,7 +100,7 @@ hc = HailContext(log="output/hail.log", quiet=True)
 
 (hc.import_vcf('data/example_burden.vcf')
  .annotate_samples_table(hc.import_table('data/example_burden.tsv', 'Sample', impute=True), root='sa.burden')
- .annotate_variants_expr('va.weight = v.start.toDouble')
+ .annotate_variants_expr('va.weight = v.start.toFloat64()')
  .variant_qc()
  .annotate_variants_table(KeyTable.import_interval_list('data/genes.interval_list'), root='va.genes', product=True)
  .annotate_variants_table(KeyTable.import_interval_list('data/gene.interval_list'), root='va.gene', product=False)

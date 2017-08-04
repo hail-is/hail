@@ -47,7 +47,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
-    val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
+    val (vas2, insertIndex) = vds.vaSignature.insert(TInt32, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
     val localGlobalAnnotation = vds.globalAnnotation
 
@@ -242,7 +242,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       "patID" -> (TString, 2, formatID),
       "matID" -> (TString, 3, formatID),
       "isFemale" -> (TBoolean, 4, formatIsFemale),
-      "qPheno" -> (TDouble, 5, formatQPheno),
+      "qPheno" -> (TFloat64, 5, formatQPheno),
       "isCase" -> (TBoolean, 5, formatIsCase))
 
     val (names, types, f) = Parser.parseNamedExprs(famExpr, ec)

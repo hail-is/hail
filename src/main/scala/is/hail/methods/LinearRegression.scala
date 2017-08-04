@@ -11,13 +11,13 @@ import net.sourceforge.jdistlib.T
 
 object LinearRegression {
   def schema = TStruct(
-    ("nCompleteSamples", TInt),
-    ("AC", TDouble),
-    ("ytx", TArray(TDouble)),
-    ("beta", TArray(TDouble)),
-    ("se", TArray(TDouble)),
-    ("tstat", TArray(TDouble)),
-    ("pval", TArray(TDouble)))
+    ("nCompleteSamples", TInt32),
+    ("AC", TFloat64),
+    ("ytx", TArray(TFloat64)),
+    ("beta", TArray(TFloat64)),
+    ("se", TArray(TFloat64)),
+    ("tstat", TArray(TFloat64)),
+    ("pval", TArray(TFloat64)))
 
   def apply(vds: VariantDataset, ysExpr: Array[String], covExpr: Array[String], root: String, useDosages: Boolean, variantBlockSize: Int): VariantDataset = {
     require(vds.wasSplit)

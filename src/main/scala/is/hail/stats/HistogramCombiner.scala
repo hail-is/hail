@@ -7,10 +7,10 @@ import is.hail.expr._
 
 object HistogramCombiner {
   def schema: Type = TStruct(Array(
-    ("binEdges", TArray(TDouble), "Array of bin cutoffs"),
-    ("binFrequencies", TArray(TLong), "Number of elements that fall in each bin."),
-    ("nLess", TLong, "Number of elements less than the minimum bin"),
-    ("nGreater", TLong, "Number of elements greater than the maximum bin")
+    ("binEdges", TArray(TFloat64), "Array of bin cutoffs"),
+    ("binFrequencies", TArray(TInt64), "Number of elements that fall in each bin."),
+    ("nLess", TInt64, "Number of elements less than the minimum bin"),
+    ("nGreater", TInt64, "Number of elements greater than the maximum bin")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
 }
 

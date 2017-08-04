@@ -4,7 +4,7 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.expr.{TLong, TStruct}
+import is.hail.expr.{TInt64, TStruct}
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
@@ -144,12 +144,12 @@ class ExportVcfSuite extends SparkSuite {
 
     val out2 = tmpDir.createTempFile("cast2", ".vcf")
     hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat()")
+      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat64()")
       .exportVCF(out2)
 
     intercept[HailException] {
       val sb = new StringBuilder()
-      ExportVCF.strVCF(sb, TLong, 3147483647L)
+      ExportVCF.strVCF(sb, TInt64, 3147483647L)
     }
   }
 

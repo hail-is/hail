@@ -69,7 +69,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(bn_count[0], 10)
         self.assertEqual(bn_count[1], 100)
 
-        self.assertEqual(hc.eval_expr_typed('[1, 2, 3].map(x => x * 2)'), ([2, 4, 6], TArray(TInt())))
+        self.assertEqual(hc.eval_expr_typed('[1, 2, 3].map(x => x * 2)'), ([2, 4, 6], TArray(TInt32())))
         self.assertEqual(hc.eval_expr('[1, 2, 3].map(x => x * 2)'), [2, 4, 6])
 
         gds = hc.import_vcf(test_resources + '/sample.vcf.bgz', generic=True)
@@ -120,12 +120,12 @@ class ContextTests(unittest.TestCase):
              .count())
 
             loci_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
-                       .annotate('locus = Locus(chr, pos.toInt())').key_by('locus'))
+                       .annotate('locus = Locus(chr, pos.toInt32())').key_by('locus'))
             (dataset.annotate_variants_table(loci_tb, root='va.locus_annot')
              .count())
 
             variants_tb = (hc.import_table(test_resources + '/variantAnnotations.tsv')
-                           .annotate('variant = Variant(Chromosome, Position.toInt(), Ref, Alt)').key_by('variant'))
+                           .annotate('variant = Variant(Chromosome, Position.toInt32(), Ref, Alt)').key_by('variant'))
             (dataset.annotate_variants_table(variants_tb, root='va.table')
              .count())
 
@@ -142,13 +142,13 @@ class ContextTests(unittest.TestCase):
              .count()[0] == 56)
 
             locus_tb = (hc.import_table(test_resources + '/sample2_loci.tsv')
-                        .annotate('locus = Locus(chr, pos.toInt())')
+                        .annotate('locus = Locus(chr, pos.toInt32())')
                         .key_by('locus'))
 
             (dataset.annotate_variants_table(locus_tb, root='va.locus_annot').count())
 
             tb = (hc.import_table(test_resources + '/variantAnnotations.tsv')
-                  .annotate('variant = Variant(Chromosome, Position.toInt(), Ref, Alt)')
+                  .annotate('variant = Variant(Chromosome, Position.toInt32(), Ref, Alt)')
                   .key_by('variant'))
             (dataset.annotate_variants_table(tb, root='va.table').count())
 
@@ -316,10 +316,10 @@ class ContextTests(unittest.TestCase):
                          .count()[0], 200)
 
         cov = hc.import_table(test_resources + '/regressionLinear.cov',
-                                 types={'Cov1': TDouble(), 'Cov2': TDouble()}).key_by('Sample')
+                              types={'Cov1': TFloat64(), 'Cov2': TFloat64()}).key_by('Sample')
 
         phen1 = hc.import_table(test_resources + '/regressionLinear.pheno', missing='0',
-                                   types={'Pheno': TDouble()}).key_by('Sample')
+                                types={'Pheno': TFloat64()}).key_by('Sample')
         phen2 = hc.import_table(test_resources + '/regressionLogisticBoolean.pheno', missing='0',
                                    types={'isCase': TBoolean()}).key_by('Sample')
 
@@ -488,7 +488,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(kt.same(kt3))
 
         # test order_by
-        schema = TStruct(['a', 'b'], [TInt(), TString()])
+        schema = TStruct(['a', 'b'], [TInt32(), TString()])
         rows = [{'a': 5},
                 {'a': 5, 'b': 'quam'},
                 {'a': -1, 'b': 'quam'},
@@ -695,23 +695,23 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(c_nocall.is_het_ref())
 
     def test_types(self):
-        self.assertEqual(TInt(), TInt())
-        self.assertEqual(TDouble(), TDouble())
-        self.assertEqual(TArray(TDouble()), TArray(TDouble()))
-        self.assertFalse(TArray(TDouble()) == TArray(TFloat()))
-        self.assertFalse(TSet(TDouble()) == TArray(TFloat()))
-        self.assertEqual(TSet(TDouble()), TSet(TDouble()))
-        self.assertEqual(TDict(TString(), TArray(TInt())), TDict(TString(), TArray(TInt())))
+        self.assertEqual(TInt32(), TInt32())
+        self.assertEqual(TFloat64(), TFloat64())
+        self.assertEqual(TArray(TFloat64()), TArray(TFloat64()))
+        self.assertNotEqual(TArray(TFloat64()), TArray(TFloat32()))
+        self.assertNotEqual(TSet(TFloat64()), TArray(TFloat64()))
+        self.assertEqual(TSet(TFloat64()), TSet(TFloat64()))
+        self.assertEqual(TDict(TString(), TArray(TInt32())), TDict(TString(), TArray(TInt32())))
 
         some_random_types = [
-            TInt(),
+            TInt32(),
             TString(),
-            TDouble(),
-            TFloat(),
+            TFloat32(),
+            TFloat64(),
             TBoolean(),
             TArray(TString()),
             TSet(TArray(TSet(TBoolean()))),
-            TDict(TString(), TInt()),
+            TDict(TString(), TInt32()),
             TVariant(),
             TLocus(),
             TGenotype(),
@@ -719,20 +719,20 @@ class ContextTests(unittest.TestCase):
             TAltAllele(),
             TInterval(),
             TSet(TInterval()),
-            TStruct(['a', 'b', 'c'], [TInt(), TInt(), TArray(TString())]),
-            TStruct(['a', 'bb', 'c'], [TDouble(), TInt(), TBoolean()]),
-            TStruct(['a', 'b'], [TInt(), TInt()])]
+            TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
+            TStruct(['a', 'bb', 'c'], [TFloat64(), TInt32(), TBoolean()]),
+            TStruct(['a', 'b'], [TInt32(), TInt32()])]
 
         #  copy and reinitialize to check that two initializations produce equality (not reference equality)
         some_random_types_cp = [
-            TInt(),
+            TInt32(),
             TString(),
-            TDouble(),
-            TFloat(),
+            TFloat32(),
+            TFloat64(),
             TBoolean(),
             TArray(TString()),
             TSet(TArray(TSet(TBoolean()))),
-            TDict(TString(), TInt()),
+            TDict(TString(), TInt32()),
             TVariant(),
             TLocus(),
             TGenotype(),
@@ -740,9 +740,9 @@ class ContextTests(unittest.TestCase):
             TAltAllele(),
             TInterval(),
             TSet(TInterval()),
-            TStruct(['a', 'b', 'c'], [TInt(), TInt(), TArray(TString())]),
-            TStruct(['a', 'bb', 'c'], [TDouble(), TInt(), TBoolean()]),
-            TStruct(['a', 'b'], [TInt(), TInt()])]
+            TStruct(['a', 'b', 'c'], [TInt32(), TInt32(), TArray(TString())]),
+            TStruct(['a', 'bb', 'c'], [TFloat64(), TInt32(), TBoolean()]),
+            TStruct(['a', 'b'], [TInt32(), TInt32()])]
 
         for i in range(len(some_random_types)):
             for j in range(len(some_random_types)):
@@ -763,26 +763,26 @@ class ContextTests(unittest.TestCase):
 
         i1 = 5
         i2 = None
-        itype = TInt()
+        itype = TInt32()
         self.assertEqual(vds.annotate_global(path, i1, itype).globals.annotation, i1)
         self.assertEqual(vds.annotate_global(path, i2, itype).globals.annotation, i2)
 
         l1 = 5L
         l2 = None
-        ltype = TLong()
+        ltype = TInt64()
         self.assertEqual(vds.annotate_global(path, l1, ltype).globals.annotation, l1)
         self.assertEqual(vds.annotate_global(path, l2, ltype).globals.annotation, l2)
 
-        # FIXME add these back in when we update py4j, or rip out TFloat altogether.
+        # FIXME add these back in when we update py4j
         # f1 = float(5)
         # f2 = None
-        # ftype = TFloat()
+        # ftype = TFloat32()
         # self.assertEqual(vds.annotate_global_py(path, f1, ftype).globals.annotation, f1)
         # self.assertEqual(vds.annotate_global_py(path, f2, ftype).globals.annotation, f2)
 
         d1 = float(5)
         d2 = None
-        dtype = TDouble()
+        dtype = TFloat64()
         self.assertEqual(vds.annotate_global(path, d1, dtype).globals.annotation, d1)
         self.assertEqual(vds.annotate_global(path, d2, dtype).globals.annotation, d2)
 
@@ -796,7 +796,7 @@ class ContextTests(unittest.TestCase):
         arr2 = [1, 2, None, 4]
         arr3 = None
         arr4 = []
-        arrtype = TArray(TInt())
+        arrtype = TArray(TInt32())
         self.assertEqual(vds.annotate_global(path, arr1, arrtype).globals.annotation, arr1)
         self.assertEqual(vds.annotate_global(path, arr2, arrtype).globals.annotation, arr2)
         self.assertEqual(vds.annotate_global(path, arr3, arrtype).globals.annotation, arr3)
@@ -806,7 +806,7 @@ class ContextTests(unittest.TestCase):
         set2 = {1, 2, None, 4}
         set3 = None
         set4 = set()
-        settype = TSet(TInt())
+        settype = TSet(TInt32())
         self.assertEqual(vds.annotate_global(path, set1, settype).globals.annotation, set1)
         self.assertEqual(vds.annotate_global(path, set2, settype).globals.annotation, set2)
         self.assertEqual(vds.annotate_global(path, set3, settype).globals.annotation, set3)
@@ -826,7 +826,7 @@ class ContextTests(unittest.TestCase):
         map6 = None
         map7 = dict()
         map8 = {Locus("1", 100): None, Locus("5", 205): 100}
-        maptype2 = TDict(TLocus(), TInt())
+        maptype2 = TDict(TLocus(), TInt32())
         self.assertEqual(vds.annotate_global(path, map5, maptype2).globals.annotation, map5)
         self.assertEqual(vds.annotate_global(path, map6, maptype2).globals.annotation, map6)
         self.assertEqual(vds.annotate_global(path, map7, maptype2).globals.annotation, map7)
@@ -835,7 +835,7 @@ class ContextTests(unittest.TestCase):
         struct1 = Struct({'field1': 5, 'field2': 10, 'field3': [1, 2]})
         struct2 = Struct({'field1': 5, 'field2': None, 'field3': None})
         struct3 = None
-        structtype = TStruct(['field1', 'field2', 'field3'], [TInt(), TInt(), TArray(TInt())])
+        structtype = TStruct(['field1', 'field2', 'field3'], [TInt32(), TInt32(), TArray(TInt32())])
         self.assertEqual(vds.annotate_global(path, struct1, structtype).globals.annotation, struct1)
         self.assertEqual(vds.annotate_global(path, struct2, structtype).globals.annotation, struct2)
         self.assertEqual(vds.annotate_global(path, struct3, structtype).globals.annotation, struct3)

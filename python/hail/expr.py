@@ -92,9 +92,9 @@ class SingletonType(Singleton, abc.ABCMeta):
     pass
 
 
-class TInt(Type):
+class TInt32(Type):
     """
-    Hail type corresponding to 32-bit integers
+    Hail type corresponding to 32-bit integers.
 
     .. include:: hailType.rst
 
@@ -105,7 +105,7 @@ class TInt(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TInt, self).__init__(scala_object(Env.hail().expr, 'TInt'))
+        super(TInt32, self).__init__(scala_object(Env.hail().expr, 'TInt32'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -118,12 +118,12 @@ class TInt(Type):
 
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, int):
-            raise TypeCheckError("TInt expected type 'int', but found type '%s'" % type(annotation))
+            raise TypeCheckError("TInt32 expected type 'int', but found type '%s'" % type(annotation))
 
 
-class TLong(Type):
+class TInt64(Type):
     """
-    Hail type corresponding to 64-bit integers
+    Hail type corresponding to 64-bit integers.
 
     .. include:: hailType.rst
 
@@ -134,7 +134,7 @@ class TLong(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TLong, self).__init__(scala_object(Env.hail().expr, 'TLong'))
+        super(TInt64, self).__init__(scala_object(Env.hail().expr, 'TInt64'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -147,12 +147,12 @@ class TLong(Type):
 
     def _typecheck(self, annotation):
         if annotation and not (isinstance(annotation, long) or isinstance(annotation, int)):
-            raise TypeCheckError("TLong expected type 'int' or 'long', but found type '%s'" % type(annotation))
+            raise TypeCheckError("TInt64 expected type 'int' or 'long', but found type '%s'" % type(annotation))
 
 
-class TFloat(Type):
+class TFloat32(Type):
     """
-    Hail type corresponding to 32-bit floating point numbers
+    Hail type for 32-bit floating point numbers.
 
     .. include:: hailType.rst
 
@@ -163,7 +163,7 @@ class TFloat(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TFloat, self).__init__(scala_object(Env.hail().expr, 'TFloat'))
+        super(TFloat32, self).__init__(scala_object(Env.hail().expr, 'TFloat32'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -175,16 +175,16 @@ class TFloat(Type):
         #     return annotation
 
         # FIXME: This function is unsupported until py4j-0.10.4: https://github.com/bartdag/py4j/issues/255
-        raise NotImplementedError('TFloat is currently unsupported in certain operations, use TDouble instead')
+        raise NotImplementedError('TFloat32 is currently unsupported in certain operations, use TFloat64 instead')
 
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, float):
-            raise TypeCheckError("TDouble expected type 'float', but found type '%s'" % type(annotation))
+            raise TypeCheckError("TFloat32 expected type 'float', but found type '%s'" % type(annotation))
 
 
-class TDouble(Type):
+class TFloat64(Type):
     """
-    Hail type corresponding to 64-bit floating point numbers (python default)
+    Hail type for 64-bit floating point numbers.
 
     .. include:: hailType.rst
 
@@ -195,7 +195,7 @@ class TDouble(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TDouble, self).__init__(scala_object(Env.hail().expr, 'TDouble'))
+        super(TFloat64, self).__init__(scala_object(Env.hail().expr, 'TFloat64'))
 
     def _convert_to_py(self, annotation):
         return annotation
@@ -208,12 +208,12 @@ class TDouble(Type):
 
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, float):
-            raise TypeCheckError("TDouble expected type 'float', but found type '%s'" % type(annotation))
+            raise TypeCheckError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
 
 
 class TString(Type):
     """
-    Hail type corresponding to str
+    Hail type corresponding to str.
 
     .. include:: hailType.rst
 
@@ -239,7 +239,7 @@ class TString(Type):
 
 class TBoolean(Type):
     """
-    Hail type corresponding to bool
+    Hail type corresponding to bool.
 
     .. include:: hailType.rst
 
@@ -265,7 +265,7 @@ class TBoolean(Type):
 
 class TArray(Type):
     """
-    Hail type corresponding to list
+    Hail type corresponding to list.
 
     .. include:: hailType.rst
 
@@ -319,7 +319,7 @@ class TArray(Type):
 
 class TSet(Type):
     """
-    Hail type corresponding to set
+    Hail type corresponding to set.
 
     .. include:: hailType.rst
 
@@ -373,7 +373,7 @@ class TSet(Type):
 
 class TDict(Type):
     """
-    Hail type corresponding to dict
+    Hail type corresponding to dict.
 
     .. include:: hailType.rst
 
@@ -454,7 +454,7 @@ class Field(object):
 
 class TStruct(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Struct`
+    Hail type corresponding to :class:`hail.representation.Struct`.
 
     .. include:: hailType.rst
 
@@ -526,7 +526,7 @@ class TStruct(Type):
 
 class TVariant(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Variant`
+    Hail type corresponding to :class:`hail.representation.Variant`.
 
     .. include:: hailType.rst
 
@@ -559,7 +559,7 @@ class TVariant(Type):
 
 class TAltAllele(Type):
     """
-    Hail type corresponding to :class:`hail.representation.AltAllele`
+    Hail type corresponding to :class:`hail.representation.AltAllele`.
 
     .. include:: hailType.rst
 
@@ -592,7 +592,7 @@ class TAltAllele(Type):
 
 class TGenotype(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Genotype`
+    Hail type corresponding to :class:`hail.representation.Genotype`.
 
     .. include:: hailType.rst
 
@@ -625,7 +625,7 @@ class TGenotype(Type):
 
 class TCall(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Call`
+    Hail type corresponding to :class:`hail.representation.Call`.
 
     .. include:: hailType.rst
 
@@ -658,7 +658,7 @@ class TCall(Type):
 
 class TLocus(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Locus`
+    Hail type corresponding to :class:`hail.representation.Locus`.
 
     .. include:: hailType.rst
 
@@ -691,7 +691,7 @@ class TLocus(Type):
 
 class TInterval(Type):
     """
-    Hail type corresponding to :class:`hail.representation.Interval`
+    Hail type corresponding to :class:`hail.representation.Interval`.
 
     .. include:: hailType.rst
 
@@ -722,10 +722,10 @@ class TInterval(Type):
                                  type(annotation))
 
 
-__singletons__ = {'is.hail.expr.TInt$': TInt,
-                  'is.hail.expr.TLong$': TLong,
-                  'is.hail.expr.TFloat$': TFloat,
-                  'is.hail.expr.TDouble$': TDouble,
+__singletons__ = {'is.hail.expr.TInt32$': TInt32,
+                  'is.hail.expr.TInt64$': TInt64,
+                  'is.hail.expr.TFloat32$': TFloat32,
+                  'is.hail.expr.TFloat64$': TFloat64,
                   'is.hail.expr.TBoolean$': TBoolean,
                   'is.hail.expr.TString$': TString,
                   'is.hail.expr.TVariant$': TVariant,
@@ -738,6 +738,7 @@ __singletons__ = {'is.hail.expr.TInt$': TInt,
 import pprint
 
 _old_printer = pprint.PrettyPrinter
+
 
 class TypePrettyPrinter(pprint.PrettyPrinter):
     def _format(self, object, stream, indent, allowance, context, level):

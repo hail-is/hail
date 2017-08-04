@@ -35,7 +35,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Int - info.DP
     val dpQuery = vas.query("info", "DP")
     assert(vas.fieldOption("info", "DP").exists(f =>
-      f.typ == TInt
+      f.typ == TInt32
         && f.attrs == Map("Type" -> "Integer",
         "Number" -> "1",
         "Description" -> "Approximate read depth; some reads may have been filtered")))
@@ -45,7 +45,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Double - info.HWP
     val hwpQuery = vas.query("info", "HWP")
     assert(vas.fieldOption("info", "HWP").exists(f =>
-      f.typ == TDouble
+      f.typ == TFloat64
         && f.attrs == Map("Type" -> "Float",
         "Number" -> "1",
         "Description" -> "P value from test of Hardy Weinberg Equilibrium")))
@@ -65,7 +65,7 @@ class AnnotationsSuite extends SparkSuite {
     // type Array - info.AC (allele count)
     val acQuery = vas.query("info", "AC")
     assert(vas.fieldOption("info", "AC").exists(f =>
-      f.typ == TArray(TInt) &&
+      f.typ == TArray(TInt32) &&
         f.attrs == Map("Number" -> "A",
           "Type" -> "Integer",
           "Description" -> "Allele count in genotypes, for each ALT allele, in the same order as listed")))
@@ -158,7 +158,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // add to the first layer
     val toAdd = 5
-    val toAddSig = TInt
+    val toAddSig = TInt32
     val (s1, i1) = vds.vaSignature.insert(toAddSig, "I1")
     vds = vds.mapAnnotations((v, va, gs) => i1(va, toAdd))
       .copy(vaSignature = s1)
@@ -188,8 +188,8 @@ class AnnotationsSuite extends SparkSuite {
 
     // overwrite I1 with a row in the second layer
     val toAdd3 = Annotation(1, 3)
-    val toAdd3Sig = TStruct("I2" -> TInt,
-      "I3" -> TInt)
+    val toAdd3Sig = TStruct("I2" -> TInt32,
+      "I3" -> TInt32)
     val (s3, i3) = vds.vaSignature.insert(toAdd3Sig, "I1")
     vds = vds.mapAnnotations((v, va, gs) => i3(va, toAdd3))
       .copy(vaSignature = s3)
@@ -398,7 +398,7 @@ class AnnotationsSuite extends SparkSuite {
       .splitMulti()
 
     val f = tmpDir.createTempFile("testwrite", extension = ".vds")
-    val (newS, ins) = vds.insertVA(TInt, "ThisName(won'twork)=====")
+    val (newS, ins) = vds.insertVA(TInt32, "ThisName(won'twork)=====")
     vds = vds.mapAnnotations((v, va, gs) => ins(va, 5))
       .copy(vaSignature = newS)
     vds.write(f)

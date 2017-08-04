@@ -28,26 +28,26 @@ object SampleQCCombiner {
     "rHetHomVar\t" +
     "rInsertionDeletion"
 
-  val signature = TStruct("callRate" -> TDouble,
-    "nCalled" -> TInt,
-    "nNotCalled" -> TInt,
-    "nHomRef" -> TInt,
-    "nHet" -> TInt,
-    "nHomVar" -> TInt,
-    "nSNP" -> TInt,
-    "nInsertion" -> TInt,
-    "nDeletion" -> TInt,
-    "nSingleton" -> TInt,
-    "nTransition" -> TInt,
-    "nTransversion" -> TInt,
-    "dpMean" -> TDouble,
-    "dpStDev" -> TDouble,
-    "gqMean" -> TDouble,
-    "gqStDev" -> TDouble,
-    "nNonRef" -> TInt,
-    "rTiTv" -> TDouble,
-    "rHetHomVar" -> TDouble,
-    "rInsertionDeletion" -> TDouble)
+  val signature = TStruct("callRate" -> TFloat64,
+    "nCalled" -> TInt32,
+    "nNotCalled" -> TInt32,
+    "nHomRef" -> TInt32,
+    "nHet" -> TInt32,
+    "nHomVar" -> TInt32,
+    "nSNP" -> TInt32,
+    "nInsertion" -> TInt32,
+    "nDeletion" -> TInt32,
+    "nSingleton" -> TInt32,
+    "nTransition" -> TInt32,
+    "nTransversion" -> TInt32,
+    "dpMean" -> TFloat64,
+    "dpStDev" -> TFloat64,
+    "gqMean" -> TFloat64,
+    "gqStDev" -> TFloat64,
+    "nNonRef" -> TInt32,
+    "rTiTv" -> TFloat64,
+    "rHetHomVar" -> TFloat64,
+    "rInsertionDeletion" -> TFloat64)
 }
 
 class SampleQCCombiner(val keepStar: Boolean) extends Serializable {

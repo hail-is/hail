@@ -87,8 +87,8 @@ object LoadVCF {
     val isCall = genericGenotypes && (id == "GT" || callFields.contains(id))
 
     val baseType = (line.getType, isCall) match {
-      case (VCFHeaderLineType.Integer, false) => TInt
-      case (VCFHeaderLineType.Float, false) => TDouble
+      case (VCFHeaderLineType.Integer, false) => TInt32
+      case (VCFHeaderLineType.Float, false) => TFloat64
       case (VCFHeaderLineType.String, true) => TCall
       case (VCFHeaderLineType.String, false) => TString
       case (VCFHeaderLineType.Character, false) => TString
@@ -166,7 +166,7 @@ object LoadVCF {
     val variantAnnotationSignatures = TStruct(
       Array(
         Some(Field("rsid", TString, 0)),
-        Some(Field("qual", TDouble, 1)),
+        Some(Field("qual", TFloat64, 1)),
         Some(Field("filters", TSet(TString), 2, filters)),
         infoSignature.map(sig => Field("info", sig, 3))
       ).flatten)

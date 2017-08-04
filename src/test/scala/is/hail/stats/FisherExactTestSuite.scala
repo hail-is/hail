@@ -109,7 +109,7 @@ class FisherExactTestSuite extends SparkSuite {
             """va.majControl = gs.filter(g => sa.pheno == "Control" && g.isHet()).count() +
               |2 * gs.filter(g => sa.pheno == "ADHD" && g.isHomRef()).count()""".stripMargin)
           .annotateVariantsExpr(
-            """va.fet = fet(va.macCase.toInt(), va.majCase.toInt(), va.macControl.toInt(), va.majControl.toInt())""")
+            """va.fet = fet(va.macCase.toInt32(), va.majCase.toInt32(), va.macControl.toInt32(), va.majControl.toInt32())""")
 
 
         val (_, q1) = vds2.queryVA("va.macCase")

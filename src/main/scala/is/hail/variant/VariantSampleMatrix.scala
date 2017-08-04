@@ -533,7 +533,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
 
     if (product) {
-      joinSignature = if (joinSignature == TBoolean) TInt else TArray(joinSignature)
+      joinSignature = if (joinSignature == TBoolean) TInt32 else TArray(joinSignature)
       f = if (kt.valueSignature.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
       else {
@@ -665,7 +665,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
 
     if (product) {
-      joinSignature = if (joinSignature == TBoolean) TInt else TArray(joinSignature)
+      joinSignature = if (joinSignature == TBoolean) TInt32 else TArray(joinSignature)
       f = if (kt.valueSignature.size == 0)
         _.asInstanceOf[IndexedSeq[_]].length
       else {
