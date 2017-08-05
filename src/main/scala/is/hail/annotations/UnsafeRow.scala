@@ -1,79 +1,243 @@
 package is.hail.annotations
 
+import java.lang.reflect.Constructor
+
 import is.hail.expr._
-import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import is.hail.utils.Interval
+import is.hail.variant.{AltAllele, GenericGenotype, Genotype, Locus, Variant}
+import org.apache.spark.SparkContext
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
-class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: Int) extends Row {
+import scala.reflect.ClassTag
+import scala.reflect.classTag
 
-  def length: Int = t.size
+object BroadcastTypeTree {
+  private val bcConstructor: Constructor[_] = {
+    val torr = Class.forName("org.apache.spark.broadcast.TorrentBroadcast")
+    torr.getDeclaredConstructor(classOf[AnyRef], classOf[Long], classOf[ClassTag[_]])
+  }
 
-  private def readBinary(offset: Int): Array[Byte] = {
-    val start = mb.loadInt(offset)
+  private val m = new java.util.HashMap[Long, Broadcast[TypeTree]]
+
+  def lookupBroadcast(id: Long): Broadcast[TypeTree] = {
+    if (m.containsKey(id))
+      m.get(id)
+    else {
+      val tbc = bcConstructor.newInstance(
+        null: AnyRef,
+        id: java.lang.Long,
+        classTag[TypeTree]).asInstanceOf[Broadcast[TypeTree]]
+      assert(tbc.value != null)
+      m.put(id, tbc)
+      tbc
+    }
+  }
+
+  def apply(sc: SparkContext, tt: TypeTree): BroadcastTypeTree = {
+    val bc = sc.broadcast(tt)
+    new BroadcastTypeTree(bc, bc.id)
+  }
+
+  def apply(sc: SparkContext, t: Type): BroadcastTypeTree = {
+    t match {
+      case TStruct(fields) =>
+        BroadcastTypeTree(sc,
+          new TypeTree(t,
+            fields.map { f =>
+              BroadcastTypeTree(sc, f.typ)
+            }.toArray))
+
+      case t: TContainer =>
+        BroadcastTypeTree(sc,
+          new TypeTree(t, Array(BroadcastTypeTree(sc, t.elementType))))
+
+      case _ => null
+    }
+  }
+}
+
+class BroadcastTypeTree(@transient var bc: Broadcast[TypeTree],
+  id: Long) extends Serializable {
+  def value: TypeTree = {
+    if (bc == null)
+      bc = BroadcastTypeTree.lookupBroadcast(id)
+    bc.value
+  }
+}
+
+class TypeTree(val typ: Type,
+  subtrees: Array[BroadcastTypeTree]) {
+  def subtree(i: Int): BroadcastTypeTree = subtrees(i)
+}
+
+class UnsafeIndexedSeqAnnotation(region: MemoryBuffer,
+  arrayTTBc: BroadcastTypeTree,
+  elemSize: Int, offset: Int, elemOffset: Int,
+  val length: Int) extends IndexedSeq[Annotation] {
+  def apply(i: Int): Annotation = {
+    assert(i >= 0 && i < length)
+    if (region.loadBit(offset + 4, i))
+      null
+    else
+      UnsafeRow.read(region, elemOffset + i * elemSize,
+        arrayTTBc.value.typ.asInstanceOf[TContainer].elementType,
+        arrayTTBc.value.subtree(0))
+  }
+}
+
+object UnsafeRow {
+  def readBinary(region: MemoryBuffer, offset: Int): Array[Byte] = {
+    val start = region.loadInt(offset)
     assert(offset > 0 && (offset & 0x3) == 0, s"invalid binary start: $offset")
-    val binLength = mb.loadInt(start)
-    val b = mb.loadBytes(start + 4, binLength)
+    val binLength = region.loadInt(start)
+    val b = region.loadBytes(start + 4, binLength)
 
     b
   }
 
-  private def readArray(offset: Int, t: Type): IndexedSeq[Any] = {
-    val start = mb.loadInt(offset)
+  def readArray(region: MemoryBuffer, offset: Int, elemType: Type, arrayTTBc: BroadcastTypeTree): IndexedSeq[Any] = {
+    val aoff = region.loadInt(offset)
 
-    assert(start > 0 && (start & 0x3) == 0, s"invalid array start: $offset")
+    val length = region.loadInt(aoff)
+    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemSize = UnsafeUtils.arrayElementSize(elemType)
 
-    val arrLength = mb.loadInt(start)
-    val missingBytes = (arrLength + 7) / 8
-    val elemsStart = UnsafeUtils.roundUpAlignment(start + 4 + missingBytes, t.alignment)
-    val eltSize = UnsafeUtils.arrayElementSize(t)
+    new UnsafeIndexedSeqAnnotation(region, arrayTTBc, elemSize, aoff, elemOffset, length)
+  }
 
-    val a = new Array[Any](arrLength)
+  def readStruct(region: MemoryBuffer, offset: Int, ttBc: BroadcastTypeTree): UnsafeRow = {
+    new UnsafeRow(ttBc, region, offset)
+  }
 
+  def readString(region: MemoryBuffer, offset: Int): String =
+    new String(readBinary(region, offset))
+
+  def readLocus(region: MemoryBuffer, offset: Int): Locus = {
+    val repr = TLocus.representation
+    Locus(
+      readString(region, offset + repr.byteOffsets(0)),
+      region.loadInt(offset + repr.byteOffsets(1)))
+  }
+
+  def readAltAllele(region: MemoryBuffer, offset: Int): AltAllele = {
+    val repr = TAltAllele.representation
+    AltAllele(
+      readString(region, offset + repr.byteOffsets(0)),
+      readString(region, offset + repr.byteOffsets(1)))
+  }
+
+  def readArrayAltAllele(region: MemoryBuffer, offset: Int): Array[AltAllele] = {
+    val elemType = TAltAllele
+
+    val aoff = region.loadInt(offset)
+
+    val length = region.loadInt(aoff)
+    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemSize = UnsafeUtils.arrayElementSize(elemType)
+
+    val a = new Array[AltAllele](length)
     var i = 0
-    while (i < arrLength) {
-
-      val byteIndex = i / 8
-      val bitShift = i & 0x7
-      val missingByte = mb.loadByte(start + 4 + byteIndex)
-      val isMissing = (missingByte & (0x1 << bitShift)) != 0
-
-      if (!isMissing)
-        a(i) = read(elemsStart + i * eltSize, t)
-
+    while (i < length) {
+      a(i) = readAltAllele(region, elemOffset + i * elemSize)
       i += 1
     }
-
     a
   }
 
-  private def readStruct(offset: Int, t: TStruct): UnsafeRow = {
-    new UnsafeRow(t, mb, offset)
+  def readArrayInt(region: MemoryBuffer, offset: Int): Array[Int] = {
+    val elemType = TInt32
+
+    val aoff = region.loadInt(offset)
+
+    val length = region.loadInt(aoff)
+    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemSize = UnsafeUtils.arrayElementSize(elemType)
+
+    val a = new Array[Int](length)
+    var i = 0
+    while (i < length) {
+      a(i) = region.loadInt(elemOffset + i * elemSize)
+      i += 1
+    }
+    a
   }
 
-  private def read(offset: Int, t: Type): Any = {
+  def read(region: MemoryBuffer, offset: Int, t: Type, ttBc: BroadcastTypeTree): Any = {
     t match {
       case TBoolean =>
-        val b = mb.loadByte(offset)
+        val b = region.loadByte(offset)
         assert(b == 0 || b == 1, s"invalid boolean byte $b from offset $offset")
         b == 1
-      case TInt32 | TCall => mb.loadInt(offset)
-      case TInt64 => mb.loadLong(offset)
-      case TFloat32 => mb.loadFloat(offset)
-      case TFloat64 => mb.loadDouble(offset)
-      case TArray(elementType) => readArray(offset, elementType)
-      case TSet(elementType) => readArray(offset, elementType).toSet
-      case TString => new String(readBinary(offset))
+      case TInt32 | TCall => region.loadInt(offset)
+      case TInt64 => region.loadLong(offset)
+      case TFloat32 => region.loadFloat(offset)
+      case TFloat64 => region.loadDouble(offset)
+      case TArray(elementType) =>
+        readArray(region, offset, elementType, ttBc)
+      case TSet(elementType) =>
+        readArray(region, offset, elementType, ttBc).toSet
+      case TString => readString(region, offset)
       case td: TDict =>
-        readArray(offset, td.elementType).asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
+        readArray(region, offset, td.elementType, ttBc).asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
       case struct: TStruct =>
-        readStruct(offset, struct)
-      case TVariant => Variant.fromRow(readStruct(offset, TVariant.representation))
-      case TLocus => Locus.fromRow(readStruct(offset, TLocus.representation))
-      case TAltAllele => AltAllele.fromRow(readStruct(offset, TAltAllele.representation))
-      case TGenotype => Genotype.fromRow(readStruct(offset, TGenotype.representation))
-      case TInterval => Locus.intervalFromRow(readStruct(offset, TInterval.representation))
+        readStruct(region, offset, ttBc)
+
+      case TVariant =>
+        val repr = TVariant.representation
+        Variant(
+          readString(region, offset + repr.byteOffsets(0)),
+          region.loadInt(offset + repr.byteOffsets(1)),
+          readString(region, offset + repr.byteOffsets(2)),
+          readArrayAltAllele(region, offset + repr.byteOffsets(3)))
+      case TLocus => readLocus(region, offset)
+      case TAltAllele => readAltAllele(region, offset)
+      case TInterval =>
+        val repr = TInterval.representation
+        Interval[Locus](
+          readLocus(region, offset + repr.byteOffsets(0)),
+          readLocus(region, offset + repr.byteOffsets(1)))
+      case TGenotype =>
+        val repr = TGenotype.representation
+        val gt: Int =
+          if (region.loadBit(offset, 0))
+            -1
+          else
+            region.loadInt(offset + repr.byteOffsets(0))
+        val ad =
+          if (region.loadBit(offset, 1))
+            null
+          else
+            readArrayInt(region, offset + repr.byteOffsets(1))
+        val dp: Int =
+          if (region.loadBit(offset, 2))
+            -1
+          else
+            region.loadInt(offset + repr.byteOffsets(2))
+        val gq: Int =
+          if (region.loadBit(offset, 3))
+            -1
+          else
+            region.loadInt(offset + repr.byteOffsets(3))
+        val px =
+          if (region.loadBit(offset, 4))
+            null
+          else
+            readArrayInt(region, offset + repr.byteOffsets(4))
+        val fakeRef = region.loadByte(offset + repr.byteOffsets(5)) != 0
+        val isLinearScale = region.loadByte(offset + repr.byteOffsets(6)) != 0
+
+        new GenericGenotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
     }
   }
+}
+
+class UnsafeRow(val ttBc: BroadcastTypeTree,
+  val region: MemoryBuffer, var offset: Int) extends Row {
+
+  def t: TStruct = ttBc.value.typ.asInstanceOf[TStruct]
+
+  def length: Int = t.size
 
   private def assertDefined(i: Int) {
     if (isNullAt(i))
@@ -81,54 +245,47 @@ class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: In
   }
 
   def get(i: Int): Any = {
-    val offset = t.byteOffsets(i)
     if (isNullAt(i))
       null
     else
-      read(mbOffset + offset, t.fields(i).typ)
+      UnsafeRow.read(region, offset + t.byteOffsets(i), t.fields(i).typ, ttBc.value.subtree(i))
   }
 
-  def copy(): Row = new UnsafeRow(t, mb.copy(), mbOffset)
+  def copy(): Row = new UnsafeRow(ttBc, region, offset)
 
   override def getInt(i: Int): Int = {
     assertDefined(i)
-    val offset = t.byteOffsets(i)
-    mb.loadInt(mbOffset + offset)
+    region.loadInt(offset + t.byteOffsets(i))
   }
 
   override def getLong(i: Int): Long = {
     assertDefined(i)
-    val offset = t.byteOffsets(i)
-    mb.loadLong(mbOffset + offset)
+    region.loadLong(offset + t.byteOffsets(i))
   }
 
   override def getFloat(i: Int): Float = {
     assertDefined(i)
-    val offset = t.byteOffsets(i)
-    mb.loadFloat(mbOffset + offset)
+    region.loadFloat(offset + t.byteOffsets(i))
   }
 
   override def getDouble(i: Int): Double = {
     assertDefined(i)
-    val offset = t.byteOffsets(i)
-    mb.loadDouble(mbOffset + offset)
+    region.loadDouble(offset + t.byteOffsets(i))
   }
 
   override def getBoolean(i: Int): Boolean = {
+    assertDefined(i)
     getByte(i) == 1
   }
 
   override def getByte(i: Int): Byte = {
     assertDefined(i)
-    val offset = t.byteOffsets(i)
-    mb.loadByte(mbOffset + offset)
+    region.loadByte(offset + t.byteOffsets(i))
   }
 
   override def isNullAt(i: Int): Boolean = {
     if (i < 0 || i >= t.size)
       throw new IndexOutOfBoundsException(i.toString)
-    val byteIndex = i / 8
-    val bitShift = i & 0x7
-    (mb.loadByte(mbOffset + byteIndex) & (0x1 << bitShift)) != 0
+    region.loadBit(offset, i)
   }
 }

@@ -3,15 +3,40 @@ package is.hail.annotations
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.expr._
+import is.hail.utils._
 import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class UnsafeSuite extends SparkSuite {
-  val globalDebug = false
+  @Test def testRegionValue() {
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+
+    val g = Type.genStruct
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .filter { case (t, a) => a != null }
+      .resize(10)
+    val p = Prop.forAll(g) { case (t, a) =>
+      t.typeCheck(a)
+      val f = t.fundamentalType
+
+      region.clear()
+
+      rvb.start(f)
+      rvb.addRow(t, a.asInstanceOf[Row])
+      val offset = rvb.end()
+
+      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      assert(t.valuesSimilar(a, ur))
+
+      true
+    }
+    p.check()
+  }
 
   @Test def testMemoryBuffer() {
-    val buff = new MemoryBuffer()
+    val buff = MemoryBuffer()
 
     buff.appendLong(124L)
     buff.appendByte(2)
@@ -46,11 +71,11 @@ class UnsafeSuite extends SparkSuite {
     Prop.forAll(g) { case (t, a) =>
       val urb = new UnsafeRowBuilder(t)
       urb.setAll(a.asInstanceOf[Row])
-      val unsafeRow = urb.result()
+      val unsafeRow = urb.result(sc)
 
       urb.clear()
       urb.setAll(a.asInstanceOf[Row])
-      val ur2 = urb.result()
+      val ur2 = urb.result(sc)
       val p = unsafeRow == a
 
       assert(unsafeRow == ur2)
@@ -62,7 +87,7 @@ class UnsafeSuite extends SparkSuite {
       }
 
       p
-    }.apply(Parameters(rng, 1000, 1000))
+    }.check()
   }
 
   @Test def testSubset() {
@@ -80,7 +105,7 @@ class UnsafeSuite extends SparkSuite {
       val row = a.asInstanceOf[Row]
       var i = 0
       urb.setAll(row)
-      val ur1 = urb.result()
+      val ur1 = urb.result(sc)
       urb.clear()
       val p1 = ur1 == row
 
@@ -93,7 +118,7 @@ class UnsafeSuite extends SparkSuite {
         urb2.setFromUnsafe(i, r(i), ur1)
         i += 1
       }
-      val ur2 = urb2.result()
+      val ur2 = urb2.result(sc)
       urb2.clear()
 
       i = 0
@@ -101,7 +126,7 @@ class UnsafeSuite extends SparkSuite {
         urb2.setFromRow(i, r(i), ur1)
         i += 1
       }
-      val ur3 = urb2.result()
+      val ur3 = urb2.result(sc)
       val p2 = ur3 == ur2
 
       val p3 = ur2 == Row.fromSeq(r.map(row.get))
@@ -114,11 +139,11 @@ class UnsafeSuite extends SparkSuite {
              |IN:   $a
              |OUT1: $ur1
              |OUT2: $ur2
-             |SIZE: ${ ur1.mb.sizeInBytes }/${ ur2.mb.sizeInBytes }""".stripMargin)
+             |SIZE: ${ ur1.region.sizeInBytes }/${ ur2.region.sizeInBytes }""".stripMargin)
       }
 
       p
-    }.apply(Parameters(rng, 1000, 1000))
+    }.check()
   }
 
   @Test def testPacking() {

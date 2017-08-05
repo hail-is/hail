@@ -1,6 +1,7 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
+import is.hail.annotations.RichRDDRow
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable}
 import is.hail.variant.Variant
 import org.apache.hadoop
@@ -80,6 +81,8 @@ trait Implicits {
     new RichPairTraversableOnce[K, V](t)
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
+
+  implicit def toRichRDDRow(r: RDD[Row]): RichRDDRow = new RichRDDRow(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 

@@ -2,10 +2,11 @@ package is.hail.annotations
 
 import is.hail.expr._
 import is.hail.utils._
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 
 class UnsafeRowBuilder(t: TStruct, sizeHint: Int = 128) {
-  private var buffer: MemoryBuffer = new MemoryBuffer(sizeHint)
+  private var buffer: MemoryBuffer = MemoryBuffer(sizeHint)
   buffer.allocate(t.byteSize)
 
   def setAll(r: Row) {
@@ -32,8 +33,8 @@ class UnsafeRowBuilder(t: TStruct, sizeHint: Int = 128) {
     buffer.allocate(t.byteSize)
   }
 
-  def result(): UnsafeRow = {
-    new UnsafeRow(t, buffer.result(), 0)
+  def result(sc: SparkContext): UnsafeRow = {
+    new UnsafeRow(BroadcastTypeTree(sc, t), buffer, 0)
   }
 
   def setFromUnsafe(index: Int, oldIndex: Int, u: UnsafeRow) {
@@ -44,7 +45,7 @@ class UnsafeRowBuilder(t: TStruct, sizeHint: Int = 128) {
     if (u.isNullAt(oldIndex)) {
       setMissing(index)
     } else {
-      copyFromUnsafe(fieldType, o1, o1 + u.mbOffset, u.mb)
+      copyFromUnsafe(fieldType, o1, o1 + u.offset, u.region)
     }
   }
 
@@ -154,7 +155,7 @@ class UnsafeRowBuilder(t: TStruct, sizeHint: Int = 128) {
     buffer.storeByte(byteIndex, (oldBits | (0x1 << bitIndex)).toByte)
   }
 
-  private def copyStructFromUnsafe(st: TStruct, o1: Int, o2: Int, mb: MemoryBlock) {
+  private def copyStructFromUnsafe(st: TStruct, o1: Int, o2: Int, mb: MemoryBuffer) {
     val missingBytes = (st.size + 7) / 8
     buffer.copyFrom(mb, o1, o2, missingBytes)
     var i = 0
@@ -172,7 +173,7 @@ class UnsafeRowBuilder(t: TStruct, sizeHint: Int = 128) {
     }
   }
 
-  private def copyArrayFromMem(et: Type, o1: Int, o2: Int, mb: MemoryBlock) {
+  private def copyArrayFromMem(et: Type, o1: Int, o2: Int, mb: MemoryBuffer) {
     buffer.align(4)
     val leftStart = buffer.allocate(4)
     buffer.storeInt(o1, leftStart)
@@ -204,7 +205,7 @@ class UnsafeRowBuilder(t: TStruct, sizeHint: Int = 128) {
     }
   }
 
-  private def copyFromUnsafe(ft: Type, o1: Int, o2: Int, mb: MemoryBlock) {
+  private def copyFromUnsafe(ft: Type, o1: Int, o2: Int, mb: MemoryBuffer) {
     ft match {
       case TInt32 =>
         val value = mb.loadInt(o2)

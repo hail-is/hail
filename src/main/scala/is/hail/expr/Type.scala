@@ -1,7 +1,5 @@
 package is.hail.expr
 
-import java.util
-
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
@@ -15,12 +13,11 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 object Type {
-  val genScalar = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
+  val genScalar: Gen[Type] = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
     TVariant, TAltAllele, TGenotype, TLocus, TInterval, TCall)
 
   def genSized(size: Int): Gen[Type] = {
@@ -190,6 +187,10 @@ sealed abstract class Type extends Serializable { self =>
   def byteSize: Int = throw new NotImplementedError(toString)
 
   def alignment: Int = byteSize
+
+  /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
+      types, Array and Struct. */
+  def fundamentalType: Type = this
 }
 
 abstract class ComplexType extends Type {
@@ -198,6 +199,8 @@ abstract class ComplexType extends Type {
   override def byteSize: Int = representation.byteSize
 
   override def alignment: Int = representation.alignment
+
+  override def fundamentalType: Type = representation.fundamentalType
 }
 
 case object TBinary extends Type {
@@ -596,6 +599,8 @@ case class TArray(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
+
+  override def fundamentalType: Type = TArray(elementType.fundamentalType)
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -646,6 +651,8 @@ case class TSet(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
+
+  override def fundamentalType: Type = TArray(elementType.fundamentalType)
 }
 
 case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -711,6 +718,8 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
             keyType.ordering(missingGreatest),
             valueType.ordering(missingGreatest)))))
   }
+
+  override def fundamentalType: Type = TArray(elementType.fundamentalType)
 }
 
 case object TGenotype extends ComplexType {
@@ -954,6 +963,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
 
   def hasField(name: String): Boolean = fieldIdx.contains(name)
+
+  def field(name: String): Field = fields(fieldIdx(name))
 
   def size: Int = fields.length
 
@@ -1351,4 +1362,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       1
     else
       fields.map(_.typ.alignment).max
+
+  override def fundamentalType: TStruct =
+    TStruct(fields.map(f => (f.name, f.typ.fundamentalType)): _*)
 }

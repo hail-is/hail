@@ -139,94 +139,137 @@ abstract class Genotype extends Serializable {
   }
 }
 
-class RowGenotype(r: Row) extends Genotype {
-  def _unboxedGT: Int =
-    if (r.isNullAt(0))
-      -1
-    else
-      r.getInt(0)
-
-  def _unboxedAD: Array[Int] =
-    if (r.isNullAt(1))
-      null
-    else
-      r.getSeq(1).toArray
-
-  def _unboxedDP: Int =
-    if (r.isNullAt(2))
-      -1
-    else
-      r.getInt(2)
-
-  def _unboxedGQ: Int =
-    if (r.isNullAt(3))
-      -1
-    else
-      r.getInt(3)
-
-  def _unboxedPX: Array[Int] =
-    if (r.isNullAt(4))
-      null
-    else
-      r.getSeq(4).toArray
-
-  // not nullable
-  def _fakeRef: Boolean = r.getBoolean(5)
-
-  def _isLinearScale: Boolean = r.getBoolean(6)
-}
-
 object Genotype {
   def buildGenotypeExtractor(t: Type): (Any) => Genotype = {
     if (t == TGenotype)
       (a: Any) => a.asInstanceOf[Genotype]
     else {
-      def queryOpt[T >: Null](field: String)(implicit hr: HailRep[T]): Option[(Any) => T] = {
-        try {
-          val (ft, fq0) = t.queryTyped(field)
-          if (ft == hr.typ)
-            Some((a: Any) => fq0(a).asInstanceOf[T])
+      val s = t.asInstanceOf[TStruct]
+
+      def queryCall(field: String): (Row) => Int = {
+        if (s.hasField(field)) {
+          val f = s.field(field)
+          val i = f.index
+          if (f.typ != TCall)
+            (r: Row) => -1
           else
-            None
-        } catch {
-          case _: AnnotationPathException =>
-            None
+            (r: Row) =>
+              if (r.isNullAt(i))
+                -1
+              else
+                r.getAs[Int](i)
+        } else {
+          (r: Row) => -1
         }
       }
 
-      val gtq = queryOpt[java.lang.Integer]("GT")(callHr)
-      val adq = queryOpt[IndexedSeq[Int]]("AD")
-      val dpq = queryOpt[java.lang.Integer]("DP")
-      val gqq = queryOpt[java.lang.Integer]("GQ")
-      val plq = queryOpt[IndexedSeq[Int]]("PL")
-      val gpq = queryOpt[IndexedSeq[Double]]("GP")
-
-      if (plq.isDefined || gpq.isEmpty)
-        (a: Any) =>
-          new RowGenotype(Row(
-            gtq.map(_ (a)).orNull,
-            adq.map(_ (a)).orNull,
-            dpq.map(_ (a)).orNull,
-            gqq.map(_ (a)).orNull,
-            plq.map(_ (a)).orNull,
-            false,
-            false))
-      else
-        (a: Any) => {
-          val gp = gpq.map(_ (a)).orNull
-
-          new RowGenotype(Row(
-            gtq.map(_ (a)).orNull,
-            adq.map(_ (a)).orNull,
-            dpq.map(_ (a)).orNull,
-            gqq.map(_ (a)).orNull,
-            if (gp != null)
-              Genotype.weightsToLinear(gp.toArray)
-            else
-              null,
-            false,
-            true))
+      def queryInt(field: String): (Row) => Int = {
+        if (s.hasField(field)) {
+          val f = s.field(field)
+          val i = f.index
+          if (f.typ != TInt32)
+            (r: Row) => -1
+          else
+            (r: Row) =>
+              if (r.isNullAt(i))
+                -1
+              else
+                r.getInt(i)
+        } else {
+          (r: Row) => -1
         }
+      }
+
+      def queryArrayInt(field: String): (Row) => Array[Int] = {
+        if (s.hasField(field)) {
+          val f = s.field(field)
+          val i = f.index
+          if (f.typ != TArray(TInt32))
+            (r: Row) => null
+          else
+            (r: Row) =>
+              if (r.isNullAt(i))
+                null
+              else {
+                val is = r.getAs[IndexedSeq[Int]](i)
+                val n = is.length
+                val a = new Array[Int](n)
+                var j = 0
+                while (j < n) {
+                  a(j) = is(j)
+                  j += 1
+                }
+                a
+              }
+        } else {
+          (r: Row) => null
+        }
+      }
+
+      def queryArrayDouble(field: String): (Row) => Array[Double] = {
+        if (s.hasField(field)) {
+          val f = s.field(field)
+          val i = f.index
+          if (f.typ != TArray(TFloat64))
+            (r: Row) => null
+          else
+            (r: Row) => {
+              if (r.isNullAt(i))
+                null
+              else {
+                val is = r.getAs[IndexedSeq[Double]](i)
+                val n = is.length
+                val a = new Array[Double](n)
+                var j = 0
+                while (j < n) {
+                  a(j) = is(j)
+                  j += 1
+                }
+                a
+              }
+            }
+        } else {
+          (r: Row) => null
+        }
+      }
+
+      val gtq = queryCall("GT")
+      val adq = queryArrayInt("AD")
+      val dpq = queryInt("DP")
+      val gqq = queryInt("GQ")
+
+      if (s.hasField("PL") || !s.hasField("GT")) {
+        val plq = queryArrayInt("PL")
+
+        (a: Any) =>
+          if (a == null)
+            null
+          else {
+            val r = a.asInstanceOf[Row]
+            val g = new GenericGenotype(gtq(r), adq(r), dpq(r), gqq(r), plq(r),
+              _fakeRef = false,
+              _isLinearScale = false)
+            g
+          }
+      } else {
+        val gpq = queryArrayDouble("GP")
+
+        (a: Any) =>
+          if (a == null)
+            null
+          else {
+            val r = a.asInstanceOf[Row]
+            val gp = gpq(r)
+            val g = new GenericGenotype(gtq(r), adq(r), dpq(r), gqq(r),
+              if (gp != null)
+                Genotype.weightsToLinear(gp)
+              else
+                null,
+              _fakeRef = false,
+              _isLinearScale = true)
+            g
+          }
+      }
     }
   }
 
@@ -299,14 +342,6 @@ object Genotype {
       (upx(1) + 2 * upx(2)) * Genotype.gpNorm
     else
       Genotype.plToDosage(upx(0), upx(1), upx(2))
-  }
-
-  def dosage(g: Genotype): Option[Double] = {
-    val ud = unboxedDosage(g)
-    if (ud == -1d)
-      None
-    else
-      Some(ud)
   }
 
   def call(g: Genotype): Call = {

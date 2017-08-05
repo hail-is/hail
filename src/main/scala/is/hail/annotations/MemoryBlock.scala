@@ -2,7 +2,13 @@ package is.hail.annotations
 
 import java.util
 
+import is.hail.expr._
+import is.hail.utils._
+import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
+import org.apache.spark.sql.Row
 import org.apache.spark.unsafe.Platform
+
+import scala.collection.mutable
 
 final class MemoryBlock(val mem: Array[Long]) {
   require(mem.length < (Integer.MAX_VALUE / 8), "too big")
@@ -46,6 +52,12 @@ final class MemoryBlock(val mem: Array[Long]) {
     a
   }
 
+  def loadBytes(off: Int, size: Int, a: Array[Byte]) {
+    assert(off + size <= sizeInBytes, s"tried to read bytes of size $size from offset $off with array size $sizeInBytes")
+    assert(a.length >= size)
+    Platform.copyMemory(mem, Platform.LONG_ARRAY_OFFSET + off, a, Platform.BYTE_ARRAY_OFFSET, size)
+  }
+
   def storeInt(off: Int, i: Int) {
     assert(off + 4 <= sizeInBytes, s"tried to store int to offset $off with array size $sizeInBytes")
     Platform.putInt(mem, Platform.LONG_ARRAY_OFFSET + off, i)
@@ -76,6 +88,11 @@ final class MemoryBlock(val mem: Array[Long]) {
     Platform.copyMemory(bytes, Platform.BYTE_ARRAY_OFFSET, mem, Platform.LONG_ARRAY_OFFSET + off, bytes.length)
   }
 
+  def storeBytes(off: Int, bytes: Array[Byte], size: Int) {
+    assert(off + size <= sizeInBytes, s"tried to store ${ bytes.length } bytes to offset $off with array size $sizeInBytes")
+    Platform.copyMemory(bytes, Platform.BYTE_ARRAY_OFFSET, mem, Platform.LONG_ARRAY_OFFSET + off, size)
+  }
+
   def reallocate(size: Int): MemoryBlock = {
     if (sizeInBytes < size) {
       val newMem = new Array[Long](math.max(mem.length * 2, (size + 7) / 8))
@@ -85,13 +102,21 @@ final class MemoryBlock(val mem: Array[Long]) {
       this
   }
 
-  def copy(): MemoryBlock = new MemoryBlock(util.Arrays.copyOf(mem, mem.length))
+  def copy(): MemoryBlock = copy(mem.length)
+
+  def copy(length: Int): MemoryBlock = new MemoryBlock(util.Arrays.copyOf(mem, length))
 }
 
-final class MemoryBuffer(sizeHint: Int = 128) {
-  var mb = new MemoryBlock(new Array[Long]((sizeHint + 7) / 8))
+object MemoryBuffer {
+  def apply(sizeHint: Int = 128): MemoryBuffer = {
+    new MemoryBuffer(new MemoryBlock(new Array[Long]((sizeHint + 7) / 8)))
+  }
+}
 
+final class MemoryBuffer(var mb: MemoryBlock) {
   var offset: Int = 0
+
+  def sizeInBytes: Int = offset
 
   def alignAndEnsure(size: Int) {
     align(size)
@@ -113,6 +138,15 @@ final class MemoryBuffer(sizeHint: Int = 128) {
   def loadByte(off: Int): Byte = mb.loadByte(off)
 
   def loadBytes(off: Int, size: Int): Array[Byte] = mb.loadBytes(off, size)
+
+  def loadBytes(off: Int, size: Int, a: Array[Byte]) {
+    mb.loadBytes(off, size, a)
+  }
+
+  def loadBit(byteOff: Int, bitOff: Int): Boolean = {
+    val b = byteOff + (bitOff >> 3)
+    (mb.loadByte(b) & (1 << (bitOff & 7))) != 0
+  }
 
   def storeInt(off: Int, i: Int) {
     mb.storeInt(off, i)
@@ -136,6 +170,25 @@ final class MemoryBuffer(sizeHint: Int = 128) {
 
   def storeBytes(off: Int, bytes: Array[Byte]) {
     mb.storeBytes(off, bytes)
+  }
+
+  def setBit(byteOff: Int, bitOff: Int) {
+    val b = byteOff + (bitOff >> 3)
+    mb.storeByte(b,
+      (mb.loadByte(b) | (1 << (bitOff & 7))).toByte)
+  }
+
+  def clearBit(byteOff: Int, bitOff: Int) {
+    val b = byteOff + (bitOff >> 3)
+    mb.storeByte(b,
+      (mb.loadByte(b) & ~(1 << (bitOff & 7))).toByte)
+  }
+
+  def storeBit(byteOff: Int, bitOff: Int, b: Boolean) {
+    if (b)
+      setBit(byteOff, bitOff)
+    else
+      clearBit(byteOff, bitOff)
   }
 
   def appendInt(i: Int) {
@@ -174,6 +227,14 @@ final class MemoryBuffer(sizeHint: Int = 128) {
     offset += bytes.length
   }
 
+  def appendBytes(bytes: Array[Byte], size: Int) {
+    assert(bytes.length >= size)
+
+    ensure(size)
+    mb.storeBytes(offset, bytes, size)
+    offset += size
+  }
+
   def allocate(nBytes: Int): Int = {
     val currentOffset = offset
     ensure(nBytes)
@@ -187,14 +248,16 @@ final class MemoryBuffer(sizeHint: Int = 128) {
     offset = (offset + (alignment - 1)) & ~(alignment - 1)
   }
 
-  def copyFrom(other: MemoryBlock, readStart: Int, writeStart: Int, size: Int) {
+  def copyFrom(other: MemoryBuffer, readStart: Int, writeStart: Int, size: Int) {
     assert(writeStart <= (offset - size))
-    mb.copyFrom(other, readStart, writeStart, size)
+    mb.copyFrom(other.mb, readStart, writeStart, size)
   }
 
   def clear() {
     offset = 0
   }
+
+  def copy(): MemoryBuffer = new MemoryBuffer(mb.copy((offset + 7) / 8))
 
   def result(): MemoryBlock = {
     val reqLength = (offset + 7) / 8
@@ -202,4 +265,350 @@ final class MemoryBuffer(sizeHint: Int = 128) {
     Platform.copyMemory(mb.mem, Platform.LONG_ARRAY_OFFSET, arr, Platform.LONG_ARRAY_OFFSET, offset)
     new MemoryBlock(arr)
   }
+}
+
+case class RegionValue(region: MemoryBuffer, offset: Int)
+
+class RegionValueBuilder(region: MemoryBuffer) {
+  var start: Int = _
+
+  val typestk = new mutable.Stack[Type]()
+  val indexstk = new mutable.Stack[Int]()
+  val offsetstk = new mutable.Stack[Int]()
+  val elementsOffsetstk = new mutable.Stack[Int]()
+
+  def current(): (Type, Int) = {
+    val i = indexstk.head
+    typestk.head match {
+      case t: TStruct =>
+        (t.fields(i).typ, offsetstk.head + t.byteOffsets(i))
+
+      case t: TArray =>
+        (t.elementType, elementsOffsetstk.head + i * UnsafeUtils.arrayElementSize(t.elementType))
+    }
+  }
+
+  def start(top: TStruct) {
+    assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
+
+    region.align(top.alignment)
+    val off = region.offset
+    start = off
+    region.allocate(top.byteSize)
+
+    val nMissingBytes = (top.size + 7) / 8
+    var i = 0
+    while (i < nMissingBytes) {
+      region.storeByte(off + i, 0)
+      i += 1
+    }
+
+    typestk.push(top)
+    offsetstk.push(off)
+    indexstk.push(0)
+  }
+
+  def end(): Int = {
+    val t = typestk.pop()
+    offsetstk.pop()
+    val last = indexstk.pop()
+    assert(last == t.asInstanceOf[TStruct].size)
+
+    assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
+
+    start
+  }
+
+  def advance(): Unit = {
+    indexstk.push(indexstk.pop + 1)
+  }
+
+  def startStruct(): Unit = {
+    current() match {
+      case (t: TStruct, off) =>
+        val nMissingBytes = (t.size + 7) / 8
+        var i = 0
+        while (i < nMissingBytes) {
+          region.storeByte(off + i, 0)
+          i += 1
+        }
+
+        typestk.push(t)
+        offsetstk.push(off)
+        indexstk.push(0)
+    }
+  }
+
+  def endStruct(): Unit = {
+    typestk.head match {
+      case t: TStruct =>
+        typestk.pop()
+        offsetstk.pop()
+        val last = indexstk.pop()
+        assert(last == t.size)
+
+        advance()
+    }
+  }
+
+  def startArray(length: Int): Unit = {
+    current() match {
+      case (t: TArray, off) =>
+        region.align(4)
+        val aoff = region.offset
+        region.storeInt(off, aoff)
+
+        val nMissingBytes = (length + 7) / 8
+        region.allocate(4 + nMissingBytes)
+
+        region.storeInt(aoff, length)
+
+        var i = 0
+        while (i < nMissingBytes) {
+          region.storeByte(aoff + 4 + i, 0)
+          i += 1
+        }
+
+        region.align(t.elementType.alignment)
+        val elementsOff = region.offset
+
+        region.allocate(length * UnsafeUtils.arrayElementSize(t.elementType))
+
+        typestk.push(t)
+        elementsOffsetstk.push(elementsOff)
+        indexstk.push(0)
+        offsetstk.push(aoff)
+    }
+  }
+
+  def endArray(): Unit = {
+    typestk.head match {
+      case t: TArray =>
+        typestk.pop()
+        offsetstk.pop()
+        elementsOffsetstk.pop()
+        indexstk.pop()
+
+        advance()
+    }
+  }
+
+  def setMissing(): Unit = {
+    val i = indexstk.head
+    typestk.head match {
+      case t: TStruct =>
+        region.setBit(offsetstk.head, i)
+      case t: TArray =>
+        region.setBit(offsetstk.head + 4, i)
+    }
+
+    advance()
+  }
+
+  def addBoolean(b: Boolean): Unit =
+    current() match {
+      case (TBoolean, off) =>
+        region.storeByte(off, b.toByte)
+        advance()
+    }
+
+  def addInt(i: Int): Unit =
+    current() match {
+      case (TInt32, off) =>
+        region.storeInt(off, i)
+        advance()
+    }
+
+  def addLong(l: Long): Unit =
+    current() match {
+      case (TInt64, off) =>
+        region.storeLong(off, l)
+        advance()
+    }
+
+  def addFloat(f: Float): Unit =
+    current() match {
+      case (TFloat32, off) =>
+        region.storeFloat(off, f)
+        advance()
+    }
+
+  def addDouble(d: Double): Unit =
+    current() match {
+      case (TFloat64, off) =>
+        region.storeDouble(off, d)
+        advance()
+    }
+
+  def addBinary(bytes: Array[Byte]): Unit =
+    current() match {
+      case (TFloat64, off) =>
+        region.align(4)
+        val boff = region.offset
+        region.storeInt(off, boff)
+
+        region.appendInt(bytes.length)
+        region.appendBytes(bytes)
+        advance()
+    }
+
+  def addString(s: String): Unit =
+    current() match {
+      case (TString, off) =>
+        region.align(4)
+        val soff = region.offset
+        region.storeInt(off, soff)
+
+        val bytes = s.getBytes
+        region.appendInt(bytes.length)
+        region.appendBytes(bytes)
+        advance()
+    }
+
+  def addRow(t: TStruct, r: Row) {
+    assert(r != null)
+    var i = 0
+    while (i < t.size) {
+      addAnnotation(t.fields(i).typ, r.get(i))
+      i += 1
+    }
+  }
+
+  def addAnnotation(t: Type, a: Annotation) {
+    if (a == null)
+      setMissing()
+    else
+      t match {
+        case TBoolean => addBoolean(a.asInstanceOf[Boolean])
+        case TInt32 => addInt(a.asInstanceOf[Int])
+        case TInt64 => addLong(a.asInstanceOf[Long])
+        case TFloat32 => addFloat(a.asInstanceOf[Float])
+        case TFloat64 => addDouble(a.asInstanceOf[Double])
+        case TString => addString(a.asInstanceOf[String])
+        case TBinary => addBinary(a.asInstanceOf[Array[Byte]])
+        case TArray(elementType) =>
+          val is = a.asInstanceOf[IndexedSeq[Annotation]]
+          startArray(is.length)
+          var i = 0
+          while (i < is.length) {
+            addAnnotation(elementType, is(i))
+            i += 1
+          }
+          endArray()
+        case t: TStruct =>
+          startStruct()
+          addRow(t, a.asInstanceOf[Row])
+          endStruct()
+
+        case TSet(elementType) =>
+          val s = a.asInstanceOf[Set[Annotation]]
+          startArray(s.size)
+          s.foreach { x => addAnnotation(elementType, x) }
+          endArray()
+
+        case TDict(keyType, valueType) =>
+          val m = a.asInstanceOf[Map[Annotation, Annotation]]
+          startArray(m.size)
+          m.foreach { case (k, v) =>
+            startStruct()
+            addAnnotation(keyType, k)
+            addAnnotation(valueType, v)
+            endStruct()
+          }
+          endArray()
+
+        case TVariant =>
+          val v = a.asInstanceOf[Variant]
+          startStruct()
+          addString(v.contig)
+          addInt(v.start)
+          addString(v.ref)
+          startArray(v.altAlleles.length)
+          var i = 0
+          while (i < v.altAlleles.length) {
+            addAnnotation(TAltAllele, v.altAlleles(i))
+            i += 1
+          }
+          endArray()
+          endStruct()
+
+        case TAltAllele =>
+          val aa = a.asInstanceOf[AltAllele]
+          startStruct()
+          addString(aa.ref)
+          addString(aa.alt)
+          endStruct()
+
+        case TCall =>
+          addInt(a.asInstanceOf[Int])
+
+        case TGenotype =>
+          val g = a.asInstanceOf[Genotype]
+          startStruct()
+
+          val unboxedGT = g._unboxedGT
+          if (unboxedGT >= 0)
+            addInt(unboxedGT)
+          else
+            setMissing()
+
+          val unboxedAD = g._unboxedAD
+          if (unboxedAD == null)
+            setMissing()
+          else {
+            startArray(unboxedAD.length)
+            var i = 0
+            while (i < unboxedAD.length) {
+              addInt(unboxedAD(i))
+              i += 1
+            }
+            endArray()
+          }
+
+          val unboxedDP = g._unboxedDP
+          if (unboxedDP >= 0)
+            addInt(unboxedDP)
+          else
+            setMissing()
+
+          val unboxedGQ = g._unboxedGQ
+          if (unboxedGQ >= 0)
+            addInt(unboxedGQ)
+          else
+            setMissing()
+
+          val unboxedPX = g._unboxedPX
+          if (unboxedPX == null)
+            setMissing()
+          else {
+            startArray(unboxedPX.length)
+            var i = 0
+            while (i < unboxedPX.length) {
+              addInt(unboxedPX(i))
+              i += 1
+            }
+            endArray()
+          }
+
+          addBoolean(g._fakeRef)
+          addBoolean(g._isLinearScale)
+          endStruct()
+
+        case TLocus =>
+          val l = a.asInstanceOf[Locus]
+          startStruct()
+          addString(l.contig)
+          addInt(l.position)
+          endStruct()
+
+        case TInterval =>
+          val i = a.asInstanceOf[Interval[Locus]]
+          startStruct()
+          addAnnotation(TLocus, i.start)
+          addAnnotation(TLocus, i.end)
+          endStruct()
+      }
+  }
+
+  def result(): RegionValue = RegionValue(region, start)
 }
