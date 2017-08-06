@@ -323,24 +323,23 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }
   }
 
-  private val metadataFileName = "metadata.json"
-  private val matrixFileName = "matrix"
+  private val metadataRelativePath = "/metadata.json"
+  private val matrixRelativePath = "/matrix"
   /**
     * Writes the matrix {@code m} to a Hadoop sequence file at location {@code
     * url}. Do not call before {@code BlockMatrixIsDistributedMatrix.om} has
     * been allocated.
     *
     **/
-  def write(m: M, uriString: String) {
+  def write(m: M, uri: String) {
     val hadoop = m.blocks.sparkContext.hadoopConfiguration
-    hadoop.mkDir(uriString)
-    val uri = URI.create(uriString+"/")
+    hadoop.mkDir(uri)
 
     m.blocks.map { case ((i, j), m) =>
       (new PairWriter(i, j), new MatrixWriter(m.numRows, m.numCols, m.toArray)) }
-      .saveAsSequenceFile(uri.resolve(matrixFileName).toString)
+      .saveAsSequenceFile(uri+metadataRelativePath)
 
-    using(hadoop.create(uri.resolve(metadataFileName).toString())) { os =>
+    using(hadoop.create(uri+metadataRelativePath)) { os =>
       jackson.Serialization.write(
         BlockMatrixMetadata(m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols()),
         os)
@@ -353,18 +352,17 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     * allocated.
     *
     **/
-  def read(hc: HailContext, uriString: String): M = {
+  def read(hc: HailContext, uri: String): M = {
     val hadoop = hc.hadoopConf
-    hadoop.mkDir(uriString)
-    val uri = URI.create(uriString+"/")
+    hadoop.mkDir(uri)
 
-    val rdd = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri.resolve(matrixFileName).toString).map { case (pw, mw) =>
+    val rdd = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri+matrixRelativePath).map { case (pw, mw) =>
       ((pw.i, pw.j), mw.toDenseMatrix(): Matrix)
     }
 
     val BlockMatrixMetadata(rowsPerBlock, colsPerBlock, numRows, numCols) =
-      using(hc.hadoopConf.open(uri.resolve(metadataFileName).toString())) { is =>
-        jackson.Serialization.read[BlockMatrixMetadata](new InputStreamReader(is))
+      using(new InputStreamReader(hc.hadoopConf.open(uri+metadataRelativePath))) { isr =>
+        jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
 
     new BlockMatrix(rdd, rowsPerBlock, colsPerBlock, numRows, numCols)
