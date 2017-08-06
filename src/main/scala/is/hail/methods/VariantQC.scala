@@ -29,23 +29,23 @@ object VariantQCCombiner {
       "rExpectedHetFrequency\tpHWE"
 
   val signature = TStruct(
-    "callRate" -> TDouble,
-    "AC" -> TInt,
-    "AF" -> TDouble,
-    "nCalled" -> TInt,
-    "nNotCalled" -> TInt,
-    "nHomRef" -> TInt,
-    "nHet" -> TInt,
-    "nHomVar" -> TInt,
-    "dpMean" -> TDouble,
-    "dpStDev" -> TDouble,
-    "gqMean" -> TDouble,
-    "gqStDev" -> TDouble,
-    "nNonRef" -> TInt,
-    "rHeterozygosity" -> TDouble,
-    "rHetHomVar" -> TDouble,
-    "rExpectedHetFrequency" -> TDouble,
-    "pHWE" -> TDouble)
+    "callRate" -> TFloat64,
+    "AC" -> TInt32,
+    "AF" -> TFloat64,
+    "nCalled" -> TInt32,
+    "nNotCalled" -> TInt32,
+    "nHomRef" -> TInt32,
+    "nHet" -> TInt32,
+    "nHomVar" -> TInt32,
+    "dpMean" -> TFloat64,
+    "dpStDev" -> TFloat64,
+    "gqMean" -> TFloat64,
+    "gqStDev" -> TFloat64,
+    "nNonRef" -> TInt32,
+    "rHeterozygosity" -> TFloat64,
+    "rHetHomVar" -> TFloat64,
+    "rExpectedHetFrequency" -> TFloat64,
+    "pHWE" -> TFloat64)
 }
 
 class VariantQCCombiner extends Serializable {

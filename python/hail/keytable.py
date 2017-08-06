@@ -720,7 +720,7 @@ class KeyTable(object):
         c3.
 
         >>> kt3 = hc.import_table('data/kt_example3.tsv', impute=True,
-        ...                       types={'c1': TString(), 'c2': TArray(TInt()), 'c3': TArray(TArray(TInt()))})
+        ...                       types={'c1': TString(), 'c2': TArray(TInt32()), 'c3': TArray(TArray(TInt32()))})
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
         c1 cannot be exploded because its type is not an ``Array`` or ``Set``.

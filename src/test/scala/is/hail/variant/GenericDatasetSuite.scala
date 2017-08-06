@@ -3,7 +3,7 @@ package is.hail.variant
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.utils._
-import is.hail.expr.{TDouble, TGenotype, TInt, TString, TStruct}
+import is.hail.expr.{TFloat64, TGenotype, TInt32, TString, TStruct}
 import org.testng.annotations.Test
 
 class GenericDatasetSuite extends SparkSuite {
@@ -25,7 +25,7 @@ class GenericDatasetSuite extends SparkSuite {
     val gdsAnnotated = gds.annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\"")
 
     val gsig = gdsAnnotated.genotypeSignature.asInstanceOf[TStruct]
-    val expTypes = Array(TInt, TDouble, TString)
+    val expTypes = Array(TInt32, TFloat64, TString)
     val expNames = Array("a", "b", "c")
 
     val (_, aQuerier) = gdsAnnotated.queryGA("g.a")

@@ -3,7 +3,7 @@ package is.hail.variant
 import java.util
 
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.{TArray, TBoolean, TCall, TGenotype, TInt, TStruct, Type}
+import is.hail.expr.{TArray, TBoolean, TCall, TGenotype, TInt32, TStruct, Type}
 import is.hail.utils.{ByteIterator, _}
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution

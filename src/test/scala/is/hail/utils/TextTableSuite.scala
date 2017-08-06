@@ -44,8 +44,8 @@ class TextTableSuite extends SparkSuite {
 
     imputed.foreach(println)
     assert(imputed.sameElements(Array(
-      Some(TInt),
-      Some(TDouble),
+      Some(TInt32),
+      Some(TFloat64),
       None,
       Some(TString),
       Some(TVariant),
@@ -56,31 +56,31 @@ class TextTableSuite extends SparkSuite {
     val (schema, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
       impute = true)
     assert(schema == TStruct(
-      "Chromosome" -> TInt,
-      "Position" -> TInt,
+      "Chromosome" -> TInt32,
+      "Position" -> TInt32,
       "Ref" -> TString,
       "Alt" -> TString,
-      "Rand1" -> TDouble,
-      "Rand2" -> TDouble,
+      "Rand1" -> TFloat64,
+      "Rand2" -> TFloat64,
       "Gene" -> TString))
 
     val (schema2, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
       types = Map("Chromosome" -> TString), impute = true)
     assert(schema2 == TStruct(
       "Chromosome" -> TString,
-      "Position" -> TInt,
+      "Position" -> TInt32,
       "Ref" -> TString,
       "Alt" -> TString,
-      "Rand1" -> TDouble,
-      "Rand2" -> TDouble,
+      "Rand1" -> TFloat64,
+      "Rand2" -> TFloat64,
       "Gene" -> TString))
 
     val (schema3, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.alternateformat.tsv"),
       impute = true)
     assert(schema3 == TStruct(
       "Chromosome:Position:Ref:Alt" -> TVariant,
-      "Rand1" -> TDouble,
-      "Rand2" -> TDouble,
+      "Rand1" -> TFloat64,
+      "Rand2" -> TFloat64,
       "Gene" -> TString))
 
     val (schema4, _) = TextTableReader.read(sc)(Array("src/test/resources/sampleAnnotations.tsv"),
@@ -88,13 +88,13 @@ class TextTableSuite extends SparkSuite {
     assert(schema4 == TStruct(
       "Sample" -> TString,
       "Status" -> TString,
-      "qPhen" -> TInt))
+      "qPhen" -> TInt32))
   }
 
   @Test def testAnnotationsReadWrite() {
     val outPath = tmpDir.createTempFile("annotationOut", ".tsv")
     val p = Prop.forAll(VariantSampleMatrix.gen(hc, VSMSubgen.realistic)
-      .filter(vds => vds.countVariants > 0 && vds.vaSignature != TDouble)) { vds: VariantDataset =>
+      .filter(vds => vds.countVariants > 0 && vds.vaSignature != TFloat64)) { vds: VariantDataset =>
 
       vds.exportVariants(outPath, "v = v, va = va", typeFile = true)
 

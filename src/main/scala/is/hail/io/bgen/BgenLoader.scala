@@ -2,14 +2,14 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{TArray, TCall, TDouble, TString, TStruct, TVariant}
+import is.hail.expr.{TArray, TCall, TFloat64, TString, TStruct, TVariant}
 import is.hail.io.{HadoopFSDataBinaryReader, IndexBTree}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.rdd.RDD
-import scala.reflect.classTag
 
+import scala.reflect.classTag
 import scala.io.Source
 
 case class BgenHeader(compressed: Boolean, nSamples: Int, nVariants: Int,
@@ -83,7 +83,7 @@ object BgenLoader {
       saSignature = TStruct.empty,
       TVariant,
       vaSignature = signature,
-      genotypeSignature = TStruct("GT" -> TCall, "GP" -> TArray(TDouble)),
+      genotypeSignature = TStruct("GT" -> TCall, "GP" -> TArray(TFloat64)),
       globalSignature = TStruct.empty,
       wasSplit = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,

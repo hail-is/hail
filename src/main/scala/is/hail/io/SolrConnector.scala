@@ -2,7 +2,7 @@ package is.hail.io
 
 import java.util
 
-import is.hail.expr.{EvalContext, Parser, TBoolean, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TString, TVariant, Type}
+import is.hail.expr.{EvalContext, Parser, TBoolean, TFloat64, TFloat32, TGenotype, TInt32, TIterable, TInt64, TString, TVariant, Type}
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.VariantDataset
@@ -19,10 +19,10 @@ import scala.util.Random
 object SolrConnector {
 
   def toSolrType(t: Type): String = t match {
-    case TInt => "int"
-    case TLong => "long"
-    case TFloat => "float"
-    case TDouble => "double"
+    case TInt32 => "int"
+    case TInt64 => "long"
+    case TFloat32 => "float"
+    case TFloat64 => "double"
     case TBoolean => "boolean"
     case TString => "string"
     // FIXME only 1 deep

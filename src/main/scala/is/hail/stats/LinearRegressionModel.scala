@@ -2,15 +2,15 @@ package is.hail.stats
 
 import breeze.linalg.{Matrix, Vector}
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TDouble, TInt, TStruct}
+import is.hail.expr.{TFloat64, TStruct}
 import net.sourceforge.jdistlib.T
 
 object LinearRegressionModel {
   def schema = TStruct(
-    ("beta", TDouble),
-    ("se", TDouble),
-    ("tstat", TDouble),
-    ("pval", TDouble))
+    ("beta", TFloat64),
+    ("se", TFloat64),
+    ("tstat", TFloat64),
+    ("pval", TFloat64))
 
   def fit(x: Vector[Double], y: Vector[Double], yyp: Double, qt: Matrix[Double], qty: Vector[Double], d: Int): Annotation = {
     val qtx = qt * x

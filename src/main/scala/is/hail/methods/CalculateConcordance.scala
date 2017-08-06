@@ -7,7 +7,7 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object ConcordanceCombiner {
-  val schema = TArray(TArray(TLong))
+  val schema = TArray(TArray(TInt64))
 }
 
 class ConcordanceCombiner extends Serializable {
@@ -82,13 +82,13 @@ object CalculateConcordance {
 
     val sampleSchema = TStruct(
       "s" -> TString,
-      "nDiscordant" -> TLong,
+      "nDiscordant" -> TInt64,
       "concordance" -> ConcordanceCombiner.schema
     )
 
     val variantSchema = TStruct(
       "v" -> TVariant,
-      "nDiscordant" -> TLong,
+      "nDiscordant" -> TInt64,
       "concordance" -> ConcordanceCombiner.schema
     )
 

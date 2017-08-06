@@ -376,7 +376,7 @@ class VariantDataset(object):
 
         To create an annotation for only a subset of samples based on an existing annotation:
 
-        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Double')
+        >>> vds_result = vds.annotate_samples_expr('sa.newpheno = if (sa.pheno.cohortName == "cohort1") sa.pheno.bloodPressure else NA: Float64')
 
         .. note::
 
@@ -2598,7 +2598,7 @@ class VariantDataset(object):
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
-        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
+        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toFloat64(), 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
         is the allele frequency over those samples that have no missing phenotype or covariates.
 
         .. caution::
@@ -3232,7 +3232,7 @@ class VariantDataset(object):
         ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2']))
 
         To use a weighted sum of genotypes with missing genotypes mean-imputed rather than ignored, set
-        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
+        ``agg_expr='gs.map(g => va.weight * orElse(g.gt.toFloat64(), 2 * va.qc.AF)).sum()'`` where ``va.qc.AF``
         is the allele frequency over those samples that have no missing phenotype or covariates.
 
         .. caution::

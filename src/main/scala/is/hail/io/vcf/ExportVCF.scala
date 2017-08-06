@@ -1,7 +1,7 @@
 package is.hail.io.vcf
 
 import is.hail.annotations.{Annotation, Querier}
-import is.hail.expr.{Field, TArray, TBoolean, TCall, TDouble, TFloat, TGenotype, TInt, TIterable, TLong, TSet, TString, TStruct, Type}
+import is.hail.expr.{Field, TArray, TBoolean, TCall, TFloat64, TFloat32, TGenotype, TInt32, TIterable, TInt64, TSet, TString, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.{Call, GenericDataset, Genotype, Locus, Variant, VariantSampleMatrix}
 import org.apache.spark.sql.Row
@@ -21,19 +21,19 @@ object ExportVCF {
       sb += '.'
     else {
       elementType match {
-        case TFloat =>
+        case TFloat32 =>
           val x = a.asInstanceOf[Float]
           if (x.isNaN)
             sb += '.'
           else
             sb.append(x.formatted("%.5e"))
-        case TDouble =>
+        case TFloat64 =>
           val x = a.asInstanceOf[Double]
           if (x.isNaN)
             sb += '.'
           else
             sb.append(x.formatted("%.5e"))
-        case TLong =>
+        case TInt64 =>
           val x = a.asInstanceOf[Long]
           if (x > Int.MaxValue || x < Int.MinValue)
             fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) or less than Int.MinValue (-2^31). Found $x.")
@@ -88,8 +88,8 @@ object ExportVCF {
   }
 
   def infoType(t: Type): Option[String] = t match {
-    case TInt | TLong => Some("Integer")
-    case TDouble | TFloat => Some("Float")
+    case TInt32 | TInt64 => Some("Integer")
+    case TFloat64 | TFloat32 => Some("Float")
     case TString => Some("String")
     case TBoolean => Some("Flag")
     case _ => None
@@ -108,8 +108,8 @@ object ExportVCF {
   }
 
   def formatType(t: Type): Option[String] = t match {
-    case TInt | TLong => Some("Integer")
-    case TDouble | TFloat => Some("Float")
+    case TInt32 | TInt64 => Some("Integer")
+    case TFloat64 | TFloat32 => Some("Float")
     case TString => Some("String")
     case TCall => Some("String")
     case _ => None
@@ -211,10 +211,10 @@ object ExportVCF {
   def validFormatType(typ: Type): Boolean = {
     typ match {
       case TString => true
-      case TDouble => true
-      case TFloat => true
-      case TInt => true
-      case TLong => true
+      case TFloat64 => true
+      case TFloat32 => true
+      case TInt32 => true
+      case TInt64 => true
       case TCall => true
       case _ => false
     }
@@ -363,10 +363,10 @@ object ExportVCF {
 
     val qualQuery: Option[Querier] = vas.getOption("qual")
       .filter {
-        case TDouble => true
+        case TFloat64 => true
         case t => warn(
           s"""found `qual' field, but it was an unexpected type `$t'.  Emitting missing QUAL.
-             |  Expected ${ TDouble }""".stripMargin)
+             |  Expected ${ TFloat64 }""".stripMargin)
           false
       }.map(_ => vkds.queryVA("va.qual")._2)
 

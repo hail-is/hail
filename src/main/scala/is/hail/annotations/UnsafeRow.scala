@@ -56,10 +56,10 @@ class UnsafeRow(@transient var t: TStruct, val mb: MemoryBlock, val mbOffset: In
         val b = mb.loadByte(offset)
         assert(b == 0 || b == 1, s"invalid boolean byte $b from offset $offset")
         b == 1
-      case TInt | TCall => mb.loadInt(offset)
-      case TLong => mb.loadLong(offset)
-      case TFloat => mb.loadFloat(offset)
-      case TDouble => mb.loadDouble(offset)
+      case TInt32 | TCall => mb.loadInt(offset)
+      case TInt64 => mb.loadLong(offset)
+      case TFloat32 => mb.loadFloat(offset)
+      case TFloat64 => mb.loadDouble(offset)
       case TArray(elementType) => readArray(offset, elementType)
       case TSet(elementType) => readArray(offset, elementType).toSet
       case TString => new String(readBinary(offset))

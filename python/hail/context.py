@@ -317,7 +317,7 @@ class HailContext(object):
         
         Pass the types ourselves:
         
-        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TDouble(), 'Age': TInt()})
+        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TFloat64(), 'Age': TInt32()})
         
         Note that string columns like ``Sample`` and ``Status`` do not need to be typed, because ``String``
         is the default type.
