@@ -3054,7 +3054,7 @@ class VariantDataset(object):
 
     @handle_py4j
     @requireTGenotype
-    @typecheck_method(kinshipMatrix=oneof(KinshipMatrix, LDMatrix),
+    @typecheck_method(kinshipMatrix=KinshipMatrix,
                       y=strlike,
                       covariates=listof(strlike),
                       global_root=strlike,
@@ -3064,13 +3064,11 @@ class VariantDataset(object):
                       delta=nullable(numeric),
                       sparsity_threshold=numeric,
                       use_dosages=bool,
-                      n_eigs=nullable(integral),
-                      dropped_variance_fraction=nullable(float),
-                      filter_variants_expr=(nullable(strlike)))
+                      n_eigs=nullable(integral))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
                run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False,
                n_eigs=None, dropped_variance_fraction=None, filter_variants_expr=None):
-        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
+        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association. This method takes a kinship matrix.
 
         .. include:: requireTGenotype.rst
 
@@ -3263,26 +3261,14 @@ class VariantDataset(object):
 
         **Kinship Matrix**
 
-        FastLMM uses the Realized Relationship Matrix (RRM) for kinship. This can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, any instance of :py:class:`KinshipMatrix` may be used, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order. Currently, due to the fact that the eigendecomposition is done locally, this matrix (or the LD matrix below) can only be a maximum size of 32,000 X 32,000.
-
-        **LD Matrix**
-
-        The rank of the kinship matrix (RRM) resulting from a genetic matrix on :math:`n` samples and :math:`m` variants is at most the minimum of :math:`n` and :math:`m`. So to improve efficiency when :math:`m` is less than :math:`n`, this method alternatively accepts an LD matrix, the eigenvectors of which are then transformed to the first :math:`m` eigenvectors of the RRM using the relationship between left and right singular vectors as defined by the singular value decomposition of the normalized genetic matrix. Passing in the RRM or LD matrix will result in mathematically identical statistics. The n_eigs and dropped_variance_fraction parameters may be used in addition to further improve performance using approximate rather than exact inference (see next section).
-
-        Also note that all variants present in the LD matrix must be present in the variant dataset in order to run this method. The `filter_variants_expr` parameter can be used to limit the per variant association portion of the method to particular variants.
-
-        **Low-rank approximation of kinship for improved performance**
-
-        :py:meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors used. This number can be specified in two ways. Specify the parameter ``n_eigs`` to use only the top ``n_eigs`` eigenvectors. Alternatively, specify ``dropped_variance_fraction`` to use as many eigenvectors as necessary to capture all but at most this fraction of the sample variance (also known as the trace, or the sum of the eigenvalues). For example, ``dropped_variance_fraction=0.01`` will use the minimal number of eigenvectors to account for 99% of the sample variance. Specifying both parameters will apply the more stringent (fewest eigenvectors) of the two.
-
-        Note the number of eigenvectors used cannot be greater than the rank of the Kinship matrix, or equivalently, of the LD matrix.
+        FastLMM uses the Realized Relationship Matrix (RRM), which can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, Hail uses any instance of :py:class:`KinshipMatrix`, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order. Currently, due to the fact that the eigendecomposition is done locally, the maximum size of the kinship matrix is 32,000 X 32,000.
 
         **Further background**
 
         For the history and mathematics of linear mixed models in genetics, including `FastLMM <https://www.microsoft.com/en-us/research/project/fastlmm/>`__, see `Christoph Lippert's PhD thesis <https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/50003/pdf/thesis_komplett.pdf>`__. For an investigation of various approaches to defining kinship, see `Comparison of Methods to Account for Relatedness in Genome-Wide Association Studies with Family-Based Data <http://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1004445>`__.
 
-        :param kinshipMatrix: Kinship matrix or LD matrix to be used.
-        :type kinshipMatrix: :class:`KinshipMatrix` or :class:`LDMatrix`
+        :param kinshipMatrix: Kinship matrix
+        :type kinshipMatrix: :class:`KinshipMatrix`
 
         :param str y: Response sample annotation.
 
@@ -3306,26 +3292,90 @@ class VariantDataset(object):
 
         :param int n_eigs: Number of eigenvectors of the kinship matrix used to fit the model.
 
-        :param float dropped_variance_fraction: Upper bound on fraction of sample variance lost by dropping eigenvectors with small eigenvalues.
+        :return: Variant dataset with linear mixed regression annotations.
+        :rtype: :py:class:`.VariantDataset`
+        """
 
-        :param int n_eigs: Number of eigenvectors to use to fit the LMM
+        jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
+                                 use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
+                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction), joption(filter_variants_expr))
+        return VariantDataset(self.hc, jvds)
+    
+    @handle_py4j
+    @requireTGenotype
+    @typecheck_method(eigen=Eigendecomposition,
+                      y=strlike,
+                      covariates=listof(strlike),
+                      global_root=strlike,
+                      va_root=strlike,
+                      run_assoc=bool,
+                      use_ml=bool,
+                      delta=nullable(numeric),
+                      sparsity_threshold=numeric,
+                      use_dosages=bool)
+    def lmmreg_eigen(self, eigen, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg", 
+                     run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False):
+        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association. This method takes a (partial) eigendecomposition of
+        the kinship matrix, which may be computed via the LD matrix when sample size is large.
 
-        :param float dropped_variance_fraction: Upper bound on fraction of total variance lost by dropping eigenvectors with small eigenvalues.
+        .. include:: requireTGenotype.rst
 
-        :param str filter_variants_expr: Boolean filter expression on variants. If given, only variants that pass this predicate will have statistics computed; the rest will be removed from the returned VDS.
+        **Examples**
+
+        Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotations ``va.useInKinship`` and ``va.useInAssociation``, and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
+
+        >>> vds = hc.read("data/example_lmmreg.vds")
+        >>> kinship_matrix = vds.filter_variants_expr('va.useInKinship').rrm()
+        >>> eigen = kinship_matrix.sampleEigendecomposition()
+        >>> lmm_vds = (vds.filter_variants_expr('va.useInAssociation')
+        ...     .lmmreg(eigen, 'sa.pheno', ['sa.cov1', 'sa.cov2']))
+
+        Equivalent to:
+
+        >>> vds = hc.read("data/example_lmmreg.vds")
+        >>> ld_matrix = vds.filter_variants_expr('va.useInKinship').ld_matrix()
+        >>> eigen = ld_matrix.sampleEigendecomposition()
+        >>> lmm_vds = (vds.filter_variants_expr('va.useInAssociation')
+        ...     .lmmreg(eigen, 'sa.pheno', ['sa.cov1', 'sa.cov2']))
+
+        **Notes**
+
+        The rank of the kinship matrix (RRM) resulting from a genetic matrix on :math:`n` samples and :math:`m` variants is at most the minimum of :math:`n` and :math:`m`.
+        
+        So to improve efficiency when :math:`m` is less than :math:`n`, this method alternatively accepts an LD matrix, the eigenvectors of which are then transformed to the first :math:`m` eigenvectors of the RRM using the relationship between left and right singular vectors as defined by the singular value decomposition of the normalized genetic matrix. Passing in all eigenvectors derived from the RRM or LD matrix will result in mathematically identical statistics. Fewer eigenvectors may be passed in to improve performance using approximate rather than exact inference.
+
+        :py:meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors passed in.
+
+        :param eigen: Eigendecomposition to be used.
+        :type Eigendecomposition
+
+        :param str y: Response sample annotation.
+
+        :param covariates: List of covariate sample annotations.
+        :type covariates: list of str
+
+        :param str global_root: Global annotation root, a period-delimited path starting with `global`.
+
+        :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
+
+        :param bool run_assoc: If true, run association testing in addition to fitting the global model.
+
+        :param bool use_ml: Use ML instead of REML throughout.
+
+        :param delta: Fixed delta value to use in the global model, overrides fitting delta.
+        :type delta: float or None
+
+        :param float sparsity_threshold: Genotype vector sparsity at or below which to use sparse genotype vector in rotation (advanced).
+
+        :param bool use_dosages: If true, use dosages rather than hard call genotypes.
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        if isinstance(kinshipMatrix, KinshipMatrix):
-            jm = kinshipMatrix._jkm
-        else:
-            jm = kinshipMatrix._jldm
-
-        jvds = self._jvdf.lmmreg(jm, y, jarray(Env.jvm().java.lang.String, covariates),
+        jvds = self._jvdf.lmmregEigen(jm, y, jarray(Env.jvm().java.lang.String, covariates),
                                  use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
-                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction), joption(filter_variants_expr))
+                                 use_dosages, joption(n_eigs))
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

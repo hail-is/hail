@@ -465,7 +465,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val eigenFromKinship = vdsChr3.rrm().eigenDecomposition(None)
     val eigenFromLD = vdsChr3.ldMatrix().sampleEigenDecomposition(vdsChr3, None)
     
-    val vdsRRM = LinearMixedRegression.applyLMM(vdsChr1, eigenFromKinship, "sa.pheno", Array("sa.cov"),
+    val vdsRRM = LinearMixedRegression.applyEigen(vdsChr1, eigenFromKinship, "sa.pheno", Array("sa.cov"),
           useML = false,
           rootGA = "global.lmmreg",
           rootVA = "va.lmmreg",
@@ -473,7 +473,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
           optDelta = None,
           sparsityThreshold = 1.0,
           useDosages = false)
-    val vdsLD = LinearMixedRegression.applyLMM(vdsChr1, eigenFromLD, "sa.pheno", Array("sa.cov"),
+    val vdsLD = LinearMixedRegression.applyEigen(vdsChr1, eigenFromLD, "sa.pheno", Array("sa.cov"),
           useML = false,
           rootGA = "global.lmmreg",
           rootVA = "va.lmmreg",
@@ -491,9 +491,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
   @Test def testLDAndRRMAreEquivalent() {
     val vdsFastLMMDownsampled = vdsFastLMM.sampleVariants(0.5)
     val rrm = vdsFastLMMDownsampled.rrm()
-    val ldMatrix = vdsFastLMMDownsampled.ldMatrix()
+    val eigenFromLD = vdsFastLMMDownsampled.ldMatrix().sampleEigenDecomposition(vdsFastLMMDownsampled, Some(230))
 
-    val vdsLD230 = vdsFastLMMDownsampled.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), delta = None, nEigs = Some(230))
+    val vdsLD230 = vdsFastLMMDownsampled.lmmregEigen(eigenFromLD, "sa.pheno", Array("sa.cov"), delta = None)
     val vdsRRM230 = vdsFastLMMDownsampled.lmmreg(rrm, "sa.pheno", Array("sa.cov"), delta = None, nEigs = Some(230))
 
     globalLMMCompare(vdsLD230, vdsRRM230)
@@ -557,7 +557,9 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
 
-    val vdsLmmregLD = vdsSmall.lmmreg(vdsSmall.ldMatrix(), "sa.pheno", nEigs = Some(3))
+    val eigenFromLD= vdsSmall.ldMatrix().sampleEigenDecomposition(vdsSmall, Some(3))
+    
+    val vdsLmmregLD = vdsSmall.lmmregEigen(eigenFromLD, "sa.pheno")
 
     globalLMMCompare(vdsLmmregLowRank, vdsLmmregLD)
     globalLMMCompare(vdsLmmregLowRank, vdsLmmreg)

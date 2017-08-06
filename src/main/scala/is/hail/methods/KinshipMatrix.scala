@@ -6,7 +6,7 @@ import breeze.linalg.SparseVector
 import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TString, Type}
-import is.hail.stats.eigSymD
+import is.hail.stats.{Eigendecomposition, eigSymD}
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -16,7 +16,7 @@ import scala.collection.Searching._
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], nVariantsUsed: Long) extends SimilarityMatrix {
+case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], nVariantsUsed: Long) {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   def requireSampleTString(method: String) {
@@ -48,7 +48,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     KinshipMatrix(hc, sampleSignature, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds, nVariantsUsed)
   }
   
-  def eigenDecomposition(optNEigs: Option[Int]): EigenDecomposition = {
+  def eigenDecomposition(optNEigs: Option[Int]): Eigendecomposition = {
     val K = matrix.toLocalMatrix().asBreeze().toDenseMatrix
 
     info(s"Computing eigenvectors of kinship matrix...")
@@ -65,7 +65,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     val evects = eigK.eigenvectors(::, (n - nEigs) until n)
     val evals = eigK.eigenvalues((n - nEigs) until n)
     
-    EigenDecomposition(sampleSignature, sampleIds, evects, evals, maxRank)
+    Eigendecomposition(sampleSignature, sampleIds, evects, evals)
   }
 
   /**

@@ -3,7 +3,7 @@ package is.hail.methods
 import breeze.linalg.*
 import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
 import is.hail.utils._
-import is.hail.stats.{RegressionUtils, ToNormalizedIndexedRowMatrix, eigSymD}
+import is.hail.stats.{Eigendecomposition, RegressionUtils, ToNormalizedIndexedRowMatrix, eigSymD}
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.mllib.linalg
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix, Vectors}
@@ -72,17 +72,17 @@ object LDMatrix {
   * @param variants Array of variants indexing the rows and columns of the matrix.
   * @param nSamplesUsed Number of samples used to compute this matrix.
   */
-case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamplesUsed: Int) extends SimilarityMatrix {
+case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamplesUsed: Int) extends {
   def toLocalMatrix: Matrix = matrix.toBlockMatrixDense().toLocalMatrix()
   
-  def sampleEigenDecomposition(vds: VariantDataset, optNEigs: Option[Int]): EigenDecomposition = {
+  def sampleEigenDecomposition(vds: VariantDataset, optNEigs: Option[Int]): Eigendecomposition = {
     val variantSet = variants.toSet
     val L = matrix.toLocalMatrix().asBreeze().toDenseMatrix
 
     info(s"Computing eigenvectors of LD matrix...")
     val eigL = printTime(eigSymD(L))
 
-    val maxRank = variants.length min nSamplesUsed    
+    val maxRank = variants.length min nSamplesUsed
     val nEigs = optNEigs.getOrElse(maxRank)
     optNEigs.foreach( k => if (k > nEigs) info(s"Requested $k evects but maximum rank is $maxRank."))
     
@@ -120,6 +120,6 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
     val sparkU = (sparkG * VSSpark).toLocalMatrix()
     val U = sparkU.asBreeze().toDenseMatrix
 
-    EigenDecomposition(vds.sSignature, vds.sampleIds.toArray, U, S_K, maxRank)
+    Eigendecomposition(vds.sSignature, vds.sampleIds.toArray, U, S_K)
   }
 }

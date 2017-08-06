@@ -13,31 +13,6 @@ import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
 import org.apache.commons.math3.optim.univariate.{BrentOptimizer, SearchInterval, UnivariateObjectiveFunction}
 import org.apache.commons.math3.util.FastMath
 
-//FIXME Should not have to make KinshipMatrix and LDMatrix extend this trait. Do fancy type stuff to make this work.
-trait SimilarityMatrix
-
-case class EigenDecomposition(rowSignature: Type, rowIds: Array[Annotation], evects: DenseMatrix[Double], evals: DenseVector[Double], maxRank: Int) {
-  require(evects.rows == rowIds.length)
-  require(evects.cols == evals.length)
-  require(maxRank <= rowIds.length) // FIXME: remove maxRank?
-  
-  def filterRows(signature: Type, pred: (Annotation => Boolean)): EigenDecomposition = {
-    require(signature == rowSignature)
-        
-    val (newRowIds, newRows) = rowIds.zipWithIndex.filter{ case (id, row) => pred(id) }.unzip
-    val newEvects = evects.filterRows(newRows.toSet).getOrElse(fatal("No rows left")) // FIXME: improve message
-    val newMaxRank = maxRank min newRows.length
-    
-    EigenDecomposition(rowSignature, newRowIds, newEvects, evals, newMaxRank)
-  }
-  
-  def take(k: Int): EigenDecomposition = {
-    require(k >= 1)
-    
-    EigenDecomposition(rowSignature, rowIds, evects(::, 0 until k), evals(0 until k), maxRank min k)
-  }
-}
-
 object LinearMixedRegression {
   val schema: Type = TStruct(
     ("beta", TDouble),
@@ -48,7 +23,7 @@ object LinearMixedRegression {
   
   def apply(
     vds: VariantDataset,
-    similarityMatrix: SimilarityMatrix,
+    kinshipMatrix: KinshipMatrix,
     yExpr: String,
     covExpr: Array[String],
     useML: Boolean,
@@ -59,14 +34,9 @@ object LinearMixedRegression {
     sparsityThreshold: Double,
     useDosages: Boolean,
     optNEigs: Option[Int]): VariantDataset = {
-    
-    val eigenDecomposition = similarityMatrix match {
-      case ldMatrix: LDMatrix => ldMatrix.sampleEigenDecomposition(vds, optNEigs)
-      case kinshipMatrix: KinshipMatrix => kinshipMatrix.eigenDecomposition(optNEigs)
-    }
 
-    applyLMM(vds: VariantDataset,
-      eigenDecomposition: EigenDecomposition,
+    applyEigen(vds: VariantDataset,
+      kinshipMatrix.eigenDecomposition(optNEigs),
       yExpr: String,
       covExpr: Array[String],
       useML: Boolean,
@@ -78,9 +48,9 @@ object LinearMixedRegression {
       useDosages: Boolean)
   }
   
-  def applyLMM(
+  def applyEigen(
     vds: VariantDataset,
-    eigenDecomposition: EigenDecomposition,
+    eigenDecomposition: Eigendecomposition,
     yExpr: String,
     covExpr: Array[String],
     useML: Boolean,
@@ -123,7 +93,7 @@ object LinearMixedRegression {
       case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
-    val EigenDecomposition(_, rowIds, evects, evals, maxRank) = eigenDecomposition.filterRows(vds.sSignature, completeSamplesSet)
+    val Eigendecomposition(_, rowIds, evects, evals) = eigenDecomposition.filterRows(vds.sSignature, completeSamplesSet)
     
     if (! completeSamples.sameElements(rowIds))
       fatal("Bad stuff")
@@ -131,8 +101,6 @@ object LinearMixedRegression {
     val Ut = evects.t
     val S = evals
     val nEigs = S.length
-
-    require(nEigs > 0 && nEigs <= maxRank, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the rank of similarity matrix $rank inclusive: got $nEigs")
 
     info(s"lmmreg: Using $nEigs")
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
