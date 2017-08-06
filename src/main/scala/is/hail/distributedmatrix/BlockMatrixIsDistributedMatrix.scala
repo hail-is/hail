@@ -337,7 +337,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
     m.blocks.map { case ((i, j), m) =>
       (new PairWriter(i, j), new MatrixWriter(m.numRows, m.numCols, m.toArray)) }
-      .saveAsSequenceFile(uri+metadataRelativePath)
+      .saveAsSequenceFile(uri+matrixRelativePath)
 
     using(hadoop.create(uri+metadataRelativePath)) { os =>
       jackson.Serialization.write(
