@@ -6,6 +6,7 @@ import breeze.linalg.SparseVector
 import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TString, Type}
+import is.hail.stats.{Eigendecomposition, eigSymD}
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -15,7 +16,7 @@ import scala.collection.Searching._
 /**
   * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
   */
-case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) extends SimilarityMatrix {
+case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], nVariantsUsed: Long) {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   def requireSampleTString(method: String) {
@@ -44,7 +45,31 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
       IndexedRow(index, Vectors.dense(filteredArray))
     })
 
-    KinshipMatrix(hc, sampleSignature, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds, numVariantsUsed)
+    KinshipMatrix(hc, sampleSignature, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds, nVariantsUsed)
+  }
+  
+  def eigen(optNEigs: Option[Int]): Eigendecomposition = {
+    val K = matrix.toLocalMatrix().asBreeze().toDenseMatrix
+
+    info(s"Computing eigenvectors of kinship matrix...")
+    val eigK = printTime(eigSymD(K))
+
+    val maxRank = sampleIds.length min nVariantsUsed.toInt
+    val nEigs = optNEigs.getOrElse(maxRank)
+    optNEigs.foreach( k => if (k > nEigs) info(s"Requested $k evects but maximum rank is $maxRank."))
+    
+    info(s"Eigendecomposition complete, returning $nEigs eigenvectors.")
+
+    val n = K.cols
+    assert(n == eigK.eigenvectors.cols)
+    
+    val (evects, evals) =
+      if (nEigs == n)
+        (eigK.eigenvectors, eigK.eigenvalues)
+        else
+        (eigK.eigenvectors(::, (n - nEigs) until n).copy, eigK.eigenvalues((n - nEigs) until n).copy)
+    
+    Eigendecomposition(sampleSignature, sampleIds, evects, evals)
   }
 
   /**
@@ -79,7 +104,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
   }
 
   def exportGctaGrm(output: String) {
-    val nVars = numVariantsUsed //required to avoid serialization error.
+    val nVars = nVariantsUsed //required to avoid serialization error.
     prepareMatrixForExport(matrix).rows
     .mapPartitions{ (itr: Iterator[IndexedRow]) =>
       val sb = new StringBuilder
@@ -121,7 +146,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     nFile.foreach { f =>
       hc.sc.hadoopConfiguration.writeDataFile(f) { s =>
         for (_ <- 0 until sampleIds.length * (sampleIds.length + 1) / 2)
-          writeFloatLittleEndian(s, numVariantsUsed.toFloat)
+          writeFloatLittleEndian(s, nVariantsUsed.toFloat)
       }
     }
   }

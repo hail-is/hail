@@ -12,7 +12,7 @@ import is.hail.io.vcf.{BufferedLineIterator, ExportVCF}
 import is.hail.keytable.KeyTable
 import is.hail.methods._
 import is.hail.sparkextras.{OrderedPartitioner, OrderedRDD}
-import is.hail.stats.ComputeRRM
+import is.hail.stats.{ComputeRRM, Eigendecomposition}
 import is.hail.utils._
 import is.hail.variant.Variant.orderedKey
 import org.apache.hadoop
@@ -555,7 +555,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def ldMatrix(forceLocal: Boolean = false): LDMatrix = {
     requireSplit("LD Matrix")
-    LDMatrix(vds, Some(forceLocal))
+    LDMatrix(vds, None)
   }
 
   def ldPrune(r2Threshold: Double = 0.2, windowSize: Int = 1000000, nCores: Int = 1, memoryPerCore: Int = 256): VariantDataset = {
@@ -584,7 +584,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     LinearRegression3(vds, ys, covariates, root, useDosages, variantBlockSize)
   }
 
-  def lmmreg(kinshipMatrix: SimilarityMatrix,
+  def lmmreg(kinshipMatrix: KinshipMatrix,
     y: String,
     covariates: Array[String] = Array.empty[String],
     useML: Boolean = false,
@@ -594,13 +594,27 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     delta: Option[Double] = None,
     sparsityThreshold: Double = 1.0,
     useDosages: Boolean = false,
-    nEigs: Option[Int] = None,
-    optDroppedVarianceFraction: Option[Double] = None,
-    optFilterVariantsExpr: Option[String] = None): VariantDataset = {
+    nEigs: Option[Int] = None): VariantDataset = {
 
     requireSplit("linear mixed regression")
     LinearMixedRegression(vds, kinshipMatrix, y, covariates, useML, rootGA, rootVA,
-      runAssoc, delta, sparsityThreshold, useDosages, nEigs, optDroppedVarianceFraction, optFilterVariantsExpr)
+      runAssoc, delta, sparsityThreshold, useDosages, nEigs)
+  }
+  
+  def lmmregEigen(eigen: Eigendecomposition,
+    y: String,
+    covariates: Array[String] = Array.empty[String],
+    useML: Boolean = false,
+    rootGA: String = "global.lmmreg",
+    rootVA: String = "va.lmmreg",
+    runAssoc: Boolean = true,
+    delta: Option[Double] = None,
+    sparsityThreshold: Double = 1.0,
+    useDosages: Boolean = false): VariantDataset = {
+
+    requireSplit("linear mixed regression")
+    LinearMixedRegression.applyEigen(vds, eigen, y, covariates, useML, rootGA, rootVA,
+      runAssoc, delta, sparsityThreshold, useDosages)
   }
 
   def logreg(test: String,

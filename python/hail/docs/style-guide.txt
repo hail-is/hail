@@ -83,35 +83,35 @@
     **example1.vds**
 
     ```
-    >>> (hc.import("src/test/resources/sample.vcf.bgz")
+    >>> (hc.import_vcf("src/test/resources/sample.vcf.bgz")
     ...    .downsample_variants(10)
     ...    .annotate_variants_expr('va.useInKinship = pcoin(0.9),
-                                    va.panel_maf = 0.1,
-                                    va.anno1 = 5,
-                                    va.anno2 = 0,
-                                    va.consequence = "LOF",
-                                    va.gene = "A",
-                                    va.score = 5.0')
+    ...                             va.panel_maf = 0.1,
+    ...                             va.anno1 = 5,
+    ...                             va.anno2 = 0,
+    ...                             va.consequence = "LOF",
+    ...                             va.gene = "A",
+    ...                             va.score = 5.0')
     ...    .split_multi()
     ...    .variant_qc()
     ...    .sample_qc()
     ...    .annotate_samples_expr('sa.isCase = true,
-                                   sa.pheno.isCase = pcoin(0.5),
-                                   sa.pheno.isFemale = pcoin(0.5),
-                                   sa.pheno.age=rnorm(65, 10),
-                                   sa.cov.PC1 = rnorm(0,1),
-                                   sa.pheno.height = rnorm(70, 10),
-                                   sa.cov1 = rnorm(0, 1),
-                                   sa.cov2 = rnorm(0,1),
-                                   sa.pheno.bloodPressure= rnorm(120,20),
-                                   sa.pheno.cohortName = "cohort1"')
+    ...                            sa.pheno.isCase = pcoin(0.5),
+    ...                            sa.pheno.isFemale = pcoin(0.5),
+    ...                            sa.pheno.age=rnorm(65, 10),
+    ...                            sa.cov.PC1 = rnorm(0, 1),
+    ...                            sa.pheno.height = rnorm(70, 10),
+    ...                            sa.cov1 = rnorm(0, 1),
+    ...                            sa.cov2 = rnorm(0, 1),
+    ...                            sa.pheno.bloodPressure= rnorm(120, 20),
+    ...                            sa.pheno.cohortName = "cohort1"')
     ...    .write("python/hail/docs/data/example.vds", overwrite=True))
     ```
 
     **example2.vds**
 
     ```
-    >>> (hc.import("src/test/resources/sample.vcf.bgz")
+    >>> (hc.import_vcf("src/test/resources/sample.vcf.bgz")
     ...    .downsample_variants(5)
     ...    .annotate_variants_expr('va.anno1 = 5,
                                     va.toKeep1 = true,
@@ -131,9 +131,11 @@
     ...    .annotate_samples_expr('sa.pheno = rnorm(1,1) * sa.culprit')
     ...    .annotate_samples_expr('sa.cov1 = rnorm(0,1)')
     ...    .annotate_samples_expr('sa.cov2 = rnorm(0,1)')
-    ...    .linreg('sa.pheno', ['sa.cov1', 'sa.cov2']).annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
+    ...    .linreg('sa.pheno', ['sa.cov1', 'sa.cov2'])
+    ...    .annotate_variants_expr('va.useInKinship = va.qc.AF > 0.05')
+    ...    .annotate_variants_expr('va.useInAssociation = true')
     ...    .write("python/hail/docs/data/example_lmmreg.vds", overwrite=True))
-
+    ```
 
     **example_burden.vds**
 
