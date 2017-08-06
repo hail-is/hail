@@ -36,7 +36,7 @@ object LinearMixedRegression {
     optNEigs: Option[Int]): VariantDataset = {
 
     applyEigen(vds: VariantDataset,
-      kinshipMatrix.eigenDecomposition(optNEigs),
+      kinshipMatrix.eigen(optNEigs),
       yExpr: String,
       covExpr: Array[String],
       useML: Boolean,

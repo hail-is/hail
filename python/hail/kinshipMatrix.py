@@ -1,9 +1,9 @@
-from decorator import decorator
-
 from hail.typecheck import *
 
 from hail.java import *
 from hail.expr import Type, TString
+from hail.eigendecomposition import Eigendecomposition
+
 
 class KinshipMatrix:
     """
@@ -47,6 +47,25 @@ class KinshipMatrix:
         from pyspark.mllib.linalg.distributed import IndexedRowMatrix
 
         return IndexedRowMatrix(self._jkm.matrix())
+
+    @typecheck_method(k=nullable(integral))
+    def eigen(self, k=None):
+        """
+        Compute an eigendecomposition of the kinship matrix. The number of eigenvectors returned is the minimum of
+        the number of variants used to form the kinship matrix, the number of samples, and k.
+        
+        .. caution::
+        
+            Only call this method when the Kinship matrix and the matrix of eigenvectors are small enough to fit in
+            local memory on the driver. The number of variants in the kinship matrix can be at most 32k.
+        
+        :param k: Upper bound on the number of eigenvectors to return.
+        :type K: int or None
+        
+        :return: Eigendecomposition of the kinship matrix.
+        :rtype: Eigendecomposition
+        """
+        return Eigendecomposition(self._jkm.eigen(joption(k)))
 
     @typecheck_method(output=strlike)
     def export_tsv(self, output):

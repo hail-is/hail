@@ -610,8 +610,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     runAssoc: Boolean = true,
     delta: Option[Double] = None,
     sparsityThreshold: Double = 1.0,
-    useDosages: Boolean = false,
-    nEigs: Option[Int] = None): VariantDataset = {
+    useDosages: Boolean = false): VariantDataset = {
 
     requireSplit("linear mixed regression")
     LinearMixedRegression.applyEigen(vds, eigen, y, covariates, useML, rootGA, rootVA,

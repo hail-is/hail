@@ -75,7 +75,7 @@ object LDMatrix {
 case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamplesUsed: Int) extends {
   def toLocalMatrix: Matrix = matrix.toBlockMatrixDense().toLocalMatrix()
   
-  def sampleEigenDecomposition(vds: VariantDataset, optNEigs: Option[Int]): Eigendecomposition = {
+  def sampleEigen(vds: VariantDataset, optNEigs: Option[Int]): Eigendecomposition = {
     val variantSet = variants.toSet
     val L = matrix.toLocalMatrix().asBreeze().toDenseMatrix
 
@@ -100,7 +100,12 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
     val m = variants.length
     assert(m == eigL.eigenvectors.cols)
     val V = eigL.eigenvectors(::, (m - nEigs) until m)
-    val S_K = eigL.eigenvalues((m - nEigs) until m) :* (n / m)
+    val S_K =
+      if (nEigs == m)
+        eigL.eigenvalues :* (n / m)
+      else
+        (eigL.eigenvalues((m - nEigs) until m) :* (n / m)).copy
+      
     val c2 = 1.0 / math.sqrt(m)
     val sqrtSInv = S_K.map(e => c2 / math.sqrt(e))
 
@@ -119,7 +124,7 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
     val sparkG = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().t
     val sparkU = (sparkG * VSSpark).toLocalMatrix()
     val U = sparkU.asBreeze().toDenseMatrix
-
+    
     Eigendecomposition(vds.sSignature, vds.sampleIds.toArray, U, S_K)
   }
 }

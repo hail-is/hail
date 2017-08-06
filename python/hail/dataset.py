@@ -12,9 +12,9 @@ from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
+from hail.eigendecomposition import Eigendecomposition
 
 warnings.filterwarnings(module=__name__, action='once')
-
 
 @decorator
 def requireTGenotype(func, vds, *args, **kwargs):
@@ -263,6 +263,7 @@ class VariantDataset(object):
 
         :param expr: Annotation expression.
         :type expr: str or list of str
+        
         :param bool propagate_gq: Propagate GQ instead of computing from (split) PL.
 
         :return: Annotated variant dataset.
@@ -3066,8 +3067,7 @@ class VariantDataset(object):
                       use_dosages=bool,
                       n_eigs=nullable(integral))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
-               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False,
-               n_eigs=None, dropped_variance_fraction=None, filter_variants_expr=None):
+               run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False, n_eigs=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association. This method takes a kinship matrix.
 
         .. include:: requireTGenotype.rst
@@ -3296,9 +3296,9 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates),
-                                 use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
-                                 use_dosages, joption(n_eigs), joption(dropped_variance_fraction), joption(filter_variants_expr))
+        jvds = self._jvdf.lmmreg(kinshipMatrix._jkm, y, jarray(Env.jvm().java.lang.String, covariates), use_ml,
+                                 global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
+                                 use_dosages, joption(n_eigs))
         return VariantDataset(self.hc, jvds)
     
     @handle_py4j
@@ -3373,9 +3373,8 @@ class VariantDataset(object):
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.lmmregEigen(jm, y, jarray(Env.jvm().java.lang.String, covariates),
-                                 use_ml, global_root, va_root, run_assoc, joption(delta), sparsity_threshold,
-                                 use_dosages, joption(n_eigs))
+        jvds = self._jvdf.lmmregEigen(eigen._jeigen, y, jarray(Env.jvm().java.lang.String, covariates), use_ml, global_root,
+                                      va_root, run_assoc, joption(delta), sparsity_threshold, use_dosages)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

@@ -1,4 +1,7 @@
 from hail.representation import Variant
+from hail.eigendecomposition import Eigendecomposition
+from hail.typecheck import *
+from hail.java import *
 
 class LDMatrix:
     """
@@ -34,7 +37,8 @@ class LDMatrix:
         
         .. caution::
         
-            Only call this method when the LD matrix is small enough to fit in local memory on the driver. 
+            Only call this method when the LD matrix is small enough to fit in local memory on the driver.
+            The product of the dimensions can be at most :math:`2^31 - 1` (about 2 billion).
         
         :return: Matrix of Pearson correlation values.
         :rtype: `Matrix <https://spark.apache.org/docs/2.1.0/api/python/pyspark.mllib.html#pyspark.mllib.linalg.Matrix>`__
@@ -42,4 +46,35 @@ class LDMatrix:
         from pyspark.mllib.linalg import DenseMatrix
 
         j_local_mat = self._jldm.toLocalMatrix()
-        return DenseMatrix(j_local_mat.numRows(), j_local_mat.numCols(), list(j_local_mat.toArray()), j_local_mat.isTransposed())
+        return DenseMatrix(j_local_mat.numRows(), j_local_mat.numCols(), list(j_local_mat.values()), j_local_mat.isTransposed())
+    
+    @typecheck_method(vds=anytype,
+                      k=nullable(integral))
+    def sample_eigen(self, vds, k=None):
+        """
+        Compute an eigendecomposition of the Realized Relationship Matrix (RRM) of the variant dataset using the
+        variants in the LD matrix.
+        
+        *Notes*
+
+        This method computes and then uses eigendecomposition of the LD matrix to derive an eigendecomposition
+        of the corresponding RRM. All variants in the LD matrix must be present in the VDS. The number of eigenvectors
+        returned is the minimum of variants, the number of samples used to form the LD matrix, and k.
+        
+        .. caution::
+        
+            Only call this method when the LD matrix and the matrix of eigenvectors are small enough to fit in
+            local memory on the driver. The number of variants in the LD matrix can be at most 32k.
+            The number of elements in the eigenvector matrix can be at most :math:`2^{31} - 1` (about 2 billion).
+        
+        :param vds: Variant dataset
+        :type vds: :py:class:`.VariantDataset`
+        
+        :param k: Upper bound on the number of eigenvectors to return.
+        :type k: int or None
+        
+        :return: Eigendecomposition of the kinship matrix.
+        :rtype: Eigendecomposition
+        """
+        
+        return Eigendecomposition(self._jldm.sampleEigen(vds._jvds, joption(k)))

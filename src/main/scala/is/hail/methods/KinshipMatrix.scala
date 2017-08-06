@@ -48,7 +48,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     KinshipMatrix(hc, sampleSignature, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds, nVariantsUsed)
   }
   
-  def eigenDecomposition(optNEigs: Option[Int]): Eigendecomposition = {
+  def eigen(optNEigs: Option[Int]): Eigendecomposition = {
     val K = matrix.toLocalMatrix().asBreeze().toDenseMatrix
 
     info(s"Computing eigenvectors of kinship matrix...")
@@ -62,8 +62,12 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
 
     val n = K.cols
     assert(n == eigK.eigenvectors.cols)
-    val evects = eigK.eigenvectors(::, (n - nEigs) until n)
-    val evals = eigK.eigenvalues((n - nEigs) until n)
+    
+    val (evects, evals) =
+      if (nEigs == n)
+        (eigK.eigenvectors, eigK.eigenvalues)
+        else
+        (eigK.eigenvectors(::, (n - nEigs) until n).copy, eigK.eigenvalues((n - nEigs) until n).copy)
     
     Eigendecomposition(sampleSignature, sampleIds, evects, evals)
   }
