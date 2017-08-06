@@ -5,6 +5,7 @@ import breeze.numerics.{abs, exp, sigmoid}
 import breeze.stats.mean
 import is.hail.annotations._
 import is.hail.expr.{TArray, TDouble, TStruct}
+import is.hail.keytable.KeyTable
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
@@ -261,7 +262,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
       .annotateSamples(covData, covSchema, "sa.covs")
     val kinshipVds = assocVds.filterVariants((v, va, gs) => v.start <= mW)
 
-    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = covExpr, delta = Some(delta), optDroppedVarianceFraction = Some(0))
+    val vds = assocVds.lmmreg(kinshipVds.rrm(), "sa.pheno", covariates = covExpr, delta = Some(delta))
 
     val qBeta = vds.queryVA("va.lmmreg.beta")._2
     val qSg2 = vds.queryVA("va.lmmreg.sigmaG2")._2
@@ -286,12 +287,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
     https://github.com/MicrosoftGenomics/FaST-LMM/blob/master/doc/ipynb/FaST-LMM.ipynb
   */
 
-  lazy val covariates = hc.importTable("src/test/resources/fastlmmCov.txt",
+  lazy val covariates: KeyTable = hc.importTable("src/test/resources/fastlmmCov.txt",
     noHeader = true, impute = true).keyBy("f1")
-  lazy val phenotypes = hc.importTable("src/test/resources/fastlmmPheno.txt",
+  lazy val phenotypes: KeyTable = hc.importTable("src/test/resources/fastlmmPheno.txt",
     noHeader = true, impute = true, separator = " ").keyBy("f1")
 
-  lazy val vdsFastLMM = hc.importPlink(bed = "src/test/resources/fastlmmTest.bed",
+  lazy val vdsFastLMM: VariantDataset = hc.importPlink(bed = "src/test/resources/fastlmmTest.bed",
     bim = "src/test/resources/fastlmmTest.bim",
     fam = "src/test/resources/fastlmmTest.fam")
     .annotateSamplesTable(covariates, expr = "sa.cov=table.f2")
@@ -439,18 +440,18 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val rrm = notChr1VDSDownsampled.rrm()
 
     //REML TESTS
-    val vdsChr1FullRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = true, delta = None)
+    val vdsChr1FullRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), delta = None)
 
-    val vdsChr1LowRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = true, nEigs = Some(242))
+    val vdsChr1LowRankREML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), nEigs = Some(242))
 
     globalLMMCompare(vdsChr1FullRankREML, vdsChr1LowRankREML)
 
     variantAnnotationLMMCompare(vdsChr1FullRankREML, vdsChr1LowRankREML)
 
     //ML TESTS
-    val vdsChr1FullRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = true, delta = None)
+    val vdsChr1FullRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, delta = None)
 
-    val vdsChr1LowRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, runAssoc = true, nEigs = Some(242))
+    val vdsChr1LowRankML = vdsChr1.lmmreg(rrm, "sa.pheno", Array("sa.cov"), useML = true, nEigs = Some(242))
 
     globalLMMCompare(vdsChr1FullRankML, vdsChr1LowRankML)
 
@@ -460,9 +461,26 @@ class LinearMixedRegressionSuite extends SparkSuite {
   @Test def testLDandRRMLOCO() {
     val vdsChr1 = vdsFastLMM.filterVariantsExpr("""v.contig == "1"""")
     val vdsChr3 = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
-
-    val vdsRRM = vdsChr1.lmmreg(vdsChr3.rrm(), "sa.pheno", Array("sa.cov"), delta = None)
-    val vdsLD = vdsFastLMM.lmmreg(vdsChr3.ldMatrix(), "sa.pheno", Array("sa.cov"), delta = None, optFilterVariantsExpr = Option("""v.contig == "1""""))
+    
+    val eigenFromKinship = vdsChr3.rrm().eigenDecomposition(None)
+    val eigenFromLD = vdsChr3.ldMatrix().sampleEigenDecomposition(vdsChr3, None)
+    
+    val vdsRRM = LinearMixedRegression.applyLMM(vdsChr1, eigenFromKinship, "sa.pheno", Array("sa.cov"),
+          useML = false,
+          rootGA = "global.lmmreg",
+          rootVA = "va.lmmreg",
+          runAssoc = true,
+          optDelta = None,
+          sparsityThreshold = 1.0,
+          useDosages = false)
+    val vdsLD = LinearMixedRegression.applyLMM(vdsChr1, eigenFromLD, "sa.pheno", Array("sa.cov"),
+          useML = false,
+          rootGA = "global.lmmreg",
+          rootVA = "va.lmmreg",
+          runAssoc = true,
+          optDelta = None,
+          sparsityThreshold = 1.0,
+          useDosages = false)
 
     assert(vdsLD.countVariants() == vdsChr1.countVariants())
 
@@ -475,8 +493,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val rrm = vdsFastLMMDownsampled.rrm()
     val ldMatrix = vdsFastLMMDownsampled.ldMatrix()
 
-    val vdsLD230 = vdsFastLMMDownsampled.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), runAssoc = true, delta = None, nEigs = Some(230))
-    val vdsRRM230 = vdsFastLMMDownsampled.lmmreg(rrm, "sa.pheno", Array("sa.cov"), runAssoc = true, delta = None, nEigs = Some(230))
+    val vdsLD230 = vdsFastLMMDownsampled.lmmreg(ldMatrix, "sa.pheno", Array("sa.cov"), delta = None, nEigs = Some(230))
+    val vdsRRM230 = vdsFastLMMDownsampled.lmmreg(rrm, "sa.pheno", Array("sa.cov"), delta = None, nEigs = Some(230))
 
     globalLMMCompare(vdsLD230, vdsRRM230)
     variantAnnotationLMMCompare(vdsLD230, vdsRRM230)
@@ -510,31 +528,31 @@ class LinearMixedRegressionSuite extends SparkSuite {
       TestUtils.assertDouble(qSg21(vds1Annotations(j)).asInstanceOf[Double], qSg22(vds2Annotations(j)).asInstanceOf[Double], 1e-2 )
     }
   }
-
-  lazy val smallMat = DenseMatrix(
-    (1, 2, 0),
-    (2, 1, 1),
-    (1, 1, 1),
-    (0, 0, 2),
-    (1, 0, 1),
-    (0, 1, 1),
-    (2, 2, 2),
-    (2, 0, 1),
-    (1, 0, 0),
-    (1, 1, 2))
-
-  val rand = new scala.util.Random()
-  rand.setSeed(5)
-  val randomNorms = (1 to 10).map(x => rand.nextGaussian())
-
-  lazy val vdsSmall = vdsFromGtMatrix(hc)(smallMat)
-    .annotateSamplesExpr("sa.culprit = gs.filter(g => v.start == 2).map(g => g.gt).collect()[0]")
-    .annotateGlobal(randomNorms, TArray(TDouble), "global.randNorms")
-    .annotateSamplesExpr("sa.pheno = sa.culprit + global.randNorms[s.toInt]")
-
-  lazy val vdsSmallRRM = vdsSmall.rrm()
   
   @Test def testSmall() {
+     val smallMat = DenseMatrix(
+      (1, 2, 0),
+      (2, 1, 1),
+      (1, 1, 1),
+      (0, 0, 2),
+      (1, 0, 1),
+      (0, 1, 1),
+      (2, 2, 2),
+      (2, 0, 1),
+      (1, 0, 0),
+      (1, 1, 2))
+  
+    val rand = new scala.util.Random()
+    rand.setSeed(5)
+    val randomNorms = (1 to 10).map(x => rand.nextGaussian())
+  
+    val vdsSmall = vdsFromGtMatrix(hc)(smallMat)
+      .annotateSamplesExpr("sa.culprit = gs.filter(g => v.start == 2).map(g => g.gt).collect()[0]")
+      .annotateGlobal(randomNorms, TArray(TDouble), "global.randNorms")
+      .annotateSamplesExpr("sa.pheno = sa.culprit + global.randNorms[s.toInt]")
+  
+    val vdsSmallRRM = vdsSmall.rrm()
+
     val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno")
 
     val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
@@ -545,19 +563,5 @@ class LinearMixedRegressionSuite extends SparkSuite {
     globalLMMCompare(vdsLmmregLowRank, vdsLmmreg)
 
     assert(vdsLmmregLowRank.queryGlobal("global.lmmreg.nEigs")._2.asInstanceOf[Int] == 3)
-  }
-
-  @Test def testVarianceFraction() {
-    val vdsLmmreg = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", optDroppedVarianceFraction = Some(0.3))
-    assert(vdsLmmreg.queryGlobal("global.lmmreg.nEigs")._2 == 2)
-    assert(vdsLmmreg.queryGlobal("global.lmmreg.dropped_variance_fraction")._2 == 0.3)
-  }
-
-  @Test def computeNEigsDVF() {
-    val eigs = DenseVector(0.0, 1.0, 2.0, 3.0, 4.0)
-    assert(LinearMixedRegression.computeNEigsDVF(eigs, 0.1) == 3)
-    assert(LinearMixedRegression.computeNEigsDVF(eigs, 0.6) == 1)
-    assert(LinearMixedRegression.computeNEigsDVF(eigs, 0.59) == 2)
-    assert(LinearMixedRegression.computeNEigsDVF(eigs, 0.2) == 3)
   }
 }

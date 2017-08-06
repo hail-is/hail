@@ -3,10 +3,8 @@ package is.hail.methods
 import breeze.linalg._
 import breeze.numerics.{sigmoid, sqrt}
 import is.hail.annotations._
-import is.hail.distributedmatrix.DistributedMatrix
 import is.hail.expr._
 import is.hail.stats._
-import is.hail.stats.eigSymD.DenseEigSymD
 import is.hail.utils._
 import is.hail.variant.{Genotype, Variant, VariantDataset}
 import org.apache.commons.math3.analysis.UnivariateFunction
@@ -14,11 +12,31 @@ import org.apache.commons.math3.optim.MaxEval
 import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
 import org.apache.commons.math3.optim.univariate.{BrentOptimizer, SearchInterval, UnivariateObjectiveFunction}
 import org.apache.commons.math3.util.FastMath
-import org.apache.spark.mllib.linalg
-import org.apache.spark.mllib.linalg.distributed.BlockMatrix
 
 //FIXME Should not have to make KinshipMatrix and LDMatrix extend this trait. Do fancy type stuff to make this work.
 trait SimilarityMatrix
+
+case class EigenDecomposition(rowSignature: Type, rowIds: Array[Annotation], evects: DenseMatrix[Double], evals: DenseVector[Double], maxRank: Int) {
+  require(evects.rows == rowIds.length)
+  require(evects.cols == evals.length)
+  require(maxRank <= rowIds.length) // FIXME: remove maxRank?
+  
+  def filterRows(signature: Type, pred: (Annotation => Boolean)): EigenDecomposition = {
+    require(signature == rowSignature)
+        
+    val (newRowIds, newRows) = rowIds.zipWithIndex.filter{ case (id, row) => pred(id) }.unzip
+    val newEvects = evects.filterRows(newRows.toSet).getOrElse(fatal("No rows left")) // FIXME: improve message
+    val newMaxRank = maxRank min newRows.length
+    
+    EigenDecomposition(rowSignature, newRowIds, newEvects, evals, newMaxRank)
+  }
+  
+  def take(k: Int): EigenDecomposition = {
+    require(k >= 1)
+    
+    EigenDecomposition(rowSignature, rowIds, evects(::, 0 until k), evals(0 until k), maxRank min k)
+  }
+}
 
 object LinearMixedRegression {
   val schema: Type = TStruct(
@@ -27,6 +45,7 @@ object LinearMixedRegression {
     ("chi2", TDouble),
     ("pval", TDouble))
 
+  
   def apply(
     vds: VariantDataset,
     similarityMatrix: SimilarityMatrix,
@@ -39,10 +58,39 @@ object LinearMixedRegression {
     optDelta: Option[Double],
     sparsityThreshold: Double,
     useDosages: Boolean,
-    optNEigs: Option[Int],
-    optDroppedVarianceFraction: Option[Double],
-    filterVariantsExpr: Option[String]): VariantDataset = {
+    optNEigs: Option[Int]): VariantDataset = {
+    
+    val eigenDecomposition = similarityMatrix match {
+      case ldMatrix: LDMatrix => ldMatrix.sampleEigenDecomposition(vds, optNEigs)
+      case kinshipMatrix: KinshipMatrix => kinshipMatrix.eigenDecomposition(optNEigs)
+    }
 
+    applyLMM(vds: VariantDataset,
+      eigenDecomposition: EigenDecomposition,
+      yExpr: String,
+      covExpr: Array[String],
+      useML: Boolean,
+      rootGA: String,
+      rootVA: String,
+      runAssoc: Boolean,
+      optDelta: Option[Double],
+      sparsityThreshold: Double,
+      useDosages: Boolean)
+  }
+  
+  def applyLMM(
+    vds: VariantDataset,
+    eigenDecomposition: EigenDecomposition,
+    yExpr: String,
+    covExpr: Array[String],
+    useML: Boolean,
+    rootGA: String,
+    rootVA: String,
+    runAssoc: Boolean,
+    optDelta: Option[Double],
+    sparsityThreshold: Double,
+    useDosages: Boolean): VariantDataset = {
+    
     require(vds.wasSplit)
 
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
@@ -70,96 +118,21 @@ object LinearMixedRegression {
 
     info(s"lmmreg: running lmmreg on $n samples with $k sample ${plural(k, "covariate")} including intercept...")
 
-    //TODO This whole match thing got a little ugly as complexity increased. Consider cleaning up.
-    val (u, s, rank, fullS): (DenseMatrix[Double], DenseVector[Double], Int, DenseVector[Double]) = similarityMatrix match {
-      case LDMatrix(irm, variants, nSamplesUsed) => {
-        val variantSet = variants.toSet
-        val ldDim = irm.numCols().toInt
-        val localMatrix = irm.toLocalMatrix().asBreeze().toDenseMatrix
-
-        info(s"lmmreg: Computing eigenvectors of LD matrix...")
-        val eigK = printTime(eigSymD(localMatrix))
-        info(s"lmmreg: Eigendecomposition complete")
-        val fullV = eigK.eigenvectors
-
-        val c1 = nSamplesUsed.toDouble / variants.length
-        val fullS = eigK.eigenvalues.map(e => e * c1)
-        val fullNEigs = fullS.length
-
-        val rank = min(variants.length, nSamplesUsed)
-
-        val nEigs = computeNEigs(fullS, optNEigs, optDroppedVarianceFraction, rank)
-
-        require(nEigs.toLong * vds.nSamples < Integer.MAX_VALUE,
-          "The number of eigenvalues multiplied by the number of samples was greater than 2^31, the maximum size of local matrix.")
-
-        val S = fullS((fullNEigs - nEigs) until fullNEigs)
-        val V = fullV(::, (fullNEigs - nEigs) until fullNEigs)
-
-        val c2 = 1.0 / math.sqrt(variants.length)
-        val sqrtSInv = S.map(e => c2 / math.sqrt(e))
-
-        var filteredVDS = vds.filterVariants((v, _, _) => variantSet(v))
-        filteredVDS = filteredVDS.persist()
-        require(filteredVDS.variants.count() == variantSet.size, "Some variants in LD matrix are missing from VDS")
-
-        // FIXME Clean up this ugliness. Unnecessary back and forth from Breeze to Spark. (Might just need to allow multiplying block matrix by local Breeze matrix.
-        val VS = V(* , ::) :* sqrtSInv
-        val VSSpark = new linalg.DenseMatrix(VS.rows, VS.cols, VS.data, VS.isTranspose)
-
-        import is.hail.distributedmatrix.DistributedMatrix.implicits._
-        val dm = DistributedMatrix[BlockMatrix]
-        import dm.ops._
-
-        val sparkGenotypeMatrix = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().t
-        val sparkU = (sparkGenotypeMatrix * VSSpark).toLocalMatrix()
-        val U = sparkU.asBreeze().toDenseMatrix
-
-        filteredVDS.unpersist()
-
-        (U, S, rank, fullS)
-      }
-      case kinshipMatrix @ KinshipMatrix(hc, sampleSignature, indexedRowMatrix, samples, nVariantsUsed) => {
-        val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
-          kinshipMatrix
-        else {
-          val fkm = kinshipMatrix.filterSamples(completeSamplesSet)
-          if (!(fkm.sampleIds sameElements completeSamples))
-            fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
-              "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
-          fkm
-        }
-
-        val rrm = filteredKinshipMatrix.matrix.toLocalMatrix().asBreeze().toDenseMatrix
-
-        info(s"lmmreg: Computing eigenvectors of kinship matrix...")
-
-        val eigK = eigSymD(rrm)
-        val fullU = eigK.eigenvectors
-        val fullS = eigK.eigenvalues
-        val rank = min(samples.length, nVariantsUsed.toInt)
-        val fullNEigs = fullS.length
-
-        val nEigs = computeNEigs(fullS, optNEigs, optDroppedVarianceFraction, rank)
-
-        val U = fullU(::, (fullNEigs - nEigs) until fullNEigs)
-        val S = fullS((fullNEigs - nEigs) until fullNEigs)
-
-        (U, S, rank, fullS)
-      }
-    }
-
     optDelta match {
-      case Some(_) => info(s"lmmreg: Delta specified by user")
+      case Some(del) => info(s"lmmreg: Delta of $del specified by user")
       case None => info(s"lmmreg: Estimating delta using ${ if (useML) "ML" else "REML" }... ")
     }
 
-    val Ut = u.t
-    val S = s
-
+    val EigenDecomposition(_, rowIds, evects, evals, maxRank) = eigenDecomposition.filterRows(vds.sSignature, completeSamplesSet)
+    
+    if (! completeSamples.sameElements(rowIds))
+      fatal("Bad stuff")
+    
+    val Ut = evects.t
+    val S = evals
     val nEigs = S.length
 
-    require(nEigs > 0 && nEigs <= rank, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the rank of similarity matrix $rank inclusive: got $nEigs")
+    require(nEigs > 0 && nEigs <= maxRank, s"lmmreg: number of kinship eigenvectors to use must be between 1 and the rank of similarity matrix $rank inclusive: got $nEigs")
 
     info(s"lmmreg: Using $nEigs")
     info(s"lmmreg: Evals 1 to ${math.min(20, nEigs)}: " + ((nEigs - 1) to math.max(0, nEigs - 20) by -1).map(S(_).formatted("%.5f")).mkString(", "))
@@ -184,15 +157,13 @@ object LinearMixedRegression {
     info(s"lmmreg: global model fit: sigmaE2 = $globalSe2")
     info(s"lmmreg: global model fit: delta = $delta")
     info(s"lmmreg: global model fit: h2 = $h2")
-
-    diagLMM.optGlobalFit.foreach { gf =>
-      info(s"lmmreg: global model fit: seH2 = ${ gf.sigmaH2 }")
-    }
+    
+    diagLMM.optGlobalFit.foreach { gf => info(s"lmmreg: global model fit: seH2 = ${ gf.sigmaH2 }") }
 
     val vds1 = vds.annotateGlobal(
-      Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, fullS.data.reverse: IndexedSeq[Double], nEigs, optDroppedVarianceFraction.getOrElse(null)),
+      Annotation(useML, globalBetaMap, globalSg2, globalSe2, delta, h2, nEigs),
       TStruct(("useML", TBoolean), ("beta", TDict(TString, TDouble)), ("sigmaG2", TDouble), ("sigmaE2", TDouble),
-        ("delta", TDouble), ("h2", TDouble), ("evals", TArray(TDouble)), ("nEigs", TInt), ("dropped_variance_fraction", TDouble)), rootGA)
+        ("delta", TDouble), ("h2", TDouble), ("nEigs", TInt)), rootGA)
 
     val vds2 = diagLMM.optGlobalFit match {
       case Some(gf) =>
@@ -210,9 +181,8 @@ object LinearMixedRegression {
       val sc = vds.sparkContext
       val sampleMaskBc = sc.broadcast(sampleMask)
       val completeSampleIndexBc = sc.broadcast(completeSampleIndex)
-      val filteredVds = filterVariantsExpr.map(s => vds2.filterVariantsExpr(s)).getOrElse(vds2)
 
-      val (newVAS, inserter) = filteredVds.insertVA(LinearMixedRegression.schema, pathVA)
+      val (newVAS, inserter) = vds2.insertVA(LinearMixedRegression.schema, pathVA)
 
       info(s"lmmreg: Computing statistics for each variant...")
 
@@ -255,30 +225,6 @@ object LinearMixedRegression {
     }
     else
       vds2
-  }
-
-  def computeNEigs(S: DenseVector[Double], optNEigs: Option[Int], optDroppedVarianceFraction: Option[Double], default: Int): Int = {
-    (optNEigs, optDroppedVarianceFraction) match {
-      case (Some(e), Some(dvf)) => min(e, computeNEigsDVF(S, dvf))
-      case (Some(e), None) => e
-      case (None, Some(dvf)) => computeNEigsDVF(S, dvf)
-      case (None, None) => default
-    }
-  }
-
-  def computeNEigsDVF(S: DenseVector[Double], droppedVarianceFraction: Double): Int = {
-    require(0 <= droppedVarianceFraction && droppedVarianceFraction < 1, "lmmreg: droppedVarianceFraction must be nonnegative and less than 1")
-
-    val trace = sum(S)
-    var i = -1
-    var runningSum = 0.0
-    val target = droppedVarianceFraction * trace
-    while (runningSum <= target && i < S.length - 1) {
-      i += 1
-      //Note that S is increasing
-      runningSum += S(i)
-    }
-    S.length - i
   }
 }
 
@@ -594,11 +540,10 @@ object DiagLMM {
 
     val (delta, optGlobalFit) = optDelta match {
       case Some(delta0) => (delta0, None)
-      case None => {
+      case None =>
         info("lmmreg: Fitting delta...")
         val (delta0, gf) = printTime(fitDelta())
         (delta0, Some(gf))
-      }
     }
 
     fitUsingDelta(delta, optGlobalFit)

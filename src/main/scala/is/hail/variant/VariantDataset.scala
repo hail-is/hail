@@ -594,13 +594,11 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     delta: Option[Double] = None,
     sparsityThreshold: Double = 1.0,
     useDosages: Boolean = false,
-    nEigs: Option[Int] = None,
-    optDroppedVarianceFraction: Option[Double] = None,
-    optFilterVariantsExpr: Option[String] = None): VariantDataset = {
+    nEigs: Option[Int] = None): VariantDataset = {
 
     requireSplit("linear mixed regression")
     LinearMixedRegression(vds, kinshipMatrix, y, covariates, useML, rootGA, rootVA,
-      runAssoc, delta, sparsityThreshold, useDosages, nEigs, optDroppedVarianceFraction, optFilterVariantsExpr)
+      runAssoc, delta, sparsityThreshold, useDosages, nEigs)
   }
 
   def logreg(test: String,
