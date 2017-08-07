@@ -67,6 +67,15 @@ object Gen {
     partition(rng, size, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
 
   /**
+    * Picks a number of bins, n, from a BetaBinomial(alpha, beta), then takes
+    * {@code size} balls and places them into n bins according to a
+    * dirichlet-multinomial distribution with all alpha_i equal to n.
+    *
+    **/
+  def partitionBetaDirichlet(rng: RandomDataGenerator, size: Int, alpha: Double, beta: Double): Array[Int] =
+    partitionDirichlet(p.rng, p.size, sampleBetaBinomial(p.rng, p.size, alpha, beta))
+
+  /**
     * Takes {@code size} balls and places them into {@code parts} bins according
     * to a dirichlet-multinomial distribution with alpha_n equal to {@code
     * parts} for all n. The outputs of this function tend towards uniformly
@@ -266,8 +275,8 @@ object Gen {
       else {
         // scale up a bit by log, so that we can spread out a bit more with
         // higher sizes
-        val s = sampleBetaBinomial(p.rng, p.size, 3, 6 * math.log(p.size + 0.01))
-        val part = partitionDirichlet(p.rng, p.size, s)
+        val part = partitionBetaDirichlet(p.rng, p.size, buildableOfAlpha, buildableOfBeta * math.log(p.size + 0.01))
+        val s = part.length
         for (i <- 0 until s)
           b += g(p.copy(size = part(i)))
         b.result()
@@ -282,8 +291,8 @@ object Gen {
       else {
         // scale up a bit by log, so that we can spread out a bit more with
         // higher sizes
-        val s = sampleBetaBinomial(p.rng, p.size, 3, 6 * math.log(p.size + 0.01))
-        val part = partitionDirichlet(p.rng, p.size, s)
+        val part = partitionBetaDirichlet(p.rng, p.size, buildableOfAlpha, buildableOfBeta * math.log(p.size + 0.01))
+        val s = part.length
         val t = mutable.Set.empty[T]
         for (i <- 0 until s)
           t += g(p.copy(size = part(i)))
@@ -306,7 +315,7 @@ object Gen {
       else {
         // scale up a bit by log, so that we can spread out a bit more with
         // higher sizes
-        val s = min + sampleBetaBinomial(p.rng, p.size - min, 3, 6 * math.log((p.size - min) + 0.01))
+        val s = min + sampleBetaBinomial(p.rng, p.size - min, buildableOfAlpha, buildableOfBeta * math.log((p.size - min) + 0.01))
         val part = partitionDirichlet(p.rng, p.size, s)
         val t = mutable.Set.empty[T]
         for (i <- 0 until s) {
