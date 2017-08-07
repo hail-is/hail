@@ -120,9 +120,9 @@ object OrderedRDD {
     import kOk._
     import scala.Ordering.Implicits._
 
-    val rangeBounds = mutable.ArrayBuilder.make[PK]
+    val rangeBounds = new ArrayBuilder[PK]()
     val adjustmentsBuffer = new mutable.ArrayBuffer[Array[Adjustment[(K, V)]]]
-    val indicesBuilder = mutable.ArrayBuilder.make[Int]
+    val indicesBuilder = new ArrayBuilder[Int]()
 
     var anyOverlaps = false
 
