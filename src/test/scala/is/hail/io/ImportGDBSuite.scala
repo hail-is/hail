@@ -2,9 +2,8 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.expr.TStruct
-import is.hail.io.vcf.{GenericRecordReader, LoadGDB, LoadVCF}
+import is.hail.io.vcf.{HtsjdkRecordReader, LoadGDB, LoadVCF}
 import org.testng.annotations.Test
-import com.intel.genomicsdb.GenomicsDBFeatureReader
 
 class ImportGDBSuite extends SparkSuite {
 
@@ -14,11 +13,11 @@ class ImportGDBSuite extends SparkSuite {
   val arrName = "sample2Array"
   val vid = "src/test/resources/sample2vid.json"
   val callsets = "src/test/resources/sample2callsets.json"
-  val vcfHeader = Some("src/test/resources/sample2header.json")
+  val vcfHeader = Some("src/test/resources/sample2header.vcf")
   val ref = "src/test/resources/Homo_sapiens_assembly19.fasta"
 
   @Test def genomicsDBGlobalAnnotation() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
@@ -29,7 +28,7 @@ class ImportGDBSuite extends SparkSuite {
   }
 
   @Test def genomicsDBNoMulti() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
@@ -37,7 +36,7 @@ class ImportGDBSuite extends SparkSuite {
   }
 
   @Test def genomicsDBVariantAnnotationSignatures() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
@@ -53,7 +52,7 @@ class ImportGDBSuite extends SparkSuite {
   }
 
   @Test def genomicsDBGenotypeSignature() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
@@ -71,7 +70,7 @@ class ImportGDBSuite extends SparkSuite {
   }
 
   @Test def genomicsDBVariantsSamples() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
@@ -83,7 +82,7 @@ class ImportGDBSuite extends SparkSuite {
   }
 
   @Test def genomicsDBRDDGenotypeData() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
@@ -102,7 +101,7 @@ class ImportGDBSuite extends SparkSuite {
 
   //FIXME: this test fails because some FP numbers are off by a little, arrays (length "A") dropping all but first element
   @Test def genomicsDBRDDAnnotations() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
@@ -122,7 +121,7 @@ class ImportGDBSuite extends SparkSuite {
   }
 
   @Test def genomicsDBSampleAnnotations() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 
@@ -133,7 +132,7 @@ class ImportGDBSuite extends SparkSuite {
   }
 
   @Test def genomicsDBFilters() {
-    val reader = new GenericRecordReader(Set.empty)
+    val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
 

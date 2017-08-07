@@ -53,7 +53,7 @@ object LoadGDB {
 
   /* PATH PARAMETERS REQUIRE ABSOLUTE PATHS */
   def apply[T >: Null](hc: HailContext,
-               reader: HtsjdkRecordReader[T],
+               reader: HtsjdkRecordReader,
                loaderJSONFile: String,
                tiledbWorkspace: String,
                arrayName: String,
@@ -62,7 +62,7 @@ object LoadGDB {
                vcfHeaderPath: Option[String],
                refGenome: String,
                nPartitions: Option[Int] = None,
-               dropSamples: Boolean = false)(implicit tct: ClassTag[T]): VariantSampleMatrix[Locus, Variant, T] = {
+               dropSamples: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -100,16 +100,15 @@ object LoadGDB {
     val infoSignature = LoadVCF.headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val genotypeSignature: Type =
-      if (reader.genericGenotypes) {
-        val callFields = reader.asInstanceOf[GenericRecordReader].callFields
-        LoadVCF.headerSignature(formatHeader, genericGenotypes = true, callFields).getOrElse(TStruct.empty)
-      } else TGenotype
+    val genotypeSignature: Type = {
+      val callFields = reader.callFields
+      LoadVCF.headerSignature(formatHeader, callFields).getOrElse(TStruct.empty)
+    }
 
     val variantAnnotationSignatures = TStruct(
       Array(
         Some(Field("rsid", TString, 0)),
-        Some(Field("qual", TDouble, 1)),
+        Some(Field("qual", TFloat64, 1)),
         Some(Field("filters", TSet(TString), 2, filters)),
         infoSignature.map(sig => Field("info", sig, 3))
       ).flatten)
@@ -149,7 +148,7 @@ object LoadGDB {
 
     justVariants.unpersist()
 
-    new VariantSampleMatrix[Locus, Variant, T](hc, VSMMetadata(
+    new VariantSampleMatrix(hc, VSMMetadata(
       TString,
       TStruct.empty,
       TVariant,
