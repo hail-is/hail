@@ -345,12 +345,12 @@ class ContextTests(unittest.TestCase):
 
         covariatesSkat = hc.import_table("src/test/resources/skat.cov",impute = True).key_by("Sample")
 
-        phenotypesSkat = hc.import_table("src/test/resources/skat.pheno",types = {"Pheno" :TDouble()}, missing = "0").key_by("Sample")
+        phenotypesSkat = hc.import_table("src/test/resources/skat.pheno",types = {"Pheno" :TFloat64()}, missing = "0").key_by("Sample")
 
         intervalsSkat  = KeyTable.import_interval_list("src/test/resources/skat.interval_list")
 
         weightsSkat    = hc.import_table("src/test/resources/skat.weights",types = {"locus":TLocus(),
-                                                                               "weight":TDouble()}).key_by("locus")
+                                                                               "weight":TFloat64()}).key_by("locus")
 
         (vds2.split_multi()
         .annotate_variants_table(intervalsSkat, root="va.genes", product = True)
