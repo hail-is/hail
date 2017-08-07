@@ -105,13 +105,6 @@ class Properties(val name: String) extends Prop {
       prop.apply(p, prefix.map(_ + "." + propName).orElse(Some(propName)))
   }
 
-  def checkSingle(propName: String) {
-    val id = name + "." + propName
-    properties.find(_._1 == id) match {
-      case Some((_, p)) => p.check()
-      case None => throw new NoSuchElementException(propName)
-    }
-  }
 }
 
 object Prop {
