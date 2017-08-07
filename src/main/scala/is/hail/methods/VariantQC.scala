@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
 import is.hail.stats.LeveneHaldane
 import is.hail.utils._
-import is.hail.variant.{Genotype, Variant, VariantDataset}
+import is.hail.variant.{GenericDataset, Genotype, Variant, VariantDataset}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util.StatCounter
 
@@ -29,23 +29,23 @@ object VariantQCCombiner {
       "rExpectedHetFrequency\tpHWE"
 
   val signature = TStruct(
-    "callRate" -> TDouble,
-    "AC" -> TInt,
-    "AF" -> TDouble,
-    "nCalled" -> TInt,
-    "nNotCalled" -> TInt,
-    "nHomRef" -> TInt,
-    "nHet" -> TInt,
-    "nHomVar" -> TInt,
-    "dpMean" -> TDouble,
-    "dpStDev" -> TDouble,
-    "gqMean" -> TDouble,
-    "gqStDev" -> TDouble,
-    "nNonRef" -> TInt,
-    "rHeterozygosity" -> TDouble,
-    "rHetHomVar" -> TDouble,
-    "rExpectedHetFrequency" -> TDouble,
-    "pHWE" -> TDouble)
+    "callRate" -> TFloat64,
+    "AC" -> TInt32,
+    "AF" -> TFloat64,
+    "nCalled" -> TInt32,
+    "nNotCalled" -> TInt32,
+    "nHomRef" -> TInt32,
+    "nHet" -> TInt32,
+    "nHomVar" -> TInt32,
+    "dpMean" -> TFloat64,
+    "dpStDev" -> TFloat64,
+    "gqMean" -> TFloat64,
+    "gqStDev" -> TFloat64,
+    "nNonRef" -> TInt32,
+    "rHeterozygosity" -> TFloat64,
+    "rHetHomVar" -> TFloat64,
+    "rExpectedHetFrequency" -> TFloat64,
+    "pHWE" -> TFloat64)
 }
 
 class VariantQCCombiner extends Serializable {
@@ -72,13 +72,12 @@ class VariantQCCombiner extends Serializable {
         nNotCalled += 1
     }
 
-    if (Genotype.isCalled(g)) {
-      Genotype.dp(g).foreach { v =>
-        dpSC.merge(v)
-      }
-      Genotype.gq(g).foreach { v =>
-        gqSC.merge(v)
-      }
+    Genotype.dp(g).foreach { v =>
+      dpSC.merge(v)
+    }
+
+    Genotype.gq(g).foreach { v =>
+      gqSC.merge(v)
     }
 
     this
@@ -141,15 +140,18 @@ class VariantQCCombiner extends Serializable {
 }
 
 object VariantQC {
-  def results(vds: VariantDataset): RDD[(Variant, VariantQCCombiner)] =
+  def results(vds: GenericDataset): RDD[(Annotation, VariantQCCombiner)] = {
+    val extract = Genotype.buildGenotypeExtractor(vds.genotypeSignature)
     vds
-      .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(g),
+      .aggregateByVariant(new VariantQCCombiner)((comb, g) => comb.merge(extract(g)),
         (comb1, comb2) => comb1.merge(comb2))
+  }
 
-  def apply(vds: VariantDataset, root: String): VariantDataset = {
+  def apply(vds: GenericDataset, root: String): GenericDataset = {
+    val extract = Genotype.buildGenotypeExtractor(vds.genotypeSignature)
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQCCombiner.signature,
       Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
-    vds.mapAnnotationsWithAggregate(new VariantQCCombiner, newVAS)((comb, v, va, s, sa, g) => comb.merge(g),
+    vds.mapAnnotationsWithAggregate(new VariantQCCombiner, newVAS)((comb, v, va, s, sa, g) => comb.merge(extract(g)),
       (comb1, comb2) => comb1.merge(comb2),
       (va, comb) => insertQC(va, comb.asAnnotation))
   }

@@ -1,5 +1,7 @@
 package is.hail.expr
 
+import java.util
+
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
@@ -13,11 +15,12 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 object Type {
-  val genScalar = Gen.oneOf[Type](TBoolean, TInt, TLong, TFloat, TDouble, TString,
+  val genScalar = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
     TVariant, TAltAllele, TGenotype, TLocus, TInterval, TCall)
 
   def genSized(size: Int): Gen[Type] = {
@@ -39,7 +42,7 @@ object Type {
         genArb,
         Gen.option(
           Gen.buildableOf2[Map, String, String](
-            Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])))
+            Gen.zip(arbitrary[String].filter(s => !s.isEmpty), arbitrary[String])), someFraction = 0.05)
           .map(o => o.getOrElse(Map.empty[String, String]))))
       .filter(fields => fields.map(_._1).areDistinct())
       .map(fields => TStruct(fields
@@ -96,7 +99,7 @@ sealed abstract class Type extends Serializable { self =>
     if (path.nonEmpty)
       throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
-      (TStruct.empty, a => Annotation.empty)
+      (TStruct.empty, a => null)
   }
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
@@ -111,10 +114,17 @@ sealed abstract class Type extends Serializable { self =>
   def query(fields: String*): Querier = query(fields.toList)
 
   def query(path: List[String]): Querier = {
+    val (t, q) = queryTyped(path)
+    q
+  }
+
+  def queryTyped(fields: String*): (Type, Querier) = queryTyped(fields.toList)
+
+  def queryTyped(path: List[String]): (Type, Querier) = {
     if (path.nonEmpty)
       throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
-      identity[Annotation]
+      (this, identity[Annotation])
   }
 
   def toPrettyString(indent: Int = 0, compact: Boolean = false, printAttrs: Boolean = false): String = {
@@ -138,9 +148,9 @@ sealed abstract class Type extends Serializable { self =>
 
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
-  def genNonmissingValue: Gen[Annotation] = Gen.const(Annotation.empty)
+  def genNonmissingValue: Gen[Annotation] = ???
 
-  def genValue: Gen[Annotation] = Gen.oneOfGen(Gen.const(Annotation.empty), genNonmissingValue)
+  def genValue: Gen[Annotation] = Gen.oneOfGen(Gen.const(null), genNonmissingValue)
 
   def isRealizable: Boolean = children.forall(_.isRealizable)
 
@@ -177,6 +187,17 @@ sealed abstract class Type extends Serializable { self =>
     def toJSON(pk: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(pk, self)
   }
 
+  def byteSize: Int = throw new NotImplementedError(toString)
+
+  def alignment: Int = byteSize
+}
+
+abstract class ComplexType extends Type {
+  def representation: Type
+
+  override def byteSize: Int = representation.byteSize
+
+  override def alignment: Int = representation.alignment
 }
 
 case object TBinary extends Type {
@@ -196,6 +217,8 @@ case object TBinary extends Type {
         def compare(a: Array[Byte], b: Array[Byte]): Int = ord.compare(a, b)
       }))
   }
+
+  override def byteSize: Int = 4
 }
 
 case object TBoolean extends Type {
@@ -212,19 +235,21 @@ case object TBoolean extends Type {
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]]))
+
+  override def byteSize: Int = 1
 }
 
 object TNumeric {
   def promoteNumeric(types: Set[TNumeric]): Type = {
     if (types.size == 1)
       types.head
-    else if (types(TDouble))
-      TDouble
-    else if (types(TFloat))
-      TFloat
+    else if (types(TFloat64))
+      TFloat64
+    else if (types(TFloat32))
+      TFloat32
     else {
-      assert(types(TLong))
-      TLong
+      assert(types(TInt64))
+      TInt64
     }
   }
 }
@@ -237,8 +262,8 @@ abstract class TNumeric extends Type {
 
 abstract class TIntegral extends TNumeric
 
-case object TInt extends TIntegral {
-  override def toString = "Int"
+case object TInt32 extends TIntegral {
+  override def toString = "Int32"
 
   val conv = IntNumericConversion
 
@@ -252,10 +277,11 @@ case object TInt extends TIntegral {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
 
+  override def byteSize: Int = 4
 }
 
-case object TLong extends TIntegral {
-  override def toString = "Long"
+case object TInt64 extends TIntegral {
+  override def toString = "Int64"
 
   val conv = LongNumericConversion
 
@@ -268,10 +294,12 @@ case object TLong extends TIntegral {
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Long]]))
+
+  override def byteSize: Int = 8
 }
 
-case object TFloat extends TNumeric {
-  override def toString = "Float"
+case object TFloat32 extends TNumeric {
+  override def toString = "Float32"
 
   val conv = FloatNumericConversion
 
@@ -282,17 +310,21 @@ case object TFloat extends TNumeric {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double].map(_.toFloat)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
-    a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float], tolerance))
+    a1 == a2 || (a1 != null && a2 != null &&
+      (D_==(a1.asInstanceOf[Float], a2.asInstanceOf[Float], tolerance) ||
+        (a1.asInstanceOf[Double].isNaN && a2.asInstanceOf[Double].isNaN)))
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Float]]))
+
+  override def byteSize: Int = 4
 }
 
-case object TDouble extends TNumeric {
-  override def toString = "Double"
+case object TFloat64 extends TNumeric {
+  override def toString = "Float64"
 
   val conv = DoubleNumericConversion
 
@@ -303,13 +335,17 @@ case object TDouble extends TNumeric {
   override def genNonmissingValue: Gen[Annotation] = arbitrary[Double]
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double): Boolean =
-    a1 == a2 || (a1 != null && a2 != null && D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double], tolerance))
+    a1 == a2 || (a1 != null && a2 != null &&
+      (D_==(a1.asInstanceOf[Double], a2.asInstanceOf[Double], tolerance) ||
+        (a1.asInstanceOf[Double].isNaN && a2.asInstanceOf[Double].isNaN)))
 
   override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]]))
+
+  override def byteSize: Int = 8
 }
 
 case object TString extends Type {
@@ -324,6 +360,8 @@ case object TString extends Type {
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]]))
+
+  override def byteSize: Int = 4
 }
 
 case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -485,6 +523,8 @@ case class TAggregable(elementType: Type) extends TContainer {
 abstract class TContainer extends Type {
   def elementType: Type
 
+  override def byteSize: Int = 4
+
   override def children = Seq(elementType)
 }
 
@@ -615,7 +655,7 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
     case _ => false
   }
 
-  def elementType: Type = valueType
+  val elementType: Type = TStruct("key" -> keyType, "value" -> valueType)
 
   override def children = Seq(keyType, valueType)
 
@@ -673,8 +713,17 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
   }
 }
 
-case object TGenotype extends Type {
+case object TGenotype extends ComplexType {
   override def toString = "Genotype"
+
+  val representation: TStruct = TStruct(
+    "gt" -> TInt32,
+    "ad" -> TArray(TInt32),
+    "dp" -> TInt32,
+    "gq" -> TInt32,
+    "px" -> TArray(TInt32),
+    "fakeRef" -> TBoolean,
+    "isLinearScale" -> TBoolean)
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Genotype]
 
@@ -687,10 +736,16 @@ case object TGenotype extends Type {
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Genotype]]))
+
+  override def byteSize: Int = representation.byteSize
+
+  override def alignment: Int = 4
 }
 
-case object TCall extends Type {
+case object TCall extends ComplexType {
   override def toString = "Call"
+
+  def representation: Type = TInt32
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
@@ -705,7 +760,7 @@ case object TCall extends Type {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
 }
 
-case object TAltAllele extends Type {
+case object TAltAllele extends ComplexType {
   override def toString = "AltAllele"
 
   def typeCheck(a: Any): Boolean = a == null || a == null || a.isInstanceOf[AltAllele]
@@ -719,9 +774,13 @@ case object TAltAllele extends Type {
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
+
+  val representation: TStruct = TStruct(
+    "ref" -> TString,
+    "alt" -> TString)
 }
 
-case object TVariant extends Type {
+case object TVariant extends ComplexType {
   override def toString = "Variant"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
@@ -759,9 +818,15 @@ case object TVariant extends Type {
 
     val pkct: ClassTag[Annotation] = classTag[Annotation]
   }
+
+  val representation: TStruct = TStruct(
+    "contig" -> TString,
+    "start" -> TInt32,
+    "ref" -> TString,
+    "altAlleles" -> TArray(TAltAllele.representation))
 }
 
-case object TLocus extends Type {
+case object TLocus extends ComplexType {
   override def toString = "Locus"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
@@ -775,9 +840,13 @@ case object TLocus extends Type {
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]]))
+
+  val representation: TStruct = TStruct(
+    "contig" -> TString,
+    "position" -> TInt32)
 }
 
-case object TInterval extends Type {
+case object TInterval extends ComplexType {
   override def toString = "Interval"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
@@ -791,6 +860,10 @@ case object TInterval extends Type {
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]]))
+
+  val representation: TStruct = TStruct(
+    "start" -> TLocus.representation,
+    "end" -> TLocus.representation)
 }
 
 case class Field(name: String, typ: Type,
@@ -934,19 +1007,19 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     updateFieldAttributes(path, attributes => attributes - attr)
   }
 
-  override def query(p: List[String]): Querier = {
+  override def queryTyped(p: List[String]): (Type, Querier) = {
     if (p.isEmpty)
-      identity[Annotation]
+      (this, identity[Annotation])
     else {
       selfField(p.head) match {
         case Some(f) =>
-          val q = f.typ.query(p.tail)
+          val (t, q) = f.typ.queryTyped(p.tail)
           val localIndex = f.index
-          a =>
-            if (a == Annotation.empty)
+          (t, (a: Any) =>
+            if (a == null)
               null
             else
-              q(a.asInstanceOf[Row].get(localIndex))
+              q(a.asInstanceOf[Row].get(localIndex)))
         case None => throw new AnnotationPathException(s"struct has no field ${ p.head }")
       }
     }
@@ -954,7 +1027,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
   override def delete(p: List[String]): (Type, Deleter) = {
     if (p.isEmpty)
-      (TStruct.empty, a => Annotation.empty)
+      (TStruct.empty, a => null)
     else {
       val key = p.head
       val f = selfField(key) match {
@@ -972,8 +1045,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       val localDeleteFromRow = newFieldType == TStruct.empty
 
       val deleter: Deleter = { a =>
-        if (a == Annotation.empty)
-          Annotation.empty
+        if (a == null)
+          null
         else {
           val r = a.asInstanceOf[Row]
 
@@ -1013,7 +1086,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
           a.asInstanceOf[Row]
         keyIndex match {
           case Some(i) => r.update(i, keyF(r.get(i), toIns))
-          case None => r.append(keyF(Annotation.empty, toIns))
+          case None => r.append(keyF(null, toIns))
         }
       }
       (newSignature, inserter)
@@ -1074,7 +1147,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
 
     val merger = (a1: Annotation, a2: Annotation) => {
       if (a1 == null && a2 == null)
-        Annotation.empty
+        null
       else {
         val s1 = Option(a1).map(_.asInstanceOf[Row].toSeq)
           .getOrElse(Seq.fill[Any](size1)(null))
@@ -1137,7 +1210,7 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       if (a == null)
         a
       else if (newSize == 0)
-        Annotation.empty
+        null
       else {
         val r = a.asInstanceOf[Row]
         val newValues = included.zipWithIndex
@@ -1188,11 +1261,11 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] = {
-    if (size == 0)
+    if (size == 0) {
       Gen.const(Annotation.empty)
-    else
+    } else
       Gen.size.flatMap(fuel =>
-        if (size > fuel) Gen.const(Annotation.empty)
+        if (size > fuel) Gen.const(null)
         else Gen.uniformSequence(fields.map(f => f.typ.genValue)).map(a => Annotation(a: _*)))
   }
 
@@ -1241,4 +1314,41 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
         }
       }))
   }
+
+  // needs to be lazy, because the compiler uses placeholders
+  lazy val (byteOffsets, _byteSize): (Array[Int], Int) = {
+    val a = new Array[Int](size)
+
+    val bp = new BytePacker()
+
+    val nMissingBytes = (size + 7) / 8
+    var offset = nMissingBytes
+    fields.foreach { f =>
+      val fSize = f.typ.byteSize
+      val fAlignment = f.typ.alignment
+
+      bp.getSpace(fSize, fAlignment) match {
+        case Some(start) =>
+          a(f.index) = start
+        case None =>
+          val mod = offset % fAlignment
+          if (mod != 0) {
+            val shift = fAlignment - mod
+            bp.insertSpace(shift, offset)
+            offset += (fAlignment - mod)
+          }
+          a(f.index) = offset
+          offset += fSize
+      }
+    }
+    a -> offset
+  }
+
+  override def byteSize: Int = _byteSize
+
+  override lazy val alignment: Int =
+    if (fields.isEmpty)
+      1
+    else
+      fields.map(_.typ.alignment).max
 }

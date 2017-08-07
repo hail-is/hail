@@ -11,46 +11,27 @@ package object variant {
   type Call = java.lang.Integer
 
   class RichIterableGenotype(val ig: Iterable[Genotype]) extends AnyVal {
-    def toGenotypeStream(v: Variant, isLinearScale: Boolean): GenotypeStream =
-      ig match {
-        case gs: GenotypeStream => gs
-        case _ =>
-          if (ig.isEmpty)
-            GenotypeStream.empty(v.nAlleles)
-          else {
-            val b: GenotypeStreamBuilder = new GenotypeStreamBuilder(v.nAlleles, isLinearScale = isLinearScale)
-            b ++= ig
-            b.result()
-          }
+    def hardCallIterator: HailIterator[Int] =
+      new HailIterator[Int] {
+        val it: Iterator[Genotype] = ig.iterator
+
+        override def hasNext: Boolean = it.hasNext
+
+        override def next(): Int = {
+          val g = it.next()
+          Genotype.unboxedGT(g)
+        }
       }
 
-    def hardCallIterator: HailIterator[Int] = ig match {
-      case gs: GenotypeStream => gs.gsHardCallIterator
-      case _ =>
-        new HailIterator[Int] {
-          val it: Iterator[Genotype] = ig.iterator
+    def dosageIterator: HailIterator[Double] =
+      new HailIterator[Double] {
+        val it: Iterator[Genotype] = ig.iterator
 
-          override def hasNext: Boolean = it.hasNext
+        override def hasNext: Boolean = it.hasNext
 
-          override def next(): Int = {
-            val g = it.next()
-            Genotype.unboxedGT(g)
-          }
-        }
-    }
-
-    def dosageIterator: HailIterator[Double] = ig match {
-      case gs: GenotypeStream => gs.gsDosageIterator
-      case _ =>
-        new HailIterator[Double] {
-          val it: Iterator[Genotype] = ig.iterator
-
-          override def hasNext: Boolean = it.hasNext
-
-          override def next(): Double =
-            Genotype.unboxedDosage(it.next())
-        }
-    }
+        override def next(): Double =
+          Genotype.unboxedDosage(it.next())
+      }
   }
 
   implicit def toRichIterableGenotype(ig: Iterable[Genotype]): RichIterableGenotype = new RichIterableGenotype(ig)

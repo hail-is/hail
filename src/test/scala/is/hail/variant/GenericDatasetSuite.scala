@@ -3,7 +3,7 @@ package is.hail.variant
 import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.utils._
-import is.hail.expr.{TDouble, TGenotype, TInt, TString, TStruct}
+import is.hail.expr.{TFloat64, TGenotype, TInt32, TString, TStruct}
 import org.testng.annotations.Test
 
 class GenericDatasetSuite extends SparkSuite {
@@ -25,7 +25,7 @@ class GenericDatasetSuite extends SparkSuite {
     val gdsAnnotated = gds.annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\"")
 
     val gsig = gdsAnnotated.genotypeSignature.asInstanceOf[TStruct]
-    val expTypes = Array(TInt, TDouble, TString)
+    val expTypes = Array(TInt32, TFloat64, TString)
     val expNames = Array("a", "b", "c")
 
     val (_, aQuerier) = gdsAnnotated.queryGA("g.a")
@@ -107,8 +107,8 @@ class GenericDatasetSuite extends SparkSuite {
   @Test def testAnnotate2() {
     val vcf = "src/test/resources/sample.vcf.bgz"
     val vds = hc.importVCF(vcf)
-    val result = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.ad, g.dp, g.gq, g.pl)").toVDS
-    val result2 = vds.annotateGenotypesExpr("g = Genotype(v, g.gt, g.gp)").toVDS
+    val result = vds.annotateGenotypesExpr("g = Genotype(v, Call(g.gt), g.ad, g.dp, g.gq, g.pl)").toVDS
+    val result2 = vds.annotateGenotypesExpr("g = Genotype(v, Call(g.gt), g.gp)").toVDS
     val result3 = vds.annotateGenotypesExpr("g = Genotype(v, g.gp)").toVDS
     assert(vds.same(result))
 

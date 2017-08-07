@@ -601,7 +601,15 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
         `type` = FunctionRegistry.lookupMethodReturnType(it, args.map(_.`type`), method)
           .valueOr(x => parseError(x.message))
 
-      // not aggregable: TIterable or TDict
+      // FIXME: This isn't an extensible solution. We need something general that works for mapKeys, etc
+      case (td: TDict, "mapValues", Array(Lambda(_, param, body), rest@_*)) =>
+        rest.foreach(_.typecheck(ec))
+        body.typecheck(ec.copy(st = ec.st + ((param, (-1, td.valueType)))))
+        val funType = TFunction(Array(td.valueType), body.`type`)
+        `type` = FunctionRegistry.lookupMethodReturnType(td, funType +: rest.map(_.`type`), method)
+          .valueOr(x => parseError(x.message))
+
+      // not aggregable: TIterable
       case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
         rest.foreach(_.typecheck(ec))
         body.typecheck(ec.copy(st = ec.st + ((param, (-1, it.elementType)))))
@@ -636,6 +644,9 @@ case class ApplyMethod(posn: Position, lhs: AST, method: String, args: Array[AST
   }
 
   def compile() = ((lhs.`type`, method, args): @unchecked) match {
+    case (td: TDict, "mapValues", Array(Lambda(_, param, body), rest@_*)) =>
+      val funType = TFunction(Array(td.valueType), body.`type`)
+      FunctionRegistry.call(method, lhs +: args, td +: funType +: rest.map(_.`type`))
     case (it: TContainer, _, Array(Lambda(_, param, body), rest@_*)) =>
       val funType = TFunction(Array(it.elementType), body.`type`)
       FunctionRegistry.call(method, lhs +: args, it +: funType +: rest.map(_.`type`))

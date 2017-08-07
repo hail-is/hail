@@ -12,9 +12,9 @@ object SamplePCA {
 
   def pcSchema(asArray: Boolean, k: Int) =
     if (asArray)
-      TArray(TDouble)
+      TArray(TFloat64)
     else
-      TStruct((1 to k).map(i => (s"PC$i", TDouble)): _*)
+      TStruct((1 to k).map(i => (s"PC$i", TFloat64)): _*)
 
   def makeAnnotation(is: IndexedSeq[Double], asArray: Boolean): Annotation =
     if (asArray)

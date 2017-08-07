@@ -4,7 +4,7 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.expr.{TLong, TStruct}
+import is.hail.expr.{TInt64, TStruct}
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMSubgen, Variant, VariantSampleMatrix}
@@ -101,16 +101,6 @@ class ExportVcfSuite extends SparkSuite {
     assert(hc.importVCF(out2).same(vds))
   }
 
-  @Test def testPPs() {
-    val vds = hc.importVCF("src/test/resources/sample.PPs.vcf", ppAsPL = true)
-    val out = tmpDir.createTempFile("exportPPs", ".vcf")
-    vds.exportVCF(out, exportPP = true)
-
-    val vdsNew = hc.importVCF(out, nPartitions = Some(10), ppAsPL = true)
-
-    assert(vds.same(vdsNew, 1e-3))
-  }
-
   @Test def testGeneratedInfo() {
     val out = tmpDir.createTempFile("export", ".vcf")
     hc.importVCF("src/test/resources/sample2.vcf")
@@ -144,12 +134,12 @@ class ExportVcfSuite extends SparkSuite {
 
     val out2 = tmpDir.createTempFile("cast2", ".vcf")
     hc.importVCF("src/test/resources/sample2.vcf")
-      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat()")
+      .annotateVariantsExpr("va.info.AC_pass = let x = 5.0 in x.toFloat64()")
       .exportVCF(out2)
 
     intercept[HailException] {
       val sb = new StringBuilder()
-      ExportVCF.strVCF(sb, TLong, 3147483647L)
+      ExportVCF.strVCF(sb, TInt64, 3147483647L)
     }
   }
 

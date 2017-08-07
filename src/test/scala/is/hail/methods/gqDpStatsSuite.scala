@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.utils.{TestRDDBuilder, _}
+import is.hail.variant.Variant
 import org.testng.annotations.Test
 
 class gqDpStatsSuite extends SparkSuite {
@@ -20,8 +21,8 @@ class gqDpStatsSuite extends SparkSuite {
 
     // DP test first
     val dpVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray=Some(arr), gqArray=None)
-    val dpVariantR = VariantQC.results(dpVds)
-    val dpSampleR = SampleQC.results(dpVds, keepStar = true)
+    val dpVariantR = VariantQC.results(dpVds.toGDS)
+    val dpSampleR = SampleQC.results(dpVds.toGDS, keepStar = true)
 
     val samplePositionMap = dpVds.sampleIds.zipWithIndex.toMap
 
@@ -32,8 +33,8 @@ class gqDpStatsSuite extends SparkSuite {
 
 
 
-        simpleAssert(D_==(a.dpSC.mean, variantMeans(v.start - 1)))
-        simpleAssert(D_==(a.dpSC.stdev, variantDevs(v.start - 1)))
+        simpleAssert(D_==(a.dpSC.mean, variantMeans(v.asInstanceOf[Variant].start - 1)))
+        simpleAssert(D_==(a.dpSC.stdev, variantDevs(v.asInstanceOf[Variant].start - 1)))
     }
 
       dpSampleR.foreach {
@@ -46,15 +47,15 @@ class gqDpStatsSuite extends SparkSuite {
 
     // now test GQ
     val gqVds = TestRDDBuilder.buildRDD(8, 4, hc, dpArray=None, gqArray=Some(arr))
-    val gqVariantR = VariantQC.results(gqVds)
-    val gqSampleR = SampleQC.results(gqVds, keepStar = true)
+    val gqVariantR = VariantQC.results(gqVds.toGDS)
+    val gqSampleR = SampleQC.results(gqVds.toGDS, keepStar = true)
 
     gqVariantR.collect().foreach {
       case (v, a) =>
 //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], variantMeans(v.start), a(2)
 //          .asInstanceOf[Double], variantDevs(v.start)))
-        simpleAssert(D_==(a.gqSC.mean, variantMeans(v.start - 1)))
-        simpleAssert(D_==(a.gqSC.stdev, variantDevs(v.start - 1)))
+        simpleAssert(D_==(a.gqSC.mean, variantMeans(v.asInstanceOf[Variant].start - 1)))
+        simpleAssert(D_==(a.gqSC.stdev, variantDevs(v.asInstanceOf[Variant].start - 1)))
     }
 
     gqSampleR.foreach {

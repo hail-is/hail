@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.annotations.{Annotation, Inserter}
-import is.hail.expr.{EvalContext, Parser, TArray, TInt, TVariant}
+import is.hail.expr.{EvalContext, Parser, TArray, TInt32, TVariant}
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
 import is.hail.variant.{GTPair, Genotype, Variant, VariantDataset}
@@ -21,13 +21,13 @@ object FilterAlleles {
     val conditionEC = EvalContext(Map(
       "v" -> (0, TVariant),
       "va" -> (1, vds.vaSignature),
-      "aIndex" -> (2, TInt)))
+      "aIndex" -> (2, TInt32)))
     val conditionE = Parser.parseTypedExpr[java.lang.Boolean](filterExpr, conditionEC)
 
     val annotationEC = EvalContext(Map(
       "v" -> (0, TVariant),
       "va" -> (1, vds.vaSignature),
-      "aIndices" -> (2, TArray(TInt))))
+      "aIndices" -> (2, TArray(TInt32))))
     val (paths, types, f) = Parser.parseAnnotationExprs(annotationExpr, annotationEC, Some(Annotation.VARIANT_HEAD))
     val inserterBuilder = mutable.ArrayBuilder.make[Inserter]
     val finalType = (paths, types).zipped.foldLeft(vds.vaSignature) { case (vas, (path, signature)) =>

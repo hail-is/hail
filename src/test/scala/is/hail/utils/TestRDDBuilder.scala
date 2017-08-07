@@ -104,7 +104,7 @@ object TestRDDBuilder {
     val variantRDD = hc.sc.parallelize(variantArray)
     val streamRDD = variantRDD.map {
       case (variant, (gtArr, gqArr, dpArr)) =>
-        val b = new GenotypeStreamBuilder(variant.nAlleles)
+        val b = new ArrayBuilder[Genotype]()
         for (sample <- 0 until nSamples) {
           val gt = gtArr match {
             case Some(arr) => Some(arr(sample))
