@@ -3628,7 +3628,7 @@ class VariantDataset(object):
         down. Alleles that are rare in all but one ancestry group are treated as
         very informative to relatedness. However, these alleles are simply
         markers of the ancestry group. The PC-Relate method corrects for this
-        situation and the related situation of a admixed individuals.
+        situation and the related situation of admixed individuals.
 
         PC-Relate slightly modifies the usual estimator for relatedness:
         occurences of population allele frequency are replaced with an
@@ -3759,20 +3759,17 @@ class VariantDataset(object):
         j: String, kin: Double, k2: Double, k1: Double, k0: Double }*. The key
         list is: `*i: String, j: String*`.
 
-        :param k: the number of principal components to use to distinguish
-                  ancestries
-        :type k: int
+        :param int k: The number of principal components to use to distinguish
+                      ancestries.
 
-        :param maf: the minimum individual-specific allele frequency for an
-                    allele used to measure relatedness
-        :type maf: float
+        :param float maf: The minimum individual-specific allele frequency for
+                          an allele used to measure relatedness.
 
-        :param block_size: the side length of the blocks of the block-
-                          distributed matrices; this should be set such that
-                          at least three of these matrices fit in memory (in
-                          addition to all other objects necessary for Spark and
-                          Hail)
-        :type block_size: int
+        :param int block_size: the side length of the blocks of the block-
+                               distributed matrices; this should be set such
+                               that at least three of these matrices fit in
+                               memory (in addition to all other objects
+                               necessary for Spark and Hail)
 
         :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
                  of their kinship and identity-by-descent zero, one, and two

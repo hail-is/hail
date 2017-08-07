@@ -73,13 +73,14 @@ object PCRelate {
   private val signature =
     TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
   private val keys = Array("i", "j")
+
   def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): KeyTable =
     KeyTable(vds.hc,
       toPairRdd(vds, pcs, maf, blockSize).map { case ((i, j), (kin, k0, k1, k2)) => Annotation(i, j, kin, k0, k1, k2).asInstanceOf[Row] },
       signature,
       keys)
 
-  private val k0cutoff = math.pow(2.0, (-5.0/2.0))
+  private val k0cutoff = math.pow(2.0, (-5.0 / 2.0))
 
   private def prependConstantColumn(k: Double, m: DenseMatrix): DenseMatrix = {
     val a = m.toArray
