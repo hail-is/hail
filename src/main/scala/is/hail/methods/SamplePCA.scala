@@ -5,7 +5,8 @@ import is.hail.expr._
 import is.hail.stats.ToHWENormalizedIndexedRowMatrix
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.mllib.linalg.DenseMatrix
+import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
+import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix, SingularValueDecomposition}
 import org.apache.spark.rdd.RDD
 
 object SamplePCA {
@@ -25,18 +26,9 @@ object SamplePCA {
 
   def apply(vds: VariantDataset, k: Int, computeLoadings: Boolean, computeEigenvalues: Boolean,
     asArray: Boolean): (Map[Annotation, Annotation], Option[RDD[(Variant, Annotation)]], Option[Annotation]) = {
-
-    val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vds)
     val sc = vds.sparkContext
 
-    val svd = mat.computeSVD(k, computeU = computeLoadings)
-
-    if (svd.s.size < k)
-      fatal(
-        s"""Found only ${svd.s.size} non-zero (or nearly zero) eigenvalues, but user requested ${k}
-           |principal components.""".stripMargin)
-
-    val scores = svd.V.multiply(DenseMatrix.diag(svd.s))
+    val (variants, svd, scores) = variantsSvdAndScores(vds, k)
     val sampleScores = vds.sampleIds.zipWithIndex.map { case (id, i) =>
       (id, makeAnnotation((0 until k).map(j => scores(i, j)), asArray))
     }
@@ -52,13 +44,21 @@ object SamplePCA {
     (sampleScores.toMap, loadings, eigenvalues)
   }
 
-  def justScores(vds: VariantDataset, k: Int): DenseMatrix = {
+  def justScores(vds: VariantDataset, k: Int): DenseMatrix =
+    variantsSvdAndScores(vds, k)._3
 
+  private def variantsSvdAndScores(vds: VariantDataset, k: Int): (Array[Variant], SingularValueDecomposition[IndexedRowMatrix, Matrix], DenseMatrix) = {
     val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vds)
     val sc = vds.sparkContext
 
     val svd = mat.computeSVD(k, computeU = false)
 
-    svd.V.multiply(DenseMatrix.diag(svd.s))
+    if (svd.s.size < k)
+      fatal(
+        s"""Found only ${svd.s.size} non-zero (or nearly zero) eigenvalues, but user requested ${k}
+           |principal components.""".stripMargin)
+
+    (variants, svd, svd.V.multiply(DenseMatrix.diag(svd.s)))
   }
+
 }
