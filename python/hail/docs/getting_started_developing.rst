@@ -6,9 +6,9 @@ Getting Started Developing
 
 You'll need:
 
-- The `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_.
+- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`_
 - `Spark 2.0.2 <http://spark.apache.org/downloads.html>`_
-- `Anaconda <https://www.continuum.io/downloads>`_.
+- `Anaconda <https://www.continuum.io/downloads>`_
 
 -------------------
 Building a Hail JAR
