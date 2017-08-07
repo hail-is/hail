@@ -477,40 +477,30 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    storeGQ: Boolean = false,
-    ppAsPL: Boolean = false,
-    skipBadAD: Boolean = false): VariantDataset = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples,
-      storeGQ, ppAsPL, skipBadAD)
+    dropSamples: Boolean = false): VariantDataset = {
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    storeGQ: Boolean = false,
-    ppAsPL: Boolean = false,
-    skipBadAD: Boolean = false): VariantDataset = {
-
-    val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
-
-    val header = headerFile.getOrElse(inputs.head)
-
-    val codecs = sc.hadoopConfiguration.get("io.compression.codecs")
-
-    if (forceBGZ)
-      hadoopConf.set("io.compression.codecs",
-        codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
-
-    val settings = VCFSettings(storeGQ, dropSamples, ppAsPL, skipBadAD)
-    val reader = new GenotypeRecordReader(settings)
-    val vds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
-
-    hadoopConf.set("io.compression.codecs", codecs)
-
-    vds
+    dropSamples: Boolean = false): VariantDataset = {
+    val m = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples)
+    val extractG = Genotype.buildGenotypeExtractor(m.genotypeSignature)
+    m.copy(
+      rdd = m.rdd.mapValuesWithKey { case (v, (va, gs)) =>
+        (va, gs.map { t =>
+          val g = extractG(t)
+          if (Genotype.ad(g).exists(_.length != v.nAlleles))
+            null
+          else {
+            g.check(v.nAlleles)
+            g
+          }
+        })
+      },
+      genotypeSignature = TGenotype)
   }
 
   def importVCFGeneric(file: String, force: Boolean = false,
@@ -539,7 +529,7 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val reader = new GenericRecordReader(callFields)
+    val reader = new HtsjdkRecordReader(callFields)
     val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
 
     hadoopConf.set("io.compression.codecs", codecs)

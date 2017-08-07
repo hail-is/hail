@@ -2,9 +2,10 @@ package is.hail.variant
 
 import java.util
 
+import is.hail.annotations.AnnotationPathException
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.{TArray, TBoolean, TCall, TGenotype, TInt32, TStruct, Type}
-import is.hail.utils.{ByteIterator, _}
+import is.hail.expr._
+import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.commons.math3.distribution.BinomialDistribution
 import org.apache.spark.sql.Row
@@ -177,8 +178,56 @@ class RowGenotype(r: Row) extends Genotype {
 
 object Genotype {
   def buildGenotypeExtractor(t: Type): (Any) => Genotype = {
-    assert (t == TGenotype)
-    (a: Any) => a.asInstanceOf[Genotype]
+    if (t == TGenotype)
+      (a: Any) => a.asInstanceOf[Genotype]
+    else {
+      def queryOpt[T >: Null](field: String)(implicit hr: HailRep[T]): Option[(Any) => T] = {
+        try {
+          val (ft, fq0) = t.queryTyped(field)
+          if (ft == hr.typ)
+            Some((a: Any) => fq0(a).asInstanceOf[T])
+          else
+            None
+        } catch {
+          case _: AnnotationPathException =>
+            None
+        }
+      }
+
+      val gtq = queryOpt[java.lang.Integer]("GT")(callHr)
+      val adq = queryOpt[IndexedSeq[Int]]("AD")
+      val dpq = queryOpt[java.lang.Integer]("DP")
+      val gqq = queryOpt[java.lang.Integer]("GQ")
+      val plq = queryOpt[IndexedSeq[Int]]("PL")
+      val gpq = queryOpt[IndexedSeq[Double]]("GP")
+
+      if (plq.isDefined || gpq.isEmpty)
+        (a: Any) =>
+          new RowGenotype(Row(
+            gtq.map(_ (a)).orNull,
+            adq.map(_ (a)).orNull,
+            dpq.map(_ (a)).orNull,
+            gqq.map(_ (a)).orNull,
+            plq.map(_ (a)).orNull,
+            false,
+            false))
+      else
+        (a: Any) => {
+          val gp = gpq.map(_ (a)).orNull
+
+          new RowGenotype(Row(
+            gtq.map(_ (a)).orNull,
+            adq.map(_ (a)).orNull,
+            dpq.map(_ (a)).orNull,
+            gqq.map(_ (a)).orNull,
+            if (gp != null)
+              Genotype.weightsToLinear(gp.toArray)
+            else
+              null,
+            false,
+            true))
+        }
+    }
   }
 
   def unboxedGT(g: Genotype): Int = if (g != null) g._unboxedGT else -1
