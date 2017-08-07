@@ -2018,7 +2018,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         val git = gs.iterator
         while (i < localNSamples) {
           val g = git.next()
-          localGenotypeSignature.typeCheck(g)
           a(i) = g
           i += 1
         }
