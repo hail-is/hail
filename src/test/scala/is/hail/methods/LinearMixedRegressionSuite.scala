@@ -463,7 +463,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val vdsChr3 = vdsFastLMM.filterVariantsExpr("""v.contig == "3"""")
     
     val eigenFromKinship = vdsChr3.rrm().eigen(None)
-    val eigenFromLD = vdsChr3.ldMatrix().sampleEigen(vdsChr3, None)
+    val eigenFromLD = vdsChr3.ldMatrix().eigenRRM(vdsChr3, None)
     
     val vdsRRM = LinearMixedRegression.applyEigen(vdsChr1, eigenFromKinship, "sa.pheno", Array("sa.cov"),
           useML = false,
@@ -491,7 +491,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
   @Test def testLDAndRRMAreEquivalent() {
     val vdsFastLMMDownsampled = vdsFastLMM.sampleVariants(0.5)
     val rrm = vdsFastLMMDownsampled.rrm()
-    val eigenFromLD = vdsFastLMMDownsampled.ldMatrix().sampleEigen(vdsFastLMMDownsampled, Some(230))
+    val eigenFromLD = vdsFastLMMDownsampled.ldMatrix().eigenRRM(vdsFastLMMDownsampled, Some(230))
 
     val vdsLD230 = vdsFastLMMDownsampled.lmmregEigen(eigenFromLD, "sa.pheno", Array("sa.cov"), delta = None)
     val vdsRRM230 = vdsFastLMMDownsampled.lmmreg(rrm, "sa.pheno", Array("sa.cov"), delta = None, nEigs = Some(230))
@@ -557,7 +557,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val vdsLmmregLowRank = vdsSmall.lmmreg(vdsSmallRRM, "sa.pheno", nEigs = Some(3))
 
-    val eigenFromLD= vdsSmall.ldMatrix().sampleEigen(vdsSmall, Some(3))
+    val eigenFromLD= vdsSmall.ldMatrix().eigenRRM(vdsSmall, Some(3))
     
     val vdsLmmregLD = vdsSmall.lmmregEigen(eigenFromLD, "sa.pheno")
 

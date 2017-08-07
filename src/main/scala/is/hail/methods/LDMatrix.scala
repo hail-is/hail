@@ -75,7 +75,7 @@ object LDMatrix {
 case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamplesUsed: Int) extends {
   def toLocalMatrix: Matrix = matrix.toBlockMatrixDense().toLocalMatrix()
   
-  def sampleEigen(vds: VariantDataset, optNEigs: Option[Int]): Eigendecomposition = {
+  def eigenRRM(vds: VariantDataset, optNEigs: Option[Int]): Eigendecomposition = {
     val variantSet = variants.toSet
     val L = matrix.toLocalMatrix().asBreeze().toDenseMatrix
 

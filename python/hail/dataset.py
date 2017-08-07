@@ -3068,9 +3068,15 @@ class VariantDataset(object):
                       n_eigs=nullable(integral))
     def lmmreg(self, kinshipMatrix, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg",
                run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False, n_eigs=None):
-        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association. This method takes a kinship matrix.
+        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         .. include:: requireTGenotype.rst
+        
+        .. caution::
+        
+            For :py:meth:`~hail.VariantDataset.lmmreg`, the kinship matrix must be small enough to fit in local memory
+            on the driver, with an absolute bound at 32k samples. Users should switch to the updated interface
+            :py:meth:`~hail.VariantDataset.lmmreg_eigen` for improved efficiency and scaling.
 
         **Examples**
 
@@ -3261,7 +3267,11 @@ class VariantDataset(object):
 
         **Kinship Matrix**
 
-        FastLMM uses the Realized Relationship Matrix (RRM), which can be computed with :py:meth:`~hail.VariantDataset.rrm`. However, Hail uses any instance of :py:class:`KinshipMatrix`, so long as ``sample_list`` contains the complete samples of the caller variant dataset in the same order. Currently, due to the fact that the eigendecomposition is done locally, the maximum size of the kinship matrix is 32,000 X 32,000.
+        The kinship matrix parameter may be constructed with :py:meth:`~hail.VariantDataset.rrm` or :py:meth:`~hail.VariantDataset.grm`; 
+        FastLMM uses the Realized Relationship Matrix (RRM). The ``sample_list`` must contain the complete samples of the caller variant dataset in the same order.
+        
+        Set the ``n_eigs`` parameter lower than the rank of the kinship matrix to implicitly substitute a
+        low-rank approximation. The computational complexity per variant is proportional to the number of eigenvectors retained.
 
         **Further background**
 
@@ -3290,7 +3300,7 @@ class VariantDataset(object):
 
         :param bool use_dosages: If true, use dosages rather than hard call genotypes.
 
-        :param int n_eigs: Number of eigenvectors of the kinship matrix used to fit the model.
+        :param int n_eigs: Upper bound on the number of eigenvectors of the kinship matrix used to fit the model.
 
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
@@ -3315,36 +3325,33 @@ class VariantDataset(object):
                       use_dosages=bool)
     def lmmreg_eigen(self, eigen, y, covariates=[], global_root="global.lmmreg", va_root="va.lmmreg", 
                      run_assoc=True, use_ml=False, delta=None, sparsity_threshold=1.0, use_dosages=False):
-        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association. This method takes a (partial) eigendecomposition of
-        the kinship matrix, which may be computed via the LD matrix when sample size is large.
+        """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association. This method is more efficient and scalable than :py:meth:`~hail.VariantDataset.lmmreg`.
 
         .. include:: requireTGenotype.rst
 
         **Examples**
 
-        Suppose the variant dataset saved at *data/example_lmmreg.vds* has a Boolean variant annotations ``va.useInKinship`` and ``va.useInAssociation``, and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, ``sa.cov2``. Then the :py:meth:`.lmmreg` function in
+        Suppose the variant dataset saved at *data/example_lmmreg.vds* has Boolean variant annotations ``va.useInKinship`` and ``va.useInAssociation``, and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, and ``sa.cov2``.
 
         >>> vds = hc.read("data/example_lmmreg.vds")
         >>> kinship_matrix = vds.filter_variants_expr('va.useInKinship').rrm()
-        >>> eigen = kinship_matrix.sampleEigendecomposition()
+        >>> eigen = kinship_matrix.eigen()
         >>> lmm_vds = (vds.filter_variants_expr('va.useInAssociation')
-        ...     .lmmreg(eigen, 'sa.pheno', ['sa.cov1', 'sa.cov2']))
+        ...     .lmmreg_eigen(eigen, 'sa.pheno', ['sa.cov1', 'sa.cov2']))
 
         Equivalent to:
 
         >>> vds = hc.read("data/example_lmmreg.vds")
         >>> ld_matrix = vds.filter_variants_expr('va.useInKinship').ld_matrix()
-        >>> eigen = ld_matrix.sampleEigendecomposition()
+        >>> eigen = ld_matrix.eigen_rmm()
         >>> lmm_vds = (vds.filter_variants_expr('va.useInAssociation')
-        ...     .lmmreg(eigen, 'sa.pheno', ['sa.cov1', 'sa.cov2']))
+        ...     .lmmreg_eigen(eigen, 'sa.pheno', ['sa.cov1', 'sa.cov2']))
 
         **Notes**
 
-        The rank of the kinship matrix (RRM) resulting from a genetic matrix on :math:`n` samples and :math:`m` variants is at most the minimum of :math:`n` and :math:`m`.
+        This method takes an eigendecomposition of the kinship matrix, which may computed via :py:meth:`~hail.KinshipMatrix.eigen` on a kinship matrix (RRM or GRM) or :py:meth:`~hail.LDMatrix.eigen_rmm` on an LD matrix. The latter approach is more efficient and scalable when the number of samples :math:`n` exceeds the number of variants :math:`m` used to define the RRM, which has rank at most the minimum of :math:`n` and :math:`m`.
         
-        So to improve efficiency when :math:`m` is less than :math:`n`, this method alternatively accepts an LD matrix, the eigenvectors of which are then transformed to the first :math:`m` eigenvectors of the RRM using the relationship between left and right singular vectors as defined by the singular value decomposition of the normalized genetic matrix. Passing in all eigenvectors derived from the RRM or LD matrix will result in mathematically identical statistics. Fewer eigenvectors may be passed in to improve performance using approximate rather than exact inference.
-
-        :py:meth:`.lmmreg` can implicitly use a low-rank approximation of the kinship matrix to more rapidly fit delta and the statistics for each variant. The computational complexity per variant is proportional to the number of eigenvectors passed in.
+        Use :py:meth:`~hail.Eigendecomposition.take` with :math:`k` less than this rank to implicitly substitute a low-rank approximation. The computational complexity per variant is proportional to the number of eigenvectors retained.
 
         :param eigen: Eigendecomposition to be used.
         :type Eigendecomposition

@@ -50,10 +50,10 @@ class LDMatrix:
     
     @typecheck_method(vds=anytype,
                       k=nullable(integral))
-    def sample_eigen(self, vds, k=None):
+    def eigen_rmm(self, vds, k=None):
         """
-        Compute an eigendecomposition of the Realized Relationship Matrix (RRM) of the variant dataset using the
-        variants in the LD matrix.
+        Compute an eigendecomposition of the Realized Relationship Matrix (RRM) of the variant dataset via an
+        eigendecomposition of the LD matrix.
         
         *Notes*
 
@@ -63,10 +63,11 @@ class LDMatrix:
         
         .. caution::
         
-            Only call this method when the LD matrix and the matrix of eigenvectors are small enough to fit in
-            local memory on the driver. The number of variants in the LD matrix can be at most 32k.
-            The number of elements in the eigenvector matrix can be at most :math:`2^{31} - 1` (about 2 billion).
-        
+            This method collects the LD matrix to a local matrix on the driver in order to compute the full
+            eigendecomposition using LAPACK. Only call this method when the LD matrix and the resulting matrix
+            of eigenvectors are small enough to fit in local memory. The absolute limit on the number of variants
+            is 32k. The absolute limit on the number of elements in the eigenvector matrix is :math:`2^{31} - 1` (about 2 billion).
+                    
         :param vds: Variant dataset
         :type vds: :py:class:`.VariantDataset`
         
@@ -77,4 +78,4 @@ class LDMatrix:
         :rtype: Eigendecomposition
         """
         
-        return Eigendecomposition(self._jldm.sampleEigen(vds._jvds, joption(k)))
+        return Eigendecomposition(self._jldm.eigen_rrm(vds._jvds, joption(k)))

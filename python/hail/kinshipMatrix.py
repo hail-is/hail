@@ -52,12 +52,13 @@ class KinshipMatrix:
     def eigen(self, k=None):
         """
         Compute an eigendecomposition of the kinship matrix. The number of eigenvectors returned is the minimum of
-        the number of variants used to form the kinship matrix, the number of samples, and k.
+        the number of variants used to form the kinship matrix, the number of samples, and k (if supplied).
         
         .. caution::
         
-            Only call this method when the Kinship matrix and the matrix of eigenvectors are small enough to fit in
-            local memory on the driver. The number of variants in the kinship matrix can be at most 32k.
+            This method collects the kinship matrix to a local matrix on the driver in order to compute the full
+            eigendecomposition using LAPACK. Only call this method when the kinship matrix is small enough to fit in
+            local memory; the absolute limit on the number of samples is 32k.
         
         :param k: Upper bound on the number of eigenvectors to return.
         :type K: int or None
