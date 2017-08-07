@@ -115,7 +115,7 @@ def main(args):
         hail_hash = args.hash
 
     # prepare metadata values
-    metadata = 'HASH={0},SPARK={1},HAIL_VERSION='.format(hail_hash, args.spark)
+    metadata = 'HASH={0},SPARK={1},HAIL_VERSION={2}'.format(hail_hash, args.spark, args.version)
     if args.metadata:
         metadata += ("," + args.metadata)
 
