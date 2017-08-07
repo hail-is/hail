@@ -71,7 +71,7 @@ object PCRelate {
     new PCRelate(maf, blockSize)(vds, pcs)
 
   private val signature =
-    TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
+    TStruct(("i", TString), ("j", TString), ("kin", TFloat64), ("k0", TFloat64), ("k1", TFloat64), ("k2", TFloat64))
   private val keys = Array("i", "j")
 
   def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): KeyTable =
@@ -214,8 +214,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   private def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = dm.diagonal(phi).map(2.0 * _)
-    val normalizedGD = dm.map2WithIndex({
-      case (_, i, g, mu) =>
+    val normalizedGD = dm.map2WithIndex { case (_, i, g, mu) =>
         if (badmu(mu) || badgt(g))
           0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
         else {
@@ -225,7 +224,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
           gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
         }
-    })(g, mu)
+    } (g, mu)
 
     (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
   }
