@@ -3,7 +3,7 @@ package is.hail.methods
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.annotations.Annotation
-import is.hail.expr.{TStruct, TString, TDouble}
+import is.hail.expr.{TStruct, TString, TFloat64}
 import is.hail.utils._
 import is.hail.keytable.KeyTable
 import is.hail.variant.{Variant, VariantDataset}
