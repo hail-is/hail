@@ -29,7 +29,7 @@ object LoadVCF {
         && !input.endsWith(".vcf.bgz")) {
         if (input.endsWith(".vcf.gz")) {
           if (!forcegz)
-            fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
+            fatal(".gz cannot be loaded in parallel, use .bgz or force=True override")
         } else
           fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
       }
