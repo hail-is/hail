@@ -102,7 +102,7 @@ class PCRelateSuite extends SparkSuite {
     assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
-  // @Test
+  @Test(enabled = false)
   def trivialReferenceMatchesR() {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
@@ -113,7 +113,8 @@ class PCRelateSuite extends SparkSuite {
     assert(mapSameElements(usRef, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
-  @Test def baldingNicholsMatchesReference() {
+  @Test
+  def baldingNicholsMatchesReference() {
     for {
       n <- Seq(50, 100)
       seed <- Seq(0, 1)
@@ -128,7 +129,7 @@ class PCRelateSuite extends SparkSuite {
     }
   }
 
-  // @Test
+  @Test(enabled = false)
   def baldingNicholsReferenceMatchesR() {
     for {
       n <- Seq(50, 100)
@@ -185,7 +186,7 @@ class PCRelateSuite extends SparkSuite {
     }
   }
 
-  // @Test
+  @Test(enabled = false)
   def thousandGenomesTriosReferenceMatchesR() {
     val trios = Array("HG00702", "HG00656", "HG00657",
       "HG00733", "HG00731", "HG00732",
@@ -223,15 +224,6 @@ class PCRelateSuite extends SparkSuite {
       val (actual, hailTime) = time(PCRelateReferenceImplementation(vds, pcs, maf=0.01))
 
       println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
-
-      printToFile(new java.io.File(s"/tmp/thousandGenomesTriosReferenceMatchesR-$fraction.out")) { pw =>
-        pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
-        for ((k, (hkin, hz0, hz1, hz2)) <- actual) {
-          val (rkin, rz0, rz1, rz2) = truth(k)
-          val (s1, s2) = k
-          pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
-        }
-      }
 
       assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
     }
