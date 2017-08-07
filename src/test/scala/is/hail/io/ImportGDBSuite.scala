@@ -7,7 +7,6 @@ import org.testng.annotations.Test
 
 class ImportGDBSuite extends SparkSuite {
 
-  //FIXME: get java file api for figuring out current absolute path, replace relative paths here + JSON
   val loader = "src/test/resources/sample2loader.json"
   val workspace = "src/test/resources/tdbworkspace"
   val arrName = "sample2Array"
@@ -99,7 +98,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfGT.zip(gdbGT).forall( { case (it1, it2) => it1.zip(it2).forall( { case (a1, a2) => a1.equals(a2) }) }))
   }
 
-  //FIXME: this test fails because some FP numbers are off by a little, arrays (length "A") dropping all but first element
+  //FIXME - genomicsDB bugs relating to this test: some FP numbers are off by a little, arrays (length "A") dropping all but first element
   @Test def genomicsDBRDDAnnotations() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader, ref)

@@ -12,7 +12,6 @@ import org.json4s._
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
-import scala.reflect.ClassTag
 import java.io.{FileWriter, File}
 
 
@@ -22,7 +21,7 @@ case class QueryJSON(workspace: String,
                      callset_mapping_file: String,
                      vcf_header_filename: Option[String],
                      reference_genome: String,
-                     query_column_ranges: List[List[Int]] = List(List(0, 17421565)),
+                     query_column_ranges: List[List[List[Int]]] = List(List(List(0, 17421565))), //TODO: fix this to match gdb docs description
                      query_attributes: List[String] = List(),
                      query_row_ranges: Option[List[List[Int]]] = None,
                      max_diploid_alt_alleles_that_can_be_genotyped: Option[Int] = None,
@@ -67,14 +66,14 @@ object LoadGDB {
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
 
-    val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile,
-      createQueryJSON(tiledbWorkspace,
-        arrayName,
-        vid_mapping_file,
-        callsets_mapping_file,
-        vcfHeaderPath,
-        refGenome).getCanonicalPath,
-      codec)
+    val queryFile = createQueryJSON(tiledbWorkspace,
+      arrayName,
+      vid_mapping_file,
+      callsets_mapping_file,
+      vcfHeaderPath,
+      refGenome)
+
+    val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile, queryFile.getCanonicalPath, codec)
 
     val header = gdbReader
       .getHeader
@@ -147,6 +146,7 @@ object LoadGDB {
     val rdd = recordRDD.toOrderedRDD(justVariants)
 
     justVariants.unpersist()
+    queryFile.delete()
 
     new VariantSampleMatrix(hc, VSMMetadata(
       TString,
