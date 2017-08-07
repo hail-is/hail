@@ -84,7 +84,7 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
 
     val maxRank = variants.length min nSamplesUsed
     val nEigs = optNEigs.getOrElse(maxRank)
-    optNEigs.foreach( k => if (k > nEigs) info(s"Requested $k evects but maximum rank is $maxRank."))
+    optNEigs.foreach( k => if (k > nEigs) info(s"Requested $k evects but maximum rank is $maxRank.") )
     
     info(s"Transforming $nEigs variant eigenvectors to sample eigenvectors...")
 

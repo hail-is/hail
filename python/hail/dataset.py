@@ -3074,9 +3074,9 @@ class VariantDataset(object):
         
         .. caution::
         
-            For :py:meth:`~hail.VariantDataset.lmmreg`, the kinship matrix must be small enough to fit in local memory
-            on the driver, with an absolute bound at 32k samples. Users should switch to the updated interface
-            :py:meth:`~hail.VariantDataset.lmmreg_eigen` for improved efficiency and scaling.
+          For :py:meth:`~hail.VariantDataset.lmmreg`, the kinship matrix must be small enough to fit in local memory
+          on the driver, with an absolute bound of 32k samples. Users should switch to the updated interface
+          :py:meth:`~hail.VariantDataset.lmmreg_eigen` for improved efficiency and scaling.
 
         **Examples**
 
@@ -3333,37 +3333,37 @@ class VariantDataset(object):
 
         Suppose the variant dataset saved at *data/example_lmmreg.vds* has Boolean variant annotations ``va.useInKinship`` and ``va.useInAssociation``, and numeric or Boolean sample annotations ``sa.pheno``, ``sa.cov1``, and ``sa.cov2``.
 
-        >>> vds = hc.read("data/example_lmmreg.vds")
-        >>> kinship_matrix = vds.filter_variants_expr('va.useInKinship').rrm()
+        >>> vds1 = hc.read("data/example_lmmreg.vds")
+        >>> kinship_matrix = vds1.filter_variants_expr('va.useInKinship').rrm()
         >>> eigen = kinship_matrix.eigen()
-        >>> lmm_vds = (vds.filter_variants_expr('va.useInAssociation')
+        >>> lmm_vds = (vds1.filter_variants_expr('va.useInAssociation')
         ...     .lmmreg_eigen(eigen, 'sa.pheno', ['sa.cov1', 'sa.cov2']))
 
         Equivalent to:
 
-        >>> vds = hc.read("data/example_lmmreg.vds")
-        >>> ld_matrix = vds.filter_variants_expr('va.useInKinship').ld_matrix()
-        >>> eigen = ld_matrix.eigen_rmm()
-        >>> lmm_vds = (vds.filter_variants_expr('va.useInAssociation')
+        >>> vds1 = hc.read("data/example_lmmreg.vds")
+        >>> ld_matrix = vds1.filter_variants_expr('va.useInKinship').ld_matrix()
+        >>> eigen = ld_matrix.eigen_rrm(vds1)
+        >>> lmm_vds = (vds1.filter_variants_expr('va.useInAssociation')
         ...     .lmmreg_eigen(eigen, 'sa.pheno', ['sa.cov1', 'sa.cov2']))
 
         **Notes**
 
-        This method takes an eigendecomposition of the kinship matrix, which may computed via :py:meth:`~hail.KinshipMatrix.eigen` on a kinship matrix (RRM or GRM) or :py:meth:`~hail.LDMatrix.eigen_rmm` on an LD matrix. The latter approach is more efficient and scalable when the number of samples :math:`n` exceeds the number of variants :math:`m` used to define the RRM, which has rank at most the minimum of :math:`n` and :math:`m`.
-        
-        Use :py:meth:`~hail.Eigendecomposition.take` with :math:`k` less than this rank to implicitly substitute a low-rank approximation. The computational complexity per variant is proportional to the number of eigenvectors retained.
+        See :py:meth:`~hail.VariantDataset.lmmreg` for detailed documentation on the linear mixed regression model. While that interface takes the kinship matrix as input, :py:meth:`~hail.VariantDataset.lmmreg_eigen` instead takes an eigendecomposition of the kinship matrix. This eigendecomposition may computed via :py:meth:`~hail.KinshipMatrix.eigen` on a kinship matrix (RRM or GRM) or via :py:meth:`~hail.LDMatrix.eigen_rmm` on an LD matrix. The latter approach is more efficient and scalable when the number of samples :math:`n` exceeds the number of variants :math:`m` used to define the RRM, which has rank at most the minimum of :math:`n` and :math:`m`.
+
+        Use :py:meth:`~hail.Eigendecomposition.take_right` with :math:`k` less than this rank to implicitly substitute a low-rank approximation. The computational complexity per variant is proportional to the number of eigenvectors retained.
 
         :param eigen: Eigendecomposition to be used.
-        :type Eigendecomposition
+        :type eigen: Eigendecomposition
 
         :param str y: Response sample annotation.
 
         :param covariates: List of covariate sample annotations.
         :type covariates: list of str
 
-        :param str global_root: Global annotation root, a period-delimited path starting with `global`.
+        :param str global_root: Global annotation root, a period-delimited path starting with ``global``.
 
-        :param str va_root: Variant annotation root, a period-delimited path starting with `va`.
+        :param str va_root: Variant annotation root, a period-delimited path starting with ``va``.
 
         :param bool run_assoc: If true, run association testing in addition to fitting the global model.
 
@@ -3379,7 +3379,7 @@ class VariantDataset(object):
         :return: Variant dataset with linear mixed regression annotations.
         :rtype: :py:class:`.VariantDataset`
         """
-
+        
         jvds = self._jvdf.lmmregEigen(eigen._jeigen, y, jarray(Env.jvm().java.lang.String, covariates), use_ml, global_root,
                                       va_root, run_assoc, joption(delta), sparsity_threshold, use_dosages)
         return VariantDataset(self.hc, jvds)

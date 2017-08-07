@@ -21,7 +21,7 @@ case class Eigendecomposition(rowSignature: Type, rowIds: Array[Annotation], eve
     Eigendecomposition(rowSignature, newRowIds, newEvects, evals)
   }
   
-  def take(k: Int): Eigendecomposition = {
+  def takeRight(k: Int): Eigendecomposition = {
     if (k < 1)
       fatal(s"k must be a positive integer, got $k")
     else if (k >= nEvects)

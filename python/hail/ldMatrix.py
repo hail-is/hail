@@ -50,7 +50,7 @@ class LDMatrix:
     
     @typecheck_method(vds=anytype,
                       k=nullable(integral))
-    def eigen_rmm(self, vds, k=None):
+    def eigen_rrm(self, vds, k=None):
         """
         Compute an eigendecomposition of the Realized Relationship Matrix (RRM) of the variant dataset via an
         eigendecomposition of the LD matrix.
@@ -78,4 +78,4 @@ class LDMatrix:
         :rtype: Eigendecomposition
         """
         
-        return Eigendecomposition(self._jldm.eigen_rrm(vds._jvds, joption(k)))
+        return Eigendecomposition(self._jldm.eigenRRM(vds._jvds, joption(k)))

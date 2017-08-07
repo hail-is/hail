@@ -7,7 +7,7 @@ class Eigendecomposition:
     def __init__(self, jeigen):
         self._jeigen = jeigen
         self._key_schema = None
-        
+    
     @property
     def key_schema(self):
         """
@@ -61,7 +61,7 @@ class Eigendecomposition:
         return self._jeigen.nEvects()
     
     @typecheck_method(k=integral)
-    def take(self, k):
+    def take_right(self, k):
         """
         Take the top k eigenvectors and eigenvalues.
         If k is greater than the number present, then the calling eigendecomposition is returned.
@@ -72,4 +72,4 @@ class Eigendecomposition:
         :rtype: Eigendecomposition
         """
         
-        return Eigendecomposition(self._jeigen.take(k))
+        return Eigendecomposition(self._jeigen.take_right(k))

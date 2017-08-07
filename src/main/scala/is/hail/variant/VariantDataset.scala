@@ -555,7 +555,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
 
   def ldMatrix(forceLocal: Boolean = false): LDMatrix = {
     requireSplit("LD Matrix")
-    LDMatrix(vds, Some(forceLocal))
+    LDMatrix(vds, None)
   }
 
   def ldPrune(r2Threshold: Double = 0.2, windowSize: Int = 1000000, nCores: Int = 1, memoryPerCore: Int = 256): VariantDataset = {
