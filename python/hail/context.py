@@ -137,7 +137,7 @@ class HailContext(object):
 
         **Background**
 
-        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Find background on regular expressions at `RegExr <http://regexr.com/>`__.
+        :py:meth:`~hail.HailContext.grep` mimics the basic functionality of Unix ``grep`` in parallel, printing results to screen. This command is provided as a convenience to those in the statistical genetics community who often search enormous text files like VCFs. Hail uses `Java regular expression patterns <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__. The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
 
         :param str regex: The regular expression to match.
 
@@ -317,7 +317,7 @@ class HailContext(object):
         
         Pass the types ourselves:
         
-        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TDouble(), 'Age': TInt()})
+        >>> table = hc.import_table('data/samples1.tsv', types={'Height': TFloat64(), 'Age': TInt32()})
         
         Note that string columns like ``Sample`` and ``Status`` do not need to be typed, because ``String``
         is the default type.
@@ -551,30 +551,16 @@ class HailContext(object):
             self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants))
 
     @handle_py4j
-    @typecheck_method(path=strlike)
-    def write_partitioning(self, path):
-        """Write partitioning.json.gz file for legacy VDS file.
-
-        :param str path: path to VDS file.
-        """
-
-        self._jhc.writePartitioning(path)
-
-    @handle_py4j
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       force=bool,
                       force_bgz=bool,
                       header_file=nullable(strlike),
                       min_partitions=nullable(integral),
                       drop_samples=bool,
-                      store_gq=bool,
-                      pp_as_pl=bool,
-                      skip_bad_ad=bool,
                       generic=bool,
                       call_fields=oneof(strlike, listof(strlike)))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, store_gq=False, pp_as_pl=False, skip_bad_ad=False, generic=False,
-                   call_fields=[]):
+                   drop_samples=False, generic=False, call_fields=[]):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -679,18 +665,10 @@ class HailContext(object):
             dataset.  Don't load sample ids, sample annotations or
             genotypes.
 
-        :param bool store_gq: If True, store GQ FORMAT field instead of computing from PL. Only applies if ``generic=False``.
-
-        :param bool pp_as_pl: If True, store PP FORMAT field as PL.  EXPERIMENTAL. Only applies if ``generic=False``.
-
-        :param bool skip_bad_ad: If True, set AD FORMAT field with
-            wrong number of elements to missing, rather than setting
-            the entire genotype to missing. Only applies if ``generic=False``.
-
-        :param bool generic: If True, read the genotype with a generic schema.
-
         :param call_fields: FORMAT fields in VCF to treat as a :py:class:`~hail.type.TCall`. Only applies if ``generic=True``.
         :type call_fields: str or list of str
+
+        :param bool generic: If True, read the genotype with a generic schema.
 
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
@@ -702,8 +680,7 @@ class HailContext(object):
                                                joption(min_partitions), drop_samples, jset_args(call_fields))
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(min_partitions), drop_samples, store_gq,
-                                        pp_as_pl, skip_bad_ad)
+                                        joption(min_partitions), drop_samples)
 
         return VariantDataset(self, jvds)
 

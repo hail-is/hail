@@ -703,7 +703,7 @@ class KeyTable(object):
         c3.
 
         >>> kt3 = hc.import_table('data/kt_example3.tsv', impute=True,
-        ...                       types={'c1': TString(), 'c2': TArray(TInt()), 'c3': TArray(TArray(TInt()))})
+        ...                       types={'c1': TString(), 'c2': TArray(TInt32()), 'c3': TArray(TArray(TInt32()))})
 
         The types of each column are ``String``, ``Array[Int]``, and ``Array[Array[Int]]`` respectively.
         c1 cannot be exploded because its type is not an ``Array`` or ``Set``.
@@ -1116,18 +1116,23 @@ class KeyTable(object):
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
     @handle_py4j
-    @typecheck_method(n=integral)
-    def repartition(self, n):
+    @typecheck_method(n=integral,
+                      shuffle=bool)
+    def repartition(self, n, shuffle=True):
         """Change the number of distributed partitions.
         
-        Always shuffles data.
+        .. warning ::
+
+          When `shuffle` is `False`, `repartition` can only decrease the number of partitions and simply combines adjacent partitions to achieve the desired number.  It does not attempt to rebalance and so can produce a heavily unbalanced dataset.  An unbalanced dataset can be inefficient to operate on because the work is not evenly distributed across partitions.
         
         :param int n: Desired number of partitions.
+
+        :param bool shuffle: Whether to shuffle or naively coalesce.
         
         :rtype: :class:`.KeyTable` 
         """
 
-        return KeyTable(self.hc, self._jkt.repartition(n))
+        return KeyTable(self.hc, self._jkt.repartition(n, shuffle))
 
     @staticmethod
     @handle_py4j

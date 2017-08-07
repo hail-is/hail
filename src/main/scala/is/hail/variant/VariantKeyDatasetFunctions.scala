@@ -15,11 +15,10 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     *
     * @param path     output path
     * @param append   append file to header
-    * @param exportPP export Hail PLs as a PP format field
     * @param parallel export VCF in parallel using the path argument as a directory
     */
-  def exportVCF(path: String, append: Option[String] = None, exportPP: Boolean = false, parallel: Boolean = false) {
-    ExportVCF(vsm, path, append, exportPP, parallel)
+  def exportVCF(path: String, append: Option[String] = None, parallel: Boolean = false) {
+    ExportVCF(vsm, path, append, parallel)
   }
 
   def minRep(maxShift: Int = 100): VariantSampleMatrix[Locus, Variant, T] = {

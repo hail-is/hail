@@ -42,7 +42,7 @@ object KeyTable {
       case Some(parts) => hc.sc.parallelize(range, numSlices = parts)
       case None => hc.sc.parallelize(range)
     }
-    KeyTable(hc, rdd, TStruct("index" -> TInt), Array("index"))
+    KeyTable(hc, rdd, TStruct("index" -> TInt32), Array("index"))
   }
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): KeyTable = {
@@ -747,7 +747,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
   }
 
-  def repartition(n: Int): KeyTable = copy(rdd = rdd.repartition(n))
+  def repartition(n: Int, shuffle: Boolean = true): KeyTable = copy(rdd = rdd.coalesce(n, shuffle))
 
   def union(kts: java.util.ArrayList[KeyTable]): KeyTable = union(kts.asScala.toArray: _*)
 
@@ -768,7 +768,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     if (fieldNames.contains(name))
       fatal(s"name collision: cannot index table, because column '$name' already exists")
 
-    val (newSignature, ins) = signature.insert(TLong, name)
+    val (newSignature, ins) = signature.insert(TInt64, name)
 
     val newRDD = rdd.zipWithIndex().map { case (r, ind) => ins(r, ind).asInstanceOf[Row] }
 

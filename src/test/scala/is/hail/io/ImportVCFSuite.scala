@@ -38,28 +38,6 @@ class ImportVCFSuite extends SparkSuite {
     assert(n == 1)
   }
 
-  @Test def testStoreGQ() {
-    var vds = hc.importVCF("src/test/resources/store_gq.vcf", storeGQ = true)
-
-    val gqs = vds.flatMapWithKeys { case (v, s, g) =>
-      Genotype.gq(g).map { gqx => ((v.start, s), gqx) }
-    }.collectAsMap()
-    val expectedGQs = Map(
-      (16050612, "S") -> 27,
-      (16050612, "T") -> 15,
-      (16051453, "S") -> 37,
-      (16051453, "T") -> 52)
-    assert(gqs == expectedGQs)
-
-    vds = vds.splitMulti(propagateGQ = true)
-
-    val f = tmpDir.createTempFile("store_gq", ".vcf")
-    vds.exportVCF(f)
-
-    hc.importVCF("src/test/resources/store_gq_split.vcf", storeGQ = true)
-      .same(vds.eraseSplit)
-  }
-
   @Test def testGlob() {
     val n1 = hc.importVCF("src/test/resources/sample.vcf").countVariants()
     val n2 = hc.importVCF("src/test/resources/samplepart*.vcf").countVariants()
@@ -90,29 +68,7 @@ class ImportVCFSuite extends SparkSuite {
     }
     assert(e.getMessage.contains("caught htsjdk.tribble.TribbleException$InternalCodecException: "))
   }
-
-  @Test def testPPs() {
-    assert(hc.importVCF("src/test/resources/sample.PPs.vcf", ppAsPL = true)
-      .same(hc.importVCF("src/test/resources/sample.vcf")))
-  }
-
-  @Test def testBadAD() {
-    val vds = hc.importVCF("src/test/resources/sample_bad_AD.vcf", skipBadAD = true)
-    assert(vds.expand()
-      .map(_._3)
-      .collect()
-      .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080)))))
-
-    val failVDS = hc.importVCF("src/test/resources/sample_bad_AD.vcf")
-    val e = intercept[SparkException] {
-      failVDS.expand()
-        .map(_._3)
-        .collect()
-        .contains(Genotype(Some(0), None, Some(30), Some(72), Some(Array(0, 72, 1080))))
-    }
-    assert(e.getMessage.contains("is.hail.utils.HailException: sample_bad_AD.vcf: invalid AD field"))
-  }
-
+  
   @Test def testHaploid() {
     val vds = hc.importVCF("src/test/resources/haploid.vcf")
     val r = vds

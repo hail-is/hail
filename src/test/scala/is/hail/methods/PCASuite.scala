@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
-import is.hail.expr.{TArray, TDouble, TStruct}
+import is.hail.expr.{TArray, TFloat64, TStruct}
 import is.hail.variant.Variant
 import org.testng.annotations.Test
 
@@ -16,8 +16,8 @@ class PCASuite extends SparkSuite {
 
     // comparing against numbers computed via Python script test/resources/PCA.py
 
-    val arrayT = TArray(TDouble)
-    val structT = TStruct("PC1" -> TDouble, "PC2" -> TDouble, "PC3" -> TDouble)
+    val arrayT = TArray(TFloat64)
+    val structT = TStruct("PC1" -> TFloat64, "PC2" -> TFloat64, "PC3" -> TFloat64)
 
     val pyScores = Map[Annotation, IndexedSeq[Double]](
       "C1046::HG02024" -> IndexedSeq(-0.55141958610810227, 0.6480766747061064, -0.3559869584014231),

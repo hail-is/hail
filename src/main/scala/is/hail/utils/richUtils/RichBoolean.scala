@@ -5,6 +5,8 @@ class RichBoolean(val b: Boolean) extends AnyVal {
 
   def iff(that: Boolean): Boolean = b == that
 
+  def toByte: Byte = if (b) 1 else 0
+
   def toInt: Int = if (b) 1 else 0
 
   def toLong: Long = if (b) 1L else 0L

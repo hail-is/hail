@@ -21,6 +21,7 @@ import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
+import scala.reflect.classTag
 
 object HailContext {
 
@@ -223,14 +224,14 @@ class HailContext private(val sc: SparkContext,
   def importBgen(file: String,
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
     importBgens(List(file), sampleFile, tolerance, nPartitions)
   }
 
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -254,7 +255,7 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): VariantDataset = {
+    tolerance: Double = 0.2): GenericDataset = {
     importGens(List(file), sampleFile, chromosome, nPartitions, tolerance)
   }
 
@@ -262,7 +263,7 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): VariantDataset = {
+    tolerance: Double = 0.2): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -300,9 +301,15 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    new VariantSampleMatrix(this,
-      VSMFileMetadata(samples, vaSignature = signature, isLinearScale = true, wasSplit = true),
-      sc.union(results.map(_.rdd)).toOrderedRDD)
+    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
+
+    new GenericDataset(this,
+      VSMFileMetadata(samples,
+        vaSignature = signature,
+        genotypeSignature = TStruct("GT" -> TCall,
+          "GP" -> TArray(TFloat64)),
+        wasSplit = true),
+      rdd)
   }
 
   def importTable(inputs: java.util.ArrayList[String],
@@ -357,7 +364,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false): VariantDataset = {
+    quantPheno: Boolean = false): GenericDataset = {
 
     val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
@@ -369,7 +376,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false): VariantDataset = {
+    quantPheno: Boolean = false): GenericDataset = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
       nPartitions, delimiter, missing, quantPheno)
   }
@@ -466,48 +473,34 @@ class HailContext private(val sc: SparkContext,
   def readTable(path: String): KeyTable =
     KeyTable.read(this, path)
 
-  def writePartitioning(path: String) {
-    VariantSampleMatrix.writePartitioning(sqlContext, path)
-  }
-
   def importVCF(file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    storeGQ: Boolean = false,
-    ppAsPL: Boolean = false,
-    skipBadAD: Boolean = false): VariantDataset = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples,
-      storeGQ, ppAsPL, skipBadAD)
+    dropSamples: Boolean = false): VariantDataset = {
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    storeGQ: Boolean = false,
-    ppAsPL: Boolean = false,
-    skipBadAD: Boolean = false): VariantDataset = {
-
-    val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
-
-    val header = headerFile.getOrElse(inputs.head)
-
-    val codecs = sc.hadoopConfiguration.get("io.compression.codecs")
-
-    if (forceBGZ)
-      hadoopConf.set("io.compression.codecs",
-        codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
-
-    val settings = VCFSettings(storeGQ, dropSamples, ppAsPL, skipBadAD)
-    val reader = new GenotypeRecordReader(settings)
-    val vds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
-
-    hadoopConf.set("io.compression.codecs", codecs)
-
-    vds
+    dropSamples: Boolean = false): VariantDataset = {
+    val m = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples)
+    val extractG = Genotype.buildGenotypeExtractor(m.genotypeSignature)
+    m.copy(
+      rdd = m.rdd.mapValuesWithKey { case (v, (va, gs)) =>
+        (va, gs.map { t =>
+          val g = extractG(t)
+          if (Genotype.ad(g).exists(_.length != v.nAlleles))
+            null
+          else {
+            g.check(v.nAlleles)
+            g
+          }
+        })
+      },
+      genotypeSignature = TGenotype)
   }
 
   def importVCFGeneric(file: String, force: Boolean = false,
@@ -536,7 +529,7 @@ class HailContext private(val sc: SparkContext,
       hadoopConf.set("io.compression.codecs",
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
-    val reader = new GenericRecordReader(callFields)
+    val reader = new HtsjdkRecordReader(callFields)
     val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
 
     hadoopConf.set("io.compression.codecs", codecs)
@@ -593,17 +586,17 @@ class HailContext private(val sc: SparkContext,
       "sa" -> TStruct(
         "cohort" -> TString,
         "covariates" -> TStruct(
-          "PC1" -> TDouble,
-          "PC2" -> TDouble,
-          "PC3" -> TDouble,
-          "age" -> TInt,
+          "PC1" -> TFloat64,
+          "PC2" -> TFloat64,
+          "PC3" -> TFloat64,
+          "age" -> TInt32,
           "isFemale" -> TBoolean
         )),
       "va" -> TStruct(
         "info" -> TStruct(
-          "AC" -> TArray(TInt),
-          "AN" -> TInt,
-          "AF" -> TArray(TDouble)),
+          "AC" -> TArray(TInt32),
+          "AN" -> TInt32,
+          "AF" -> TArray(TFloat64)),
         "transcripts" -> TArray(TStruct(
           "gene" -> TString,
           "isoform" -> TString,

@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.SparkSuite
-import is.hail.expr.TDouble
+import is.hail.expr.TFloat64
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.io.annotators.IntervalList
@@ -29,13 +29,13 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
   def intervals = IntervalList.read(hc, "src/test/resources/regressionLinear.interval_list")
   def covariates = hc.importTable("src/test/resources/regressionLinear.cov",
-    types = Map("Cov1" -> TDouble, "Cov2" -> TDouble)).keyBy("Sample")
+    types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
   def phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
-    types = Map("Pheno" -> TDouble), missing = "0").keyBy("Sample")
+    types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   lazy val vdsBurden: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
     .annotateVariantsTable(intervals, root="va.genes", product=true)
-    .annotateVariantsExpr("va.weight = v.start.toDouble")
+    .annotateVariantsExpr("va.weight = v.start.toFloat64()")
     .annotateSamplesTable(covariates, root = "sa.cov")
     .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
@@ -78,7 +78,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
       .filterSamplesExpr("isDefined(sa.pheno) && isDefined(sa.cov.Cov1) && isDefined(sa.cov.Cov2)")
       .variantQC()
       .linregBurden("gene", "va.genes", singleKey = false,
-      "gs.map(g => va.weight * orElse(g.gt.toDouble, 2 * va.qc.AF)).sum()",
+      "gs.map(g => va.weight * orElse(g.gt.toFloat64(), 2 * va.qc.AF)).sum()",
       "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val linregMap = keyTableBoxedDoubleToMap[String](linregKT)
@@ -111,7 +111,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
   @Test def testMax() {
     val (linregKT, sampleKT) = vdsBurden.linregBurden("gene", "va.genes", singleKey = false,
-      "gs.map(g => g.gt.toDouble).max()", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+      "gs.map(g => g.gt.toFloat64()).max()", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val linregMap = keyTableBoxedDoubleToMap[String](linregKT)
     val sampleMap = keyTableBoxedDoubleToMap[String](sampleKT)
@@ -155,14 +155,14 @@ class LinearRegressionBurdenSuite extends SparkSuite {
 
     val vdsBurdenNoOverlap: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
       .annotateVariantsTable(IntervalList.read(hc, "src/test/resources/regressionLinearNoOverlap.interval_list"), root="va.gene")
-      .annotateVariantsExpr("va.weight = v.start.toDouble")
+      .annotateVariantsExpr("va.weight = v.start.toFloat64()")
       .annotateVariantsExpr("""va.genes2 = if (isDefined(va.gene)) [va.gene] else range(0).map(x => "")""")
       .annotateVariantsExpr("va.genes3 = if (isDefined(va.gene)) [va.gene] else NA: Array[String]")
       .annotateVariantsExpr("va.genes4 = if (isDefined(va.gene)) [va.gene, va.gene].toSet else NA: Set[String]")
       .annotateVariantsExpr("va.genes5 = if (isDefined(va.gene)) [va.gene, va.gene] else NA: Array[String]")
       .annotateVariantsExpr("va.genes6 = NA: Set[String]")
       .annotateVariantsExpr("va.genes7 = v.start")
-      .annotateVariantsExpr("va.genes8 = v.start.toDouble")
+      .annotateVariantsExpr("va.genes8 = v.start.toFloat64()")
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
@@ -219,12 +219,12 @@ class LinearRegressionBurdenSuite extends SparkSuite {
   @Test def testFatals() {
     interceptFatal("clashes with reserved linreg columns") {
       vdsBurden.linregBurden("pval", "va.genes", singleKey = false,
-        "gs.map(g => g.gt.toDouble).max()", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+        "gs.map(g => g.gt.toFloat64()).max()", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
 
     interceptFatal("clashes with a sample name") {
       vdsBurden.linregBurden("A", "va.genes", singleKey = false,
-        "gs.map(g => g.gt.toDouble).max()", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
+        "gs.map(g => g.gt.toFloat64()).max()", "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"))
     }
   }
 }

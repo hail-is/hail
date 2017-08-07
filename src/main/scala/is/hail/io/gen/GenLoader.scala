@@ -10,7 +10,7 @@ import org.apache.spark.SparkContext
 
 import scala.collection.mutable
 
-case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Variant, (Annotation, Iterable[Genotype]))])
+case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))])
 
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext,
@@ -37,7 +37,7 @@ object GenLoader {
 
   def readGenLine(line: String, nSamples: Int,
     tolerance: Double,
-    chromosome: Option[String] = None): (Variant, (Annotation, Iterable[Genotype])) = {
+    chromosome: Option[String] = None): (Annotation, (Annotation, Iterable[Annotation])) = {
 
     val arr = line.split("\\s+")
     val chrCol = if (chromosome.isDefined) 1 else 0
@@ -65,29 +65,27 @@ object GenLoader {
     if (gp.length != (3 * nSamples))
       fatal("Number of genotype probabilities does not match 3 * number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
-    val gsb = new GenotypeStreamBuilder(2, isLinearScale = true)
-    val gb = new GenotypeBuilder(2, isLinearScale = true)
+    val gsb = new ArrayBuilder[Annotation]()
 
     for (i <- gp.indices by 3) {
-      gb.clear()
-
       val d0 = gp(i)
       val d1 = gp(i + 1)
       val d2 = gp(i + 2)
       val sumDosages = d0 + d1 + d2
-      if (math.abs(sumDosages - 1.0) <= tolerance) {
-        val px = Genotype.weightsToLinear(d0, d1, d2)
-        val gt = Genotype.gtFromLinear(px)
 
-        gt.foreach(gt => gb.setGT(gt))
-        gb.setPX(px)
-      }
+      val a =
+        if (math.abs(sumDosages - 1.0) <= tolerance) {
+        val gp = Array(d0, d1, d2)
+        val gt = Genotype.unboxedGTFromLinear(gp)
+          Annotation(gt, gp: IndexedSeq[Double])
+      } else
+        null
 
-      gsb.write(gb)
+      gsb += a
     }
 
     val annotations = Annotation(rsid, varid)
 
-    (variant, (annotations, gsb.result()))
+    (variant: Annotation, (annotations, gsb.result()))
   }
 }

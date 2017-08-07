@@ -16,7 +16,7 @@ case class TDTResult(nTransmitted: Int, nUntransmitted: Int, chi2: Double, pval:
 
 object TDT {
 
-  def schema: TStruct = TStruct("nTransmitted" -> TInt, "nUntransmitted" -> TInt, "chi2" -> TDouble, "pval" -> TDouble)
+  def schema: TStruct = TStruct("nTransmitted" -> TInt32, "nUntransmitted" -> TInt32, "chi2" -> TFloat64, "pval" -> TFloat64)
 
   def getTransmission(kid: GenotypeType, dad: GenotypeType, mom: GenotypeType, copyState: CopyState): (Int, Int) = {
     (kid, dad, mom, copyState) match {

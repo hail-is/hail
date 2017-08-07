@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.sparkextras.OrderedRDD
 import is.hail.utils._
-import is.hail.variant.{Genotype, GenotypeBuilder, GenotypeStreamBuilder, Variant, VariantDataset}
+import is.hail.variant.{Genotype, GenotypeBuilder, Variant, VariantDataset}
 
 object SplitMulti {
 
@@ -18,7 +18,6 @@ object SplitMulti {
     va: Annotation,
     it: Iterable[Genotype],
     propagateGQ: Boolean,
-    isLinearScale: Boolean,
     keepStar: Boolean,
     insertSplitAnnots: (Annotation, Int, Boolean) => Annotation,
     f: (Variant) => Boolean): Iterator[(Variant, (Annotation, Iterable[Genotype]))] = {
@@ -40,8 +39,8 @@ object SplitMulti {
     if (splitVariants.isEmpty)
       return Iterator()
 
-    val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles, isLinearScale) }
-    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new GenotypeStreamBuilder(sv.nAlleles, isLinearScale) }
+    val splitGenotypeBuilders = splitVariants.map { case (sv, _) => new GenotypeBuilder(sv.nAlleles) }
+    val splitGenotypeStreamBuilders = splitVariants.map { case (sv, _) => new ArrayBuilder[Genotype]() }
 
     for (g <- it) {
       val gadsum = Genotype.ad(g).map(gadx => (gadx, gadx.sum))
@@ -53,7 +52,7 @@ object SplitMulti {
 
         if (g == null)
           gb.setMissing()
-        else if (!isLinearScale) {
+        else if (!g._isLinearScale) {
           Genotype.gt(g).foreach { ggtx =>
             val gtx = splitGT(ggtx, i)
             gb.setGT(gtx)
@@ -110,7 +109,7 @@ object SplitMulti {
           }
         }
 
-        splitGenotypeStreamBuilders(j).write(gb)
+        splitGenotypeStreamBuilders(j) += gb.result()
       }
     }
 
@@ -134,9 +133,7 @@ object SplitMulti {
       return vds
     }
 
-    val isLinearScale = vds.isLinearScale
-
-    val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
+    val (vas2, insertIndex) = vds.vaSignature.insert(TInt32, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
 
     val vas4 = vas3.getAsOption[TStruct]("info").map { s =>
@@ -157,7 +154,6 @@ object SplitMulti {
         split(v, va, gs,
           propagateGQ = propagateGQ,
           keepStar = keepStar,
-          isLinearScale = isLinearScale,
           insertSplitAnnots = { (va, index, wasSplit) =>
             insertSplit(insertIndex(va, index), wasSplit)
           },
@@ -171,7 +167,6 @@ object SplitMulti {
         split(v, va, gs,
           propagateGQ = propagateGQ,
           keepStar = keepStar,
-          isLinearScale = isLinearScale,
           insertSplitAnnots = { (va, index, wasSplit) =>
             insertSplit(insertIndex(va, index), wasSplit)
           },

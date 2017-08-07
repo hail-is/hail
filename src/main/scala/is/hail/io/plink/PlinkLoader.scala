@@ -11,6 +11,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 
 import scala.collection.mutable
+import scala.reflect.classTag
 
 case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
 
@@ -49,7 +50,7 @@ object PlinkLoader {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
-    val phenoSig = if (ffConfig.isQuantitative) ("qPheno", TDouble) else ("isCase", TBoolean)
+    val phenoSig = if (ffConfig.isQuantitative) ("qPheno", TFloat64) else ("isCase", TBoolean)
 
     val signature = TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isFemale", TBoolean), phenoSig)
 
@@ -116,7 +117,7 @@ object PlinkLoader {
     sampleAnnotations: IndexedSeq[Annotation],
     sampleAnnotationSignature: Type,
     variants: Array[(Variant, String)],
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
 
     val sc = hc.sc
     val nSamples = sampleIds.length
@@ -126,17 +127,18 @@ object PlinkLoader {
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1 }
+    val fastKeys = rdd.map { case (_, decoder) => variantsBc.value(decoder.getKey)._1: Annotation }
     val variantRDD = rdd.map {
       case (_, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
-        (v, (Annotation(rsId), vr.getValue))
-    }.toOrderedRDD(fastKeys)
-
-    new VariantSampleMatrix(hc, VSMMetadata(
+        (v: Annotation, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
+    }.toOrderedRDD(fastKeys)(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    
+    new GenericDataset(hc, VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
       globalSignature = TStruct.empty,
+      genotypeSignature = TStruct("GT" -> TCall),
       wasSplit = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
@@ -145,7 +147,7 @@ object PlinkLoader {
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None): VariantDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
     val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
     val nSamples = sampleInfo.length
     if (nSamples <= 0)

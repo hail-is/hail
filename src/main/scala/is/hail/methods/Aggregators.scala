@@ -409,7 +409,7 @@ class InfoScoreAggregator extends TypedAggregator[Annotation] {
 
   def seqOp(x: Any) {
     if (x != null)
-      _state.merge(x.asInstanceOf[Genotype])
+      _state.merge(x.asInstanceOf[IndexedSeq[Double]])
   }
 
   def combOp(agg2: this.type) {

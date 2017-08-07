@@ -53,10 +53,7 @@ object RegressionUtils {
   }
 
   def dosages(x: DenseVector[Double], gs: Iterable[Genotype], completeSampleIndex: Array[Int], missingSamples: ArrayBuilder[Int]) {
-    gs match {
-      case bgenGs: Bgen12GenotypeIterator => bgenGs.dosages(x, completeSampleIndex, missingSamples)
-      case _ => genericDosages(x, gs, completeSampleIndex, missingSamples)
-    }
+     genericDosages(x, gs, completeSampleIndex, missingSamples)
   }
 
   def dosages(gs: Iterable[Genotype], completeSampleIndex: Array[Int]): DenseVector[Double] = {
@@ -189,10 +186,10 @@ object RegressionUtils {
   }
 
   def toDouble(t: Type, code: String): Any => Double = t match {
-    case TInt => _.asInstanceOf[Int].toDouble
-    case TLong => _.asInstanceOf[Long].toDouble
-    case TFloat => _.asInstanceOf[Float].toDouble
-    case TDouble => _.asInstanceOf[Double]
+    case TInt32 => _.asInstanceOf[Int].toDouble
+    case TInt64 => _.asInstanceOf[Long].toDouble
+    case TFloat32 => _.asInstanceOf[Float].toDouble
+    case TFloat64 => _.asInstanceOf[Double]
     case TBoolean => _.asInstanceOf[Boolean].toDouble
     case _ => fatal(s"Sample annotation `$code' must be numeric or Boolean, got $t")
   }

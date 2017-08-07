@@ -47,9 +47,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def annotateAllelesExpr(expr: String, propagateGQ: Boolean = false): VariantDataset = {
-    val isLinearScale = vds.isLinearScale
-
-    val (vas2, insertIndex) = vds.vaSignature.insert(TInt, "aIndex")
+    val (vas2, insertIndex) = vds.vaSignature.insert(TInt32, "aIndex")
     val (vas3, insertSplit) = vas2.insert(TBoolean, "wasSplit")
     val localGlobalAnnotation = vds.globalAnnotation
 
@@ -89,7 +87,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
         keepStar = true,
-        isLinearScale = isLinearScale,
         insertSplitAnnots = { (va, index, wasSplit) =>
           insertSplit(insertIndex(va, index), wasSplit)
         },
@@ -245,7 +242,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       "patID" -> (TString, 2, formatID),
       "matID" -> (TString, 3, formatID),
       "isFemale" -> (TBoolean, 4, formatIsFemale),
-      "qPheno" -> (TDouble, 5, formatQPheno),
+      "qPheno" -> (TFloat64, 5, formatQPheno),
       "isCase" -> (TBoolean, 5, formatIsCase))
 
     val (names, types, f) = Parser.parseNamedExprs(famExpr, ec)
@@ -448,25 +445,15 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     LDPrune(vds, r2Threshold, windowSize, nCores, memoryPerCore * 1024L * 1024L)
   }
 
-  def linreg(y: String, covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
-    requireSplit("linear regression")
-    LinearRegression(vds, y, covariates, root, useDosages, minAC, minAF)
-  }
-
   def linregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
     requireSplit("linear burden regression")
     vds.requireSampleTString("linear burden regression")
     LinearRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, y, covariates)
   }
 
-  def linregMultiPheno(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, minAC: Int = 1, minAF: Double = 0d): VariantDataset = {
-    requireSplit("linear regression for multiple phenotypes")
-    LinearRegressionMultiPheno(vds, ys, covariates, root, useDosages, minAC, minAF)
-  }
-
-  def linreg3(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, variantBlockSize: Int = 16): VariantDataset = {
+  def linreg(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, variantBlockSize: Int = 16): VariantDataset = {
     requireSplit("linear regression 3")
-    LinearRegression3(vds, ys, covariates, root, useDosages, variantBlockSize)
+    LinearRegression(vds, ys, covariates, root, useDosages, variantBlockSize)
   }
 
   def lmmreg(kinshipMatrix: KinshipMatrix,
@@ -548,7 +535,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     ret
   }
 
-  def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds, root, keepStar)
+  def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds.toGDS, root, keepStar).toVDS
 
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     requireSplit("rrm")
@@ -580,6 +567,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
   def variantQC(root: String = "va.qc"): VariantDataset = {
     requireSplit("variant QC")
-    VariantQC(vds, root)
+    VariantQC(vds.toGDS, root).toVDS
   }
 }
