@@ -1,0 +1,151 @@
+package is.hail.utils
+
+import java.io.{IOException, InterruptedIOException, ObjectOutputStream, OutputStream}
+import java.net.{ConnectException, InetAddress, Socket}
+
+import org.apache.log4j.helpers.LogLog
+import org.apache.log4j.spi.{ErrorCode, LoggingEvent}
+import org.apache.log4j.{AppenderSkeleton, PatternLayout}
+
+/**
+  * This class was translated and streamlined from
+  * org.apache.log4j.net.SocketAppender
+  */
+
+object StringSocketAppender {
+  // low reconnection delay because everything is local
+  val DEFAULT_RECONNECTION_DELAY = 100
+}
+
+class StringSocketAppender() extends AppenderSkeleton {
+  private var remoteHost: String = _
+  private var address: InetAddress = _
+  private var port: Int = _
+  private var os: OutputStream = _
+  private var reconnectionDelay = StringSocketAppender.DEFAULT_RECONNECTION_DELAY
+  private var connector: SocketConnector = null
+  private var counter = 0
+  private var patternLayout: PatternLayout = _
+
+  def this(host: String, port: Int, format: String) {
+    this()
+    this.port = port
+    this.address = InetAddress.getByName(host)
+    this.remoteHost = host
+    this.patternLayout = new PatternLayout(format)
+    connect(address, port)
+  }
+
+  override def close() {
+    if (closed) return
+    this.closed = true
+    cleanUp()
+  }
+
+  def cleanUp() {
+    if (os != null) {
+      try
+        os.close()
+      catch {
+        case e: IOException =>
+          if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()
+          LogLog.error("Could not close os.", e)
+      }
+      os = null
+    }
+    if (connector != null) { //LogLog.debug("Interrupting the connector.");
+      connector.interrupted = true
+      connector = null // allow gc
+
+    }
+  }
+
+  private def connect(address: InetAddress, port: Int) {
+    if (this.address == null) return
+    try { // First, close the previous connection if any.
+      cleanUp()
+      os = new Socket(address, port).getOutputStream
+    } catch {
+      case e: IOException =>
+        if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()
+        var msg = "Could not connect to remote log4j server at [" + address.getHostName + "]."
+        if (reconnectionDelay > 0) {
+          msg += " We will try again later."
+          fireConnector() // fire the connector thread
+
+        }
+        else {
+          msg += " We are not retrying."
+          errorHandler.error(msg, e, ErrorCode.GENERIC_FAILURE)
+        }
+        LogLog.error(msg)
+    }
+  }
+
+  override def append(event: LoggingEvent) {
+    if (event == null) return
+    if (address == null) {
+      errorHandler.error("No remote host is set for SocketAppender named \"" + this.name + "\".")
+      return
+    }
+    if (os != null) try {
+      event.getLevel
+      val str = patternLayout.format(event)
+      os.write(str.getBytes("ISO-8859-1"))
+      os.flush()
+    } catch {
+      case e: IOException =>
+        if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()
+        os = null
+        LogLog.warn("Detected problem with connection: " + e)
+        if (reconnectionDelay > 0) fireConnector()
+        else errorHandler.error("Detected problem with connection, not reconnecting.", e, ErrorCode.GENERIC_FAILURE)
+    }
+  }
+
+  private def fireConnector() {
+    if (connector == null) {
+      LogLog.debug("Starting a new connector thread.")
+      connector = new SocketConnector
+      connector.setDaemon(true)
+      connector.setPriority(Thread.MIN_PRIORITY)
+      connector.start()
+    }
+  }
+
+  /**
+    * The SocketAppender does not use a layout. Hence, this method
+    * returns <code>false</code>.
+    **/
+  override def requiresLayout = false
+
+  class SocketConnector extends Thread {
+    var interrupted = false
+
+    override def run() {
+      var socket: Socket = null
+      var c = true
+      while (c && !interrupted)
+        try {
+          Thread.sleep(reconnectionDelay)
+          LogLog.debug("Attempting connection to " + address.getHostName)
+          socket = new Socket(address, port)
+          this.synchronized {
+            os = new ObjectOutputStream(socket.getOutputStream)
+            connector = null
+            LogLog.debug("Connection established. Exiting connector thread.")
+            c = false
+          }
+        } catch {
+          case e: InterruptedException =>
+            LogLog.debug("Connector interrupted. Leaving loop.")
+            return
+          case e: ConnectException =>
+            LogLog.debug("Remote host " + address.getHostName + " refused connection.")
+          case e: IOException =>
+            if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()
+            LogLog.debug("Could not connect to " + address.getHostName + ". Exception is " + e)
+        }
+    }
+  }
+}

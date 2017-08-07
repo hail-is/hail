@@ -1426,8 +1426,8 @@ class VariantSampleMatrix[T](val hc: HailContext, val metadata: VSMMetadata,
     if (genotypeSignature != right.genotypeSignature) {
       fatal(
         s"""cannot join datasets with different genotype schemata
-           |  left sample schema: @1
-           |  right sample schema: @2""".stripMargin,
+           |  left genotype schema: @1
+           |  right genotype schema: @2""".stripMargin,
         genotypeSignature.toPrettyString(compact = true, printAttrs = true),
         right.genotypeSignature.toPrettyString(compact = true, printAttrs = true))
     }
