@@ -31,11 +31,6 @@ object TestUtils {
     assert(A.cols == B.cols)
     assert((0 until A.rows).forall(i => (0 until A.cols).forall(j => D_==(A(i, j), B(i, j), tolerance))))
   }
-  
-  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
-    val d1 = a.asInstanceOf[Double]
-    assert(D_==(d1, value, tol), s"$d1 did not equal $value with tol $tol")
-  }
 
   def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
     val d1 = a.asInstanceOf[Double]
