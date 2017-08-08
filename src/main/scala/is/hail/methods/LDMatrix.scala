@@ -59,9 +59,7 @@ object LDMatrix {
 
     val scaledIndexedRowMatrix = new IndexedRowMatrix(indexedRowMatrix.rows
       .map{case IndexedRow(idx, vals) => IndexedRow(idx, vals.map(d => d * nSamplesInverse))})
-
-    persistedVDS.unpersist()
-
+    
     LDMatrix(scaledIndexedRowMatrix, variantsKept, nSamples)
   }
 }
@@ -77,14 +75,18 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
   
   def eigenRRM(vds: VariantDataset, optNEigs: Option[Int]): Eigendecomposition = {
     val variantSet = variants.toSet
-    val L = matrix.toLocalMatrix().asBreeze().toDenseMatrix
-
-    info(s"Computing eigenvectors of LD matrix...")
-    val eigL = printTime(eigSymD(L))
 
     val maxRank = variants.length min nSamplesUsed
     val nEigs = optNEigs.getOrElse(maxRank)
     optNEigs.foreach( k => if (k > nEigs) info(s"Requested $k evects but maximum rank is $maxRank.") )
+
+    if (nEigs.toLong * vds.nSamples > Integer.MAX_VALUE)
+      fatal(s"$nEigs eigenvectors times ${vds.nSamples} samples exceeds 2^31 - 1, the maximum size of a local matrix.")
+    
+    val L = matrix.toLocalMatrix().asBreeze().toDenseMatrix
+
+    info(s"Computing eigenvectors of LD matrix...")
+    val eigL = printTime(eigSymD(L))
     
     info(s"Transforming $nEigs variant eigenvectors to sample eigenvectors...")
 
@@ -124,6 +126,8 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
     val sparkG = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().t
     val sparkU = (sparkG * VSSpark).toLocalMatrix()
     val U = sparkU.asBreeze().toDenseMatrix
+    
+    filteredVDS.unpersist()
     
     Eigendecomposition(vds.sSignature, vds.sampleIds.toArray, U, S_K)
   }

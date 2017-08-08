@@ -9,16 +9,11 @@ import is.hail.keytable.KeyTable
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.TestUtils._
+import is.hail.SparkSuite
 import org.testng.annotations.Test
 
-class LinearMixedRegressionSuite extends SparkSuite {
-
-  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
-    val d1 = a.asInstanceOf[Double]
-    assert(D_==(d1, value, tol), s"$d1 did not equal $value with tol $tol")
-  }
-  
+class LinearMixedRegressionSuite extends SparkSuite {  
   @Test def lmmSmallExampleTest() {
 
     val y = DenseVector(0d, 0d, 1d, 1d, 1d, 1d)
@@ -78,11 +73,11 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val model = DiagLMM(LMMConstants(y, C, S, Ut), optDelta = Some(delta))
 
-    TestUtils.assertVectorEqualityDouble(beta, model.globalB)
+    assertVectorEqualityDouble(beta, model.globalB)
     assert(D_==(sg2, model.globalS2))
 
     val modelML = DiagLMM(LMMConstants(y, C, S, Ut), optDelta = Some(delta), useML = true)
-    TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
+    assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
     
     def lmmfit(x: DenseMatrix[Double]): (Double, Double, Double, Double) = {
@@ -195,7 +190,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     val bnm = BaldingNicholsModel(hc, k, n, m0, None, Some(FstOfPop),
       scala.util.Random.nextInt(), Some(4), UniformDist(.1, .9))
 
-    val G = TestUtils.removeConstantCols(TestUtils.vdsToMatrixInt(bnm))
+    val G = removeConstantCols(vdsToMatrixInt(bnm))
 
     val mG = G.cols
     val mW = G.cols
@@ -235,12 +230,12 @@ class LinearMixedRegressionSuite extends SparkSuite {
 
     val model = DiagLMM(constants, optDelta = Some(delta))
 
-    TestUtils.assertVectorEqualityDouble(beta, model.globalB)
+    assertVectorEqualityDouble(beta, model.globalB)
     assert(D_==(sg2, model.globalS2))
 
     val modelML = DiagLMM(constants, optDelta = Some(delta), useML = true)
 
-    TestUtils.assertVectorEqualityDouble(beta, modelML.globalB)
+    assertVectorEqualityDouble(beta, modelML.globalB)
     assert(D_==(sg2 * (n - c) / n, modelML.globalS2))
 
     // Now testing association per variant
