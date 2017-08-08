@@ -26,9 +26,18 @@ object Contig {
       case (None, None) => lhs.compare(rhs)
     }
   }
+
+  def gen: Gen[Contig] = for {
+    name <- Gen.identifier
+    length <- Gen.posInt
+  } yield Contig(name, length)
 }
 
-case class Contig(name: String, length: Int)
+case class Contig(name: String, length: Int) {
+  assert(length > 0, s"Contig length must be greater than 0. Contig `$name' has length equal to $length.")
+
+  def toJSON: JValue = JObject(("name", JString(name)), ("length", JInt(length)))
+}
 
 object AltAlleleType extends Enumeration {
   type AltAlleleType = Value
