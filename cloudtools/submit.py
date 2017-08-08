@@ -1,4 +1,4 @@
-from subprocess import check_output, check_call
+from subprocess import check_output, call
 
 
 def init_parser(parser):
@@ -57,4 +57,4 @@ def main(args):
         '--py-files={}'.format(zip_path),
         '--properties={}'.format(properties)
     ]
-    check_call(cmd)
+    call(cmd)
