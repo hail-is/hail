@@ -109,7 +109,7 @@ cluster connect testcluster spark-history
 ### Module usage
 
 ```
-$ cluster -h                                                                                                                                     ✓  1727  08:32:24
+$ cluster -h
 usage: cluster [-h] {start,submit,connect,diagnose,stop} ...
 
 Deploy and monitor Google Dataproc clusters to use with Hail.
@@ -127,7 +127,7 @@ optional arguments:
 ```
 
 ```
-$ cluster start -h                                                                                                                               ✓  1728  08:33:32
+$ cluster start -h
 usage: cluster start [-h] [--hash HASH] [--spark {2.0.2,2.1.0}]
                      [--version {0.1,devel}]
                      [--master-machine-type MASTER_MACHINE_TYPE]
@@ -190,7 +190,7 @@ optional arguments:
 ```
 
 ```
-$ cluster submit -h                                                                                                                              ✓  1733  08:34:56
+$ cluster submit -h
 usage: cluster submit [-h] [--hash HASH] [--spark {2.0.2,2.1.0}]
                       [--version {0.1,devel}] [--jar JAR] [--zip ZIP]
                       [--properties PROPERTIES]
@@ -217,7 +217,7 @@ optional arguments:
 ```
 
 ```
-$ cluster connect -h                                                                                                                             ✓  1734  08:34:58
+$ cluster connect -h
 usage: cluster connect [-h] [--port PORT] [--zone ZONE]
                        name
                        {notebook,nb,spark-ui,ui,spark-ui1,ui1,spark-ui2,ui2,spark-history,hist}
@@ -238,7 +238,7 @@ optional arguments:
 ```
 
 ```
-$ cluster diagnose -h                                                                                                                            ✓  1735  08:35:10
+$ cluster diagnose -h
 usage: cluster diagnose [-h] --dest DEST [--hail-log HAIL_LOG] [--overwrite]
                         [--no-diagnose] [--compress]
                         [--workers [WORKERS [WORKERS ...]]] [--take TAKE]
@@ -263,7 +263,7 @@ optional arguments:
 ```
 
 ```
-$ cluster stop -h                                                                                                                                ✓  1736  08:35:23
+$ cluster stop -h
 usage: cluster stop [-h] name
 
 Shut down a Dataproc cluster.
