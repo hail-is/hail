@@ -139,7 +139,7 @@ class UnsafeSuite extends SparkSuite {
              |IN:   $a
              |OUT1: $ur1
              |OUT2: $ur2
-             |SIZE: ${ ur1.region.sizeInBytes }/${ ur2.region.sizeInBytes }""".stripMargin)
+             |SIZE: ${ ur1.region.offset }/${ ur2.region.offset }""".stripMargin)
       }
 
       p

@@ -190,17 +190,15 @@ sealed abstract class Type extends Serializable { self =>
 
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
-  def fundamentalType: Type = this
+  val fundamentalType: Type = this
 }
 
 abstract class ComplexType extends Type {
-  def representation: Type
+  def representation: Type = fundamentalType
 
   override def byteSize: Int = representation.byteSize
 
   override def alignment: Int = representation.alignment
-
-  override def fundamentalType: Type = representation.fundamentalType
 }
 
 case object TBinary extends Type {
@@ -600,7 +598,13 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 
-  override def fundamentalType: Type = TArray(elementType.fundamentalType)
+  override val fundamentalType: Type = {
+    val elementFundamentalType = elementType.fundamentalType
+    if (elementFundamentalType == elementType)
+      this
+    else
+      TArray(elementType.fundamentalType)
+  }
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -652,7 +656,8 @@ case class TSet(elementType: Type) extends TIterable {
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 
-  override def fundamentalType: Type = TArray(elementType.fundamentalType)
+
+  override val fundamentalType: Type = TArray(elementType.fundamentalType)
 }
 
 case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -719,13 +724,13 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
             valueType.ordering(missingGreatest)))))
   }
 
-  override def fundamentalType: Type = TArray(elementType.fundamentalType)
+  override val fundamentalType: Type = TArray(elementType.fundamentalType)
 }
 
 case object TGenotype extends ComplexType {
   override def toString = "Genotype"
 
-  val representation: TStruct = TStruct(
+  override val fundamentalType: TStruct = TStruct(
     "gt" -> TInt32,
     "ad" -> TArray(TInt32),
     "dp" -> TInt32,
@@ -754,7 +759,7 @@ case object TGenotype extends ComplexType {
 case object TCall extends ComplexType {
   override def toString = "Call"
 
-  def representation: Type = TInt32
+  override val fundamentalType: Type = TInt32
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
@@ -784,7 +789,7 @@ case object TAltAllele extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
-  val representation: TStruct = TStruct(
+  override val fundamentalType: TStruct = TStruct(
     "ref" -> TString,
     "alt" -> TString)
 }
@@ -828,7 +833,7 @@ case object TVariant extends ComplexType {
     val pkct: ClassTag[Annotation] = classTag[Annotation]
   }
 
-  val representation: TStruct = TStruct(
+  override val fundamentalType: TStruct = TStruct(
     "contig" -> TString,
     "start" -> TInt32,
     "ref" -> TString,
@@ -850,7 +855,7 @@ case object TLocus extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]]))
 
-  val representation: TStruct = TStruct(
+  override val fundamentalType: TStruct = TStruct(
     "contig" -> TString,
     "position" -> TInt32)
 }
@@ -870,7 +875,7 @@ case object TInterval extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]]))
 
-  val representation: TStruct = TStruct(
+  override val fundamentalType: TStruct = TStruct(
     "start" -> TLocus.representation,
     "end" -> TLocus.representation)
 }
@@ -935,6 +940,8 @@ object TStruct {
 }
 
 case class TStruct(fields: IndexedSeq[Field]) extends Type {
+  assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
+
   override def children: Seq[Type] = fields.map(_.typ)
 
   override def canCompare(other: Type): Boolean = other match {
@@ -1363,6 +1370,12 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
     else
       fields.map(_.typ.alignment).max
 
-  override def fundamentalType: TStruct =
-    TStruct(fields.map(f => (f.name, f.typ.fundamentalType)): _*)
+  override val fundamentalType: TStruct = {
+    val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
+    if ((fields, fundamentalFieldTypes).zipped
+      .forall { case (f, ft) => f.typ == ft })
+      this
+    else
+      TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+  }
 }

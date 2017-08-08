@@ -1,81 +1,17 @@
 package is.hail.annotations
 
-import java.lang.reflect.Constructor
-
 import is.hail.expr._
 import is.hail.utils.Interval
-import is.hail.variant.{AltAllele, GenericGenotype, Genotype, Locus, Variant}
-import org.apache.spark.SparkContext
-import org.apache.spark.broadcast.Broadcast
+import is.hail.variant.{AltAllele, GenericGenotype, Locus, Variant}
 import org.apache.spark.sql.Row
-
-import scala.reflect.ClassTag
-import scala.reflect.classTag
-
-object BroadcastTypeTree {
-  private val bcConstructor: Constructor[_] = {
-    val torr = Class.forName("org.apache.spark.broadcast.TorrentBroadcast")
-    torr.getDeclaredConstructor(classOf[AnyRef], classOf[Long], classOf[ClassTag[_]])
-  }
-
-  private val m = new java.util.HashMap[Long, Broadcast[TypeTree]]
-
-  def lookupBroadcast(id: Long): Broadcast[TypeTree] = {
-    if (m.containsKey(id))
-      m.get(id)
-    else {
-      val tbc = bcConstructor.newInstance(
-        null: AnyRef,
-        id: java.lang.Long,
-        classTag[TypeTree]).asInstanceOf[Broadcast[TypeTree]]
-      assert(tbc.value != null)
-      m.put(id, tbc)
-      tbc
-    }
-  }
-
-  def apply(sc: SparkContext, tt: TypeTree): BroadcastTypeTree = {
-    val bc = sc.broadcast(tt)
-    new BroadcastTypeTree(bc, bc.id)
-  }
-
-  def apply(sc: SparkContext, t: Type): BroadcastTypeTree = {
-    t match {
-      case TStruct(fields) =>
-        BroadcastTypeTree(sc,
-          new TypeTree(t,
-            fields.map { f =>
-              BroadcastTypeTree(sc, f.typ)
-            }.toArray))
-
-      case t: TContainer =>
-        BroadcastTypeTree(sc,
-          new TypeTree(t, Array(BroadcastTypeTree(sc, t.elementType))))
-
-      case _ => null
-    }
-  }
-}
-
-class BroadcastTypeTree(@transient var bc: Broadcast[TypeTree],
-  id: Long) extends Serializable {
-  def value: TypeTree = {
-    if (bc == null)
-      bc = BroadcastTypeTree.lookupBroadcast(id)
-    bc.value
-  }
-}
-
-class TypeTree(val typ: Type,
-  subtrees: Array[BroadcastTypeTree]) {
-  def subtree(i: Int): BroadcastTypeTree = subtrees(i)
-}
 
 class UnsafeIndexedSeqAnnotation(region: MemoryBuffer,
   arrayTTBc: BroadcastTypeTree,
   elemSize: Int, offset: Int, elemOffset: Int,
   val length: Int) extends IndexedSeq[Annotation] {
   def apply(i: Int): Annotation = {
+    if (i < 0 || i >= length)
+      throw new IndexOutOfBoundsException(i.toString)
     assert(i >= 0 && i < length)
     if (region.loadBit(offset + 4, i))
       null
@@ -91,9 +27,7 @@ object UnsafeRow {
     val start = region.loadInt(offset)
     assert(offset > 0 && (offset & 0x3) == 0, s"invalid binary start: $offset")
     val binLength = region.loadInt(start)
-    val b = region.loadBytes(start + 4, binLength)
-
-    b
+    region.loadBytes(start + 4, binLength)
   }
 
   def readArray(region: MemoryBuffer, offset: Int, elemType: Type, arrayTTBc: BroadcastTypeTree): IndexedSeq[Any] = {
@@ -114,17 +48,17 @@ object UnsafeRow {
     new String(readBinary(region, offset))
 
   def readLocus(region: MemoryBuffer, offset: Int): Locus = {
-    val repr = TLocus.representation
+    val ft = TLocus.fundamentalType
     Locus(
-      readString(region, offset + repr.byteOffsets(0)),
-      region.loadInt(offset + repr.byteOffsets(1)))
+      readString(region, offset + ft.byteOffsets(0)),
+      region.loadInt(offset + ft.byteOffsets(1)))
   }
 
   def readAltAllele(region: MemoryBuffer, offset: Int): AltAllele = {
-    val repr = TAltAllele.representation
+    val ft = TAltAllele.fundamentalType
     AltAllele(
-      readString(region, offset + repr.byteOffsets(0)),
-      readString(region, offset + repr.byteOffsets(1)))
+      readString(region, offset + ft.byteOffsets(0)),
+      readString(region, offset + ft.byteOffsets(1)))
   }
 
   def readArrayAltAllele(region: MemoryBuffer, offset: Int): Array[AltAllele] = {
@@ -184,48 +118,48 @@ object UnsafeRow {
         readStruct(region, offset, ttBc)
 
       case TVariant =>
-        val repr = TVariant.representation
+        val ft = TVariant.fundamentalType
         Variant(
-          readString(region, offset + repr.byteOffsets(0)),
-          region.loadInt(offset + repr.byteOffsets(1)),
-          readString(region, offset + repr.byteOffsets(2)),
-          readArrayAltAllele(region, offset + repr.byteOffsets(3)))
+          readString(region, offset + ft.byteOffsets(0)),
+          region.loadInt(offset + ft.byteOffsets(1)),
+          readString(region, offset + ft.byteOffsets(2)),
+          readArrayAltAllele(region, offset + ft.byteOffsets(3)))
       case TLocus => readLocus(region, offset)
       case TAltAllele => readAltAllele(region, offset)
       case TInterval =>
-        val repr = TInterval.representation
+        val ft = TInterval.fundamentalType
         Interval[Locus](
-          readLocus(region, offset + repr.byteOffsets(0)),
-          readLocus(region, offset + repr.byteOffsets(1)))
+          readLocus(region, offset + ft.byteOffsets(0)),
+          readLocus(region, offset + ft.byteOffsets(1)))
       case TGenotype =>
-        val repr = TGenotype.representation
+        val ft = TGenotype.fundamentalType
         val gt: Int =
           if (region.loadBit(offset, 0))
             -1
           else
-            region.loadInt(offset + repr.byteOffsets(0))
+            region.loadInt(offset + ft.byteOffsets(0))
         val ad =
           if (region.loadBit(offset, 1))
             null
           else
-            readArrayInt(region, offset + repr.byteOffsets(1))
+            readArrayInt(region, offset + ft.byteOffsets(1))
         val dp: Int =
           if (region.loadBit(offset, 2))
             -1
           else
-            region.loadInt(offset + repr.byteOffsets(2))
+            region.loadInt(offset + ft.byteOffsets(2))
         val gq: Int =
           if (region.loadBit(offset, 3))
             -1
           else
-            region.loadInt(offset + repr.byteOffsets(3))
+            region.loadInt(offset + ft.byteOffsets(3))
         val px =
           if (region.loadBit(offset, 4))
             null
           else
-            readArrayInt(region, offset + repr.byteOffsets(4))
-        val fakeRef = region.loadByte(offset + repr.byteOffsets(5)) != 0
-        val isLinearScale = region.loadByte(offset + repr.byteOffsets(6)) != 0
+            readArrayInt(region, offset + ft.byteOffsets(4))
+        val fakeRef = region.loadByte(offset + ft.byteOffsets(5)) != 0
+        val isLinearScale = region.loadByte(offset + ft.byteOffsets(6)) != 0
 
         new GenericGenotype(gt, ad, dp, gq, px, fakeRef, isLinearScale)
     }

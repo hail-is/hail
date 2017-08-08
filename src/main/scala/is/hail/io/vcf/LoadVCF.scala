@@ -100,7 +100,7 @@ object LoadVCF {
       Field(id, TArray(baseType), i, attrs)
   }
 
-  def headerSignatue[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
+  def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
     callFields: Set[String] = Set.empty[String]): TStruct = {
     TStruct(lines
       .zipWithIndex
@@ -117,7 +117,7 @@ object LoadVCF {
       "GQ" -> TInt32,
       "PL" -> TArray(TInt32))
 
-    val raw = headerSignatue(lines, callFields)
+    val raw = headerSignature(lines, callFields)
 
     var canonicalFlags = 0
     var i = 0
@@ -175,7 +175,7 @@ object LoadVCF {
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
-    val infoSignature = headerSignatue(infoHeader)
+    val infoSignature = headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
 

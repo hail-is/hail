@@ -10,178 +10,150 @@ import org.apache.spark.unsafe.Platform
 
 import scala.collection.mutable
 
-final class MemoryBlock(val mem: Array[Long]) {
-  require(mem.length < (Integer.MAX_VALUE / 8), "too big")
+object MemoryBuffer {
+  def apply(sizeHint: Int = 128): MemoryBuffer = {
+    new MemoryBuffer(new Array[Byte](sizeHint))
+  }
+}
 
-  def sizeInBytes: Int = mem.length * 8
+final class MemoryBuffer(var mem: Array[Byte], var offset: Int = 0) {
+  def size: Int = offset
 
-  def copyFrom(other: MemoryBlock, readStart: Int, writeStart: Int, size: Int) {
-    Platform.copyMemory(other.mem, readStart + Platform.LONG_ARRAY_OFFSET, mem,
-      writeStart + Platform.LONG_ARRAY_OFFSET, size)
+  def copyFrom(other: MemoryBuffer, readStart: Int, writeStart: Int, n: Int) {
+    assert(size <= mem.length)
+    assert(other.size <= other.mem.length)
+    assert(n >= 0)
+    assert(readStart >= 0 && readStart + n <= other.size)
+    assert(writeStart >= 0 && writeStart + n <= size)
+    Platform.copyMemory(other.mem, readStart + Platform.BYTE_ARRAY_OFFSET, mem,
+      writeStart + Platform.BYTE_ARRAY_OFFSET, n)
   }
 
   def loadInt(off: Int): Int = {
-    assert(off + 4 <= sizeInBytes, s"tried to read int from offset $off with array size $sizeInBytes")
-    Platform.getInt(mem, Platform.LONG_ARRAY_OFFSET + off)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 4 <= size, s"tried to read int at $off from region with size $size")
+    Platform.getInt(mem, Platform.BYTE_ARRAY_OFFSET + off)
   }
 
   def loadLong(off: Int): Long = {
-    assert(off + 8 <= sizeInBytes, s"tried to read long from offset $off with array size $sizeInBytes")
-    Platform.getLong(mem, Platform.LONG_ARRAY_OFFSET + off)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 8 <= size, s"tried to read long at $off from region with size $size")
+    Platform.getLong(mem, Platform.BYTE_ARRAY_OFFSET + off)
   }
 
   def loadFloat(off: Int): Float = {
-    assert(off + 4 <= sizeInBytes, s"tried to read float from offset $off with array size $sizeInBytes")
-    Platform.getFloat(mem, Platform.LONG_ARRAY_OFFSET + off)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 4 <= size, s"tried to read float at $off from region with size $size")
+    Platform.getFloat(mem, Platform.BYTE_ARRAY_OFFSET + off)
   }
 
   def loadDouble(off: Int): Double = {
-    assert(off + 8 <= sizeInBytes, s"tried to read double from offset $off with array size $sizeInBytes")
-    Platform.getDouble(mem, Platform.LONG_ARRAY_OFFSET + off)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 8 <= size, s"tried to read double at $off from region with size $size")
+    Platform.getDouble(mem, Platform.BYTE_ARRAY_OFFSET + off)
   }
 
   def loadByte(off: Int): Byte = {
-    assert(off + 1 <= sizeInBytes, s"tried to read byte from offset $off with array size $sizeInBytes")
-    Platform.getByte(mem, Platform.LONG_ARRAY_OFFSET + off)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 1 <= size, s"tried to read byte at $off from region of size $size")
+    Platform.getByte(mem, Platform.BYTE_ARRAY_OFFSET + off)
   }
 
-  def loadBytes(off: Int, size: Int): Array[Byte] = {
-    assert(off + size <= sizeInBytes, s"tried to read bytes of size $size from offset $off with array size $sizeInBytes")
-    val a = new Array[Byte](size)
-    Platform.copyMemory(mem, Platform.LONG_ARRAY_OFFSET + off, a, Platform.BYTE_ARRAY_OFFSET, size)
+  def loadBytes(off: Int, n: Int): Array[Byte] = {
+    assert(size <= mem.length)
+    assert(off >= 0 && off + n <= size, s"tried to read bytes of size $n at $off from region of size $size")
+    val a = new Array[Byte](n)
+    Platform.copyMemory(mem, Platform.BYTE_ARRAY_OFFSET + off, a, Platform.BYTE_ARRAY_OFFSET, n)
     a
   }
 
-  def loadBytes(off: Int, size: Int, a: Array[Byte]) {
-    assert(off + size <= sizeInBytes, s"tried to read bytes of size $size from offset $off with array size $sizeInBytes")
-    assert(a.length >= size)
-    Platform.copyMemory(mem, Platform.LONG_ARRAY_OFFSET + off, a, Platform.BYTE_ARRAY_OFFSET, size)
+  def loadBytes(off: Int, n: Int, dst: Array[Byte]) {
+    assert(size <= mem.length)
+    assert(off >= 0 && off + n <= size, s"tried to read bytes of size $n at $off from region of size $size")
+    assert(n <= dst.length)
+    Platform.copyMemory(mem, Platform.BYTE_ARRAY_OFFSET + off, dst, Platform.BYTE_ARRAY_OFFSET, n)
   }
 
   def storeInt(off: Int, i: Int) {
-    assert(off + 4 <= sizeInBytes, s"tried to store int to offset $off with array size $sizeInBytes")
-    Platform.putInt(mem, Platform.LONG_ARRAY_OFFSET + off, i)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 4 <= size, s"tried to store int at $off to region of size $size")
+    Platform.putInt(mem, Platform.BYTE_ARRAY_OFFSET + off, i)
   }
 
   def storeLong(off: Int, l: Long) {
-    assert(off + 8 <= sizeInBytes, s"tried to store long to offset $off with array size $sizeInBytes")
-    Platform.putLong(mem, Platform.LONG_ARRAY_OFFSET + off, l)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 8 <= size, s"tried to store long at $off to region of size $size")
+    Platform.putLong(mem, Platform.BYTE_ARRAY_OFFSET + off, l)
   }
 
   def storeFloat(off: Int, f: Float) {
-    assert(off + 4 <= sizeInBytes, s"tried to store float to offset $off with array size $sizeInBytes")
-    Platform.putFloat(mem, Platform.LONG_ARRAY_OFFSET + off, f)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 4 <= size, s"tried to store float at $off to region of size $size")
+    Platform.putFloat(mem, Platform.BYTE_ARRAY_OFFSET + off, f)
   }
 
   def storeDouble(off: Int, d: Double) {
-    assert(off + 8 <= sizeInBytes, s"tried to store double to offset $off with array size $sizeInBytes")
-    Platform.putDouble(mem, Platform.LONG_ARRAY_OFFSET + off, d)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 8 <= size, s"tried to store double at $off to region of size $size")
+    Platform.putDouble(mem, Platform.BYTE_ARRAY_OFFSET + off, d)
   }
 
   def storeByte(off: Int, b: Byte) {
-    assert(off + 1 <= sizeInBytes, s"tried to store byte to offset $off with array size $sizeInBytes")
-    Platform.putByte(mem, Platform.LONG_ARRAY_OFFSET + off, b)
+    assert(size <= mem.length)
+    assert(off >= 0 && off + 1 <= size, s"tried to store byte at $off to region of size $size")
+    Platform.putByte(mem, Platform.BYTE_ARRAY_OFFSET + off, b)
   }
 
   def storeBytes(off: Int, bytes: Array[Byte]) {
-    assert(off + bytes.length <= sizeInBytes, s"tried to store ${ bytes.length } bytes to offset $off with array size $sizeInBytes")
-    Platform.copyMemory(bytes, Platform.BYTE_ARRAY_OFFSET, mem, Platform.LONG_ARRAY_OFFSET + off, bytes.length)
+    storeBytes(off, bytes, bytes.length)
   }
 
-  def storeBytes(off: Int, bytes: Array[Byte], size: Int) {
-    assert(off + size <= sizeInBytes, s"tried to store ${ bytes.length } bytes to offset $off with array size $sizeInBytes")
-    Platform.copyMemory(bytes, Platform.BYTE_ARRAY_OFFSET, mem, Platform.LONG_ARRAY_OFFSET + off, size)
+  def storeBytes(off: Int, bytes: Array[Byte], n: Int) {
+    assert(size <= mem.length)
+    assert(off >= 0 && off + n <= size, s"tried to store $n bytes at $off to region of size $size")
+    assert(n <= bytes.length)
+    Platform.copyMemory(bytes, Platform.BYTE_ARRAY_OFFSET, mem, Platform.BYTE_ARRAY_OFFSET + off, n)
   }
 
-  def reallocate(size: Int): MemoryBlock = {
-    if (sizeInBytes < size) {
-      val newMem = new Array[Long](math.max(mem.length * 2, (size + 7) / 8))
-      Platform.copyMemory(mem, Platform.LONG_ARRAY_OFFSET, newMem, Platform.LONG_ARRAY_OFFSET, sizeInBytes)
-      new MemoryBlock(newMem)
-    } else
-      this
+  def ensure(n: Int) {
+    val newLength = size + n
+    if (mem.length < newLength)
+      mem = util.Arrays.copyOf(mem, (mem.length * 2).max(newLength))
   }
 
-  def copy(): MemoryBlock = copy(mem.length)
-
-  def copy(length: Int): MemoryBlock = new MemoryBlock(util.Arrays.copyOf(mem, length))
-}
-
-object MemoryBuffer {
-  def apply(sizeHint: Int = 128): MemoryBuffer = {
-    new MemoryBuffer(new MemoryBlock(new Array[Long]((sizeHint + 7) / 8)))
-  }
-}
-
-final class MemoryBuffer(var mb: MemoryBlock) {
-  var offset: Int = 0
-
-  def sizeInBytes: Int = offset
-
-  def alignAndEnsure(size: Int) {
-    align(size)
-    ensure(size)
+  def align(alignment: Int) {
+    assert(alignment > 0, s"invalid alignment: $alignment")
+    assert((alignment & (alignment - 1)) == 0, s"invalid alignment: $alignment") // power of 2
+    offset = (offset + (alignment - 1)) & ~(alignment - 1)
   }
 
-  def ensure(size: Int) {
-    mb = mb.reallocate(offset + size)
+  def allocate(n: Int): Int = {
+    val off = offset
+    ensure(n)
+    offset += n
+    off
   }
 
-  def loadInt(off: Int): Int = mb.loadInt(off)
-
-  def loadLong(off: Int): Long = mb.loadLong(off)
-
-  def loadFloat(off: Int): Float = mb.loadFloat(off)
-
-  def loadDouble(off: Int): Double = mb.loadDouble(off)
-
-  def loadByte(off: Int): Byte = mb.loadByte(off)
-
-  def loadBytes(off: Int, size: Int): Array[Byte] = mb.loadBytes(off, size)
-
-  def loadBytes(off: Int, size: Int, a: Array[Byte]) {
-    mb.loadBytes(off, size, a)
+  def alignAndAllocate(n: Int): Int = {
+    align(n)
+    allocate(n)
   }
 
   def loadBit(byteOff: Int, bitOff: Int): Boolean = {
     val b = byteOff + (bitOff >> 3)
-    (mb.loadByte(b) & (1 << (bitOff & 7))) != 0
+    (loadByte(b) & (1 << (bitOff & 7))) != 0
   }
-
-  def storeInt(off: Int, i: Int) {
-    mb.storeInt(off, i)
-  }
-
-  def storeLong(off: Int, l: Long) {
-    mb.storeLong(off, l)
-  }
-
-  def storeFloat(off: Int, f: Float) {
-    mb.storeFloat(off, f)
-  }
-
-  def storeDouble(off: Int, d: Double) {
-    mb.storeDouble(off, d)
-  }
-
-  def storeByte(off: Int, b: Byte) {
-    mb.storeByte(off, b)
-  }
-
-  def storeBytes(off: Int, bytes: Array[Byte]) {
-    mb.storeBytes(off, bytes)
-  }
-
+  
   def setBit(byteOff: Int, bitOff: Int) {
     val b = byteOff + (bitOff >> 3)
-    mb.storeByte(b,
-      (mb.loadByte(b) | (1 << (bitOff & 7))).toByte)
+    storeByte(b,
+      (loadByte(b) | (1 << (bitOff & 7))).toByte)
   }
 
   def clearBit(byteOff: Int, bitOff: Int) {
     val b = byteOff + (bitOff >> 3)
-    mb.storeByte(b,
-      (mb.loadByte(b) & ~(1 << (bitOff & 7))).toByte)
+    storeByte(b,
+      (loadByte(b) & ~(1 << (bitOff & 7))).toByte)
   }
 
   def storeBit(byteOff: Int, bitOff: Int, b: Boolean) {
@@ -192,79 +164,41 @@ final class MemoryBuffer(var mb: MemoryBlock) {
   }
 
   def appendInt(i: Int) {
-    alignAndEnsure(4)
-    mb.storeInt(offset, i)
-    offset += 4
+    storeInt(alignAndAllocate(4), i)
   }
 
   def appendLong(l: Long) {
-    alignAndEnsure(8)
-    mb.storeLong(offset, l)
-    offset += 8
+    storeLong(alignAndAllocate(8), l)
   }
 
   def appendFloat(f: Float) {
-    alignAndEnsure(4)
-    mb.storeFloat(offset, f)
-    offset += 4
+    storeFloat(alignAndAllocate(4), f)
   }
 
   def appendDouble(d: Double) {
-    alignAndEnsure(8)
-    mb.storeDouble(offset, d)
-    offset += 8
+    storeDouble(alignAndAllocate(8), d)
   }
 
   def appendByte(b: Byte) {
-    ensure(1)
-    mb.storeByte(offset, b)
-    offset += 1
+    storeByte(allocate(1), b)
   }
 
   def appendBytes(bytes: Array[Byte]) {
-    ensure(bytes.length)
-    mb.storeBytes(offset, bytes)
-    offset += bytes.length
+    storeBytes(allocate(bytes.length), bytes)
   }
 
-  def appendBytes(bytes: Array[Byte], size: Int) {
-    assert(bytes.length >= size)
-
-    ensure(size)
-    mb.storeBytes(offset, bytes, size)
-    offset += size
-  }
-
-  def allocate(nBytes: Int): Int = {
-    val currentOffset = offset
-    ensure(nBytes)
-    offset += nBytes
-    currentOffset
-  }
-
-  def align(alignment: Int) {
-    assert(alignment > 0, s"invalid alignment: $alignment")
-    assert((alignment & (alignment - 1)) == 0, s"invalid alignment: $alignment") // power of 2
-    offset = (offset + (alignment - 1)) & ~(alignment - 1)
-  }
-
-  def copyFrom(other: MemoryBuffer, readStart: Int, writeStart: Int, size: Int) {
-    assert(writeStart <= (offset - size))
-    mb.copyFrom(other.mb, readStart, writeStart, size)
+  def appendBytes(bytes: Array[Byte], n: Int) {
+    assert(n <= bytes.length)
+    storeBytes(allocate(n), bytes, n)
   }
 
   def clear() {
     offset = 0
   }
 
-  def copy(): MemoryBuffer = new MemoryBuffer(mb.copy((offset + 7) / 8))
+  def copy(): MemoryBuffer = new MemoryBuffer(util.Arrays.copyOf(mem, offset), offset)
 
-  def result(): MemoryBlock = {
-    val reqLength = (offset + 7) / 8
-    val arr = new Array[Long](reqLength)
-    Platform.copyMemory(mb.mem, Platform.LONG_ARRAY_OFFSET, arr, Platform.LONG_ARRAY_OFFSET, offset)
-    new MemoryBlock(arr)
-  }
+  def result(): MemoryBuffer = copy()
 }
 
 case class RegionValue(region: MemoryBuffer, offset: Int)
@@ -319,11 +253,11 @@ class RegionValueBuilder(region: MemoryBuffer) {
     start
   }
 
-  def advance(): Unit = {
+  def advance() {
     indexstk.push(indexstk.pop + 1)
   }
 
-  def startStruct(): Unit = {
+  def startStruct() {
     current() match {
       case (t: TStruct, off) =>
         val nMissingBytes = (t.size + 7) / 8
@@ -339,7 +273,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
     }
   }
 
-  def endStruct(): Unit = {
+  def endStruct() {
     typestk.head match {
       case t: TStruct =>
         typestk.pop()
@@ -351,7 +285,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
     }
   }
 
-  def startArray(length: Int): Unit = {
+  def startArray(length: Int) {
     current() match {
       case (t: TArray, off) =>
         region.align(4)
@@ -381,7 +315,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
     }
   }
 
-  def endArray(): Unit = {
+  def endArray() {
     typestk.head match {
       case t: TArray =>
         typestk.pop()
@@ -393,7 +327,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
     }
   }
 
-  def setMissing(): Unit = {
+  def setMissing() {
     val i = indexstk.head
     typestk.head match {
       case t: TStruct =>
@@ -405,42 +339,47 @@ class RegionValueBuilder(region: MemoryBuffer) {
     advance()
   }
 
-  def addBoolean(b: Boolean): Unit =
+  def addBoolean(b: Boolean) {
     current() match {
       case (TBoolean, off) =>
         region.storeByte(off, b.toByte)
         advance()
     }
+  }
 
-  def addInt(i: Int): Unit =
+  def addInt(i: Int) {
     current() match {
       case (TInt32, off) =>
         region.storeInt(off, i)
         advance()
     }
+  }
 
-  def addLong(l: Long): Unit =
+  def addLong(l: Long) {
     current() match {
       case (TInt64, off) =>
         region.storeLong(off, l)
         advance()
     }
+  }
 
-  def addFloat(f: Float): Unit =
+  def addFloat(f: Float) {
     current() match {
       case (TFloat32, off) =>
         region.storeFloat(off, f)
         advance()
     }
+  }
 
-  def addDouble(d: Double): Unit =
+  def addDouble(d: Double) {
     current() match {
       case (TFloat64, off) =>
         region.storeDouble(off, d)
         advance()
     }
+  }
 
-  def addBinary(bytes: Array[Byte]): Unit =
+  def addBinary(bytes: Array[Byte]) {
     current() match {
       case (TFloat64, off) =>
         region.align(4)
@@ -451,8 +390,9 @@ class RegionValueBuilder(region: MemoryBuffer) {
         region.appendBytes(bytes)
         advance()
     }
+  }
 
-  def addString(s: String): Unit =
+  def addString(s: String) {
     current() match {
       case (TString, off) =>
         region.align(4)
@@ -462,8 +402,10 @@ class RegionValueBuilder(region: MemoryBuffer) {
         val bytes = s.getBytes
         region.appendInt(bytes.length)
         region.appendBytes(bytes)
+
         advance()
     }
+  }
 
   def addRow(t: TStruct, r: Row) {
     assert(r != null)

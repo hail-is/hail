@@ -93,7 +93,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     val nGenotypes = Variant.nGenotypes(nAlleles)
     val haploidPL = new Array[Int](nGenotypes)
 
-    val nCaonicalFields = Integer.bitCount(canonicalFlags)
+    val nCanonicalFields = Integer.bitCount(canonicalFlags)
 
     rvb.startArray(vc.getNSamples) // gs
     val it = vc.getGenotypes.iterator
@@ -184,7 +184,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
           rvb.setMissing()
       }
 
-      var i = nCaonicalFields
+      var i = nCanonicalFields
       while (i < gType.fields.length) {
         val f = gType.fields(i)
         val a = g.getAnyAttribute(f.name)

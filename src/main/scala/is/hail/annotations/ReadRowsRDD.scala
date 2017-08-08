@@ -2,7 +2,6 @@ package is.hail.annotations
 
 import java.io.DataInputStream
 
-import is.hail.HailContext
 import is.hail.expr.TStruct
 import is.hail.utils.{SerializableHadoopConfiguration, _}
 import net.jpountz.lz4.{LZ4BlockInputStream, LZ4Factory}
@@ -10,8 +9,6 @@ import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, SparkContext, TaskContext}
-
-import scala.annotation.meta.param
 
 class RichRDDRow(val rdd: RDD[Row]) extends AnyVal {
   def writeRows(path: String, t: TStruct) {
@@ -76,7 +73,7 @@ class RichRDDRow(val rdd: RDD[Row]) extends AnyVal {
 
 case class ReadRowsRDDPartition(index: Int) extends Partition
 
-class ReadRowsRDD(@(transient @param) sc: SparkContext,
+class ReadRowsRDD(sc: SparkContext,
   path: String, t: TStruct, nPartitions: Int) extends RDD[Row](sc, Nil) {
   val ttBc = BroadcastTypeTree(sc, t)
 
@@ -87,6 +84,7 @@ class ReadRowsRDD(@(transient @param) sc: SparkContext,
 
   override def compute(split: Partition, context: TaskContext): Iterator[UnsafeRow] = {
     val d = digitsNeeded(nPartitions)
+    val localPath = path
 
     new Iterator[UnsafeRow] {
       private val in = {
@@ -94,7 +92,7 @@ class ReadRowsRDD(@(transient @param) sc: SparkContext,
         assert(is.length <= d)
         val pis = StringUtils.leftPad(is, d, "0")
         new DataInputStream(
-          new LZ4BlockInputStream(sHadoopConfBc.value.value.unsafeReader(path + "/rowstore/part-" + pis),
+          new LZ4BlockInputStream(sHadoopConfBc.value.value.unsafeReader(localPath + "/rowstore/part-" + pis),
             LZ4Factory.fastestInstance().fastDecompressor()))
       }
 
