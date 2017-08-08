@@ -1,9 +1,11 @@
-import argparse
 from subprocess import check_call
 
-def main(main_parser):
 
-	parser = argparse.ArgumentParser(parents=[main_parser])
-	args = parser.parse_args()
+def init_parser(parser):
+    parser.add_argument('name', type=str, help='Cluster name.')
 
-	check_call(['gcloud', 'dataproc', 'clusters', 'delete', '--quiet', args.name])
+
+def main(args):
+    print("Stopping cluster '{}'...".format(args.name))
+
+    check_call(['gcloud', 'dataproc', 'clusters', 'delete', '--quiet', args.name])

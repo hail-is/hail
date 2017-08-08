@@ -21,15 +21,15 @@ cloudtools can be installed from the Python package index using the pip installe
 All functionality in cloudtools is accessed through the `cluster` module.
 
 There are 5 commands within the `cluster` module:
-- `cluster name start [optional-args]`
-- `cluster name submit [optional-args]`
-- `cluster name connect [optional-args]`
-- `cluster name diagnose [optional-args]`
-- `cluster name stop`
+- `cluster start <name> [args]`
+- `cluster submit <name> [args]`
+- `cluster connect <name> [args]`
+- `cluster diagnose <name> [args]`
+- `cluster stop <name>`
 
-where `name` is the required, user-supplied name of the Dataproc cluster.
+where `<name>` is the required, user-supplied name of the Dataproc cluster.
 
-**REMINDER:** Don't forget to shut down your cluster when you're done! You can do this using `cluster name stop`, through the Google Cloud Console, or using the Google Cloud SDK directly with `gcloud dataproc clusters delete name`.
+**REMINDER:** Don't forget to shut down your cluster when you're done! You can do this using `cluster stop <name>`, through the Google Cloud Console, or using the Google Cloud SDK directly with `gcloud dataproc clusters delete name`.
 
 ## Examples
 
@@ -37,9 +37,9 @@ where `name` is the required, user-supplied name of the Dataproc cluster.
 
 One way to use the Dataproc service is to write complete Python scripts that use Hail, and then submit those scripts to the Dataproc cluster. An example of using cloudtools to interact with Dataproc in this way would be:
 ```
-$ cluster testcluster start -p 6
+$ cluster start testcluster -p 6
 ...wait for cluster to start...
-$ cluster testcluster submit myhailscript.py
+$ cluster submit testcluster myhailscript.py
 ...Hail job output...
 Job [...] finished successfully.
 ```
@@ -58,8 +58,9 @@ Another way to use the Dataproc service is through a Jupyter notebook running on
 
 To use Hail in a Jupyter notebook, you'll need to have Google Chrome installed on your computer as described in the installation section above. Then, use
 ```
-cluster testcluster connect notebook
+cluster connect testcluster notebook
 ```
+
 to open a connection to the cluster "testcluster" through Chrome. 
 
 A new browser will open with the address `localhost:8123` -- this is port 8123 on the cluster's master machine, which is where the Jupyter notebook server is running. You should see the Google Storage home directory of the project your cluster was launched in, with all of the project's buckets listed.
@@ -88,109 +89,188 @@ When you save your notebooks using either `File -> Save and Checkpoint` or `comm
 
 While your job is running, you can monitor its progress through the Spark Web UI running on the cluster's master machine at port 4040. To connect to the SparkUI from your local machine, use
 ```
-cluster testcluster connect spark-ui
+cluster connect testcluster ui
 ```
 If you've attempted to start multiple Hail/Spark contexts, you may find that the web UI for a particular job is accessible through ports 4041 or 4042 instead. To connect to these ports, use
 ```
-cluster testcluster connect spark-ui1
+cluster connect testcluster ui1
 ```
 to connect to 4041, or
 ```
-cluster testcluster connect spark-ui2
+cluster connect testcluster ui2
 ```
 to connect to 4042.  
 
 To view details on a job that has completed, you can access the Spark history server running on port 18080 with
 ```
-cluster testcluster connect spark-history
+cluster connect testcluster spark-history
 ```
 
-### Optional command arguments
+### Module usage
 
 ```
-cluster name start --help
-...
+$ cluster -h                                                                                                                                     ✓  1727  08:32:24
+usage: cluster [-h] {start,submit,connect,diagnose,stop} ...
+
+Deploy and monitor Google Dataproc clusters to use with Hail.
+
+positional arguments:
+  {start,submit,connect,diagnose,stop}
+    start               Start a Dataproc cluster configured for Hail.
+    submit              Submit a Python script to a running Dataproc cluster.
+    connect             Connect to a running Dataproc cluster.
+    diagnose            Diagnose problems in a Dataproc cluster.
+    stop                Shut down a Dataproc cluster.
+    
 optional arguments:
   -h, --help            show this help message and exit
-  --hash HASH           Hail build to use for notebook initialization.
+```
+
+```
+$ cluster start -h                                                                                                                               ✓  1728  08:33:32
+usage: cluster start [-h] [--hash HASH] [--spark {2.0.2,2.1.0}]
+                     [--version {0.1,devel}]
+                     [--master-machine-type MASTER_MACHINE_TYPE]
+                     [--master-boot-disk-size MASTER_BOOT_DISK_SIZE]
+                     [--num-master-local-ssds NUM_MASTER_LOCAL_SSDS]
+                     [--num-preemptible-workers NUM_PREEMPTIBLE_WORKERS]
+                     [--num-worker-local-ssds NUM_WORKER_LOCAL_SSDS]
+                     [--num-workers NUM_WORKERS]
+                     [--preemptible-worker-boot-disk-size PREEMPTIBLE_WORKER_BOOT_DISK_SIZE]
+                     [--worker-boot-disk-size WORKER_BOOT_DISK_SIZE]
+                     [--worker-machine-type WORKER_MACHINE_TYPE] [--zone ZONE]
+                     [--properties PROPERTIES] [--metadata METADATA]
+                     [--jar JAR] [--zip ZIP] [--init INIT] [--vep]
+                     name
+
+Start a Dataproc cluster configured for Hail.
+
+positional arguments:
+  name                  Cluster name.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --hash HASH           Hail build to use for notebook initialization
+                        (default: latest).
   --spark {2.0.2,2.1.0}
-                        Spark version used to build Hail.
+                        Spark version used to build Hail (default: 2.0.2)
   --version {0.1,devel}
-                        Hail version to use
+                        Hail version to use (default: 0.1).
   --master-machine-type MASTER_MACHINE_TYPE, --master MASTER_MACHINE_TYPE, -m MASTER_MACHINE_TYPE
-                        Master machine type.
+                        Master machine type (default: n1-highmem-8).
   --master-boot-disk-size MASTER_BOOT_DISK_SIZE
-                        Disk size of master machine (in GB).
+                        Disk size of master machine, in GB (default: 100).
   --num-master-local-ssds NUM_MASTER_LOCAL_SSDS
-                        Number of local SSDs to attach to the master machine.
+                        Number of local SSDs to attach to the master machine
+                        (default: 0).
   --num-preemptible-workers NUM_PREEMPTIBLE_WORKERS, --n-pre-workers NUM_PREEMPTIBLE_WORKERS, -p NUM_PREEMPTIBLE_WORKERS
-                        Number of preemptible worker machines.
+                        Number of preemptible worker machines (default: 0).
   --num-worker-local-ssds NUM_WORKER_LOCAL_SSDS
-                        Number of local SSDs to attach to each worker machine.
+                        Number of local SSDs to attach to each worker machine
+                        (default: 0).
   --num-workers NUM_WORKERS, --n-workers NUM_WORKERS, -w NUM_WORKERS
-                        Number of worker machines.
+                        Number of worker machines (default: 2).
   --preemptible-worker-boot-disk-size PREEMPTIBLE_WORKER_BOOT_DISK_SIZE
-                        Disk size of preemptible machines (in GB).
+                        Disk size of preemptible machines, in GB (default:
+                        40).
   --worker-boot-disk-size WORKER_BOOT_DISK_SIZE
-                        Disk size of worker machines (in GB).
+                        Disk size of worker machines, in GB (default: 40).
   --worker-machine-type WORKER_MACHINE_TYPE, --worker WORKER_MACHINE_TYPE
-                        Worker machine type.
-  --zone ZONE           Compute zone for the cluster.
+                        Worker machine type (default: n1-standard-8, or
+                        n1-highmem-8 with --vep).
+  --zone ZONE           Compute zone for the cluster (default: us-central1-b).
   --properties PROPERTIES
-                        Additional configuration properties for the cluster.
+                        Additional configuration properties for the cluster
   --metadata METADATA   Comma-separated list of metadata to add:
                         KEY1=VALUE1,KEY2=VALUE2...
   --jar JAR             Hail jar to use for Jupyter notebook.
   --zip ZIP             Hail zip to use for Jupyter notebook.
   --init INIT           Comma-separated list of init scripts to run.
-  --vep
-  ```
-  ```
-  cluster name submit --help
-  ...
-  optional arguments:
+  --vep                 Configure the cluster to run VEP.
+```
+
+```
+$ cluster submit -h                                                                                                                              ✓  1733  08:34:56
+usage: cluster submit [-h] [--hash HASH] [--spark {2.0.2,2.1.0}]
+                      [--version {0.1,devel}] [--jar JAR] [--zip ZIP]
+                      [--properties PROPERTIES]
+                      name script
+
+Submit a Python script to a running Dataproc cluster.
+
+positional arguments:
+  name                  Cluster name.
+  script
+
+optional arguments:
   -h, --help            show this help message and exit
-  --hash HASH           Hail build to use for notebook initialization.
+  --hash HASH           Hail build to use for notebook initialization
+                        (default: latest).
   --spark {2.0.2,2.1.0}
-                        Spark version used to build Hail.
+                        Spark version used to build Hail (default: 2.0.2).
   --version {0.1,devel}
-                        Hail version to use.
+                        Hail version to use (default: 0.1).
   --jar JAR             Custom Hail jar to use.
   --zip ZIP             Custom Hail zip to use.
   --properties PROPERTIES, -p PROPERTIES
-  ```
-  ```
-  cluster name connect --help
-  ...
-  positional arguments:
-  name                  User-supplied name of Dataproc cluster.
-  {start,submit,connect,diagnose,stop}
-                        cloudtools command.
-  {spark-ui,spark-ui1,spark-ui2,spark-history,notebook}
+                        Extra Spark properties to set.
+```
 
-  optional arguments:
+```
+$ cluster connect -h                                                                                                                             ✓  1734  08:34:58
+usage: cluster connect [-h] [--port PORT] [--zone ZONE]
+                       name
+                       {notebook,nb,spark-ui,ui,spark-ui1,ui1,spark-ui2,ui2,spark-history,hist}
+
+Connect to a running Dataproc cluster.
+
+positional arguments:
+  name                  Cluster name.
+  {notebook,nb,spark-ui,ui,spark-ui1,ui1,spark-ui2,ui2,spark-history,hist}
+                        Web service to launch.
+
+optional arguments:
   -h, --help            show this help message and exit
-  --port PORT, -p PORT  Local port to use for SSH tunnel to master node.
-  --zone ZONE, -z ZONE  Compute zone for Google cluster.
-  ```
-  ```
-  cluster name diagnose --help
-  ...
-  optional arguments:
+  --port PORT, -p PORT  Local port to use for SSH tunnel to master node
+                        (default: 10000).
+  --zone ZONE, -z ZONE  Compute zone for Dataproc cluster (default: us-
+                        central1-b).
+```
+
+```
+$ cluster diagnose -h                                                                                                                            ✓  1735  08:35:10
+usage: cluster diagnose [-h] --dest DEST [--hail-log HAIL_LOG] [--overwrite]
+                        [--no-diagnose] [--compress]
+                        [--workers [WORKERS [WORKERS ...]]] [--take TAKE]
+                        name
+
+Diagnose problems in a Dataproc cluster.
+
+positional arguments:
+  name                  Cluster name.
+
+optional arguments:
   -h, --help            show this help message and exit
-  --dest DEST, -d DEST  Directory for diagnose output -- must be local
+  --dest DEST, -d DEST  Directory for diagnose output -- must be local.
   --hail-log HAIL_LOG, -l HAIL_LOG
-                        Path for hail.log file
-  --overwrite           Delete dest directory before adding new files
-  --no-diagnose         Do not run gcloud dataproc clusters diagnose
-  --compress, -z        GZIP all files
+                        Path for hail.log file.
+  --overwrite           Delete dest directory before adding new files.
+  --no-diagnose         Do not run gcloud dataproc clusters diagnose.
+  --compress, -z        GZIP all files.
   --workers [WORKERS [WORKERS ...]]
-                        Specific workers to get log files from
-  --take TAKE           Only download logs from the first N workers
-  ```
-  ```
-  cluster name stop --help
-  ...
-  optional arguments:
-  -h, --help            show this help message and exit
-  ```
+                        Specific workers to get log files from.
+  --take TAKE           Only download logs from the first N workers.
+```
+
+```
+$ cluster stop -h                                                                                                                                ✓  1736  08:35:23
+usage: cluster stop [-h] name
+
+Shut down a Dataproc cluster.
+
+positional arguments:
+  name        Cluster name.
+
+optional arguments:
+  -h, --help  show this help message and exit
+```

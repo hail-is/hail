@@ -1,37 +1,68 @@
 import argparse
+import sys
 import start
 import submit
 import connect
 import diagnose
 import stop
 
+
 def main():
+    main_parser = argparse.ArgumentParser(description='Deploy and monitor Google Dataproc clusters to use with Hail.')
+    subs = main_parser.add_subparsers()
 
-	main_parser = argparse.ArgumentParser(add_help=False)
-	main_parser.add_argument('name', type=str, help='User-supplied name of Dataproc cluster.')
-	main_parser.add_argument('module', choices=['start', 'submit', 'connect', 'diagnose', 'stop'], help='cloudtools command.')
-	args, unparsed = main_parser.parse_known_args()
+    start_parser = subs.add_parser('start',
+                                   help='Start a Dataproc cluster configured for Hail.',
+                                   description='Start a Dataproc cluster configured for Hail.')
+    submit_parser = subs.add_parser('submit',
+                                    help='Submit a Python script to a running Dataproc cluster.',
+                                    description='Submit a Python script to a running Dataproc cluster.')
+    connect_parser = subs.add_parser('connect',
+                                     help='Connect to a running Dataproc cluster.',
+                                     description='Connect to a running Dataproc cluster.')
+    diagnose_parser = subs.add_parser('diagnose',
+                                      help='Diagnose problems in a Dataproc cluster.',
+                                      description='Diagnose problems in a Dataproc cluster.')
+    stop_parser = subs.add_parser('stop',
+                                  help='Shut down a Dataproc cluster.',
+                                  description='Shut down a Dataproc cluster.')
 
-	if args.module == 'start':
-		print("Starting cluster '{}'...".format(args.name))
-		start.main(main_parser)
+    start_parser.set_defaults(module='start')
+    start.init_parser(start_parser)
 
-	elif args.module == 'submit':
-		print("Submitting to cluster '{}'...".format(args.name))
-		submit.main(main_parser)
+    submit_parser.set_defaults(module='submit')
+    submit.init_parser(submit_parser)
 
-	elif args.module == 'connect':
-		print("Connecting to cluster '{}'...".format(args.name))
-		connect.main(main_parser)
+    connect_parser.set_defaults(module='connect')
+    connect.init_parser(connect_parser)
 
-	elif args.module == 'diagnose':
-		print("Diagnosing cluster '{}'...".format(args.name))
-		diagnose.main(main_parser)
+    diagnose_parser.set_defaults(module='diagnose')
+    diagnose.init_parser(diagnose_parser)
 
-	elif args.module == 'stop':
-		print("Stopping cluster '{}'...".format(args.name))
-		stop.main(main_parser)
+    stop_parser.set_defaults(module='stop')
+    stop.init_parser(stop_parser)
+
+    if len(sys.argv) == 1:
+        main_parser.print_help()
+        sys.exit(0)
+
+    args = main_parser.parse_args()
+
+    if args.module == 'start':
+        start.main(args)
+
+    elif args.module == 'submit':
+        submit.main(args)
+
+    elif args.module == 'connect':
+        connect.main(args)
+
+    elif args.module == 'diagnose':
+        diagnose.main(args)
+
+    elif args.module == 'stop':
+        stop.main(args)
 
 
 if __name__ == '__main__':
-	main()
+    main()
