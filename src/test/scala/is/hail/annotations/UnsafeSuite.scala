@@ -11,7 +11,9 @@ import org.testng.annotations.Test
 class UnsafeSuite extends SparkSuite {
   @Test def testRegionValue() {
     val region = MemoryBuffer()
+    val region2 = MemoryBuffer()
     val rvb = new RegionValueBuilder(region)
+    val rvb2 = new RegionValueBuilder(region2)
 
     val g = Type.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
@@ -29,6 +31,15 @@ class UnsafeSuite extends SparkSuite {
 
       val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
       assert(t.valuesSimilar(a, ur))
+
+      region2.clear()
+      rvb2.start(f)
+      rvb2.addRow(t, ur)
+      val offset2 = rvb2.end()
+      assert(offset2 == 0)
+
+      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      assert(t.valuesSimilar(a, ur2))
 
       true
     }

@@ -143,7 +143,7 @@ final class MemoryBuffer(var mem: Array[Byte], var offset: Int = 0) {
     val b = byteOff + (bitOff >> 3)
     (loadByte(b) & (1 << (bitOff & 7))) != 0
   }
-  
+
   def setBit(byteOff: Int, bitOff: Int) {
     val b = byteOff + (bitOff >> 3)
     storeByte(b,
@@ -257,19 +257,21 @@ class RegionValueBuilder(region: MemoryBuffer) {
     indexstk.push(indexstk.pop + 1)
   }
 
-  def startStruct() {
+  def startStruct(init: Boolean = true) {
     current() match {
       case (t: TStruct, off) =>
-        val nMissingBytes = (t.size + 7) / 8
-        var i = 0
-        while (i < nMissingBytes) {
-          region.storeByte(off + i, 0)
-          i += 1
-        }
-
         typestk.push(t)
         offsetstk.push(off)
         indexstk.push(0)
+
+        if (init) {
+          val nMissingBytes = (t.size + 7) / 8
+          var i = 0
+          while (i < nMissingBytes) {
+            region.storeByte(off + i, 0)
+            i += 1
+          }
+        }
     }
   }
 
@@ -285,39 +287,41 @@ class RegionValueBuilder(region: MemoryBuffer) {
     }
   }
 
-  def startArray(length: Int) {
+  def startArray(length: Int, init: Boolean = true) {
     current() match {
       case (t: TArray, off) =>
-        region.align(4)
+        region.align(t.contentsAlignment)
         val aoff = region.offset
+
+        region.allocate(t.contentsByteSize(length))
+
         region.storeInt(off, aoff)
 
-        val nMissingBytes = (length + 7) / 8
-        region.allocate(4 + nMissingBytes)
-
-        region.storeInt(aoff, length)
-
-        var i = 0
-        while (i < nMissingBytes) {
-          region.storeByte(aoff + 4 + i, 0)
-          i += 1
-        }
-
-        region.align(t.elementType.alignment)
-        val elementsOff = region.offset
-
-        region.allocate(length * UnsafeUtils.arrayElementSize(t.elementType))
-
         typestk.push(t)
-        elementsOffsetstk.push(elementsOff)
+        elementsOffsetstk.push(aoff + t.elementsOffset(length))
         indexstk.push(0)
         offsetstk.push(aoff)
+
+        if (init) {
+          region.storeInt(aoff, length)
+
+          val nMissingBytes = (length + 7) / 8
+          var i = 0
+          while (i < nMissingBytes) {
+            region.storeByte(aoff + 4 + i, 0)
+            i += 1
+          }
+        }
     }
   }
 
   def endArray() {
     typestk.head match {
       case t: TArray =>
+        val aoff = offsetstk.top
+        val length = region.loadInt(aoff)
+        assert(length == indexstk.top)
+
         typestk.pop()
         offsetstk.pop()
         elementsOffsetstk.pop()
@@ -416,6 +420,95 @@ class RegionValueBuilder(region: MemoryBuffer) {
     }
   }
 
+  def addUnsafeArray(fromRegion: MemoryBuffer, fromAOff: Int, toOff: Int) {
+    current() match {
+      case (t: TArray, toOff2) =>
+        assert(toOff2 == toOff)
+        val length = fromRegion.loadInt(fromAOff)
+
+        startArray(length, init = false)
+        val toAOff = offsetstk.top
+
+        region.copyFrom(fromRegion, fromAOff, toAOff, t.contentsByteSize(length))
+
+        if (t.elementType.containsPointer) {
+          val elemOff = t.elementsOffset(length)
+          val elemSize = UnsafeUtils.arrayElementSize(t.elementType)
+          var i = 0
+          while (i < length) {
+            if (!fromRegion.loadBit(fromAOff + 4, i))
+              unsafeRecurse(t.elementType, fromRegion, fromAOff + elemOff + i * elemSize, toAOff + elemOff + i * elemSize)
+            else
+              advance()
+            i += 1
+            assert(indexstk.top == i)
+          }
+        } else {
+          indexstk.pop()
+          indexstk.push(length)
+        }
+
+        endArray()
+    }
+  }
+
+  def unsafeRecurse(fromT: Type, fromRegion: MemoryBuffer, fromOff: Int, toOff: Int) {
+    current() match {
+      case (t: TStruct, toOff2) =>
+        assert(toOff2 == toOff)
+
+        startStruct(init = false)
+
+        var i = 0
+        while (i < t.size) {
+          if (!fromRegion.loadBit(fromOff, i)) {
+            val fieldOff = t.byteOffsets(i)
+            unsafeRecurse(t.fields(i).typ, fromRegion, fromOff + fieldOff, toOff + fieldOff)
+          } else
+            advance()
+          i += 1
+          assert(indexstk.top == i)
+        }
+        endStruct()
+
+      case (t: TArray, toOff2) =>
+        assert(toOff2 == toOff)
+        val fromAOff = fromRegion.loadInt(fromOff)
+        addUnsafeArray(fromRegion, fromAOff, toOff)
+
+      case (TBinary | TString, toOff2) =>
+        assert(toOff2 == toOff)
+
+        val fromBOff = fromRegion.loadInt(fromOff)
+        val length = fromRegion.loadInt(fromBOff)
+
+        region.align(4)
+        val toBOff = region.offset
+        region.allocate(4 + length)
+
+        region.copyFrom(fromRegion, fromBOff, toBOff, 4 + length)
+        advance()
+
+      case _ =>
+        // already copied
+        advance()
+    }
+  }
+
+  def addUnsafeRow(fromRegion: MemoryBuffer, fromOff: Int, toOff: Int) {
+    current() match {
+      case (t: TStruct, toOff2) =>
+        assert(toOff2 == toOff)
+        // println(fromT, t)
+        // assert(fromT == t)
+        region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
+        if (t.containsPointer)
+          unsafeRecurse(t, fromRegion, fromOff, toOff)
+        else
+          advance()
+    }
+  }
+
   def addAnnotation(t: Type, a: Annotation) {
     if (a == null)
       setMissing()
@@ -428,19 +521,35 @@ class RegionValueBuilder(region: MemoryBuffer) {
         case TFloat64 => addDouble(a.asInstanceOf[Double])
         case TString => addString(a.asInstanceOf[String])
         case TBinary => addBinary(a.asInstanceOf[Array[Byte]])
-        case TArray(elementType) =>
-          val is = a.asInstanceOf[IndexedSeq[Annotation]]
-          startArray(is.length)
-          var i = 0
-          while (i < is.length) {
-            addAnnotation(elementType, is(i))
-            i += 1
+
+        case t: TArray =>
+          a match {
+            case uis: UnsafeIndexedSeqAnnotation =>
+              val (toT, toOff) = current()
+              assert(toT == t.fundamentalType)
+              addUnsafeArray(uis.region, uis.offset, toOff)
+
+            case is: IndexedSeq[Annotation] =>
+              startArray(is.length)
+              var i = 0
+              while (i < is.length) {
+                addAnnotation(t.elementType, is(i))
+                i += 1
+              }
+              endArray()
           }
-          endArray()
+
         case t: TStruct =>
-          startStruct()
-          addRow(t, a.asInstanceOf[Row])
-          endStruct()
+          a match {
+            case ur: UnsafeRow =>
+              val (toT, toOff) = current()
+              assert(toT == t.fundamentalType)
+              addUnsafeRow(ur.region, ur.offset, toOff)
+            case r: Row =>
+              startStruct()
+              addRow(t, r)
+              endStruct()
+          }
 
         case TSet(elementType) =>
           val s = a.asInstanceOf[Set[Annotation]]

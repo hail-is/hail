@@ -5,9 +5,9 @@ import is.hail.utils.Interval
 import is.hail.variant.{AltAllele, GenericGenotype, Locus, Variant}
 import org.apache.spark.sql.Row
 
-class UnsafeIndexedSeqAnnotation(region: MemoryBuffer,
+class UnsafeIndexedSeqAnnotation(val region: MemoryBuffer,
   arrayTTBc: BroadcastTypeTree,
-  elemSize: Int, offset: Int, elemOffset: Int,
+  elemSize: Int, val offset: Int, elemOffset: Int,
   val length: Int) extends IndexedSeq[Annotation] {
   def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
@@ -34,10 +34,10 @@ object UnsafeRow {
     val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
-    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemOffset = arrayTTBc.value.typ.asInstanceOf[TContainer].elementsOffset(length)
     val elemSize = UnsafeUtils.arrayElementSize(elemType)
 
-    new UnsafeIndexedSeqAnnotation(region, arrayTTBc, elemSize, aoff, elemOffset, length)
+    new UnsafeIndexedSeqAnnotation(region, arrayTTBc, elemSize, aoff, aoff + elemOffset, length)
   }
 
   def readStruct(region: MemoryBuffer, offset: Int, ttBc: BroadcastTypeTree): UnsafeRow = {
@@ -63,17 +63,18 @@ object UnsafeRow {
 
   def readArrayAltAllele(region: MemoryBuffer, offset: Int): Array[AltAllele] = {
     val elemType = TAltAllele
+    val t = TArray(elemType)
 
     val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
-    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemOffset = t.elementsOffset(length)
     val elemSize = UnsafeUtils.arrayElementSize(elemType)
 
     val a = new Array[AltAllele](length)
     var i = 0
     while (i < length) {
-      a(i) = readAltAllele(region, elemOffset + i * elemSize)
+      a(i) = readAltAllele(region, aoff + elemOffset + i * elemSize)
       i += 1
     }
     a
@@ -81,17 +82,18 @@ object UnsafeRow {
 
   def readArrayInt(region: MemoryBuffer, offset: Int): Array[Int] = {
     val elemType = TInt32
+    val t = TArray(elemType)
 
     val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
-    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemOffset = t.elementsOffset(length)
     val elemSize = UnsafeUtils.arrayElementSize(elemType)
 
     val a = new Array[Int](length)
     var i = 0
     while (i < length) {
-      a(i) = region.loadInt(elemOffset + i * elemSize)
+      a(i) = region.loadInt(aoff + elemOffset + i * elemSize)
       i += 1
     }
     a

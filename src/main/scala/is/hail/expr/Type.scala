@@ -191,6 +191,8 @@ sealed abstract class Type extends Serializable { self =>
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
   lazy val fundamentalType: Type = this
+
+  def containsPointer: Boolean = children.exists(_.containsPointer)
 }
 
 abstract class ComplexType extends Type {
@@ -220,6 +222,8 @@ case object TBinary extends Type {
   }
 
   override def byteSize: Int = 4
+
+  override def containsPointer: Boolean = true
 }
 
 case object TBoolean extends Type {
@@ -363,6 +367,8 @@ case object TString extends Type {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]]))
 
   override def byteSize: Int = 4
+
+  override def containsPointer: Boolean = true
 }
 
 case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -527,6 +533,15 @@ abstract class TContainer extends Type {
   override def byteSize: Int = 4
 
   override def children = Seq(elementType)
+
+  // FIXME LCM
+  def contentsAlignment: Int = elementType.alignment.max(4)
+
+  def elementsOffset(length: Int): Int =
+    UnsafeUtils.roundUpAlignment(4 + (length + 7) / 8, elementType.alignment)
+
+  def contentsByteSize(length: Int): Int =
+    elementsOffset(length) + length * UnsafeUtils.arrayElementSize(elementType)
 }
 
 abstract class TIterable extends TContainer {
@@ -605,6 +620,8 @@ case class TArray(elementType: Type) extends TIterable {
     else
       TArray(elementType.fundamentalType)
   }
+
+  override def containsPointer: Boolean = true
 }
 
 case class TSet(elementType: Type) extends TIterable {
