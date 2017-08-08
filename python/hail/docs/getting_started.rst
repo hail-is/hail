@@ -44,79 +44,25 @@ to start a Jupyter Notebook server in the tutorials directory.
 
 You can now click on the "hail-overview" notebook to get started!
 
-.. _building-hail-from-source:
-
--------------------------
-Building Hail from source
--------------------------
-
-A Hail JAR and python library can also be built from the source; however, we don't recommend this for most users.
-
-The minimal set of tools necessary to build Hail from source are a C++ compiler and CMake. On a Debian-based OS like Ubuntu, these tools can be installed with apt-get::
-
-    sudo apt-get install g++ cmake
-
-On Mac OS X, a C++ compiler is provided by the Apple Xcode, which the following command installs::
-
-    xcode-select --install
-
-The recommended way to install CMake is with `Homebrew <http://brew.sh>`_::
-
-    brew install cmake
-
-The Hail source code is hosted `on GitHub <https://github.com/broadinstitute/hail>`_::
-
-    git clone https://github.com/broadinstitute/hail.git
-    cd hail
-
-You may also want to install `Seaborn <http://seaborn.pydata.org>`_, a Python library for statistical data visualization, using ``conda install seaborn`` or ``pip install seaborn``. While not technically necessary, Seaborn is used in the tutorials to make prettier plots.
-
-A Hail JAR can be built using Gradle::
-
-    ./gradlew -Dspark.version=2.0.2 shadowJar
-
-Finally, some environment variables must be set so that Hail can find Spark, Spark can find Hail, and Python can find Hail. Add these lines to your ``.bashrc`` or equivalent setting ``SPARK_HOME`` to the root directory of a Spark installation and ``HAIL_HOME`` to the root of the Hail repository::
-
-    export SPARK_HOME=/path/to/spark
-    export HAIL_HOME=/path/to/hail
-    export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:`echo $SPARK_HOME/python/lib/py4j*-src.zip`"
-    export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
-
-Now you can import hail from a python interpreter::
-
-    # python
-    Python 2.7.12 |Anaconda custom (x86_64)| (default, Jul  2 2016, 17:43:17) 
-    [GCC 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2336.11.00)] on darwin
-    Type "help", "copyright", "credits" or "license" for more information.
-    Anaconda is brought to you by Continuum Analytics.
-    Please check out: http://continuum.io/thanks and https://anaconda.org
-    >>> from hail import *
-    >>> hc = HailContext()
-    Using Spark's default log4j profile: org/apache/spark/log4j-defaults.properties
-    Setting default log level to "WARN".
-    To adjust logging level use sc.setLogLevel(newLevel).
-    hail: info: SparkUI: http://10.1.1.163:4040
-    Welcome to
-         __  __     <>__
-        / /_/ /__  __/ /
-       / __  / _ `/ / /
-      /_/ /_/\_,_/_/_/   version devel-b2394a4
-    >>> 
-
-
 Running on a Spark cluster
 ==========================
 
-Hail can run on any cluster that has Spark 2 installed. For instructions
-specific to Google Cloud Dataproc clusters and Cloudera clusters, see below.
+Hail can run on any cluster that has Spark 2 installed. The Hail team publishes
+ready-to-use JARs for Google Cloud Dataproc, see
+:ref:`running-in-the-cloud`. For Cloudera specific instructions see
+:ref:`running-on-a-cloudera-cluster`.
 
 For all other Spark clusters, you will need to build Hail from the source code.
 
-Hail should be built on the master node of the Spark cluster with the following command::
+Hail should be built on the master node of the Spark cluster with the following
+command, replacing ``2.0.2`` with the version of Spark available on your
+cluster::
 
     ./gradlew -Dspark.version=2.0.2 shadowJar archiveZip
 
-An IPython shell which can run Hail backed by the cluster can be started by::
+An IPython shell which can run Hail backed by the cluster can be started with
+the following command, it is important that the Spark located at ``SPARK_HOME``
+has the exact same version as provided to the previous command::
 
     SPARK_HOME=/path/to/spark/ \
     HAIL_HOME=/path/to/hail/ \
@@ -167,6 +113,8 @@ runs the script `hailscript.py` (which reads and writes files from Hadoop):
     hc = hail.HailContext()
     hc.import_vcf('/path/to/sample.vcf').write('/output/path/sample.vds')
 
+.. _running-on-a-cloudera-cluster:
+
 Running on a Cloudera Cluster
 =============================
 
@@ -198,6 +146,8 @@ the same as above, except:
 
  - Cloudera's version of ``spark-submit`` is called ``spark2-submit``.
 
+.. _running-in-the-cloud:
+
 Running in the cloud
 ====================
 
@@ -207,11 +157,12 @@ and exceptional scalability to tens of thousands of cores without the overhead
 of installing and managing an on-prem cluster.
 
 Hail publishes pre-built JARs for Google Cloud Platform's Dataproc Spark
-clusters. If you would prefer to avoid building Hail from source, learn how to
-get started on Google Cloud Platform by reading this `forum post
-<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__. To get
-started running Hail on GCP via an interactive Jupyter notebook, see this `forum post
-<http://discuss.hail.is/t/using-hail-with-jupyter-notebooks-on-google-cloud/196>`__.
+clusters. We recommend running Hail on GCP via an interactive Jupyter notebook,
+as described in `Liam's forum post
+<http://discuss.hail.is/t/using-hail-with-jupyter-notebooks-on-google-cloud/196>`__. If
+you prefer to submit your own JARs or python files rather than use a Jupyter
+notebook, see `Laurent's forum post
+<http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80>`__.
 
 Building with other versions of Spark 2
 =======================================
