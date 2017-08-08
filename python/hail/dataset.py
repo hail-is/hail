@@ -3660,11 +3660,11 @@ class VariantDataset(object):
            frequency for individual :math:`i` at genetic locus :math:`s`
 
          - :math:`{\\widehat{\\sigma^2_{is}}} := \\widehat{\\mu_{is}} (1 -
-           \\widehat{\\mu_{is}})`, the Binomial variance of
+           \\widehat{\\mu_{is}})`, the binomial variance of
            :math:`\\widehat{\\mu_{is}}`
 
          - :math:`\\widehat{\\sigma_{is}} := \sqrt{\\widehat{\\sigma^2_{is}}}`,
-           the Binomial standard deviation of :math:`\\widehat{\\mu_{is}}`
+           the binomial standard deviation of :math:`\\widehat{\\mu_{is}}`
 
          - :math:`\\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{||g_{is} -
            g_{js} = 2||}`, the number of genetic loci at which individuals
