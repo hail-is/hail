@@ -1,6 +1,7 @@
 package is.hail
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import is.hail.annotations.Annotation
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import is.hail.variant.VariantDataset
@@ -29,6 +30,11 @@ object TestUtils {
     assert(A.rows == B.rows)
     assert(A.cols == B.cols)
     assert((0 until A.rows).forall(i => (0 until A.cols).forall(j => D_==(A(i, j), B(i, j), tolerance))))
+  }
+
+  def assertDouble(a: Annotation, value: Double, tol: Double = 1e-6) {
+    val d1 = a.asInstanceOf[Double]
+    assert(D_==(d1, value, tol), s"$d1 did not equal $value with tol $tol")
   }
 
   def isConstant(A: Vector[Int]): Boolean = {

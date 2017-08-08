@@ -5,6 +5,7 @@ import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Trunc
 import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
+import org.apache.spark.mllib.linalg.Matrix
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
@@ -27,6 +28,8 @@ trait Implicits {
   implicit def toRichBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
 
   implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble = new RichDenseMatrixDouble(m)
+
+  implicit def toRichSparkMatrix(m: Matrix): RichSparkMatrix = new RichSparkMatrix(m)
 
   implicit def toRichDouble(d: Double): RichDouble = new RichDouble(d)
 

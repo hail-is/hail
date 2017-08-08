@@ -8,7 +8,7 @@ import org.netlib.util.intW
 /**
   * Computes all eigenvalues (and optionally right eigenvectors) of the given
   * real symmetric matrix X using dsyevd (Divide and Conquer):
-  * `http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html`
+  * `http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga77dfa610458b6c9bd7db52533bfd53a1.html`
   *
   * Based on eigSym in breeze.linalg.eig but replaces dsyev with dsyevd for higher performance:
   * http://www.netlib.org/lapack/lawnspdf/lawn183.pdf

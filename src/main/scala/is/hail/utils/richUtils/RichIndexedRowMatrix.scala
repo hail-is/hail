@@ -1,10 +1,11 @@
 package is.hail.utils.richUtils
 
 import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-
 import is.hail.utils._
+
+import scala.collection.parallel.mutable.ParArray
 
 /**
   * Adds toBlockMatrixDense method to IndexedRowMatrix
@@ -61,6 +62,24 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
         new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
     }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, m, n)
+  }
+
+  //TODO This will not be as fast as it could be on IndexedRowMatrices with sparse rows, since it looks at every element.
+  def toLocalMatrix(): DenseMatrix = {
+    val m = indexedRowMatrix.numRows().toInt
+    val n = indexedRowMatrix.numCols().toInt
+    val rows = indexedRowMatrix.rows.collect().par
+
+    val values = new Array[Double](m * n)
+    rows.foreach{case IndexedRow(rowNum, rowElements) =>
+        var i = 0
+        while (i < rowElements.length) {
+          values(i * m + rowNum.toInt) = rowElements(i)
+          i += 1
+        }
+    }
+
+    new DenseMatrix(m, n, values)
   }
 }
 
