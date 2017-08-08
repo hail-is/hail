@@ -1,4 +1,4 @@
-from subprocess import check_call, check_output
+from subprocess import call, check_output
 
 COMPATIBILITY_VERSION = 2
 
@@ -146,4 +146,4 @@ def main(args):
     ]
 
     # spin up cluster
-    check_call(cmd)
+    call(cmd)
