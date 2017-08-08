@@ -3169,11 +3169,11 @@ class VariantDataset(object):
 
         **Performance**
 
-        Hail's initial version of :py:meth:`.lmmreg` scales beyond 15k samples and to an essentially unbounded number of variants, making it particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays.
+        Hail's initial version of :py:meth:`.lmmreg` is particularly well-suited to modern sequencing studies and complementary to tools designed for SNP arrays.
 
-        The `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`__ step (Step 3) is currently run on a single core of master using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`__. If you see unexpectedly poor performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
+        The `eigendecomposition <https://en.wikipedia.org/wiki/Eigendecomposition_of_a_matrix>`__ step (Step 2) is currently run on a single core of the driver using the `LAPACK routine DSYEVD <http://www.netlib.org/lapack/explore-html/d2/d8a/group__double_s_yeigen_ga694ddc6e5527b6223748e3462013d867.html>`__. For best performance, check that LAPACK natives are being properly loaded (see "BLAS and LAPACK" in Getting Started).
 
-        Given the eigendecomposition, fitting the global model (Step 3) takes on the order of a few seconds on master. Association testing (Step 4) is fully distributed by variant with per-variant time complexity that is dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below, which we accelerate with a sparse representation of :math:`v`.  The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor.
+        Given the eigendecomposition, fitting the global model (Step 3) proceeds on the driver. Association testing (Step 4) is fully distributed by variant with per-variant time complexity that is dominated by multiplication of the genotype vector :math:`v` by the matrix of eigenvectors :math:`U^T` as described below. The matrix :math:`U^T` has size about :math:`8n^2` bytes and is currently broadcast to each Spark executor. So for large :math:`n`, we recommend using a high-memory configuration such as ``highmem`` workers.
 
         **Linear mixed model**
 
