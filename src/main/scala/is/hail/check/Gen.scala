@@ -73,7 +73,7 @@ object Gen {
     *
     **/
   def partitionBetaDirichlet(rng: RandomDataGenerator, size: Int, alpha: Double, beta: Double): Array[Int] =
-    partitionDirichlet(p.rng, p.size, sampleBetaBinomial(p.rng, p.size, alpha, beta))
+    partitionDirichlet(rng, size, sampleBetaBinomial(rng, size, alpha, beta))
 
   /**
     * Takes {@code size} balls and places them into {@code parts} bins according
@@ -98,7 +98,7 @@ object Gen {
   private def sampleDirichlet(rng: RandomDataGenerator, alpha: Array[Double]): Array[Double] = {
     val draws = alpha.map(rng.nextGamma(_, 1))
     val sum = draws.sum
-    roundWithConstantSum(draws.map((x: Double) => x / sum * size).toArray)
+    roundWithConstantSum(draws.map((x: Double) => x / sum).toArray)
   }
 
   def partition(parts: Int, sum: UInt)(implicit tn: Numeric[UInt], uct: ClassTag[UInt]): Gen[Array[UInt]] =
