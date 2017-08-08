@@ -5,7 +5,7 @@ import is.hail.utils.Interval
 import org.testng.annotations.Test
 
 class GenomeReferenceSuite extends SparkSuite {
-  @Test def test() {
+  @Test def testGRCh37() {
     val grch37 = GenomeReference.GRCh37
 
     assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))

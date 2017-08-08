@@ -80,9 +80,9 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
 
 object GenomeReference {
 
-  def GRCh37 = fromResource("reference/human_g1k_v37.json")
+  def GRCh37 = fromResource("reference/grch37.json")
 
-  def GRCh38 = fromResource("reference/Homo_sapiens_assembly38.json")
+  def GRCh38 = fromResource("reference/grch38.json")
 
   def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
 
