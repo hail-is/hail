@@ -29,8 +29,12 @@ object Contig {
 
   def gen: Gen[Contig] = for {
     name <- Gen.identifier
-    length <- Gen.posInt
+    length <- Gen.choose(1000000, 500000000)
   } yield Contig(name, length)
+
+  def gen(gr: GenomeReference): Gen[Contig] = for {
+    contig <- Gen.oneOfSeq(gr.contigs)
+  } yield contig
 }
 
 case class Contig(name: String, length: Int) {
@@ -97,8 +101,8 @@ case class AltAllele(ref: String,
 
   def isStar: Boolean = alt == "*"
 
-  def isSNP: Boolean = !isStar && ( (ref.length == 1 && alt.length == 1) ||
-    (ref.length == alt.length && nMismatch == 1) )
+  def isSNP: Boolean = !isStar && ((ref.length == 1 && alt.length == 1) ||
+    (ref.length == alt.length && nMismatch == 1))
 
   def isMNP: Boolean = ref.length > 1 &&
     ref.length == alt.length &&
@@ -232,37 +236,40 @@ object Variant {
 
 object VariantSubgen {
   val random = VariantSubgen(
-    contigGen = Gen.identifier,
-    startGen = Gen.posInt,
+    contigGen = Contig.gen,
     nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
     refGen = genDNAString,
     altGen = Gen.frequency((10, genDNAString),
       (1, Gen.const("*"))))
 
   val plinkCompatible = random.copy(
-    contigGen = Gen.choose(1, 22).map(_.toString)
+    contigGen = Gen
+      .zip(Gen.choose(1, 22).map(_.toString), Gen.choose(1000000, 500000000))
+      .map { case (name, length) => Contig(name, length) }
   )
 
   val biallelic = random.copy(nAllelesGen = Gen.const(2))
+
+  def fromGenomeRef(gr: GenomeReference): VariantSubgen =
+    random.copy(contigGen = Contig.gen(gr))
 }
 
 case class VariantSubgen(
-  contigGen: Gen[String],
-  startGen: Gen[Int],
+  contigGen: Gen[Contig],
   nAllelesGen: Gen[Int],
   refGen: Gen[String],
   altGen: Gen[String]) {
 
   def gen: Gen[Variant] =
     for (contig <- contigGen;
-      start <- startGen;
+      start <- Gen.choose(1, contig.length);
       nAlleles <- nAllelesGen;
       ref <- refGen;
       altAlleles <- Gen.distinctBuildableOfN[Array, String](
         nAlleles,
         altGen)
         .filter(!_.contains(ref))) yield
-      Variant(contig, start, ref, altAlleles.tail.map(alt => AltAllele(ref, alt)))
+      Variant(contig.name, start, ref, altAlleles.tail.map(alt => AltAllele(ref, alt)))
 }
 
 case class Variant(contig: String,
@@ -301,12 +308,18 @@ case class Variant(contig: String,
   def isAutosomalOrPseudoAutosomal: Boolean =
     isAutosomal || inXPar || inYPar
 
+  def isAutosomalOrPseudoAutosomal(gr: GenomeReference): Boolean = isAutosomal(gr) || inXPar(gr) || inYPar(gr)
+
   def isAutosomal = !(inX || inY || isMitochondrial)
+
+  def isAutosomal(gr: GenomeReference): Boolean = !(inX(gr) || inY(gr) || isMitochondrial(gr))
 
   def isMitochondrial = {
     val c = contig.toUpperCase
     c == "MT" || c == "M" || c == "26"
   }
+
+  def isMitochondrial(gr: GenomeReference): Boolean = gr.isMitochondrial(contig)
 
   // PAR regions of sex chromosomes: https://en.wikipedia.org/wiki/Pseudoautosomal_region
   // Boundaries for build GRCh37: http://www.ncbi.nlm.nih.gov/projects/genome/assembly/grc/human/
@@ -317,15 +330,27 @@ case class Variant(contig: String,
   // FIXME: will replace with contig == "X" etc once bgen/plink support is merged and conversion is handled by import
   def inXPar: Boolean = inX && inXParPos
 
+  def inXPar(gr: GenomeReference): Boolean = gr.inXPar(locus)
+
   def inYPar: Boolean = inY && inYParPos
+
+  def inYPar(gr: GenomeReference): Boolean = gr.inYPar(locus)
 
   def inXNonPar: Boolean = inX && !inXParPos
 
+  def inXNonPar(gr: GenomeReference): Boolean = inX(gr) && !inXPar(gr)
+
   def inYNonPar: Boolean = inY && !inYParPos
+
+  def inYNonPar(gr: GenomeReference): Boolean = inY(gr) && !inYPar(gr)
 
   private def inX: Boolean = contig.toUpperCase == "X" || contig == "23" || contig == "25"
 
+  private def inX(gr: GenomeReference): Boolean = gr.inX(contig)
+
   private def inY: Boolean = contig.toUpperCase == "Y" || contig == "24"
+
+  private def inY(gr: GenomeReference): Boolean = gr.inY(contig)
 
   import CopyState._
 
@@ -334,6 +359,17 @@ case class Variant(contig: String,
       if (inXNonPar)
         HemiX
       else if (inYNonPar)
+        HemiY
+      else
+        Auto
+    else
+      Auto
+
+  def copyState(sex: Sex.Sex, gr: GenomeReference): CopyState =
+    if (sex == Sex.Male)
+      if (inXNonPar(gr))
+        HemiX
+      else if (inYNonPar(gr))
         HemiY
       else
         Auto
