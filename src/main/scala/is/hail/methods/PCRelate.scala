@@ -22,9 +22,7 @@ object PCRelate {
   import dm.ops._
 
   case class Result[M](phiHat: M, k0: M, k1: M, k2: M) {
-    def map[N](f: M => N): Result[N] =
-
-    Result(f(phiHat), f(k0), f(k1), f(k2))
+    def map[N](f: M => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
   }
 
   def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): RDD[((Annotation, Annotation), (Double, Double, Double, Double))] = {
