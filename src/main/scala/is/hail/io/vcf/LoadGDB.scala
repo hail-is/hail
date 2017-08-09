@@ -14,14 +14,14 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import java.io.{FileWriter, File}
 
-
 case class QueryJSON(workspace: String,
                      array: String,
                      vid_mapping_file: String,
                      callset_mapping_file: String,
                      vcf_header_filename: Option[String],
                      reference_genome: String,
-                     query_column_ranges: List[List[List[Int]]] = List(List(List(0, 17421565))), //TODO: fix this to match gdb docs description
+                     //type List[List[Any]] b/c genomicsDB accepts both single columns and ranges of columns to query
+                     query_column_ranges: List[List[Any]] = List(List(List(0, 17421565))),
                      query_attributes: List[String] = List(),
                      query_row_ranges: Option[List[List[Int]]] = None,
                      max_diploid_alt_alleles_that_can_be_genotyped: Option[Int] = None,
