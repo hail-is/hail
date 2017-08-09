@@ -167,7 +167,7 @@ object LinearMixedRegression {
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
       val blockSize = 20
-      val newRDD = filteredVds.rdd.mapPartitions({it =>
+      val newRDD = vds2.rdd.mapPartitions({it =>
         it.grouped(blockSize)
             .flatMap(sSeq => {
               val s = sSeq.toArray
@@ -187,7 +187,7 @@ object LinearMixedRegression {
             })
       }, preservesPartitioning = true)
 
-      filteredVds.copy(
+      vds2.copy(
         rdd = newRDD.asOrderedRDD,
         vaSignature = newVAS)
     }
