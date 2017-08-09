@@ -52,6 +52,24 @@ hc = HailContext()
 
 This snippet starts a cluster named "testcluster" with the 1 master machine, 2 worker machines (the minimum/default), and 6 additional preemptible worker machines. Then, after the cluster is started (this can take a few minutes), a Hail script is submitted to the cluster "testcluster".
 
+You can also pass arguments to the Hail script using the `--args` argument:
+```
+$ cluster submit testcluster myhailscript.py --args "arg1 arg2"
+```
+where `myhailscript.py` is
+```
+import sys
+from hail import *
+hc = HailContext()
+print('First argument: ', sys.argv[1])
+print('Second argument: ', sys.argv[2])
+```
+would print
+```
+First argument: arg1
+Second argument: arg2
+```
+
 ### Interactive Hail with Jupyter Notebooks
 
 Another way to use the Dataproc service is through a Jupyter notebook running on the cluster's master machine. By default, `cluster name start` sets up and starts a Jupyter server process - complete with a Hail kernel - on the master machine of the cluster. 
@@ -214,6 +232,8 @@ optional arguments:
   --zip ZIP             Custom Hail zip to use.
   --properties PROPERTIES, -p PROPERTIES
                         Extra Spark properties to set.
+  --args ARGS           Quoted string of arguments to pass to the Hail script
+                        being submitted.
 ```
 
 ```
