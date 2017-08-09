@@ -31,7 +31,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
 
   def requiresConversion(t: Type): Boolean = t match {
     case TArray(elementType) => requiresConversion(elementType)
-    case TSet(_) | TDict(_, _) | TGenotype | TAltAllele | TVariant | TLocus | TInterval => true
+    case TSet(_) | TDict(_, _) | TGenotype | TAltAllele | TVariant(_) | TLocus(_) | TInterval(_) => true
     case TStruct(fields) =>
       fields.isEmpty || fields.exists(f => requiresConversion(f.typ))
     case _ => false
@@ -87,17 +87,17 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         case TAltAllele =>
           val r = a.asInstanceOf[Row]
           AltAllele(r.getAs[String](0), r.getAs[String](1))
-        case TVariant =>
+        case t: TVariant =>
           val r = a.asInstanceOf[Row]
           Variant(r.getAs[String](0), r.getAs[Int](1), r.getAs[String](2),
             r.getAs[Seq[Row]](3).map(aa =>
               importAnnotation(aa, TAltAllele).asInstanceOf[AltAllele]).toArray)
-        case TLocus =>
+        case t: TLocus =>
           val r = a.asInstanceOf[Row]
           Locus(r.getAs[String](0), r.getAs[Int](1))
-        case TInterval =>
+        case t: TInterval =>
           val r = a.asInstanceOf[Row]
-          Interval(importAnnotation(r.get(0), TLocus).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus).asInstanceOf[Locus])
+          Interval(importAnnotation(r.get(0), TLocus(t.gr)).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus(t.gr)).asInstanceOf[Locus])
         case TStruct(fields) =>
           if (fields.isEmpty)
             if (a.asInstanceOf[Boolean]) Annotation.empty else null
@@ -126,9 +126,9 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         StructField("key", keyType.schema),
         StructField("value", valueType.schema))))
     case TAltAllele => AltAllele.sparkSchema
-    case TVariant => Variant.sparkSchema
-    case TLocus => Locus.sparkSchema
-    case TInterval => StructType(Array(
+    case t: TVariant => Variant.sparkSchema
+    case t: TLocus => Locus.sparkSchema
+    case t: TInterval => StructType(Array(
       StructField("start", Locus.sparkSchema, nullable = false),
       StructField("end", Locus.sparkSchema, nullable = false)))
     case TGenotype => Genotype.sparkSchema
@@ -168,15 +168,15 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
         case TAltAllele =>
           val aa = a.asInstanceOf[AltAllele]
           Row(aa.ref, aa.alt)
-        case TVariant =>
+        case TVariant(gr) =>
           val v = a.asInstanceOf[Variant]
           Row(v.contig, v.start, v.ref, v.altAlleles.map(aa => Row(aa.ref, aa.alt)))
-        case TLocus =>
+        case TLocus(gr) =>
           val l = a.asInstanceOf[Locus]
           Row(l.contig, l.position)
-        case TInterval =>
+        case TInterval(gr) =>
           val i = a.asInstanceOf[Interval[_]]
-          Row(exportAnnotation(i.start, TLocus), exportAnnotation(i.end, TLocus))
+          Row(exportAnnotation(i.start, TLocus(gr)), exportAnnotation(i.end, TLocus(gr)))
         case TStruct(fields) =>
           if (fields.isEmpty)
             a != null
@@ -300,9 +300,9 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         case TCall => JInt(a.asInstanceOf[Int])
         case TGenotype => Genotype.toJSON(a.asInstanceOf[Genotype])
         case TAltAllele => a.asInstanceOf[AltAllele].toJSON
-        case TVariant => a.asInstanceOf[Variant].toJSON
-        case TLocus => a.asInstanceOf[Locus].toJSON
-        case TInterval => a.asInstanceOf[Interval[Locus]].toJSON(TLocus.toJSON(_))
+        case TVariant(_) => a.asInstanceOf[Variant].toJSON
+        case TLocus(_) => a.asInstanceOf[Locus].toJSON
+        case TInterval(gr) => a.asInstanceOf[Interval[Locus]].toJSON(TLocus(gr).toJSON(_))
         case TStruct(fields) =>
           val row = a.asInstanceOf[Row]
           JObject(fields
@@ -384,11 +384,11 @@ object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {
         }
       case (_, TAltAllele) =>
         jv.extract[AltAllele]
-      case (_, TVariant) =>
+      case (_, TVariant(_)) =>
         jv.extract[JSONExtractVariant].toVariant
-      case (_, TLocus) =>
+      case (_, TLocus(_)) =>
         jv.extract[Locus]
-      case (_, TInterval) =>
+      case (_, TInterval(_)) =>
         jv.extract[JSONExtractInterval].toInterval
       case (_, TGenotype) =>
         jv.extract[JSONExtractGenotype].toGenotype
@@ -425,7 +425,7 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
         case it: TIterable => JsonMethods.compact(it.toJSON(a))
         case t: TStruct => JsonMethods.compact(t.toJSON(a))
         case TGenotype => JsonMethods.compact(t.toJSON(a))
-        case TInterval =>
+        case t: TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
           if (i.start.contig == i.end.contig)
             s"${ i.start }-${ i.end.position }"
@@ -443,9 +443,9 @@ object TableAnnotationImpex extends AnnotationImpex[Unit, String] {
       case TFloat32 => a.toFloat
       case TFloat64 => if (a == "nan") Double.NaN else a.toDouble
       case TBoolean => a.toBoolean
-      case TLocus => Locus.parse(a)
-      case TInterval => Locus.parseInterval(a)
-      case TVariant => Variant.parse(a)
+      case t: TLocus => Locus.parse(a)
+      case t: TInterval => Locus.parseInterval(a)
+      case t: TVariant => Variant.parse(a)
       case TAltAllele => a.split("/") match {
         case Array(ref, alt) => AltAllele(ref, alt)
       }

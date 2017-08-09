@@ -117,7 +117,8 @@ object PlinkLoader {
     sampleAnnotations: IndexedSeq[Annotation],
     sampleAnnotationSignature: Type,
     variants: Array[(Variant, String)],
-    nPartitions: Option[Int] = None): GenericDataset = {
+    nPartitions: Option[Int] = None,
+    gr: GenomeReference = GenomeReference.GRCh37): GenericDataset = {
 
     val sc = hc.sc
     val nSamples = sampleIds.length
@@ -132,11 +133,12 @@ object PlinkLoader {
       case (_, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
         (v: Annotation, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
-    }.toOrderedRDD(fastKeys)(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    }.toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
     
     new GenericDataset(hc, VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
+      vSignature = TVariant(gr),
       globalSignature = TStruct.empty,
       genotypeSignature = TStruct("GT" -> TCall),
       wasSplit = true),
