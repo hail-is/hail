@@ -49,14 +49,14 @@ object UnsafeRow {
     new String(readBinary(region, offset))
 
   def readLocus(region: MemoryBuffer, offset: Int): Locus = {
-    val ft = TLocus.fundamentalType
+    val ft = TLocus.fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, offset + ft.byteOffsets(0)),
       region.loadInt(offset + ft.byteOffsets(1)))
   }
 
   def readAltAllele(region: MemoryBuffer, offset: Int): AltAllele = {
-    val ft = TAltAllele.fundamentalType
+    val ft = TAltAllele.fundamentalType.asInstanceOf[TStruct]
     AltAllele(
       readString(region, offset + ft.byteOffsets(0)),
       readString(region, offset + ft.byteOffsets(1)))
@@ -121,7 +121,7 @@ object UnsafeRow {
         readStruct(region, offset, ttBc)
 
       case TVariant =>
-        val ft = TVariant.fundamentalType
+        val ft = TVariant.fundamentalType.asInstanceOf[TStruct]
         Variant(
           readString(region, offset + ft.byteOffsets(0)),
           region.loadInt(offset + ft.byteOffsets(1)),
@@ -130,12 +130,12 @@ object UnsafeRow {
       case TLocus => readLocus(region, offset)
       case TAltAllele => readAltAllele(region, offset)
       case TInterval =>
-        val ft = TInterval.fundamentalType
+        val ft = TInterval.fundamentalType.asInstanceOf[TStruct]
         Interval[Locus](
           readLocus(region, offset + ft.byteOffsets(0)),
           readLocus(region, offset + ft.byteOffsets(1)))
       case TGenotype =>
-        val ft = TGenotype.fundamentalType
+        val ft = TGenotype.fundamentalType.asInstanceOf[TStruct]
         val gt: Int =
           if (region.loadBit(offset, 0))
             -1
