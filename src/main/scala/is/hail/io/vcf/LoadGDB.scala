@@ -19,9 +19,9 @@ case class QueryJSON(workspace: String,
                      vid_mapping_file: String,
                      callset_mapping_file: String,
                      vcf_header_filename: Option[String],
-                     reference_genome: String,
                      //type List[List[Any]] b/c genomicsDB accepts both single columns and ranges of columns to query
                      query_column_ranges: List[List[Any]] = List(List(List(0, 17421565))),
+                     reference_genome: String = "",
                      query_attributes: List[String] = List(),
                      query_row_ranges: Option[List[List[Int]]] = None,
                      max_diploid_alt_alleles_that_can_be_genotyped: Option[Int] = None,
@@ -37,15 +37,13 @@ object LoadGDB {
                       arrayName: String,
                       vid_mapping_file: String,
                       callsets_mapping_file: String,
-                      vcfHeaderPath: Option[String], //might not need this b/c won't be generating vcf headers from given gdb arrays in the future
-                      refGenome: String): File = {
+                      vcfHeaderPath: Option[String]): File = {
     val tempFile = File.createTempFile("sample2query", ".json")
     jackson.Serialization.writePretty(QueryJSON(tiledbworkspace,
       arrayName,
       vid_mapping_file,
       callsets_mapping_file,
-      vcfHeaderPath,
-      refGenome),
+      vcfHeaderPath),
       new FileWriter(tempFile))
     tempFile.getCanonicalFile
   }
@@ -59,7 +57,6 @@ object LoadGDB {
                vid_mapping_file: String,
                callsets_mapping_file: String,
                vcfHeaderPath: Option[String],
-               refGenome: String,
                nPartitions: Option[Int] = None,
                dropSamples: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
@@ -70,8 +67,7 @@ object LoadGDB {
       arrayName,
       vid_mapping_file,
       callsets_mapping_file,
-      vcfHeaderPath,
-      refGenome)
+      vcfHeaderPath)
 
     val gdbReader = new GenomicsDBFeatureReader(loaderJSONFile, queryFile.getCanonicalPath, codec)
 
