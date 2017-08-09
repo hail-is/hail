@@ -15,10 +15,11 @@ class UnsafeIndexedSeqAnnotation(val region: MemoryBuffer,
     assert(i >= 0 && i < length)
     if (region.loadBit(offset + 4, i))
       null
-    else
+    else {
       UnsafeRow.read(region, elemOffset + i * elemSize,
         arrayTTBc.value.typ.asInstanceOf[TContainer].elementType,
         arrayTTBc.value.subtree(0))
+    }
   }
 }
 

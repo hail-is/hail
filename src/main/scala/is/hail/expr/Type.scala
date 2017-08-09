@@ -613,7 +613,7 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 
-  override lazy val fundamentalType: Type = {
+  override lazy val fundamentalType: TArray = {
     val elementFundamentalType = elementType.fundamentalType
     if (elementFundamentalType == elementType)
       this

@@ -24,7 +24,6 @@ class UnsafeSuite extends SparkSuite {
       val f = t.fundamentalType
 
       region.clear()
-
       rvb.start(f)
       rvb.addRow(t, a.asInstanceOf[Row])
       val offset = rvb.end()
@@ -36,9 +35,16 @@ class UnsafeSuite extends SparkSuite {
       rvb2.start(f)
       rvb2.addRow(t, ur)
       val offset2 = rvb2.end()
-      assert(offset2 == 0)
 
       val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      assert(t.valuesSimilar(a, ur2))
+
+      // don't clear, just add on
+      rvb2.start(f)
+      rvb2.addUnsafeRow(t, ur)
+      val offset3 = rvb2.end()
+
+      val ur3 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset3)
       assert(t.valuesSimilar(a, ur2))
 
       true
