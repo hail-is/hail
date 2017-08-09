@@ -3,7 +3,7 @@ package is.hail.expr
 import java.io.FileNotFoundException
 
 import is.hail.HailContext
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, ReadRowsRDD}
 import is.hail.methods.Aggregators
 import is.hail.sparkextras.{OrderedKey, OrderedPartitioner, OrderedRDD}
 import is.hail.variant.{Genotype, Locus, VSMFileMetadata, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
@@ -29,6 +29,11 @@ case class MatrixType(
   def vaType: Type = metadata.vaSignature
 
   def genotypeType: Type = metadata.genotypeSignature
+
+  def rowType: TStruct = TStruct(
+    "v" -> vType,
+    "va" -> vaType,
+    "gs" -> TArray(genotypeType))
 
   def typ = TStruct(
     "v" -> vType,
@@ -178,13 +183,13 @@ object MatrixAST {
   def optimize[RPK, RK, T](ast: MatrixAST[RPK, RK, T]): MatrixAST[RPK, RK, T] = {
     NewAST.rewriteTopDown(ast, {
       case FilterVariants(
-      MatrixRead(hc, path, fileMetadata, dropSamples, _),
+      MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples, _),
       Const(_, false, TBoolean)) =>
-        MatrixRead(hc, path, fileMetadata, dropSamples, dropVariants = true)
+        MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples, dropVariants = true)
       case FilterSamples(
-      MatrixRead(hc, path, fileMetadata, _, dropVariants),
+      MatrixRead(hc, path, nPartitions, fileMetadata, _, dropVariants),
       Const(_, false, TBoolean)) =>
-        MatrixRead(hc, path, fileMetadata, dropSamples = true, dropVariants)
+        MatrixRead(hc, path, nPartitions, fileMetadata, dropSamples = true, dropVariants)
 
       case FilterVariants(m, Const(_, true, TBoolean)) =>
         m
@@ -232,6 +237,7 @@ case class MatrixLiteral[RPK, RK, T](
 case class MatrixRead(
   hc: HailContext,
   path: String,
+  nPartitions: Int,
   fileMetadata: VSMFileMetadata,
   dropSamples: Boolean,
   dropVariants: Boolean) extends MatrixAST[Annotation, Annotation, Annotation] {
@@ -263,18 +269,13 @@ case class MatrixRead(
       if (dropVariants)
         OrderedRDD.empty[Annotation, Annotation, (Annotation, Iterable[Annotation])](hc.sc)
       else {
-        val vImporter = SparkAnnotationImpex.annotationImporter(typ.vType)
-        val vaImporter = SparkAnnotationImpex.annotationImporter(typ.vaType)
-        val gImporter = SparkAnnotationImpex.annotationImporter(typ.genotypeType)
+        val rdd = new ReadRowsRDD(hc.sc, path, typ.rowType, nPartitions)
+        .map { ur =>
+          val v = ur.get(0)
+          val va = ur.get(1)
+          val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
 
-        val localDropSamples = dropSamples
-        val importRow = (r: Row) => {
-          val v = vImporter(r.get(0))
-          (v, (vaImporter(r.get(1)),
-            if (localDropSamples)
-              Iterable.empty[Annotation]
-            else
-              r.getSeq[Any](2).lazyMap(g => gImporter(g))))
+          (v, (va, gs))
         }
 
         val jv = hc.hadoopConf.readFile(path + "/partitioner.json.gz")(JsonMethods.parse(_))
@@ -283,7 +284,7 @@ case class MatrixRead(
 
         val columns = someIf(dropSamples, Array("variant", "annotations"))
         OrderedRDD[Annotation, Annotation, (Annotation, Iterable[Annotation])](
-          hc.sqlContext.readParquetSorted(parquetFile, columns).map(importRow), partitioner)
+          rdd, partitioner)
       }
 
     MatrixValue(

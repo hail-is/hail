@@ -66,7 +66,7 @@ class GenericDatasetSuite extends SparkSuite {
     }
 
     // nested arrays
-      intercept[HailException] {
+    intercept[HailException] {
       val path = tmpDir.createTempFile(extension = ".vcf")
       gds
         .annotateGenotypesExpr("g.a = 5, g.b = 7.0, g.c = \"foo\", g.d = [[1, 5], [2], [3, 4]]")
@@ -134,7 +134,8 @@ class GenericDatasetSuite extends SparkSuite {
         (data1, data2) match {
           case (Some((va1, gs1)), Some((va2, gs2))) =>
             gs1.zip(gs2).forall { case (g1, g2) =>
-              Genotype.unboxedGT(g1) == Genotype.unboxedGT(g2) }
+              Genotype.unboxedGT(g1) == Genotype.unboxedGT(g2)
+            }
           case _ => false
         }
       }

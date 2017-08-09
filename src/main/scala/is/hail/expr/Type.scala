@@ -1,7 +1,5 @@
 package is.hail.expr
 
-import java.util
-
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
@@ -15,12 +13,11 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 object Type {
-  val genScalar = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
+  val genScalar: Gen[Type] = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
     TVariant, TAltAllele, TGenotype, TLocus, TInterval, TCall)
 
   def genSized(size: Int): Gen[Type] = {
@@ -190,10 +187,14 @@ sealed abstract class Type extends Serializable { self =>
   def byteSize: Int = throw new NotImplementedError(toString)
 
   def alignment: Int = byteSize
+
+  /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
+      types, Array and Struct. */
+  lazy val fundamentalType: Type = this
 }
 
 abstract class ComplexType extends Type {
-  def representation: Type
+  def representation: Type = fundamentalType
 
   override def byteSize: Int = representation.byteSize
 
@@ -596,6 +597,14 @@ case class TArray(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
+
+  override lazy val fundamentalType: Type = {
+    val elementFundamentalType = elementType.fundamentalType
+    if (elementFundamentalType == elementType)
+      this
+    else
+      TArray(elementType.fundamentalType)
+  }
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -646,6 +655,9 @@ case class TSet(elementType: Type) extends TIterable {
     """
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
+
+
+  override lazy val fundamentalType: Type = TArray(elementType.fundamentalType)
 }
 
 case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -711,12 +723,14 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
             keyType.ordering(missingGreatest),
             valueType.ordering(missingGreatest)))))
   }
+
+  override lazy val fundamentalType: Type = TArray(elementType.fundamentalType)
 }
 
 case object TGenotype extends ComplexType {
   override def toString = "Genotype"
 
-  val representation: TStruct = TStruct(
+  override lazy val fundamentalType: TStruct = TStruct(
     "gt" -> TInt32,
     "ad" -> TArray(TInt32),
     "dp" -> TInt32,
@@ -745,7 +759,7 @@ case object TGenotype extends ComplexType {
 case object TCall extends ComplexType {
   override def toString = "Call"
 
-  def representation: Type = TInt32
+  override lazy val fundamentalType: Type = TInt32
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
@@ -775,7 +789,7 @@ case object TAltAllele extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
-  val representation: TStruct = TStruct(
+  override lazy val fundamentalType: TStruct = TStruct(
     "ref" -> TString,
     "alt" -> TString)
 }
@@ -819,7 +833,7 @@ case object TVariant extends ComplexType {
     val pkct: ClassTag[Annotation] = classTag[Annotation]
   }
 
-  val representation: TStruct = TStruct(
+  override lazy val fundamentalType: TStruct = TStruct(
     "contig" -> TString,
     "start" -> TInt32,
     "ref" -> TString,
@@ -841,7 +855,7 @@ case object TLocus extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]]))
 
-  val representation: TStruct = TStruct(
+  override lazy val fundamentalType: TStruct = TStruct(
     "contig" -> TString,
     "position" -> TInt32)
 }
@@ -861,7 +875,7 @@ case object TInterval extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]]))
 
-  val representation: TStruct = TStruct(
+  override lazy val fundamentalType: TStruct = TStruct(
     "start" -> TLocus.representation,
     "end" -> TLocus.representation)
 }
@@ -954,6 +968,8 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
 
   def hasField(name: String): Boolean = fieldIdx.contains(name)
+
+  def field(name: String): Field = fields(fieldIdx(name))
 
   def size: Int = fields.length
 
@@ -1351,4 +1367,13 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       1
     else
       fields.map(_.typ.alignment).max
+
+  override lazy val fundamentalType: TStruct = {
+    val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
+    if ((fields, fundamentalFieldTypes).zipped
+      .forall { case (f, ft) => f.typ == ft })
+      this
+    else
+      TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+  }
 }

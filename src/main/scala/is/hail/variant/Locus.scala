@@ -45,6 +45,9 @@ object Locus {
     )
   }
 
+  def intervalToRow(i: Interval[Locus]): Row =
+    Row(i.start.toRow, i.end.toRow)
+
   def gen(contigs: Seq[String]): Gen[Locus] =
     Gen.zip(Gen.oneOfSeq(contigs), Gen.posInt)
       .map { case (contig, pos) => Locus(contig, pos) }

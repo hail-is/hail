@@ -156,7 +156,7 @@ package object utils extends Logging
     if (denom == 0)
       null
     else
-    num / denom
+      num / denom
 
   val defaultTolerance = 1e-6
 
@@ -488,7 +488,14 @@ package object utils extends Logging
           (i, math.ceil(orig))
         else
           (i, math.floor(orig))
-    }.sortBy(_._1).map(_._2.toInt)
+      }.sortBy(_._1).map(_._2.toInt)
   }
 
+  def digitsNeeded(i: Int): Int = {
+    assert(i >= 0)
+    if (i < 10)
+      1
+    else
+      1 + digitsNeeded(i / 10)
+  }
 }
