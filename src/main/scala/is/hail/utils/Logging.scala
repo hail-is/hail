@@ -25,7 +25,7 @@ trait Logging {
   def info(msg: String, t: Truncatable) {
     val (screen, logged) = t.strings
     if (screen == logged)
-      log.info(format(msg, screen))
+      consoleLog.info(format(msg, screen))
     else {
       // writes twice to the log file, but this isn't a big problem
       consoleLog.info(format(msg, screen))
