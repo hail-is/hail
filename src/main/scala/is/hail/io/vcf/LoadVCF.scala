@@ -1,6 +1,5 @@
 package is.hail.io.vcf
 
-import htsjdk.tribble.TribbleException
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
@@ -12,7 +11,6 @@ import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConversions._
 import scala.io.Source
-import scala.reflect.ClassTag
 
 object LoadVCF {
 
@@ -27,7 +25,7 @@ object LoadVCF {
         && !input.endsWith(".vcf.bgz")) {
         if (input.endsWith(".vcf.gz")) {
           if (!forcegz)
-            fatal(".gz cannot be loaded in parallel, use .bgz or -f override")
+            fatal(".gz cannot be loaded in parallel, use .bgz or force=True override")
         } else
           fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
       }
@@ -75,7 +73,7 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String] = Set.empty[String]): Field = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String]): Field = {
     val id = line.getID
     val isCall = id == "GT" || callFields.contains(id)
 
@@ -102,23 +100,59 @@ object LoadVCF {
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String]): Option[TStruct] = {
-    if (lines.size > 0)
-      Some(TStruct(lines
-        .zipWithIndex
-        .map { case (line, i) => headerField(line, i, callFields) }
-        .toArray))
-    else None
+    callFields: Set[String] = Set.empty[String]): TStruct = {
+    TStruct(lines
+      .zipWithIndex
+      .map { case (line, i) => headerField(line, i, callFields) }
+      .toArray)
+  }
+
+  def formatHeaderSignatue[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
+    callFields: Set[String] = Set.empty[String]): (TStruct, Int) = {
+    val canonicalFields = Array(
+      "GT" -> TCall,
+      "AD" -> TArray(TInt32),
+      "DP" -> TInt32,
+      "GQ" -> TInt32,
+      "PL" -> TArray(TInt32))
+
+    val raw = headerSignature(lines, callFields)
+
+    var canonicalFlags = 0
+    var i = 0
+    val done = mutable.Set[Int]()
+    val fb = new ArrayBuilder[Field]()
+    canonicalFields.zipWithIndex.foreach { case ((id, t), j) =>
+      if (raw.hasField(id)) {
+        val f = raw.field(id)
+        if (f.typ == t) {
+          done += f.index
+          fb += Field(f.name, f.typ, i, f.attrs)
+          canonicalFlags |= (1 << j)
+          i += 1
+        }
+      }
+    }
+
+    raw.fields.foreach { f =>
+      if (!done.contains(f.index)) {
+        fb += Field(f.name, f.typ, i, f.attrs)
+        i += 1
+      }
+    }
+
+    (TStruct(fb.result()), canonicalFlags)
   }
 
   def apply(hc: HailContext,
     reader: HtsjdkRecordReader,
     file1: String,
-    files: Array[String] = null,
+    files: Array[String],
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val hConf = hc.hadoopConf
     val sc = hc.sc
+
     val headerLines = hConf.readFile(file1) { s =>
       Source.fromInputStream(s)
         .getLines()
@@ -127,16 +161,9 @@ object LoadVCF {
     }
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
-
-    val header = try {
-      codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
-        .getHeaderValue
-        .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
-    } catch {
-      case e: TribbleException => fatal(
-        s"""encountered problem with file $file1
-           |  ${ e.getLocalizedMessage }""".stripMargin)
-    }
+    val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+      .getHeaderValue
+      .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
     // FIXME apply descriptions when HTSJDK is fixed to expose filter descriptions
     val filters: Map[String, String] = header
@@ -150,18 +177,14 @@ object LoadVCF {
     val infoSignature = headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val genotypeSignature: Type = {
-      val callFields = reader.callFields
-      headerSignature(formatHeader, callFields).getOrElse(TStruct.empty)
-    }
 
-    val variantAnnotationSignatures = TStruct(
-      Array(
-        Some(Field("rsid", TString, 0)),
-        Some(Field("qual", TFloat64, 1)),
-        Some(Field("filters", TSet(TString), 2, filters)),
-        infoSignature.map(sig => Field("info", sig, 3))
-      ).flatten)
+    val (genotypeSignature, canonicalFlags) = formatHeaderSignatue(formatHeader, reader.callFields)
+
+    val variantAnnotationSignatures = TStruct(Array(
+      Field("rsid", TString, 0),
+      Field("qual", TFloat64, 1),
+      Field("filters", TSet(TString), 2, filters),
+      Field("info", infoSignature, 3)))
 
     val headerLine = headerLines.last
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
@@ -177,18 +200,12 @@ object LoadVCF {
           .split("\t")
           .drop(9)
 
-    val infoSignatureBc = infoSignature.map(sig => sc.broadcast(sig))
+    val infoSignatureBc = sc.broadcast(infoSignature)
     val genotypeSignatureBc = sc.broadcast(genotypeSignature)
 
     val headerLinesBc = sc.broadcast(headerLines)
 
-    val files2 = if (files == null)
-      Array(file1)
-    else
-      files
-
-    val lines = sc.textFilesLines(files2, nPartitions.getOrElse(sc.defaultMinPartitions))
-    val partitionFile = lines.partitions.map(partitionPath)
+    val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
     val justVariants = lines
       .filter(_.map { line =>
@@ -198,7 +215,7 @@ object LoadVCF {
         // FIXME this doesn't filter symbolic, but also avoids decoding the line.  Won't cause errors but might cause unnecessary shuffles
       }.value)
       .map(_.map(lineVariant).value)
-    justVariants.persist(StorageLevel.MEMORY_AND_DISK)
+      .persist(StorageLevel.MEMORY_AND_DISK)
 
     val noMulti = justVariants.forall(_.nAlleles == 2)
 
@@ -207,12 +224,20 @@ object LoadVCF {
     else
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
-    val rdd = lines
-      .mapPartitionsWithIndex { case (i, lines) =>
-        val file = partitionFile(i)
+    val rowType = TStruct(
+      "v" -> TVariant,
+      "va" -> variantAnnotationSignatures,
+      "gs" -> TArray(genotypeSignature))
 
+    val rowTypeTreeBc = BroadcastTypeTree(sc, rowType)
+
+    val rdd = lines
+      .mapPartitions { lines =>
         val codec = new htsjdk.variant.vcf.VCFCodec()
         codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
+
+        val region = MemoryBuffer()
+        val rvb = new RegionValueBuilder(region)
 
         lines.flatMap { l =>
           l.map { line =>
@@ -224,8 +249,19 @@ object LoadVCF {
               val vc = codec.decode(line)
               if (vc.isSymbolic) {
                 None
-              } else
-                Some(reader.readRecord(vc, infoSignatureBc.map(_.value), genotypeSignatureBc.value))
+              } else {
+                region.clear()
+                rvb.start(rowType.fundamentalType)
+                reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, canonicalFlags)
+
+                val ur = new UnsafeRow(rowTypeTreeBc, region.copy(), rvb.end())
+
+                val v = ur.getAs[Variant](0)
+                val va = ur.get(1)
+                val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
+
+                Some((v, (va, gs)))
+              }
             }
           }.value
         }

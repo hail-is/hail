@@ -2,8 +2,6 @@ package is.hail.io.plink
 
 import is.hail.annotations.Annotation
 import is.hail.io.{IndexedBinaryBlockReader, KeySerializedValueRecord}
-import is.hail.utils.ArrayBuilder
-import is.hail.variant.{Genotype, GenotypeBuilder}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit

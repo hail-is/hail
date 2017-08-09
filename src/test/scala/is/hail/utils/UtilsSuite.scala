@@ -279,4 +279,13 @@ class UtilsSuite extends SparkSuite {
       rdd.collectAsSet() == rdd.collect().toSet
     }.check()
   }
+
+  @Test def testDigitsNeeded() {
+    assert(digitsNeeded(0) == 1)
+    assert(digitsNeeded(1) == 1)
+    assert(digitsNeeded(7) == 1)
+    assert(digitsNeeded(9) == 1)
+    assert(digitsNeeded(13) == 2)
+    assert(digitsNeeded(30173) == 5)
+  }
 }

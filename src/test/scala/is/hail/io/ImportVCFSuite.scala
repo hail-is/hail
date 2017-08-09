@@ -154,17 +154,17 @@ class ImportVCFSuite extends SparkSuite {
     assert(r2(v2, s1) == (5, 4, 2))
     assert(r2(v2, s2) == (5, null, 2))
 
-    import is.hail.io.vcf.GenericRecordReader._
-    assert(getCall("0/0", 2) == Call(0))
-    assert(getCall("1/0", 2) == Call(1))
-    assert(getCall("0", 2) == Call(0))
-    assert(getCall(".", 2) == null)
-    assert(getCall("./.", 2) == null)
+    import is.hail.io.vcf.HtsjdkRecordReader._
+    assert(parseCall("0/0", 2) == Call(0))
+    assert(parseCall("1/0", 2) == Call(1))
+    assert(parseCall("0", 2) == Call(0))
+    assert(parseCall(".", 2) == null)
+    assert(parseCall("./.", 2) == null)
     intercept[HailException] {
-      getCall("./0", 2) == Call(0)
+      parseCall("./0", 2) == Call(0)
     }
     intercept[HailException] {
-      getCall("""0\0""", 2) == Call(0)
+      parseCall("""0\0""", 2) == Call(0)
     }
   }
 
