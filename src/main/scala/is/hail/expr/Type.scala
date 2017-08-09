@@ -6,7 +6,7 @@ import is.hail.check.{Gen, _}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
-import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.json4s._
@@ -18,7 +18,7 @@ import scala.reflect.classTag
 
 object Type {
   val genScalar: Gen[Type] = Gen.oneOf[Type](TBoolean, TInt32, TInt64, TFloat32, TFloat64, TString,
-    TVariant, TAltAllele, TGenotype, TLocus, TInterval, TCall)
+    TVariant(GenomeReference.GRCh37), TAltAllele, TGenotype, TLocus(GenomeReference.GRCh37), TInterval(GenomeReference.GRCh37), TCall)
 
   def genSized(size: Int): Gen[Type] = {
     if (size < 1)
@@ -867,7 +867,7 @@ case object TAltAllele extends ComplexType {
     "alt" -> TString)
 }
 
-case object TVariant extends ComplexType {
+case class TVariant(gr: GenomeReference) extends ComplexType {
   override def toString = "Variant"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
@@ -892,14 +892,14 @@ case object TVariant extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Variant]]))
 
-  override val partitionKey: Type = TLocus
+  override val partitionKey: Type = TLocus(gr)
 
   override def orderedKey: OrderedKey[Annotation, Annotation] = new OrderedKey[Annotation, Annotation] {
     def project(key: Annotation): Annotation = key.asInstanceOf[Variant].locus
 
     val kOrd: Ordering[Annotation] = ordering(missingGreatest = true)
 
-    val pkOrd: Ordering[Annotation] = TLocus.ordering(missingGreatest = true)
+    val pkOrd: Ordering[Annotation] = TLocus(gr).ordering(missingGreatest = true)
 
     val kct: ClassTag[Annotation] = classTag[Annotation]
 
@@ -913,7 +913,7 @@ case object TVariant extends ComplexType {
     "altAlleles" -> TArray(TAltAllele.representation))
 }
 
-case object TLocus extends ComplexType {
+case class TLocus(gr: GenomeReference) extends ComplexType {
   override def toString = "Locus"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
@@ -933,7 +933,7 @@ case object TLocus extends ComplexType {
     "position" -> TInt32)
 }
 
-case object TInterval extends ComplexType {
+case class TInterval(gr: GenomeReference) extends ComplexType {
   override def toString = "Interval"
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
@@ -949,8 +949,8 @@ case object TInterval extends ComplexType {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]]))
 
   override lazy val representation: TStruct = TStruct(
-    "start" -> TLocus.representation,
-    "end" -> TLocus.representation)
+    "start" -> TLocus(gr).representation,
+    "end" -> TLocus(gr).representation)
 }
 
 final case class Field(name: String, typ: Type,

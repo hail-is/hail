@@ -11,7 +11,7 @@ import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, Genotype, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, GenomeReference, Genotype, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -263,7 +263,8 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): GenericDataset = {
+    tolerance: Double = 0.2,
+    gr: GenomeReference = GenomeReference.GRCh37): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -301,7 +302,7 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
     new GenericDataset(this,
       VSMFileMetadata(samples,
@@ -580,7 +581,7 @@ class HailContext private(val sc: SparkContext,
 
   def eval(expr: String): (Annotation, Type) = {
     val ec = EvalContext(
-      "v" -> TVariant,
+      "v" -> TVariant(GenomeReference.GRCh37),
       "s" -> TString,
       "g" -> TGenotype,
       "sa" -> TStruct(

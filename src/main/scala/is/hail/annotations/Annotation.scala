@@ -55,9 +55,9 @@ object Annotation {
       null
     else
       t match {
-        case TVariant => a.asInstanceOf[Variant].toRow
+        case x: TVariant => a.asInstanceOf[Variant].toRow
         case TGenotype => Genotype.toRow(a.asInstanceOf[Genotype])
-        case TLocus => a.asInstanceOf[Locus].toRow
+        case x: TLocus => a.asInstanceOf[Locus].toRow
 
         case TArray(elementType) =>
           a.asInstanceOf[IndexedSeq[_]].map(expandAnnotation(_, elementType))
@@ -79,7 +79,7 @@ object Annotation {
 
         case TAltAllele => a.asInstanceOf[AltAllele].toRow
 
-        case TInterval =>
+        case x: TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
           Annotation(i.start.toRow,
             i.end.toRow)

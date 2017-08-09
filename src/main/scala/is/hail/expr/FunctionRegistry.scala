@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Call, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, GenomeReference, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -17,7 +17,6 @@ import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.language.higherKinds
 import scala.reflect.ClassTag
-
 import org.apache.commons.math3.stat.inference.ChiSquareTest
 
 case class MetaData(docstring: Option[String], args: Seq[(String, String)] = Seq.empty[(String, String)])
@@ -1014,7 +1013,7 @@ object FunctionRegistry {
     "keys" -> "Keys of Dict.",
     "values" -> "Values of Dict.")(arrayHr(TTHr), arrayHr(TUHr), dictHr(TTHr, TUHr))
 
-  val combineVariantsStruct = TStruct(Array(("variant", TVariant, "Resulting combined variant."),
+  val combineVariantsStruct = TStruct(Array(("variant", TVariant(GenomeReference.GRCh37), "Resulting combined variant."),
     ("laIndices", TDict(TInt32, TInt32), "Mapping from new to old allele index for the left variant."),
     ("raIndices", TDict(TInt32, TInt32), "Mapping from new to old allele index for the right variant.")
   ).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })

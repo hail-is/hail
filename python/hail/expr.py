@@ -537,7 +537,7 @@ class TVariant(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TVariant, self).__init__(scala_object(Env.hail().expr, 'TVariant'))
+        super(TVariant, self).__init__(scala_object(Env.hail().expr, 'TVariant').apply(Env.hail().variant.GenomeReference.GRCh37()))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -669,7 +669,7 @@ class TLocus(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TLocus, self).__init__(scala_object(Env.hail().expr, 'TLocus'))
+        super(TLocus, self).__init__(scala_object(Env.hail().expr, 'TLocus').apply(Env.hail().variant.GenomeReference.GRCh37()))
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -702,7 +702,7 @@ class TInterval(Type):
     __metaclass__ = SingletonType
 
     def __init__(self):
-        super(TInterval, self).__init__(scala_object(Env.hail().expr, 'TInterval'))
+        super(TInterval, self).__init__(scala_object(Env.hail().expr, 'TInterval').apply(Env.hail().variant.GenomeReference.GRCh37()))
 
     def _convert_to_py(self, annotation):
         if annotation:

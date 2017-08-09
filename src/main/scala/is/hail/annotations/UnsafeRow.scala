@@ -2,7 +2,7 @@ package is.hail.annotations
 
 import is.hail.expr._
 import is.hail.utils.Interval
-import is.hail.variant.{AltAllele, GenericGenotype, Locus, Variant}
+import is.hail.variant.{AltAllele, GenericGenotype, GenomeReference, Locus, Variant}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
@@ -50,7 +50,7 @@ object UnsafeRow {
     new String(readBinary(region, offset))
 
   def readLocus(region: MemoryBuffer, offset: Int): Locus = {
-    val ft = TLocus.fundamentalType.asInstanceOf[TStruct]
+    val ft = TLocus(GenomeReference.GRCh37).fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, offset + ft.byteOffsets(0)),
       region.loadInt(offset + ft.byteOffsets(1)))
@@ -121,17 +121,17 @@ object UnsafeRow {
       case struct: TStruct =>
         readStruct(region, offset, ttBc)
 
-      case TVariant =>
-        val ft = TVariant.fundamentalType.asInstanceOf[TStruct]
+      case t: TVariant =>
+        val ft = t.fundamentalType.asInstanceOf[TStruct]
         Variant(
           readString(region, offset + ft.byteOffsets(0)),
           region.loadInt(offset + ft.byteOffsets(1)),
           readString(region, offset + ft.byteOffsets(2)),
           readArrayAltAllele(region, offset + ft.byteOffsets(3)))
-      case TLocus => readLocus(region, offset)
+      case t: TLocus => readLocus(region, offset)
       case TAltAllele => readAltAllele(region, offset)
-      case TInterval =>
-        val ft = TInterval.fundamentalType.asInstanceOf[TStruct]
+      case t: TInterval =>
+        val ft = t.fundamentalType.asInstanceOf[TStruct]
         Interval[Locus](
           readLocus(region, offset + ft.byteOffsets(0)),
           readLocus(region, offset + ft.byteOffsets(1)))
