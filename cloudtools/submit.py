@@ -1,6 +1,5 @@
 from subprocess import check_output, call
 
-
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('script', type=str)
@@ -13,6 +12,7 @@ def init_parser(parser):
     parser.add_argument('--jar', required=False, type=str, help='Custom Hail jar to use.')
     parser.add_argument('--zip', required=False, type=str, help='Custom Hail zip to use.')
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
+    parser.add_argument('--args', type=str, help='Quoted string of arguments to pass to the Hail script being submitted.')
 
 
 def main(args):
@@ -57,4 +57,11 @@ def main(args):
         '--py-files={}'.format(zip_path),
         '--properties={}'.format(properties)
     ]
+
+    # append arguments to pass to the Hail script
+    if args.args:
+        cmd.append('--')
+        for x in args.args.split():
+            cmd.append(x)
+
     call(cmd)
