@@ -9,7 +9,7 @@ import org.scalatest.testng.TestNGSuite
 object SparkSuite {
   lazy val hc = HailContext(master = Option(System.getProperty("hail.master")),
     appName = "Hail.TestNG",
-    local = "local[1]",
+    local = "local[2]",
     quiet = true,
     minBlockSize = 0)
 }

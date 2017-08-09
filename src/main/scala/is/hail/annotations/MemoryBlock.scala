@@ -373,7 +373,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
 
   def addBinary(bytes: Array[Byte]) {
     current() match {
-      case (TFloat64, off) =>
+      case (TBinary, off) =>
         region.align(4)
         val boff = region.offset
         region.storeInt(off, boff)
@@ -385,18 +385,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def addString(s: String) {
-    current() match {
-      case (TString, off) =>
-        region.align(4)
-        val soff = region.offset
-        region.storeInt(off, soff)
-
-        val bytes = s.getBytes
-        region.appendInt(bytes.length)
-        region.appendBytes(bytes)
-
-        advance()
-    }
+    addBinary(s.getBytes)
   }
 
   def addRow(t: TStruct, r: Row) {
@@ -426,7 +415,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
     t match {
       case t: TStruct => t.fields.exists(f => requiresFixup(f.typ))
       case t: TArray => true
-      case TString | TBinary => true
+      case TBinary => true
       case _ => false
     }
   }
@@ -458,7 +447,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
               val elemFromAOff = fromRegion.loadInt(fromAOff + off)
               fixupArray(t2, toAOff + off, fromRegion, elemFromAOff)
 
-            case TString | TBinary =>
+            case TBinary =>
               fixupBinary(toAOff + off, fromRegion, fromAOff + off)
 
             case _ =>
@@ -479,7 +468,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
           case t2: TStruct =>
             fixupStruct(t2, toOff + fieldOff, fromRegion, fromOff + fieldOff)
 
-          case TString | TBinary =>
+          case TBinary =>
             fixupBinary(toOff + fieldOff, fromRegion, fromOff + fieldOff)
 
           case t2: TArray =>

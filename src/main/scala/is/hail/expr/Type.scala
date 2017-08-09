@@ -191,8 +191,6 @@ sealed abstract class Type extends Serializable { self =>
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
   lazy val fundamentalType: Type = this
-
-  def containsPointer: Boolean = children.exists(_.containsPointer)
 }
 
 abstract class ComplexType extends Type {
@@ -222,8 +220,6 @@ case object TBinary extends Type {
   }
 
   override def byteSize: Int = 4
-
-  override def containsPointer: Boolean = true
 }
 
 case object TBoolean extends Type {
@@ -360,7 +356,7 @@ case object TString extends Type {
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 
-  override def scalaClassTag: ClassTag[String] = classTag[String]
+  override def scalaClassTag: ClassManifest[String] = classTag[String]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
@@ -368,7 +364,7 @@ case object TString extends Type {
 
   override def byteSize: Int = 4
 
-  override def containsPointer: Boolean = true
+  override lazy val fundamentalType: Type = TBinary
 }
 
 case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -620,8 +616,6 @@ case class TArray(elementType: Type) extends TIterable {
     else
       TArray(elementType.fundamentalType)
   }
-
-  override def containsPointer: Boolean = true
 }
 
 case class TSet(elementType: Type) extends TIterable {
@@ -807,8 +801,8 @@ case object TAltAllele extends ComplexType {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
   override lazy val fundamentalType: TStruct = TStruct(
-    "ref" -> TString,
-    "alt" -> TString)
+    "ref" -> TBinary,
+    "alt" -> TBinary)
 }
 
 case object TVariant extends ComplexType {
@@ -851,9 +845,9 @@ case object TVariant extends ComplexType {
   }
 
   override lazy val fundamentalType: TStruct = TStruct(
-    "contig" -> TString,
+    "contig" -> TBinary,
     "start" -> TInt32,
-    "ref" -> TString,
+    "ref" -> TBinary,
     "altAlleles" -> TArray(TAltAllele.representation))
 }
 
@@ -873,7 +867,7 @@ case object TLocus extends ComplexType {
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]]))
 
   override lazy val fundamentalType: TStruct = TStruct(
-    "contig" -> TString,
+    "contig" -> TBinary,
     "position" -> TInt32)
 }
 
