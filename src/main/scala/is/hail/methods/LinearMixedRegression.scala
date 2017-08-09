@@ -353,7 +353,6 @@ class LowRankScalarLMM(con: LMMConstants, delta: Double, logNullS2: Double, useM
   }
 }
 
-
 object DiagLMM {
   def apply(
     lmmConstants: LMMConstants,
