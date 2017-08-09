@@ -260,6 +260,26 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
 
+  def unsafeRowRDD: RDD[UnsafeRow] = {
+    val ttBc = BroadcastTypeTree(hc.sc, rowSignature)
+
+    rdd.mapPartitions { it =>
+      val region = MemoryBuffer(8 * 1024)
+      val rvb = new RegionValueBuilder(region)
+
+      val t = ttBc.value.typ.asInstanceOf[TStruct]
+      val f = t.fundamentalType
+
+      it.map { case (v, (va, gs)) =>
+        region.clear()
+        rvb.start(f)
+        rvb.addRow(t, Row(v, va, gs))
+        val offset = rvb.end()
+        new UnsafeRow(ttBc, region.copy(), 0)
+      }
+    }
+  }
+
   def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
 
     val (keysType, keysQuerier) = queryVA(variantKeysVA)
@@ -1986,6 +2006,11 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
   }
 
+  def rowSignature: TStruct = TStruct(
+    "v" -> vSignature,
+    "va" -> vaSignature,
+    "gs" -> TArray(genotypeSignature))
+
   def write(dirname: String, overwrite: Boolean = false): Unit = {
     require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
 
@@ -2002,11 +2027,6 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         rdd.orderedPartitioner.mapMonotonic[Annotation, Annotation]((pk: RPK) => pk: Annotation)(
           vSignature.orderedKey).toJSON, out)
     }
-
-    val rowSignature = TStruct(
-      "v" -> vSignature,
-      "va" -> vaSignature,
-      "gs" -> TArray(genotypeSignature))
 
     val localNSamples = nSamples
     val localGenotypeSignature = genotypeSignature
