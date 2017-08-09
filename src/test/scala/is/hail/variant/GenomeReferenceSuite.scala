@@ -47,4 +47,25 @@ class GenomeReferenceSuite extends SparkSuite {
     intercept[IllegalArgumentException](GenomeReference("test", Array(Contig("1", 5), Contig("2", 5), Contig("3", 5)),
       Set.empty[String], Set.empty[String], Set("MT"), Array(Interval(Locus("X", 1), Locus("X", 5)))))
   }
+
+  @Test def testVariant() {
+    val gr = GenomeReference.GRCh37
+
+    val v1 = Variant("1", 50000, "A", "T")
+    val v2 = Variant("X", 2499520, "T", "G")
+    val v3 = Variant("Y", 50001, "G", "C")
+    val v4 = Variant("MT", 30, "T", "G")
+    val v5 = Variant("X", 50, "G", "A")
+    val v6 = Variant("Y", 5000, "C", "T")
+
+    for (v <- Array(v1, v2, v3, v4, v5, v6)) {
+      assert(v.isAutosomal == v.isAutosomal(gr))
+      assert(v.isAutosomalOrPseudoAutosomal == v.isAutosomalOrPseudoAutosomal(gr))
+      assert(v.isMitochondrial == v.isMitochondrial(gr))
+      assert(v.inXPar == v.inXPar(gr))
+      assert(v.inYPar == v.inYPar(gr))
+      assert(v.inXNonPar == v.inXNonPar(gr))
+      assert(v.inYNonPar == v.inYNonPar(gr))
+    }
+  }
 }
