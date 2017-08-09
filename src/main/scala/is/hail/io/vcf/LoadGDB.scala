@@ -3,16 +3,16 @@ package is.hail.io.vcf
 import com.intel.genomicsdb.GenomicsDBFeatureReader
 import htsjdk.variant.vcf.VCFHeader
 import is.hail.HailContext
-import is.hail.annotations.Annotation
+import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{VSMLocalValue, VSMMetadata, VariantSampleMatrix, Locus, Variant}
+import is.hail.variant.{Locus, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters.asScalaIteratorConverter
-import java.io.{FileWriter, File}
+import java.io.{File, FileWriter}
 
 case class QueryJSON(workspace: String,
                      array: String,
@@ -95,18 +95,13 @@ object LoadGDB {
     val infoSignature = LoadVCF.headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val genotypeSignature: Type = {
-      val callFields = reader.callFields
-      LoadVCF.headerSignature(formatHeader, callFields).getOrElse(TStruct.empty)
-    }
+    val (genotypeSignature, canonicalFlags) = LoadVCF.formatHeaderSignatue(formatHeader, reader.callFields)
 
-    val variantAnnotationSignatures = TStruct(
-      Array(
-        Some(Field("rsid", TString, 0)),
-        Some(Field("qual", TFloat64, 1)),
-        Some(Field("filters", TSet(TString), 2, filters)),
-        infoSignature.map(sig => Field("info", sig, 3))
-      ).flatten)
+    val variantAnnotationSignatures = TStruct(Array(
+      Field("rsid", TString, 0),
+      Field("qual", TFloat64, 1),
+      Field("filters", TSet(TString), 2, filters),
+      Field("info", infoSignature, 3)))
 
     val sampleIds: Array[String] =
       if (dropSamples)
@@ -119,11 +114,31 @@ object LoadGDB {
           Array.empty
       }
 
+    val rowType = TStruct(
+      "v" -> TVariant,
+      "va" -> variantAnnotationSignatures,
+      "gs" -> TArray(genotypeSignature))
+
+    val rowTypeTreeBc = BroadcastTypeTree(sc, rowType)
+
+    val region = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+
     val records = gdbReader
       .iterator
       .asScala
       .map(vc => {
-        reader.readRecord(vc, infoSignature, genotypeSignature)
+        region.clear()
+        rvb.start(rowType.fundamentalType)
+        reader.readRecord(vc, rvb, infoSignature, genotypeSignature, canonicalFlags)
+
+        val ur = new UnsafeRow(rowTypeTreeBc, region.copy(), rvb.end())
+
+        val v = ur.getAs[Variant](0)
+        val va = ur.get(1)
+        val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
+
+        (v, (va, gs))
       })
       .toSeq
 

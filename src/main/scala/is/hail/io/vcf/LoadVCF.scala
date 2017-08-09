@@ -10,6 +10,7 @@ import org.apache.hadoop
 import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.io.Source
 
 object LoadVCF {
