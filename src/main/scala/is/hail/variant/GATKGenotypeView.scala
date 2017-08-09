@@ -4,9 +4,12 @@ import is.hail.annotations.{MemoryBuffer, RegionValue, UnsafeRow, UnsafeUtils}
 import is.hail.expr._
 
 final class GATKGenotypeView(@transient vsm: VariantSampleMatrix[_, _, _]) extends Serializable {
+  // FIXME: When TGenotype is removed, this should always be a struct and fundamentalType will be unnecessary
   @transient private val t = vsm.genotypeSignature.fundamentalType.asInstanceOf[TStruct]
   private val tAlignment = t.alignment
   private val tSize = t.byteSize
+
+  // FIXME: When TGenotype is removed, this should be TCall
   val hasAnyGT: Boolean = t.fieldIdx.contains("gt") && t.field("gt").typ == TInt32
   val hasAnyAD: Boolean = t.fieldIdx.contains("ad") && t.field("ad").typ == TArray(TInt32)
   val hasAnyDP: Boolean = t.fieldIdx.contains("dp") && t.field("dp").typ == TInt32
