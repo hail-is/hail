@@ -106,6 +106,9 @@ class HailContext(object):
             '   / __  / _ `/ / /\n'
             '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
 
+        if self.version.startswith('devel'):
+            sys.stderr.write('WARNING: This is an unstable development build.')
+
     @staticmethod
     def get_running():
         """Return the running Hail context in this Python session.
