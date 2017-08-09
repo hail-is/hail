@@ -6,6 +6,11 @@ import is.hail.io.vcf.{HtsjdkRecordReader, LoadGDB, LoadVCF}
 import org.testng.annotations.Test
 
 class ImportGDBSuite extends SparkSuite {
+  /*TODO: when genomicsDB allows tiledb workspaces to move from creation location:
+      -enable all tests
+      -create new tiledb workspace with newest genomicsDB updates
+      -replace old tiledb workspace in src/test/resources/ with new one
+   */
 
   val loader = "src/test/resources/sample2loader.json"
   val workspace = "src/test/resources/tdbworkspace"
@@ -25,7 +30,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfGA == gdbGA)
   }
 
-  @Test def genomicsDBNoMulti() {
+  @Test(enabled = false) def genomicsDBNoMulti() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
@@ -67,7 +72,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfGenotypeSignature.zip(gdbGenotypeSignature).forall( { case (f1, f2) => f1.equals(f2) }))
   }
 
-  @Test def genomicsDBVariantsSamples() {
+  @Test(enabled = false) def genomicsDBVariantsSamples() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
@@ -118,7 +123,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfAnn.zip(gdbAnn).forall( { case (a1, a2) => a1.equals(a2) }))
   }
 
-  @Test def genomicsDBSampleAnnotations() {
+  @Test(enabled = false) def genomicsDBSampleAnnotations() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
@@ -129,7 +134,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfSA.equals(gdbSA))
   }
 
-  @Test def genomicsDBFilters() {
+  @Test(enabled = false) def genomicsDBFilters() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, "src/test/resources/sample2.vcf")
