@@ -529,7 +529,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
         sb.clear()
 
         localTypes.indices.foreachBetween { i =>
-          sb.append(localTypes(i).str(r.get(i)))
+          sb.append(TableAnnotationImpex.exportAnnotation(r.get(i), localTypes(i)))
         }(sb += '\t')
 
         sb.result()

@@ -141,7 +141,7 @@ object Parser extends JavaTokenParsers {
     (anyFailAllFail(names), types,
       () => {
         (types, f()).zipped.map { case (t, v) =>
-          t.str(v)
+          TableAnnotationImpex.exportAnnotation(v, t)
         }
       })
   }

@@ -242,11 +242,14 @@ object VariantSubgen {
     altGen = Gen.frequency((10, genDNAString),
       (1, Gen.const("*"))))
 
-  val plinkCompatible = random.copy(
-    contigGen = Gen
-      .zip(Gen.choose(1, 22).map(_.toString), Gen.choose(1000000, 500000000))
-      .map { case (name, length) => Contig(name, length) }
-  )
+  val plinkCompatible = {
+    val contigGen = for {
+      name <- Gen.choose(1, 22).map(_.toString)
+      length <- Gen.choose(1000000, 500000000)
+    } yield Contig(name, length)
+
+    random.copy(contigGen = contigGen)
+  }
 
   val biallelic = random.copy(nAllelesGen = Gen.const(2))
 
