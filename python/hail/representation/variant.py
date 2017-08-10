@@ -505,7 +505,7 @@ class Contig(object):
     """
 
     @handle_py4j
-    @typecheck_method(name=strlike,
+    @typecheck_method(name=oneof(strlike, integral),
                       length=integral)
     def __init__(self, name, length):
         if isinstance(name, int):
