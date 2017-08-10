@@ -8,7 +8,7 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 
 object BedAnnotator {
-  def apply(hc: HailContext, filename: String, gr: GenomeReference = GenomeReference.GRCh37): KeyTable = {
+  def apply(hc: HailContext, filename: String): KeyTable = {
     // this annotator reads files in the UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     val hasTarget = hc.hadoopConf.readLines(filename) { lines =>
@@ -36,6 +36,8 @@ object BedAnnotator {
     }
 
     val expectedLength = if (hasTarget) 4 else 3
+
+    val gr = GenomeReference.GRCh37
 
     val schema = if (hasTarget)
       TStruct("interval" -> TInterval(gr), "target" -> TString)
