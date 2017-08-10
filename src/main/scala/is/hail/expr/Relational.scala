@@ -60,7 +60,7 @@ case class MatrixType(
   def variantEC: EvalContext = {
     val aggregationST = Map(
       "global" -> (0, globalType),
-      "v" -> (1, TVariant),
+      "v" -> (1, vType),
       "va" -> (2, vaType),
       "g" -> (3, genotypeType),
       "s" -> (4, sType),
