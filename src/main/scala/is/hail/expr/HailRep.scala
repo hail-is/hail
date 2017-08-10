@@ -67,11 +67,7 @@ trait HailRepFunctions {
     def typ = TVariant(GenomeReference.GRCh37)
   }
 
-//  implicit object variantHr extends HailRep[Variant] {
-//    def typ = TVariant(GenomeReference.GRCh37)
-//  }
-
-  implicit object locusHr extends HailRep[Locus] {
+  implicit def locusHr[T](implicit hrt: HailRep[T]) = new HailRep[Locus] {
     def typ = TLocus(GenomeReference.GRCh37)
   }
 
@@ -79,7 +75,7 @@ trait HailRepFunctions {
     def typ = TAltAllele
   }
 
-  implicit object locusIntervalHr extends HailRep[Interval[Locus]] {
+  implicit def locusIntervalHr[T](implicit hrt: HailRep[T]) = new HailRep[Interval[Locus]] {
     def typ = TInterval(GenomeReference.GRCh37)
   }
 

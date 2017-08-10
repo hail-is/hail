@@ -786,12 +786,12 @@ object FunctionRegistry {
   // assumes biallelic
   registerMethod("alt", { (x: Variant) => x.alt }, "Alternate allele sequence.  **Assumes biallelic.**")(variantHr(TTHr), stringHr)
   registerMethod("altAllele", { (x: Variant) => x.altAllele }, "The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**")(variantHr(TTHr), altAlleleHr)
-  registerMethod("locus", { (x: Variant) => x.locus }, "Chromosomal locus (chr, pos) of this variant")(variantHr(TTHr), locusHr)
+  registerMethod("locus", { (x: Variant) => x.locus }, "Chromosomal locus (chr, pos) of this variant")(variantHr(TTHr), locusHr(TTHr))
   registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal }, "True if chromosome is not X, not Y, and not MT.")(variantHr(TTHr), boolHr)
-  registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")
-  registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")
-  registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus` at the start of the interval (inclusive).")
-  registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus` at the end of the interval (exclusive).")
+  registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(TTHr), stringHr)
+  registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(TTHr), int32Hr)
+  registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus` at the start of the interval (inclusive).")(locusIntervalHr(TTHr), locusHr(TTHr))
+  registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus` at the end of the interval (exclusive).")(locusIntervalHr(TTHr), locusHr(TTHr))
   registerField("ref", { (x: AltAllele) => x.ref }, "Reference allele base sequence.")
   registerField("alt", { (x: AltAllele) => x.alt }, "Alternate allele base sequence.")
   registerMethod("isSNP", { (x: AltAllele) => x.isSNP }, "True if ``v.ref`` and ``v.alt`` are the same length and differ in one position.")
@@ -1078,7 +1078,7 @@ object FunctionRegistry {
         result: 10040532
     """,
     ("s", "String of the form ``CHR:POS``")
-  )
+  )(stringHr, locusHr(TTHr))
 
   register("Locus", { (x: String, y: Int) => Locus(x, y) },
     """
@@ -1091,13 +1091,13 @@ object FunctionRegistry {
         result: 10040532
     """,
     "contig" -> "String representation of contig.",
-    "pos" -> "SNP position or start of an indel.")
+    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(TTHr))
   register("Interval", { (x: Locus, y: Locus) => Interval(x, y) },
     """
     Construct a :ref:`interval` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
     """,
     "startLocus" -> "Start position of interval",
-    "endLocus" -> "End position of interval")
+    "endLocus" -> "End position of interval")(locusHr(TTHr), locusHr(TTHr), locusIntervalHr(TTHr))
 
   val hweStruct = TStruct(Array(("rExpectedHetFrequency", TFloat64, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
     ("pHWE", TFloat64, "P-value")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
@@ -1251,7 +1251,7 @@ object FunctionRegistry {
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
     """,
     "s" -> "The string to parse."
-  )
+  )(stringHr, locusIntervalHr(TTHr))
 
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
     """
@@ -1259,7 +1259,7 @@ object FunctionRegistry {
     """,
     "chr" -> "Chromosome.",
     "start" -> "Starting position.",
-    "end" -> "Ending position (exclusive).")
+    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(TTHr))
 
   register("pcoin", { (p: Double) => math.random < p },
     """
@@ -1523,7 +1523,7 @@ object FunctionRegistry {
         let i = Interval(Locus("1", 1000), Locus("1", 2000)) in i.contains(Locus("1", 1500))
         result: true
     """,
-    "locus" -> ":ref:`locus`")
+    "locus" -> ":ref:`locus`")(locusIntervalHr(TTHr), locusHr(TTHr), boolHr)
 
   val sizeDocstring = "Number of elements in the collection."
   registerMethod("length", (a: IndexedSeq[Any]) => a.length, sizeDocstring)(arrayHr(TTHr), int32Hr)
