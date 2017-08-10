@@ -60,7 +60,7 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
     *
     * Useful for running methods that require biallelic variants without calling the more expensive split_multi step.
     */
-  def filterMulti(): VariantSampleMatrix[Locus, Variant, _] = {
+  def filterMulti(): VariantSampleMatrix[Locus, Variant, T] = {
     if (vsm.wasSplit) {
       warn("called redundant `filtermulti' on an already split or multiallelic-filtered VDS")
       vsm
