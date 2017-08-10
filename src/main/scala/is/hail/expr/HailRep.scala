@@ -63,9 +63,13 @@ trait HailRepFunctions {
     def typ = TGenotype
   }
 
-  implicit object variantHr extends HailRep[Variant] {
+  implicit def variantHr[T](implicit hrt: HailRep[T]) = new HailRep[Variant] {
     def typ = TVariant(GenomeReference.GRCh37)
   }
+
+//  implicit object variantHr extends HailRep[Variant] {
+//    def typ = TVariant(GenomeReference.GRCh37)
+//  }
 
   implicit object locusHr extends HailRep[Locus] {
     def typ = TLocus(GenomeReference.GRCh37)
