@@ -34,12 +34,12 @@ object VariantQC {
     val extract = Genotype.buildGenotypeExtractor(vds.genotypeSignature)
     val (newVAS, insertQC) = vds.vaSignature.insert(VariantQC.signature,
       Parser.parseAnnotationRoot(root, Annotation.VARIANT_HEAD))
-    val gatkView = new GATKGenotypeView(vds)
     val nSamples = vds.nSamples
+    val rowSignature = vds.rowSignature
     val rdd = vds.unsafeRowRDD.mapPartitions { it =>
-      val view = gatkView
+      val view = GATKGenotypeView(rowSignature)
       it.map { r =>
-        view.setRegion(r.region)
+        view.setRegion(r.region, r.offset)
 
         var nNotCalled: Int = 0
         var nHomRef: Int = 0
@@ -52,7 +52,7 @@ object VariantQC {
 
         var i = 0
         while (i < nSamples) {
-          view.set(i)
+          view.setGenotype(i)
           if (view.hasGT) {
             val gt = view.getGT
             (gt: @unchecked) match {

@@ -231,7 +231,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
   def start(newRoot: TStruct) {
     assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
 
-    root = newRoot
+    root = newRoot.fundamentalType
     start = root.allocate(region)
   }
 

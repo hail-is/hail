@@ -267,7 +267,6 @@ class RichRDDRow(val rdd: RDD[Row]) extends AnyVal {
       var rowCount = 0L
 
       val t = tBc.value
-      val f = t.fundamentalType
 
       val is = i.toString
       assert(is.length <= d)
@@ -280,7 +279,7 @@ class RichRDDRow(val rdd: RDD[Row]) extends AnyVal {
 
         it.foreach { r =>
           region.clear()
-          rvb.start(f)
+          rvb.start(t)
           rvb.addRow(t, r)
           val offset = rvb.end()
 

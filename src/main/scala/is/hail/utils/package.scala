@@ -266,12 +266,7 @@ package object utils extends Logging
   }
 
 
-  def uninitialized[T]: T = {
-    class A {
-      var x: T = _
-    }
-    (new A).x
-  }
+  def uninitialized[T]: T = null.asInstanceOf[T]
 
   def mapAccumulate[C[_], T, S, U](a: Iterable[T], z: S)(f: (T, S) => (U, S))(implicit uct: ClassTag[U],
     cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {

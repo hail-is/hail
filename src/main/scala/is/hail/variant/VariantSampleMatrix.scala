@@ -263,19 +263,38 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   def unsafeRowRDD: RDD[UnsafeRow] = {
     val ttBc = BroadcastTypeTree(hc.sc, rowSignature)
 
+    val localNSamples = nSamples
     rdd.mapPartitions { it =>
       val region = MemoryBuffer(8 * 1024)
       val rvb = new RegionValueBuilder(region)
 
+      val a = new Array[Any](localNSamples)
       val t = ttBc.value.typ.asInstanceOf[TStruct]
-      val f = t.fundamentalType
 
       it.map { case (v, (va, gs)) =>
+
+        val gis: IndexedSeq[_] = gs match {
+          case gis: IndexedSeq[_] => gis
+          case gs: Iterable[_] =>
+            var i = 0
+            val git = gs.iterator
+            while (i < localNSamples) {
+              val g = git.next()
+              a(i) = g
+              i += 1
+            }
+            assert(!git.hasNext)
+            a
+        }
         region.clear()
-        rvb.start(f)
-        rvb.addRow(t, Row(v, va, gs))
+        rvb.start(t)
+        rvb.startStruct()
+        rvb.addAnnotation(t.fields(0).typ, v)
+        rvb.addAnnotation(t.fields(1).typ, va)
+        rvb.addAnnotation(t.fields(2).typ, gis)
+        rvb.endStruct()
         val offset = rvb.end()
-        new UnsafeRow(ttBc, region.copy(), 0)
+        new UnsafeRow(ttBc, region.copy(), offset)
       }
     }
   }
@@ -2030,22 +2049,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val localNSamples = nSamples
     val localGenotypeSignature = genotypeSignature
-    rdd.mapPartitions { it =>
-      val a = new Array[Any](localNSamples)
-
-      it.map { case (v, (va, gs)) =>
-        var i = 0
-        val git = gs.iterator
-        while (i < localNSamples) {
-          val g = git.next()
-          a(i) = g
-          i += 1
-        }
-        assert(!git.hasNext)
-
-        Row(v, va, a: IndexedSeq[Any])
-      }
-    }.writeRows(dirname, rowSignature)
+    unsafeRowRDD.map(r => r: Row).writeRows(dirname, rowSignature)
   }
 
   def makeSchema(): StructType = {
