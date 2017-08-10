@@ -137,19 +137,15 @@ object OrderedRDD {
 
       indicesBuilder += i
 
-      def overlaps(info: PartitionKeyInfo[PK]): Boolean = {
-        assert(info.min >= max)
-        info.min == info.max && info.min == max
-      }
-
-      while (it.hasNext && overlaps(sortedKeyInfo(it.head))) {
+      var continue = true
+      while (continue && it.hasNext && sortedKeyInfo(it.head).min == max) {
         anyOverlaps = true
-        indicesBuilder += it.next()
-      }
-
-      if (it.hasNext && sortedKeyInfo(it.head).min == max) {
-        anyOverlaps = true
-        indicesBuilder += it.head
+        if (sortedKeyInfo(it.head).max == max)
+          indicesBuilder += it.next()
+        else {
+          indicesBuilder += it.head
+          continue = false
+        }
       }
 
       val adjustments = indicesBuilder.result().zipWithIndex.map { case (partitionIndex, index) =>
