@@ -5,9 +5,9 @@ import is.hail.utils.Interval
 import is.hail.variant.{AltAllele, GenericGenotype, Locus, Variant}
 import org.apache.spark.sql.Row
 
-class UnsafeIndexedSeqAnnotation(region: MemoryBuffer,
+class UnsafeIndexedSeqAnnotation(val region: MemoryBuffer,
   arrayTTBc: BroadcastTypeTree,
-  elemSize: Int, offset: Int, elemOffset: Int,
+  elemSize: Int, val offset: Int, elemOffset: Int,
   val length: Int) extends IndexedSeq[Annotation] {
   def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
@@ -15,10 +15,11 @@ class UnsafeIndexedSeqAnnotation(region: MemoryBuffer,
     assert(i >= 0 && i < length)
     if (region.loadBit(offset + 4, i))
       null
-    else
+    else {
       UnsafeRow.read(region, elemOffset + i * elemSize,
         arrayTTBc.value.typ.asInstanceOf[TContainer].elementType,
         arrayTTBc.value.subtree(0))
+    }
   }
 }
 
@@ -34,10 +35,10 @@ object UnsafeRow {
     val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
-    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemOffset = arrayTTBc.value.typ.asInstanceOf[TContainer].elementsOffset(length)
     val elemSize = UnsafeUtils.arrayElementSize(elemType)
 
-    new UnsafeIndexedSeqAnnotation(region, arrayTTBc, elemSize, aoff, elemOffset, length)
+    new UnsafeIndexedSeqAnnotation(region, arrayTTBc, elemSize, aoff, aoff + elemOffset, length)
   }
 
   def readStruct(region: MemoryBuffer, offset: Int, ttBc: BroadcastTypeTree): UnsafeRow = {
@@ -48,14 +49,14 @@ object UnsafeRow {
     new String(readBinary(region, offset))
 
   def readLocus(region: MemoryBuffer, offset: Int): Locus = {
-    val ft = TLocus.fundamentalType
+    val ft = TLocus.fundamentalType.asInstanceOf[TStruct]
     Locus(
       readString(region, offset + ft.byteOffsets(0)),
       region.loadInt(offset + ft.byteOffsets(1)))
   }
 
   def readAltAllele(region: MemoryBuffer, offset: Int): AltAllele = {
-    val ft = TAltAllele.fundamentalType
+    val ft = TAltAllele.fundamentalType.asInstanceOf[TStruct]
     AltAllele(
       readString(region, offset + ft.byteOffsets(0)),
       readString(region, offset + ft.byteOffsets(1)))
@@ -63,17 +64,18 @@ object UnsafeRow {
 
   def readArrayAltAllele(region: MemoryBuffer, offset: Int): Array[AltAllele] = {
     val elemType = TAltAllele
+    val t = TArray(elemType)
 
     val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
-    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemOffset = t.elementsOffset(length)
     val elemSize = UnsafeUtils.arrayElementSize(elemType)
 
     val a = new Array[AltAllele](length)
     var i = 0
     while (i < length) {
-      a(i) = readAltAllele(region, elemOffset + i * elemSize)
+      a(i) = readAltAllele(region, aoff + elemOffset + i * elemSize)
       i += 1
     }
     a
@@ -81,17 +83,18 @@ object UnsafeRow {
 
   def readArrayInt(region: MemoryBuffer, offset: Int): Array[Int] = {
     val elemType = TInt32
+    val t = TArray(elemType)
 
     val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
-    val elemOffset = UnsafeUtils.roundUpAlignment(aoff + 4 + (length + 7) / 8, elemType.alignment)
+    val elemOffset = t.elementsOffset(length)
     val elemSize = UnsafeUtils.arrayElementSize(elemType)
 
     val a = new Array[Int](length)
     var i = 0
     while (i < length) {
-      a(i) = region.loadInt(elemOffset + i * elemSize)
+      a(i) = region.loadInt(aoff + elemOffset + i * elemSize)
       i += 1
     }
     a
@@ -118,7 +121,7 @@ object UnsafeRow {
         readStruct(region, offset, ttBc)
 
       case TVariant =>
-        val ft = TVariant.fundamentalType
+        val ft = TVariant.fundamentalType.asInstanceOf[TStruct]
         Variant(
           readString(region, offset + ft.byteOffsets(0)),
           region.loadInt(offset + ft.byteOffsets(1)),
@@ -127,12 +130,12 @@ object UnsafeRow {
       case TLocus => readLocus(region, offset)
       case TAltAllele => readAltAllele(region, offset)
       case TInterval =>
-        val ft = TInterval.fundamentalType
+        val ft = TInterval.fundamentalType.asInstanceOf[TStruct]
         Interval[Locus](
           readLocus(region, offset + ft.byteOffsets(0)),
           readLocus(region, offset + ft.byteOffsets(1)))
       case TGenotype =>
-        val ft = TGenotype.fundamentalType
+        val ft = TGenotype.fundamentalType.asInstanceOf[TStruct]
         val gt: Int =
           if (region.loadBit(offset, 0))
             -1
