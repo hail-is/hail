@@ -2772,7 +2772,7 @@ class VariantDataset(HistoryMixin):
 
         jldm = self._jvdf.ldMatrix(force_local)
         return LDMatrix(jldm)
-
+    
     @handle_py4j
     @record_method
     @typecheck_method(key_name=strlike,

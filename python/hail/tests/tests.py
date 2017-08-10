@@ -730,6 +730,34 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(c_nocall.is_het_non_ref())
         self.assertFalse(c_nocall.is_het_ref())
 
+        c = Contig(1, 1000)
+        self.assertEqual(c.name, "1")
+        self.assertEqual(c.length, 1000)
+
+        gr = GenomeReference.GRCh37()
+        self.assertEqual(gr.name, "GRCh37")
+        self.assertEqual(gr.contigs[0], Contig("1", 249250621))
+        self.assertListEqual(gr.x_contig_names, ["X"])
+        self.assertListEqual(gr.y_contig_names, ["Y"])
+        self.assertListEqual(gr.mt_contig_names, ["MT"])
+        self.assertEqual(gr.par[0], Interval.parse("X:60001-2699521"))
+
+        name = "test"
+        contigs = [Contig("1", 10000), Contig("X", 2000),
+                   Contig("Y", 4000), Contig("MT", 1000)]
+        x_contig_names = ["X"]
+        y_contig_names = ["Y"]
+        mt_contig_names = ["MT"]
+        par = [Interval(Locus("X", 5), Locus("X", 1000))]
+
+        gr2 = GenomeReference(name, contigs, x_contig_names, y_contig_names, mt_contig_names, par)
+        self.assertEqual(gr2.name, name)
+        self.assertListEqual(gr2.contigs, contigs)
+        self.assertListEqual(gr2.x_contig_names, x_contig_names)
+        self.assertListEqual(gr2.y_contig_names, y_contig_names)
+        self.assertListEqual(gr2.mt_contig_names, mt_contig_names)
+        self.assertEqual(gr2.par, par)
+
     def test_types(self):
         self.assertEqual(TInt32(), TInt32())
         self.assertEqual(TFloat64(), TFloat64())

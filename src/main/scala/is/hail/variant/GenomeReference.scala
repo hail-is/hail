@@ -8,6 +8,9 @@ import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
+import scala.collection.JavaConverters._
+import scala.language.implicitConversions
+
 abstract class GRBase extends Serializable {
   def isValidContig(contig: String): Boolean
 
@@ -143,6 +146,12 @@ object GenomeReference {
     parX <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(xContig))))
     parY <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(yContig))))
   } yield GenomeReference(name, contigs, Set(xContig), Set(yContig), Set(mtContig), parX ++ parY)
+
+  def apply(name: java.lang.String, contigs: java.util.ArrayList[Contig],
+    xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
+    mtContigs: java.util.ArrayList[String], par: java.util.ArrayList[Interval[Locus]]): GenomeReference =
+    GenomeReference(name, contigs.asScala.toArray, xContigs.asScala.toSet, yContigs.asScala.toSet, mtContigs.asScala.toSet,
+      par.asScala.toArray)
 }
 
 case class GRVariable(var gr: GenomeReference = null) extends GRBase {
