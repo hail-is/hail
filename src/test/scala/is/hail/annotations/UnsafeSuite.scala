@@ -4,11 +4,51 @@ import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.expr._
 import is.hail.utils._
-import org.apache.commons.math3.random.RandomDataGenerator
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class UnsafeSuite extends SparkSuite {
+  @Test def testCodec() {
+    val region = MemoryBuffer()
+    val region2 = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+
+    val path = tmpDir.createTempFile(extension = "ser")
+
+    val g = Type.genStruct
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .filter { case (t, a) => a != null }
+      .resize(10)
+    val p = Prop.forAll(g) { case (t, a) =>
+      t.typeCheck(a)
+      val f = t.fundamentalType
+
+      region.clear()
+      rvb.start(f)
+      rvb.addRow(t, a.asInstanceOf[Row])
+      val offset = rvb.end()
+      val ur = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+
+      hadoopConf.writeDataFile(path) { out =>
+        val en = new Encoder(out)
+        en.writeRegionValue(f, region, offset)
+      }
+
+      region2.clear()
+      val offset2 = hadoopConf.readDataFile(path) { in =>
+        val dec = new Decoder(in)
+        dec.readRegionValue(f, region2)
+      }
+
+      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+
+      assert(t.valuesSimilar(a, ur2))
+
+      true
+    }
+    p.check()
+  }
+
   @Test def testRegionValue() {
     val region = MemoryBuffer()
     val region2 = MemoryBuffer()
