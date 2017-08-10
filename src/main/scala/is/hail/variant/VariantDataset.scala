@@ -358,22 +358,6 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
       })
   }
 
-  /**
-    * Remove multiallelic variants from this dataset.
-    *
-    * Useful for running methods that require biallelic variants without calling the more expensive split_multi step.
-    */
-  def filterMulti(): VariantDataset = {
-    if (vds.wasSplit) {
-      warn("called redundant `filtermulti' on an already split or multiallelic-filtered VDS")
-      vds
-    } else {
-      vds.filterVariants {
-        case (v, va, gs) => v.isBiallelic
-      }.copy(wasSplit = true)
-    }
-  }
-
   def grm(): KinshipMatrix = {
     requireSplit("GRM")
     info("Computing GRM...")

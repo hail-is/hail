@@ -54,4 +54,20 @@ class VariantKeyDatasetFunctions[T >: Null](private val vsm: VariantSampleMatrix
       vsm.filterVariants { (v, va, gs) => !iListBc.value.contains(v.locus) }
     }
   }
+
+  /**
+    * Remove multiallelic variants from this dataset.
+    *
+    * Useful for running methods that require biallelic variants without calling the more expensive split_multi step.
+    */
+  def filterMulti(): VariantSampleMatrix[Locus, Variant, _] = {
+    if (vsm.wasSplit) {
+      warn("called redundant `filtermulti' on an already split or multiallelic-filtered VDS")
+      vsm
+    } else {
+      vsm.filterVariants {
+        case (v, va, gs) => v.isBiallelic
+      }.copy(wasSplit = true)
+    }
+  }
 }

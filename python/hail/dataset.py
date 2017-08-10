@@ -1816,7 +1816,7 @@ class VariantDataset(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.filterMulti())
+        return VariantDataset(self.hc, self._jvkdf.filterMulti())
 
     @handle_py4j
     def drop_samples(self):
