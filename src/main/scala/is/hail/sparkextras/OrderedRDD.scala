@@ -19,8 +19,7 @@ object OrderedRDD {
   final val ORDERED_PARTITIONER: CoercionMethod = 0
   final val AS_IS: CoercionMethod = 1
   final val LOCAL_SORT: CoercionMethod = 2
-  final val ARRAY_SORT: CoercionMethod = 3
-  final val SHUFFLE: CoercionMethod = 4
+  final val SHUFFLE: CoercionMethod = 3
 
   def empty[PK, K, V](sc: SparkContext)(implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): OrderedRDD[PK, K, V] =
     new OrderedRDD[PK, K, V](sc.emptyRDD[(K, V)], OrderedPartitioner.empty)
@@ -87,15 +86,14 @@ object OrderedRDD {
       r
     }
 
-    if (partitionsSorted) {
-      val (adjustedPartitions, rangeBounds) = rangesAndAdjustments[PK, K, V](sortedKeyInfo)
+    val sortedness = sortedKeyInfo.map(_.sortedness).min
+    if (partitionsSorted && sortedness >= PartitionKeyInfo.TSORTED) {
+      val (adjustedPartitions, rangeBounds, adjSortedness) = rangesAndAdjustments[PK, K, V](sortedKeyInfo, sortedness)
       val partitioner = OrderedPartitioner[PK, K](rangeBounds, adjustedPartitions.length)
-      val sortedness = sortedKeyInfo.map(_.sortedness).min
       val reorderedPartitionsRDD = rdd.reorderPartitions(sortedKeyInfo.map(_.partIndex))
       val adjustedRDD = new AdjustedPartitionsRDD(reorderedPartitionsRDD, adjustedPartitions)
-      (sortedness: @unchecked) match {
+      (adjSortedness: @unchecked) match {
         case PartitionKeyInfo.KSORTED =>
-          assert(sortedness == PartitionKeyInfo.KSORTED)
           info("Coerced sorted dataset")
           (AS_IS, OrderedRDD(adjustedRDD, partitioner))
 
@@ -103,12 +101,6 @@ object OrderedRDD {
           info("Coerced almost-sorted dataset")
           (LOCAL_SORT, OrderedRDD(adjustedRDD.mapPartitions { it =>
             localKeySort(it)
-          }, partitioner))
-
-        case PartitionKeyInfo.UNSORTED =>
-          info("Coerced unsorted dataset")
-          (ARRAY_SORT, OrderedRDD(adjustedRDD.mapPartitions { it =>
-            it.toArray.sortBy(_._1).iterator
           }, partitioner))
       }
     } else {
@@ -123,14 +115,16 @@ object OrderedRDD {
     }
   }
 
-  def rangesAndAdjustments[PK, K, V](sortedKeyInfo: Array[PartitionKeyInfo[PK]])
-    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): (IndexedSeq[Array[Adjustment[(K, V)]]], Array[PK]) = {
+  def rangesAndAdjustments[PK, K, V](sortedKeyInfo: Array[PartitionKeyInfo[PK]], sortedness: Int)
+    (implicit kOk: OrderedKey[PK, K], vct: ClassTag[V]): (IndexedSeq[Array[Adjustment[(K, V)]]], Array[PK], Int) = {
     import kOk._
     import scala.Ordering.Implicits._
 
-    val rangeBounds = mutable.ArrayBuilder.make[PK]
+    val rangeBounds = new ArrayBuilder[PK]()
     val adjustmentsBuffer = new mutable.ArrayBuffer[Array[Adjustment[(K, V)]]]
-    val indicesBuilder = mutable.ArrayBuilder.make[Int]
+    val indicesBuilder = new ArrayBuilder[Int]()
+
+    var anyOverlaps = false
 
     val it = sortedKeyInfo.indices.iterator.buffered
 
@@ -143,31 +137,29 @@ object OrderedRDD {
 
       indicesBuilder += i
 
-      def overlaps(info: PartitionKeyInfo[PK]): Boolean = {
-        assert(info.min >= max)
-        info.min == info.max && info.min == max
+      var continue = true
+      while (continue && it.hasNext && sortedKeyInfo(it.head).min == max) {
+        anyOverlaps = true
+        if (sortedKeyInfo(it.head).max == max)
+          indicesBuilder += it.next()
+        else {
+          indicesBuilder += it.head
+          continue = false
+        }
       }
 
-      while (it.hasNext && overlaps(sortedKeyInfo(it.head)))
-        indicesBuilder += it.next()
-
-      if (it.hasNext && sortedKeyInfo(it.head).min == max)
-        indicesBuilder += it.head
-
       val adjustments = indicesBuilder.result().zipWithIndex.map { case (partitionIndex, index) =>
+        assert(sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED)
         val f: (Iterator[(K, V)]) => Iterator[(K, V)] =
+          // In the first partition, drop elements that should go in the last if necessary
           if (index == 0)
             if (adjustmentsBuffer.nonEmpty && min == sortedKeyInfo(adjustmentsBuffer.last.head.index).max)
-              if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use dropWhile
-                _.dropWhile(kv => kOk.project(kv._1) == min)
-              else
-                _.filter(kv => kOk.project(kv._1) != min)
+              _.dropWhile(kv => kOk.project(kv._1) == min)
             else
               identity
-          else if (sortedKeyInfo(partitionIndex).sortedness >= PartitionKeyInfo.TSORTED) // PK sorted, so can use takeWhile
-            _.takeWhile(kv => kOk.project(kv._1) == max)
           else
-            _.filter(kv => kOk.project(kv._1) == max)
+            // In every subsequent partition, only take elements that are the max of the last
+            _.takeWhile(kv => kOk.project(kv._1) == max)
         Adjustment(partitionIndex, f)
       }
 
@@ -177,7 +169,9 @@ object OrderedRDD {
         rangeBounds += max
     }
 
-    (adjustmentsBuffer, rangeBounds.result())
+    val adjSortedness = if (anyOverlaps) sortedness.min(PartitionKeyInfo.TSORTED) else sortedness
+
+    (adjustmentsBuffer, rangeBounds.result(), adjSortedness)
   }
 
   def apply[PK, K, V](rdd: RDD[(K, V)],
@@ -210,7 +204,7 @@ object OrderedRDD {
             if (first)
               first = false
             else
-              assert(prevK <= r._1)
+              assert(prevK <= r._1, s"$prevK is greater than ${ r._1 }")
 
             prevK = r._1
             r

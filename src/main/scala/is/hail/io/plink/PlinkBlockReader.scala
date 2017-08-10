@@ -8,11 +8,12 @@ import org.apache.hadoop.mapred.FileSplit
 
 class PlinkRecord(nSamples: Int) extends KeySerializedValueRecord[Int, IndexedSeq[Annotation]] {
   override def getValue: IndexedSeq[Annotation] = {
-    require(input != null, "called getValue before serialized value was set")
+    val localInput = input
+    require(localInput != null, "called getValue before serialized value was set")
     new IndexedSeq[Annotation] {
       def length: Int = nSamples
       def apply(i: Int): Annotation = {
-        val x = (input(i / 4) >> ((i & 3) << 1)) & 3
+        val x = (localInput(i / 4) >> ((i & 3) << 1)) & 3
         val gt = if (x == 1)
           null
         else
