@@ -68,21 +68,25 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
     ("par", JArray(par.map(_.toJSON(_.toJSON)).toList))
   )
 
-  def same(other: GenomeReference): Boolean = {
-    name == other.name &&
-      contigs.sameElements(other.contigs) &&
-      xContigs == other.xContigs &&
-      yContigs == other.yContigs &&
-      mtContigs == other.mtContigs &&
-      par.sameElements(other.par)
+  override def equals(other: Any): Boolean = {
+    other match {
+      case x: GenomeReference =>
+        name == x.name &&
+          contigs.sameElements(x.contigs) &&
+          xContigs == x.xContigs &&
+          yContigs == x.yContigs &&
+          mtContigs == x.mtContigs &&
+          par.sameElements(x.par)
+      case _ => false
+    }
   }
 }
 
 object GenomeReference {
 
-  def GRCh37 = fromResource("reference/grch37.json")
+  def GRCh37: GenomeReference = fromResource("reference/grch37.json")
 
-  def GRCh38 = fromResource("reference/grch38.json")
+  def GRCh38: GenomeReference = fromResource("reference/grch38.json")
 
   def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
 
