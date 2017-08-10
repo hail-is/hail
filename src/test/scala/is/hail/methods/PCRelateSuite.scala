@@ -24,6 +24,7 @@ import is.hail.variant.VSMSubgen
 import is.hail.stats._
 import is.hail.utils.{TextTableReader, _}
 import scala.sys.process._
+import is.hail.distributedmatrix.BlockMatrixIsDistributedMatrix
 import is.hail.distributedmatrix.DistributedMatrix
 import is.hail.distributedmatrix.DistributedMatrix.implicits._
 
@@ -98,22 +99,23 @@ class PCRelateSuite extends SparkSuite {
     val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
     val pcs = new DenseMatrix(4,2,pcsArray)
     val us = runPcRelateHail(vds, pcs, maf=0.0)
-    val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.0)
+    val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.0)._1
     assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
-  // @Test
+  @Test(enabled = false)
   def trivialReferenceMatchesR() {
     val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
     val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
     val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
     val pcs = new DenseMatrix(4,2,pcsArray)
-    val usRef = PCRelateReferenceImplementation(vds, pcs, maf=0.0)
+    val usRef = PCRelateReferenceImplementation(vds, pcs, maf=0.0)._1
     val truth = runPcRelateR(vds, maf=0.0, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
     assert(mapSameElements(usRef, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
-  @Test def baldingNicholsMatchesReference() {
+  @Test
+  def baldingNicholsMatchesReference() {
     for {
       n <- Seq(50, 100)
       seed <- Seq(0, 1)
@@ -121,14 +123,14 @@ class PCRelateSuite extends SparkSuite {
     } {
       val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
       val pcs = SamplePCA.justScores(vds, 2)
-      val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
+      val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
       val actual = runPcRelateHail(vds, pcs, maf=0.01)
 
       assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
     }
   }
 
-  // @Test
+  @Test(enabled = false)
   def baldingNicholsReferenceMatchesR() {
     for {
       n <- Seq(50, 100)
@@ -138,103 +140,69 @@ class PCRelateSuite extends SparkSuite {
       val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
       val pcs = SamplePCA.justScores(vds, 2)
       val truth = runPcRelateR(vds, maf=0.01)
-      val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
+      val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
 
       assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
     }
   }
 
-  @Test
-  def thousandGenomesTriosMatchesReference() {
-    val trios = Array("HG00702", "HG00656", "HG00657",
-      "HG00733", "HG00731", "HG00732",
-      "HG02024", "HG02026", "HG02025",
-      "HG03715","HG03713",
-      "HG03948","HG03673",
-      "NA19240", "NA19239", "NA19238",
-      "NA19675", "NA19679", "NA19678",
-      "NA19685", "NA19661", "NA19660")
-
-    val siblings = Array("NA19713", "NA19985",
-      "NA20289", "NA20341",
-      "NA20334", "NA20336")
-
-    val secondOrder = Array("HG01936", "HG01983")
-
-    val r = scala.util.Random
-
-    val profile225 = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
-    for (fraction <- Seq(0.0625/16//0.125, 0.25, 0.5
-    )) {
-      val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
-
-      def underStudy(s: String) =
-        subset.contains(s) || trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
-
-      val vds = profile225
-        .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
-        .annotateVariantsExpr("va.af = gs.callStats(g => v).AF[0]")
-        .filterVariantsExpr("va.af > 0.20 && va.af < 0.80 && v.isAutosomal")
-        .cache()
-      val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
-
-      val (truth, truthtime) = time(PCRelateReferenceImplementation(vds, pcs, maf=0.01))
-      val (actual, actualtime) = time(runPcRelateHail(vds, pcs, maf=0.01))
-
-      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
+  private def compareBDMs(l: BDM[Double], r: BDM[Double], tolerance: Double) {
+    val fails = l.data.zip(r.data).zipWithIndex.flatMap { case ((actual, truth), idx) =>
+      val row = idx % l.rows
+      val col = idx / l.rows
+      if (math.abs(actual - truth) >= tolerance)
+        Some(((row, col), actual - truth, actual, truth))
+      else
+        None
     }
+    if (!fails.isEmpty)
+      fails.foreach(println _)
+    assert(fails.isEmpty)
   }
 
-  // @Test
-  def thousandGenomesTriosReferenceMatchesR() {
-    val trios = Array("HG00702", "HG00656", "HG00657",
-      "HG00733", "HG00731", "HG00732",
-      "HG02024", "HG02026", "HG02025",
-      "HG03715","HG03713",
-      "HG03948","HG03673",
-      "NA19240", "NA19239", "NA19238",
-      "NA19675", "NA19679", "NA19678",
-      "NA19685", "NA19661", "NA19660")
+  private def blockMatrixToBDM(m: BlockMatrix): BDM[Double] = {
+    val foo = m.toLocalMatrix().asInstanceOf[DenseMatrix]
+    new BDM[Double](foo.numRows, foo.numCols, foo.toArray)
+  }
 
-    val siblings = Array("NA19713", "NA19985",
-      "NA20289", "NA20341",
-      "NA20334", "NA20336")
+  @Test
+  def sampleVcfMatchesReference() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
-    val secondOrder = Array("HG01936", "HG01983")
+    val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 
-    val r = scala.util.Random
+    val dm = BlockMatrixIsDistributedMatrix
+    import dm.ops._
 
-    val profile225 = hc.readVDS("/Users/dking/projects/hail-data/profile225-splitmulti-hardcalls.vds")
-    for (fraction <- Seq(0.0625//0.125, 0.25, 0.5
-    )) {
-      val subset = r.shuffle(profile225.sampleIds).slice(0, (profile225.nSamples * fraction).toInt).toSet
+    val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
 
-      def underStudy(s: String) =
-        subset.contains(s) || trios.contains(s) || siblings.contains(s) || secondOrder.contains(s)
+    val pcr = new PCRelate(0.01, blockSize)
+    val g = PCRelate.vdsToMeanImputedMatrix(vds)
+    val dmu = pcr.mu(g, pcs)
+    // blockedG : variant x sample
+    val blockedG = dm.from(g, blockSize, blockSize)
+    val actual = runPcRelateHail(vds, pcs, 0.01)
+    val actual_g = blockMatrixToBDM(blockedG.t)
+    val actual_ibs0 = blockMatrixToBDM(pcr.ibs0(blockedG, dmu, blockSize))
+    val actual_mean = blockMatrixToBDM(dmu)
 
-      val vds = profile225
-        .filterSamples((s, sa) => underStudy(s.asInstanceOf[String]))
-        .annotateVariantsExpr("va.af = gs.callStats(g => v).AF[0]")
-        .filterVariantsExpr("va.af > 0.20 && va.af < 0.80 && v.isAutosomal")
-        .cache()
-      val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
+    compareBDMs(actual_mean, truth_mu, tolerance=1e-14)
+    compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)
+    compareBDMs(actual_g, truth_g, tolerance=1e-14)
 
-      val (truth, pcRelateTime) = time(runPcRelateR(vds, maf=0.01))
-      val (actual, hailTime) = time(PCRelateReferenceImplementation(vds, pcs, maf=0.01))
+    assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
+  }
 
-      println(s"on fraction: $fraction; pc relate: $pcRelateTime, hail: $hailTime, ratio: ${pcRelateTime / hailTime.toDouble}")
+  @Test(enabled = false)
+  def sampleVcfReferenceMatchesR() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
 
-      printToFile(new java.io.File(s"/tmp/thousandGenomesTriosReferenceMatchesR-$fraction.out")) { pw =>
-        pw.println(Array("s1","s2","uskin","usz0","usz1","usz2","themkin","themz0","themz1","themz2").mkString(","))
-        for ((k, (hkin, hz0, hz1, hz2)) <- actual) {
-          val (rkin, rz0, rz1, rz2) = truth(k)
-          val (s1, s2) = k
-          pw.println(Array(s1,s2,hkin,hz0,hz1,hz2,rkin,rz0,rz1,rz2).mkString(","))
-        }
-      }
+    val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 
-      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 0.01)))
-    }
+    val truth = runPcRelateR(vds, maf=0.01)
+    val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
+
+    assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-2)))
   }
 
 }

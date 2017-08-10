@@ -22,9 +22,7 @@ object PCRelate {
   import dm.ops._
 
   case class Result[M](phiHat: M, k0: M, k1: M, k2: M) {
-    def map[N](f: M => N): Result[N] =
-
-    Result(f(phiHat), f(k0), f(k1), f(k2))
+    def map[N](f: M => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
   }
 
   def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): RDD[((Annotation, Annotation), (Double, Double, Double, Double))] = {
@@ -73,13 +71,14 @@ object PCRelate {
   private val signature =
     TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
   private val keys = Array("i", "j")
+
   def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): KeyTable =
     KeyTable(vds.hc,
       toPairRdd(vds, pcs, maf, blockSize).map { case ((i, j), (kin, k0, k1, k2)) => Annotation(i, j, kin, k0, k1, k2).asInstanceOf[Row] },
       signature,
       keys)
 
-  private val k0cutoff = math.pow(2.0, (-5.0/2.0))
+  private val k0cutoff = math.pow(2.0, (-5.0 / 2.0))
 
   private def prependConstantColumn(k: Double, m: DenseMatrix): DenseMatrix = {
     val a = m.toArray
@@ -156,9 +155,6 @@ object PCRelate {
     1.0 - (k2 :+ k0)
   }
 
-  def ibs0(vds: VariantDataset, blockSize: Int): M =
-    dm.from(IBD.ibs(vds)._1, blockSize, blockSize)
-
 }
 
 class PCRelate(maf: Double, blockSize: Int) extends Serializable {
@@ -175,12 +171,9 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   def apply(vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
     val g = vdsToMeanImputedMatrix(vds)
-    val beta = fitBeta(g, pcs, blockSize)
 
-    val pcsWithIntercept = prependConstantColumn(1.0, pcs)
-
+    val mu = this.mu(g, pcs)
     val blockedG = dm.from(g, blockSize, blockSize)
-    val mu = ((beta * pcsWithIntercept.transpose) / 2.0)
 
     val variance = dm.map2 {
       case (g, mu) =>
@@ -193,13 +186,26 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val phi = this.phi(mu, variance, blockedG)
 
     val k2 = this.k2(phi, mu, variance, blockedG)
-    val k0 = this.k0(phi, mu, k2, blockedG, ibs0(vds, blockSize))
+    val k0 = this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize))
     val k1 = 1.0 - (k2 :+ k0)
 
     Result(phi, k0, k1, k2)
   }
 
-  private def phi(mu: M, variance: M, g: M): M = {
+  /**
+    * {@code g} is variant by sample
+    * {@code pcs} is sample by numPCs
+    *
+    **/
+  private[methods] def mu(g: IndexedRowMatrix, pcs: DenseMatrix): M = {
+    val beta = fitBeta(g, pcs, blockSize)
+
+    val pcsWithIntercept = prependConstantColumn(1.0, pcs)
+
+    ((beta * pcsWithIntercept.transpose) / 2.0)
+  }
+
+  private[methods] def phi(mu: M, variance: M, g: M): M = {
     val centeredG = dm.map2 { (g,mu) =>
       if (badgt(g) || badmu(mu))
         0.0
@@ -211,10 +217,19 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     ((centeredG.t * centeredG) :/ (stddev.t * stddev)) / 4.0
   }
 
-  private def k2(phi: M, mu: M, variance: M, g: M): M = {
+  private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
+    val homalt = dm.map2 { case (g, mu) =>
+      if (badgt(g) || badmu(mu) || g != 2.0) 0.0 else 1.0
+    } (g, mu)
+    val homref = dm.map2 { case (g, mu) =>
+      if (badgt(g) || badmu(mu) || g != 0.0) 0.0 else 1.0
+    } (g, mu)
+    (homalt.t * homref) :+ (homref.t * homalt)
+  }
+
+  private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = dm.diagonal(phi).map(2.0 * _)
-    val normalizedGD = dm.map2WithIndex({
-      case (_, i, g, mu) =>
+    val normalizedGD = dm.map2WithIndex { case (_, i, g, mu) =>
         if (badmu(mu) || badgt(g))
           0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
         else {
@@ -224,12 +239,12 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
           gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
         }
-    })(g, mu)
+    } (g, mu)
 
     (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
   }
 
-  private def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
+  private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
     val mu2 = dm.map2 {
       case (g, mu) =>
         if (badgt(g) || badmu(mu))
