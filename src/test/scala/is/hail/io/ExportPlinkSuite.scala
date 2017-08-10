@@ -1,7 +1,6 @@
 package is.hail.io
 
 import is.hail.SparkSuite
-import is.hail.io.plink.FamFileConfig
 import is.hail.keytable.KeyTable
 import is.hail.utils._
 import org.testng.annotations.Test

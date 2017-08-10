@@ -128,6 +128,7 @@ final class MemoryBuffer(var mem: Array[Byte], var offset: Int = 0) {
   }
 
   def allocate(n: Int): Int = {
+    assert(n >= 0)
     val off = offset
     ensure(n)
     offset += n
@@ -143,7 +144,7 @@ final class MemoryBuffer(var mem: Array[Byte], var offset: Int = 0) {
     val b = byteOff + (bitOff >> 3)
     (loadByte(b) & (1 << (bitOff & 7))) != 0
   }
-  
+
   def setBit(byteOff: Int, bitOff: Int) {
     val b = byteOff + (bitOff >> 3)
     storeByte(b,
@@ -205,6 +206,7 @@ case class RegionValue(region: MemoryBuffer, offset: Int)
 
 class RegionValueBuilder(region: MemoryBuffer) {
   var start: Int = _
+  var root: TStruct = _
 
   val typestk = new mutable.Stack[Type]()
   val indexstk = new mutable.Stack[Int]()
@@ -212,64 +214,55 @@ class RegionValueBuilder(region: MemoryBuffer) {
   val elementsOffsetstk = new mutable.Stack[Int]()
 
   def current(): (Type, Int) = {
-    val i = indexstk.head
-    typestk.head match {
-      case t: TStruct =>
-        (t.fields(i).typ, offsetstk.head + t.byteOffsets(i))
+    if (typestk.isEmpty)
+      (root, start)
+    else {
+      val i = indexstk.head
+      typestk.head match {
+        case t: TStruct =>
+          (t.fields(i).typ, offsetstk.head + t.byteOffsets(i))
 
-      case t: TArray =>
-        (t.elementType, elementsOffsetstk.head + i * UnsafeUtils.arrayElementSize(t.elementType))
+        case t: TArray =>
+          (t.elementType, elementsOffsetstk.head + i * UnsafeUtils.arrayElementSize(t.elementType))
+      }
     }
   }
 
-  def start(top: TStruct) {
+  def start(newRoot: TStruct) {
     assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
 
-    region.align(top.alignment)
-    val off = region.offset
-    start = off
-    region.allocate(top.byteSize)
+    root = newRoot
 
-    val nMissingBytes = (top.size + 7) / 8
-    var i = 0
-    while (i < nMissingBytes) {
-      region.storeByte(off + i, 0)
-      i += 1
-    }
-
-    typestk.push(top)
-    offsetstk.push(off)
-    indexstk.push(0)
+    region.align(root.alignment)
+    start = region.allocate(root.byteSize)
   }
 
   def end(): Int = {
-    val t = typestk.pop()
-    offsetstk.pop()
-    val last = indexstk.pop()
-    assert(last == t.asInstanceOf[TStruct].size)
-
     assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
 
     start
   }
 
   def advance() {
-    indexstk.push(indexstk.pop + 1)
+    if (indexstk.nonEmpty)
+      indexstk.push(indexstk.pop + 1)
   }
 
-  def startStruct() {
+  def startStruct(init: Boolean = true) {
     current() match {
       case (t: TStruct, off) =>
-        val nMissingBytes = (t.size + 7) / 8
-        var i = 0
-        while (i < nMissingBytes) {
-          region.storeByte(off + i, 0)
-          i += 1
-        }
-
         typestk.push(t)
         offsetstk.push(off)
         indexstk.push(0)
+
+        if (init) {
+          val nMissingBytes = (t.size + 7) / 8
+          var i = 0
+          while (i < nMissingBytes) {
+            region.storeByte(off + i, 0)
+            i += 1
+          }
+        }
     }
   }
 
@@ -285,39 +278,38 @@ class RegionValueBuilder(region: MemoryBuffer) {
     }
   }
 
-  def startArray(length: Int) {
+  def startArray(length: Int, init: Boolean = true) {
     current() match {
       case (t: TArray, off) =>
-        region.align(4)
-        val aoff = region.offset
+        region.align(t.contentsAlignment)
+        val aoff = region.allocate(t.contentsByteSize(length))
         region.storeInt(off, aoff)
 
-        val nMissingBytes = (length + 7) / 8
-        region.allocate(4 + nMissingBytes)
-
-        region.storeInt(aoff, length)
-
-        var i = 0
-        while (i < nMissingBytes) {
-          region.storeByte(aoff + 4 + i, 0)
-          i += 1
-        }
-
-        region.align(t.elementType.alignment)
-        val elementsOff = region.offset
-
-        region.allocate(length * UnsafeUtils.arrayElementSize(t.elementType))
-
         typestk.push(t)
-        elementsOffsetstk.push(elementsOff)
+        elementsOffsetstk.push(aoff + t.elementsOffset(length))
         indexstk.push(0)
         offsetstk.push(aoff)
+
+        if (init) {
+          region.storeInt(aoff, length)
+
+          val nMissingBytes = (length + 7) / 8
+          var i = 0
+          while (i < nMissingBytes) {
+            region.storeByte(aoff + 4 + i, 0)
+            i += 1
+          }
+        }
     }
   }
 
   def endArray() {
     typestk.head match {
       case t: TArray =>
+        val aoff = offsetstk.top
+        val length = region.loadInt(aoff)
+        assert(length == indexstk.top)
+
         typestk.pop()
         offsetstk.pop()
         elementsOffsetstk.pop()
@@ -381,7 +373,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
 
   def addBinary(bytes: Array[Byte]) {
     current() match {
-      case (TFloat64, off) =>
+      case (TBinary, off) =>
         region.align(4)
         val boff = region.offset
         region.storeInt(off, boff)
@@ -393,27 +385,123 @@ class RegionValueBuilder(region: MemoryBuffer) {
   }
 
   def addString(s: String) {
-    current() match {
-      case (TString, off) =>
-        region.align(4)
-        val soff = region.offset
-        region.storeInt(off, soff)
-
-        val bytes = s.getBytes
-        region.appendInt(bytes.length)
-        region.appendBytes(bytes)
-
-        advance()
-    }
+    addBinary(s.getBytes)
   }
 
   def addRow(t: TStruct, r: Row) {
     assert(r != null)
+
+    startStruct()
     var i = 0
     while (i < t.size) {
       addAnnotation(t.fields(i).typ, r.get(i))
       i += 1
     }
+    endStruct()
+  }
+
+  def fixupBinary(toOff: Int, fromRegion: MemoryBuffer, fromOff: Int) {
+    val fromBOff = fromRegion.loadInt(fromOff)
+    val length = fromRegion.loadInt(fromBOff)
+
+    region.align(4)
+    val toBOff = region.allocate(4 + length)
+    region.storeInt(toOff, toBOff)
+
+    region.copyFrom(fromRegion, fromBOff, toBOff, 4 + length)
+  }
+
+  def requiresFixup(t: Type): Boolean = {
+    t match {
+      case t: TStruct => t.fields.exists(f => requiresFixup(f.typ))
+      case t: TArray => true
+      case TBinary => true
+      case _ => false
+    }
+  }
+
+  def fixupArray(t: TArray, toOff: Int, fromRegion: MemoryBuffer, fromAOff: Int) {
+    val length = fromRegion.loadInt(fromAOff)
+
+    val contentSize = t.contentsByteSize(length)
+    region.align(t.contentsAlignment)
+    val toAOff = region.allocate(contentSize)
+
+    region.storeInt(toOff, toAOff)
+
+    region.copyFrom(fromRegion, fromAOff, toAOff, contentSize)
+
+    val elemsOff = t.elementsOffset(length)
+    val elemSize = UnsafeUtils.arrayElementSize(t.elementType)
+
+    if (requiresFixup(t.elementType)) {
+      var i = 0
+      while (i < length) {
+        if (!fromRegion.loadBit(fromAOff + 4, i)) {
+          val off = elemsOff + i * elemSize
+          t.elementType match {
+            case t2: TStruct =>
+              fixupStruct(t2, toAOff + off, fromRegion, fromAOff + off)
+
+            case t2: TArray =>
+              val elemFromAOff = fromRegion.loadInt(fromAOff + off)
+              fixupArray(t2, toAOff + off, fromRegion, elemFromAOff)
+
+            case TBinary =>
+              fixupBinary(toAOff + off, fromRegion, fromAOff + off)
+
+            case _ =>
+          }
+        }
+        i += 1
+      }
+    }
+  }
+
+  def fixupStruct(t: TStruct, toOff: Int, fromRegion: MemoryBuffer, fromOff: Int) {
+    var i = 0
+    while (i < t.size) {
+      if (!fromRegion.loadBit(fromOff, i)) {
+        val f = t.fields(i)
+        val fieldOff = t.byteOffsets(i)
+        f.typ match {
+          case t2: TStruct =>
+            fixupStruct(t2, toOff + fieldOff, fromRegion, fromOff + fieldOff)
+
+          case TBinary =>
+            fixupBinary(toOff + fieldOff, fromRegion, fromOff + fieldOff)
+
+          case t2: TArray =>
+            val fromAOff = fromRegion.loadInt(fromOff + fieldOff)
+            fixupArray(t2, toOff + fieldOff, fromRegion, fromAOff)
+
+          case _ =>
+        }
+      }
+      i += 1
+    }
+  }
+
+  def addRegionValue(t: TStruct, fromRegion: MemoryBuffer, fromOff: Int) {
+    val (toT, toOff) = current()
+    assert(toT == t.fundamentalType)
+
+    region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
+
+    fixupStruct(t.fundamentalType, toOff, fromRegion, fromOff)
+    advance()
+  }
+
+  def addUnsafeRow(t: TStruct, ur: UnsafeRow) {
+    addRegionValue(t, ur.region, ur.offset)
+  }
+
+  def addUnsafeArray(t: TArray, uis: UnsafeIndexedSeqAnnotation) {
+    val (toT, toOff) = current()
+    assert(toT == t.fundamentalType)
+
+    fixupArray(t.fundamentalType, toOff, uis.region, uis.offset)
+    advance()
   }
 
   def addAnnotation(t: Type, a: Annotation) {
@@ -428,19 +516,29 @@ class RegionValueBuilder(region: MemoryBuffer) {
         case TFloat64 => addDouble(a.asInstanceOf[Double])
         case TString => addString(a.asInstanceOf[String])
         case TBinary => addBinary(a.asInstanceOf[Array[Byte]])
-        case TArray(elementType) =>
-          val is = a.asInstanceOf[IndexedSeq[Annotation]]
-          startArray(is.length)
-          var i = 0
-          while (i < is.length) {
-            addAnnotation(elementType, is(i))
-            i += 1
+
+        case t: TArray =>
+          a match {
+            case uis: UnsafeIndexedSeqAnnotation =>
+              addUnsafeArray(t, uis)
+
+            case is: IndexedSeq[Annotation] =>
+              startArray(is.length)
+              var i = 0
+              while (i < is.length) {
+                addAnnotation(t.elementType, is(i))
+                i += 1
+              }
+              endArray()
           }
-          endArray()
+
         case t: TStruct =>
-          startStruct()
-          addRow(t, a.asInstanceOf[Row])
-          endStruct()
+          a match {
+            case ur: UnsafeRow =>
+              addUnsafeRow(t, ur)
+            case r: Row =>
+              addRow(t, r)
+          }
 
         case TSet(elementType) =>
           val s = a.asInstanceOf[Set[Annotation]]

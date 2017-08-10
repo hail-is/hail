@@ -190,15 +190,17 @@ sealed abstract class Type extends Serializable { self =>
 
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
-  lazy val fundamentalType: Type = this
+  def fundamentalType: Type = this
 }
 
 abstract class ComplexType extends Type {
-  def representation: Type = fundamentalType
+  def representation: Type
 
   override def byteSize: Int = representation.byteSize
 
   override def alignment: Int = representation.alignment
+
+  override lazy val fundamentalType: Type = representation.fundamentalType
 }
 
 case object TBinary extends Type {
@@ -356,13 +358,15 @@ case object TString extends Type {
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 
-  override def scalaClassTag: ClassTag[String] = classTag[String]
+  override def scalaClassTag: ClassManifest[String] = classTag[String]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]]))
 
   override def byteSize: Int = 4
+
+  override lazy val fundamentalType: Type = TBinary
 }
 
 case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
@@ -527,6 +531,15 @@ abstract class TContainer extends Type {
   override def byteSize: Int = 4
 
   override def children = Seq(elementType)
+
+  // FIXME LCM
+  def contentsAlignment: Int = elementType.alignment.max(4)
+
+  def elementsOffset(length: Int): Int =
+    UnsafeUtils.roundUpAlignment(4 + (length + 7) / 8, elementType.alignment)
+
+  def contentsByteSize(length: Int): Int =
+    elementsOffset(length) + length * UnsafeUtils.arrayElementSize(elementType)
 }
 
 abstract class TIterable extends TContainer {
@@ -598,7 +611,7 @@ case class TArray(elementType: Type) extends TIterable {
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 
-  override lazy val fundamentalType: Type = {
+  override lazy val fundamentalType: TArray = {
     val elementFundamentalType = elementType.fundamentalType
     if (elementFundamentalType == elementType)
       this
@@ -730,7 +743,7 @@ case class TDict(keyType: Type, valueType: Type) extends TContainer {
 case object TGenotype extends ComplexType {
   override def toString = "Genotype"
 
-  override lazy val fundamentalType: TStruct = TStruct(
+  override lazy val representation: TStruct = TStruct(
     "gt" -> TInt32,
     "ad" -> TArray(TInt32),
     "dp" -> TInt32,
@@ -759,7 +772,7 @@ case object TGenotype extends ComplexType {
 case object TCall extends ComplexType {
   override def toString = "Call"
 
-  override lazy val fundamentalType: Type = TInt32
+  override lazy val representation: Type = TInt32
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Int]
 
@@ -789,7 +802,7 @@ case object TAltAllele extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[AltAllele]]))
 
-  override lazy val fundamentalType: TStruct = TStruct(
+  override lazy val representation: TStruct = TStruct(
     "ref" -> TString,
     "alt" -> TString)
 }
@@ -833,7 +846,7 @@ case object TVariant extends ComplexType {
     val pkct: ClassTag[Annotation] = classTag[Annotation]
   }
 
-  override lazy val fundamentalType: TStruct = TStruct(
+  override lazy val representation: TStruct = TStruct(
     "contig" -> TString,
     "start" -> TInt32,
     "ref" -> TString,
@@ -855,7 +868,7 @@ case object TLocus extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Locus]]))
 
-  override lazy val fundamentalType: TStruct = TStruct(
+  override lazy val representation: TStruct = TStruct(
     "contig" -> TString,
     "position" -> TInt32)
 }
@@ -875,7 +888,7 @@ case object TInterval extends ComplexType {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Interval[Locus]]]))
 
-  override lazy val fundamentalType: TStruct = TStruct(
+  override lazy val representation: TStruct = TStruct(
     "start" -> TLocus.representation,
     "end" -> TLocus.representation)
 }
