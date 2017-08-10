@@ -39,7 +39,7 @@ object LoadGDB {
                       callsets_mapping_file: String,
                       vcfHeaderPath: Option[String]): File = {
     val tempFile = File.createTempFile("sample2query", ".json")
-    jackson.Serialization.writePretty(QueryJSON(tiledbworkspace,
+    jackson.Serialization.write(QueryJSON(tiledbworkspace,
       arrayName,
       vid_mapping_file,
       callsets_mapping_file,
