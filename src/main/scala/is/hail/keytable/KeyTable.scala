@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.io.annotators.{BedAnnotator, IntervalList}
 import is.hail.io.plink.{FamFileConfig, PlinkLoader}
-import is.hail.io.{CassandraConnector, SolrConnector, exportTypes}
+import is.hail.io.{CassandraConnector, SolrConnector, ElasticsearchConnector, exportTypes}
 import is.hail.methods.{Aggregators, Filter}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -745,6 +745,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
   def exportCassandra(address: String, keyspace: String, table: String,
     blockSize: Int = 100, rate: Int = 1000): Unit = {
     CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
+  }
+
+  def exportElasticsearch(host: String, port: Int, index: String, indexType: String, blockSize: Int = 1000, configMap: java.util.HashMap[String, String], verbose: Boolean = true): Unit = {
+      ElasticsearchConnector.export(this, host, port, index, indexType, blockSize, configMap.asScala.toMap, verbose)
   }
 
   def repartition(n: Int, shuffle: Boolean = true): KeyTable = copy(rdd = rdd.coalesce(n, shuffle))
