@@ -254,8 +254,7 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2,
-    gr: GenomeReference = GenomeReference.GRCh37): GenericDataset = {
+    tolerance: Double = 0.2): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -293,7 +292,7 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(GenomeReference.GRCh37).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
     new GenericDataset(this,
       VSMFileMetadata(samples,

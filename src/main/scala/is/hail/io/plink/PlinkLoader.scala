@@ -117,13 +117,14 @@ object PlinkLoader {
     sampleAnnotations: IndexedSeq[Annotation],
     sampleAnnotationSignature: Type,
     variants: Array[(Variant, String)],
-    nPartitions: Option[Int] = None,
-    gr: GenomeReference = GenomeReference.GRCh37): GenericDataset = {
+    nPartitions: Option[Int] = None): GenericDataset = {
 
     val sc = hc.sc
     val nSamples = sampleIds.length
     val variantsBc = sc.broadcast(variants)
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
+
+    val gr = GenomeReference.GRCh37
 
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))

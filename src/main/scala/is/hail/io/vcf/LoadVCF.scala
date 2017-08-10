@@ -256,6 +256,8 @@ object LoadVCF {
     else
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
+    val gr = GenomeReference.GRCh37
+
     val rowType = TStruct(
       "v" -> TVariant(gr),
       "va" -> vaSignature,

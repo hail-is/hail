@@ -42,15 +42,14 @@ class TextTableSuite extends SparkSuite {
 
     val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".", null)
 
-    imputed.foreach(println)
     assert(imputed.sameElements(Array(
       Some(TInt32),
       Some(TFloat64),
       None,
       Some(TString),
-      Some(TVariant),
+      Some(TVariant(GenomeReference.GRCh37)),
       Some(TBoolean),
-      Some(TLocus)
+      Some(TLocus(GenomeReference.GRCh37))
     )))
 
     val (schema, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
