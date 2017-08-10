@@ -109,10 +109,11 @@ class ImportGDBSuite extends SparkSuite {
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, vcf, Array(vcf))
 
+    //map out the QUAL field, which is set to missing in GenomicsDB
     val vcfVAInfo = vcfVariantSampleMatrix.queryVA("va.info.AN")._2 //TODO: remove ".AN" once above issues are fixed
     val vcfAnn = vcfVariantSampleMatrix
       .rdd
-      .map { case (_, (va, _)) => vcfVAInfo(va) } //map out the QUAL field, which is set to missing in GenomicsDB
+      .map { case (_, (va, _)) => vcfVAInfo(va) }
       .collect
 
     val gdbVAInfo = gdbVariantSampleMatrix.queryVA("va.info.AN")._2
