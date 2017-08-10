@@ -24,11 +24,11 @@ import org.scalatest.Assertions
 
 
 object SkatAggForR {
-  val zeroValDense = SkatAggForR(new ArrayBuilder[DenseVector[Double]](),new ArrayBuilder[Double])
-  val zeroValSparse = SkatAggForR(new ArrayBuilder[SparseVector[Double]](),new ArrayBuilder[Double])
+  val zeroValDense = SkatAggForR(new ArrayBuilder[DenseVector[Double]](), new ArrayBuilder[Double])
+  val zeroValSparse = SkatAggForR(new ArrayBuilder[SparseVector[Double]](), new ArrayBuilder[Double])
 
-  def seqOp[T <: Vector[Double]](safr: SkatAggForR[T], info: (T,Double)): SkatAggForR[T] = {
-    val (x,weight) = info
+  def seqOp[T <: Vector[Double]](safr: SkatAggForR[T], info: (T, Double)): SkatAggForR[T] = {
+    val (x, weight) = info
     SkatAggForR(safr.xs + x, safr.weights + weight)
   }
 
@@ -40,7 +40,7 @@ object SkatAggForR {
     val xArray = Array.ofDim[Double](m * n)
 
     var i = 0
-    while (i < m){
+    while (i < m) {
       val index = safr.xs(i).index
       val data = safr.xs(i).data
       var j = 0
@@ -59,7 +59,7 @@ object SkatAggForR {
     val xArray = Array.ofDim[Double](m * n)
 
     var i = 0
-    while (i < m){
+    while (i < m) {
       val data = safr.xs(i).data
       var j = 0
       while (j < n) {
@@ -72,7 +72,8 @@ object SkatAggForR {
     (new DenseMatrix(n, m, xArray), new DenseVector(safr.weights.result()))
   }
 }
-case class SkatAggForR[T <: Vector[Double]](xs: ArrayBuilder[T],weights: ArrayBuilder[Double])
+
+case class SkatAggForR[T <: Vector[Double]](xs: ArrayBuilder[T], weights: ArrayBuilder[Double])
 
 class SkatSuite extends SparkSuite {
   def testInR(vds: VariantDataset,
@@ -82,29 +83,28 @@ class SkatSuite extends SparkSuite {
     weightExpr: String,
     yExpr: String,
     covExpr: Array[String],
-    useDosages:Boolean): Array[Row] = {
+    useDosages: Boolean): Array[Row] = {
 
     if (!useDosages) {
       polymorphicTestInR(vds, keyName, variantKeys, singleKey, weightExpr, yExpr, covExpr,
         RegressionUtils.hardCalls(_, _), SkatAggForR.zeroValSparse, SkatAggForR.sparseResultOp _)
     }
     else {
-      val dosages = (gs:Iterable[Genotype],n:Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
+      val dosages = (gs: Iterable[Genotype], n: Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
       polymorphicTestInR(vds, keyName, variantKeys, singleKey, weightExpr, yExpr, covExpr,
         dosages, SkatAggForR.zeroValDense, SkatAggForR.denseResultOp _)
     }
-
   }
 
   def polymorphicTestInR[T <: Vector[Double]](vds: VariantDataset,
     keyName: String,
     variantKeys: String,
     singleKey: Boolean,
-        weightExpr: String,
+    weightExpr: String,
     yExpr: String,
     covExpr: Array[String],
-    getGenotype: (Iterable[Genotype], Int) => T, zero:SkatAggForR[T],
-    resultOp:(SkatAggForR[T], Int) => (DenseMatrix[Double], DenseVector[Double])): Array[Row] = {
+    getGenotype: (Iterable[Genotype], Int) => T, zero: SkatAggForR[T],
+    resultOp: (SkatAggForR[T], Int) => (DenseMatrix[Double], DenseVector[Double])): Array[Row] = {
 
 
     //get variables
@@ -116,7 +116,7 @@ class SkatSuite extends SparkSuite {
 
     val filteredVds = vds.filterSamplesList(completeSamples.toSet)
 
-    val (keysType, keysQuerier)     = filteredVds.queryVA(variantKeys)
+    val (keysType, keysQuerier) = filteredVds.queryVA(variantKeys)
     val (weightType, weightQuerier) = filteredVds.queryVA(weightExpr)
 
     val typedWeightQuerier = weightType match {
@@ -186,7 +186,7 @@ class SkatSuite extends SparkSuite {
       val rScript = s"Rscript src/test/resources/skatTest.R " +
         s"${ uriPath(inputFileG) } ${ uriPath(inputFileCov) } " +
         s"${ uriPath(inputFilePheno) } ${ uriPath(inputFileW) } " +
-        s"${ uriPath(resultsFile) }"
+        s"${ uriPath(resultsFile) } " + "C"
 
       rScript !
       val results = readResults(resultsFile)
@@ -207,10 +207,10 @@ class SkatSuite extends SparkSuite {
   def intervals = IntervalList.read(hc, "src/test/resources/regressionLinear.interval_list")
 
   def vds: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
-    .annotateVariantsTable(intervals, root="va.genes", product=true)
-    .annotateSamplesTable(phenotypes, root="sa.pheno")
-    .annotateSamplesTable(covariates, root="sa.cov")
-  //  .annotateVariantsExpr("va.weight = v.start.toDouble")
+    .annotateVariantsTable(intervals, root = "va.genes", product = true)
+    .annotateSamplesTable(phenotypes, root = "sa.pheno")
+    .annotateSamplesTable(covariates, root = "sa.cov")
+    //  .annotateVariantsExpr("va.weight = v.start.toDouble")
     .annotateSamplesExpr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
     .filterSamplesExpr("sa.pheno.isDefined() && sa.cov.Cov1.isDefined() && sa.cov.Cov2.isDefined()")
     .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
@@ -223,22 +223,22 @@ class SkatSuite extends SparkSuite {
     val kt = vds.skat("gene", "va.genes", singleKey = false, Option("va.weight"),
       "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
-    val resultsArray = testInR(vds,"gene", "va.genes", singleKey = false,
-      "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),useDosages)
+    val resultsArray = testInR(vds, "gene", "va.genes", singleKey = false,
+      "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
     val rows = kt.rdd.collect()
 
     val tol = 1e-5
     var i = 0
 
-    while(i < resultsArray.size){
+    while (i < resultsArray.size) {
 
       val qstat = rows(i).get(1).asInstanceOf[Double]
       val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR  = resultsArray(i)(2).asInstanceOf[Double]
-      if (pval <= 1 && pval >= 0){
+      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
+      if (pval <= 1 && pval >= 0) {
 
         assert(D_==(qstat, qstatR, tol))
         assert(D_==(pval, pvalR, tol))
@@ -253,7 +253,7 @@ class SkatSuite extends SparkSuite {
 
     val useDosages = true
 
-    val resultsArray = testInR(vds,"gene", "va.genes", singleKey = false,
+    val resultsArray = testInR(vds, "gene", "va.genes", singleKey = false,
       "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
     val kt = vds.skat("gene", "va.genes", singleKey = false, Option("va.weight"),
@@ -265,12 +265,12 @@ class SkatSuite extends SparkSuite {
     val tol = 1e-5
     var i = 0
 
-    while(i < resultsArray.size){
+    while (i < resultsArray.size) {
       val qstat = rows(i).get(1).asInstanceOf[Double]
       val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR =  resultsArray(i)(2).asInstanceOf[Double]
+      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
 
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
@@ -286,23 +286,23 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
 
     val kt = polymorphicSkat[SparseVector[Double]](vds, "gene", "va.genes", singleKey = false, Option("va.weight"), "sa.pheno",
-      Array("sa.cov.Cov1", "sa.cov.Cov2"), RegressionUtils.hardCalls(_,_), SkatAgg.zeroValSparse,
+      Array("sa.cov.Cov1", "sa.cov.Cov2"), RegressionUtils.hardCalls(_, _), SkatAgg.zeroValSparse,
       SkatAgg.largeNResultOp)
 
-    val resultsArray = testInR(vds,"gene", "va.genes", singleKey = false,
-      "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"),useDosages)
+    val resultsArray = testInR(vds, "gene", "va.genes", singleKey = false,
+      "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
     val rows = kt.rdd.collect()
 
     val tol = 1e-5
     var i = 0
 
-    while(i < resultsArray.size){
+    while (i < resultsArray.size) {
       val qstat = rows(i).get(1).asInstanceOf[Double]
       val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR  = resultsArray(i)(2).asInstanceOf[Double]
+      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
 
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
@@ -318,19 +318,18 @@ class SkatSuite extends SparkSuite {
   def readResults(file: String) = {
     hadoopConf.readLines(file) {
       _.map {
-        _.map { _.split(" ").map(_.toDouble)}.value
+        _.map {
+          _.split(" ").map(_.toDouble)
+        }.value
       }.toArray
     }
   }
 
-  def largeMatrixToString(A: DenseMatrix[Double], seperator: String): String =
-  {
-    var string:String = ""
-    for(i <- 0 until A.rows )
-    {
-      for(j <- 0 until A.cols)
-      {
-        string = string + seperator + A(i,j).toString()
+  def largeMatrixToString(A: DenseMatrix[Double], seperator: String): String = {
+    var string: String = ""
+    for (i <- 0 until A.rows) {
+      for (j <- 0 until A.cols) {
+        string = string + seperator + A(i, j).toString()
       }
       string = string + "\n"
     }
@@ -338,7 +337,7 @@ class SkatSuite extends SparkSuite {
   }
 
   //Generates random data
-  def buildWeightValues(filepath: String):Unit = {
+  def buildWeightValues(filepath: String): Unit = {
 
     //read in chrom:pos values
     val fileSource = Source.fromFile(filepath)
@@ -348,12 +347,11 @@ class SkatSuite extends SparkSuite {
     //write in randomized weights
     val fileObject = new PrintWriter(new File(filepath))
 
-    for(i <- -1 until linesArray.size)
-    {
-      if (i == -1)
-        {fileObject.write("Pos\tWeights\n")}
-      else
-      {
+    for (i <- -1 until linesArray.size) {
+      if (i == -1) {
+        fileObject.write("Pos\tWeights\n")
+      }
+      else {
         val pos = linesArray(i)
         val randomWeight = scala.util.Random.nextDouble()
         fileObject.write(s"$pos\t$randomWeight\n")
@@ -363,19 +361,18 @@ class SkatSuite extends SparkSuite {
     fileObject.close()
   }
 
-  def buildCovariateMatrix(filepath: String,covariateCount: Int):Unit = {
+  def buildCovariateMatrix(filepath: String, covariateCount: Int): Unit = {
     val fileObject = new PrintWriter(new File(filepath))
 
     val startIndex = 96
     val endIndex = 116
 
-    for(i <- startIndex-1 to endIndex){
+    for (i <- startIndex - 1 to endIndex) {
 
-      if(i == startIndex - 1)
-      {
+      if (i == startIndex - 1) {
         fileObject.write("Sample\t")
-        for (j <- 1 to covariateCount){
-          if (j == covariateCount){
+        for (j <- 1 to covariateCount) {
+          if (j == covariateCount) {
             fileObject.write(s"Cov$j")
           }
           else {
@@ -415,10 +412,10 @@ class SkatSuite extends SparkSuite {
     types = Map("locus" -> TLocus, "weight" -> TFloat64)).keyBy("locus")
 
   def vdsSkat: VariantDataset = hc.importVCF("src/test/resources/sample2.vcf")
-    .annotateVariantsTable(intervalsSkat, root="va.genes", product = true)
+    .annotateVariantsTable(intervalsSkat, root = "va.genes", product = true)
     .annotateVariantsTable(weightsSkat, root = "va.weight")
-    .annotateSamplesTable(phenotypesSkat, root="sa.pheno0")
-    .annotateSamplesTable(covariatesSkat, root="sa.cov")
+    .annotateSamplesTable(phenotypesSkat, root = "sa.pheno0")
+    .annotateSamplesTable(covariatesSkat, root = "sa.cov")
     .annotateSamplesExpr("sa.pheno = if (sa.pheno0 == 1.0) false else if (sa.pheno0 == 2.0) true else NA: Boolean")
 
 
@@ -426,25 +423,27 @@ class SkatSuite extends SparkSuite {
 
     val useDosages = false
     val covariates = new Array[String](2)
-    for (i <- 1 to 2){covariates(i-1) = "sa.cov.Cov%d".format(i)}
+    for (i <- 1 to 2) {
+      covariates(i - 1) = "sa.cov.Cov%d".format(i)
+    }
 
     val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, Option("va.weight"),
-                                       "sa.pheno0", covariates, useDosages)
-    val resultsArray = testInR(vdsSkat.splitMulti(),"gene", "va.genes", singleKey = false,
-                               "va.weight", "sa.pheno0", covariates, useDosages)
+      "sa.pheno0", covariates, useDosages)
+    val resultsArray = testInR(vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
+      "va.weight", "sa.pheno0", covariates, useDosages)
 
     val rows = kt.rdd.collect()
 
     var i = 0
     val tol = 1e-5
 
-    while(i < resultsArray.size){
+    while (i < resultsArray.size) {
 
       val qstat = rows(i).get(1).asInstanceOf[Double]
       val pval = rows(i).get(2).asInstanceOf[Double]
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR  = resultsArray(i)(2).asInstanceOf[Double]
+      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
 
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
@@ -457,19 +456,21 @@ class SkatSuite extends SparkSuite {
   @Test def dosagesBigTest() {
     val useDosages = true
     val covariates = new Array[String](2)
-    for (i <- 1 to 2){covariates(i-1) = "sa.cov.Cov%d".format(i)}
+    for (i <- 1 to 2) {
+      covariates(i - 1) = "sa.cov.Cov%d".format(i)
+    }
 
     val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, Option("va.weight"),
-                                       "sa.pheno0", covariates, useDosages)
-    val resultsArray = testInR(vdsSkat.splitMulti(),"gene", "va.genes", singleKey = false,
-                               "va.weight", "sa.pheno0", covariates, useDosages)
+      "sa.pheno0", covariates, useDosages)
+    val resultsArray = testInR(vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
+      "va.weight", "sa.pheno0", covariates, useDosages)
 
     val rows = kt.rdd.collect()
 
     var i = 0
     val tol = 1e-5
 
-    while(i < resultsArray.size){
+    while (i < resultsArray.size) {
       val qstat = rows(i).get(1).asInstanceOf[Double]
       val pval = rows(i).get(2).asInstanceOf[Double]
 
@@ -492,7 +493,7 @@ class SkatSuite extends SparkSuite {
       covariates(i - 1) = "sa.cov.Cov%d".format(i)
     }
 
-    val dosages = (gs:Iterable[Genotype],n:Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
+    val dosages = (gs: Iterable[Genotype], n: Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
 
     val kt = polymorphicSkat[DenseVector[Double]](vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
       Option("va.weight"), "sa.pheno0", Array("sa.cov.Cov1", "sa.cov.Cov2"), dosages, SkatAgg.zeroValDense,

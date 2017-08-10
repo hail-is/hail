@@ -275,13 +275,13 @@ package object stats {
   // Returns the x for which p = Prob(Z < x) with Z a standard normal RV
   def qnorm(p: Double): Double = Normal.quantile(p, 0, 1, true, false)
 
-  def dbeta(x: Double, a: Double, b:Double) = Beta.density(x, a, b,false)
-
   // Returns the p for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def chiSquaredTail(df: Double, x: Double): Double = ChiSquare.cumulative(x, df, false, false)
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def inverseChiSquaredTail(df: Double, p: Double): Double = ChiSquare.quantile(p, df, false, false)
+
+  def dbeta(x: Double, a: Double, b: Double): Double = Beta.density(x, a, b, false)
 
   def rpois(lambda: Double): Double = new Poisson(lambda).random()
 

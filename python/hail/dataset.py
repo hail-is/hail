@@ -4710,7 +4710,7 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
-                      weight_expr=nullable(strlike),
+                      weight_expr=None,
                       y=strlike,
                       covariates=listof(strlike),
                       use_dosages=bool)
@@ -4798,8 +4798,8 @@ class VariantDataset(HistoryMixin):
                            generated to from a beta distribution (alpha = 1, beta = 25) evalulated at the minor allele
                            frequency of each variant.
 
-        :param covariates: list of covariate expressions.
-        :type covariates: list of str
+        :param covariates: List of covariate expressions.
+        :type covariates: List of str
 
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 

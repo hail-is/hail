@@ -4,7 +4,7 @@ import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
-import is.hail.stats.{ RegressionUtils, SkatModel }
+import is.hail.stats.{RegressionUtils, SkatModel}
 import is.hail.annotations.Annotation
 import breeze.linalg._
 import org.apache.spark.sql.Row
@@ -17,13 +17,13 @@ object SkatStat {
 }
 
 case class SkatStat(q: Double, pval: Double, fault: Int) {
-  def toAnnotation = Annotation(q, pval,fault)
+  def toAnnotation = Annotation(q, pval, fault)
 }
 
 case class SkatTuple[T <: Vector[Double]](q: Double, xw: T, qtxw: DenseVector[Double])
 
 object SkatAgg {
-  val zeroValDense  = SkatAgg(0.0, new ArrayBuilder[DenseVector[Double]](), new ArrayBuilder[DenseVector[Double]]())
+  val zeroValDense = SkatAgg(0.0, new ArrayBuilder[DenseVector[Double]](), new ArrayBuilder[DenseVector[Double]]())
   val zeroValSparse = SkatAgg(0.0, new ArrayBuilder[SparseVector[Double]](), new ArrayBuilder[DenseVector[Double]]())
 
   def seqOp[T <: Vector[Double]](sa: SkatAgg[T], st: SkatTuple[T]): SkatAgg[T] =
@@ -40,7 +40,8 @@ object SkatAgg {
 
     var xwArray = new Array[Double](m * n)
     var qtxwArray = new Array[Double](m * k)
-    var j = 0; var i = 0
+    var j = 0;
+    var i = 0
 
     //copy in non-zeros to weighted genotype matrix array
     i = 0
@@ -66,13 +67,13 @@ object SkatAgg {
       i += 1
     }
 
-    val weightedGenotypes   = new DenseMatrix[Double](n, m, xwArray)
+    val weightedGenotypes = new DenseMatrix[Double](n, m, xwArray)
     val qtWeightedGenotypes = new DenseMatrix[Double](k, m, qtxwArray)
-    val GwGrammian = weightedGenotypes.t*weightedGenotypes
-    val QtGwGrammian = qtWeightedGenotypes.t*qtWeightedGenotypes
+    val GwGrammian = weightedGenotypes.t * weightedGenotypes
+    val QtGwGrammian = qtWeightedGenotypes.t * qtWeightedGenotypes
 
-    val SPG = new SkatModel(GwGrammian, QtGwGrammian, sa.q / (2 *  sigmaSq))
-    SPG.computeSkatStats()
+    val SPG = new SkatModel(sa.q / (2 * sigmaSq))
+    SPG.computeLinearSkatStats(GwGrammian, QtGwGrammian)
   }
 
   def sparseResultOp(sa: SkatAgg[SparseVector[Double]], sigmaSq: Double): SkatStat = {
@@ -81,10 +82,11 @@ object SkatAgg {
     val n = sa.xws(0).size
     val k = sa.qtxws(0).length
 
-    val xwArray   = new Array[Double](m * n)
+    val xwArray = new Array[Double](m * n)
     val qtxwArray = new Array[Double](m * k)
 
-    var j = 0; var i = 0
+    var j = 0;
+    var i = 0
 
     while (i < m) {
       val nnz = sa.xws(i).used
@@ -92,7 +94,7 @@ object SkatAgg {
       j = 0
       while (j < nnz) {
         val index = sa.xws(i).index(j)
-        xwArray (i * n + index) = xwsi.data(j)
+        xwArray(i * n + index) = xwsi.data(j)
         j += 1
       }
       i += 1
@@ -110,13 +112,13 @@ object SkatAgg {
       i += 1
     }
 
-    val weightedGenotypes   = new DenseMatrix[Double](n, m, xwArray)
+    val weightedGenotypes = new DenseMatrix[Double](n, m, xwArray)
     val qtWeightedGenotypes = new DenseMatrix[Double](k, m, qtxwArray)
-    val GwGrammian = weightedGenotypes.t*weightedGenotypes
-    val QtGwGrammian = qtWeightedGenotypes.t*qtWeightedGenotypes
+    val GwGrammian = weightedGenotypes.t * weightedGenotypes
+    val QtGwGrammian = qtWeightedGenotypes.t * qtWeightedGenotypes
 
-    val SPG = new SkatModel(GwGrammian, QtGwGrammian, sa.q / (2 *  sigmaSq))
-    SPG.computeSkatStats()
+    val SPG = new SkatModel(sa.q / (2 * sigmaSq))
+    SPG.computeLinearSkatStats(GwGrammian, QtGwGrammian)
   }
 
   def largeNResultOp[T <: Vector[Double]](sa: SkatAgg[T], sigmaSq: Double): SkatStat = {
@@ -124,16 +126,16 @@ object SkatAgg {
     val n = sa.xws(0).size
     val k = sa.qtxws(0).length
 
-    val ZGrammianArray   = new Array[Double](m * m)
+    val ZGrammianArray = new Array[Double](m * m)
     val QtZGrammianArray = new Array[Double](m * m)
 
     var i = 0
     var j = 0
 
-    while(i < m) {
+    while (i < m) {
       ZGrammianArray(i * m + i) = sa.xws(i) dot sa.xws(i)
       j = 0
-      while(j < i) {
+      while (j < i) {
         val ijdotprod = sa.xws(i) dot sa.xws(j)
         ZGrammianArray(i * m + j) = ijdotprod
         ZGrammianArray(j * m + i) = ijdotprod
@@ -143,10 +145,10 @@ object SkatAgg {
     }
 
     i = 0
-    while(i < m) {
+    while (i < m) {
       QtZGrammianArray(i * m + i) = sa.qtxws(i) dot sa.qtxws(i)
       j = 0
-      while(j < i) {
+      while (j < i) {
         val ijdotprod = sa.qtxws(i) dot sa.qtxws(j)
         QtZGrammianArray(i * m + j) = ijdotprod
         QtZGrammianArray(j * m + i) = ijdotprod
@@ -154,11 +156,11 @@ object SkatAgg {
       }
       i += 1
     }
-    val weightedGenotypesGrammian   = new DenseMatrix[Double](m, m, ZGrammianArray)
+    val weightedGenotypesGrammian = new DenseMatrix[Double](m, m, ZGrammianArray)
     val qtWeightedGenotypesGrammian = new DenseMatrix[Double](m, m, QtZGrammianArray)
 
-    val SPG = new SkatModel(weightedGenotypesGrammian, qtWeightedGenotypesGrammian, sa.q / (2 *  sigmaSq))
-    SPG.computeSkatStats()
+    val SPG = new SkatModel(sa.q / (2 * sigmaSq))
+    SPG.computeLinearSkatStats(weightedGenotypesGrammian, qtWeightedGenotypesGrammian)
   }
 
 }
@@ -177,11 +179,12 @@ object Skat {
 
     if (!use_dosages)
       polymorphicSkat(vds, keyName, variantKeys, singleKey, weightExpr, yExpr, covExpr,
-                      RegressionUtils.hardCalls(_,_), SkatAgg.zeroValSparse, SkatAgg.sparseResultOp _)
-    else
-      {val dosages = (gs:Iterable[Genotype],n:Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
+        RegressionUtils.hardCalls(_, _), SkatAgg.zeroValSparse, SkatAgg.sparseResultOp _)
+    else {
+      val dosages = (gs: Iterable[Genotype], n: Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
       polymorphicSkat(vds, keyName, variantKeys, singleKey, weightExpr, yExpr, covExpr,
-                      dosages, SkatAgg.zeroValDense, SkatAgg.denseResultOp _)}
+        dosages, SkatAgg.zeroValDense, SkatAgg.denseResultOp _)
+    }
   }
 
   def polymorphicSkat[T <: Vector[Double]](vds: VariantDataset,
@@ -193,8 +196,7 @@ object Skat {
     covExpr: Array[String],
     getGenotypes: (Iterable[Genotype], Int) => T,
     zero: SkatAgg[T],
-    resultOp:(SkatAgg[T], Double) => SkatStat): KeyTable =
-  {
+    resultOp: (SkatAgg[T], Double) => SkatStat): KeyTable = {
 
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
 
@@ -212,19 +214,20 @@ object Skat {
     val sigmaSq = (res dot res) / d
 
     val filteredVds = weightExpr match {
-      case None =>  vds.filterSamplesList(completeSamples.toSet)
-                       .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
-                       .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
+      case None => vds.filterSamplesList(completeSamples.toSet)
+        .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
+        .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
       case _ => vds.filterSamplesList(completeSamples.toSet)
     }
 
 
     val (keysType, keysQuerier) = filteredVds.queryVA(variantKeys)
-    val (weightType, weightQuerier) =  weightExpr match {
+    val (weightType, weightQuerier) = weightExpr match {
       case None => filteredVds.queryVA("va.weight")
-      case _    => filteredVds.queryVA(weightExpr.get)
+      case Some(expr) => filteredVds.queryVA(expr)
     }
 
+    //ask Tim about how to resolve this bug
     val typedWeightQuerier = weightType match {
       case TFloat64 => weightQuerier.asInstanceOf[Annotation => Double]
       case TFloat32 => weightQuerier.asInstanceOf[Annotation => Double]
@@ -236,11 +239,11 @@ object Skat {
     val sc = filteredVds.sparkContext
     val resBc = sc.broadcast(res)
 
-    def variantPreProcess(gs: Iterable[Genotype], w: Double):SkatTuple[T] = {
+    def variantPreProcess(gs: Iterable[Genotype], w: Double): SkatTuple[T] = {
       val sqrtw = math.sqrt(w.asInstanceOf[Double])
       val wx: T = (getGenotypes(gs, n) * sqrtw).asInstanceOf[T]
-      val Sj = resBc.value dot wx
-      SkatTuple(Sj * Sj, wx, q.t * wx)
+      val sj = resBc.value dot wx
+      SkatTuple(sj * sj, wx, q.t * wx)
     }
 
     val (keyType, keyIterator): (Any, Any => Iterator[Any]) = if (singleKey) {
@@ -266,22 +269,18 @@ object Skat {
     val aggregatedKT = keyedRdd.aggregateByKey(zero)(SkatAgg.seqOp, SkatAgg.combOp)
 
     val skatRDD = aggregatedKT.map { case (key, value) =>
-      val skatStat = if (value.xws.length * n < Int.MaxValue) {resultOp(value, sigmaSq)}
-                    else {SkatAgg.largeNResultOp(value,sigmaSq)}
-      skatStat.fault match {
-        case 0 =>
-        case 1 => info(s"key: $key, required accuracy of 10e-6 NOT achieved")
-        case 2 => info(s"key: $key, round-off error possibly significant")
-        case 3 => info(s"key: $key, invalid parameters")
-        case 4 => info(s"key: $key, unable to locate integration parameter")
-        case 5 => info(s"key: $key, out of memory")
+      val skatStat = if (value.xws.length * n < Int.MaxValue) {
+        resultOp(value, sigmaSq)
+      }
+      else {
+        SkatAgg.largeNResultOp(value, sigmaSq)
       }
 
-        Row(key, skatStat.q, skatStat.pval, skatStat.fault)
+      Row(key, skatStat.q, skatStat.pval, skatStat.fault)
     }
 
     val (skatSignature, _) = TStruct(keyName -> keyType.asInstanceOf[Type]).merge(SkatStat.schema)
 
-   new KeyTable(filteredVds.hc, skatRDD, skatSignature, key = Array(keyName))
+    new KeyTable(filteredVds.hc, skatRDD, skatSignature, key = Array(keyName))
   }
 }

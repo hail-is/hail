@@ -24,7 +24,7 @@ pheno = unlist(pheno)
 
 #run SKAT
 start.time = Sys.time()
-obj <-SKAT_Null_Model(pheno ~ Cov - 1)
+obj <-SKAT_Null_Model(pheno ~ Cov - 1,out_type = args[6])
 end.time = Sys.time()
 nullModelTime = end.time - start.time
 #print(sprintf("Null Model time: %f",nullModelTime))
@@ -37,10 +37,10 @@ sol <- suppressWarnings(SKAT(G,obj,kernel = "linear.weighted",weights = W))
 #skatStatTime  = Sys.time() - start.time
 #print(sprintf("SKAT time: %f",skatStatTime))
 
-#print(sprintf("VCS:     %f",sol[4]))
-#print(sprintf("p value: %f",sol[1]))
+print(sprintf("VCS:     %f",sol$Q[1]))
+print(sprintf("p value: %f",sol[1]))
 
-output = c(sol[4]$Q[1],sol[1]$p.value)
+output = c(sol$Q[1],sol[1]$p.value)
 #print(output)
 #save(list = ls(all.names = TRUE),file = sprintf("/Users/charlesc/Documents/Software/R/workspaces/skatTest%f.RData",runif(1,2.0,5.0)))
 write(output,args[5],ncolumns = 2,sep = " ")
