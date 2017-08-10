@@ -121,17 +121,17 @@ object UnsafeRow {
       case struct: TStruct =>
         readStruct(region, offset, ttBc)
 
-      case t: TVariant =>
+      case x: TVariant =>
         val ft = t.fundamentalType.asInstanceOf[TStruct]
         Variant(
           readString(region, offset + ft.byteOffsets(0)),
           region.loadInt(offset + ft.byteOffsets(1)),
           readString(region, offset + ft.byteOffsets(2)),
           readArrayAltAllele(region, offset + ft.byteOffsets(3)))
-      case t: TLocus => readLocus(region, offset)
+      case x: TLocus => readLocus(region, offset)
       case TAltAllele => readAltAllele(region, offset)
-      case t: TInterval =>
-        val ft = t.fundamentalType.asInstanceOf[TStruct]
+      case x: TInterval =>
+        val ft = x.fundamentalType.asInstanceOf[TStruct]
         Interval[Locus](
           readLocus(region, offset + ft.byteOffsets(0)),
           readLocus(region, offset + ft.byteOffsets(1)))
