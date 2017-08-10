@@ -1,8 +1,10 @@
 package is.hail.io
 
+import is.hail.check._
+import is.hail.check.Prop._
 import is.hail.SparkSuite
 import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF}
-import is.hail.variant.{Call, Genotype, Variant}
+import is.hail.variant.{Call, Genotype, Variant, VariantSampleMatrix, VSMSubgen}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -183,5 +185,24 @@ class ImportVCFSuite extends SparkSuite {
       Variant("X", 16050036, "A", "C") -> (IndexedSeq(1, null), IndexedSeq(2, null, null)),
       Variant("X", 16061250, "T", Array("A", "C")) -> (IndexedSeq(null, 2, null), IndexedSeq(null, 1.0, null))
     ))
+  }
+
+  @Test def randomExportImportIsIdentity() {
+    forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
+
+      val truth = {
+        val f = tmpDir.createTempFile(extension="vcf")
+        vds.exportVCF(f)
+        hc.importVCF(f)
+      }
+
+      val actual = {
+        val f = tmpDir.createTempFile(extension="vcf")
+        truth.toVDS.exportVCF(f)
+        hc.importVCF(f)
+      }
+
+      truth.same(actual)
+    }.check()
   }
 }
