@@ -1,6 +1,7 @@
 from hail.java import scala_object, Env, handle_py4j
 from hail.typecheck import *
 
+
 class Variant(object):
     """
     An object that represents a genomic polymorphism.
@@ -417,6 +418,7 @@ class AltAllele(object):
         """
         return self._jrep.altAlleleType()
 
+
 class Locus(object):
     """
     An object that represents a location in the genome.
@@ -489,3 +491,66 @@ class Locus(object):
         :rtype: int
         """
         return self._position
+
+
+class Contig(object):
+    """
+    An object that represents a contig.
+
+    >>> c = Contig(1, 249250621)
+
+    :param name: contig identifier
+    :type name: str or int
+    :param int length: contig length in base pairs
+    """
+
+    @handle_py4j
+    @typecheck_method(name=strlike,
+                      length=integral)
+    def __init__(self, name, length):
+        if isinstance(name, int):
+            name = str(name)
+        jrep = scala_object(Env.hail().variant, 'Contig').apply(name, length)
+        self._init_from_java(jrep)
+        self._name = name
+        self._length = length
+
+    def __str__(self):
+        return self._jrep.toString()
+
+    def __repr__(self):
+        return 'Contig(name=%s, length=%s)' % (self.name, self.length)
+
+    def __eq__(self, other):
+        return self._jrep.equals(other._jrep)
+
+    def __hash__(self):
+        return self._jrep.hashCode()
+
+    def _init_from_java(self, jrep):
+        self._jrep = jrep
+
+    @classmethod
+    def _from_java(cls, jrep):
+        c = Contig.__new__(cls)
+        c._init_from_java(jrep)
+        c._name = jrep.name()
+        c._length = jrep.length()
+        return c
+
+    @property
+    def name(self):
+        """Name of contig
+
+        :rtype: str
+        """
+        return self._name
+
+    @property
+    def length(self):
+        """Length of contig in base pairs
+
+        :rtype: int
+        :return:
+        """
+        return self._length
