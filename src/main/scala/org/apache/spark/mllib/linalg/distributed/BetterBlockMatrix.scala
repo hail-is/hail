@@ -149,12 +149,11 @@ object BetterBlockMatrix extends Logging {
     */
   private class BlockMatrixTransposeRDD(m: BlockMatrix)
       extends RDD[((Int, Int), Matrix)](m.blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(m.blocks))) {
-
     def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), Matrix)] =
       m.blocks.iterator(split, context).map { case ((i, j), m) => ((j, i), m.transpose) }
 
     protected def getPartitions: Array[Partition] =
-      (0 until m.numRowBlocks * m.numColBlocks).map(IntPartition.apply _).toArray[Partition]
+      m.blocks.partitions
 
     private val prevPartitioner = m.blocks.partitioner.get
     @transient override val partitioner: Option[Partitioner] =
