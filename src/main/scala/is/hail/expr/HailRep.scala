@@ -62,7 +62,7 @@ trait HailRepFunctions {
   implicit object genotypeHr extends HailRep[Genotype] {
     def typ = TGenotype
   }
-
+  
   implicit object variantHr extends HailRep[Variant] {
     def typ = TVariant(GenomeReference.GRCh37)
   }
