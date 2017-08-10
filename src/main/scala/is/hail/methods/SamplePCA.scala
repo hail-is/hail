@@ -28,7 +28,7 @@ object SamplePCA {
     asArray: Boolean): (Map[Annotation, Annotation], Option[RDD[(Variant, Annotation)]], Option[Annotation]) = {
     val sc = vds.sparkContext
 
-    val (variants, svd, scores) = variantsSvdAndScores(vds, k)
+    val (variants, svd, scores) = variantsSvdAndScores(vds, k, true)
     val sampleScores = vds.sampleIds.zipWithIndex.map { case (id, i) =>
       (id, makeAnnotation((0 until k).map(j => scores(i, j)), asArray))
     }
@@ -45,13 +45,13 @@ object SamplePCA {
   }
 
   def justScores(vds: VariantDataset, k: Int): DenseMatrix =
-    variantsSvdAndScores(vds, k)._3
+    variantsSvdAndScores(vds, k, false)._3
 
-  private def variantsSvdAndScores(vds: VariantDataset, k: Int): (Array[Variant], SingularValueDecomposition[IndexedRowMatrix, Matrix], DenseMatrix) = {
+  private def variantsSvdAndScores(vds: VariantDataset, k: Int, computeU: Boolean): (Array[Variant], SingularValueDecomposition[IndexedRowMatrix, Matrix], DenseMatrix) = {
     val (variants, mat) = ToHWENormalizedIndexedRowMatrix(vds)
     val sc = vds.sparkContext
 
-    val svd = mat.computeSVD(k, computeU = false)
+    val svd = mat.computeSVD(k, computeU)
 
     if (svd.s.size < k)
       fatal(
