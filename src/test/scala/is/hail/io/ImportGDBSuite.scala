@@ -31,7 +31,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfGA == gdbGA)
   }
 
-  @Test(enabled = false) def genomicsDBNoMulti() {
+  @Test(enabled = true) def genomicsDBNoMulti() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, vcf, Array(vcf))
@@ -73,7 +73,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfGenotypeSignature.zip(gdbGenotypeSignature).forall( { case (f1, f2) => f1.equals(f2) }))
   }
 
-  @Test(enabled = false) def genomicsDBVariantsSamples() {
+  @Test(enabled = true) def genomicsDBVariantsSamples() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, vcf, Array(vcf))
@@ -125,7 +125,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfAnn.zip(gdbAnn).forall( { case (a1, a2) => a1.equals(a2) }))
   }
 
-  @Test(enabled = false) def genomicsDBSampleAnnotations() {
+  @Test(enabled = true) def genomicsDBSampleAnnotations() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, vcf, Array(vcf))
@@ -136,7 +136,7 @@ class ImportGDBSuite extends SparkSuite {
     assert(vcfSA.equals(gdbSA))
   }
 
-  @Test(enabled = false) def genomicsDBFilters() {
+  @Test(enabled = true) def genomicsDBFilters() {
     val reader = new HtsjdkRecordReader(Set.empty)
     val gdbVariantSampleMatrix = LoadGDB(hc, reader, loader, workspace, arrName, vid, callsets, vcfHeader)
     val vcfVariantSampleMatrix = LoadVCF(hc, reader, vcf, Array(vcf))

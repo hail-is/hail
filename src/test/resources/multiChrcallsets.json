@@ -1,0 +1,504 @@
+{
+    "callsets" : {
+        "C1046::HG02024" : {
+            "row_idx" : 0,
+            "idx_in_file" : 0,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1046::HG02025" : {
+            "row_idx" : 1,
+            "idx_in_file" : 1,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1046::HG02026" : {
+            "row_idx" : 2,
+            "idx_in_file" : 2,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1047::HG00731" : {
+            "row_idx" : 3,
+            "idx_in_file" : 3,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1047::HG00732" : {
+            "row_idx" : 4,
+            "idx_in_file" : 4,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1047::HG00733" : {
+            "row_idx" : 5,
+            "idx_in_file" : 5,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1048::HG02024" : {
+            "row_idx" : 6,
+            "idx_in_file" : 6,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1048::HG02025" : {
+            "row_idx" : 7,
+            "idx_in_file" : 7,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1048::HG02026" : {
+            "row_idx" : 8,
+            "idx_in_file" : 8,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1049::HG00731" : {
+            "row_idx" : 9,
+            "idx_in_file" : 9,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1049::HG00732" : {
+            "row_idx" : 10,
+            "idx_in_file" : 10,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1049::HG00733" : {
+            "row_idx" : 11,
+            "idx_in_file" : 11,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1050::HG03006" : {
+            "row_idx" : 12,
+            "idx_in_file" : 12,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1051::HG03642" : {
+            "row_idx" : 13,
+            "idx_in_file" : 13,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::HG02922" : {
+            "row_idx" : 14,
+            "idx_in_file" : 14,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::HG03006" : {
+            "row_idx" : 15,
+            "idx_in_file" : 15,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::HG03052" : {
+            "row_idx" : 16,
+            "idx_in_file" : 16,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::HG03642" : {
+            "row_idx" : 17,
+            "idx_in_file" : 17,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::NA12878" : {
+            "row_idx" : 18,
+            "idx_in_file" : 18,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::NA19017" : {
+            "row_idx" : 19,
+            "idx_in_file" : 19,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::NA19625" : {
+            "row_idx" : 20,
+            "idx_in_file" : 20,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::NA19648" : {
+            "row_idx" : 21,
+            "idx_in_file" : 21,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C1589::NA20845" : {
+            "row_idx" : 22,
+            "idx_in_file" : 22,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C339::NA12878" : {
+            "row_idx" : 23,
+            "idx_in_file" : 23,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C339::NA12891" : {
+            "row_idx" : 24,
+            "idx_in_file" : 24,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C454::NA19625" : {
+            "row_idx" : 25,
+            "idx_in_file" : 25,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C456::NA12878" : {
+            "row_idx" : 26,
+            "idx_in_file" : 26,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C456::NA12891" : {
+            "row_idx" : 27,
+            "idx_in_file" : 27,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C464::NA20845" : {
+            "row_idx" : 28,
+            "idx_in_file" : 28,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C469::HG02025" : {
+            "row_idx" : 29,
+            "idx_in_file" : 29,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C469::HG02026" : {
+            "row_idx" : 30,
+            "idx_in_file" : 30,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C470::NA19017" : {
+            "row_idx" : 31,
+            "idx_in_file" : 31,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C474::NA19648" : {
+            "row_idx" : 32,
+            "idx_in_file" : 32,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C477::HG00731" : {
+            "row_idx" : 33,
+            "idx_in_file" : 33,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C477::HG00732" : {
+            "row_idx" : 34,
+            "idx_in_file" : 34,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C958::HG03052" : {
+            "row_idx" : 35,
+            "idx_in_file" : 35,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "C959::HG02922" : {
+            "row_idx" : 36,
+            "idx_in_file" : 36,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00096" : {
+            "row_idx" : 37,
+            "idx_in_file" : 37,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00100" : {
+            "row_idx" : 38,
+            "idx_in_file" : 38,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00116" : {
+            "row_idx" : 39,
+            "idx_in_file" : 39,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00117" : {
+            "row_idx" : 40,
+            "idx_in_file" : 40,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00119" : {
+            "row_idx" : 41,
+            "idx_in_file" : 41,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00120" : {
+            "row_idx" : 42,
+            "idx_in_file" : 42,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00123" : {
+            "row_idx" : 43,
+            "idx_in_file" : 43,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00124" : {
+            "row_idx" : 44,
+            "idx_in_file" : 44,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00131" : {
+            "row_idx" : 45,
+            "idx_in_file" : 45,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00133" : {
+            "row_idx" : 46,
+            "idx_in_file" : 46,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00145" : {
+            "row_idx" : 47,
+            "idx_in_file" : 47,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00146_A1" : {
+            "row_idx" : 48,
+            "idx_in_file" : 48,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00155_A1" : {
+            "row_idx" : 49,
+            "idx_in_file" : 49,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00157" : {
+            "row_idx" : 50,
+            "idx_in_file" : 50,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00158" : {
+            "row_idx" : 51,
+            "idx_in_file" : 51,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00159" : {
+            "row_idx" : 52,
+            "idx_in_file" : 52,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00160" : {
+            "row_idx" : 53,
+            "idx_in_file" : 53,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00176" : {
+            "row_idx" : 54,
+            "idx_in_file" : 54,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00239" : {
+            "row_idx" : 55,
+            "idx_in_file" : 55,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00242" : {
+            "row_idx" : 56,
+            "idx_in_file" : 56,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00243" : {
+            "row_idx" : 57,
+            "idx_in_file" : 57,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00244" : {
+            "row_idx" : 58,
+            "idx_in_file" : 58,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00245_A1" : {
+            "row_idx" : 59,
+            "idx_in_file" : 59,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00255" : {
+            "row_idx" : 60,
+            "idx_in_file" : 60,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00258" : {
+            "row_idx" : 61,
+            "idx_in_file" : 61,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00262" : {
+            "row_idx" : 62,
+            "idx_in_file" : 62,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00264" : {
+            "row_idx" : 63,
+            "idx_in_file" : 63,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00265" : {
+            "row_idx" : 64,
+            "idx_in_file" : 64,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00268" : {
+            "row_idx" : 65,
+            "idx_in_file" : 65,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00272" : {
+            "row_idx" : 66,
+            "idx_in_file" : 66,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00306" : {
+            "row_idx" : 67,
+            "idx_in_file" : 67,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00308" : {
+            "row_idx" : 68,
+            "idx_in_file" : 68,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00311" : {
+            "row_idx" : 69,
+            "idx_in_file" : 69,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00312" : {
+            "row_idx" : 70,
+            "idx_in_file" : 70,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00357" : {
+            "row_idx" : 71,
+            "idx_in_file" : 71,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00361" : {
+            "row_idx" : 72,
+            "idx_in_file" : 72,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00366" : {
+            "row_idx" : 73,
+            "idx_in_file" : 73,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00367" : {
+            "row_idx" : 74,
+            "idx_in_file" : 74,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00368" : {
+            "row_idx" : 75,
+            "idx_in_file" : 75,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00369" : {
+            "row_idx" : 76,
+            "idx_in_file" : 76,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00371" : {
+            "row_idx" : 77,
+            "idx_in_file" : 77,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00372" : {
+            "row_idx" : 78,
+            "idx_in_file" : 78,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00373" : {
+            "row_idx" : 79,
+            "idx_in_file" : 79,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00377" : {
+            "row_idx" : 80,
+            "idx_in_file" : 80,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00379" : {
+            "row_idx" : 81,
+            "idx_in_file" : 81,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00380" : {
+            "row_idx" : 82,
+            "idx_in_file" : 82,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00384" : {
+            "row_idx" : 83,
+            "idx_in_file" : 83,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00403" : {
+            "row_idx" : 84,
+            "idx_in_file" : 84,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00404" : {
+            "row_idx" : 85,
+            "idx_in_file" : 85,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00409" : {
+            "row_idx" : 86,
+            "idx_in_file" : 86,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00410" : {
+            "row_idx" : 87,
+            "idx_in_file" : 87,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00419" : {
+            "row_idx" : 88,
+            "idx_in_file" : 88,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00551" : {
+            "row_idx" : 89,
+            "idx_in_file" : 89,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00598" : {
+            "row_idx" : 90,
+            "idx_in_file" : 90,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00599" : {
+            "row_idx" : 91,
+            "idx_in_file" : 91,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00610" : {
+            "row_idx" : 92,
+            "idx_in_file" : 92,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00611" : {
+            "row_idx" : 93,
+            "idx_in_file" : 93,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00622" : {
+            "row_idx" : 94,
+            "idx_in_file" : 94,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00623" : {
+            "row_idx" : 95,
+            "idx_in_file" : 95,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00625" : {
+            "row_idx" : 96,
+            "idx_in_file" : 96,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00626" : {
+            "row_idx" : 97,
+            "idx_in_file" : 97,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00628" : {
+            "row_idx" : 98,
+            "idx_in_file" : 98,
+            "filename": "src/test/resources/multipleChromosomes.vcf.gz"
+        },
+        "HG00629" : {
+            "row_idx" : 99,
+            "idx_in_file" : 99,
+            "filename": "src/test/resources/chromosomes.vcf.gz"
+        }
+    }
+}
