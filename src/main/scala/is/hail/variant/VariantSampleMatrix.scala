@@ -1982,8 +1982,10 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def makeVariantConcrete(): VariantSampleMatrix[Locus, Variant, T] = {
-    if (vSignature != TVariant)
-      fatal(s"variant signature `Variant' required, found: ${ vSignature.toPrettyString() }")
+    vSignature match {
+      case TVariant(_) =>
+      case _ => fatal(s"variant signature `Variant' required, found: ${ vSignature.toPrettyString() }")
+    }
 
     if (kOk == Variant.orderedKey)
       this.asInstanceOf[VariantSampleMatrix[Locus, Variant, T]]
