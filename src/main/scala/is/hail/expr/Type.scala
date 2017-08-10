@@ -27,6 +27,9 @@ object Type {
       genScalar
     else
       Gen.oneOfGen(genScalar,
+        genScalar,
+        genScalar,
+        genScalar,
         genArb.resize(size - 1).map(TArray),
         genArb.resize(size - 1).map(TSet),
         Gen.zip(genArb, genArb).map { case (k, v) => TDict(k, v) },
@@ -49,6 +52,16 @@ object Type {
         .toIndexedSeq))
 
   def genArb: Gen[Type] = Gen.sized(genSized)
+
+  def genWithValue: Gen[(Type, Annotation)] = for {
+    s <- Gen.size
+    // prefer smaller type and bigger values
+    fraction <- Gen.choose(0.1, 0.3)
+    x = (fraction * s).toInt
+    y = s - x
+    t <- Type.genStruct.resize(x)
+    v <- t.genValue.resize(y)
+  } yield (t, v)
 
   implicit def arbType = Arbitrary(genArb)
 
