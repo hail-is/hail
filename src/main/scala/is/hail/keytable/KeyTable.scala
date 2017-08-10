@@ -747,10 +747,10 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     CassandraConnector.export(this, address, keyspace, table, blockSize, rate)
   }
 
-  def exportElasticsearch(host: String, port: Int, index: String, indexType: String, blockSize: Int = 1000): Unit = {
-    ElasticsearchConnector.export(this, host, port, index, indexType, blockSize)
+  def exportElasticsearch(host: String, port: Int, index: String, indexType: String, blockSize: Int = 1000, configMap: java.util.HashMap[String, String], verbose: Boolean = true): Unit = {
+      ElasticsearchConnector.export(this, host, port, index, indexType, blockSize, configMap.asScala.toMap, verbose)
   }
-  
+
   def repartition(n: Int, shuffle: Boolean = true): KeyTable = copy(rdd = rdd.coalesce(n, shuffle))
 
   def union(kts: java.util.ArrayList[KeyTable]): KeyTable = union(kts.asScala.toArray: _*)

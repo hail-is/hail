@@ -694,8 +694,9 @@ class KeyTable(object):
                       port=integral,
                       index=strlike,
                       index_type=strlike,
-                      block_size=integral)
-    def export_elasticsearch(self, host, port, index, index_type, block_size):
+                      block_size=integral,
+                      config=nullable(dictof(strlike, strlike)))
+    def export_elasticsearch(self, host, port, index, index_type, block_size, config=None):
         """Export to Elasticsearch.
 
         .. warning::
@@ -704,7 +705,7 @@ class KeyTable(object):
 
         """
 
-        self._jkt.exportElasticsearch(host, port, index, index_type, block_size)
+        self._jkt.exportElasticsearch(host, port, index, index_type, block_size, config, True)
 
     @handle_py4j
     @typecheck_method(column_names=oneof(strlike, listof(strlike)))
