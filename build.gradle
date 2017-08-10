@@ -27,7 +27,7 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-String hailVersion = "devel"
+String hailVersion = "0.1"
 String[] deployedSparkVersions = ["2.0.2", "2.1.0"]
 String gitHash = exec {commandLine 'git', 'rev-parse', '--short', 'HEAD'}
 
@@ -41,12 +41,15 @@ String scalaMajorVersion = '2.11'
 
 String py4jVersion
 String breezeVersion
+String elasticsearchLibVersion
 if (sparkVersion ==~ /^2\.1.*/) {
     py4jVersion = '0.10.4'
     breezeVersion = '0.12'
+    elasticsearchLibVersion = '5.5.1'
 } else {
     py4jVersion = '0.10.3'
     breezeVersion = '0.11.2'
+    elasticsearchLibVersion = '5.1.2'
 }
 
 String mongoVersion = '2.0.0'
@@ -149,6 +152,7 @@ dependencies {
 
     compile 'org.apache.solr:solr-solrj:6.2.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
+    compile 'org.elasticsearch:elasticsearch-spark-20_2.11:' + elasticsearchLibVersion
 
     compile 'com.jayway.restassured:rest-assured:2.8.0'
 
@@ -250,6 +254,7 @@ shadowJar {
         include(dependency('org.noggit:noggit:.*'))
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
+        include(dependency('org.elasticsearch:elasticsearch-spark-20_2.11:.*'))
         include(dependency('com.google.guava:guava:.*'))
 
         include(dependency('org.ow2.asm:asm:.*'))
@@ -297,6 +302,7 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.noggit:noggit:.*'))
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
+        include(dependency('org.elasticsearch:elasticsearch-spark-20_2.11:.*'))
         include(dependency('com.google.guava:guava:.*'))
 
         include(dependency('org.ow2.asm:asm:.*'))
