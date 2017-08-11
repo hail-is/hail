@@ -170,7 +170,7 @@ object LoadVCF {
     val filters: Map[String, String] = header
       .getFilterLines
       .toList
-      // (filter, description)
+      // (ID, description)
       .map(line => (line.getID, ""))
       .toMap
 
@@ -222,7 +222,7 @@ object LoadVCF {
 
     if (noMulti)
       info("No multiallelics detected.")
-    if (!noMulti)
+    else
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
     val rowType = TStruct(

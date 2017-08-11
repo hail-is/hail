@@ -13,6 +13,7 @@ plugins {
   id 'maven'
   id 'jacoco'
   id 'com.github.johnrengelman.shadow' version '1.2.3'
+  id "de.undercouch.download" version "3.2.0"
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
@@ -111,6 +112,8 @@ compileScala {
 }
 
 dependencies {
+    //"compile group: 'com.intel', name: 'genomicsdb', version: '0.6.4-proto-3.0.0-beta-1'" currently does not support spark-core 2.11
+    compile files("libs/genomicsdb-0.6.4.jar")
     compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
     compile('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
