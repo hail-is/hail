@@ -519,6 +519,23 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     ret
   }
 
+  /**
+    *
+    * @param k         the number of principal components to use to distinguish
+    *                  ancestries
+    * @param maf       the minimum individual-specific allele frequency for an
+    *                  allele used to measure relatedness
+    * @param blockSize the side length of the blocks of the block-distributed
+    *                  matrices; this should be set such that atleast three of
+    *                  these matrices fit in memory (in addition to all other
+    *                  objects necessary for Spark and Hail).
+    */
+  def pcRelate(k: Int, maf: Double, blockSize: Int): KeyTable = {
+    requireSplit("PCRelate")
+    val pcs = SamplePCA.justScores(vds, k)
+    PCRelate.toKeyTable(vds, pcs, maf, blockSize)
+  }
+
   def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds.toGDS, root, keepStar).toVDS
 
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {

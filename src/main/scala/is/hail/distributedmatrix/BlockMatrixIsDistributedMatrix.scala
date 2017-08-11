@@ -16,7 +16,6 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def from(irm: IndexedRowMatrix, dense: Boolean = true): M =
     if (dense) irm.toBlockMatrixDense()
     else irm.toBlockMatrix()
-  def from(bm: BlockMatrix): M = bm
   def from(sc: SparkContext, dm: DenseMatrix, rowsPerBlock: Int, colsPerBlock: Int): M = {
     val rbc = sc.broadcast(dm)
     val rowBlocks = (dm.numRows - 1) / rowsPerBlock + 1
@@ -41,6 +40,16 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }.partitionBy(GridPartitioner(rowBlocks, colBlocks))
     new BlockMatrix(rMats, rowsPerBlock, colsPerBlock, dm.numRows, dm.numCols)
   }
+  def from(irm: IndexedRowMatrix, rowsPerBlock: Int, colsPerBlock: Int): M =
+    irm.toBlockMatrixDense(rowsPerBlock, colsPerBlock)
+  def from(bm: BlockMatrix): M =
+    new BlockMatrix(
+      bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / bm.rowsPerBlock).toInt + 1, ((bm.numCols - 1) / bm.colsPerBlock).toInt + 1)).persist(),
+      bm.rowsPerBlock, bm.colsPerBlock, bm.numRows(), bm.numCols())
+  def from(bm: BlockMatrix, rowsPerBlock: Int, colsPerBlock: Int): M =
+    new BlockMatrix(
+      bm.blocks.partitionBy(GridPartitioner(((bm.numRows - 1) / rowsPerBlock).toInt + 1, ((bm.numCols - 1) / colsPerBlock).toInt + 1)).persist(),
+      rowsPerBlock, colsPerBlock, bm.numRows(), bm.numCols())
 
   def transpose(m: M): M =
     BetterBlockMatrix.transpose(m)
@@ -116,8 +125,8 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def map2(op: (Double, Double) => Double)(l: M, r: M): M = {
     require(l.numRows() == r.numRows())
     require(l.numCols() == r.numCols())
-    require(l.rowsPerBlock == r.rowsPerBlock)
-    require(l.colsPerBlock == r.colsPerBlock)
+    require(l.rowsPerBlock == r.rowsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    require(l.colsPerBlock == r.colsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
     val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValues { case (m1, m2) =>
       val size = m1.numRows * m1.numCols
       val result = new Array[Double](size)
@@ -126,6 +135,32 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
         var i = 0
         while (i < m1.numRows) {
           result(i + j*m1.numRows) = op(m1(i, j), m2(i, j))
+          i += 1
+        }
+        j += 1
+      }
+      new DenseMatrix(m1.numRows, m1.numCols, result)
+    }
+    new BlockMatrix(blocks, l.rowsPerBlock, l.colsPerBlock, l.numRows(), l.numCols())
+  }
+
+  def map2WithIndex(op: (Long, Long, Double, Double) => Double)(l: M, r: M): M = {
+    require(l.numRows() == r.numRows())
+    require(l.numCols() == r.numCols())
+    require(l.rowsPerBlock == r.rowsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    require(l.colsPerBlock == r.colsPerBlock, s"blocks must be same size, but actually were ${l.rowsPerBlock}x${l.colsPerBlock} and ${r.rowsPerBlock}x${l.colsPerBlock}")
+    val rowsPerBlock = l.rowsPerBlock
+    val colsPerBlock = l.colsPerBlock
+    val blocks: RDD[((Int, Int), Matrix)] = l.blocks.join(r.blocks).mapValuesWithKey { case ((blocki, blockj), (m1, m2)) =>
+      val iprefix = blocki.toLong * rowsPerBlock
+      val jprefix = blockj.toLong * colsPerBlock
+      val size = m1.numRows * m1.numCols
+      val result = new Array[Double](size)
+      var j = 0
+      while (j < m1.numCols) {
+        var i = 0
+        while (i < m1.numRows) {
+          result(i + j*m1.numRows) = op(iprefix + i, jprefix + j, m1(i, j), m2(i, j))
           i += 1
         }
         j += 1
