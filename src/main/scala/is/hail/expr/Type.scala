@@ -236,6 +236,20 @@ case object TBinary extends Type {
   }
 
   override def byteSize: Int = 4
+
+  def contentAlignment: Int = 4
+
+  def contentByteSize(length: Int): Int = 4 + length
+
+  def loadLength(region: MemoryBuffer, boff: Int): Int =
+    region.loadInt(boff)
+
+  def bytesOffset(boff: Int): Int = boff + 4
+
+  def allocate(region: MemoryBuffer, length: Int): Int = {
+    region.align(contentAlignment)
+    region.allocate(contentByteSize(length))
+  }
 }
 
 case object TBoolean extends Type {
@@ -383,7 +397,7 @@ case object TString extends Type {
   override lazy val fundamentalType: Type = TBinary
 }
 
-case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
+final case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
   override def toString = s"(${ paramTypes.mkString(",") }) => $returnType"
 
   override def isRealizable = false
@@ -414,7 +428,7 @@ case class TFunction(paramTypes: Seq[Type], returnType: Type) extends Type {
     throw new RuntimeException("TFunction is not realizable")
 }
 
-case class Box[T](var b: Option[T] = None) {
+final case class Box[T](var b: Option[T] = None) {
   def unify(t: T): Boolean = b match {
     case Some(bt) => t == bt
     case None =>
@@ -429,7 +443,7 @@ case class Box[T](var b: Option[T] = None) {
   def get: T = b.get
 }
 
-case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends Type {
+final case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends Type {
   override def toString = s"?Aggregable[$elementType]"
 
   override def isRealizable = false
@@ -466,7 +480,7 @@ case class TAggregableVariable(elementType: Type, st: Box[SymbolTable]) extends 
     throw new RuntimeException("TAggregableVariable is not realizable")
 }
 
-case class TVariable(name: String, var t: Type = null) extends Type {
+final case class TVariable(name: String, var t: Type = null) extends Type {
   override def toString: String = s"?$name"
 
   override def isRealizable = false
@@ -509,7 +523,7 @@ object TAggregable {
   }
 }
 
-case class TAggregable(elementType: Type) extends TContainer {
+final case class TAggregable(elementType: Type) extends TContainer {
   // FIXME does symTab belong here?
   // not used for equality
   var symTab: SymbolTable = _
@@ -570,7 +584,7 @@ abstract class TIterable extends TContainer {
   }
 }
 
-case class TArray(elementType: Type) extends TIterable {
+final case class TArray(elementType: Type) extends TIterable {
   override def toString = s"Array[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
@@ -632,9 +646,41 @@ case class TArray(elementType: Type) extends TIterable {
     else
       TArray(elementType.fundamentalType)
   }
+
+  def loadLength(region: MemoryBuffer, aoff: Int): Int =
+    region.loadInt(aoff)
+
+  def isElementDefined(region: MemoryBuffer, aoff: Int, i: Int): Boolean =
+    !region.loadBit(aoff + 4, i)
+
+  def setElementMissing(region: MemoryBuffer, aoff: Int, i: Int) {
+    region.setBit(aoff + 4, i)
+  }
+
+  def elementOffset(aoff: Int, length: Int, i: Int): Int =
+    aoff + elementsOffset(length) + i * UnsafeUtils.arrayElementSize(elementType)
+
+  def elementOffset(region: MemoryBuffer, aoff: Int, i: Int): Int =
+    elementOffset(aoff, region.loadInt(aoff), i)
+
+  def loadElement(region: MemoryBuffer, aoff: Int, length: Int, i: Int): Int = {
+    val off = elementOffset(aoff, length, i)
+    elementType match {
+      case _: TArray | TBinary => region.loadInt(off)
+      case _ => off
+    }
+  }
+
+  def loadElement(region: MemoryBuffer, aoff: Int, i: Int): Int =
+    loadElement(region, aoff, region.loadInt(aoff), i)
+
+  def allocate(region: MemoryBuffer, length: Int): Int = {
+    region.align(contentsAlignment)
+    region.allocate(contentsByteSize(length))
+  }
 }
 
-case class TSet(elementType: Type) extends TIterable {
+final case class TSet(elementType: Type) extends TIterable {
   override def toString = s"Set[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
@@ -687,7 +733,7 @@ case class TSet(elementType: Type) extends TIterable {
   override lazy val fundamentalType: Type = TArray(elementType.fundamentalType)
 }
 
-case class TDict(keyType: Type, valueType: Type) extends TContainer {
+final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def canCompare(other: Type): Boolean = other match {
     case TDict(okt, ovt) => keyType.canCompare(okt) && valueType.canCompare(ovt)
@@ -907,7 +953,7 @@ case object TInterval extends ComplexType {
     "end" -> TLocus.representation)
 }
 
-case class Field(name: String, typ: Type,
+final case class Field(name: String, typ: Type,
   index: Int,
   attrs: Map[String, String] = Map.empty) {
   def attr(s: String): Option[String] = attrs.get(s)
@@ -966,7 +1012,7 @@ object TStruct {
   }
 }
 
-case class TStruct(fields: IndexedSeq[Field]) extends Type {
+final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   override def children: Seq[Type] = fields.map(_.typ)
 
   override def canCompare(other: Type): Boolean = other match {
@@ -1402,5 +1448,28 @@ case class TStruct(fields: IndexedSeq[Field]) extends Type {
       this
     else
       TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+  }
+
+  def allocate(region: MemoryBuffer): Int = {
+    region.align(alignment)
+    region.allocate(byteSize)
+  }
+
+  def isFieldDefined(region: MemoryBuffer, offset: Int, fieldIdx: Int): Boolean =
+    !region.loadBit(offset, fieldIdx)
+
+  def setFieldMissing(region: MemoryBuffer, offset: Int, fieldIdx: Int) {
+    region.setBit(offset, fieldIdx)
+  }
+
+  def fieldOffset(offset: Int, fieldIdx: Int): Int =
+    offset + byteOffsets(fieldIdx)
+
+  def loadField(region: MemoryBuffer, offset: Int, fieldIdx: Int): Int = {
+    val off = fieldOffset(offset, fieldIdx)
+    fields(fieldIdx).typ match {
+      case _: TArray | TBinary => region.loadInt(off)
+      case _ => off
+    }
   }
 }

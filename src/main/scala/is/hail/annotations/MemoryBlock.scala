@@ -232,9 +232,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
     assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
 
     root = newRoot
-
-    region.align(root.alignment)
-    start = region.allocate(root.byteSize)
+    start = root.allocate(region)
   }
 
   def end(): Int = {
@@ -307,7 +305,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
     typestk.head match {
       case t: TArray =>
         val aoff = offsetstk.top
-        val length = region.loadInt(aoff)
+        val length = t.loadLength(region, aoff)
         assert(length == indexstk.top)
 
         typestk.pop()
@@ -400,55 +398,42 @@ class RegionValueBuilder(region: MemoryBuffer) {
     endStruct()
   }
 
-  def fixupBinary(toOff: Int, fromRegion: MemoryBuffer, fromOff: Int) {
-    val fromBOff = fromRegion.loadInt(fromOff)
-    val length = fromRegion.loadInt(fromBOff)
-
-    region.align(4)
-    val toBOff = region.allocate(4 + length)
-    region.storeInt(toOff, toBOff)
-
-    region.copyFrom(fromRegion, fromBOff, toBOff, 4 + length)
+  def fixupBinary(fromRegion: MemoryBuffer, fromBOff: Int): Int = {
+    val length = TBinary.loadLength(fromRegion, fromBOff)
+    val toBOff = TBinary.allocate(region, length)
+    region.copyFrom(fromRegion, fromBOff, toBOff, TBinary.contentByteSize(length))
+    toBOff
   }
 
   def requiresFixup(t: Type): Boolean = {
     t match {
       case t: TStruct => t.fields.exists(f => requiresFixup(f.typ))
-      case t: TArray => true
-      case TBinary => true
+      case _: TArray | TBinary => true
       case _ => false
     }
   }
 
-  def fixupArray(t: TArray, toOff: Int, fromRegion: MemoryBuffer, fromAOff: Int) {
-    val length = fromRegion.loadInt(fromAOff)
+  def fixupArray(t: TArray, fromRegion: MemoryBuffer, fromAOff: Int): Int = {
+    val length = t.loadLength(fromRegion, fromAOff)
+    val toAOff = t.allocate(region, length)
 
-    val contentSize = t.contentsByteSize(length)
-    region.align(t.contentsAlignment)
-    val toAOff = region.allocate(contentSize)
-
-    region.storeInt(toOff, toAOff)
-
-    region.copyFrom(fromRegion, fromAOff, toAOff, contentSize)
-
-    val elemsOff = t.elementsOffset(length)
-    val elemSize = UnsafeUtils.arrayElementSize(t.elementType)
+    region.copyFrom(fromRegion, fromAOff, toAOff, t.contentsByteSize(length))
 
     if (requiresFixup(t.elementType)) {
       var i = 0
       while (i < length) {
-        if (!fromRegion.loadBit(fromAOff + 4, i)) {
-          val off = elemsOff + i * elemSize
+        if (t.isElementDefined(fromRegion, fromAOff, i)) {
           t.elementType match {
             case t2: TStruct =>
-              fixupStruct(t2, toAOff + off, fromRegion, fromAOff + off)
+              fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
 
             case t2: TArray =>
-              val elemFromAOff = fromRegion.loadInt(fromAOff + off)
-              fixupArray(t2, toAOff + off, fromRegion, elemFromAOff)
+              val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
+              region.storeInt(t.elementOffset(toAOff, length, i), toAOff2)
 
             case TBinary =>
-              fixupBinary(toAOff + off, fromRegion, fromAOff + off)
+              val toBOff = fixupBinary(fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
+              region.storeInt(t.elementOffset(toAOff, length, i), toBOff)
 
             case _ =>
           }
@@ -456,24 +441,25 @@ class RegionValueBuilder(region: MemoryBuffer) {
         i += 1
       }
     }
+
+    toAOff
   }
 
   def fixupStruct(t: TStruct, toOff: Int, fromRegion: MemoryBuffer, fromOff: Int) {
     var i = 0
     while (i < t.size) {
-      if (!fromRegion.loadBit(fromOff, i)) {
-        val f = t.fields(i)
-        val fieldOff = t.byteOffsets(i)
-        f.typ match {
+      if (t.isFieldDefined(fromRegion, fromOff, i)) {
+        t.fields(i).typ match {
           case t2: TStruct =>
-            fixupStruct(t2, toOff + fieldOff, fromRegion, fromOff + fieldOff)
+            fixupStruct(t2, t.fieldOffset(toOff, i), fromRegion, t.fieldOffset(fromOff, i))
 
           case TBinary =>
-            fixupBinary(toOff + fieldOff, fromRegion, fromOff + fieldOff)
+            val toBOff = fixupBinary(fromRegion, t.loadField(fromRegion, fromOff, i))
+            region.storeInt(t.fieldOffset(toOff, i), toBOff)
 
           case t2: TArray =>
-            val fromAOff = fromRegion.loadInt(fromOff + fieldOff)
-            fixupArray(t2, toOff + fieldOff, fromRegion, fromAOff)
+            val toAOff = fixupArray(t2, fromRegion, t.loadField(fromRegion, fromOff, i))
+            region.storeInt(t.fieldOffset(toOff, i), toAOff)
 
           case _ =>
         }
@@ -500,7 +486,9 @@ class RegionValueBuilder(region: MemoryBuffer) {
     val (toT, toOff) = current()
     assert(toT == t.fundamentalType)
 
-    fixupArray(t.fundamentalType, toOff, uis.region, uis.offset)
+    val toBOff = fixupArray(t.fundamentalType, uis.region, uis.offset)
+    region.storeInt(toOff, toBOff)
+
     advance()
   }
 
