@@ -1,9 +1,7 @@
 package is.hail.expr
 
 import is.hail.utils.Interval
-import is.hail.variant.{AltAllele, Call, GenomeReference, Genotype, Locus, Variant}
-
-import scala.collection.mutable
+import is.hail.variant.{AltAllele, Call, GRVariable, Genotype, Locus, Variant}
 
 trait HailRep[T] { self =>
   def typ: Type
@@ -63,20 +61,20 @@ trait HailRepFunctions {
     def typ = TGenotype
   }
 
-  implicit def variantHr[T](implicit hrt: HailRep[T]) = new HailRep[Variant] {
-    def typ = TVariant(GenomeReference.GRCh37)
+  implicit class variantHr(gr: GRVariable) extends HailRep[Variant] {
+    def typ = TVariant(gr.gr)
   }
 
-  implicit def locusHr[T](implicit hrt: HailRep[T]) = new HailRep[Locus] {
-    def typ = TLocus(GenomeReference.GRCh37)
+  implicit class locusHr(gr: GRVariable) extends HailRep[Locus] {
+    def typ = TLocus(gr.gr)
   }
 
   implicit object altAlleleHr extends HailRep[AltAllele] {
     def typ = TAltAllele
   }
 
-  implicit def locusIntervalHr[T](implicit hrt: HailRep[T]) = new HailRep[Interval[Locus]] {
-    def typ = TInterval(GenomeReference.GRCh37)
+  implicit class locusIntervalHr(gr: GRVariable) extends HailRep[Interval[Locus]] {
+    def typ = TInterval(gr.gr)
   }
 
   implicit def arrayHr[T](implicit hrt: HailRep[T]) = new HailRep[IndexedSeq[T]] {

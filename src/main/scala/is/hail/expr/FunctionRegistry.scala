@@ -9,7 +9,7 @@ import is.hail.methods._
 import is.hail.stats._
 import is.hail.utils.EitherIsAMonad._
 import is.hail.utils._
-import is.hail.variant.{AltAllele, Call, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, GRVariable, GenomeReference, Genotype, Locus, Variant}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 
@@ -616,6 +616,7 @@ object FunctionRegistry {
     def typ = TTBoxed
   }
 
+  val GR = GRVariable(GenomeReference.GRCh37)
   private def nonceToNullable[T : TypeInfo, U >: Null](check: Code[T] => Code[Boolean], v: Code[T], ifPresent: Code[T] => Code[U]): CM[Code[U]] = for (
     (stx, x) <- CM.memoize(v)
   ) yield Code(stx, check(x).mux(Code._null[U], ifPresent(x)))
@@ -646,7 +647,7 @@ object FunctionRegistry {
     """
     Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
     """,
-    "v" -> ":ref:`variant`")(callHr, variantHr(TTHr), arrayHr(int32Hr))
+    "v" -> ":ref:`variant`")(callHr, variantHr(GR), arrayHr(int32Hr))
   registerMethodSpecial("oneHotGenotype", { (c: () => Any, v: () => Any) =>
     val call = c().asInstanceOf[Call]
     val variant = v().asInstanceOf[Variant]
@@ -658,7 +659,7 @@ object FunctionRegistry {
     """
     Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var calls will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
     """,
-    "v" -> ":ref:`variant`")(callHr, variantHr(TTHr), arrayHr(int32Hr))
+    "v" -> ":ref:`variant`")(callHr, variantHr(GR), arrayHr(int32Hr))
 
   registerFieldCode("gt", { (x: Code[Genotype]) =>
     nonceToNullable[Int, java.lang.Integer](_.ceq(-1), x.invoke[Int]("_unboxedGT"), boxInt(_))
@@ -765,33 +766,33 @@ object FunctionRegistry {
     "True if the data was imported from :py:meth:`~hail.HailContext.import_gen` or :py:meth:`~hail.HailContext.import_bgen`.")
   registerFieldCode("contig",
     { (x: Code[Variant]) => CM.ret(x.invoke[String]("contig")) },
-    "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")(variantHr(TTHr), stringHr)
+    "String representation of contig, exactly as imported. *NB: Hail stores contigs as strings. Use double-quotes when checking contig equality.*")(variantHr(GR), stringHr)
   registerFieldCode("start",
     { (x: Code[Variant]) => CM.ret(boxInt(x.invoke[Int]("start"))) },
-    "SNP position or start of an indel.")(variantHr(TTHr), boxedInt32Hr)
+    "SNP position or start of an indel.")(variantHr(GR), boxedInt32Hr)
   registerFieldCode("ref",
     { (x: Code[Variant]) => CM.ret(x.invoke[String]("ref")) },
-    "Reference allele sequence.")(variantHr(TTHr), stringHr)
+    "Reference allele sequence.")(variantHr(GR), stringHr)
   registerFieldCode("altAlleles",
     { (x: Code[Variant]) => CM.ret(x.invoke[IndexedSeq[AltAllele]]("altAlleles")) },
-    "The :ref:`alternate alleles <altallele>`.")(variantHr(TTHr), arrayHr(altAlleleHr))
-  registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles }, "Number of alternate alleles, equal to ``nAlleles - 1``.")(variantHr(TTHr), int32Hr)
-  registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, "Number of alleles.")(variantHr(TTHr), int32Hr)
-  registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, "True if `v` has one alternate allele.")(variantHr(TTHr), boolHr)
-  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, "Number of genotypes.")(variantHr(TTHr), int32Hr)
-  registerMethod("inXPar", { (x: Variant) => x.inXPar }, "True if chromosome is X and start is in pseudoautosomal region of X.")(variantHr(TTHr), boolHr)
-  registerMethod("inYPar", { (x: Variant) => x.inYPar }, "True if chromosome is Y and start is in pseudoautosomal region of Y. *NB: most callers assign variants in PAR to X.*")(variantHr(TTHr), boolHr)
-  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar }, "True if chromosome is X and start is not in pseudoautosomal region of X.")(variantHr(TTHr), boolHr)
-  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar }, "True if chromosome is Y and start is not in pseudoautosomal region of Y.")(variantHr(TTHr), boolHr)
+    "The :ref:`alternate alleles <altallele>`.")(variantHr(GR), arrayHr(altAlleleHr))
+  registerMethod("nAltAlleles", { (x: Variant) => x.nAltAlleles }, "Number of alternate alleles, equal to ``nAlleles - 1``.")(variantHr(GR), int32Hr)
+  registerMethod("nAlleles", { (x: Variant) => x.nAlleles }, "Number of alleles.")(variantHr(GR), int32Hr)
+  registerMethod("isBiallelic", { (x: Variant) => x.isBiallelic }, "True if `v` has one alternate allele.")(variantHr(GR), boolHr)
+  registerMethod("nGenotypes", { (x: Variant) => x.nGenotypes }, "Number of genotypes.")(variantHr(GR), int32Hr)
+  registerMethod("inXPar", { (x: Variant) => x.inXPar }, "True if chromosome is X and start is in pseudoautosomal region of X.")(variantHr(GR), boolHr)
+  registerMethod("inYPar", { (x: Variant) => x.inYPar }, "True if chromosome is Y and start is in pseudoautosomal region of Y. *NB: most callers assign variants in PAR to X.*")(variantHr(GR), boolHr)
+  registerMethod("inXNonPar", { (x: Variant) => x.inXNonPar }, "True if chromosome is X and start is not in pseudoautosomal region of X.")(variantHr(GR), boolHr)
+  registerMethod("inYNonPar", { (x: Variant) => x.inYNonPar }, "True if chromosome is Y and start is not in pseudoautosomal region of Y.")(variantHr(GR), boolHr)
   // assumes biallelic
-  registerMethod("alt", { (x: Variant) => x.alt }, "Alternate allele sequence.  **Assumes biallelic.**")(variantHr(TTHr), stringHr)
-  registerMethod("altAllele", { (x: Variant) => x.altAllele }, "The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**")(variantHr(TTHr), altAlleleHr)
-  registerMethod("locus", { (x: Variant) => x.locus }, "Chromosomal locus (chr, pos) of this variant")(variantHr(TTHr), locusHr(TTHr))
-  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal }, "True if chromosome is not X, not Y, and not MT.")(variantHr(TTHr), boolHr)
-  registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(TTHr), stringHr)
-  registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(TTHr), int32Hr)
-  registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus` at the start of the interval (inclusive).")(locusIntervalHr(TTHr), locusHr(TTHr))
-  registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus` at the end of the interval (exclusive).")(locusIntervalHr(TTHr), locusHr(TTHr))
+  registerMethod("alt", { (x: Variant) => x.alt }, "Alternate allele sequence.  **Assumes biallelic.**")(variantHr(GR), stringHr)
+  registerMethod("altAllele", { (x: Variant) => x.altAllele }, "The :ref:`alternate allele <altallele>`.  **Assumes biallelic.**")(variantHr(GR), altAlleleHr)
+  registerMethod("locus", { (x: Variant) => x.locus }, "Chromosomal locus (chr, pos) of this variant")(variantHr(GR), locusHr(GR))
+  registerMethod("isAutosomal", { (x: Variant) => x.isAutosomal }, "True if chromosome is not X, not Y, and not MT.")(variantHr(GR), boolHr)
+  registerField("contig", { (x: Locus) => x.contig }, "String representation of contig.")(locusHr(GR), stringHr)
+  registerField("position", { (x: Locus) => x.position }, "Chromosomal position.")(locusHr(GR), int32Hr)
+  registerField("start", { (x: Interval[Locus]) => x.start }, ":ref:`locus` at the start of the interval (inclusive).")(locusIntervalHr(GR), locusHr(GR))
+  registerField("end", { (x: Interval[Locus]) => x.end }, ":ref:`locus` at the end of the interval (exclusive).")(locusIntervalHr(GR), locusHr(GR))
   registerField("ref", { (x: AltAllele) => x.ref }, "Reference allele base sequence.")
   registerField("alt", { (x: AltAllele) => x.alt }, "Alternate allele base sequence.")
   registerMethod("isSNP", { (x: AltAllele) => x.isSNP }, "True if ``v.ref`` and ``v.alt`` are the same length and differ in one position.")
@@ -903,7 +904,7 @@ object FunctionRegistry {
         let v = Variant("7:76324539:A:G") and prob = [0.2, 0.7, 0.1] and
           g = Genotype(v, prob) in g.isHet()
         result: true
-    """, "v" -> "Variant", "prob" -> "Genotype probabilities")(variantHr(TTHr), arrayHr[Double], genotypeHr)
+    """, "v" -> "Variant", "prob" -> "Genotype probabilities")(variantHr(GR), arrayHr[Double], genotypeHr)
 
   registerSpecial("Genotype", { (vF: () => Any, gtF: () => Any, dosF: () => Any) =>
     val v = vF()
@@ -923,7 +924,7 @@ object FunctionRegistry {
         let v = Variant("7:76324539:A:G") and gt = Call(0) and prob = [0.8, 0.1, 0.1] and
           g = Genotype(v, gt, prob) in g.isHomRef()
         result: true
-    """, "v" -> "Variant", "gt" -> "Genotype call integer", "prob" -> "Genotype probabilities")(variantHr(TTHr), callHr, arrayHr[Double], genotypeHr)
+    """, "v" -> "Variant", "gt" -> "Genotype call integer", "prob" -> "Genotype probabilities")(variantHr(GR), callHr, arrayHr[Double], genotypeHr)
 
   registerSpecial("Genotype", { (gtF: () => Any) =>
     Genotype(gtF().asInstanceOf[java.lang.Integer])
@@ -962,7 +963,7 @@ object FunctionRegistry {
         result: true
     """,
     "v" -> "Variant", "c" -> "Call", "ad" -> "Allelic depths", "dp" -> "Depth", "gq" -> "Genotype quality", "pl" -> "Phred-scaled likelihoods"
-  )(variantHr(TTHr), callHr, arrayHr[Int], boxedInt32Hr, boxedInt32Hr, arrayHr[Int], genotypeHr)
+  )(variantHr(GR), callHr, arrayHr[Int], boxedInt32Hr, boxedInt32Hr, arrayHr[Int], genotypeHr)
 
   register("Variant", { (x: String) => Variant.parse(x) },
     """
@@ -974,7 +975,7 @@ object FunctionRegistry {
         let v = Variant("7:76324539:A:G") in v.contig
         result: "7"
     """,
-    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(TTHr))
+    "s" -> "String of the form ``CHR:POS:REF:ALT`` or ``CHR:POS:REF:ALT1,ALT2...ALTN`` specifying the contig, position, reference and alternate alleles.")(stringHr, variantHr(GR))
   register("Variant", { (x: String, y: Int, z: String, a: String) => Variant(x, y, z, a) },
     """
     Construct a :ref:`variant` object.
@@ -988,7 +989,7 @@ object FunctionRegistry {
     "contig" -> "String representation of contig.",
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
-    "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(TTHr))
+    "alt" -> "Alternate allele sequence.")(stringHr, int32Hr, stringHr, stringHr, variantHr(GR))
   register("Variant", { (x: String, y: Int, z: String, a: IndexedSeq[String]) => Variant(x, y, z, a.toArray) },
     """
     Construct a :ref:`variant` object.
@@ -1003,7 +1004,7 @@ object FunctionRegistry {
     "pos" -> "SNP position or start of an indel.",
     "ref" -> "Reference allele sequence.",
     "alts" -> "Array of alternate allele sequences."
-  )(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(TTHr))
+  )(stringHr, int32Hr, stringHr, arrayHr(stringHr), variantHr(GR))
 
   register("Dict", { (keys: IndexedSeq[Annotation], values: IndexedSeq[Annotation]) =>
     if (keys.length != values.length)
@@ -1062,7 +1063,7 @@ object FunctionRegistry {
 
     """,
     "left" -> "Left variant to combine.",
-    "right" -> "Right variant to combine.")(variantHr(TTHr), variantHr(TTHr))
+    "right" -> "Right variant to combine.")(variantHr(GR), variantHr(GR))
 
   register("Locus", { (x: String) =>
     val Array(chr, pos) = x.split(":")
@@ -1078,7 +1079,7 @@ object FunctionRegistry {
         result: 10040532
     """,
     ("s", "String of the form ``CHR:POS``")
-  )(stringHr, locusHr(TTHr))
+  )(stringHr, locusHr(GR))
 
   register("Locus", { (x: String, y: Int) => Locus(x, y) },
     """
@@ -1091,13 +1092,13 @@ object FunctionRegistry {
         result: 10040532
     """,
     "contig" -> "String representation of contig.",
-    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(TTHr))
+    "pos" -> "SNP position or start of an indel.")(stringHr, int32Hr, locusHr(GR))
   register("Interval", { (x: Locus, y: Locus) => Interval(x, y) },
     """
     Construct a :ref:`interval` object. Intervals are **left inclusive, right exclusive**.  This means that ``[chr1:1, chr1:3)`` contains ``chr1:1`` and ``chr1:2``.
     """,
     "startLocus" -> "Start position of interval",
-    "endLocus" -> "End position of interval")(locusHr(TTHr), locusHr(TTHr), locusIntervalHr(TTHr))
+    "endLocus" -> "End position of interval")(locusHr(GR), locusHr(GR), locusIntervalHr(GR))
 
   val hweStruct = TStruct(Array(("rExpectedHetFrequency", TFloat64, "Expected rHeterozygosity based on Hardy Weinberg Equilibrium"),
     ("pHWE", TFloat64, "P-value")).zipWithIndex.map { case ((n, t, d), i) => Field(n, t, i, Map(("desc", d))) })
@@ -1251,7 +1252,7 @@ object FunctionRegistry {
     Returns an interval parsed in the same way as :py:meth:`~hail.representation.Interval.parse`
     """,
     "s" -> "The string to parse."
-  )(stringHr, locusIntervalHr(TTHr))
+  )(stringHr, locusIntervalHr(GR))
 
   register("Interval", (chr: String, start: Int, end: Int) => Interval(Locus(chr, start), Locus(chr, end)),
     """
@@ -1259,7 +1260,7 @@ object FunctionRegistry {
     """,
     "chr" -> "Chromosome.",
     "start" -> "Starting position.",
-    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(TTHr))
+    "end" -> "Ending position (exclusive).")(stringHr, int32Hr, int32Hr, locusIntervalHr(GR))
 
   register("pcoin", { (p: Double) => math.random < p },
     """
@@ -1490,14 +1491,14 @@ object FunctionRegistry {
     """
     Produce an array of called counts for each allele in the variant (including reference). For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[2, 0]``, ``[1, 1]``, and ``[0, 2]`` respectively.
     """,
-    "v" -> ":ref:`variant`")(genotypeHr, variantHr(TTHr), arrayHr(int32Hr))
+    "v" -> ":ref:`variant`")(genotypeHr, variantHr(GR), arrayHr(int32Hr))
 
   registerMethod("oneHotGenotype", (g: Genotype, v: Variant) => Genotype.oneHotGenotype(v, g).orNull,
     """
     Produces an array with one element for each possible genotype in the variant, where the called genotype is 1 and all else 0. For example, calling this function with a biallelic variant on hom-ref, het, and hom-var genotypes will produce ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
     """,
     "v" -> ":ref:`variant`"
-  )(genotypeHr, variantHr(TTHr), arrayHr(int32Hr))
+  )(genotypeHr, variantHr(GR), arrayHr(int32Hr))
 
   registerMethod("replace", (str: String, pattern1: String, pattern2: String) =>
     str.replaceAll(pattern1, pattern2),
@@ -1523,7 +1524,7 @@ object FunctionRegistry {
         let i = Interval(Locus("1", 1000), Locus("1", 2000)) in i.contains(Locus("1", 1500))
         result: true
     """,
-    "locus" -> ":ref:`locus`")(locusIntervalHr(TTHr), locusHr(TTHr), boolHr)
+    "locus" -> ":ref:`locus`")(locusIntervalHr(GR), locusHr(GR), boolHr)
 
   val sizeDocstring = "Number of elements in the collection."
   registerMethod("length", (a: IndexedSeq[Any]) => a.length, sizeDocstring)(arrayHr(TTHr), int32Hr)
@@ -2139,7 +2140,7 @@ object FunctionRegistry {
     ``va.eur_stats.AC`` will be the allele count (AC) computed from individuals marked as "EUR".
     """, "f" -> "Variant lambda expression such as ``g => v``."
   )(
-    aggregableHr(genotypeHr), unaryHr(genotypeHr, variantHr(TTHr)), new HailRep[Any] {
+    aggregableHr(genotypeHr), unaryHr(genotypeHr, variantHr(GR)), new HailRep[Any] {
       def typ = CallStats.schema
     })
 

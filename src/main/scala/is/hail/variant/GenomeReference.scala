@@ -3,10 +3,12 @@ package is.hail.variant
 import java.io.InputStream
 
 import is.hail.check.Gen
-import is.hail.expr.JSONExtractGenomeReference
+import is.hail.expr.{JSONExtractGenomeReference, Type}
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
+
+import scala.reflect._
 
 case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
   yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends Serializable {
@@ -105,5 +107,31 @@ object GenomeReference {
     parX <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(xContig))))
     parY <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(yContig))))
   } yield GenomeReference(name, contigs, Set(xContig), Set(yContig), Set(mtContig), parX ++ parY)
+}
+
+case class GRVariable(gr: GenomeReference,  var t: Type = null) extends Serializable {
+
+  override def toString = "GenomeReference"
+
+  def scalaClassTag: ClassTag[GenomeReference] = classTag[GenomeReference]
+
+  def unify(concrete: Type): Boolean = {
+    if (t == null) {
+      t = concrete
+      true
+    } else
+      t == concrete
+  }
+
+  def isBound: Boolean = t != null
+
+  def clear() {
+    t = null
+  }
+
+  def subst(): Type = {
+    assert(t != null)
+    t
+  }
 }
 
