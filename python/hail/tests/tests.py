@@ -779,6 +779,10 @@ class ContextTests(unittest.TestCase):
                 else:
                     self.assertNotEqual(some_random_types[i], some_random_types_cp[j])
 
+        self.assertEqual(TVariant(), TVariant(GenomeReference.GRCh37()))
+        self.assertEqual(TLocus(), TLocus(GenomeReference.GRCh37()))
+        self.assertEqual(TInterval(), TInterval(GenomeReference.GRCh37()))
+
     def test_query(self):
         vds = hc.import_vcf('src/test/resources/sample.vcf').split_multi().sample_qc()
 

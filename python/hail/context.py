@@ -10,6 +10,7 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
 from hail.utils import wrap_to_list
+from hail.representation import GenomeReference
 
 
 class HailContext(object):
@@ -153,8 +154,10 @@ class HailContext(object):
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       tolerance=numeric,
                       sample_file=nullable(strlike),
-                      min_partitions=nullable(integral))
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None):
+                      min_partitions=nullable(integral),
+                      genome_ref=nullable(GenomeReference))
+    def import_bgen(self, path, tolerance=0.2, sample_file=None,
+                    min_partitions=None, genome_ref=None):
         """Import .bgen file(s) as variant dataset.
 
         **Examples**
@@ -208,12 +211,18 @@ class HailContext(object):
         :param min_partitions: Number of partitions.
         :type min_partitions: int or None
 
+        :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+        :type genome_ref: GenomeReference or None
+
         :return: Variant dataset imported from .bgen file.
         :rtype: :class:`.VariantDataset`
         """
 
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+            
         jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                     tolerance, joption(min_partitions))
+                                     tolerance, joption(min_partitions), genome_ref._jrep)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -221,8 +230,10 @@ class HailContext(object):
                       sample_file=nullable(strlike),
                       tolerance=numeric,
                       min_partitions=nullable(integral),
-                      chromosome=nullable(strlike))
-    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None):
+                      chromosome=nullable(strlike),
+                      genome_ref=nullable(GenomeReference))
+    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None,
+                   chromosome=None, genome_ref=None):
         """Import .gen file(s) as variant dataset.
 
         **Examples**
@@ -272,12 +283,18 @@ class HailContext(object):
         :param chromosome: Chromosome if not listed in the .gen file.
         :type chromosome: str or None
 
+        :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+        :type genome_ref: :class:`.GenomeReference` or None
+
         :return: Variant dataset imported from .gen and .sample files.
         :rtype: :class:`.VariantDataset`
         """
 
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+
         jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                    tolerance)
+                                    tolerance, genome_ref._jrep)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -451,8 +468,10 @@ class HailContext(object):
                       min_partitions=nullable(integral),
                       delimiter=strlike,
                       missing=strlike,
-                      quantpheno=bool)
-    def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
+                      quantpheno=bool,
+                      genome_ref=nullable(GenomeReference))
+    def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+', missing='NA',
+                     quantpheno=False, genome_ref=None):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
@@ -513,11 +532,18 @@ class HailContext(object):
 
         :param bool quantpheno: If True, FAM phenotype is interpreted as quantitative.
 
+        :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+        :type genome_ref: GenomeReference or None
+
         :return: Variant dataset imported from PLINK binary file.
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quantpheno)
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+
+        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing,
+                                     quantpheno, genome_ref._jrep)
 
         return VariantDataset(self, jvds)
 
@@ -558,9 +584,10 @@ class HailContext(object):
                       min_partitions=nullable(integral),
                       drop_samples=bool,
                       generic=bool,
-                      call_fields=oneof(strlike, listof(strlike)))
+                      call_fields=oneof(strlike, listof(strlike)),
+                      genome_ref=nullable(GenomeReference))
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, generic=False, call_fields=[]):
+                   drop_samples=False, generic=False, call_fields=[], genome_ref=None):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -670,17 +697,23 @@ class HailContext(object):
 
         :param bool generic: If True, read the genotype with a generic schema.
 
+        :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+        :type genome_ref: GenomeReference or None
+
         :return: Variant dataset imported from VCF file(s)
         :rtype: :py:class:`.VariantDataset`
 
         """
 
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+
         if generic:
             jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                               joption(min_partitions), drop_samples, jset_args(call_fields))
+                                               joption(min_partitions), drop_samples, jset_args(call_fields), genome_ref._jrep)
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(min_partitions), drop_samples)
+                                        joption(min_partitions), drop_samples, genome_ref._jrep)
 
         return VariantDataset(self, jvds)
 
@@ -714,10 +747,11 @@ class HailContext(object):
                       pop_dist=nullable(listof(numeric)),
                       fst=nullable(listof(numeric)),
                       af_dist=oneof(UniformDist, BetaDist, TruncatedBetaDist),
-                      seed=integral)
+                      seed=integral,
+                      genome_ref=nullable(GenomeReference))
     def balding_nichols_model(self, populations, samples, variants, num_partitions=None,
                               pop_dist=None, fst=None, af_dist=UniformDist(0.1, 0.9),
-                              seed=0):
+                              seed=0, genome_ref=None):
         """Simulate a variant dataset using the Balding-Nichols model.
 
         **Examples**
@@ -801,9 +835,15 @@ class HailContext(object):
 
         :param int seed: Random seed.
 
+        :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+        :type genome_ref: GenomeReference or None
+
         :return: Variant dataset simulated using the Balding-Nichols model.
         :rtype: :class:`.VariantDataset`
         """
+
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
 
         if pop_dist is None:
             jvm_pop_dist_opt = joption(pop_dist)
@@ -820,7 +860,7 @@ class HailContext(object):
                                              jvm_pop_dist_opt,
                                              jvm_fst_opt,
                                              af_dist._jrep(),
-                                             seed)
+                                             seed, genome_ref._jrep)
         return VariantDataset(self, jvds)
 
     @handle_py4j

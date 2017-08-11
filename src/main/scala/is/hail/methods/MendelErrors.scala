@@ -113,14 +113,15 @@ object MendelErrors {
               None
           }
         }
-        .cache()
+        .cache(), vds.vSignature.asInstanceOf[TVariant].gr
     )
   }
 }
 
 case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
   sampleIds: IndexedSeq[String],
-  mendelErrors: RDD[MendelError]) {
+  mendelErrors: RDD[MendelError],
+  gr: GenomeReference = GenomeReference.GRCh37) {
 
   private val sc = mendelErrors.sparkContext
   private val trioFam = trios.iterator.flatMap(t => t.fam.map(f => (t.kid, f))).toMap
@@ -152,7 +153,7 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
     val signature = TStruct(
       "fid" -> TString,
       "s" -> TString,
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "v" -> TVariant(gr),
       "code" -> TInt32,
       "error" -> TString)
 
@@ -205,7 +206,7 @@ case class MendelErrors(hc: HailContext, trios: IndexedSeq[CompleteTrio],
 
   def lMendelKT(): KeyTable = {
     val signature = TStruct(
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "v" -> TVariant(gr),
       "nError" -> TInt32
     )
 

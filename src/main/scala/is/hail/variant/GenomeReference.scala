@@ -41,8 +41,9 @@ abstract class GRBase extends Serializable {
   def subst(): GenomeReference = ???
 }
 
-case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
-  yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends GRBase {
+case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String] = Set.empty[String],
+  yContigs: Set[String] = Set.empty[String], mtContigs: Set[String] = Set.empty[String],
+  par: Array[Interval[Locus]] = Array.empty[Interval[Locus]]) extends GRBase {
 
   require(contigs.length > 0, "Must have at least one contig in the genome reference.")
 
@@ -124,6 +125,18 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
 }
 
 object GenomeReference {
+  var references: Map[String, GenomeReference] = Map("GRCh37" -> GRCh37, "GRCh38" -> GRCh38)
+
+  def addReference(gr: GenomeReference) {
+    references += (gr.name -> gr)
+  }
+
+  def getReference(name: String): GenomeReference = {
+    references.get(name) match {
+      case Some(gr) => gr
+      case None => fatal(s"No genome reference with name `$name' exists. Names available: `${ references.keys.mkString(", ") }'.")
+    }
+  }
 
   def GRCh37: GenomeReference = fromResource("reference/grch37.json")
 

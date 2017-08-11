@@ -868,7 +868,7 @@ case object TAltAllele extends ComplexType {
 }
 
 case class TVariant(gr: GenomeReference) extends ComplexType {
-  override def toString = "Variant"
+  override def toString = s"""Variant("${ gr.name }")"""
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Variant]
 
@@ -919,7 +919,7 @@ case class TVariant(gr: GenomeReference) extends ComplexType {
 }
 
 case class TLocus(gr: GenomeReference) extends ComplexType {
-  override def toString = "Locus"
+  override def toString = s"""Locus("${ gr.name }")"""
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Locus]
 
@@ -944,7 +944,7 @@ case class TLocus(gr: GenomeReference) extends ComplexType {
 }
 
 case class TInterval(gr: GenomeReference) extends ComplexType {
-  override def toString = "Interval"
+  override def toString = s"""Interval("${ gr.name }")"""
 
   def typeCheck(a: Any): Boolean = a == null || a.isInstanceOf[Interval[_]] && a.asInstanceOf[Interval[_]].end.isInstanceOf[Locus]
 

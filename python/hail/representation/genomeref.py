@@ -61,6 +61,8 @@ class GenomeReference(object):
         self._mt_contig_names = mt_contig_names
         self._par = par
 
+        Env.hail().variant.GenomeReference.addReference(jrep)
+
     @handle_py4j
     def __str__(self):
         return self._jrep.toString()

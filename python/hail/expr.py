@@ -1,6 +1,7 @@
 import abc
 from hail.java import scala_object, Env, jset
-from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call
+from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call, GenomeReference
+from hail.typecheck import nullable, typecheck_method
 
 
 class TypeCheckError(Exception):
@@ -446,6 +447,10 @@ class Field(object):
     :param typ: type of field
     :type typ: :class:`.Type`
     :param dict attributes: key/value attributes of field
+
+    :ivar str name: name of field
+    :ivar typ: type of field
+    :vartype typ: :class:`.Type`
     """
 
     def __init__(self, name, typ, attributes={}):
@@ -535,10 +540,15 @@ class TVariant(Type):
     - `expression language documentation <types.html#variant>`__
     - in Python, values are instances of :class:`hail.representation.Variant`
 
+    :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+    :type genome_ref: GenomeReference or None
     """
 
-    def __init__(self):
-        jtype = scala_object(Env.hail().expr, 'TVariant').apply(Env.hail().variant.GenomeReference.GRCh37())
+    @typecheck_method(genome_ref=nullable(GenomeReference))
+    def __init__(self, genome_ref=None):
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+        jtype = scala_object(Env.hail().expr, 'TVariant').apply(genome_ref._jrep)
         super(TVariant, self).__init__(jtype)
 
     @classmethod
@@ -673,10 +683,15 @@ class TLocus(Type):
     - `expression language documentation <types.html#locus>`__
     - in Python, values are instances of :class:`hail.representation.Locus`
 
+    :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+    :type genome_ref: GenomeReference or None
     """
 
-    def __init__(self):
-        jtype = scala_object(Env.hail().expr, 'TLocus').apply(Env.hail().variant.GenomeReference.GRCh37())
+    @typecheck_method(genome_ref=nullable(GenomeReference))
+    def __init__(self, genome_ref=None):
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+        jtype = scala_object(Env.hail().expr, 'TLocus').apply(genome_ref._jrep)
         super(TLocus, self).__init__(jtype)
 
     @classmethod
@@ -712,10 +727,15 @@ class TInterval(Type):
     - `expression language documentation <types.html#interval>`__
     - in Python, values are instances of :class:`hail.representation.Interval`
 
+    :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+    :type genome_ref: GenomeReference or None
     """
 
-    def __init__(self):
-        jtype = scala_object(Env.hail().expr, 'TInterval').apply(Env.hail().variant.GenomeReference.GRCh37())
+    @typecheck_method(genome_ref=nullable(GenomeReference))
+    def __init__(self, genome_ref=None):
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+        jtype = scala_object(Env.hail().expr, 'TInterval').apply(genome_ref._jrep)
         super(TInterval, self).__init__(jtype)
 
     @classmethod
