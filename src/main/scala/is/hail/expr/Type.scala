@@ -6,7 +6,7 @@ import is.hail.check.{Gen, _}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
-import is.hail.variant.{AltAllele, Call, Contig, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, Contig, GRVariable, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.json4s._
@@ -1054,6 +1054,11 @@ case class TVariant(gr: GenomeReference) extends ComplexType {
     "start" -> TInt32,
     "ref" -> TString,
     "altAlleles" -> TArray(TAltAllele.representation))
+
+  override def unify(concrete: Type): Boolean = concrete match {
+    case TVariant(cgr) => gr.unify(cgr)
+    case _ => false
+  }
 }
 
 case class TLocus(gr: GenomeReference) extends ComplexType {
@@ -1097,6 +1102,11 @@ case class TLocus(gr: GenomeReference) extends ComplexType {
   override lazy val representation: TStruct = TStruct(
     "contig" -> TString,
     "position" -> TInt32)
+
+  override def unify(concrete: Type): Boolean = concrete match {
+    case TLocus(cgr) => gr.unify(cgr)
+    case _ => false
+  }
 }
 
 case class TInterval(gr: GenomeReference) extends ComplexType {
@@ -1137,6 +1147,11 @@ case class TInterval(gr: GenomeReference) extends ComplexType {
   override lazy val representation: TStruct = TStruct(
     "start" -> TLocus(gr).representation,
     "end" -> TLocus(gr).representation)
+
+  override def unify(concrete: Type): Boolean = concrete match {
+    case TInterval(cgr) => gr.unify(cgr)
+    case _ => false
+  }
 }
 
 final case class Field(name: String, typ: Type,

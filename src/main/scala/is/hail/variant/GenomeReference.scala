@@ -3,15 +3,43 @@ package is.hail.variant
 import java.io.InputStream
 
 import is.hail.check.Gen
-import is.hail.expr.{JSONExtractGenomeReference, Type}
+import is.hail.expr.JSONExtractGenomeReference
 import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
-import scala.reflect._
+abstract class GRBase extends Serializable {
+  def isValidContig(contig: String): Boolean = ???
+
+  def inX(contigIdx: Int): Boolean = ???
+
+  def inX(contig: String): Boolean = ???
+
+  def inY(contigIdx: Int): Boolean = ???
+
+  def inY(contig: String): Boolean = ???
+
+  def isMitochondrial(contigIdx: Int): Boolean = ???
+
+  def isMitochondrial(contig: String): Boolean = ???
+
+  def inXPar(locus: Locus): Boolean = ???
+
+  def inYPar(locus: Locus): Boolean = ???
+
+  def toJSON: JValue = ???
+
+  def unify(concrete: GenomeReference): Boolean = ???
+
+  def isBound: Boolean = ???
+
+  def clear(): Unit = ???
+
+  def subst(): GenomeReference = ???
+}
 
 case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
-  yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends Serializable {
+  yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends GRBase {
 
   require(contigs.length > 0, "Must have at least one contig in the genome reference.")
 
@@ -43,25 +71,25 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
   val yContigIndices = yContigs.map(contigIndex)
   val mtContigIndices = mtContigs.map(contigIndex)
 
-  def isValidContig(contig: String): Boolean = contigNames.contains(contig)
+  override def isValidContig(contig: String): Boolean = contigNames.contains(contig)
 
-  def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
+  override def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
 
-  def inX(contig: String): Boolean = xContigs.contains(contig)
+  override def inX(contig: String): Boolean = xContigs.contains(contig)
 
-  def inY(contigIdx: Int): Boolean = yContigIndices.contains(contigIdx)
+  override def inY(contigIdx: Int): Boolean = yContigIndices.contains(contigIdx)
 
-  def inY(contig: String): Boolean = yContigs.contains(contig)
+  override def inY(contig: String): Boolean = yContigs.contains(contig)
 
-  def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
+  override def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
 
-  def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
+  override def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
 
-  def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
+  override def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
 
-  def inYPar(locus: Locus): Boolean = inY(locus.contig) && par.exists(_.contains(locus))
+  override def inYPar(locus: Locus): Boolean = inY(locus.contig) && par.exists(_.contains(locus))
 
-  def toJSON: JValue = JObject(
+  override def toJSON: JValue = JObject(
     ("name", JString(name)),
     ("contigs", JArray(contigs.map(_.toJSON).toList)),
     ("xContigs", JArray(xContigs.map(JString(_)).toList)),
@@ -82,6 +110,14 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
       case _ => false
     }
   }
+
+  override def unify(concrete: GenomeReference): Boolean = this == concrete
+
+  override def isBound: Boolean = true
+
+  override def clear() {}
+
+  override def subst(): GenomeReference = this
 }
 
 object GenomeReference {
@@ -109,29 +145,27 @@ object GenomeReference {
   } yield GenomeReference(name, contigs, Set(xContig), Set(yContig), Set(mtContig), parX ++ parY)
 }
 
-case class GRVariable(gr: GenomeReference,  var t: Type = null) extends Serializable {
+case class GRVariable(var gr: GenomeReference = null) extends GRBase {
 
   override def toString = "GenomeReference"
 
-  def scalaClassTag: ClassTag[GenomeReference] = classTag[GenomeReference]
-
-  def unify(concrete: Type): Boolean = {
-    if (t == null) {
-      t = concrete
+  override def unify(concrete: GenomeReference): Boolean = {
+    if (gr == null) {
+      gr = concrete
       true
     } else
-      t == concrete
+      gr == concrete
   }
 
-  def isBound: Boolean = t != null
+  override def isBound: Boolean = gr != null
 
-  def clear() {
-    t = null
+  override def clear() {
+    gr = null
   }
 
-  def subst(): Type = {
-    assert(t != null)
-    t
+  override def subst(): GenomeReference = {
+    assert(gr != null)
+    gr
   }
 }
 
