@@ -5,7 +5,7 @@ import is.hail.expr.{TStruct, _}
 import is.hail.sparkextras.OrderedRDD
 import is.hail.stats.LeveneHaldane
 import is.hail.utils._
-import is.hail.variant.{GATKGenotypeView, GenericDataset, Genotype, Variant, VariantDataset}
+import is.hail.variant.{HTSGenotypeView, GenericDataset, Genotype, Variant, VariantDataset}
 import org.apache.spark.util.StatCounter
 
 import scala.reflect.classTag
@@ -106,7 +106,7 @@ object VariantQC {
     val nSamples = vds.nSamples
     val rowSignature = vds.rowSignature
     val rdd = vds.unsafeRowRDD.mapPartitions { it =>
-      val view = GATKGenotypeView(rowSignature)
+      val view = HTSGenotypeView(rowSignature)
       it.map { r =>
         view.setRegion(r.region, r.offset)
 
