@@ -199,6 +199,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
       it.map { r =>
         region.clear()
+        rvb.start(t)
         rvb.addRow(t, r)
         val offset = rvb.end()
         new UnsafeRow(ttBc, region.copy(), offset)
