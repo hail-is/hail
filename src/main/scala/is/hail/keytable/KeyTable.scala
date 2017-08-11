@@ -188,6 +188,24 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
   }
 
+  def unsafeRowRDD: RDD[UnsafeRow] = {
+    val ttBc = BroadcastTypeTree(hc.sc, signature)
+
+    rdd.mapPartitions { it =>
+      val region = MemoryBuffer(8 * 1024)
+      val rvb = new RegionValueBuilder(region)
+
+      val t = ttBc.value.typ.asInstanceOf[TStruct]
+
+      it.map { r =>
+        region.clear()
+        rvb.addRow(t, r)
+        val offset = rvb.end()
+        new UnsafeRow(ttBc, region.copy(), offset)
+      }
+    }
+  }
+
   def same(other: KeyTable): Boolean = {
     if (signature != other.signature) {
       info(
@@ -633,7 +651,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz")(out =>
       Serialization.write(metadata, out))
 
-    rdd.writeRows(path, signature)
+    unsafeRowRDD.writeRows(path, signature)
   }
 
   def cache(): KeyTable = persist("MEMORY_ONLY")

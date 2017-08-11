@@ -10,7 +10,7 @@ import org.apache.spark.util.StatCounter
 
 import scala.reflect.classTag
 
-class VariantQCCombiner {
+final class VariantQCCombiner {
   var nNotCalled: Int = 0
   var nHomRef: Int = 0
   var nHet: Int = 0

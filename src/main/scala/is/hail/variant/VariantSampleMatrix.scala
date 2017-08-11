@@ -2049,7 +2049,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
     val localNSamples = nSamples
     val localGenotypeSignature = genotypeSignature
-    unsafeRowRDD.map(r => r: Row).writeRows(dirname, rowSignature)
+    unsafeRowRDD.writeRows(dirname, rowSignature)
   }
 
   def makeSchema(): StructType = {
