@@ -18,7 +18,7 @@ import org.apache.spark.mllib.linalg._
 import org.testng.annotations.Test
 import is.hail.check._
 import is.hail.check.Prop._
-import is.hail.expr.{TFloat64, TString}
+import is.hail.expr.{TDouble, TString}
 import is.hail.variant.VariantDataset
 import is.hail.variant.VSMSubgen
 import is.hail.stats._
@@ -63,11 +63,11 @@ class PCRelateSuite extends SparkSuite {
     val columns = Map(
       ("ID1", TString),
       ("ID2", TString),
-      ("nsnp", TFloat64),
-      ("kin", TFloat64),
-      ("k0", TFloat64),
-      ("k1", TFloat64),
-      ("k2", TFloat64))
+      ("nsnp", TDouble),
+      ("kin", TDouble),
+      ("k0", TDouble),
+      ("k1", TDouble),
+      ("k2", TDouble))
     val separator = " +"
 
     hadoopConf.copy(localTmpfile + ".out", tmpfile + ".out")

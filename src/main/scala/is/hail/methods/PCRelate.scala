@@ -3,7 +3,7 @@ package is.hail.methods
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.annotations.Annotation
-import is.hail.expr.{TStruct, TString, TFloat64}
+import is.hail.expr.{TStruct, TString, TDouble}
 import is.hail.utils._
 import is.hail.keytable.KeyTable
 import is.hail.variant.{Variant, VariantDataset}
@@ -69,7 +69,7 @@ object PCRelate {
     new PCRelate(maf, blockSize)(vds, pcs)
 
   private val signature =
-    TStruct(("i", TString), ("j", TString), ("kin", TFloat64), ("k0", TFloat64), ("k1", TFloat64), ("k2", TFloat64))
+    TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
   private val keys = Array("i", "j")
 
   def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): KeyTable =
