@@ -3854,16 +3854,16 @@ class VariantDataset(object):
         **Examples**
 
         Estimate kinship, identity-by-descent two, identity-by-descent one, and
-        identity-by-descent zero for every pair of samples, using 10 prinicpal
+        identity-by-descent zero for every pair of samples, using 5 prinicpal
         components to correct for ancestral populations, and a minimum minor
         allele frequency filter of 0.01:
 
-        >>> rel = vds.pc_relate(10, 0.01)
+        >>> rel = vds.pc_relate(5, 0.01)
 
         Calculate values as above, but when performing distributed matrix
         multiplications use a matrix-block-size of 1024 by 1024.
 
-        >>> rel = vds.pc_relate(10, 0.01, 1024)
+        >>> rel = vds.pc_relate(5, 0.01, 1024)
 
         **Method**
 
