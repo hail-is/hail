@@ -4015,7 +4015,7 @@ class VariantDataset(object):
 
         The resulting :py:class:`.KeyTable` entries have the type: *{ i: String,
         j: String, kin: Double, k2: Double, k1: Double, k0: Double }*. The key
-        list is: `*i: String, j: String*`.
+        list is: *i: String, j: String*.
 
         :param int k: The number of principal components to use to distinguish
                       ancestries.
