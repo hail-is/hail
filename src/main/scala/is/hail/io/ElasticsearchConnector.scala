@@ -1,7 +1,8 @@
 package is.hail.io
 
 import is.hail.keytable.KeyTable
-import org.elasticsearch.spark.sql._
+//import org.elasticsearch.spark.sql._
+import org.elasticsearch.spark.rdd.EsSpark
 import scala.collection.Map
 import scala.collection.mutable
 
@@ -23,15 +24,25 @@ object ElasticsearchConnector {
     val mergedConfig = if (config == null)
         defaultConfig
       else
-        (defaultConfig.keySet | config.keySet).map (key => key -> config.getOrElse(key, defaultConfig.getOrElse(key, "").toString())).toMap
+        defaultConfig ++ config
 
     if (verbose)
       println(s"Config ${mergedConfig}")
 
+    val fields = kt.signature.fields.map(_.name)
+
+    EsSpark.saveToEs(
+      kt.rdd.map(r => fields.zip(r.toSeq).toMap[String, Any]),
+      s"${index}/${indexType}",
+      mergedConfig
+    )
+
+    /*
     val df = kt.toDF(kt.hc.sqlContext)
     if (verbose)
       println(s"Exporting ${df.count()} rows to ${host}:${port}/${index}/${indexType}")
 
     df.saveToEs(s"${index}/${indexType}", mergedConfig)
+    */
   }
 }
