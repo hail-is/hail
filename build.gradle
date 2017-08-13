@@ -174,6 +174,8 @@ dependencies {
 
     testCompile 'org.testng:testng:6.8.21'
     testCompile 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
+
+    compile group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
 }
 
 task(checkSettings) << {
@@ -285,6 +287,8 @@ shadowJar {
 
         include(dependency('net.java.dev.jna:jna:.*'))
         include(dependency('net.sourceforge.jdistlib:jdistlib:.*'))
+
+        include(dependency('org.apache.commons.commons-math3:3.6.1'))
     }
 }
 
@@ -342,6 +346,7 @@ task shadowTestJar(type: ShadowJar) {
 
         include(dependency('net.java.dev.jna:jna:.*'))
         include(dependency('net.sourceforge.jdistlib:jdistlib:.*'))
+        include(dependency('org.apache.commons.commons-math3:3.6.1'))
     }
 }
 
