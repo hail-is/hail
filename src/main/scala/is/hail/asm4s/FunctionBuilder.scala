@@ -143,6 +143,10 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
     c.emit(l)
   }
 
+  def emit(c: ucode.UCode) {
+    c.emit(l)
+  }
+
   def classAsBytes(): Array[Byte] = {
     mn.instructions.add(start)
     val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray

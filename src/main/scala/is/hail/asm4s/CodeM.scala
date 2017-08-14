@@ -1,7 +1,11 @@
 package is.hail.asm4s
 
+import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.language.higherKinds
+
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.tree._
 
 case class CodeM[T](action: (FunctionBuilder[_]) => T) {
   def map[U](f: T => U): CodeM[U] =
