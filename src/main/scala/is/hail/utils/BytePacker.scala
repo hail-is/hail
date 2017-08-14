@@ -3,13 +3,13 @@ package is.hail.utils
 import scala.collection.mutable
 
 class BytePacker {
-  val slots = new mutable.TreeSet[(Int, Int)]
+  val slots = new mutable.TreeSet[(Long, Long)]
 
-  def insertSpace(size: Int, start: Int) {
+  def insertSpace(size: Long, start: Long) {
     slots += size -> start
   }
 
-  def getSpace(size: Int, alignment: Int): Option[Int] = {
+  def getSpace(size: Long, alignment: Long): Option[Long] = {
 
     // disregard spaces smaller than size
     slots.iteratorFrom(size -> 0)
@@ -18,7 +18,7 @@ class BytePacker {
         val start = x._2
 
         // find a start position with the proper alignment
-        var i = 0
+        var i = 0L
         while (i + size <= spaceSize) {
           // space found
           if ((start + i) % alignment == 0) {

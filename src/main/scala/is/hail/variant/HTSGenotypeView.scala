@@ -18,7 +18,7 @@ object HTSGenotypeView {
 
 // FIXME: This is removed, and StructGenotypeView becomes the only genotype view when TGenotype is removed
 sealed abstract class HTSGenotypeView {
-  def setRegion(mb: MemoryBuffer, offset: Int)
+  def setRegion(mb: MemoryBuffer, offset: Long)
 
   def setGenotype(idx: Int)
 
@@ -55,12 +55,12 @@ private class TGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private val linearScaleIndex = 6
 
   private var m: MemoryBuffer = _
-  private var gsOffset: Int = _
+  private var gsOffset: Long = _
   private var gsLength: Int = _
-  private var gOffset: Int = _
+  private var gOffset: Long = _
   private var gIsDefined: Boolean = _
 
-  def setRegion(mb: MemoryBuffer, offset: Int) {
+  def setRegion(mb: MemoryBuffer, offset: Long) {
     this.m = mb
     gsOffset = rs.loadField(m, offset, 2)
     gsLength = tgs.loadLength(m, gsOffset)
@@ -138,12 +138,12 @@ private class StructGenotypeView(rs: TStruct) extends HTSGenotypeView {
   private val (plExists, plIndex) = lookupField("PL", HTSGenotypeView.tArrayInt32)
 
   private var m: MemoryBuffer = _
-  private var gsOffset: Int = _
+  private var gsOffset: Long = _
   private var gsLength: Int = _
-  private var gOffset: Int = _
+  private var gOffset: Long = _
   private var gIsDefined: Boolean = _
 
-  def setRegion(mb: MemoryBuffer, offset: Int) {
+  def setRegion(mb: MemoryBuffer, offset: Long) {
     this.m = mb
     gsOffset = rs.loadField(m, offset, 2)
     gsLength = tgs.loadLength(m, gsOffset)

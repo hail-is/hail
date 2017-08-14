@@ -31,13 +31,13 @@ class UnsafeSuite extends SparkSuite {
 
       hadoopConf.writeDataFile(path) { out =>
         val en = new Encoder(out)
-        en.writeRegionValue(f, region, offset)
+        en.writeRegionValue(t, region, offset)
       }
 
       region2.clear()
       val offset2 = hadoopConf.readDataFile(path) { in =>
         val dec = new Decoder(in)
-        dec.readRegionValue(f, region2)
+        dec.readRegionValue(t, region2)
       }
 
       val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
