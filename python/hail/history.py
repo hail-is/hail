@@ -154,7 +154,40 @@ class HistoryMixin(object):
     def __init__(self):
         self._history = None
 
-    @record_method
     def with_id(self, id):
+        """Set identifier for an object in the history file.
+
+        **Examples**
+
+        Given the following code that writes a VDS:
+
+        .. code-block: python
+
+            vds1 = hc.import_vcf('src/test/resources/sample.vcf').with_id('foo')
+            vds2 = hc.import_vcf('src/test/resources/sample.vcf').with_id('bar')
+            vds1.join(vds2).write('output/vds3.vds')
+
+        the corresponding history file generated for `vds3.vds` will be as follows:
+
+        .. code-block: python
+
+            foo = hc.import_vcf('src/test/resources/sample.vcf')
+            bar = hc.import_vcf('src/test/resources/sample.vcf')
+            foo.join(bar).write('output/vds3.vds')
+
+        If `with_id` is not used, the corresponding history file would be:
+
+        .. code-block: python
+
+            hc.import_vcf('src/test/resources/sample.vcf')
+                .join(hc.import_vcf('src/test/resources/sample.vcf'))
+                .write('/tmp/vds3.vds')
+
+        :param id: Identifier for object.
+        :type id: str
+
+        :return: Input object.
+        """
+
         self._history = self._history.set_varid(id)
         return self
