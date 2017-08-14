@@ -69,7 +69,6 @@ class SkatModel(skatStat: Double) {
       allEvalsSum += allEvals(i)
       i += 1
     }
-    allEvals.foreach(println(_))
     val threshold = 1e-5 * allEvalsSum / allEvals.length
 
     //Initialize parameters to Davies' algorithm
@@ -133,7 +132,6 @@ class SkatModel(skatStat: Double) {
       *computePVal(Gw.t * P * Gw)
       */
 
-
     val W = diag(mu.map((x) => math.sqrt(x * (1 - x))))
     val WX = W * X
     val WGw = W * Gw
@@ -171,7 +169,6 @@ class SkatModel(skatStat: Double) {
       i += 1
     }
 
-
     //val varQ =
     val c = new Array[Double](4)
     i = 0
@@ -205,7 +202,6 @@ class SkatModel(skatStat: Double) {
     val varQ = math.sqrt(2) * a
     val QNorm = ((skatStat - muQ) / math.sqrt(varQ)) * (math.sqrt(2) * df) + df
 
-    println(QNorm, df)
     val pval = NonCentralChiSquare.cumulative(QNorm, df, 0, false, false)
     println(pval)
 
