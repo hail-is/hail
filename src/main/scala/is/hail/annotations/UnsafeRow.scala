@@ -3,10 +3,11 @@ package is.hail.annotations
 import is.hail.expr._
 import is.hail.utils.Interval
 import is.hail.variant.{AltAllele, GenericGenotype, Locus, Variant}
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
 class UnsafeIndexedSeqAnnotation(val region: MemoryBuffer,
-  arrayTTBc: BroadcastTypeTree,
+  arrayTTBc: Broadcast[TypeTree],
   elemSize: Int, val offset: Int, elemOffset: Int,
   val length: Int) extends IndexedSeq[Annotation] {
   def apply(i: Int): Annotation = {
@@ -31,7 +32,7 @@ object UnsafeRow {
     region.loadBytes(start + 4, binLength)
   }
 
-  def readArray(region: MemoryBuffer, offset: Int, elemType: Type, arrayTTBc: BroadcastTypeTree): IndexedSeq[Any] = {
+  def readArray(region: MemoryBuffer, offset: Int, elemType: Type, arrayTTBc: Broadcast[TypeTree]): IndexedSeq[Any] = {
     val aoff = region.loadInt(offset)
 
     val length = region.loadInt(aoff)
@@ -41,7 +42,7 @@ object UnsafeRow {
     new UnsafeIndexedSeqAnnotation(region, arrayTTBc, elemSize, aoff, aoff + elemOffset, length)
   }
 
-  def readStruct(region: MemoryBuffer, offset: Int, ttBc: BroadcastTypeTree): UnsafeRow = {
+  def readStruct(region: MemoryBuffer, offset: Int, ttBc: Broadcast[TypeTree]): UnsafeRow = {
     new UnsafeRow(ttBc, region, offset)
   }
 
@@ -100,7 +101,7 @@ object UnsafeRow {
     a
   }
 
-  def read(region: MemoryBuffer, offset: Int, t: Type, ttBc: BroadcastTypeTree): Any = {
+  def read(region: MemoryBuffer, offset: Int, t: Type, ttBc: Broadcast[TypeTree]): Any = {
     t match {
       case TBoolean =>
         val b = region.loadByte(offset)
@@ -169,7 +170,7 @@ object UnsafeRow {
   }
 }
 
-class UnsafeRow(val ttBc: BroadcastTypeTree,
+class UnsafeRow(val ttBc: Broadcast[TypeTree],
   val region: MemoryBuffer, var offset: Int) extends Row {
 
   def t: TStruct = ttBc.value.typ.asInstanceOf[TStruct]

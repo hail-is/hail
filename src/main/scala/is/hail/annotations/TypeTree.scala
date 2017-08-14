@@ -9,33 +9,9 @@ import org.apache.spark.broadcast.Broadcast
 import scala.reflect.{ClassTag, classTag}
 
 object BroadcastTypeTree {
-  private val bcConstructor: Constructor[_] = {
-    val torr = Class.forName("org.apache.spark.broadcast.TorrentBroadcast")
-    torr.getDeclaredConstructor(classOf[AnyRef], classOf[Long], classOf[ClassTag[_]])
-  }
+  def apply(sc: SparkContext, tt: TypeTree): Broadcast[TypeTree] = sc.broadcast(tt)
 
-  private val m = new java.util.HashMap[Long, Broadcast[TypeTree]]
-
-  def lookupBroadcast(id: Long): Broadcast[TypeTree] = {
-    if (m.containsKey(id))
-      m.get(id)
-    else {
-      val tbc = bcConstructor.newInstance(
-        null: AnyRef,
-        id: java.lang.Long,
-        classTag[TypeTree]).asInstanceOf[Broadcast[TypeTree]]
-      assert(tbc.value != null)
-      m.put(id, tbc)
-      tbc
-    }
-  }
-
-  def apply(sc: SparkContext, tt: TypeTree): BroadcastTypeTree = {
-    val bc = sc.broadcast(tt)
-    new BroadcastTypeTree(bc, bc.id)
-  }
-
-  def apply(sc: SparkContext, t: Type): BroadcastTypeTree = {
+  def apply(sc: SparkContext, t: Type): Broadcast[TypeTree] = {
     t match {
       case TStruct(fields) =>
         BroadcastTypeTree(sc,
@@ -53,16 +29,7 @@ object BroadcastTypeTree {
   }
 }
 
-class BroadcastTypeTree(@transient var bc: Broadcast[TypeTree],
-  id: Long) extends Serializable {
-  def value: TypeTree = {
-    if (bc == null)
-      bc = BroadcastTypeTree.lookupBroadcast(id)
-    bc.value
-  }
-}
-
 class TypeTree(val typ: Type,
-  subtrees: Array[BroadcastTypeTree]) {
-  def subtree(i: Int): BroadcastTypeTree = subtrees(i)
+  subtrees: Array[Broadcast[TypeTree]]) {
+  def subtree(i: Int): Broadcast[TypeTree] = subtrees(i)
 }
