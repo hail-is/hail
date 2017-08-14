@@ -7,42 +7,59 @@ import scala.io.Source
 import is.hail.expr._
 import is.hail.SparkSuite
 import is.hail.io.annotators.IntervalList
-import is.hail.keytable.KeyTable
 import is.hail.variant.{Genotype, VariantDataset}
+import is.hail.methods.Skat
 
 import scala.sys.process._
 import breeze.linalg._
-import breeze.numerics.abs
+import is.hail.keytable.KeyTable
 
 import scala.language.postfixOps
-import is.hail.annotations.Annotation
-import is.hail.methods.Skat.polymorphicSkat
-import is.hail.stats.{RegressionUtils, SkatModel}
+import is.hail.methods.Skat.keyedRDDSkat
+import is.hail.stats.RegressionUtils
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
-import org.scalatest.Assertions
 
+case class SkatAggForR[T <: Vector[Double]](xs: ArrayBuilder[T], weights: ArrayBuilder[Double])
 
-object SkatAggForR {
-  val zeroValDense = SkatAggForR(new ArrayBuilder[DenseVector[Double]](), new ArrayBuilder[Double])
-  val zeroValSparse = SkatAggForR(new ArrayBuilder[SparseVector[Double]](), new ArrayBuilder[Double])
+class SkatSuite extends SparkSuite {
 
-  def seqOp[T <: Vector[Double]](safr: SkatAggForR[T], info: (T, Double)): SkatAggForR[T] = {
-    val (x, weight) = info
-    SkatAggForR(safr.xs + x, safr.weights + weight)
+  //Routines for running programs in R for comparison
+
+  def readResults(file: String) = {
+    hadoopConf.readLines(file) {
+      _.map {
+        _.map {
+          _.split(" ").map(_.toDouble)
+        }.value
+      }.toArray
+    }
   }
 
-  def combOp[T <: Vector[Double]](safr: SkatAggForR[T], safr2: SkatAggForR[T]): SkatAggForR[T] =
-    SkatAggForR(safr.xs ++ safr2.xs.result(), safr.weights ++ safr2.weights.result())
+  def largeMatrixToString(A: DenseMatrix[Double], separator: String): String = {
+    var string: String = ""
+    for (i <- 0 until A.rows) {
+      for (j <- 0 until A.cols) {
+        string = string + separator + A(i, j).toString()
+      }
+      string = string + "\n"
+    }
+    string
+  }
 
-  def sparseResultOp(safr: SkatAggForR[SparseVector[Double]], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
-    val m = safr.xs.size
+  def sparseResultOp(st: Array[(SparseVector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
+    val m = st.length
     val xArray = Array.ofDim[Double](m * n)
+    val wArray = Array.ofDim[Double](m)
 
     var i = 0
     while (i < m) {
-      val index = safr.xs(i).index
-      val data = safr.xs(i).data
+      val (xw, w) = st(i)
+      wArray(i) = w
+
+      val index = xw.index
+      val data = xw.data
       var j = 0
       while (j < index.length) {
         xArray(i * n + index(j)) = data(j)
@@ -51,16 +68,21 @@ object SkatAggForR {
       i += 1
     }
 
-    (new DenseMatrix(n, m, xArray), new DenseVector(safr.weights.result()))
+    (new DenseMatrix(n, m, xArray), new DenseVector(wArray))
+
   }
 
-  def denseResultOp(safr: SkatAggForR[DenseVector[Double]], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
-    val m = safr.xs.size
+  def denseResultOp(st: Array[(DenseVector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
+    val m = st.length
     val xArray = Array.ofDim[Double](m * n)
+    val wArray = Array.ofDim[Double](m)
 
     var i = 0
     while (i < m) {
-      val data = safr.xs(i).data
+      val (xw, w) = st(i)
+      wArray(i) = w
+
+      val data = xw.data
       var j = 0
       while (j < n) {
         xArray(i * n + j) = data(j)
@@ -69,139 +91,95 @@ object SkatAggForR {
       i += 1
     }
 
-    (new DenseMatrix(n, m, xArray), new DenseVector(safr.weights.result()))
+    (new DenseMatrix(n, m, xArray), new DenseVector(wArray))
   }
-}
 
-case class SkatAggForR[T <: Vector[Double]](xs: ArrayBuilder[T], weights: ArrayBuilder[Double])
-
-class SkatSuite extends SparkSuite {
   def testInR(vds: VariantDataset,
     keyName: String,
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: String,
+    weightExpr: Option[String],
     yExpr: String,
     covExpr: Array[String],
     useDosages: Boolean): Array[Row] = {
 
+
+    def skatTestInR[T <: Vector[Double]](keyedRdd:  RDD[(Any, Iterable[(T, Double)])], keyType: Type,
+      y: DenseVector[Double], cov: DenseMatrix[Double], keyName: String,
+      resultOp: (Array[(T, Double)], Int) => (DenseMatrix[Double], DenseVector[Double])): Array[Row] = {
+
+      val n = y.size
+      val k = cov.cols
+      val d = n - k
+
+      if (d < 1)
+        fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+
+      // fit null model
+      val qr.QR(q, r) = qr.reduced.impl_reduced_DM_Double(cov)
+      val beta = r \ (q.t * y)
+      val res = y - cov * beta
+      val sigmaSq = (res dot res) / d
+
+      val inputFilePheno = tmpDir.createLocalTempFile("skatPhenoVec", ".txt")
+      hadoopConf.writeTextFile(inputFilePheno) {
+        _.write(largeMatrixToString(y.toDenseMatrix, " "))
+      }
+
+      val inputFileCov = tmpDir.createLocalTempFile("skatCovMatrix", ".txt")
+      hadoopConf.writeTextFile(inputFileCov) {
+        _.write(largeMatrixToString(cov, " "))
+      }
+
+      val skatRDD = keyedRdd.collect()
+        .map {case (k, vs) =>
+          val (xs, weights) = resultOp(vs.toArray, n)
+
+          //write files to a location R script can read
+          val inputFileG = tmpDir.createLocalTempFile("skatGMatrix", ".txt")
+          hadoopConf.writeTextFile(inputFileG) {
+            _.write(largeMatrixToString(xs, " "))
+          }
+
+          val inputFileW = tmpDir.createLocalTempFile("skatWeightVec", ".txt")
+          hadoopConf.writeTextFile(inputFileW) {
+            _.write(largeMatrixToString(weights.toDenseMatrix, " "))
+          }
+
+          val resultsFile = tmpDir.createLocalTempFile("results", ".txt")
+
+          val rScript = s"Rscript src/test/resources/skatTest.R " +
+            s"${ uriPath(inputFileG) } ${ uriPath(inputFileCov) } " +
+            s"${ uriPath(inputFilePheno) } ${ uriPath(inputFileW) } " +
+            s"${ uriPath(resultsFile) } " + "C"
+
+          rScript !
+          val results = readResults(resultsFile)
+
+          Row(k, results(0)(0), results(0)(1))
+        }
+      skatRDD
+    }
+
     if (!useDosages) {
-      polymorphicTestInR(vds, keyName, variantKeys, singleKey, weightExpr, yExpr, covExpr,
-        RegressionUtils.hardCalls(_, _), SkatAggForR.zeroValSparse, SkatAggForR.sparseResultOp _)
+      val (keyedRdd, keysType, y, cov) =
+        keyedRDDSkat(vds, variantKeys, singleKey, weightExpr, yExpr, covExpr, RegressionUtils.hardCalls(_, _))
+       skatTestInR(keyedRdd, keysType, y, cov, keyName, sparseResultOp _)
     }
     else {
       val dosages = (gs: Iterable[Genotype], n: Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
-      polymorphicTestInR(vds, keyName, variantKeys, singleKey, weightExpr, yExpr, covExpr,
-        dosages, SkatAggForR.zeroValDense, SkatAggForR.denseResultOp _)
+      val (keyedRdd, keysType, y, cov) =
+        keyedRDDSkat(vds, variantKeys, singleKey, weightExpr, yExpr, covExpr, dosages)
+      skatTestInR(keyedRdd, keysType, y, cov, keyName, denseResultOp _)
     }
-  }
-
-  def polymorphicTestInR[T <: Vector[Double]](vds: VariantDataset,
-    keyName: String,
-    variantKeys: String,
-    singleKey: Boolean,
-    weightExpr: String,
-    yExpr: String,
-    covExpr: Array[String],
-    getGenotype: (Iterable[Genotype], Int) => T, zero: SkatAggForR[T],
-    resultOp: (SkatAggForR[T], Int) => (DenseMatrix[Double], DenseVector[Double])): Array[Row] = {
-
-
-    //get variables
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-
-    val n = y.size
-    val k = cov.cols
-    val d = n - k - 1
-
-    val filteredVds = vds.filterSamplesList(completeSamples.toSet)
-
-    val (keysType, keysQuerier) = filteredVds.queryVA(variantKeys)
-    val (weightType, weightQuerier) = filteredVds.queryVA(weightExpr)
-
-    val typedWeightQuerier = weightType match {
-      case TFloat64 => weightQuerier.asInstanceOf[Annotation => Double]
-      case TFloat32 => weightQuerier.asInstanceOf[Annotation => Double]
-      case TInt64 => weightQuerier.asInstanceOf[Annotation => Double]
-      case TInt32 => weightQuerier.asInstanceOf[Annotation => Double]
-      case _ => fatal("Weight must be a numeric type")
-    }
-
-    val (keyType, keyedRdd) =
-      if (singleKey) {
-        (keysType, filteredVds.rdd.flatMap { case (v, (va, gs)) =>
-          (Option(keysQuerier(va)), Option(typedWeightQuerier(va))) match {
-            case (Some(key), Some(w)) =>
-              val x = getGenotype(gs, n)
-              Some((key, (x, w)))
-            case _ => None
-          }
-        })
-      } else {
-        val keyType = keysType match {
-          case TArray(e) => e
-          case TSet(e) => e
-          case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
-        }
-        (keyType, filteredVds.rdd.flatMap { case (v, (va, gs)) =>
-          val keys = Option(keysQuerier(va).asInstanceOf[Iterable[_]]).getOrElse(Iterable.empty)
-          val optWeight = Option(typedWeightQuerier(va))
-          if (keys.isEmpty || optWeight.isEmpty)
-            Iterable.empty
-          else {
-            val x = getGenotype(gs, n)
-            keys.map((_, (x, optWeight.get)))
-          }
-        })
-      }
-
-    val aggregatedKT = keyedRdd.aggregateByKey(zero)(SkatAggForR.seqOp, SkatAggForR.combOp)
-
-    val inputFilePheno = tmpDir.createLocalTempFile("skatPhenoVec", ".txt")
-    hadoopConf.writeTextFile(inputFilePheno) {
-      _.write(largeMatrixToString(y.toDenseMatrix, " "))
-    }
-
-    val inputFileCov = tmpDir.createLocalTempFile("skatCovMatrix", ".txt")
-    hadoopConf.writeTextFile(inputFileCov) {
-      _.write(largeMatrixToString(cov, " "))
-    }
-
-    aggregatedKT.collect().map { case (key, safr) => {
-      val (xs, weights) = resultOp(safr, n)
-
-      //write files to a location R script can read
-      val inputFileG = tmpDir.createLocalTempFile("skatGMatrix", ".txt")
-      hadoopConf.writeTextFile(inputFileG) {
-        _.write(largeMatrixToString(xs, " "))
-      }
-
-      val inputFileW = tmpDir.createLocalTempFile("skatWeightVec", ".txt")
-      hadoopConf.writeTextFile(inputFileW) {
-        _.write(largeMatrixToString(weights.toDenseMatrix, " "))
-      }
-
-      val resultsFile = tmpDir.createLocalTempFile("results", ".txt")
-
-      val rScript = s"Rscript src/test/resources/skatTest.R " +
-        s"${ uriPath(inputFileG) } ${ uriPath(inputFileCov) } " +
-        s"${ uriPath(inputFilePheno) } ${ uriPath(inputFileW) } " +
-        s"${ uriPath(resultsFile) } " + "C"
-
-      rScript !
-      val results = readResults(resultsFile)
-
-      Row(key, results(0)(0), results(0)(1))
-    }
-    }
-
   }
 
 
   def covariates = hc.importTable("src/test/resources/regressionLinear.cov",
     types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
 
-  def phenotypes = hc.importTable("src/test/resources/regressionLinear.pheno",
+  def phenotypes = hc.importTable("src/" +
+    "test/resources/regressionLinear.pheno",
     types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   def intervals = IntervalList.read(hc, "src/test/resources/regressionLinear.interval_list")
@@ -224,7 +202,7 @@ class SkatSuite extends SparkSuite {
       "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
     val resultsArray = testInR(vds, "gene", "va.genes", singleKey = false,
-      "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
+      Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
     val rows = kt.rdd.collect()
 
@@ -254,7 +232,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = true
 
     val resultsArray = testInR(vds, "gene", "va.genes", singleKey = false,
-      "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
+      Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
     val kt = vds.skat("gene", "va.genes", singleKey = false, Option("va.weight"),
       "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
@@ -281,16 +259,17 @@ class SkatSuite extends SparkSuite {
 
   }
 
+
   @Test def largeNSmallTest() {
 
     val useDosages = false
+    val useLargeN = true
 
-    val kt = polymorphicSkat[SparseVector[Double]](vds, "gene", "va.genes", singleKey = false, Option("va.weight"), "sa.pheno",
-      Array("sa.cov.Cov1", "sa.cov.Cov2"), RegressionUtils.hardCalls(_, _), SkatAgg.zeroValSparse,
-      SkatAgg.largeNResultOp)
+    val kt = Skat(vds, "gene", "va.genes", false, Option("va.weight"), "sa.pheno",
+      Array("sa.cov.Cov1", "sa.cov.Cov2"),useDosages, useLargeN)
 
     val resultsArray = testInR(vds, "gene", "va.genes", singleKey = false,
-      "va.weight", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
+      Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages)
 
     val rows = kt.rdd.collect()
 
@@ -304,6 +283,7 @@ class SkatSuite extends SparkSuite {
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
       val pvalR = resultsArray(i)(2).asInstanceOf[Double]
 
+
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
         assert(D_==(pval, pvalR, tol))
@@ -313,28 +293,6 @@ class SkatSuite extends SparkSuite {
 
   }
 
-  //Routines for running programs in R for comparison
-
-  def readResults(file: String) = {
-    hadoopConf.readLines(file) {
-      _.map {
-        _.map {
-          _.split(" ").map(_.toDouble)
-        }.value
-      }.toArray
-    }
-  }
-
-  def largeMatrixToString(A: DenseMatrix[Double], seperator: String): String = {
-    var string: String = ""
-    for (i <- 0 until A.rows) {
-      for (j <- 0 until A.cols) {
-        string = string + seperator + A(i, j).toString()
-      }
-      string = string + "\n"
-    }
-    string
-  }
 
   //Generates random data
   def buildWeightValues(filepath: String): Unit = {
@@ -430,7 +388,7 @@ class SkatSuite extends SparkSuite {
     val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, Option("va.weight"),
       "sa.pheno0", covariates, useDosages)
     val resultsArray = testInR(vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
-      "va.weight", "sa.pheno0", covariates, useDosages)
+      Some("va.weight"), "sa.pheno0", covariates, useDosages)
 
     val rows = kt.rdd.collect()
 
@@ -463,7 +421,7 @@ class SkatSuite extends SparkSuite {
     val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, Option("va.weight"),
       "sa.pheno0", covariates, useDosages)
     val resultsArray = testInR(vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
-      "va.weight", "sa.pheno0", covariates, useDosages)
+      Some("va.weight"), "sa.pheno0", covariates, useDosages)
 
     val rows = kt.rdd.collect()
 
@@ -487,6 +445,7 @@ class SkatSuite extends SparkSuite {
 
   @Test def largeNBigTest() {
     val useDosages = true
+    val useLargeN = true
 
     val covariates = new Array[String](2)
     for (i <- 1 to 2) {
@@ -495,12 +454,11 @@ class SkatSuite extends SparkSuite {
 
     val dosages = (gs: Iterable[Genotype], n: Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
 
-    val kt = polymorphicSkat[DenseVector[Double]](vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
-      Option("va.weight"), "sa.pheno0", Array("sa.cov.Cov1", "sa.cov.Cov2"), dosages, SkatAgg.zeroValDense,
-      SkatAgg.largeNResultOp)
+    val kt = Skat(vdsSkat.splitMulti(), "gene", "va.genes", false, Option("va.weight"), "sa.pheno0",
+              Array("sa.cov.Cov1", "sa.cov.Cov2"),useDosages,useLargeN)
 
     val resultsArray = testInR(vdsSkat.splitMulti(), "gene", "va.genes", singleKey = false,
-      "va.weight", "sa.pheno0", covariates, useDosages)
+      Some("va.weight"), "sa.pheno0", covariates, useDosages)
 
     val rows = kt.rdd.collect()
 
@@ -513,6 +471,7 @@ class SkatSuite extends SparkSuite {
 
       val qstatR = resultsArray(i)(1).asInstanceOf[Double]
       val pvalR = resultsArray(i)(2).asInstanceOf[Double]
+
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
         assert(D_==(pval, pvalR, tol))

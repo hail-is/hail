@@ -4710,11 +4710,11 @@ class VariantDataset(HistoryMixin):
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
-                      weight_expr=None,
+                      weight_expr=nullable(strlike),
                       y=strlike,
                       covariates=listof(strlike),
                       use_dosages=bool)
-    def skat(self, key_name, variant_keys, single_key, y, weight_expr = None, covariates=[], use_dosages=False):
+    def skat(self, key_name, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False):
         """Test each keyed group of variants for association by linear SKAT test.
 
         **Examples**

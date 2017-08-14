@@ -37,8 +37,8 @@ sol <- suppressWarnings(SKAT(G,obj,kernel = "linear.weighted",weights = W))
 #skatStatTime  = Sys.time() - start.time
 #print(sprintf("SKAT time: %f",skatStatTime))
 
-print(sprintf("VCS:     %f",sol$Q[1]))
-print(sprintf("p value: %f",sol[1]))
+#print(sprintf("VCS:     %f",sol$Q[1]))
+#print(sprintf("p value: %f",sol[1]))
 
 output = c(sol$Q[1],sol[1]$p.value)
 #print(output)
