@@ -104,9 +104,7 @@ object UnsafeRow {
   def read(region: MemoryBuffer, offset: Int, t: Type, ttBc: Broadcast[TypeTree]): Any = {
     t match {
       case TBoolean =>
-        val b = region.loadByte(offset)
-        assert(b == 0 || b == 1, s"invalid boolean byte $b from offset $offset")
-        b == 1
+        region.loadBoolean(offset)
       case TInt32 | TCall => region.loadInt(offset)
       case TInt64 => region.loadLong(offset)
       case TFloat32 => region.loadFloat(offset)

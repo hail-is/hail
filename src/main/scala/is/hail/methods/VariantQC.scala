@@ -109,7 +109,6 @@ object VariantQC {
       val view = HTSGenotypeView(rowSignature)
       it.map { r =>
         view.setRegion(r.region, r.offset)
-
         val comb = new VariantQCCombiner
         var i = 0
         while (i < nSamples) {

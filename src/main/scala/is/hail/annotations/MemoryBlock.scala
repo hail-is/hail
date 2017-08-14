@@ -140,6 +140,12 @@ final class MemoryBuffer(var mem: Array[Byte], var offset: Int = 0) {
     allocate(n)
   }
 
+  def loadBoolean(off: Int): Boolean = {
+    val b = loadByte(off)
+    assert(b == 1 || b == 0, s"invalid boolean byte: $b")
+    b == 1
+  }
+
   def loadBit(byteOff: Int, bitOff: Int): Boolean = {
     val b = byteOff + (bitOff >> 3)
     (loadByte(b) & (1 << (bitOff & 7))) != 0
