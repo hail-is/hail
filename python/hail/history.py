@@ -155,7 +155,7 @@ class HistoryMixin(object):
         self._history = None
 
     def with_id(self, id):
-        """Set identifier for an object in the history file.
+        """Set identifier for this object in the history file.
 
         **Examples**
 

@@ -121,7 +121,7 @@ class TInt32(Type):
             raise TypeCheckError("TInt32 expected type 'int', but found type '%s'" % type(annotation))
 
     def __repr__(self):
-        return "TInt()"
+        return "TInt32()"
 
 class TInt64(Type):
     """
@@ -152,7 +152,7 @@ class TInt64(Type):
             raise TypeCheckError("TInt64 expected type 'int' or 'long', but found type '%s'" % type(annotation))
 
     def __repr__(self):
-        return "TLong()"
+        return "TInt64()"
 
 
 class TFloat32(Type):
@@ -187,7 +187,7 @@ class TFloat32(Type):
             raise TypeCheckError("TFloat32 expected type 'float', but found type '%s'" % type(annotation))
 
     def __repr__(self):
-        return "TFloat()"
+        return "TFloat32()"
 
 
 class TFloat64(Type):
@@ -219,7 +219,7 @@ class TFloat64(Type):
             raise TypeCheckError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
 
     def __repr__(self):
-        return "TDouble()"
+        return "TFloat64()"
 
 
 class TString(Type):
