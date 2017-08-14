@@ -154,6 +154,7 @@ class HistoryMixin(object):
     def __init__(self):
         self._history = None
 
+    @record_method
     def with_id(self, id):
         self._history = self._history.set_varid(id)
         return self
