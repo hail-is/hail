@@ -177,15 +177,8 @@ object HailContext {
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
-    val welcomeMessage =
-      """
-        |Welcome to
-        |     __  __     <>__
-        |    / /_/ /__  __/ /
-        |   / __  / _ `/ / /
-        |  /_/ /_/\_,_/_/_/   version """.stripMargin + is.hail.HAIL_PRETTY_VERSION
 
-    info(welcomeMessage)
+    info(s"Running Hail version ${hc.version}")
     hc
   }
 }

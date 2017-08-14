@@ -66,7 +66,7 @@ trait Py4jUtils {
   }
 
   def addSocketAppender(hostname: String, port: Int) {
-    val app = new StringSocketAppender(hostname, port, "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n")
+    val app = new StringSocketAppender(hostname, port, HailContext.logFormat)
     consoleLog.addAppender(app)
   }
 }

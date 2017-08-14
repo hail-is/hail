@@ -53,10 +53,9 @@ class StringSocketAppender() extends AppenderSkeleton {
       }
       os = null
     }
-    if (connector != null) { //LogLog.debug("Interrupting the connector.");
+    if (connector != null) {
       connector.interrupted = true
       connector = null // allow gc
-
     }
   }
 
@@ -73,8 +72,7 @@ class StringSocketAppender() extends AppenderSkeleton {
           msg += " We will try again later."
           fireConnector() // fire the connector thread
 
-        }
-        else {
+        } else {
           msg += " We are not retrying."
           errorHandler.error(msg, e, ErrorCode.GENERIC_FAILURE)
         }

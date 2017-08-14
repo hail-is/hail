@@ -140,11 +140,24 @@ class SimpleServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, server_address, RequestHandlerClass):
-        SocketServer.TCPServer.__init__(self, server_address, RequestHandlerClass)
+    def __init__(self, server_address, handler_class):
+        SocketServer.TCPServer.__init__(self, server_address, handler_class)
 
 
 def connect_logger(host, port):
+    """
+    This method starts a simple server which listens on a port for a
+    client to connect and start writing messages. Whenever a message
+    is received, it is written to sys.stderr. The server is run in
+    a daemon thread from the caller, which is killed when the caller
+    thread dies.
+
+    If the socket is in use, then the server tries to listen on the
+    next port (port + 1). After 25 tries, it gives up.
+
+    :param str host: Hostname for server.
+    :param int port: Port to listen on.
+    """
     server = None
     tries = 0
     max_tries = 25
