@@ -223,11 +223,18 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def fileStatus(filename: String): FileStatus = fileSystem(filename).getFileStatus(new hadoop.fs.Path(filename))
 
   def readObjectFile[T](filename: String)(f: (ObjectInputStream) => T): T = {
-    val ois = new ObjectInputStream(open(filename))
+    val is = open(filename)
     try {
-      f(ois)
+      // NB: ObjectInputStream constructor can throw an exception without closing is
+      val ois = new ObjectInputStream(is)
+      try {
+        f(ois)
+      } finally {
+        ois.close()
+      }
     } finally {
-      ois.close()
+      // Closable.close() is idempotent
+      is.close()
     }
   }
 
