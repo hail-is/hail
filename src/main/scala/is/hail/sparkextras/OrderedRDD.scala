@@ -441,7 +441,7 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
       assert(newPartEnd.zip(newPartEnd.tail).forall { case (i, inext) => i < inext })
 
       if (newPartEnd.length < maxPartitions)
-        warn(s"coalesced to ${ newPartEnd.length } partitions, less than requested $maxPartitions")
+        warn(s"coalesced to ${ newPartEnd.length } ${plural(newPartEnd.length, "partition")}, less than requested $maxPartitions")
 
       val newRangeBounds = newPartEnd.init.map(orderedPartitioner.rangeBounds)
       val partitioner = new OrderedPartitioner(newRangeBounds, newPartEnd.length)
