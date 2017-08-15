@@ -1872,7 +1872,7 @@ object FunctionRegistry {
 
   registerAggregator[Any, IndexedSeq[Any]]("collect", () => new CollectAggregator(),
     """
-    Returns an array with all of the elements in the aggregable. Missing values are removed.
+    Returns an array with all of the elements in the aggregable. Order is not guaranteed.
 
     **Examples**
 
@@ -1883,6 +1883,12 @@ object FunctionRegistry {
     ``va.hetSamples`` will have the type ``Array[String]``.
     """
   )(aggregableHr(TTHr), arrayHr(TTHr))
+
+  registerAggregator[Any, Set[Any]]("collectAsSet", () => new CollectSetAggregator(),
+    """
+    Returns the set of all unique elements in the aggregable.
+    """
+  )(aggregableHr(TTHr), setHr(TTHr))
 
   val sumAggDocstring = """Compute the sum of all non-missing elements. The empty sum is zero."""
   registerAggregator[Int, Int]("sum", () => new SumAggregator[Int](), sumAggDocstring)(aggregableHr(int32Hr), int32Hr)

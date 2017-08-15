@@ -386,6 +386,21 @@ class HistAggregator(indices: Array[Double])
   def copy() = new HistAggregator(indices)
 }
 
+class CollectSetAggregator extends TypedAggregator[Set[Any]] {
+
+  var _state = new mutable.HashSet[Any]
+
+  def result = _state.toSet
+
+  def seqOp(x: Any) {
+    _state += x
+  }
+
+  def combOp(agg2: this.type) = _state ++= agg2._state
+
+  def copy() = new CollectSetAggregator()
+}
+
 class CollectAggregator extends TypedAggregator[ArrayBuffer[Any]] {
 
   var _state = new ArrayBuffer[Any]
