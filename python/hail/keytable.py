@@ -1470,4 +1470,112 @@ class KeyTable(HistoryMixin):
 
         return jarray_to_list(self._jkt.maximalIndependentSet(i, j))
 
+    @handle_py4j
+    @record_method
+    @typecheck_method(columns=oneof(strlike, listof(strlike)))
+    def ungroup(self, columns):
+        """Lifts fields of struct columns as distinct top-level columns.
+
+        **Examples**
+
+        ``kt4`` is a :py:class:`.KeyTable` with five columns: A, B, C, D and E.
+
+        >>> kt4 = hc.import_table('data/kt_example4.tsv', impute=True,
+        ...                       types={'B': TStruct(['C0', 'C1'], [TBoolean(), TString()]),
+        ...                              'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
+        ...                              'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
+
+        The types of each column are ``Int32``, ``Struct``, ``Boolean``, ``Struct`` and ``Struct`` respectively.
+
+        +----+--------------------------+-------+-------------------+--------------+
+        | A  |   B                      |   C   | D                 | E            |
+        +====+==========================+=======+===================+==============+
+        | 32 | {"C0":true,"C1":"hello"} | false | {"cat":5,"dog":7} | {"A":5,"B":7}|
+        +----+--------------------------+-------+-------------------+--------------+
+
+        Both B and D can be ungrouped. However, E cannot be ungrouped because the names of its
+        fields collide with existing columns in the key table.
+
+        Ungroup B:
+
+        >>> kt4.ungroup('B')
+
+        +----+-------+--------+-------+-------------------+--------------+
+        | A  |   C0  | C1     |   C   | D                 | E            |
+        +====+=======+========+=======+===================+==============+
+        | 32 | true  | "hello"| false | {"cat":5,"dog":7} | {"A":5,"B":7}|
+        +----+-------+--------+-------+-------------------+--------------+
+
+        Ungroup B and D:
+
+        >>> kt4.ungroup(['B', 'D'])
+
+        +----+-------+--------+-------+-----+------+--------------+
+        | A  |   C0  | C1     |   C   | cat | dog  | E            |
+        +====+=======+========+=======+=====+======+==============+
+        | 32 | true  | "hello"| false | 5   |  7   | {"A":5,"B":7}|
+        +----+-------+--------+-------+-----+------+--------------+
+
+        **Notes**
+
+        Multiple columns can be ungrouped at the same time. However, the names of their fields
+        cannot conflict. The new columns are inserted in the same position in the schema as the
+        original struct column.
+
+        :param columns: Names of struct columns to ungroup.
+        :type columns: str or list of str
+
+        :return: A table with specified columns ungrouped.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.ungroup(wrap_to_list(columns)))
+
+    @handle_py4j
+    @record_method
+    @typecheck_method(dest=strlike,
+                      columns=oneof(strlike, listof(strlike)))
+    def group(self, dest, columns):
+        """Combines columns into a single struct column.
+
+        **Examples**
+
+        ``kt5`` is a :py:class:`.KeyTable` with three columns: A, B, and C.
+
+        >>> kt5 = hc.import_table('data/kt_example5.tsv', impute=True)
+
+        The types of each column are ``Int32``, ``Boolean`` and ``String`` respectively.
+
+        +----+------+-------+
+        | A  |   B  |   C   |
+        +====+======+=======+
+        | 32 | true | "sun" |
+        +----+------+-------+
+
+        Group A and C into a new column X:
+
+        >>> kt5.group('X', ['A', 'C'])
+
+        +----+-------------------+
+        | B  |   X               |
+        +====+===================+
+        |true|{"A":32,"C":"sun"} |
+        +----+-------------------+
+
+        **Notes**
+
+        The grouped column is always appended to the end of the table.
+
+        :param dest: Name of column to be constructed.
+        :type dest: str
+
+        :param columns: Names of columns to group.
+        :type columns: str or list of str
+
+        :return: A table with specified columns grouped.
+        :rtype: :class:`.KeyTable`
+        """
+
+        return KeyTable(self.hc, self._jkt.group(dest, wrap_to_list(columns)))
+
 kt_type.set(KeyTable)

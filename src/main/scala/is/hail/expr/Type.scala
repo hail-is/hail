@@ -13,6 +13,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
@@ -1239,6 +1240,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
+  val fieldNames: Array[String] = fields.map(_.name).toArray
+
   def index(str: String): Option[Int] = fieldIdx.get(str)
 
   def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
@@ -1469,6 +1472,115 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
       else
         !set.contains(f.name)
     filter(fn)
+  }
+
+  def ungroup(x: Array[String]): (TStruct, (Row) => Row) = {
+    val newFieldNames = mutable.Set(fieldNames.toSet.diff(x.toSet).toArray: _*)
+
+    val structsToUngroup = x.map{ name =>
+      fieldOption(name) match {
+        case None => fatal(s"Struct does not have field with name `$name'.")
+        case Some(fd) =>
+          if (!fd.typ.isInstanceOf[TStruct])
+            fatal(s"Expecting a type of TStruct for field `$name', but found ${ fd.typ.toPrettyString() } ")
+
+          val s = fd.typ.asInstanceOf[TStruct]
+          val fieldsToAdd = s.fields.map(_.name).toArray
+
+          val dupFieldNames = fieldsToAdd.toSet.intersect(newFieldNames)
+          if (dupFieldNames.nonEmpty)
+            fatal(s"Found fields in struct `$name' has names overlapping with existing field names: ${ dupFieldNames.mkString(", ") }.")
+
+          newFieldNames ++= fieldsToAdd
+
+          (fd.index, (s, query(name), s.fields.length))
+      }
+    }.toMap
+
+    val nFieldsInit = fields.length
+    val nFieldsToInsert = structsToUngroup.map { case (_, (_, _, n)) => n }.sum
+    val nNewFields = nFieldsInit + nFieldsToInsert - structsToUngroup.size
+
+    val newFields = Array.fill[Field](nNewFields)(null)
+
+    var localIdx = 0
+    for (i <- fields.indices) {
+      if (structsToUngroup.contains(i)) {
+        val (s, _, _) = structsToUngroup(i)
+        for (j <- s.fields.indices) {
+          newFields(localIdx) = s.fields(j).copy(index = localIdx)
+          localIdx += 1
+        }
+      } else {
+        newFields(localIdx) = fields(i).copy(index = localIdx)
+        localIdx += 1
+      }
+    }
+
+    val ungrouper = (r: Row) => {
+      val result = Array.fill[Any](nNewFields)(null)
+      var localIdx = 0
+      var i = 0
+
+      while (i < nFieldsInit) {
+        if (structsToUngroup.contains(i)) {
+          val (_, q, n) = structsToUngroup(i)
+          val structRow = q(r).asInstanceOf[Row]
+          var j = 0
+          while (j < n) {
+            result(localIdx) = structRow.get(j)
+            j += 1
+            localIdx += 1
+          }
+        } else {
+          result(localIdx) = r.get(i)
+          localIdx += 1
+        }
+        i += 1
+      }
+
+      Row.fromSeq(result)
+    }
+
+    (TStruct(newFields), ungrouper)
+  }
+
+  def group(dest: String, names: Array[String]): (TStruct, (Row) => Row) = {
+    val fieldsToGroup = names.zipWithIndex.map{ case (name, i) =>
+      fieldOption(name) match {
+        case None => fatal(s"Struct does not have field with name `$name'.")
+        case Some(fd) => (fd.index, (i, fd))
+      }
+    }.toMap
+
+    val keepIndices = fields.filter(fd => !fieldsToGroup.contains(fd.index) && fd.name != dest).map(_.index).toArray
+
+    val nNewFields = keepIndices.length + 1
+    val newFields = Array.fill[Field](nNewFields)(null)
+
+    var localIdx = 0
+    keepIndices.foreach { i =>
+      newFields(localIdx) = fields(i).copy(index = localIdx)
+      localIdx += 1
+    }
+
+    newFields(localIdx) = Field(dest, TStruct(fieldsToGroup.map { case (_, (i, fd)) => Field(fd.name, fd.typ, i) }.toIndexedSeq), localIdx)
+
+    val grouper = (r: Row) => {
+      val result = Array.fill[Any](nNewFields)(null)
+      var localIdx = 0
+
+      keepIndices.foreach { i =>
+        result(localIdx) = r.get(i)
+        localIdx += 1
+      }
+
+      result(localIdx) = Row(fieldsToGroup.map { case (idx, _) => r.get(idx)}.toSeq: _*)
+
+      Row.fromSeq(result)
+    }
+
+    (TStruct(newFields), grouper)
   }
 
   def parseInStructScope[T >: Null](code: String)(implicit hr: HailRep[T]): (Annotation) => T = {
