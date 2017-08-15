@@ -211,77 +211,39 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.getOrElse(s)
   }
 
-  def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T = {
-    val os = create(filename)
-    try {
-      // NB: ObjectOutputStream constructor can throw an exception without closing is
-      val oos = new ObjectOutputStream(create(filename))
-      try {
-        f(oos)
-      } finally {
-        oos.close()
-      }
-    } finally {
-      // Closable.close() is idempotent
-      os.close()
-    }
-  }
-
   def fileStatus(filename: String): FileStatus = fileSystem(filename).getFileStatus(new hadoop.fs.Path(filename))
 
-  def readObjectFile[T](filename: String)(f: (ObjectInputStream) => T): T = {
-    val is = open(filename)
+  private def using[R <: Closeable, T](r: R)(consume: (R) => T): T = {
     try {
-      // NB: ObjectInputStream constructor can throw an exception without closing is
-      val ois = new ObjectInputStream(is)
-      try {
-        f(ois)
-      } finally {
-        ois.close()
-      }
+      consume(r)
     } finally {
-      // Closable.close() is idempotent
-      is.close()
+      r.close()
     }
   }
 
-  def readDataFile[T](filename: String)(f: (DataInputStream) => T): T = {
-    val dis = new DataInputStream(open(filename))
-    try {
-      f(dis)
-    } finally {
-      dis.close()
-    }
-  }
+  def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T =
+    using(create(filename)) { ois => using(new ObjectOutputStream(ois))(f) }
 
-  def writeTextFile[T](filename: String)(writer: (OutputStreamWriter) => T): T = {
-    val oos = create(filename)
-    val fw = new OutputStreamWriter(oos)
-    try {
-      writer(fw)
-    } finally {
-      fw.close()
-    }
-  }
+  def readObjectFile[T](filename: String)(f: (ObjectInputStream) => T): T =
+    using(open(filename)) { is => using(new ObjectInputStream(is))(f) }
 
-  def writeDataFile[T](filename: String)(writer: (DataOutputStream) => T): T = {
-    val oos = create(filename)
-    val dos = new DataOutputStream(oos)
-    try {
-      writer(dos)
-    } finally {
-      dos.close()
-    }
-  }
+  def writeDataFile[T](filename: String)(f: (DataOutputStream) => T): T =
+    using(new DataOutputStream(create(filename)))(f)
 
-  def readFile[T](filename: String)(reader: (InputStream) => T): T = {
-    val is = open(filename)
-    try {
-      reader(is)
-    } finally {
-      is.close()
-    }
-  }
+  def readDataFile[T](filename: String)(f: (DataInputStream) => T): T =
+    using(new DataInputStream(open(filename)))(f)
+
+  def writeTextFile[T](filename: String)(f: (OutputStreamWriter) => T): T =
+    using(new OutputStreamWriter(create(filename)))(f)
+
+  def readTextFile[T](filename: String)(f: (InputStreamReader) => T): T =
+    using(new InputStreamReader(open(filename)))(f)
+
+  def readFile[T](filename: String)(f: (InputStream) => T): T =
+    using(open(filename))(f)
+
+  def writeFile[T](filename: String)(f: (OutputStream) => T): T =
+    using(create(filename))(f)
 
   def readLines[T](filename: String)(reader: (Iterator[WithContext[String]] => T)): T = {
     readFile[T](filename) {
