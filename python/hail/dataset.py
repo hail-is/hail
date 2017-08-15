@@ -1254,10 +1254,6 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        For each trio of father, mother, and child (proband), this method finds violations of
-        Mendelian inheritance and evaluates the probability each violation occurred due to a
-        de novo mutation in the child (rather than sequencing error).
-
         This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`__.
         It is reproduced in Hail with her permission and assistance. The git commit of the version
         implemented in Hail is ``bde3e40``.
@@ -1273,21 +1269,33 @@ class VariantDataset(HistoryMixin):
             - **probandGt** (*Genotype*) -- Genotype of the proband
             - **fatherGt** (*Genotype*) -- Genotype of the father
             - **motherGt** (*Genotype*) -- Genotype of the mother
-            - **pDeNovo** (*Double*) -- Posterior probability that the event is a true de novo.
+            - **pDeNovo** (*Float64*) -- Posterior probability that the event is a true de novo.
 
-        This model was originally designed to run against VCFs produced by GATK from high-throughput sequencing
+
+        The model is designed to discover a certain kind of de novo event: both parents are homozygous
+        reference, and the proband is a heterozygote. It finds violations of Mendelian inheritance in
+        this configuration, and evalutates the probability that each violation occurred due to a
+        de novo mutation in the child, rather than a sequencing error in a parent (true heterozygote
+        called as homozygous reference).
+
+        The model was originally designed to run against VCFs produced by GATK from high-throughput sequencing
         experiments, and uses the GT, AD, DP, GQ, and PL fields. The absence of these fields will
-        result in no de novo calls.
-
-        The following model specification is copied from the README of `de_novo_scripts <https://github.com/ksamocha/de_novo_scripts>`__
+        result in an empty table of results (no called de novo mutations).
 
         Instead of requiring a hard PL threshold in the parents, we have defined a relative probability of an
         event being truly de novo versus the probability that it was a missed heterozygote call in one of the
         two parents (the most likely error mode).
 
-        ..code::
+        ..math::
+            \mathrm{P}(d\,\|\,x) is the posterior probability of a de novo mutation given the data
+            \mathrm{P}(h\,\|\,x) is the posterior probability of a missed heterogygous parent given the data
 
-            p_dn = P(true de novo | data) / (P(true de novo | data) + P(missed het in parent | data))
+        We can estimate a posterior probability of a de novo mutation:
+
+        ..math::
+            \\frac{\mathrm{P}(d\,\|\,x)}{\mathrm{P}(h\,\|\,x)} = \\frac{\mathrm{P}(x\,\|\,d) \mathrm{P}(d)}{\mathrm{P}(x\,\|\,h) \mathrm{P}(h)}
+
+            P(true de novo | data) / (P(true de novo | data) + P(missed het in parent | data))
 
         where
 
