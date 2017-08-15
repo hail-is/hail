@@ -1,15 +1,15 @@
 package is.hail.methods
 
-import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
-import is.hail.utils._
-import is.hail.stats.RegressionUtils
-import is.hail.variant.{Variant, VariantDataset}
-import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix, Vectors, DenseVector}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
-import org.apache.hadoop.io._
 import java.io._
+
+import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
+import is.hail.stats.RegressionUtils
+import is.hail.utils._
+import is.hail.variant.{Variant, VariantDataset}
+import org.apache.hadoop.io._
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Matrix, Vectors}
 import org.json4s._
-import java.net._
 
 object LDMatrix {
   /**
