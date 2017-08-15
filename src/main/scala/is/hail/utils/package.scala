@@ -471,14 +471,6 @@ package object utils extends Logging
       resourceStream.close()
   }
 
-  def using[R <: AutoCloseable, T](resource: R)(consumer: (R) => T): T = {
-    try {
-      consumer(resource)
-    } finally {
-      resource.close()
-    }
-  }
-
   def roundWithConstantSum(a: Array[Double]): Array[Int] = {
     val withFloors = a.zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
     val totalFractional = (withFloors.map { case (i, orig, floor) => orig - floor }.sum + 0.5).toInt

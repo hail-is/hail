@@ -339,7 +339,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
       (new PairWriter(i, j), new MatrixWriter(m.numRows, m.numCols, m.toArray)) }
       .saveAsSequenceFile(uri+matrixRelativePath)
 
-    using(hadoop.create(uri+metadataRelativePath)) { os =>
+    hadoop.writeDataFile(uri+metadataRelativePath) { os =>
       jackson.Serialization.write(
         BlockMatrixMetadata(m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols()),
         os)
@@ -361,7 +361,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
     }
 
     val BlockMatrixMetadata(rowsPerBlock, colsPerBlock, numRows, numCols) =
-      using(new InputStreamReader(hc.hadoopConf.open(uri+metadataRelativePath))) { isr =>
+      hadoop.readTextFile(uri+metadataRelativePath) { isr  =>
         jackson.Serialization.read[BlockMatrixMetadata](isr)
       }
 
