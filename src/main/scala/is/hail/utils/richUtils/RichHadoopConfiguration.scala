@@ -212,11 +212,18 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   }
 
   def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T = {
-    val oos = new ObjectOutputStream(create(filename))
+    val os = create(filename)
     try {
-      f(oos)
+      // NB: ObjectOutputStream constructor can throw an exception without closing is
+      val oos = new ObjectOutputStream(create(filename))
+      try {
+        f(oos)
+      } finally {
+        oos.close()
+      }
     } finally {
-      oos.close()
+      // Closable.close() is idempotent
+      os.close()
     }
   }
 
