@@ -86,7 +86,7 @@ class LDMatrixSuite extends SparkSuite {
 
     val fname = tmpDir.createTempFile("test")
     actual.write(fname)
-    assert(actual.toLocalMatrix() == LDMatrix.read(hc, fname).toLocalMatrix())
+    assert(actual.toLocalMatrix == LDMatrix.read(hc, fname).toLocalMatrix)
   }
 
   @Test
@@ -95,7 +95,7 @@ class LDMatrixSuite extends SparkSuite {
 
     val fname = tmpDir.createTempFile("test")
     actual.write(fname)
-    assert(actual.toLocalMatrix() == LDMatrix.read(hc, fname).toLocalMatrix())
+    assert(actual.toLocalMatrix == LDMatrix.read(hc, fname).toLocalMatrix)
   }
 
 }
