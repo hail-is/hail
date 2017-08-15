@@ -496,13 +496,6 @@ package object utils extends Logging
       1 + digitsNeeded(i / 10)
   }
 
-  def using[R <: AutoCloseable, T](resource: R)(consumer: (R) => T): T = {
-    try {
-      consumer(resource)
-    } finally {
-      resource.close()
-    }
-  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

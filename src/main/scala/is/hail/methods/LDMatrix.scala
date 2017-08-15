@@ -76,7 +76,7 @@ object LDMatrix {
     }
 
     val LDMatrixMetadata(variants, nSamples) =
-      using(new InputStreamReader(hc.hadoopConf.open(uri+metadataRelativePath))) { isr =>
+      hc.hadoopConf.readTextFile(uri+metadataRelativePath) { isr =>
         jackson.Serialization.read[LDMatrixMetadata](isr)
       }
 
@@ -104,7 +104,7 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
     matrix.rows.map { case IndexedRow(i, v) => (new LongWritable(i), new ArrayPrimitiveWritable(v.toArray)) }
       .saveAsSequenceFile(uri+matrixRelativePath)
 
-    using(hadoop.create(uri+metadataRelativePath)) { os =>
+    hadoop.writeTextFile(uri+metadataRelativePath) { os =>
       jackson.Serialization.write(
         LDMatrixMetadata(variants, nSamples),
         os)
