@@ -525,4 +525,11 @@ class AggregatorSuite extends SparkSuite {
       .asInstanceOf[IndexedSeq[java.lang.Integer]]
     assert(result == IndexedSeq(0, 1, 2))
   }
+
+  @Test def testCollectAsSet() {
+    val kt = KeyTable.range(hc, 100, Some(10))
+
+    assert(kt.query(Array("index.collectAsSet()"))(0)._1 == (0 until 100).toSet)
+    assert(kt.union(kt, kt).query(Array("index.collectAsSet()"))(0)._1 == (0 until 100).toSet)
+  }
 }
