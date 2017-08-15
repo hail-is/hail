@@ -19,28 +19,28 @@ class HailContext(object):
         Only one Hail context may be running in a Python session at any time. If you
         need to reconfigure settings, restart the Python session or use the :py:meth:`.HailContext.stop` method.
 
-    :param sc: spark context, will be auto-generated if None
+    :param sc: Spark context, one will be created if None.
     :type sc: :class:`.pyspark.SparkContext`
 
-    :param appName: Spark application identifier
+    :param appName: Spark application identifier.
 
-    :param master: Spark cluster master
+    :param master: Spark cluster master.
 
-    :param local: local resources to use
+    :param local: Local resources to use.
 
-    :param log: log path
+    :param log: Log path.
 
-    :param quiet: suppress log messages
+    :param bool quiet: Don't write logging information to standard error.
 
-    :param append: write to end of log file instead of overwriting
+    :param append: Write to end of log file instead of overwriting.
 
-    :param parquet_compression: level of on-disk annotation compression
+    :param parquet_compression: Level of on-disk annotation compression.
 
-    :param min_block_size: minimum file split size in MB
+    :param min_block_size: Minimum file split size in MB.
 
-    :param branching_factor: branching factor for tree aggregation
+    :param branching_factor: Branching factor for tree aggregation.
 
-    :param tmp_dir: temporary directory for file merging
+    :param tmp_dir: Temporary directory for file merging.
 
     :ivar sc: Spark context
     :vartype sc: :class:`.pyspark.SparkContext`
@@ -78,8 +78,10 @@ class HailContext(object):
 
         jsc = sc._jsc.sc() if sc else None
 
-        self._jhc = scala_object(self._hail, 'HailContext').apply(
-            jsc, app_name, joption(master), local, log, quiet, append,
+        # we always pass 'quiet' to the JVM because stderr output needs
+        # to be routed through Python separately.
+        self._jhc = self._hail.HailContext.apply(
+            jsc, app_name, joption(master), local, log, True, append,
             parquet_compression, min_block_size, branching_factor, tmp_dir)
 
         self._jsc = self._jhc.sc()
@@ -89,6 +91,20 @@ class HailContext(object):
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
+
+        sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
+        if self._jsc.uiWebUrl().isDefined():
+            sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
+
+        if not quiet:
+            connect_logger('localhost', 12888)
+
+        sys.stderr.write(
+            'Welcome to\n'
+            '     __  __     <>__\n'
+            '    / /_/ /__  __/ /\n'
+            '   / __  / _ `/ / /\n'
+            '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
 
     @staticmethod
     def get_running():

@@ -1,10 +1,9 @@
 package is.hail.utils
 
-import org.slf4j.Logger
-import org.slf4j.event.Level
-
 import java.io.{ByteArrayOutputStream, IOException, OutputStream}
 import java.nio.charset.StandardCharsets
+
+import org.apache.log4j.{Level, Logger}
 
 class LoggerOutputStream(logger: Logger, level: Level) extends OutputStream {
   private val buffer = new ByteArrayOutputStream()
