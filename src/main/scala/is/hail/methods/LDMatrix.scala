@@ -1,7 +1,6 @@
 package is.hail.methods
 
-import java.io._
-
+import is.hail.HailContext
 import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
 import is.hail.stats.RegressionUtils
 import is.hail.utils._
