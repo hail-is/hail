@@ -494,7 +494,7 @@ class ContextTests(unittest.TestCase):
                 {'a': -1, 'b': 'quam'},
                 {'b': 'foo'},
                 {'a': 7, 'b': 'baz'}]
-        kt4 = KeyTable.from_py(hc, rows, schema, num_partitions=3)
+        kt4 = KeyTable.parallelize(hc, rows, schema, num_partitions=3)
 
         bya = [r.get('a') for r in kt4.order_by('a').collect()]
         self.assertEqual(bya, [-1, 5, 5, 7, None])
