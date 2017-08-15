@@ -2,6 +2,7 @@ package is.hail.annotations
 
 import is.hail.SparkSuite
 import is.hail.check._
+import is.hail.check.Arbitrary._
 import is.hail.expr._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -162,5 +163,58 @@ class UnsafeSuite extends SparkSuite {
 
   @Test def testEmptySize() {
     assert(TStruct().byteSize == 0)
+  }
+
+  @Test def testUnsafeOrdering() {
+    val region = MemoryBuffer()
+    val region2 = MemoryBuffer()
+    val rvb = new RegionValueBuilder(region)
+    val rvb2 = new RegionValueBuilder(region2)
+
+    val g = Type.genStruct
+      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.genValue, t.genValue), arbitrary[Boolean]))
+      .filter { case (t, (a1, a2), b) => a1 != null && a2 != null }
+      .resize(10)
+    val p = Prop.forAll(g) { case (t, (a1, a2), b) =>
+
+      t.typeCheck(a1)
+      t.typeCheck(a2)
+
+      region.clear()
+      rvb.start(t.fundamentalType)
+      rvb.addRow(t, a1.asInstanceOf[Row])
+      val offset = rvb.end()
+
+      val ur1 = new UnsafeRow(BroadcastTypeTree(sc, t), region, offset)
+      assert(t.valuesSimilar(a1, ur1))
+
+      region2.clear()
+      rvb2.start(t.fundamentalType)
+      rvb2.addRow(t, a2.asInstanceOf[Row])
+      val offset2 = rvb2.end()
+
+      val ur2 = new UnsafeRow(BroadcastTypeTree(sc, t), region2, offset2)
+      assert(t.valuesSimilar(a2, ur2))
+
+      val ord = t.ordering(b)
+      val uord = t.unsafeOrdering(b)
+
+      val c1 = ord.compare(a1, a2)
+      val c2 = ord.compare(ur1, ur2)
+      val c3 = uord.compare(ur1.region, ur1.offset, ur2.region, ur2.offset)
+
+      val p1 = math.signum(c1) == math.signum(c2)
+      val p2 = math.signum(c2) == math.signum(c3)
+
+      val p = p1 && p2
+      if (!p) {
+        println(s"t=$t")
+        println(s"a1=$a1")
+        println(s"a2=$a2")
+        println(s"c1=$c1, c2=$c2, c3=$c3")
+      }
+      p
+    }
+    p.check()
   }
 }

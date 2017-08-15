@@ -914,40 +914,6 @@ object Genotype {
       yield g
 
   implicit def arbGenotype = Arbitrary(genArb)
-
-  implicit val ordering: Ordering[Genotype] =
-    extendOrderingToNull[Genotype](missingGreatest = true)(
-      new Ordering[Genotype] {
-        implicit val aiOrd: Ordering[Array[Int]] =
-          extendOrderingToNull(missingGreatest = true)(
-            new Ordering[Array[Int]] {
-              private val ibord = Ordering.Iterable[Int]
-
-              def compare(a: Array[Int], b: Array[Int]): Int = ibord.compare(a, b)
-            })
-
-        def compare(a: Genotype, b: Genotype): Int = {
-          val compareGT = a._unboxedGT.compare(b._unboxedGT)
-          if (compareGT != 0) return compareGT
-
-          val compareAD = aiOrd.compare(a._unboxedAD, b._unboxedAD)
-          if (compareAD != 0) return compareAD
-
-          val compareDP = a._unboxedDP.compare(b._unboxedDP)
-          if (compareDP != 0) return compareDP
-
-          val compareGQ = a._unboxedGQ.compare(b._unboxedGQ)
-          if (compareGQ != 0) return compareGQ
-
-          val comparePX = aiOrd.compare(a._unboxedPX, b._unboxedPX)
-          if (comparePX != 0) return comparePX
-
-          val compareFakeRef = a._fakeRef.compare(b._fakeRef)
-          if (compareFakeRef != 0) return compareFakeRef
-
-          a._isLinearScale.compare(b._isLinearScale)
-        }
-      })
 }
 
 class GenericGenotype(val _unboxedGT: Int,
