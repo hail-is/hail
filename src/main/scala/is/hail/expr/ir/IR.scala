@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.Type
 import is.hail.asm4s.TypeInfo
 
 import scala.language.existentials
@@ -19,8 +20,8 @@ sealed case class ApplyPrimitive(op: PrimitiveOp, args: Array[IR]) extends IR
 sealed case class LazyApplyPrimitive(op: PrimitiveOp, args: Array[IR]) extends IR
 sealed case class Lambda(name: String, body: IR) extends IR
 sealed case class Ref(name: String) extends IR
-sealed case class MakeArray(args: Array[IR], typ: TypeInfo[_]) extends IR
-sealed case class ArrayRef(a: IR, i: IR, typ: TypeInfo[_]) extends IR
+sealed case class MakeArray(args: Array[IR], typ: Type) extends IR
+sealed case class ArrayRef(a: IR, i: IR, typ: Type) extends IR
 sealed case class MakeStruct(fields: Array[(String, IR)]) extends IR
 sealed case class GetField(o: IR, name: String) extends IR
 sealed case class MapNull(name: String, value: IR, body: IR) extends IR

@@ -1,5 +1,7 @@
 package is.hail.asm4s.ucode
 
+import is.hail.asm4s.Code
+import is.hail.asm4s.LocalRef
 import is.hail.asm4s.TypeInfo
 import is.hail.asm4s.FunctionBuilder
 import scala.collection.generic.Growable
@@ -37,6 +39,13 @@ object UCodeM {
   def newVar(x: UCode, tti: TypeInfo[_]): UCodeM[ULocalRef] =
     UCodeM { fb =>
       val r = ULocalRef(fb.allocLocal()(tti), tti)
+      fb.emit(r := x)
+      r
+    }
+
+  def newVar[T](x: Code[T])(implicit tti: TypeInfo[T]): UCodeM[LocalRef[T]] =
+    UCodeM { fb =>
+      val r = new LocalRef(fb.allocLocal()(tti))
       fb.emit(r := x)
       r
     }

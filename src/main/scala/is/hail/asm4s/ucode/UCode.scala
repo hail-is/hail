@@ -1,10 +1,11 @@
 package is.hail.asm4s.ucode
 
 import is.hail.asm4s._
-import is.hail.asm4s.TypeInfo
+import is.hail.expr.Type
+
+import is.hail.annotations._
 
 import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
 
 import scala.collection.generic.Growable
@@ -73,8 +74,9 @@ case class _If(cond: UCode, cnsq: UCode, altr: UCode) extends UCode {
     il += lafter
   }
 }
-case class NewInitializedArray(initializer: Array[UCode], tti: TypeInfo[_]) extends UCode {
+case class NewInitializedArray(initializer: Array[UCode], rvb: Code[RegionValueBuilder], tti: Type) extends UCode {
   def emit(il: Growable[AbstractInsnNode]) {
+    rvb.invoke(
     initializer.length.emit(il)
     il += tti.newArray()
     initializer.zipWithIndex.foreach { case (x, i) =>
@@ -85,11 +87,22 @@ case class NewInitializedArray(initializer: Array[UCode], tti: TypeInfo[_]) exte
     }
   }
 }
-case class ArrayRef(array: UCode, idx: UCode, tti: TypeInfo[_]) extends UCode {
+case class ArrayRef(array: UCode, idx: UCode, tti: Type) extends UCode {
   def emit(il: Growable[AbstractInsnNode]) {
     array.emit(il)
     idx.emit(il)
     il += new InsnNode(tti.aloadOp)
+  }
+}
+case class Erase(c: Code[_]) extends UCode {
+  def emit(il: Growable[AbstractInsnNode]) {
+    c.emit(il)
+  }
+}
+// FIXME: check something?
+case class Reify[T](c: UCode) extends Code[T] {
+  def emit(il: Growable[AbstractInsnNode]) {
+    c.emit(il)
   }
 }
 

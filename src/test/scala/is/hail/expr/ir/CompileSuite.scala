@@ -12,7 +12,7 @@ class CompileSuite {
 
   def compileAndRun[T: TypeInfo](ir: IR): T = {
     val fb = FunctionBuilder.functionBuilder[T]
-    Compile()(ir).run(fb).apply()
+    Compile(ir).run(fb).apply()
   }
 
   @Test
