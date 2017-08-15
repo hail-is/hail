@@ -301,4 +301,11 @@ class LoadBgenSuite extends SparkSuite {
       .variantsKT()
       .forall("va.cr1 == va.cr2"))
   }
+
+  @Test def hardcall() {
+    hc.indexBgen("src/test/resources/example.v11.bgen")
+    val vds = hc.importBgen("src/test/resources/example.v11.bgen", Some("src/test/resources/example.sample"))
+    val tmpVds = tmpDir.createTempFile("testBgenHardcall", "vds")
+    vds.hardCalls().write(tmpVds)
+  }
 }

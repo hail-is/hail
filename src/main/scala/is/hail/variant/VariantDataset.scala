@@ -504,7 +504,7 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
   }
 
   def hardCalls(): VariantDataset = {
-    vds.mapValues { g => Genotype(g.gt, g.fakeRef) }
+    vds.mapValues { g => Genotype(g.gt, g.fakeRef) }.copy(isLinearScale = false)
   }
 
   /**
