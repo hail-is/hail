@@ -102,7 +102,7 @@ object UnsafeRow {
   }
 
   def read(region: MemoryBuffer, offset: Int, t: Type, ttBc: Broadcast[TypeTree]): Any = {
-    t match {
+    (t: @unchecked) match {
       case TBoolean =>
         val b = region.loadByte(offset)
         assert(b == 0 || b == 1, s"invalid boolean byte $b from offset $offset")

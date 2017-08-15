@@ -386,7 +386,7 @@ case object TString extends Type {
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 
-  override def scalaClassTag: ClassManifest[String] = classTag[String]
+  override def scalaClassTag: ClassTag[String] = classTag[String]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(

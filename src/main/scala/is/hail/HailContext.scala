@@ -15,8 +15,8 @@ import is.hail.variant.{GenericDataset, Genotype, Locus, VSMFileMetadata, VSMSub
 import org.apache.hadoop
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
-import org.apache.spark.sql.{DataFrame, SQLContext}
-import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext}
+import org.apache.spark.sql.{SQLContext, SparkSession}
+import org.apache.spark.{ProgressBarBuilder, SparkContext}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
@@ -27,38 +27,32 @@ object HailContext {
 
   val tera = 1024L * 1024L * 1024L * 1024L
 
-  def configureAndCreateSparkContext(appName: String, master: Option[String], local: String,
-    parquetCompression: String, blockSize: Long): SparkContext = {
+  def configureSession(b: SparkSession.Builder, appName: String, master: Option[String],
+    parquetCompression: String, blockSize: Long) {
     require(blockSize >= 0)
     require(is.hail.HAIL_SPARK_VERSION == org.apache.spark.SPARK_VERSION,
       s"""This Hail JAR was compiled for Spark ${ is.hail.HAIL_SPARK_VERSION },
          |  but the version of Spark available at runtime is ${ org.apache.spark.SPARK_VERSION }.""".stripMargin)
 
-    val conf = new SparkConf().setAppName(appName)
+    b.appName(appName)
 
-    master match {
-      case Some(m) =>
-        conf.setMaster(m)
-      case None =>
-        if (!conf.contains("spark.master"))
-          conf.setMaster(local)
-    }
+    master.foreach(m => b.master(m))
 
-    conf.set("spark.ui.showConsoleProgress", "false")
+    b.config("spark.ui.showConsoleProgress", "false")
 
-    conf.set(
+    b.config(
       "spark.hadoop.io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec," +
         "is.hail.io.compress.BGzipCodec," +
         "org.apache.hadoop.io.compress.GzipCodec")
 
-    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    b.config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    conf.set("spark.sql.parquet.compression.codec", parquetCompression)
-    conf.set("spark.sql.files.openCostInBytes", tera.toString)
-    conf.set("spark.sql.files.maxPartitionBytes", tera.toString)
+    b.config("spark.sql.parquet.compression.codec", parquetCompression)
+    b.config("spark.sql.files.openCostInBytes", tera.toString)
+    b.config("spark.sql.files.maxPartitionBytes", tera.toString)
 
-    conf.set("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", (blockSize * 1024L * 1024L).toString)
+    b.config("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", (blockSize * 1024L * 1024L).toString)
 
     /* `DataFrame.write` writes one file per partition.  Without this, read will split files larger than the default
      * parquet block size into multiple partitions.  This causes `OrderedRDD` to fail since the per-partition range
@@ -67,7 +61,7 @@ object HailContext {
      * For reasons we don't understand, the DataFrame code uses `SparkHadoopUtil.get.conf` instead of the Hadoop
      * configuration in the SparkContext.  Set both for consistency.
      */
-    conf.set("spark.hadoop.parquet.block.size", tera.toString)
+    b.config("spark.hadoop.parquet.block.size", tera.toString)
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
     val hailSparkProperties = System.getenv("HAIL_SPARK_PROPERTIES")
@@ -78,15 +72,12 @@ object HailContext {
           p.split("=") match {
             case Array(k, v) =>
               log.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
-              conf.set(k, v)
+              b.config(k, v)
             case _ =>
               warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
           }
         }
     }
-
-    val sc = new SparkContext(conf)
-    sc
   }
 
   def checkSparkConfiguration(sc: SparkContext) {
@@ -136,7 +127,6 @@ object HailContext {
   def apply(sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
-    local: String = "local[*]",
     logFile: String = "hail.log",
     quiet: Boolean = false,
     append: Boolean = false,
@@ -159,13 +149,20 @@ object HailContext {
 
     configureLogging(logFile, quiet, append)
 
-    val sparkContext = if (sc == null)
-      configureAndCreateSparkContext(appName, master, local, parquetCompression, minBlockSize)
-    else {
+    val b = SparkSession.builder()
+
+    if (sc == null)
+      configureSession(b, appName, master, parquetCompression, minBlockSize)
+
+    val session = b.getOrCreate()
+
+    val sparkContext = session.sparkContext
+    if (sc != null) {
       SparkHadoopUtil.get.conf.setLong("parquet.block.size", 1024L * 1024L * 1024L * 1024L)
-      checkSparkConfiguration(sc)
-      sc
+      assert(sc.eq(sparkContext))
     }
+    
+    checkSparkConfiguration(sparkContext)
 
     SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
     sparkContext.hadoopConfiguration.set("io.compression.codecs",
@@ -183,7 +180,8 @@ object HailContext {
       }.mkString(", ")
     }")
 
-    val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
+    val sqlContext = session.sqlContext
+
     val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
     val welcomeMessage =
       """Welcome to
