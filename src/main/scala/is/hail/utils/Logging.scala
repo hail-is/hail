@@ -1,37 +1,50 @@
 package is.hail.utils
 
-import org.slf4j.{Logger, LoggerFactory}
+import org.apache.log4j.{LogManager, Logger}
 
 trait Logging {
-  @transient var log_ : Logger = _
+  @transient private var logger: Logger = _
+  @transient private var consoleLogger: Logger = _
 
   def log: Logger = {
-    if (log_ == null)
-      log_ = LoggerFactory.getLogger("Hail")
-    log_
+    if (logger == null)
+      logger = LogManager.getRootLogger
+    logger
+  }
+
+  def consoleLog: Logger = {
+    if (consoleLogger == null)
+      consoleLogger = LogManager.getLogger("Hail")
+    consoleLogger
   }
 
   def info(msg: String) {
-    log.info(msg)
-    System.err.println("hail: info: " + msg)
+    consoleLog.info(msg)
   }
 
   def info(msg: String, t: Truncatable) {
     val (screen, logged) = t.strings
-
-    log.info(format(msg, logged))
-    System.err.println("hail: info: " + format(msg, screen))
+    if (screen == logged)
+      consoleLog.info(format(msg, screen))
+    else {
+      // writes twice to the log file, but this isn't a big problem
+      consoleLog.info(format(msg, screen))
+      log.info(format(msg, logged))
+    }
   }
 
   def warn(msg: String) {
-    log.warn(msg)
-    System.err.println("hail: warning: " + msg)
+    consoleLog.warn(msg)
   }
 
   def warn(msg: String, t: Truncatable) {
     val (screen, logged) = t.strings
-
-    log.warn(format(msg, logged))
-    System.err.println("hail: warning: " + format(msg, screen))
+    if (screen == logged)
+      consoleLog.warn(format(msg, screen))
+    else {
+      // writes twice to the log file, but this isn't a big problem
+      consoleLog.warn(format(msg, screen))
+      log.warn(format(msg, logged))
+    }
   }
 }
