@@ -1231,14 +1231,14 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(ped=Pedigree,
-                      population_AF=strlike,
+    @typecheck_method(pedigree=Pedigree,
+                      pop_frequency_prior=strlike,
                       min_GQ=integral,
                       min_p=numeric,
                       max_parent_AB=numeric,
                       min_child_AB=numeric,
                       min_depth_ratio=numeric)
-    def de_novo(self, ped, population_AF, min_GQ=20, min_p=0.05,
+    def de_novo(self, pedigree, pop_frequency_prior, min_GQ=20, min_p=0.05,
                 max_parent_AB=0.05, min_child_AB=0.20, min_depth_ratio=0.10):
         """Call de novo variation from trio data.
 
@@ -1254,11 +1254,13 @@ class VariantDataset(HistoryMixin):
 
         **Notes**
 
-        This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`_.
-        It is reproduced in Hail with her permission and assistance. See the link above
-        for a full specification of the model.
+        For each trio of father, mother, and child (proband), this method finds violations of
+        Mendelian inheritance and evaluates the probability each violation occurred due to a
+        de novo mutation in the child (rather than sequencing error).
 
-        This method does not support multiallelic variants.
+        This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`__.
+        It is reproduced in Hail with her permission and assistance. The git commit of the version
+        implemented in Hail is ``bde3e40``.
 
         This method produces a :py:class:`.KeyTable` with the following columns:
 
@@ -1266,34 +1268,108 @@ class VariantDataset(HistoryMixin):
             - **probandID** (*String*) -- Sample ID of proband.
             - **fatherID** (*String*) -- Sample ID of father.
             - **motherID** (*String*) -- Sample ID of mother.
-            - **isFemale** (*Boolean*) -- Sex of proband.
+            - **isFemale** (*Boolean*) -- Sex of proband, true if female.
             - **confidence** (*String*) -- Validation likelihood of event.  One of: 'HIGH', 'MEDIUM', 'LOW'
             - **probandGt** (*Genotype*) -- Genotype of the proband
             - **fatherGt** (*Genotype*) -- Genotype of the father
             - **motherGt** (*Genotype*) -- Genotype of the mother
-            - **pDeNovo** (*Double*) -- Posterior probability that the event is a true de novo, computed by the model.
+            - **pDeNovo** (*Double*) -- Posterior probability that the event is a true de novo.
 
-        The git commit of the version implemented in Hail is ``bde3e40``.
+        This model was originally designed to run against VCFs produced by GATK from high-throughput sequencing
+        experiments, and uses the GT, AD, DP, GQ, and PL fields. The absence of these fields will
+        result in no de novo calls.
 
-        :param ped: Pedigree object.
-        :type ped: :class:`.Pedigree`
+        The following model specification is copied from the README of `de_novo_scripts <https://github.com/ksamocha/de_novo_scripts>`__
 
-        :param str population_AF_expr: Hail expression designating the reference allele frequency.
+        Instead of requiring a hard PL threshold in the parents, we have defined a relative probability of an
+        event being truly de novo versus the probability that it was a missed heterozygote call in one of the
+        two parents (the most likely error mode).
 
-        :param int pl_threshold: minimum GQ for de novo consideration
+        ..code::
 
-        :param float min_p_de_novo: minimum probability for "LOW" bin
+            p_dn = P(true de novo | data) / (P(true de novo | data) + P(missed het in parent | data))
 
-        :param float max_parent_AB: maximum allele balance for homozygous parent
+        where
 
-        :param float min_child_AB: minimum allele balance for heterozygous proband
+        ..code::
 
-        :param float min_depth_ratio: minimum ratio of proband depth to parent depth
+            P(true de novo | data) = P(data | true de novo) * P(true de novo)
+            P(data | true de novo) = Pdad_ref * Pmom_ref * Pchild_het
+            P(true de novo) = 1/30 Mb
+            P(missed het in parent | data) = P(data | at least one parent is het) * P(one parent het)
+            P(data | at least one parent is het) = (Pdad_ref*Pmom_het + Pdad_het*Pmom_ref) * Pchild_het
+            P(one parent het) = 1 - (1-f)^4
+              (f is the maximum of the frequency of the variant in the VCF or ESP)
+
+        The minimum p_dn considered is 0.05, but can be adjusted with the -m flag.
+
+        The potential de novo variants are then split by SNVs and indels into HIGH, MEDIUM, and LOW validation
+        likelihood by the following criteria:
+
+        HIGH-quality SNV:
+
+        ..code::
+
+            p_dn > 0.99 and child_AD > 0.3 and dp_ratio (kid depth/combined parental depth) > 0.2
+            or
+            p_dn > 0.99 and child_AD > 0.3 and allele count (AC) == 1
+
+        MEDIUM-quality SNV:
+
+        ..code::
+
+            p_dn > 0.5 and child_AD > 0.3
+            or
+            p_dn > 0.5 and child_AD  > 0.2 and AC == 1
+
+        LOW-quality SNV:
+
+        ..code::
+
+            p_dn > 0.05 and child_AD > 0.2
+
+        HIGH-quality indel:
+
+        ..code::
+
+            p_dn > 0.99 and child_AD > 0.3 and dp_ratio > 0.2
+            or
+            p_dn > 0.99 and child_AD > 0.3 and AC == 1
+
+        MEDIUM-quality indel:
+
+        ..code::
+
+            p_dn > 0.5 and child_AD > 0.3
+            or
+            p_dn > 0.5 and child_AD > 0.2 and AC ==1
+
+        LOW-quality indel:
+
+        ..code::
+
+            p_dn > 0.05 and child_AD > 0.2
+
+
+        :param pedigree: Pedigree object.
+        :type pedigree: :class:`.Pedigree`
+
+        :param str pop_frequency_prior: Expression for the reference allele frequency annotation.
+
+        :param int min_gq: Minimum GQ for de novo consideration.
+
+        :param float min_p: Minimum probability for "LOW" bin.
+
+        :param float max_parent_AB: Maximum allele balance for homozygous parent.
+
+        :param float min_child_AB: Minimum allele balance for heterozygous proband.
+
+        :param float min_depth_ratio: Minimum ratio of proband depth to parent depth.
 
         :rtype: :class:`.KeyTable`
         """
 
-        jkt = self._jvdf.deNovo(ped._jrep, population_AF, min_GQ, min_p,
+        jkt = self._jvdf.deNovo(pedigree._jrep, pop_frequency_prior, min_GQ, min_p,
                                 max_parent_AB, min_child_AB, min_depth_ratio)
         return KeyTable(self.hc, jkt)
 

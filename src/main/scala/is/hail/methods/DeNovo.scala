@@ -70,7 +70,7 @@ object DeNovo {
     val kidDp = Genotype.unboxedDP(kid)
     val dpRatio = kidDp.toDouble / (Genotype.unboxedDP(mom) + Genotype.unboxedDP(dad))
 
-    // Below is the core calling algorithm
+    // Core calling algorithm
     if (pTrueDeNovo < minPDeNovo)
       None
     else if (dpRatio < minDpRatio)
@@ -133,7 +133,7 @@ object DeNovo {
     val kidDp = Genotype.unboxedDP(kid)
     val dpRatio = kidDp.toDouble / Genotype.unboxedDP(parent)
 
-    // Below is the core calling algorithm
+    // Core calling algorithm
     if (pTrueDeNovo < minPDeNovo || kidAdRatio <= 0.95)
       None
     else if (!isSNP) {
@@ -162,7 +162,7 @@ object DeNovo {
   def apply(vds: VariantDataset, ped: Pedigree,
     referenceAFExpr: String,
     minGQ: Int = 20,
-    minPDeNovo: Double = 0.05,
+    minP: Double = 0.05,
     maxParentAB: Double = 0.05,
     minChildAB: Double = 0.20,
     minDepthRatio: Double = 0.10): KeyTable = {
@@ -183,7 +183,6 @@ object DeNovo {
 
     val sampleTrioRoles = mutable.Map.empty[String, List[(Int, Int)]]
 
-    // need a map from Sample position(int) to (int, int)
     trios.zipWithIndex.foreach { case (t, ti) =>
       sampleTrioRoles += (t.kid -> ((ti, 0) :: sampleTrioRoles.getOrElse(t.kid, List.empty[(Int, Int)])))
       sampleTrioRoles += (t.knownDad -> ((ti, 1) :: sampleTrioRoles.getOrElse(t.knownDad, List.empty[(Int, Int)])))
@@ -253,24 +252,24 @@ object DeNovo {
               None
             else if (v.isAutosomal || v.inXPar)
               callAutosomal(kid, dad, mom, isSNP, frequency,
-                minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+                minP, nAltAlleles, minDepthRatio, maxParentAB)
             else {
               val sex = trioSexBc.value(t)
               if (v.inXNonPar) {
                 if (sex == Sex.Female)
                   callAutosomal(kid, dad, mom, isSNP, frequency,
-                    minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+                    minP, nAltAlleles, minDepthRatio, maxParentAB)
                 else if (sex == Sex.Male)
-                  callHemizygous(kid, mom, isSNP, frequency, minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+                  callHemizygous(kid, mom, isSNP, frequency, minP, nAltAlleles, minDepthRatio, maxParentAB)
                 else None
               } else if (v.inYNonPar) {
                 if (sex == Sex.Female)
                   None
                 else if (sex == Sex.Male)
-                  callHemizygous(kid, dad, isSNP, frequency, minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+                  callHemizygous(kid, dad, isSNP, frequency, minP, nAltAlleles, minDepthRatio, maxParentAB)
                 else None
               } else if (v.isMitochondrial)
-                callHemizygous(kid, mom, isSNP, frequency, minPDeNovo, nAltAlleles, minDepthRatio, maxParentAB)
+                callHemizygous(kid, mom, isSNP, frequency, minP, nAltAlleles, minDepthRatio, maxParentAB)
               else None
             }
 

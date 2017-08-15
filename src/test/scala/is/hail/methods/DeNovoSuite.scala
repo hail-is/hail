@@ -6,12 +6,21 @@ import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{GenericGenotype, Genotype, Locus, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.commons.math3.distribution.{BinomialDistribution, NormalDistribution}
-import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.sys.process._
 
 class DeNovoSuite extends SparkSuite {
+  /**
+    * We version-control the entire de novo script in the resources directory. In order to test robustly
+    * against the functionality of the de_novo_finder.py script, we randomly generate realistic-looking
+    * data, then generate a trio, and compute de novo calls using Hail's implementation. We also export
+    * this dataset as a VCF and run the de novo caller on this output, analyzing the results to determine
+    * that the results agree.
+    *
+    * Since the random tests are slow, we disable them by default. We check in one generated VCF and .fam
+    * combination that produces a good distribution of de novo calls, and test against only this VCF.
+    */
   val gen: Gen[(VariantDataset, Pedigree)] = {
     for {
       vds <- VariantSampleMatrix.gen[Locus, Variant, Genotype](hc, VSMSubgen.plinkSafeBiallelic.copy(
@@ -132,16 +141,16 @@ class DeNovoSuite extends SparkSuite {
       .filterVariantsExpr("va.callStats.AC[1] > 0")
       .annotateVariantsExpr(
         "va.info.AC = va.callStats.AC[1:], va.info.AN=va.callStats.AN, va.info.AF = va.callStats.AF[1:]," +
-          "va.info.ESP = max(va.callStats.AF[1] + runif(-0.05, 0.05), 0)")
+          "va.info.ESP = min(max(va.callStats.AF[1] + runif(-0.05, 0.05), 0), 1)")
       .cache()
-    annot.exportVCF(path + ".vcf.bgz")
+    annot.exportVCF(path + ".vcf")
     annot.exportVariants(path + ".esp",
       "Chromosome = v.contig, Position = v.start, Ref = v.ref, Alt = v.alt, 4 = 0, 5 = 0, " +
         "6 = 0, 7 = 0, 8 = 0, AC_EA = va.info.ESP, AN_EA = 1, 11 = 0, AC_AA = 0, AN_AA = 0, 12 = 0")
     ped.write(path + ".fam", hc.hadoopConf)
   }
 
-  @Test def testFoo() {
+  @Test def test() {
     check("src/test/resources/denovo")
   }
 
