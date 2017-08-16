@@ -327,8 +327,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   private val matrixRelativePath = "/matrix"
   /**
     * Writes the matrix {@code m} to a Hadoop sequence file at location {@code
-    * url}. Do not call before {@code BlockMatrixIsDistributedMatrix.om} has
-    * been allocated.
+    * uri}.
     *
     **/
   def write(m: M, uri: String) {
@@ -348,8 +347,7 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
 
   /**
     * Reads a BlockMatrix matrix written by {@code write} at location {@code
-    * url}. Do not call before {@code BlockMatrixIsDistributedMatrix.om} has been
-    * allocated.
+    * uri}.
     *
     **/
   def read(hc: HailContext, uri: String): M = {
