@@ -99,13 +99,24 @@ class KeyTable(object):
         **Examples**
 
         >>> rows = [{'a': 5, 'b': 'foo', 'c': False},
-        ...         {'a': None, 'b': 'bar', 'c': True}]
+        ...         {'a': None, 'b': 'bar', 'c': True},
+        ...         {'b': 'baz', 'c': False}]
         >>> schema = TStruct(['a', 'b', 'c'], [TInt32(), TString(), TBoolean()])
         >>> table = KeyTable.parallelize(rows, schema, key='b')
 
-        After the above, the following property is true:
+        This table will look like:
 
-        >>> assert table.collect() == rows
+        .. code-block:: text
+
+            >>> table.to_dataframe().show()
+
+            +----+---+-----+
+            |   a|  b|    c|
+            +----+---+-----+
+            |   5|foo|false|
+            |null|bar| true|
+            |null|baz|false|
+            +----+---+-----+
 
         :param rows: List of rows to include in table.
         :type rows: list of :class:`.hail.representation.Struct` or dict
