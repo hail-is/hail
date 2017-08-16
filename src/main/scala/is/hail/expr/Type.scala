@@ -198,9 +198,9 @@ sealed abstract class Type extends Serializable { self =>
     def toJSON(pk: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(pk, self)
   }
 
-  def byteSize: Int = throw new NotImplementedError(toString)
+  def byteSize: Long = throw new NotImplementedError(toString)
 
-  def alignment: Int = byteSize
+  def alignment: Long = byteSize
 
   /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
       types, Array and Struct. */
@@ -210,9 +210,9 @@ sealed abstract class Type extends Serializable { self =>
 abstract class ComplexType extends Type {
   def representation: Type
 
-  override def byteSize: Int = representation.byteSize
+  override def byteSize: Long = representation.byteSize
 
-  override def alignment: Int = representation.alignment
+  override def alignment: Long = representation.alignment
 
   override lazy val fundamentalType: Type = representation.fundamentalType
 }
@@ -235,18 +235,18 @@ case object TBinary extends Type {
       }))
   }
 
-  override def byteSize: Int = 4
+  override def byteSize: Long = 8
 
-  def contentAlignment: Int = 4
+  def contentAlignment: Long = 4
 
   def contentByteSize(length: Int): Int = 4 + length
 
-  def loadLength(region: MemoryBuffer, boff: Int): Int =
+  def loadLength(region: MemoryBuffer, boff: Long): Int =
     region.loadInt(boff)
 
-  def bytesOffset(boff: Int): Int = boff + 4
+  def bytesOffset(boff: Long): Long = boff + 4
 
-  def allocate(region: MemoryBuffer, length: Int): Int = {
+  def allocate(region: MemoryBuffer, length: Int): Long = {
     region.align(contentAlignment)
     region.allocate(contentByteSize(length))
   }
@@ -267,7 +267,7 @@ case object TBoolean extends Type {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Boolean]]))
 
-  override def byteSize: Int = 1
+  override def byteSize: Long = 1
 }
 
 object TNumeric {
@@ -308,7 +308,7 @@ case object TInt32 extends TIntegral {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Int]]))
 
-  override def byteSize: Int = 4
+  override def byteSize: Long = 4
 }
 
 case object TInt64 extends TIntegral {
@@ -326,7 +326,7 @@ case object TInt64 extends TIntegral {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Long]]))
 
-  override def byteSize: Int = 8
+  override def byteSize: Long = 8
 }
 
 case object TFloat32 extends TNumeric {
@@ -351,7 +351,7 @@ case object TFloat32 extends TNumeric {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Float]]))
 
-  override def byteSize: Int = 4
+  override def byteSize: Long = 4
 }
 
 case object TFloat64 extends TNumeric {
@@ -376,7 +376,7 @@ case object TFloat64 extends TNumeric {
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Double]]))
 
-  override def byteSize: Int = 8
+  override def byteSize: Long = 8
 }
 
 case object TString extends Type {
@@ -386,13 +386,13 @@ case object TString extends Type {
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]
 
-  override def scalaClassTag: ClassManifest[String] = classTag[String]
+  override def scalaClassTag: ClassTag[String] = classTag[String]
 
   def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[String]]))
 
-  override def byteSize: Int = 4
+  override def byteSize: Long = 8
 
   override lazy val fundamentalType: Type = TBinary
 }
@@ -556,19 +556,19 @@ final case class TAggregable(elementType: Type) extends TContainer {
 abstract class TContainer extends Type {
   def elementType: Type
 
-  override def byteSize: Int = 4
+  override def byteSize: Long = 8
 
   override def children = Seq(elementType)
 
   // FIXME LCM
-  def contentsAlignment: Int = elementType.alignment.max(4)
+  def contentsAlignment: Long = elementType.alignment.max(4)
 
-  def elementsOffset(length: Int): Int =
+  def elementsOffset(length: Int): Long =
     UnsafeUtils.roundUpAlignment(4 + (length + 7) / 8, elementType.alignment)
 
-  def elementByteSize: Int = UnsafeUtils.arrayElementSize(elementType)
+  def elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
-  def contentsByteSize(length: Int): Int =
+  def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
 }
 
@@ -649,34 +649,34 @@ final case class TArray(elementType: Type) extends TIterable {
       TArray(elementType.fundamentalType)
   }
 
-  def loadLength(region: MemoryBuffer, aoff: Int): Int =
+  def loadLength(region: MemoryBuffer, aoff: Long): Int =
     region.loadInt(aoff)
 
-  def isElementDefined(region: MemoryBuffer, aoff: Int, i: Int): Boolean =
+  def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
     !region.loadBit(aoff + 4, i)
 
-  def setElementMissing(region: MemoryBuffer, aoff: Int, i: Int) {
+  def setElementMissing(region: MemoryBuffer, aoff: Long, i: Int) {
     region.setBit(aoff + 4, i)
   }
 
-  def elementOffset(aoff: Int, length: Int, i: Int): Int =
+  def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * UnsafeUtils.arrayElementSize(elementType)
 
-  def elementOffset(region: MemoryBuffer, aoff: Int, i: Int): Int =
-    elementOffset(aoff, region.loadInt(aoff), i)
+  def elementOffset(region: MemoryBuffer, aoff: Long, i: Int): Long =
+    elementOffset(aoff, loadLength(region, aoff), i)
 
-  def loadElement(region: MemoryBuffer, aoff: Int, length: Int, i: Int): Int = {
+  def loadElement(region: MemoryBuffer, aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType match {
-      case _: TArray | TBinary => region.loadInt(off)
+      case _: TArray | TBinary => region.loadAddress(off)
       case _ => off
     }
   }
 
-  def loadElement(region: MemoryBuffer, aoff: Int, i: Int): Int =
-    loadElement(region, aoff, region.loadInt(aoff), i)
+  def loadElement(region: MemoryBuffer, aoff: Long, i: Int): Long =
+    loadElement(region, aoff, loadLength(region, aoff), i)
 
-  def allocate(region: MemoryBuffer, length: Int): Int = {
+  def allocate(region: MemoryBuffer, length: Int): Long = {
     region.align(contentsAlignment)
     region.allocate(contentsByteSize(length))
   }
@@ -825,10 +825,6 @@ case object TGenotype extends ComplexType {
   override def ordering(missingGreatest: Boolean): Ordering[Annotation] =
     annotationOrdering(
       extendOrderingToNull(missingGreatest)(implicitly[Ordering[Genotype]]))
-
-  override def byteSize: Int = representation.byteSize
-
-  override def alignment: Int = 4
 }
 
 case object TCall extends ComplexType {
@@ -1407,12 +1403,12 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
   }
 
   // needs to be lazy, because the compiler uses placeholders
-  lazy val (byteOffsets, _byteSize): (Array[Int], Int) = {
-    val a = new Array[Int](size)
+  lazy val (byteOffsets, _byteSize): (Array[Long], Long) = {
+    val a = new Array[Long](size)
 
     val bp = new BytePacker()
 
-    val nMissingBytes = (size + 7) / 8
+    val nMissingBytes: Long = (size + 7) / 8
     var offset = nMissingBytes
     fields.foreach { f =>
       val fSize = f.typ.byteSize
@@ -1435,9 +1431,9 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     a -> offset
   }
 
-  override def byteSize: Int = _byteSize
+  override def byteSize: Long = _byteSize
 
-  override lazy val alignment: Int =
+  override lazy val alignment: Long =
     if (fields.isEmpty)
       1
     else
@@ -1452,25 +1448,25 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
       TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
   }
 
-  def allocate(region: MemoryBuffer): Int = {
+  def allocate(region: MemoryBuffer): Long = {
     region.align(alignment)
     region.allocate(byteSize)
   }
 
-  def isFieldDefined(region: MemoryBuffer, offset: Int, fieldIdx: Int): Boolean =
+  def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
     !region.loadBit(offset, fieldIdx)
 
-  def setFieldMissing(region: MemoryBuffer, offset: Int, fieldIdx: Int) {
+  def setFieldMissing(region: MemoryBuffer, offset: Long, fieldIdx: Int) {
     region.setBit(offset, fieldIdx)
   }
 
-  def fieldOffset(offset: Int, fieldIdx: Int): Int =
+  def fieldOffset(offset: Long, fieldIdx: Int): Long =
     offset + byteOffsets(fieldIdx)
 
-  def loadField(region: MemoryBuffer, offset: Int, fieldIdx: Int): Int = {
+  def loadField(region: MemoryBuffer, offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
     fields(fieldIdx).typ match {
-      case _: TArray | TBinary => region.loadInt(off)
+      case _: TArray | TBinary => region.loadAddress(off)
       case _ => off
     }
   }

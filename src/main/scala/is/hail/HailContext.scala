@@ -104,8 +104,13 @@ object HailContext {
     sqlFileKeys.foreach { k =>
       val param = conf.getLong(k, 0)
       if (param < enoughGigs)
-        problems += s"Invalid config parameter '$k': too small. Found $param, require at least 50G"
+        problems += s"Invalid configuration property $k: too small, at least 50G required. Found: $param."
     }
+
+    val serializer = conf.get("spark.serializer")
+    val kryoSerializer = "org.apache.spark.serializer.KryoSerializer"
+    if (serializer != kryoSerializer)
+      problems += s"Invalid configuration property spark.serializer: required $kryoSerializer.  Found: $serializer."
 
     if (problems.nonEmpty)
       fatal(
