@@ -124,7 +124,7 @@ class HailContext(object):
         :rtype: :class:`.HailContext`
         """
 
-        return Env.hc
+        return Env.hc()
 
     @property
     def version(self):
