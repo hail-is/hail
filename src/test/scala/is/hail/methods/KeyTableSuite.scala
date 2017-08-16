@@ -408,4 +408,9 @@ class KeyTableSuite extends SparkSuite {
     assert(kt1.join(kt2, "inner").count() == 1L)
     kt1.join(kt2, "outer").typeCheck()
   }
+
+  @Test def testSame() {
+    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true)
+    assert(kt.same(kt))
+  }
 }
