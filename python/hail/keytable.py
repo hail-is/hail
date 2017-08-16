@@ -89,8 +89,7 @@ class KeyTable(object):
 
     @staticmethod
     @handle_py4j
-    @typecheck(hc=anytype,
-               rows=oneof(listof(Struct), listof(dictof(strlike, anytype))),
+    @typecheck(rows=oneof(listof(Struct), listof(dictof(strlike, anytype))),
                schema=TStruct,
                key=oneof(strlike, listof(strlike)),
                num_partitions=nullable(integral))
