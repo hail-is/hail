@@ -13,7 +13,7 @@ package object variant {
   class RichIterableGenotype(val ig: Iterable[Genotype]) extends AnyVal {
     def toGenotypeStream(v: Variant, isLinearScale: Boolean): GenotypeStream =
       ig match {
-        case gs: GenotypeStream => gs
+        case gs: GenotypeStream if gs.isLinearScale == isLinearScale => gs
         case _ =>
           if (ig.isEmpty)
             GenotypeStream.empty(v.nAlleles)

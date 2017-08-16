@@ -133,7 +133,7 @@ object GenLoader {
         val gt = Genotype.gtFromLinear(px)
 
         gt.foreach(gt => gb.setGT(gt))
-        gb.setPX(px)
+        gb.setPX(px, pxIsLinearScale = true)
       }
 
       gsb.write(gb)

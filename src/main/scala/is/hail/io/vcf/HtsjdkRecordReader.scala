@@ -198,7 +198,7 @@ case class GenotypeRecordReader(vcfSettings: VCFSettings) extends HtsjdkRecordRe
       }
 
       if (pl != null)
-        gb.setPX(pl)
+        gb.setPX(pl, pxIsLinearScale = false)
 
       if (g.hasGQ) {
         val gq = g.getGQ
