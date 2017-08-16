@@ -5,7 +5,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext, KeyTable, VariantDataset
+from hail import HailContext, KeyTable, VariantDataset, LDMatrix
 from hail.representation import *
 
 from hail.expr import *
