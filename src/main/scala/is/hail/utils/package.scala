@@ -18,7 +18,6 @@ import org.json4s.JsonAST.JArray
 import org.json4s.jackson.Serialization
 import org.json4s.reflect.TypeInfo
 import org.json4s.{Extraction, Formats, JValue, NoTypeHints, Serializer}
-import org.slf4j.event.Level
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
