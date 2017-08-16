@@ -39,7 +39,7 @@ trait ErrorHandling {
     val expanded = expandException(e, false)
     val logExpanded = expandException(e, true)
 
-    log.error(s"hail: fatal: $short\nFrom $logExpanded")
+    log.error(s"$short\nFrom $logExpanded")
 
     (short, expanded)
   }
