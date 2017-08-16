@@ -1276,7 +1276,7 @@ class KeyTable(object):
     @typecheck(n=integral,
                num_partitions=nullable(integral))
     def range(n, num_partitions=None):
-        """Construct a table with rows from 0 until ``n``.
+        """Construct a table of ``n`` rows with values 0 to ``n - 1``.
 
         **Examples**
 
@@ -1292,7 +1292,7 @@ class KeyTable(object):
 
         The resulting table has one column:
 
-         - **index** (*Int*) -- Unique row index from 0 until ``n``
+         - **index** (*Int*) -- Unique row index from 0 to ``n - 1``
 
         :param int n: Number of rows.
 
