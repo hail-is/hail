@@ -51,7 +51,7 @@ object TextTableReader {
 
         // full field must be quoted
         if (i < s.length) {
-          val l =  matchSep(i)
+          val l = matchSep(i)
           if (l == -1)
             fatal(s"terminating quote character $quote not at end of field")
           i += l
@@ -145,28 +145,25 @@ object TextTableReader {
       if (filt.isEmpty)
         fatal(
           s"""invalid file: no lines remaining after comment filter
-              |  Offending file: $firstFile""".stripMargin)
+             |  Offending file: $firstFile""".stripMargin)
       else
         filt.next().value
     }
 
     val splitHeader = splitLine(header, separator, quote)
-    val columns = if (noHeader) {
+    val preColumns = if (noHeader) {
       splitHeader
         .indices
         .map(i => s"f$i")
         .toArray
     } else splitHeader.map(unescapeString)
 
-    val nField = columns.length
-
-    val duplicates = columns.duplicates()
+    val (columns, duplicates) = mangle(preColumns)
     if (duplicates.nonEmpty) {
-      fatal(s"invalid header: found duplicate columns [${
-        duplicates.map(x => '"' + x + '"').mkString(", ")
-      }]")
+      warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "column") }. Mangled columns follows:\n  @1",
+        duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
-
+    val nField = columns.length
 
     val rdd = sc.textFilesLines(files, nPartitions)
       .filter { line =>

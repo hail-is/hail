@@ -54,20 +54,16 @@ object PlinkLoader {
 
     val signature = TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isFemale", TBoolean), phenoSig)
 
-    val kidSet = mutable.Set[String]()
+    val idBuilder = new ArrayBuilder[String]
+    val structBuilder = new ArrayBuilder[Annotation]
 
     val m = hConf.readLines(filename) {
-      _.map(_.map { line =>
+      _.foreachLine { line =>
 
         val split = line.split(delimiter)
         if (split.length != 6)
           fatal(s"expected 6 fields, but found ${ split.length }")
         val Array(fam, kid, dad, mom, isFemale, pheno) = split
-
-        if (kidSet(kid))
-          fatal(s".fam sample name is not unique: $kid")
-        else
-          kidSet += kid
 
         val fam1 = if (fam != "0") fam else null
         val dad1 = if (dad != "0") dad else null
@@ -100,15 +96,21 @@ object PlinkLoader {
               case numericRegex() => fatal(s"Invalid case-control phenotype: `$pheno'. Control is `1', case is `2', missing is `0', `-9', `${ ffConfig.missingValue }', or non-numeric.")
               case _ => null
             }
-
-        (kid, Annotation(fam1, dad1, mom1, isFemale1, pheno1))
-      }.value).toIndexedSeq
+        idBuilder += kid
+        structBuilder += Annotation(fam1, dad1, mom1, isFemale1, pheno1)
+      }
     }
 
-    if (m.isEmpty)
+    val (sampleIds, duplicates) = mangle(idBuilder.result(), "D" * _)
+    if (duplicates.nonEmpty) {
+      warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
+        duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+    }
+
+    if (sampleIds.isEmpty)
       fatal("Empty .fam file")
 
-    (m, signature)
+    (sampleIds.zip(structBuilder.result()), signature)
   }
 
   private def parseBed(hc: HailContext,
@@ -133,7 +135,7 @@ object PlinkLoader {
         val (v, rsId) = variantsBc.value(vr.getKey)
         (v: Annotation, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
     }.toOrderedRDD(fastKeys)(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
-    
+
     new GenericDataset(hc, VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,

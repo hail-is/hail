@@ -18,10 +18,13 @@ object GenLoader {
     chromosome: Option[String] = None): GenResult = {
 
     val hConf = sc.hadoopConfiguration
-    val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
+    val preIds = BgenLoader.readSampleFile(hConf, sampleFile)
 
-    if (sampleIds.length != sampleIds.toSet.size)
-      fatal(s"Duplicate sample IDs exist in $sampleFile")
+    val (sampleIds, duplicates) = mangle(preIds, "D" * _)
+    if (duplicates.nonEmpty) {
+      warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
+        duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+    }
 
     val nSamples = sampleIds.length
 

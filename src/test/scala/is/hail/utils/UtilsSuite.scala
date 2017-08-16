@@ -288,4 +288,16 @@ class UtilsSuite extends SparkSuite {
     assert(digitsNeeded(13) == 2)
     assert(digitsNeeded(30173) == 5)
   }
+
+  @Test def testMangle() {
+    val c1 = Array("a", "b", "c", "a", "a", "c", "a")
+    val (c2, diff) = mangle(c1)
+    assert(c2.toSeq == Seq("a", "b", "c", "a_1", "a_2", "c_1", "a_3"))
+    assert(diff.toSeq == Seq("a" -> "a_1", "a" -> "a_2", "c" -> "c_1", "a" -> "a_3"))
+
+    val c3 = Array("a", "b", "c", "a", "a", "c", "a")
+    val (c4, diff2) = mangle(c1, "D" * _)
+    assert(c4.toSeq == Seq("a", "b", "c", "aD", "aDD", "cD", "aDDD"))
+    assert(diff2.toSeq == Seq("a" -> "aD", "a" -> "aDD", "c" -> "cD", "a" -> "aDDD"))
+  }
 }

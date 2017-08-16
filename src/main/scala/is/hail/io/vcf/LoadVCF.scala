@@ -193,13 +193,15 @@ object LoadVCF {
         s"""corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'
            |  found: @1""".stripMargin, headerLine)
 
-    val sampleIds: Array[String] =
-      if (dropSamples)
-        Array.empty
-      else
-        headerLine
-          .split("\t")
-          .drop(9)
+    val preIds = if (dropSamples)
+        Array.empty[String]
+      else headerLine.split("\t").drop(9)
+
+    val (sampleIds, duplicates) = mangle(preIds, "D" * _)
+    if (duplicates.nonEmpty) {
+      warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
+        duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+    }
 
     val infoSignatureBc = sc.broadcast(infoSignature)
     val genotypeSignatureBc = sc.broadcast(genotypeSignature)
