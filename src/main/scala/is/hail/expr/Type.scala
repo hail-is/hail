@@ -566,8 +566,10 @@ abstract class TContainer extends Type {
   def elementsOffset(length: Int): Int =
     UnsafeUtils.roundUpAlignment(4 + (length + 7) / 8, elementType.alignment)
 
+  def elementByteSize: Int = UnsafeUtils.arrayElementSize(elementType)
+
   def contentsByteSize(length: Int): Int =
-    elementsOffset(length) + length * UnsafeUtils.arrayElementSize(elementType)
+    elementsOffset(length) + length * elementByteSize
 }
 
 abstract class TIterable extends TContainer {

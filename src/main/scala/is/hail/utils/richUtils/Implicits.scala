@@ -1,7 +1,7 @@
 package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.RichRDDRow
+import is.hail.annotations.{RichRDDUnsafeRow, UnsafeRow}
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable}
 import is.hail.variant.Variant
 import org.apache.hadoop
@@ -39,7 +39,7 @@ trait Implicits {
   implicit def toRichIndexedRow(r: IndexedRow): RichIndexedRow = new RichIndexedRow(r)
 
   implicit def toRichInt(i: Int): RichInt = new RichInt(i)
-  
+
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
@@ -82,7 +82,7 @@ trait Implicits {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
-  implicit def toRichRDDRow(r: RDD[Row]): RichRDDRow = new RichRDDRow(r)
+  implicit def toRichRDDUnsafeRow(r: RDD[UnsafeRow]): RichRDDUnsafeRow = new RichRDDUnsafeRow(r)
 
   implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 

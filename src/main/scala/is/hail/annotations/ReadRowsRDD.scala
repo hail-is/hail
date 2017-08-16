@@ -247,27 +247,21 @@ class Encoder(out: DataOutputStream) {
   }
 }
 
-class RichRDDRow(val rdd: RDD[Row]) extends AnyVal {
+class RichRDDUnsafeRow(val rdd: RDD[UnsafeRow]) extends AnyVal {
   def writeRows(path: String, t: TStruct) {
     val sc = rdd.sparkContext
     val hadoopConf = sc.hadoopConfiguration
 
     hadoopConf.mkDir(path + "/rowstore")
 
-    val tBc = sc.broadcast(t)
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
 
     val nPartitions = rdd.partitions.length
     val d = digitsNeeded(nPartitions)
 
     val rowCount = rdd.mapPartitionsWithIndex { case (i, it) =>
-      val region = MemoryBuffer(8 * 1024)
-      val rvb = new RegionValueBuilder(region)
       val buffer = new Array[Byte](8 * 1024)
       var rowCount = 0L
-
-      val t = tBc.value
-      val f = t.fundamentalType
 
       val is = i.toString
       assert(is.length <= d)
@@ -279,15 +273,11 @@ class RichRDDRow(val rdd: RDD[Row]) extends AnyVal {
         val en = new Encoder(out)
 
         it.foreach { r =>
-          region.clear()
-          rvb.start(f)
-          rvb.addRow(t, r)
-          val offset = rvb.end()
 
-          val rowSize = region.offset
+          val rowSize = r.region.offset
           out.writeInt(rowSize)
 
-          en.writeRegionValue(f, region, offset)
+          en.writeRegionValue(t.fundamentalType, r.region, r.offset)
 
           rowCount += 1
         }

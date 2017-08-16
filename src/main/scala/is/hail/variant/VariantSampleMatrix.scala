@@ -260,6 +260,45 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
   lazy val sampleAnnotationsBc = sparkContext.broadcast(sampleAnnotations)
 
+  def unsafeRowRDD: RDD[UnsafeRow] = {
+    val ttBc = BroadcastTypeTree(hc.sc, rowSignature)
+
+    val localNSamples = nSamples
+    rdd.mapPartitions { it =>
+      val region = MemoryBuffer(8 * 1024)
+      val rvb = new RegionValueBuilder(region)
+
+      val a = new Array[Any](localNSamples)
+      val t = ttBc.value.typ.asInstanceOf[TStruct]
+
+      it.map { case (v, (va, gs)) =>
+
+        val gis: IndexedSeq[_] = gs match {
+          case gis: IndexedSeq[_] => gis
+          case gs: Iterable[_] =>
+            var i = 0
+            val git = gs.iterator
+            while (i < localNSamples) {
+              val g = git.next()
+              a(i) = g
+              i += 1
+            }
+            assert(!git.hasNext)
+            a
+        }
+        region.clear()
+        rvb.start(t)
+        rvb.startStruct()
+        rvb.addAnnotation(t.fields(0).typ, v)
+        rvb.addAnnotation(t.fields(1).typ, va)
+        rvb.addAnnotation(t.fields(2).typ, gis)
+        rvb.endStruct()
+        val offset = rvb.end()
+        new UnsafeRow(ttBc, region.copy(), offset)
+      }
+    }
+  }
+
   def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
 
     val (keysType, keysQuerier) = queryVA(variantKeysVA)
@@ -1986,6 +2025,11 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
   }
 
+  def rowSignature: TStruct = TStruct(
+    "v" -> vSignature,
+    "va" -> vaSignature,
+    "gs" -> TArray(genotypeSignature))
+
   def write(dirname: String, overwrite: Boolean = false): Unit = {
     require(dirname.endsWith(".vds"), "generic dataset write paths must end in '.vds'")
 
@@ -2003,29 +2047,9 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           vSignature.orderedKey).toJSON, out)
     }
 
-    val rowSignature = TStruct(
-      "v" -> vSignature,
-      "va" -> vaSignature,
-      "gs" -> TArray(genotypeSignature))
-
     val localNSamples = nSamples
     val localGenotypeSignature = genotypeSignature
-    rdd.mapPartitions { it =>
-      val a = new Array[Any](localNSamples)
-
-      it.map { case (v, (va, gs)) =>
-        var i = 0
-        val git = gs.iterator
-        while (i < localNSamples) {
-          val g = git.next()
-          a(i) = g
-          i += 1
-        }
-        assert(!git.hasNext)
-
-        Row(v, va, a: IndexedSeq[Any])
-      }
-    }.writeRows(dirname, rowSignature)
+    unsafeRowRDD.writeRows(dirname, rowSignature)
   }
 
   def makeSchema(): StructType = {
