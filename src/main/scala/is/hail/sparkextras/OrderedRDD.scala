@@ -74,7 +74,7 @@ object OrderedRDD {
         Iterator()
     }.collect()
 
-    log.info(s"keyInfo = ${ keyInfo.toSeq }")
+    log.info(s"Partition summaries: ${ keyInfo.zipWithIndex.map { case (pki, i) => s"i=$i,min=${pki.min},max=${pki.max}" }.mkString(";")}")
 
     if (keyInfo.isEmpty)
       return (AS_IS, empty(rdd.sparkContext))
