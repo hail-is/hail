@@ -18,7 +18,7 @@ object VariantDataset {
 
   def fromKeyTable(kt: KeyTable): VariantDataset = {
     kt.keyFields.map(_.typ) match {
-      case Array(TVariant) =>
+      case Array(TVariant(_)) =>
       case arr => fatal("Require one key column of type Variant to produce a variant dataset, " +
         s"but found [ ${ arr.mkString(", ") } ]")
     }
@@ -53,14 +53,14 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     val aggregationST = Map(
       "global" -> (0, vds.globalSignature),
-      "v" -> (1, TVariant),
+      "v" -> (1, vds.vSignature),
       "va" -> (2, vas3),
       "g" -> (3, TGenotype),
       "s" -> (4, TString),
       "sa" -> (5, vds.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vds.globalSignature),
-      "v" -> (1, TVariant),
+      "v" -> (1, vds.vSignature),
       "va" -> (2, vas3),
       "gs" -> (3, TAggregable(TGenotype, aggregationST))))
 
@@ -324,14 +324,11 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     * @param keep keep genotypes where filterExpr evaluates to true
     */
   def filterGenotypes(filterExpr: String, keep: Boolean = true): VariantDataset = {
-    val vas = vds.vaSignature
-    val sas = vds.saSignature
-
     val symTab = Map(
-      "v" -> (0, TVariant),
-      "va" -> (1, vas),
+      "v" -> (0, vds.vSignature),
+      "va" -> (1, vds.vaSignature),
       "s" -> (2, TString),
-      "sa" -> (3, sas),
+      "sa" -> (3, vds.saSignature),
       "g" -> (4, TGenotype),
       "global" -> (5, vds.globalSignature))
 

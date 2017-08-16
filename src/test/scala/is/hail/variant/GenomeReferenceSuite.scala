@@ -1,6 +1,7 @@
 package is.hail.variant
 
 import is.hail.SparkSuite
+import is.hail.expr.{TInterval, TLocus, TStruct, TVariant}
 import is.hail.utils.Interval
 import org.testng.annotations.Test
 
@@ -67,5 +68,19 @@ class GenomeReferenceSuite extends SparkSuite {
       assert(v.inXNonPar == v.inXNonPar(gr))
       assert(v.inYNonPar == v.inYNonPar(gr))
     }
+  }
+
+  @Test def testParser() {
+    val gr = GenomeReference("foo", Array(Contig("1", 10000)))
+    GenomeReference.addReference(gr)
+
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+      .annotateVariantsExpr("va.v = NA: Variant('foo'), va.l = NA: Locus('foo'), va.i = NA: Interval('foo')")
+
+    val vas = vds.vaSignature.asInstanceOf[TStruct]
+
+    assert(vas.field("v").typ == TVariant(gr))
+    assert(vas.field("l").typ == TLocus(gr))
+    assert(vas.field("i").typ == TInterval(gr))
   }
 }

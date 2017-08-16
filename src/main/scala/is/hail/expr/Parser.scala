@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
+import is.hail.variant.GenomeReference
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -534,7 +535,8 @@ object Parser extends JavaTokenParsers {
 
   def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty } |
-      "Interval" ^^ { _ => TInterval } |
+      ("Interval" ~ "(") ~> stringLiteral <~ ")" ^^ { id => TInterval(GenomeReference.getReference(id)) } |
+      "Interval" ^^ { _ => TInterval(GenomeReference.GRCh37) } | // Backwards compatibility
       "Boolean" ^^ { _ => TBoolean } |
       "Int32" ^^ { _ => TInt32 } |
       "Int64" ^^ { _ => TInt64 } |
@@ -544,8 +546,10 @@ object Parser extends JavaTokenParsers {
       "Float" ^^ { _ => TFloat64 } |
       "String" ^^ { _ => TString } |
       "AltAllele" ^^ { _ => TAltAllele } |
-      "Variant" ^^ { _ => TVariant } |
-      "Locus" ^^ { _ => TLocus } |
+      ("Variant" ~ "(") ~> stringLiteral <~ ")" ^^ { id => TVariant(GenomeReference.getReference(id)) } |
+      "Variant" ^^ { _ => TVariant(GenomeReference.GRCh37) } | // Backwards compatibility
+      ("Locus" ~ "(") ~> stringLiteral <~ ")" ^^ { id => TLocus(GenomeReference.getReference(id)) } |
+      "Locus" ^^ { _ => TLocus(GenomeReference.GRCh37) } | // Backwards compatibility
       "Genotype" ^^ { _ => TGenotype } |
       "Call" ^^ { _ => TCall } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |

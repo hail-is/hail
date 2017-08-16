@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.expr._
-import is.hail.variant.{VSMSubgen, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenomeReference, VSMSubgen, VariantDataset, VariantSampleMatrix}
 import org.testng.annotations.Test
 
 import scala.io.Source
@@ -42,15 +42,14 @@ class TextTableSuite extends SparkSuite {
 
     val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", ".", null)
 
-    imputed.foreach(println)
     assert(imputed.sameElements(Array(
       Some(TInt32),
       Some(TFloat64),
       None,
       Some(TString),
-      Some(TVariant),
+      Some(TVariant(GenomeReference.GRCh37)),
       Some(TBoolean),
-      Some(TLocus)
+      Some(TLocus(GenomeReference.GRCh37))
     )))
 
     val (schema, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.tsv"),
@@ -78,7 +77,7 @@ class TextTableSuite extends SparkSuite {
     val (schema3, _) = TextTableReader.read(sc)(Array("src/test/resources/variantAnnotations.alternateformat.tsv"),
       impute = true)
     assert(schema3 == TStruct(
-      "Chromosome:Position:Ref:Alt" -> TVariant,
+      "Chromosome:Position:Ref:Alt" -> TVariant(GenomeReference.GRCh37),
       "Rand1" -> TFloat64,
       "Rand2" -> TFloat64,
       "Gene" -> TString))

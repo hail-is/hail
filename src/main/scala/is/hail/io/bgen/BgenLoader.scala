@@ -20,7 +20,7 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 object BgenLoader {
 
   def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, nPartitions: Option[Int] = None): GenericDataset = {
+    tolerance: Double, nPartitions: Option[Int] = None, gr: GenomeReference = GenomeReference.GRCh37): GenericDataset = {
     require(files.nonEmpty)
     val samples = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
       .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
@@ -76,12 +76,12 @@ object BgenLoader {
 
     val rdd = sc.union(results.map(_.rdd.map { case (_, decoder) =>
       (decoder.getKey: Annotation, (decoder.getAnnotation, decoder.getValue))
-    })).toOrderedRDD(fastKeys)(TVariant.orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    })).toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
     new GenericDataset(hc, VSMMetadata(
       TString,
       saSignature = TStruct.empty,
-      TVariant,
+      TVariant(gr),
       vaSignature = signature,
       genotypeSignature = TStruct("GT" -> TCall, "GP" -> TArray(TFloat64)),
       globalSignature = TStruct.empty,

@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.check.{Gen, Parameters, Prop}
+import is.hail.check.{Gen, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._
@@ -247,13 +247,13 @@ class AggregatorSuite extends SparkSuite {
       vds.annotateVariantsExpr("va = gs.map(g => 5)"))
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Genotype\\]")(
       vds.annotateVariantsExpr("va = gs.filter(g => true)"))
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\]")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant.*\\]")(
       vds.queryVariants("variants")
     )
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[String\\]")(
       vds.queryVariants("variants.map(v => v.contig)")
     )
-    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant\\]")(
+    TestUtils.interceptFatal("unrealizable type.*Aggregable\\[Variant.*\\]")(
       vds.queryVariants("variants.filter(v => false)")
     )
     TestUtils.interceptFatal("unrealizable type.*Aggregable\\[String\\]")(

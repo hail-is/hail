@@ -12,7 +12,7 @@ object IntervalList {
 
   val intervalRegex = """([^:]*)[:\t](\d+)[\-\t](\d+)""".r
 
-  def read(hc: HailContext, filename: String): KeyTable = {
+  def read(hc: HailContext, filename: String, gr: GenomeReference = GenomeReference.GRCh37): KeyTable = {
     val hasValue = hc.hadoopConf.readLines(filename) {
       lines =>
         val skipHeader = lines.filter(l => !l.value.isEmpty && l.value(0) != '@')
@@ -33,9 +33,9 @@ object IntervalList {
     }
 
     val schema = if (hasValue)
-      TStruct("interval" -> TInterval, "target" -> TString)
+      TStruct("interval" -> TInterval(gr), "target" -> TString)
     else
-      TStruct("interval" -> TInterval)
+      TStruct("interval" -> TInterval(gr))
 
     val rdd = hc.sc.textFileLines(filename)
       .filter(l => !l.value.isEmpty && l.value(0) != '@')

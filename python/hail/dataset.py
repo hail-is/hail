@@ -2554,7 +2554,7 @@ class VariantDataset(object):
 
         jldm = self._jvdf.ldMatrix(force_local)
         return LDMatrix(jldm)
-
+    
     @handle_py4j
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,

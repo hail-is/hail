@@ -1,6 +1,7 @@
 import abc
 from hail.java import scala_object, Env, jset
-from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call
+from hail.representation import Variant, AltAllele, Genotype, Locus, Interval, Struct, Call, GenomeReference
+from hail.typecheck import nullable, typecheck_method
 
 
 class TypeCheckError(Exception):
@@ -66,6 +67,12 @@ class Type(object):
             return TDict._from_java(jtype)
         elif class_name == 'is.hail.expr.TStruct':
             return TStruct._from_java(jtype)
+        elif class_name == 'is.hail.expr.TVariant':
+            return TVariant._from_java(jtype)
+        elif class_name == 'is.hail.expr.TLocus':
+            return TLocus._from_java(jtype)
+        elif class_name == 'is.hail.expr.TInterval':
+            return TInterval._from_java(jtype)
         else:
             raise TypeError("unknown type class: '%s'" % class_name)
 
@@ -533,11 +540,22 @@ class TVariant(Type):
     - `expression language documentation <types.html#variant>`__
     - in Python, values are instances of :class:`hail.representation.Variant`
 
+    :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+    :type genome_ref: GenomeReference or None
     """
-    __metaclass__ = SingletonType
 
-    def __init__(self):
-        super(TVariant, self).__init__(scala_object(Env.hail().expr, 'TVariant'))
+    @typecheck_method(genome_ref=nullable(GenomeReference))
+    def __init__(self, genome_ref=None):
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+        jtype = scala_object(Env.hail().expr, 'TVariant').apply(genome_ref._jrep)
+        super(TVariant, self).__init__(jtype)
+
+    @classmethod
+    def _from_java(cls, jtype):
+        v = TVariant.__new__(cls)
+        v._jtype = jtype
+        return v
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -665,11 +683,22 @@ class TLocus(Type):
     - `expression language documentation <types.html#locus>`__
     - in Python, values are instances of :class:`hail.representation.Locus`
 
+    :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+    :type genome_ref: GenomeReference or None
     """
-    __metaclass__ = SingletonType
 
-    def __init__(self):
-        super(TLocus, self).__init__(scala_object(Env.hail().expr, 'TLocus'))
+    @typecheck_method(genome_ref=nullable(GenomeReference))
+    def __init__(self, genome_ref=None):
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+        jtype = scala_object(Env.hail().expr, 'TLocus').apply(genome_ref._jrep)
+        super(TLocus, self).__init__(jtype)
+
+    @classmethod
+    def _from_java(cls, jtype):
+        l = TLocus.__new__(cls)
+        l._jtype = jtype
+        return l
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -698,11 +727,22 @@ class TInterval(Type):
     - `expression language documentation <types.html#interval>`__
     - in Python, values are instances of :class:`hail.representation.Interval`
 
+    :param genome_ref: Genome reference to use. Default is :py:meth:`~hail.representation.GenomeReference.GRCh37`.
+    :type genome_ref: GenomeReference or None
     """
-    __metaclass__ = SingletonType
 
-    def __init__(self):
-        super(TInterval, self).__init__(scala_object(Env.hail().expr, 'TInterval'))
+    @typecheck_method(genome_ref=nullable(GenomeReference))
+    def __init__(self, genome_ref=None):
+        if not genome_ref:
+            genome_ref = GenomeReference.GRCh37()
+        jtype = scala_object(Env.hail().expr, 'TInterval').apply(genome_ref._jrep)
+        super(TInterval, self).__init__(jtype)
+
+    @classmethod
+    def _from_java(cls, jtype):
+        i = TInterval.__new__(cls)
+        i._jtype = jtype
+        return i
 
     def _convert_to_py(self, annotation):
         if annotation:
@@ -728,12 +768,9 @@ __singletons__ = {'is.hail.expr.TInt32$': TInt32,
                   'is.hail.expr.TFloat64$': TFloat64,
                   'is.hail.expr.TBoolean$': TBoolean,
                   'is.hail.expr.TString$': TString,
-                  'is.hail.expr.TVariant$': TVariant,
                   'is.hail.expr.TAltAllele$': TAltAllele,
-                  'is.hail.expr.TLocus$': TLocus,
                   'is.hail.expr.TGenotype$': TGenotype,
-                  'is.hail.expr.TCall$': TCall,
-                  'is.hail.expr.TInterval$': TInterval}
+                  'is.hail.expr.TCall$': TCall}
 
 import pprint
 

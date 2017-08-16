@@ -87,7 +87,7 @@ object CalculateConcordance {
     )
 
     val variantSchema = TStruct(
-      "v" -> TVariant,
+      "v" -> TVariant(GenomeReference.GRCh37),
       "nDiscordant" -> TInt64,
       "concordance" -> ConcordanceCombiner.schema
     )
