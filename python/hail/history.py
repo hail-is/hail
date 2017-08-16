@@ -132,14 +132,12 @@ class History(object):
 
     def write(self, file):
         with hadoop_write(file) as f:
-            f.write(str(self) + "\n")
+            f.write(self.formatted() + "\n")
 
-    def __repr__(self):
-        return self.expr
-
-    def __str__(self):
+    def formatted(self):
         now = datetime.datetime.now()
         history = "# {}\n# version: {}\n\n".format(now.isoformat(), Env._hc.version)
+        history += "from hail import *\n\n"
         for stmt in self.statements:
             history += (stmt + "\n\n")
         history += ("(" + self.expr + ")")
@@ -148,6 +146,9 @@ class History(object):
             return autopep8.fix_code(history)
         except ImportError:
             return history
+
+    def __repr__(self):
+        return self.expr
 
 
 class HistoryMixin(object):
