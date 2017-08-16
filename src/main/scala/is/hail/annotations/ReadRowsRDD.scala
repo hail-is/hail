@@ -277,7 +277,7 @@ class RichRDDUnsafeRow(val rdd: RDD[UnsafeRow]) extends AnyVal {
           val rowSize = r.region.offset
           out.writeInt(rowSize)
 
-          en.writeRegionValue(t, r.region, r.offset)
+          en.writeRegionValue(t.fundamentalType, r.region, r.offset)
 
           rowCount += 1
         }
