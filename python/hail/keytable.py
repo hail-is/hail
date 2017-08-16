@@ -89,17 +89,55 @@ class KeyTable(object):
 
     @staticmethod
     @handle_py4j
-    @typecheck(hc=anytype,
-               rows_py=oneof(listof(Struct), listof(dictof(strlike, anytype))),
+    @typecheck(rows=oneof(listof(Struct), listof(dictof(strlike, anytype))),
                schema=TStruct,
-               key_names=listof(strlike),
+               key=oneof(strlike, listof(strlike)),
                num_partitions=nullable(integral))
-    def from_py(hc, rows_py, schema, key_names=[], num_partitions=None):
+    def parallelize(rows, schema, key=[], num_partitions=None):
+        """Construct a key table from a list of rows.
+
+        **Examples**
+
+        >>> rows = [{'a': 5, 'b': 'foo', 'c': False},
+        ...         {'a': None, 'b': 'bar', 'c': True},
+        ...         {'b': 'baz', 'c': False}]
+        >>> schema = TStruct(['a', 'b', 'c'], [TInt32(), TString(), TBoolean()])
+        >>> table = KeyTable.parallelize(rows, schema, key='b')
+
+        This table will look like:
+
+        .. code-block:: text
+
+            >>> table.to_dataframe().show()
+
+            +----+---+-----+
+            |   a|  b|    c|
+            +----+---+-----+
+            |   5|foo|false|
+            |null|bar| true|
+            |null|baz|false|
+            +----+---+-----+
+
+        :param rows: List of rows to include in table.
+        :type rows: list of :class:`.hail.representation.Struct` or dict
+
+        :param schema: Struct schema of table.
+        :type schema: :class:`.hail.expr.TStruct`
+
+        :param key: Key field(s).
+        :type key: str or list of str
+
+        :param num_partitions: Number of partitions to generate.
+        :type num_partitions: int or None
+
+        :return: Key table parallelized from the given rows.
+        :rtype: :class:`.KeyTable`
+        """
         return KeyTable(
-            hc,
+            Env.hc(),
             Env.hail().keytable.KeyTable.parallelize(
-                hc._jhc, [schema._convert_to_j(r) for r in rows_py],
-                schema._jtype, key_names, joption(num_partitions)))
+                Env.hc()._jhc, [schema._convert_to_j(r) for r in rows],
+                schema._jtype, wrap_to_list(key), joption(num_partitions)))
 
     @property
     @handle_py4j
