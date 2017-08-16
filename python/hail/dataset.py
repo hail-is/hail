@@ -1233,13 +1233,13 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(pedigree=Pedigree,
                       pop_frequency_prior=strlike,
-                      min_GQ=integral,
+                      min_gq=integral,
                       min_p=numeric,
-                      max_parent_AB=numeric,
-                      min_child_AB=numeric,
+                      max_parent_ab=numeric,
+                      min_child_ab=numeric,
                       min_depth_ratio=numeric)
-    def de_novo(self, pedigree, pop_frequency_prior, min_GQ=20, min_p=0.05,
-                max_parent_AB=0.05, min_child_AB=0.20, min_depth_ratio=0.10):
+    def de_novo(self, pedigree, pop_frequency_prior, min_gq=20, min_p=0.05,
+                max_parent_ab=0.05, min_child_ab=0.20, min_depth_ratio=0.10):
         """Call de novo variation from trio data.
 
         **Examples**
@@ -1286,78 +1286,117 @@ class VariantDataset(HistoryMixin):
         event being truly de novo versus the probability that it was a missed heterozygote call in one of the
         two parents (the most likely error mode).
 
-        ..math::
-            \mathrm{P}(d\,\|\,x) is the posterior probability of a de novo mutation given the data
-            \mathrm{P}(h\,\|\,x) is the posterior probability of a missed heterogygous parent given the data
+        We are interested in estimating a posterior probability for each putative de novo mutation,
 
-        We can estimate a posterior probability of a de novo mutation:
+        .. math::
 
-        ..math::
-            \\frac{\mathrm{P}(d\,\|\,x)}{\mathrm{P}(h\,\|\,x)} = \\frac{\mathrm{P}(x\,\|\,d) \mathrm{P}(d)}{\mathrm{P}(x\,\|\,h) \mathrm{P}(h)}
+            \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,\|\,x)}{\mathrm{P}(d\,\|\,x) + \mathrm{P}(h\,\|\,x)}
 
-            P(true de novo | data) / (P(true de novo | data) + P(missed het in parent | data))
+        where :math:`\\mathrm{P}(d\,\|\,x)` is the posterior probability of a de novo mutation given the data, and
+        :math:`\\mathrm{P}(h\,\|\,x)` is the posterior probability of a missed heterogygous parent given the data.
 
-        where
+        By Bayes' rule,
 
-        ..code::
+        .. math::
 
-            P(true de novo | data) = P(data | true de novo) * P(true de novo)
-            P(data | true de novo) = Pdad_ref * Pmom_ref * Pchild_het
-            P(true de novo) = 1/30 Mb
-            P(missed het in parent | data) = P(data | at least one parent is het) * P(one parent het)
-            P(data | at least one parent is het) = (Pdad_ref*Pmom_het + Pdad_het*Pmom_ref) * Pchild_het
-            P(one parent het) = 1 - (1-f)^4
-              (f is the maximum of the frequency of the variant in the VCF or ESP)
+            \\mathrm{P}(d\,\|\,x) = \mathrm{P}(x\,\|\,d)\,\mathrm{P}(d)
 
-        The minimum p_dn considered is 0.05, but can be adjusted with the -m flag.
+        .. math::
 
-        The potential de novo variants are then split by SNVs and indels into HIGH, MEDIUM, and LOW validation
-        likelihood by the following criteria:
+            \\mathrm{P}(h\,\|\,x) = \mathrm{P}(x\,\|\,h)\,\mathrm{P}(h)
+
+        Our prior for the de novo mutation rate is taken from literature, and our prior for
+        heterozygosity in at least one parent depends on the alternate allele frequency.
+
+        .. math::
+
+            \\mathrm{P}(d) = \\frac{1}{30,000,000\, \\text{bases}}
+
+        .. math::
+
+            \\mathrm{P}(h) = 1 - (1 - AF)^4
+
+        The terms :math:`\mathrm{P}(x\,\|\,d)` and :math:`\mathrm{P}(x\,\|\,h)` are computed from the
+        PL (genotype likelihood) field.
+
+        .. math::
+
+            \\mathrm{P}(d\,\|\,x) = \\mathrm{P}(x_{proband} \,\|\, proband = AB) \,
+            \\mathrm{P}(x_{father} \,\|\, father = AA) \,
+            \\mathrm{P}(x_{mother} \,\|\, mother = AA)\,
+            \\mathrm{P}(d)
+
+        .. math::
+
+            \\mathrm{P}(h\,\|\,x) = \\mathrm{P}(x_{proband} \,\|\, proband = AA) \,
+            \\mathrm{P}(x_{father} \,\|\, father = AB) \,
+            \\mathrm{P}(x_{mother} \,\|\, mother = AB)\,
+            \\mathrm{P}(h)
+
+        While :math:`\\mathrm{P_{\\text{de novo}}}` is an excellent metric for grouping putative de novo
+        mutations by validation likelihood, there exist error modes in high-throughput sequencing data that
+        are not appropriately accounted for by the phred-scaled genotype likelihoods. To this end, a number
+        of hard filters are applied in order to assign validation likelihood.
+
+        The minimum :math:`\\mathrm{P_{\\text{de novo}}}` for the 'LOW' validation likelihood category is 0.05,
+        but can be adjusted with the ``min_p`` argument.
+
+        These filters are different for SNPs and insertions/deletions. In the below rules, the following
+        variables are used:
+
+         - ``DR`` refers to the ratio of the read depth in the proband to the combined read depth in the parents.
+         - ``AB`` refers to the read allele balance of the proband (number of alternate reads divided by total reads).
+         - ``AC`` refers to the count of alternate alleles across all invididuals in the dataset at the site.
+         - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`
 
         HIGH-quality SNV:
 
-        ..code::
+        .. code-block:: text
 
-            p_dn > 0.99 and child_AD > 0.3 and dp_ratio (kid depth/combined parental depth) > 0.2
-            or
-            p_dn > 0.99 and child_AD > 0.3 and allele count (AC) == 1
+            p > 0.99 && AB > 0.3 && DR > 0.2
+                or
+            p > 0.99 && AB > 0.3 && AC == 1
 
         MEDIUM-quality SNV:
 
-        ..code::
+        .. code-block:: text
 
-            p_dn > 0.5 and child_AD > 0.3
-            or
-            p_dn > 0.5 and child_AD  > 0.2 and AC == 1
+            p > 0.5 && AB > 0.3
+                or
+            p > 0.5 && AB > 0.2 && AC == 1
 
         LOW-quality SNV:
 
-        ..code::
+        .. code-block:: text
 
-            p_dn > 0.05 and child_AD > 0.2
+            p > 0.05 && AB > 0.2
 
         HIGH-quality indel:
 
-        ..code::
+        .. code-block:: text
 
-            p_dn > 0.99 and child_AD > 0.3 and dp_ratio > 0.2
-            or
-            p_dn > 0.99 and child_AD > 0.3 and AC == 1
+            p > 0.99 && AB > 0.3 && DR > 0.2
+                or
+            p > 0.99 && AB > 0.3 && AC == 1
 
         MEDIUM-quality indel:
 
-        ..code::
+        .. code-block:: text
 
-            p_dn > 0.5 and child_AD > 0.3
-            or
-            p_dn > 0.5 and child_AD > 0.2 and AC ==1
+            p > 0.5 && AB > 0.3
+                or
+            p > 0.5 && AB > 0.2 and AC == 1
 
         LOW-quality indel:
 
-        ..code::
+        .. code-block:: text
 
-            p_dn > 0.05 and child_AD > 0.2
+            p > 0.05 && AB > 0.2
 
+        Additionally, de novo candidates are not considered if the proband GQ is smaller than the ``min_gq``
+        parameter, if the proband allele balance is lower than the ``min_child_ab`` parameter, if the
+        depth ratio between the proband and parents is smaller than the ``min_depth_ratio`` parameter, or
+        if the allele balance in a parent is above the ``max_parent_ab`` parameter.
 
         :param pedigree: Pedigree object.
         :type pedigree: :class:`.Pedigree`
@@ -1368,17 +1407,17 @@ class VariantDataset(HistoryMixin):
 
         :param float min_p: Minimum probability for "LOW" bin.
 
-        :param float max_parent_AB: Maximum allele balance for homozygous parent.
+        :param float max_parent_ab: Maximum allele balance for homozygous parent.
 
-        :param float min_child_AB: Minimum allele balance for heterozygous proband.
+        :param float min_child_ab: Minimum allele balance for heterozygous proband.
 
         :param float min_depth_ratio: Minimum ratio of proband depth to parent depth.
 
         :rtype: :class:`.KeyTable`
         """
 
-        jkt = self._jvdf.deNovo(pedigree._jrep, pop_frequency_prior, min_GQ, min_p,
-                                max_parent_AB, min_child_AB, min_depth_ratio)
+        jkt = self._jvdf.deNovo(pedigree._jrep, pop_frequency_prior, min_gq, min_p,
+                                max_parent_ab, min_child_ab, min_depth_ratio)
         return KeyTable(self.hc, jkt)
 
     @handle_py4j

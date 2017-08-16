@@ -57,13 +57,11 @@ object DeNovo {
       momP(i) = momP(i) / momSum
     }
 
-    val pDeNovoData = dadP(0) * momP(0) * kidP(1) * PRIOR
+    val pDataGivenDeNovo = dadP(0) * momP(0) * kidP(1) * PRIOR
+    val pHetInParent = 1 - math.pow(1 - prior, 4)
+    val pDataGivenMissedHet = (dadP(1) * momP(0) + dadP(0) * momP(1)) * kidP(1) * pHetInParent
 
-    val pDataOneHet = (dadP(1) * momP(0) + dadP(0) * momP(1)) * kidP(1)
-    val pOneParentHet = 1 - math.pow(1 - prior, 4)
-    val pMissedHetInParent = pDataOneHet * pOneParentHet
-
-    val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMissedHetInParent)
+    val pDeNovo = pDataGivenDeNovo / (pDataGivenDeNovo + pDataGivenMissedHet)
 
     val kidAdRatio = Genotype.unboxedAD(kid)(1).toDouble / (Genotype.unboxedAD(kid)(0) + Genotype.unboxedAD(kid)(1))
 
@@ -71,30 +69,30 @@ object DeNovo {
     val dpRatio = kidDp.toDouble / (Genotype.unboxedDP(mom) + Genotype.unboxedDP(dad))
 
     // Core calling algorithm
-    if (pTrueDeNovo < minPDeNovo)
+    if (pDeNovo < minPDeNovo)
       None
     else if (dpRatio < minDpRatio)
       None
     else if (!isSNP) {
-      if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
-        Some("HIGH", pTrueDeNovo)
-      else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
-        Some("MEDIUM", pTrueDeNovo)
-      else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-        Some("LOW", pTrueDeNovo)
+      if ((pDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
+        Some("HIGH", pDeNovo)
+      else if ((pDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
+        Some("MEDIUM", pDeNovo)
+      else if ((pDeNovo > 0.05) && (kidAdRatio > 0.20))
+        Some("LOW", pDeNovo)
       else None
     } else {
-      if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
-        ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
-        ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10))
+      if ((pDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
+        ((pDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
+        ((pDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10))
       )
-        Some("HIGH", pTrueDeNovo)
-      else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
-        ((pTrueDeNovo > 0.5) && (nAltAlleles == 1))
+        Some("HIGH", pDeNovo)
+      else if ((pDeNovo > 0.5) && (kidAdRatio > 0.3) ||
+        ((pDeNovo > 0.5) && (nAltAlleles == 1))
       )
-        Some("MEDIUM", pTrueDeNovo)
-      else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-        Some("LOW", pTrueDeNovo)
+        Some("MEDIUM", pDeNovo)
+      else if ((pDeNovo > 0.05) && (kidAdRatio > 0.20))
+        Some("LOW", pDeNovo)
       else None
     }
   }
@@ -120,13 +118,12 @@ object DeNovo {
       parentP(i) = parentP(i) / parentSum
     }
 
-    val pDeNovoData = parentP(0) * kidP(2) * PRIOR
+    val pDataGivenDeNovo = parentP(0) * kidP(2) * PRIOR
+    // seems wrong (should be exponent of 2?) but agrees with the Python code
+    val pHetInParent = 1 - math.pow(1 - prior, 4)
+    val pDataGivenMissedHet = (parentP(1) + parentP(2)) * kidP(2) * pHetInParent
 
-    val pDataOneHet = (parentP(1) + parentP(2)) * kidP(2)
-    val pOneParentHet = 1 - math.pow(1 - prior, 4)
-    val pMissedHetInParent = pDataOneHet * pOneParentHet
-
-    val pTrueDeNovo = pDeNovoData / (pDeNovoData + pMissedHetInParent)
+    val pDeNovo = pDataGivenDeNovo / (pDataGivenDeNovo + pDataGivenMissedHet)
 
     val kidAdRatio = Genotype.unboxedAD(kid)(1).toDouble / (Genotype.unboxedAD(kid)(0) + Genotype.unboxedAD(kid)(1))
 
@@ -134,26 +131,26 @@ object DeNovo {
     val dpRatio = kidDp.toDouble / Genotype.unboxedDP(parent)
 
     // Core calling algorithm
-    if (pTrueDeNovo < minPDeNovo || kidAdRatio <= 0.95)
+    if (pDeNovo < minPDeNovo || kidAdRatio <= 0.95)
       None
     else if (!isSNP) {
-      if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
-        Some("HIGH", pTrueDeNovo)
-      else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
-        Some("MEDIUM", pTrueDeNovo)
-      else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-        Some("LOW", pTrueDeNovo)
+      if ((pDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1))
+        Some("HIGH", pDeNovo)
+      else if ((pDeNovo > 0.5) && (kidAdRatio > 0.3) && (nAltAlleles <= 5))
+        Some("MEDIUM", pDeNovo)
+      else if ((pDeNovo > 0.05) && (kidAdRatio > 0.20))
+        Some("LOW", pDeNovo)
       else None
     } else {
-      if ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
-        ((pTrueDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
-        ((pTrueDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10)))
-        Some("HIGH", pTrueDeNovo)
-      else if ((pTrueDeNovo > 0.5) && (kidAdRatio > 0.3) ||
-        ((pTrueDeNovo > 0.5) && (kidAdRatio > minDpRatio) && (nAltAlleles == 1)))
-        Some("MEDIUM", pTrueDeNovo)
-      else if ((pTrueDeNovo > 0.05) && (kidAdRatio > 0.20))
-        Some("LOW", pTrueDeNovo)
+      if ((pDeNovo > 0.99) && (kidAdRatio > 0.3) && (dpRatio > 0.2) ||
+        ((pDeNovo > 0.99) && (kidAdRatio > 0.3) && (nAltAlleles == 1)) ||
+        ((pDeNovo > 0.5) && (kidAdRatio >= 0.3) && (nAltAlleles < 10) && (kidDp >= 10)))
+        Some("HIGH", pDeNovo)
+      else if ((pDeNovo > 0.5) && (kidAdRatio > 0.3) ||
+        ((pDeNovo > 0.5) && (kidAdRatio > minDpRatio) && (nAltAlleles == 1)))
+        Some("MEDIUM", pDeNovo)
+      else if ((pDeNovo > 0.05) && (kidAdRatio > 0.20))
+        Some("LOW", pDeNovo)
       else None
     }
   }
