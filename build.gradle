@@ -49,12 +49,15 @@ String scalaMajorVersion = '2.11'
 
 String py4jVersion
 String breezeVersion
+String elasticsearchLibVersion
 if (sparkVersion ==~ /^2\.1.*/) {
     py4jVersion = '0.10.4'
     breezeVersion = '0.12'
+    elasticsearchLibVersion = '5.5.1'
 } else {
     py4jVersion = '0.10.3'
     breezeVersion = '0.11.2'
+    elasticsearchLibVersion = '5.1.2'
 }
 
 String kuduSpark = 'spark2'
@@ -136,6 +139,8 @@ dependencies {
     compile 'org.apache.kudu:kudu-client:1.1.0'
     compile 'org.apache.kudu:kudu-' + kuduSpark + '_' + scalaMajorVersion + ':1.1.0'
 
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+
     compile 'org.http4s:http4s-core_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-server_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-argonaut_' + scalaMajorVersion + ':0.12.3'
@@ -158,6 +163,7 @@ dependencies {
 
     compile 'org.apache.solr:solr-solrj:6.2.0'
     compile 'com.datastax.cassandra:cassandra-driver-core:3.0.0'
+    compile 'org.elasticsearch:elasticsearch-spark-20_2.11:' + elasticsearchLibVersion
 
     compile 'com.jayway.restassured:rest-assured:2.8.0'
 
@@ -242,6 +248,8 @@ shadowJar {
     from(project.sourceSets.main.output)
     configurations = [project.configurations.runtime]
     dependencies {
+        include(dependency('org.slf4j:slf4j-api:1.7.25'))
+
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
@@ -270,7 +278,9 @@ shadowJar {
         include(dependency('org.noggit:noggit:.*'))
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
+        include(dependency('org.elasticsearch:elasticsearch-spark-20_2.11:.*'))
         include(dependency('com.google.guava:guava:.*'))
+
         include(dependency('org.apache.spark:kudu-client:.*'))
         include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
 
@@ -291,6 +301,8 @@ task shadowTestJar(type: ShadowJar) {
     from(project.sourceSets.main.output, project.sourceSets.test.output)
     configurations = [project.configurations.testRuntime]
     dependencies {
+        include(dependency('org.slf4j:slf4j-api:1.7.25'))
+
         include(dependency('net.jpountz.lz4:lz4:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
         include(dependency('com.github.samtools:htsjdk:.*'))
@@ -322,6 +334,7 @@ task shadowTestJar(type: ShadowJar) {
         include(dependency('org.noggit:noggit:.*'))
 
         include(dependency('com.datastax.cassandra:cassandra-driver-core:.*'))
+        include(dependency('org.elasticsearch:elasticsearch-spark-20_2.11:.*'))
         include(dependency('com.google.guava:guava:.*'))
         include(dependency('org.apache.spark:kudu-client:.*'))
         include(dependency('org.apache.spark:kudu-spark_' + scalaMajorVersion + ':.*'))
