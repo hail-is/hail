@@ -1,7 +1,6 @@
 package is.hail.io
 
 import is.hail.keytable.KeyTable
-//import org.elasticsearch.spark.sql._
 import org.elasticsearch.spark.rdd.EsSpark
 import scala.collection.Map
 import scala.collection.mutable
@@ -37,12 +36,5 @@ object ElasticsearchConnector {
       mergedConfig
     )
 
-    /*
-    val df = kt.toDF(kt.hc.sqlContext)
-    if (verbose)
-      println(s"Exporting ${df.count()} rows to ${host}:${port}/${index}/${indexType}")
-
-    df.saveToEs(s"${index}/${indexType}", mergedConfig)
-    */
   }
 }
