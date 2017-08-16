@@ -92,7 +92,7 @@ class KeyTable(object):
     @typecheck(hc=anytype,
                rows=oneof(listof(Struct), listof(dictof(strlike, anytype))),
                schema=TStruct,
-               key_names=oneof(strlike, listof(strlike)),
+               key=oneof(strlike, listof(strlike)),
                num_partitions=nullable(integral))
     def parallelize(rows, schema, key=[], num_partitions=None):
         """Construct a key table from a list of rows.
