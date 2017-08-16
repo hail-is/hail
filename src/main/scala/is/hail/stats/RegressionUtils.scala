@@ -219,7 +219,7 @@ object RegressionUtils {
   def getPhenoCovCompleteSamples(
     vds: VariantDataset,
     yExpr: String,
-    covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], IndexedSeq[Annotation]) = {
+    covExpr: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
 
     val nCovs = covExpr.size + 1 // intercept
 
@@ -233,7 +233,7 @@ object RegressionUtils {
     val covIS = getSampleAnnotations(vds, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
-      (yIS, covIS, vds.sampleIds)
+      (yIS, covIS, 0 until vds.nSamples)
         .zipped
         .filter((y, c, s) => y.isDefined && c.forall(_.isDefined))
 
@@ -252,13 +252,13 @@ object RegressionUtils {
     if (n < vds.nSamples)
       warn(s"${ vds.nSamples - n } of ${ vds.nSamples } samples have a missing phenotype or covariate.")
 
-    (y, cov, completeSamples)
+    (y, cov, completeSamples.toArray)
   }
 
   def getPhenosCovCompleteSamples(
     vds: VariantDataset,
     yExpr: Array[String],
-    covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], IndexedSeq[Annotation]) = {
+    covExpr: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 
     val nPhenos = yExpr.size
     val nCovs = covExpr.size + 1 // intercept
@@ -276,7 +276,7 @@ object RegressionUtils {
     val covIS = getSampleAnnotations(vds, covExpr, ec)
 
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
-      (yIS, covIS, vds.sampleIds)
+      (yIS, covIS, 0 until vds.nSamples)
         .zipped
         .filter((y, c, s) => y.forall(_.isDefined) && c.forall(_.isDefined))
 
@@ -293,7 +293,7 @@ object RegressionUtils {
     if (n < vds.nSamples)
       warn(s"${ vds.nSamples - n } of ${ vds.nSamples } samples have a missing phenotype or covariate.")
 
-    (y, cov, completeSamples)
+    (y, cov, completeSamples.toArray)
   }
 
   // Retrofitting for 0.1, will be removed at 2.0 when constant checking is dropped (unless otherwise useful)

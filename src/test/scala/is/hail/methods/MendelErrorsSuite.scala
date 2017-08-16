@@ -62,5 +62,5 @@ class MendelErrorsSuite extends SparkSuite {
     val men2 = MendelErrors(vds, ped2.filterTo(vds.stringSampleIdSet).completeTrios)
 
     assert(men2.mendelErrors.collect().toSet == men.mendelErrors.filter(_.trio.kid == "Dtr1").collect().toSet)
-  }
+  }pl
 }

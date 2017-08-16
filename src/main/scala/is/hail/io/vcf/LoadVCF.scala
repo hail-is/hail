@@ -18,6 +18,14 @@ case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSig
 
 object LoadVCF {
 
+  def warnDuplicates(ids: Array[String]) {
+    val duplicates = ids.counter().filter(_._2 > 1)
+    if (duplicates.nonEmpty) {
+      warn(s"Found ${ duplicates.size } duplicate ${ plural(duplicates.size, "sample ID") }:\n  @1",
+        duplicates.toArray.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
+    }
+  }
+
   def globAllVCFs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
     val inputs = hConf.globAll(arguments)
 
@@ -231,6 +239,8 @@ object LoadVCF {
     val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, canonicalFlags, headerLines) = header1
 
     val sampleIds: Array[String] = if (dropSamples) Array.empty else sampleIdsHeader
+
+    LoadVCF.warnDuplicates(sampleIds)
 
     val infoSignatureBc = sc.broadcast(infoSignature)
     val genotypeSignatureBc = sc.broadcast(genotypeSignature)

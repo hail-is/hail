@@ -109,27 +109,6 @@ class VariantDataset(HistoryMixin):
             self._sample_ids = jiterable_to_list(self._jvds.sampleIds())
         return self._sample_ids
 
-    @property
-    @handle_py4j
-    def sample_annotations(self):
-        """Return a dict of sample annotations.
-
-        The keys of this dictionary are the sample IDs (strings).
-        The values are sample annotations.
-
-        :return: dict
-        """
-
-        if self._sample_annotations is None:
-            zipped_annotations = Env.jutils().iterableToArrayList(
-                self._jvds.sampleIdsAndAnnotations()
-            )
-            r = {}
-            for element in zipped_annotations:
-                r[element._1()] = self.sample_schema._convert_to_py(element._2())
-            self._sample_annotations = r
-        return self._sample_annotations
-
     @handle_py4j
     def num_partitions(self):
         """Number of partitions.
@@ -4285,8 +4264,12 @@ class VariantDataset(HistoryMixin):
         return r
 
     @handle_py4j
+<<<<<<< HEAD
     @record_method
     @typecheck_method(mapping=dictof(strlike, strlike))
+=======
+    @typecheck_method(mapping=oneof(dictof(strlike, strlike), listof(strlike)))
+>>>>>>> Added name mangling to allow for duplicate IDs (VCF, GEN, BGEN, PLINK) or TSV columns (TextTableReader)
     def rename_samples(self, mapping):
         """Rename samples.
 
@@ -4300,13 +4283,58 @@ class VariantDataset(HistoryMixin):
         >>> mapping_dict = {row.old_id: row.new_id for row in mapping_table.collect()}
         >>> vds_result = vds.rename_samples(mapping_dict)
 
-        :param dict mapping: Mapping from old to new sample IDs.
+        Rename samples by replacing spaces with underscores:
+
+        >>> new_id_list = [s.replace(' ', '_') for s in vds.sample_ids]
+        >>> vds_result = vds.rename_samples(new_id_list)
+
+        **Notes**
+
+        This method either takes a dict or a list as an argument. If a
+        dict is passed, then each sample found as a key in the dict will
+        be renamed to the value. Samples not found in the dict will be
+        unchanged.
+
+        If a list is passed, this list must contain the same number of
+        elements as the dataset. Samples are renamed by index.
+
+        :param mapping: Mapping from old to new sample IDs.
+        :type mapping: list of str or dict of str to str
 
         :return: Dataset with remapped sample IDs.
         :rtype: :class:`.VariantDataset`
         """
 
         jvds = self._jvds.renameSamples(mapping)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
+    def rename_duplicates(self):
+        """Rename duplicate samples.
+
+        **Examples**
+
+        >>> vds_result = vds.rename_duplicates()
+        >>> duplicate_sample_ids = vds.query_samples(
+        ...     'samples.filter(s => s != sa.originalID).map(s => sa.originalID).collectAsSet()')
+
+        **Notes**
+
+        This method produces a dataset with unique sample identifiers by appending
+        a unique suffix ``_N`` to duplicate samples. For example, if the id "NA12878"
+        appears three times in the dataset, the first will be left as "NA12878", the
+        second will be renamed "NA12878_1", and the third will be "NA12878_2". The
+        original ID is stored in sample annotations.
+
+        **Annotations**
+
+        :py:meth:`~hail.VariantDataset.rename_duplicates` adds one sample annotation:
+
+         - **sa.originalID** (*String*) -- Original sample ID.
+        """
+
+        jvds = self._jvds.renameDuplicates()
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

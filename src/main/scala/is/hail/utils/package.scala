@@ -495,6 +495,28 @@ package object utils extends Logging
       1 + digitsNeeded(i / 10)
   }
 
+  def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
+    val b = new ArrayBuilder[String]
+
+    val uniques = new mutable.HashSet[String]()
+    val mapping = new ArrayBuilder[(String, String)]
+
+    strs.foreach { s =>
+      var smod = s
+      var i = 0
+      while (uniques.contains(smod)) {
+        i += 1
+        smod = s + formatter(i)
+      }
+
+      if (smod != s)
+        mapping += s -> smod
+      uniques += smod
+      b += smod
+    }
+
+    b.result() -> mapping.result()
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

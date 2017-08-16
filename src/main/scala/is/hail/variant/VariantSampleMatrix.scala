@@ -299,6 +299,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
   }
 
+  def requireUniqueSamples(method: String) {
+    val dups = sampleIds.counter().filter(_._2 > 1).toArray
+    if (dups.nonEmpty)
+      fatal(s"Method '$method' does not support duplicate sample IDs. Duplicates:" +
+        s"  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
+  }
+
   def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
 
     val (keysType, keysQuerier) = queryVA(variantKeysVA)
@@ -1601,22 +1608,31 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     (t, f2)
   }
 
+  def renameSamples(newIds: java.util.ArrayList[Annotation]): VariantSampleMatrix[RPK, RK, T] =
+    renameSamples(newIds.asScala.toArray)
+
+  def renameSamples(newIds: Array[Annotation]): VariantSampleMatrix[RPK, RK, T] = {
+    if (newIds.length != sampleIds.length)
+      fatal(s"dataset contains $nSamples samples, but new ID list contains ${ newIds.length }")
+    copy(sampleIds = newIds)
+  }
+
   def renameSamples(mapping: java.util.Map[Annotation, Annotation]): VariantSampleMatrix[RPK, RK, T] =
     renameSamples(mapping.asScala.toMap)
 
   def renameSamples(mapping: Map[Annotation, Annotation]): VariantSampleMatrix[RPK, RK, T] = {
-    requireSampleTString("rename samples")
-
-    val newSamples = mutable.Set.empty[Annotation]
-    val newSampleIds = sampleIds
-      .map { s =>
-        val news = mapping.getOrElse(s, s)
-        if (newSamples.contains(news))
-          fatal(s"duplicate sample ID `$news' after rename")
-        newSamples += news
-        news
-      }
+    val newSampleIds = sampleIds.map(s => mapping.getOrElse(s, s))
     copy(sampleIds = newSampleIds)
+  }
+
+  def renameDuplicates(): VariantSampleMatrix[RPK, RK, T] = {
+    requireSampleTString("rename duplicates")
+    val (newIds, duplicates) = mangle(stringSampleIds.toArray)
+    info(s"Renamed ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
+      s"Mangled IDs as follows:\n  @1", duplicates.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
+    val (newSchema, ins) = insertSA(TString, "originalID")
+    val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) => ins(sa, s) }
+    copy(sampleIds = newIds, saSignature = newSchema, sampleAnnotations = newAnnotations)
   }
 
   def same(that: VariantSampleMatrix[RPK, RK, T], tolerance: Double = utils.defaultTolerance): Boolean = {

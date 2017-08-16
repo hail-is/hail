@@ -976,3 +976,9 @@ class ContextTests(unittest.TestCase):
                     ti32, ti64, tf32, tf64, ts, tb,
                     tdict, tarray, tset, tstruct]:
             self.assertEqual(eval(repr(typ)), typ)
+
+    def test_rename_duplicates(self):
+        vds = hc.import_vcf('src/test/resources/duplicate_ids.vcf')
+        vds = vds.rename_duplicates()
+        duplicate_sample_ids = vds.query_samples('samples.filter(s => s != sa.originalID).map(s => sa.originalID).collectAsSet()')
+        self.assertEqual(duplicate_sample_ids, {'5', '10'})

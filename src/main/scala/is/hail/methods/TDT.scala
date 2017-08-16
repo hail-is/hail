@@ -54,6 +54,7 @@ object TDT {
   }
 
   def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio], path: List[String]): VariantDataset = {
+    vds.requireUniqueSamples("tdt")
 
     // Remove trios with an undefined sex.
     val trios = preTrios.filter(_.sex.isDefined)

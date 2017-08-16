@@ -42,12 +42,10 @@ object LinearMixedRegression {
     val pathVA = Parser.parseAnnotationRoot(rootVA, Annotation.VARIANT_HEAD)
     Parser.validateAnnotationRoot(rootGA, Annotation.GLOBAL_HEAD)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
-    val completeSamplesSet = completeSamples.toSet
-    val sampleMask = assocVds.sampleIds.map(completeSamplesSet).toArray
-    val completeSampleIndex = (0 until assocVds.nSamples)
-      .filter(i => completeSamplesSet(assocVds.sampleIds(i)))
-      .toArray
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(assocVds, yExpr, covExpr)
+    val completeSampleSet = completeSampleIndex.toSet
+    val completeSampleStrings = completeSampleIndex.map(assocVds.sampleIds)
+    val sampleMask = (0 until assocVds.nSamples).map(completeSampleSet).toArray
 
     optDelta.foreach(delta =>
       if (delta <= 0d)
@@ -55,11 +53,11 @@ object LinearMixedRegression {
 
     val covNames = "intercept" +: covExpr
 
-    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSamples)
+    val filteredKinshipMatrix = if (kinshipMatrix.sampleIds sameElements completeSampleStrings)
       kinshipMatrix
     else {
-      val fkm = kinshipMatrix.filterSamples(completeSamplesSet)
-      if (!(fkm.sampleIds sameElements completeSamples))
+      val fkm = kinshipMatrix.filterSamples(completeSampleStrings.toSet)
+      if (!(fkm.sampleIds sameElements completeSampleStrings))
         fatal("Array of sample IDs in assoc_vds and array of sample IDs in kinship_matrix (with both filtered to complete " +
           "samples in assoc_vds) do not agree. This should not happen when kinship_matrix is computed from a filtered version of assoc_vds.")
       fkm

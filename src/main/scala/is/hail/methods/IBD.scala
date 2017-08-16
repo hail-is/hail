@@ -258,6 +258,8 @@ object IBD {
     min: Option[Double] = None,
     max: Option[Double] = None): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
 
+    vds.requireUniqueSamples("ibd")
+
     val sampleIds = vds.sampleIds
 
     computeIBDMatrix(vds, computeMaf, bounded)
@@ -303,6 +305,8 @@ object IBDPrune {
     tiebreakerExpr: Option[String] = None,
     computeMafExpr: Option[String] = None,
     bounded: Boolean = true): VariantDataset = {
+
+    vds.requireUniqueSamples("ibd_prune")
 
     val sc = vds.sparkContext
 

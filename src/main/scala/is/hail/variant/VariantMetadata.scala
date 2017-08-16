@@ -15,7 +15,6 @@ case class VSMLocalValue(
   globalAnnotation: Annotation,
   sampleIds: IndexedSeq[Annotation],
   sampleAnnotations: IndexedSeq[Annotation]) {
-  assert(sampleIds.areDistinct(), s"Sample ID names are not distinct: ${ sampleIds.duplicates().mkString(", ") }")
   assert(sampleIds.length == sampleAnnotations.length)
 
   def nSamples: Int = sampleIds.length

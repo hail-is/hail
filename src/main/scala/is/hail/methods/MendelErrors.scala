@@ -66,6 +66,7 @@ object MendelErrors {
   }
 
   def apply(vds: VariantDataset, preTrios: IndexedSeq[CompleteTrio]): MendelErrors = {
+    vds.requireUniqueSamples("mendel_errors")
 
     val trios = preTrios.filter(_.sex.isDefined)
     val nSamplesDiscarded = preTrios.size - trios.size
