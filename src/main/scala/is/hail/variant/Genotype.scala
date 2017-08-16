@@ -78,6 +78,14 @@ abstract class Genotype extends Serializable {
     else
       unboxedPX
 
+  def unboxedLinear: Array[Int] =
+    if (unboxedPX == null)
+      null
+    else if (isLinearScale)
+      unboxedPX
+    else
+      Genotype.weightsToLinear(unboxedPX)
+
   def unboxedGP: Array[Double] =
     if (unboxedPX == null)
       null
@@ -1230,7 +1238,8 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
     gq = newGQ
   }
 
-  def setPX(newPX: Array[Int]) {
+  def setPX(newPX: Array[Int], pxIsLinearScale: Boolean) {
+    assert(pxIsLinearScale == isLinearScale)
     if (newPX.length != nGenotypes)
       fatal(s"invalid PL field `${ newPX.mkString(",") }': expected $nGenotypes values, but got ${ newPX.length }.")
     flags = Genotype.flagSetHasPX(flags)
@@ -1246,7 +1255,19 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
     g.ad.foreach(setAD)
     g.dp.foreach(setDP)
     g.gq.foreach(setGQ)
-    g.px.foreach(setPX)
+
+    val unboxedPX = g.unboxedPX
+    if (unboxedPX != null) {
+
+      if (g.isLinearScale == isLinearScale)
+        setPX(unboxedPX, g.isLinearScale)
+      else {
+        if (isLinearScale)
+          setPX(g.unboxedPL, pxIsLinearScale = true)
+        else
+          setPX(g.unboxedLinear, pxIsLinearScale = false)
+      }
+    }
 
     if (g.fakeRef)
       setFakeRef()
@@ -1258,16 +1279,6 @@ class GenotypeBuilder(nAlleles: Int, isLinearScale: Boolean = false) {
     val hasDP = Genotype.flagHasDP(flags)
     val hasGQ = Genotype.flagHasGQ(flags)
     val hasPX = Genotype.flagHasPX(flags)
-
-    if (isLinearScale) {
-      if (hasPX) {
-        Genotype.gtFromLinear(px) match {
-          case Some(gt2) => assert(hasGT && gt == gt2)
-          case None => assert(!hasGT)
-        }
-      } else
-        assert(!hasGT)
-    }
 
     var j = 0
     var k = 0

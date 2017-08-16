@@ -77,7 +77,7 @@ object SplitMulti {
             val plx = gplx.iterator.zipWithIndex
               .map { case (p, k) => (splitGT(k, i), p) }
               .reduceByKeyToArray(3, Int.MaxValue)(_ min _)
-            gb.setPX(plx)
+            gb.setPX(plx, pxIsLinearScale = false)
 
             if (!propagateGQ) {
               val gq = Genotype.gqFromPL(plx)
@@ -91,7 +91,7 @@ object SplitMulti {
               .reduceByKeyToArray(3, 0)(_ + _)
 
             val px = Genotype.weightsToLinear(splitpx)
-            gb.setPX(px)
+            gb.setPX(px, pxIsLinearScale = true)
             px
           }
 

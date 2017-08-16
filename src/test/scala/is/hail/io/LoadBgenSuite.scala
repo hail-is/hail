@@ -234,13 +234,13 @@ class LoadBgenSuite extends SparkSuite {
     vds.rdd.foreachPartition { it =>
       val missingSamples = new ArrayBuilder[Int]()
       val dosages2 = new DenseVector[Double](nKept)
-      
+
       it.foreach { case (v, (va, gs)) =>
         val dosages1 = new DenseVector[Double](nKept)
         RegressionUtils.dosages(dosages1, gs, completeSampleIndicesBc.value, missingSamples)
 
         gs.asInstanceOf[Bgen12GenotypeIterator].dosages(dosages2, completeSampleIndicesBc.value, missingSamples)
-        
+
         for (i <- 0 until nKept)
           simpleAssert(dosages1(i) - dosages2(i) < 1e-3)
       }
@@ -300,5 +300,14 @@ class LoadBgenSuite extends SparkSuite {
       .annotateVariantsExpr("va.cr2 = gs.fraction(g => g.isCalled())")
       .variantsKT()
       .forall("va.cr1 == va.cr2"))
+  }
+
+  @Test def testHardcallsWrite() {
+    val file = tmpDir.createTempFile(extension = "vds")
+    
+    hc.indexBgen("src/test/resources/example.8bits.bgen")
+    hc.importBgen("src/test/resources/example.8bits.bgen")
+      .hardCalls()
+      .write(file)
   }
 }
