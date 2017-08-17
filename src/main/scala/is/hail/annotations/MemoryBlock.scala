@@ -555,17 +555,22 @@ class RegionValueBuilder(region: MemoryBuffer) {
 
         case TSet(elementType) =>
           val s = a.asInstanceOf[Set[Annotation]]
-          startArray(s.size)
+            .toArray
+            .sorted(elementType.ordering(true))
+          startArray(s.length)
           s.foreach { x => addAnnotation(elementType, x) }
           endArray()
 
-        case TDict(keyType, valueType) =>
+        case td: TDict =>
           val m = a.asInstanceOf[Map[Annotation, Annotation]]
+            .map { case (k, v) => Row(k, v) }
+            .toArray
+            .sorted(td.elementType.ordering(true))
           startArray(m.size)
-          m.foreach { case (k, v) =>
+          m.foreach { case Row(k, v) =>
             startStruct()
-            addAnnotation(keyType, k)
-            addAnnotation(valueType, v)
+            addAnnotation(td.keyType, k)
+            addAnnotation(td.valueType, v)
             endStruct()
           }
           endArray()
