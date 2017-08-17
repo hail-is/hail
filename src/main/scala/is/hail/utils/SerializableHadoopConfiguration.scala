@@ -19,11 +19,12 @@ class SerializableHadoopConfiguration(@volatile @transient var value: hadoop.con
   }
 
   override def write(kryo: Kryo, output: Output) {
-    writeObject(new ObjectOutputStream(output.getOutputStream()))
+    value.write(new ObjectOutputStream(output.getOutputStream()))
   }
 
   override def read(kryo: Kryo, input: Input) {
-    readObject(new ObjectInputStream(input.getInputStream()))
+    value = new hadoop.conf.Configuration(false)
+    value.readFields(new ObjectInputStream(input.getInputStream()))
   }
 
 }
