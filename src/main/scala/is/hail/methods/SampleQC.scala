@@ -3,10 +3,8 @@ package is.hail.methods
 import is.hail.annotations.Annotation
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{AltAlleleType, GenericDataset, Genotype, Variant, VariantDataset}
+import is.hail.variant.{AltAlleleType, GenericDataset, Genotype, HTSGenotypeView, Variant}
 import org.apache.spark.util.StatCounter
-
-import scala.collection.mutable
 
 object SampleQCCombiner {
   val header = "callRate\t" +
@@ -21,6 +19,7 @@ object SampleQCCombiner {
     "nSingleton\t" +
     "nTransition\t" +
     "nTransversion\t" +
+    "nStar\t" +
     "dpMean\tdpStDev\t" +
     "gqMean\tgqStDev\t" +
     "nNonRef\t" +
@@ -40,6 +39,7 @@ object SampleQCCombiner {
     "nSingleton" -> TInt32,
     "nTransition" -> TInt32,
     "nTransversion" -> TInt32,
+    "nStar" -> TInt32,
     "dpMean" -> TFloat64,
     "dpStDev" -> TFloat64,
     "gqMean" -> TFloat64,
@@ -48,76 +48,76 @@ object SampleQCCombiner {
     "rTiTv" -> TFloat64,
     "rHetHomVar" -> TFloat64,
     "rInsertionDeletion" -> TFloat64)
+
+  val ti = 0
+  val tv = 1
+  val ins = 2
+  val del = 3
+  val star = 4
+
+  def alleleIndices(v: Variant): Array[Int] = {
+    val alleleTypes = v.altAlleles.map { a =>
+      a.altAlleleType match {
+        case AltAlleleType.SNP => if (a.isTransition) ti else tv
+        case AltAlleleType.Insertion => ins
+        case AltAlleleType.Deletion => del
+        case _ => -1
+      }
+    }.toArray
+
+    alleleTypes
+  }
 }
 
-class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
+class SampleQCCombiner extends Serializable {
   var nNotCalled: Int = 0
   var nHomRef: Int = 0
   var nHet: Int = 0
   var nHomVar: Int = 0
 
-  var nSNP: Int = 0
-  var nIns: Int = 0
-  var nDel: Int = 0
+  val aCounts: Array[Int] = Array.fill[Int](5)(0)
   var nSingleton: Int = 0
-  var nTi: Int = 0
-  var nTv: Int = 0
 
   val dpSC: StatCounter = new StatCounter()
 
   val gqSC: StatCounter = new StatCounter()
 
-  // FIXME per-genotype
+  def merge(aTypes: Array[Int], acs: Array[Int], view: HTSGenotypeView): SampleQCCombiner = {
 
-  def merge(v: Variant, acs: Array[Int], g: Genotype): SampleQCCombiner = {
-
-    val gt = Genotype.unboxedGT(g)
-    if (gt < 0)
-      nNotCalled += 1
-    else {
-      if (gt == 0) {
+    if (view.hasGT) {
+      val gt = view.getGT
+      if (gt == 0)
         nHomRef += 1
-      } else {
+      else {
         val gtPair = Genotype.gtPair(gt)
+        val j = gtPair.j
+        val k = gtPair.k
 
-        def mergeAllele(ai: Int) {
-          if (ai > 0 && (keepStar || !v.altAlleles(ai - 1).isStar)) {
-
-            val altAllele = v.altAlleles(ai - 1)
-            altAllele.altAlleleType match {
-              case AltAlleleType.SNP =>
-                nSNP += 1
-                if (altAllele.isTransition)
-                  nTi += 1
-                else
-                  nTv += 1
-              case AltAlleleType.Insertion =>
-                nIns += 1
-              case AltAlleleType.Deletion =>
-                nDel += 1
-              case _ =>
-            }
-
-            if (acs(ai) == 1)
+        def mergeAllele(idx: Int) {
+          if (idx > 0) {
+            val aType = aTypes(idx - 1)
+            aCounts(aType) += 1
+            if (acs(idx) == 1)
               nSingleton += 1
           }
         }
 
-        mergeAllele(gtPair.j)
-        mergeAllele(gtPair.k)
+        mergeAllele(j)
+        mergeAllele(k)
 
-        if (gtPair.j != gtPair.k)
+        if (j != k)
           nHet += 1
         else
           nHomVar += 1
       }
+    } else nNotCalled += 1
+
+    if (view.hasDP) {
+      dpSC.merge(view.getDP)
     }
 
-    if (Genotype.unboxedDP(g) >= 0)
-      dpSC.merge(Genotype.unboxedDP(g))
-
-    if (Genotype.unboxedGQ(g) >= 0)
-      gqSC.merge(Genotype.unboxedGQ(g))
+    if (view.hasGQ)
+      gqSC.merge(view.getGQ)
 
     this
   }
@@ -128,12 +128,13 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
     nHet += that.nHet
     nHomVar += that.nHomVar
 
-    nSNP += that.nSNP
-    nIns += that.nIns
-    nDel += that.nDel
+    aCounts(0) += that.aCounts(0)
+    aCounts(1) += that.aCounts(1)
+    aCounts(2) += that.aCounts(2)
+    aCounts(3) += that.aCounts(3)
+    aCounts(4) += that.aCounts(4)
+
     nSingleton += that.nSingleton
-    nTi += that.nTi
-    nTv += that.nTv
 
     dpSC.merge(that.dpSC)
     gqSC.merge(that.gqSC)
@@ -141,7 +142,12 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
     this
   }
 
-  def asAnnotation: Annotation =
+  def asAnnotation: Annotation = {
+    val nTi = aCounts(SampleQCCombiner.ti)
+    val nTv = aCounts(SampleQCCombiner.tv)
+    val nIns = aCounts(SampleQCCombiner.ins)
+    val nDel = aCounts(SampleQCCombiner.del)
+    val nStar = aCounts(SampleQCCombiner.star)
     Annotation(
       divNull(nHomRef + nHet + nHomVar, nHomRef + nHet + nHomVar + nNotCalled),
       nHomRef + nHet + nHomVar,
@@ -149,12 +155,13 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
       nHomRef,
       nHet,
       nHomVar,
-      nSNP,
+      nTi + nTv,
       nIns,
       nDel,
       nSingleton,
       nTi,
       nTv,
+      nStar,
       nullIfNot(dpSC.count > 0, dpSC.mean),
       nullIfNot(dpSC.count > 0, dpSC.stdev),
       nullIfNot(gqSC.count > 0, gqSC.mean),
@@ -163,52 +170,68 @@ class SampleQCCombiner(val keepStar: Boolean) extends Serializable {
       divNull(nTi, nTv),
       divNull(nHet, nHomVar),
       divNull(nIns, nDel))
+  }
 }
 
 object SampleQC {
-  def results(vds: GenericDataset, keepStar: Boolean): Map[Annotation, SampleQCCombiner] = {
-    val extract = Genotype.buildGenotypeExtractor(vds.genotypeSignature)
-
+  def results(vds: GenericDataset): Map[Annotation, SampleQCCombiner] = {
     val depth = treeAggDepth(vds.hc, vds.nPartitions)
-    vds.sampleIds.iterator
-      .zip(
-        vds
-          .rdd
-          .treeAggregate(Array.fill[SampleQCCombiner](vds.nSamples)(new SampleQCCombiner(keepStar)))({ case (acc, (v, (va, gs))) =>
+    val rowSignature = vds.rowSignature
+    val nSamples = vds.nSamples
+    if (vds.rdd.partitions.nonEmpty)
+      vds.sampleIds.iterator
+        .zip(vds.unsafeRowRDD
+          .mapPartitions { it =>
+            val view = HTSGenotypeView(rowSignature)
+            val acc = Array.fill[SampleQCCombiner](nSamples)(new SampleQCCombiner)
 
-            val acs = Array.fill(v.asInstanceOf[Variant].nAlleles)(0)
-            gs.foreach { a =>
-              val g = extract(a)
-              if (Genotype.unboxedGT(g) >= 0) {
-                val gtPair = Genotype.gtPair(Genotype.unboxedGT(g))
-                acs(gtPair.j) += 1
-                acs(gtPair.k) += 1
+            it.foreach { r =>
+              view.setRegion(r.region, r.offset)
+              val v = r.getAs[Variant](0)
+              val ais = SampleQCCombiner.alleleIndices(v)
+              val acs = Array.fill(v.asInstanceOf[Variant].nAlleles)(0)
+
+              // first pass to compute allele counts
+              var i = 0
+              while (i < nSamples) {
+                view.setGenotype(i)
+
+                if (view.hasGT) {
+                  val gt = view.getGT
+                  val gtPair = Genotype.gtPair(gt)
+                  acs(gtPair.j) += 1
+                  acs(gtPair.k) += 1
+                }
+
+                i += 1
+              }
+
+              // second pass to add to sample statistics
+              i = 0
+              while (i < nSamples) {
+                view.setGenotype(i)
+                acc(i).merge(ais, acs, view)
+                i += 1
               }
             }
 
-            var i = 0
-            gs.foreach { a =>
-              val g = extract(a)
-              acc(i).merge(v.asInstanceOf[Variant], acs, g)
-              i += 1
-            }
-
-            acc
-          }, { case (comb1, comb2) =>
-            for (i <- comb1.indices)
-              comb1(i).merge(comb2(i))
-            comb1
-          }, depth)
-          .iterator)
-      .toMap
+            Iterator(acc)
+          }.treeReduce({ case (accs1, accs2) =>
+          assert(accs1.length == accs2.length)
+          var i = 0
+          while (i < accs1.length) {
+            accs1(i) = accs1(i).merge(accs2(i))
+            i += 1
+          }
+          accs1
+        }, depth).iterator).toMap
+    else
+      vds.sampleIds.iterator.map(s => (s, new SampleQCCombiner)).toMap
   }
 
-  def apply(vds: GenericDataset, root: String, keepStar: Boolean): GenericDataset = {
-
-    val r = results(vds, keepStar)
+  def apply(vds: GenericDataset, root: String): GenericDataset = {
+    val r = results(vds)
     vds.annotateSamples(SampleQCCombiner.signature,
-      Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), { (x: Annotation) =>
-        r.get(x).map(_.asAnnotation).orNull
-      })
+      Parser.parseAnnotationRoot(root, Annotation.SAMPLE_HEAD), { (x: Annotation) => r(x).asAnnotation })
   }
 }

@@ -536,7 +536,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     PCRelate.toKeyTable(vds, pcs, maf, blockSize)
   }
 
-  def sampleQC(root: String = "sa.qc", keepStar: Boolean = false): VariantDataset = SampleQC(vds.toGDS, root, keepStar).toVDS
+  def sampleQC(root: String = "sa.qc"): VariantDataset = SampleQC(vds.toGDS, root).toVDS
 
   def rrm(forceBlock: Boolean = false, forceGramian: Boolean = false): KinshipMatrix = {
     requireSplit("rrm")

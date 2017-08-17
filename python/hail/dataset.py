@@ -4737,16 +4737,15 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(root=strlike,
-                      keep_star=bool)
-    def sample_qc(self, root='sa.qc', keep_star=False):
+    @typecheck_method(root=strlike)
+    def sample_qc(self, root='sa.qc'):
         """Compute per-sample QC metrics.
 
         .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Annotations**
 
-        :py:meth:`~hail.VariantDataset.sample_qc` computes 20 sample statistics from the 
+        :py:meth:`~hail.VariantDataset.sample_qc` computes sample statistics from the
         genotype data and stores the results as sample annotations that can be accessed with
         ``sa.qc.<identifier>`` (or ``<root>.<identifier>`` if a non-default root was passed):
 
@@ -4777,6 +4776,8 @@ class VariantDataset(HistoryMixin):
         +---------------------------+--------+----------------------------------------------------------+
         | ``nTransversion``         | Int    | Number of transversion alternate alleles                 |
         +---------------------------+--------+----------------------------------------------------------+
+        | ``nStar``                 | Int    | Number of star (upstream deletion) alleles               |
+        +---------------------------+--------+----------------------------------------------------------+
         | ``nNonRef``               | Int    | Sum of ``nHet`` and ``nHomVar``                          |
         +---------------------------+--------+----------------------------------------------------------+
         | ``rTiTv``                 | Double | Transition/Transversion ratio                            |
@@ -4794,16 +4795,17 @@ class VariantDataset(HistoryMixin):
         | ``gqStDev``               | Double | Genotype quality standard deviation across all genotypes |
         +---------------------------+--------+----------------------------------------------------------+
 
-        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly in filtering and written as "NA" in export modules. The empirical standard deviation is computed with zero degrees of freedom.
+        Missing values ``NA`` may result (for example, due to division by zero) and are handled properly
+         in filtering and written as "NA" in export modules. The empirical standard deviation is computed
+         with zero degrees of freedom.
 
         :param str root: Sample annotation root for the computed struct.
-        :param bool keep_star: Count star alleles as non-reference alleles
-        
+
         :return: Annotated variant dataset with new sample qc annotations.
         :rtype: :class:`.VariantDataset`
         """
 
-        return VariantDataset(self.hc, self._jvdf.sampleQC(root, keep_star))
+        return VariantDataset(self.hc, self._jvdf.sampleQC(root))
 
     @handle_py4j
     def storage_level(self):

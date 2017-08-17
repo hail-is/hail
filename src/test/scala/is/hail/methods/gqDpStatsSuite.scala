@@ -29,7 +29,7 @@ class gqDpStatsSuite extends SparkSuite {
       .query(Array("index(v.map(v => {v: v, dpMean: va.qc.dpMean, dpStDev: va.qc.dpStDev}).collect(), v)"))
       .apply(0)._1.asInstanceOf[Map[Variant, Row]]
 
-    val dpSampleR = SampleQC.results(dpVds.toGDS, keepStar = true)
+    val dpSampleR = SampleQC.results(dpVds.toGDS)
 
     val samplePositionMap = dpVds.sampleIds.zipWithIndex.toMap
 
@@ -44,8 +44,7 @@ class gqDpStatsSuite extends SparkSuite {
 
     dpSampleR.foreach {
       case (s, a) =>
-        //        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a(1).asInstanceOf[Double], sampleMeans(s), a(2)
-        //          .asInstanceOf[Double], sampleDevs(s)))
+//        println("Mean: Computed=%.2f, True=%.2f | Dev: Computed=%.2f, True=%.2f".format(a.dpSC.mean, sampleMeans(samplePositionMap(s)), a.dpSC.stdev, sampleDevs(samplePositionMap(s))))
         simpleAssert(D_==(a.dpSC.mean, sampleMeans(samplePositionMap(s))))
         simpleAssert(D_==(a.dpSC.stdev, sampleDevs(samplePositionMap(s))))
     }
@@ -58,7 +57,7 @@ class gqDpStatsSuite extends SparkSuite {
       .variantsKT()
       .query(Array("index(v.map(v => {v: v, gqMean: va.qc.gqMean, gqStDev: va.qc.gqStDev}).collect(), v)"))
       .apply(0)._1.asInstanceOf[Map[Variant, Row]]
-    val gqSampleR = SampleQC.results(gqVds.toGDS, keepStar = true)
+    val gqSampleR = SampleQC.results(gqVds.toGDS)
 
     gqVariantR.foreach {
       case (v, Row(mean, stdev)) =>
