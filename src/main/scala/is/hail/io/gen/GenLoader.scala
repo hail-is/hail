@@ -20,7 +20,7 @@ object GenLoader {
     val hConf = sc.hadoopConfiguration
     val preIds = BgenLoader.readSampleFile(hConf, sampleFile)
 
-    val (sampleIds, duplicates) = mangle(preIds, "D" * _)
+    val (sampleIds, duplicates) = mangle(preIds)
     if (duplicates.nonEmpty) {
       if (mangleDuplicates)
         warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",

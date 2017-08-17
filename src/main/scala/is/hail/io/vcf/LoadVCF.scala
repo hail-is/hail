@@ -198,7 +198,7 @@ object LoadVCF {
         Array.empty[String]
       else headerLine.split("\t").drop(9)
 
-    val (sampleIds, duplicates) = mangle(preIds, "D" * _)
+    val (sampleIds, duplicates) = mangle(preIds)
     if (duplicates.nonEmpty) {
       if (mangleDuplicates)
         warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
