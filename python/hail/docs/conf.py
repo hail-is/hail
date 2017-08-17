@@ -105,6 +105,8 @@ hc = HailContext(log="output/hail.log", quiet=True)
 
 vds = hc.read('data/example.vds')
 
+vds.split_multi().ld_matrix().write("data/ld_matrix")
+
 """
 
 doctest_global_cleanup = """import shutil, os

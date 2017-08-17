@@ -53,7 +53,7 @@ class LDMatrix:
 
         Write an LD matrix to a file.
 
-        >>> vds.ld_matrix().write('data/ld_matrix')
+        >>> vds.ld_matrix().write('output/ld_matrix')
 
         :param path: the path to which to write the LD matrix
         :type path: str
