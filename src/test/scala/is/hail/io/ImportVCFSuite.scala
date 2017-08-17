@@ -1,10 +1,9 @@
 package is.hail.io
 
-import is.hail.check._
 import is.hail.check.Prop._
 import is.hail.SparkSuite
 import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF}
-import is.hail.variant.{Call, Genotype, Variant, VariantSampleMatrix, VSMSubgen}
+import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, VariantSampleMatrix}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
@@ -202,5 +201,17 @@ class ImportVCFSuite extends SparkSuite {
 
       truth.same(actual)
     }.check()
+  }
+
+  @Test def notIdenticalHeaders() {
+    val tmp1 = tmpDir.createTempFile("sample1", ".vcf")
+    val tmp2 = tmpDir.createTempFile("sample2", ".vcf")
+
+    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val sampleIds = vds.sampleIds
+    vds.filterSamplesList(Set(sampleIds(0))).exportVCF(tmp1)
+    vds.filterSamplesList(Set(sampleIds(1))).exportVCF(tmp2)
+
+    intercept[HailException] (hc.importVCFs(Array(tmp1, tmp2)))
   }
 }

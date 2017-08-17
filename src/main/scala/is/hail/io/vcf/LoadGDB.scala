@@ -95,7 +95,7 @@ object LoadGDB {
     val infoSignature = LoadVCF.headerSignature(infoHeader)
 
     val formatHeader = header.getFormatHeaderLines
-    val (genotypeSignature, canonicalFlags) = LoadVCF.formatHeaderSignatue(formatHeader, reader.callFields)
+    val (genotypeSignature, canonicalFlags) = LoadVCF.formatHeaderSignature(formatHeader, reader.callFields)
 
     val variantAnnotationSignatures = TStruct(Array(
       Field("rsid", TString, 0),
