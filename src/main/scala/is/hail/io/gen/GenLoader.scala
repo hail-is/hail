@@ -15,13 +15,22 @@ case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Anno
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext,
     nPartitions: Option[Int] = None, tolerance: Double = 0.02,
-    chromosome: Option[String] = None): GenResult = {
+    chromosome: Option[String] = None, mangleDuplicates: Boolean = false): GenResult = {
 
     val hConf = sc.hadoopConfiguration
-    val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
+    val preIds = BgenLoader.readSampleFile(hConf, sampleFile)
 
-    if (sampleIds.length != sampleIds.toSet.size)
-      fatal(s"Duplicate sample IDs exist in $sampleFile")
+    val (sampleIds, duplicates) = mangle(preIds)
+    if (duplicates.nonEmpty) {
+      if (mangleDuplicates)
+        warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
+          duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
+      else
+        fatal(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
+          s"Use argument 'mangle_duplicates' or fix problem manually.\n" +
+          s"  Duplicate IDs: [ @1 ]",
+          duplicates.map { case (id, _) => '"' + id + '"' }.truncatable())
+    }
 
     val nSamples = sampleIds.length
 
@@ -75,11 +84,11 @@ object GenLoader {
 
       val a =
         if (math.abs(sumDosages - 1.0) <= tolerance) {
-        val gp = Array(d0, d1, d2)
-        val gt = Genotype.unboxedGTFromLinear(gp)
+          val gp = Array(d0, d1, d2)
+          val gt = Genotype.unboxedGTFromLinear(gp)
           Annotation(gt, gp: IndexedSeq[Double])
-      } else
-        null
+        } else
+          null
 
       gsb += a
     }

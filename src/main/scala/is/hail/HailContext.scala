@@ -183,7 +183,7 @@ object HailContext {
     val hc = new HailContext(sparkContext, sqlContext, tmpDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
-    info(s"Running Hail version ${hc.version}")
+    info(s"Running Hail version ${ hc.version }")
     hc
   }
 }
@@ -215,14 +215,16 @@ class HailContext private(val sc: SparkContext,
   def importBgen(file: String,
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): GenericDataset = {
-    importBgens(List(file), sampleFile, tolerance, nPartitions)
+    nPartitions: Option[Int] = None,
+    mangleDuplicates: Boolean = false): GenericDataset = {
+    importBgens(List(file), sampleFile, tolerance, nPartitions, mangleDuplicates)
   }
 
   def importBgens(files: Seq[String],
     sampleFile: Option[String] = None,
     tolerance: Double = 0.2,
-    nPartitions: Option[Int] = None): GenericDataset = {
+    nPartitions: Option[Int] = None,
+    mangleDuplicates: Boolean = false): GenericDataset = {
 
     val inputs = hadoopConf.globAll(files).flatMap { file =>
       if (!file.endsWith(".bgen"))
@@ -239,14 +241,15 @@ class HailContext private(val sc: SparkContext,
     if (inputs.isEmpty)
       fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
 
-    BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions)
+    BgenLoader.load(this, inputs, sampleFile, tolerance, nPartitions, mangleDuplicates)
   }
 
   def importGen(file: String,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): GenericDataset = {
+    tolerance: Double = 0.2,
+    mangleDuplicates: Boolean = false): GenericDataset = {
     importGens(List(file), sampleFile, chromosome, nPartitions, tolerance)
   }
 
@@ -254,7 +257,8 @@ class HailContext private(val sc: SparkContext,
     sampleFile: String,
     chromosome: Option[String] = None,
     nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2): GenericDataset = {
+    tolerance: Double = 0.2,
+    mangleDuplicates: Boolean = false): GenericDataset = {
     val inputs = hadoopConf.globAll(files)
 
     inputs.foreach { input =>
@@ -355,9 +359,10 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false): GenericDataset = {
+    quantPheno: Boolean = false,
+    mangleDuplicates: Boolean = false): GenericDataset = {
 
-    val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
+    val ffConfig = FamFileConfig(quantPheno, delimiter, missing, mangleDuplicates)
 
     PlinkLoader(this, bed, bim, fam,
       ffConfig, nPartitions)
@@ -367,9 +372,10 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int] = None,
     delimiter: String = "\\\\s+",
     missing: String = "NA",
-    quantPheno: Boolean = false): GenericDataset = {
+    quantPheno: Boolean = false,
+    mangleDuplicates: Boolean = false): GenericDataset = {
     importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno)
+      nPartitions, delimiter, missing, quantPheno, mangleDuplicates)
   }
 
   def checkDatasetSchemasCompatible(datasets: Array[VariantSampleMatrix[_, _, _]], inputs: Array[String]) {
@@ -468,16 +474,19 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false): VariantDataset = {
-    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples)
+    dropSamples: Boolean = false,
+    mangleDuplicates: Boolean = false): VariantDataset = {
+    importVCFs(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, mangleDuplicates)
   }
 
   def importVCFs(files: Seq[String], force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false): VariantDataset = {
-    val m = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples)
+    dropSamples: Boolean = false,
+    mangleDuplicates: Boolean = false): VariantDataset = {
+    val m = importVCFsGeneric(files, force, forceBGZ, headerFile, nPartitions, dropSamples,
+      mangleDuplicates = mangleDuplicates)
     val extractG = Genotype.buildGenotypeExtractor(m.genotypeSignature)
     m.copy(
       rdd = m.rdd.mapValuesWithKey { case (v, (va, gs)) =>
@@ -499,8 +508,9 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String]): VariantSampleMatrix[Locus, Variant, Annotation] = {
-    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields)
+    callFields: Set[String] = Set.empty[String],
+    mangleDuplicates: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    importVCFsGeneric(List(file), force, forceBGZ, headerFile, nPartitions, dropSamples, callFields, mangleDuplicates)
   }
 
   def importVCFsGeneric(files: Seq[String], force: Boolean = false,
@@ -508,7 +518,8 @@ class HailContext private(val sc: SparkContext,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String]): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    callFields: Set[String] = Set.empty[String],
+    mangleDuplicates: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
 
     val inputs = LoadVCF.globAllVCFs(hadoopConf.globAll(files), hadoopConf, force || forceBGZ)
 
@@ -521,7 +532,7 @@ class HailContext private(val sc: SparkContext,
         codecs.replaceAllLiterally("org.apache.hadoop.io.compress.GzipCodec", "is.hail.io.compress.BGzipCodecGZ"))
 
     val reader = new HtsjdkRecordReader(callFields)
-    val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples)
+    val vkds = LoadVCF(this, reader, header, inputs, nPartitions, dropSamples, mangleDuplicates)
 
     hadoopConf.set("io.compression.codecs", codecs)
 

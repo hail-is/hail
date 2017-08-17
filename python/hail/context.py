@@ -172,8 +172,9 @@ class HailContext(object):
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       tolerance=numeric,
                       sample_file=nullable(strlike),
-                      min_partitions=nullable(integral))
-    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None):
+                      min_partitions=nullable(integral),
+                      mangle_duplicates=bool)
+    def import_bgen(self, path, tolerance=0.2, sample_file=None, min_partitions=None, mangle_duplicates=False):
         """Import .bgen file(s) as variant dataset.
 
         **Examples**
@@ -232,7 +233,7 @@ class HailContext(object):
         """
 
         jvds = self._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                     tolerance, joption(min_partitions))
+                                     tolerance, joption(min_partitions), mangle_duplicates)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -240,8 +241,10 @@ class HailContext(object):
                       sample_file=nullable(strlike),
                       tolerance=numeric,
                       min_partitions=nullable(integral),
-                      chromosome=nullable(strlike))
-    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None):
+                      chromosome=nullable(strlike),
+                      mangle_duplicates=bool)
+    def import_gen(self, path, sample_file=None, tolerance=0.2, min_partitions=None, chromosome=None,
+                   mangle_duplicates=False):
         """Import .gen file(s) as variant dataset.
 
         **Examples**
@@ -296,7 +299,7 @@ class HailContext(object):
         """
 
         jvds = self._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                    tolerance)
+                                    tolerance, mangle_duplicates)
         return VariantDataset(self, jvds)
 
     @handle_py4j
@@ -470,8 +473,10 @@ class HailContext(object):
                       min_partitions=nullable(integral),
                       delimiter=strlike,
                       missing=strlike,
-                      quantpheno=bool)
-    def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False):
+                      quantpheno=bool,
+                      mangle_duplicates=bool)
+    def import_plink(self, bed, bim, fam, min_partitions=None, delimiter='\\\\s+', missing='NA', quantpheno=False,
+                     mangle_duplicates=False):
         """Import PLINK binary file (BED, BIM, FAM) as variant dataset.
 
         **Examples**
@@ -536,7 +541,8 @@ class HailContext(object):
         :rtype: :class:`.VariantDataset`
         """
 
-        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quantpheno)
+        jvds = self._jhc.importPlink(bed, bim, fam, joption(min_partitions), delimiter, missing, quantpheno,
+                                     mangle_duplicates)
 
         return VariantDataset(self, jvds)
 
@@ -577,9 +583,10 @@ class HailContext(object):
                       min_partitions=nullable(integral),
                       drop_samples=bool,
                       generic=bool,
-                      call_fields=oneof(strlike, listof(strlike)))
+                      call_fields=oneof(strlike, listof(strlike)),
+                      mangle_duplicates=bool)
     def import_vcf(self, path, force=False, force_bgz=False, header_file=None, min_partitions=None,
-                   drop_samples=False, generic=False, call_fields=[]):
+                   drop_samples=False, generic=False, call_fields=[], mangle_duplicates=False):
         """Import VCF file(s) as variant dataset.
 
         **Examples**
@@ -696,10 +703,11 @@ class HailContext(object):
 
         if generic:
             jvds = self._jhc.importVCFsGeneric(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                               joption(min_partitions), drop_samples, jset_args(call_fields))
+                                               joption(min_partitions), drop_samples, jset_args(call_fields),
+                                               mangle_duplicates)
         else:
             jvds = self._jhc.importVCFs(jindexed_seq_args(path), force, force_bgz, joption(header_file),
-                                        joption(min_partitions), drop_samples)
+                                        joption(min_partitions), drop_samples, mangle_duplicates)
 
         return VariantDataset(self, jvds)
 

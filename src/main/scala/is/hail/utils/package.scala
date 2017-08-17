@@ -492,4 +492,27 @@ package object utils extends Logging
     else
       1 + digitsNeeded(i / 10)
   }
+
+  def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
+    val b = new ArrayBuilder[String]
+
+    val uniques = new mutable.HashSet[String]()
+    val mapping = new ArrayBuilder[(String, String)]
+
+    strs.foreach { s =>
+      var smod = s
+      var i = 0
+      while (uniques.contains(smod)) {
+        i += 1
+        smod = s + formatter(i)
+      }
+
+      if (smod != s)
+        mapping += s -> smod
+      uniques += smod
+      b += smod
+    }
+
+    b.result() -> mapping.result()
+  }
 }
