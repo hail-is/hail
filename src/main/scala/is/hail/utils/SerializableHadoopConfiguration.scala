@@ -2,9 +2,12 @@ package is.hail.utils
 
 import java.io.{ObjectInputStream, ObjectOutputStream, Serializable}
 
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Output, Input}
+
 import org.apache.hadoop
 
-class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
+class SerializableHadoopConfiguration(@volatile @transient var value: hadoop.conf.Configuration) extends Serializable with KryoSerializable {
   private def writeObject(out: ObjectOutputStream) {
     out.defaultWriteObject()
     value.write(out)
@@ -14,4 +17,13 @@ class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configur
     value = new hadoop.conf.Configuration(false)
     value.readFields(in)
   }
+
+  override def write(kryo: Kryo, output: Output) {
+    writeObject(new ObjectOutputStream(output.getOutputStream()))
+  }
+
+  override def read(kryo: Kryo, input: Input) {
+    readObject(new ObjectInputStream(input.getInputStream()))
+  }
+
 }
