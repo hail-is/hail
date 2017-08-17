@@ -3591,6 +3591,9 @@ class VariantDataset(object):
         >>> annotated_vds = vds.annotate_variants_table(per_variant, root="va.mendel")
         
         **Notes**
+        
+        This method assumes all contigs apart from X and Y are fully autosomal;
+        mitochondria, decoys, etc. are not given special treatment.
 
         The example above returns four tables, which contain Mendelian violations grouped in
         various ways. These tables are modeled after the 
@@ -3702,9 +3705,6 @@ class VariantDataset(object):
 
         - X: 60001 - 2699520, 154931044 - 155260560
         - Y: 10001 - 2649520, 59034050 - 59363566
-
-        This method assumes all contigs apart from X and Y are fully autosomal;
-        mitochondria, decoys, etc. are not given special treatment.
 
         :param pedigree: Sample pedigree.
         :type pedigree: :class:`~hail.representation.Pedigree`
