@@ -202,12 +202,12 @@ object LoadVCF {
     if (duplicates.nonEmpty) {
       if (mangleDuplicates)
         warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
-          duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+          duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
       else
         fatal(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
           s"Use argument 'mangle_duplicates' or fix problem manually.\n" +
           s"  Duplicate IDs: [ @1 ]",
-          duplicates.map { case (id, _) => s"\"$id\"" }.truncatable())
+          duplicates.map { case (id, _) => '"' + id + '"' }.truncatable())
     }
 
     val infoSignatureBc = sc.broadcast(infoSignature)

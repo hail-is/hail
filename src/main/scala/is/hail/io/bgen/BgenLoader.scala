@@ -34,7 +34,7 @@ object BgenLoader {
         fatal(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
           s"Use argument 'mangle_duplicates' or fix problem manually.\n" +
           s"  Duplicate IDs: [ @1 ]",
-          duplicates.map { case (id, _) => s"\"$id\"" }.truncatable())
+          duplicates.map { case (id, _) => '"' + id + '"' }.truncatable())
     }
 
     val nSamples = sampleIds.length
