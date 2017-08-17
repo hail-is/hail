@@ -4711,8 +4711,9 @@ class VariantDataset(HistoryMixin):
                       weight_expr=nullable(strlike),
                       y=strlike,
                       covariates=listof(strlike),
-                      use_dosages=bool)
-    def skat(self, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False):
+                      use_dosages=bool,
+                      use_logistic=bool)
+    def skat(self, key_name, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False, use_logistic=False):
         """Test each keyed group of variants for association by linear SKAT test.
 
         **Examples**
@@ -4791,7 +4792,7 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response expression.
 
-        :param str weight_expr: Variant expression of numeric type for SKAT weight. When no weight is provided, weights are
+        :param str weight_expr: Variant expression of numeric type for positive SKAT weights. When no weight is provided, weights are
                            generated to from a beta distribution (alpha = 1, beta = 25) evalulated at the minor allele
                            frequency of each variant.
 
@@ -4800,13 +4801,15 @@ class VariantDataset(HistoryMixin):
 
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
+        :param bool use_logistic: If true, uses logistic regression rather than linear.
+
         :return: Key table of SKAT results.
 
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, joption(weight_expr), y,
-                                    jarray(Env.jvm().java.lang.String, covariates), use_dosages))
+        return KeyTable(self.hc, self._jvdf.skat(key_name, variant_keys, single_key, joption(weight_expr), y,
+                                    jarray(Env.jvm().java.lang.String, covariates), use_dosages, use_logistic))
 
     @handle_py4j
     @record_method
