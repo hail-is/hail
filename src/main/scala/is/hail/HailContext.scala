@@ -170,7 +170,7 @@ object HailContext {
       sc
     }
 
-    sc.getConf.registerKryoClasses(Array[Class[_]](classOf[is.hail.utils.SerializableHadoopConfiguration]))
+    sparkContext.getConf.registerKryoClasses(Array[Class[_]](classOf[is.hail.utils.SerializableHadoopConfiguration]))
 
     SparkHadoopUtil.get.conf.setLong("parquet.block.size", tera)
     sparkContext.hadoopConfiguration.set("io.compression.codecs",
