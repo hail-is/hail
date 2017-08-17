@@ -1,10 +1,15 @@
 package is.hail.distributedmatrix
 
+import is.hail._
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
+import org.apache.hadoop.io._
+import java.io._
+import org.json4s._
+import java.net._
 
 import scala.reflect.ClassTag
 
@@ -270,4 +275,97 @@ object BlockMatrixIsDistributedMatrix extends DistributedMatrix[BlockMatrix] {
   def toBlockRdd(m: M): RDD[((Int, Int), Matrix)] = m.blocks
 
   def toLocalMatrix(m: M): Matrix = m.toLocalMatrix()
+
+  private class PairWriter(var i: Int, var j: Int) extends Writable {
+    def this() {
+      this(0,0)
+    }
+
+    def write(out: DataOutput) {
+      out.writeInt(i)
+      out.writeInt(j)
+    }
+
+    def readFields(in: DataInput) {
+      i = in.readInt()
+      j = in.readInt()
+    }
+  }
+
+  private class MatrixWriter(var rows: Int, var cols: Int, var m: Array[Double]) extends Writable {
+    def this() {
+      this(0, 0, null)
+    }
+
+    def write(out: DataOutput) {
+      out.writeInt(rows)
+      out.writeInt(cols)
+      var i = 0
+      while (i < rows * cols) {
+        out.writeDouble(m(i))
+        i += 1
+      }
+    }
+
+    def readFields(in: DataInput) {
+      rows = in.readInt()
+      cols = in.readInt()
+      m = new Array[Double](rows * cols)
+      var i = 0
+      while (i < rows * cols) {
+        m(i) = in.readDouble()
+        i += 1
+      }
+    }
+
+    def toDenseMatrix(): DenseMatrix = {
+      new DenseMatrix(rows, cols, m)
+    }
+  }
+
+  private val metadataRelativePath = "/metadata.json"
+  private val matrixRelativePath = "/matrix"
+  /**
+    * Writes the matrix {@code m} to a Hadoop sequence file at location {@code
+    * uri}.
+    *
+    **/
+  def write(m: M, uri: String) {
+    val hadoop = m.blocks.sparkContext.hadoopConfiguration
+    hadoop.mkDir(uri)
+
+    m.blocks.map { case ((i, j), m) =>
+      (new PairWriter(i, j), new MatrixWriter(m.numRows, m.numCols, m.toArray)) }
+      .saveAsSequenceFile(uri+matrixRelativePath)
+
+    hadoop.writeDataFile(uri+metadataRelativePath) { os =>
+      jackson.Serialization.write(
+        BlockMatrixMetadata(m.rowsPerBlock, m.colsPerBlock, m.numRows(), m.numCols()),
+        os)
+    }
+  }
+
+  /**
+    * Reads a BlockMatrix matrix written by {@code write} at location {@code
+    * uri}.
+    *
+    **/
+  def read(hc: HailContext, uri: String): M = {
+    val hadoop = hc.hadoopConf
+    hadoop.mkDir(uri)
+
+    val rdd = hc.sc.sequenceFile[PairWriter, MatrixWriter](uri+matrixRelativePath).map { case (pw, mw) =>
+      ((pw.i, pw.j), mw.toDenseMatrix(): Matrix)
+    }
+
+    val BlockMatrixMetadata(rowsPerBlock, colsPerBlock, numRows, numCols) =
+      hadoop.readTextFile(uri+metadataRelativePath) { isr  =>
+        jackson.Serialization.read[BlockMatrixMetadata](isr)
+      }
+
+    new BlockMatrix(rdd, rowsPerBlock, colsPerBlock, numRows, numCols)
+  }
 }
+
+// must be top-level for Jackson to serialize correctly
+case class BlockMatrixMetadata(rowsPerBlock: Int, colsPerBlock: Int, numRows: Long, numCols: Long)
