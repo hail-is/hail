@@ -413,4 +413,10 @@ class KeyTableSuite extends SparkSuite {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true)
     assert(kt.same(kt))
   }
+
+  @Test def testSelfJoin() {
+    val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true).keyBy("Sample")
+    assert(kt.join(kt, "inner").forall("(isMissing(Status) || Status == Status_1) && " +
+      "(isMissing(qPhen) || qPhen == qPhen_1)"))
+  }
 }
