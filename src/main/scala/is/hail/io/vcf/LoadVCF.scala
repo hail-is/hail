@@ -150,7 +150,8 @@ object LoadVCF {
     file1: String,
     files: Array[String],
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    dropSamples: Boolean = false,
+    mangleDuplicates: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val hConf = hc.hadoopConf
     val sc = hc.sc
 
@@ -199,8 +200,14 @@ object LoadVCF {
 
     val (sampleIds, duplicates) = mangle(preIds, "D" * _)
     if (duplicates.nonEmpty) {
-      warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
-        duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+      if (mangleDuplicates)
+        warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
+          duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+      else
+        fatal(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
+          s"Use argument 'mangle_duplicates' or fix problem manually.\n" +
+          s"  Duplicate IDs: [ @1 ]",
+          duplicates.map { case (id, _) => s"\"$id\"" }.truncatable())
     }
 
     val infoSignatureBc = sc.broadcast(infoSignature)

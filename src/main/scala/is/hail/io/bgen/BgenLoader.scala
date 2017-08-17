@@ -20,15 +20,21 @@ case class BgenResult[T <: BgenRecord](file: String, nSamples: Int, nVariants: I
 object BgenLoader {
 
   def load(hc: HailContext, files: Array[String], sampleFile: Option[String] = None,
-    tolerance: Double, nPartitions: Option[Int] = None): GenericDataset = {
+    tolerance: Double, nPartitions: Option[Int] = None, mangleDuplicates: Boolean = false): GenericDataset = {
     require(files.nonEmpty)
     val preIds = sampleFile.map(file => BgenLoader.readSampleFile(hc.hadoopConf, file))
       .getOrElse(BgenLoader.readSamples(hc.hadoopConf, files.head))
 
     val (sampleIds, duplicates) = mangle(preIds, "D" * _)
     if (duplicates.nonEmpty) {
-      warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
-        duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+      if (mangleDuplicates)
+        warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
+          duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
+      else
+        fatal(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
+          s"Use argument 'mangle_duplicates' or fix problem manually.\n" +
+          s"  Duplicate IDs: [ @1 ]",
+          duplicates.map { case (id, _) => s"\"$id\"" }.truncatable())
     }
 
     val nSamples = sampleIds.length

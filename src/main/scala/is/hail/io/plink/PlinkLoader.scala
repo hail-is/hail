@@ -17,7 +17,8 @@ case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotati
 
 case class FamFileConfig(isQuantitative: Boolean = false,
   delimiter: String = "\\t",
-  missingValue: String = "NA")
+  missingValue: String = "NA",
+  mangleDuplicates: Boolean = false)
 
 object PlinkLoader {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
@@ -101,10 +102,16 @@ object PlinkLoader {
       }
     }
 
-    val (sampleIds, duplicates) = mangle(idBuilder.result(), "D" * _)
+    val (sampleIds, duplicates) = mangle(idBuilder.result())
     if (duplicates.nonEmpty) {
-      warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
-        duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+      if (ffConfig.mangleDuplicates)
+        warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
+          duplicates.map { case (pre, post) => s"'$pre' -> '$post'"}.truncatable("\n  "))
+      else
+        fatal(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
+          s"Use argument 'mangle_duplicates' or fix problem manually.\n" +
+          s"  Duplicate IDs: [ @1 ]",
+          duplicates.map { case (id, _) => s"\"$id\"" }.truncatable())
     }
 
     if (sampleIds.isEmpty)
