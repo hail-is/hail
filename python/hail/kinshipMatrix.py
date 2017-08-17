@@ -58,6 +58,10 @@ class KinshipMatrix(HistoryMixin):
     def export_tsv(self, output):
         """
         Export kinship matrix to tab-delimited text file with sample list as header.
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
         
         :param str output: File path for output. 
         """
@@ -69,7 +73,11 @@ class KinshipMatrix(HistoryMixin):
     def export_rel(self, output):
         """
         Export kinship matrix as .rel file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
-        
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: File path for output. 
         """
         self._jkm.exportRel(output)
@@ -80,7 +88,11 @@ class KinshipMatrix(HistoryMixin):
     def export_gcta_grm(self, output):
         """
         Export kinship matrix as .grm file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
-        
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: File path for output.
         """
         self._jkm.exportGctaGrm(output)
@@ -92,7 +104,11 @@ class KinshipMatrix(HistoryMixin):
     def export_gcta_grm_bin(self, output, opt_n_file=None):
         """
         Export kinship matrix as .grm.bin file or as .grm.N.bin file, depending on whether an N file is specified. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
-        
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: File path for output. 
         
         :param opt_n_file: The file path to the N file. 
@@ -106,7 +122,11 @@ class KinshipMatrix(HistoryMixin):
     def export_id_file(self, output):
         """
         Export samples as .id file. See `PLINK formats <https://www.cog-genomics.org/plink2/formats>`_.
-        
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: File path for output.
         """
         self._jkm.exportIdFile(output)

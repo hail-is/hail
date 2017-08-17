@@ -286,6 +286,8 @@ class Pedigree(HistoryMixin):
             Use the key table method :py:meth:`~hail.KeyTable.import_fam` to manipulate this
             information.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param path: output path
         :type path: str
         """

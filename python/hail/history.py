@@ -136,7 +136,7 @@ class History(object):
 
     def formatted(self):
         now = datetime.datetime.now()
-        history = "# {}\n# version: {}\n\n".format(now.isoformat(), Env._hc.version)
+        history = "# {}\n# version: {}\n\n".format(now.isoformat(), Env.hc.version)
         history += "from hail import *\n\n"
         for stmt in self.statements:
             history += (stmt + "\n\n")

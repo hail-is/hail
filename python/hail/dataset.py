@@ -1310,6 +1310,8 @@ class VariantDataset(HistoryMixin):
         - ID_1 and ID_2 are identical and set to the sample ID (``s``).
         - The third column ("missing") is set to 0 for all samples.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file base.  Will write GEN and SAMPLE files.
         :param int precision: Number of digits after the decimal point each probability is truncated to.
         """
@@ -1340,6 +1342,8 @@ class VariantDataset(HistoryMixin):
         :py:meth:`~hail.VariantDataset.export_genotypes` outputs one line per non-missing cell (genotype) in the data set.
 
         The ``expr`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
 
         :param str output: Output path.
 
@@ -1409,6 +1413,8 @@ class VariantDataset(HistoryMixin):
           file may disagree.
         - PLINK uses the rsID for the BIM file ID.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file base.  Will write BED, BIM, and FAM files.
 
         :param str fam_expr: Expression for FAM file fields.
@@ -1446,6 +1452,8 @@ class VariantDataset(HistoryMixin):
         - ``sa``: sample annotations
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
 
         :param str output: Output file.
 
@@ -1534,6 +1542,7 @@ class VariantDataset(HistoryMixin):
         comma-separated list of fields to print. These fields take the
         form ``IDENTIFIER = <expression>``.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
 
         :param str output: Output file.
 
@@ -1596,6 +1605,8 @@ class VariantDataset(HistoryMixin):
             ...     .annotate_variants_expr('va.info.AC = va.qc.AC')
             ...     .export_vcf('output/example.vcf.bgz'))
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Path of .vcf file to write.
 
         :param append_to_header: Path of file to append to VCF header.
@@ -1618,6 +1629,10 @@ class VariantDataset(HistoryMixin):
         Import data from a VCF file and then write the data to a VDS file:
 
         >>> vds.write("output/sample.vds")
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>/history.txt``.
 
         :param str output: Path of VDS file to write.
 

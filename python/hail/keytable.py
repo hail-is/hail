@@ -258,6 +258,10 @@ class KeyTable(HistoryMixin):
         >>> (kt1.rename({'HT' : 'Height'})
         ...     .export("output/kt1_renamed.tsv"))
 
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file path.
 
         :param str types_file: Output path of types file.
@@ -921,7 +925,11 @@ class KeyTable(HistoryMixin):
 
         >>> kt1.write('output/kt1.kt')
 
-        .. note:: The write path must end in ".kt".       
+        .. note:: The write path must end in ".kt".
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>/history.txt``.
 
         :param str output: Path of KT file to write.
 
