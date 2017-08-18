@@ -5218,6 +5218,7 @@ class VariantDataset(object):
         """Annotate variants with `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
         ***Configuration***
+
         :py:meth:`~hail.VariantDataset.nirvana` needs a configuration file to tell it how to run
         Nirvana. The format is a `.properties file <https://en.wikipedia.org/wiki/.properties>`_.
         Roughly, each line defines a property as a key-value pair of the form `key = value`. `nirvana` supports the following properties:
