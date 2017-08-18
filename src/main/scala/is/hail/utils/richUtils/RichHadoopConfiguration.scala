@@ -249,6 +249,16 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     }
   }
 
+  def readTextFile[T](filename: String)(reader: (InputStreamReader) => T): T = {
+    val is = open(filename)
+    val isw = new InputStreamReader(is)
+    try {
+      reader(isw)
+    } finally {
+      isw.close()
+    }
+  }
+
   def writeDataFile[T](filename: String)(writer: (DataOutputStream) => T): T = {
     val oos = create(filename)
     val dos = new DataOutputStream(oos)
