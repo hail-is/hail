@@ -1255,85 +1255,75 @@ class VariantDataset(HistoryMixin):
         **Notes**
 
         This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`__.
-        It is reproduced in Hail with her permission and assistance. The git commit of the version
-        implemented in Hail is ``bde3e40``.
+        The version corresponding to git commit ``bde3e40`` is implemented in Hail with her permission and assistance.
 
         This method produces a :py:class:`.KeyTable` with the following columns:
 
-            - **variant** (*Variant*) -- Variant within which the de novo event is found.
+            - **variant** (*Variant*) -- Variant at which parents are homozygous reference and proband is heterozygous.
             - **probandID** (*String*) -- Sample ID of proband.
             - **fatherID** (*String*) -- Sample ID of father.
             - **motherID** (*String*) -- Sample ID of mother.
             - **isFemale** (*Boolean*) -- Sex of proband, true if female.
-            - **confidence** (*String*) -- Validation likelihood of event.  One of: 'HIGH', 'MEDIUM', 'LOW'
+            - **confidence** (*String*) -- Validation likelihood of event. One of: 'HIGH', 'MEDIUM', 'LOW'
             - **probandGt** (*Genotype*) -- Genotype of the proband
             - **fatherGt** (*Genotype*) -- Genotype of the father
             - **motherGt** (*Genotype*) -- Genotype of the mother
             - **pDeNovo** (*Float64*) -- Posterior probability that the event is a true de novo.
 
-
-        The model is designed to discover a certain kind of de novo event: both parents are homozygous
-        reference, and the proband is a heterozygote. It finds violations of Mendelian inheritance in
-        this configuration, and evalutates the probability that each violation occurred due to a
-        de novo mutation in the child, rather than a sequencing error in a parent (true heterozygote
-        called as homozygous reference).
-
         The model was originally designed to run against VCFs produced by GATK from high-throughput sequencing
-        experiments, and uses the GT, AD, DP, GQ, and PL fields. The absence of these fields will
+        experiments, and uses the GT, AD, DP, GQ, and PL fields. The absence of any of these fields will
         result in an empty table of results (no called de novo mutations).
 
-        Instead of requiring a hard PL threshold in the parents, we have defined a relative probability of an
-        event being truly de novo versus the probability that it was a missed heterozygote call in one of the
-        two parents (the most likely error mode).
-
-        We are interested in estimating a posterior probability for each putative de novo mutation,
-
-        .. math::
-
-            \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,\|\,x)}{\mathrm{P}(d\,\|\,x) + \mathrm{P}(h\,\|\,x)}
-
-        where :math:`\\mathrm{P}(d\,\|\,x)` is the posterior probability of a de novo mutation given the data, and
-        :math:`\\mathrm{P}(h\,\|\,x)` is the posterior probability of a missed heterogygous parent given the data.
-
-        By Bayes' rule,
+        The model looks for de novo events in which both parents are homozygous
+        reference and the proband is a heterozygous. The model makes the simplifying assumption that when this
+        configuation ``x = (AA, AA, AB)`` of calls occurs, exactly one of the following is true:
+        
+            - ``d`` = a de novo mutation occurred in the proband and all calls are true
+            - ``m`` = at least one parental allele is truly non-reference and the proband call is true
+         
+        We can then estimate the posterior probability of a de novo mutation as:
 
         .. math::
 
-            \\mathrm{P}(d\,\|\,x) = \mathrm{P}(x\,\|\,d)\,\mathrm{P}(d)
+            \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,\|\,x)}{\mathrm{P}(d\,\|\,x) + \mathrm{P}(m\,\|\,x)}
 
-        .. math::
+        Applying Bayes rule to the numerator and denominator yields
 
-            \\mathrm{P}(h\,\|\,x) = \mathrm{P}(x\,\|\,h)\,\mathrm{P}(h)
+            \\frac{\mathrm{P}(x\,\|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,\|\,d)\,\mathrm{P}(d) + \mathrm{P}(x\,\|\,m)\,\mathrm{P}(m)}
 
-        Our prior for the de novo mutation rate is taken from literature, and our prior for
-        heterozygosity in at least one parent depends on the alternate allele frequency.
+        The prior on de novo mutation is estimated from the rate in the literature:
 
         .. math::
 
             \\mathrm{P}(d) = \\frac{1}{30,000,000\, \\text{bases}}
 
-        .. math::
-
-            \\mathrm{P}(h) = 1 - (1 - AF)^4
-
-        The terms :math:`\mathrm{P}(x\,\|\,d)` and :math:`\mathrm{P}(x\,\|\,h)` are computed from the
-        PL (genotype likelihood) field.
+        The prior used for at least one alternate allele between the parents depends on the alternate allele frequency:
 
         .. math::
 
-            \\mathrm{P}(d\,\|\,x) = \\mathrm{P}(x_{proband} \,\|\, proband = AB) \,
-            \\mathrm{P}(x_{father} \,\|\, father = AA) \,
-            \\mathrm{P}(x_{mother} \,\|\, mother = AA)\,
-            \\mathrm{P}(d)
+            \\mathrm{P}(m) = 1 - (1 - AF)^4
+
+        The likelihoods :math:`\mathrm{P}(x\,\|\,d)` and :math:`\mathrm{P}(x\,\|\,m)` are computed from the
+        PL (genotype likelihood) fields using these factorizations:
 
         .. math::
 
-            \\mathrm{P}(h\,\|\,x) = \\mathrm{P}(x_{proband} \,\|\, proband = AA) \,
-            \\mathrm{P}(x_{father} \,\|\, father = AB) \,
-            \\mathrm{P}(x_{mother} \,\|\, mother = AB)\,
-            \\mathrm{P}(h)
+            \\mathrm{P}(x = (AA, AA, AB) \,\|\,d) =  
+            \\mathrm{P}(x_{\\mathrm{father}} = AA \,\|\, \\mathrm{father} = AA) \,
+            \\mathrm{P}(x_{\\mathrm{mother}} = AA \,\|\, \\mathrm{mother} = AA) \,
+            \\mathrm{P}(x_{\\mathrm{proband}} = AB \,\|\, \\mathrm{proband} = AB)
 
-        While :math:`\\mathrm{P_{\\text{de novo}}}` is an excellent metric for grouping putative de novo
+        .. math::
+
+            \\mathrm{P}(x = (AA, AA, AB) \,\|\,m) = 
+            \\mathrm{P}(x_{\\mathrm{father}} == AA \,\|\, \\mathrm{father} = AB) * \\mathrm{P}(x_{\\mathrm{mother}} == AA \,\|\, \\mathrm{mother} = AA) +
+            \\mathrm{P}(x_{\\mathrm{father}} == AA \,\|\, \\mathrm{father} = AA) * \\mathrm{P}(x_{\\mathrm{mother}} == AA \,\|\, \\mathrm{mother} = AB) \,
+            \\mathrm{P}(x_{\\mathrm{proband}} == AB \,\|\, \\mathrm{proband} = AB)
+
+        (Technically, the second factorization assumes there is exactly (rather than at least) one alternate allele among the parents, which may be
+        justified on the grounds that it is typically the most likely case by far.)
+
+        While this posterior probability is a good metric for grouping putative de novo
         mutations by validation likelihood, there exist error modes in high-throughput sequencing data that
         are not appropriately accounted for by the phred-scaled genotype likelihoods. To this end, a number
         of hard filters are applied in order to assign validation likelihood.
