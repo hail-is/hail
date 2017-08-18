@@ -1,22 +1,220 @@
 package is.hail.io.vcf
 
+import java.util
+
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
+import is.hail.sparkextras.OrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark.storage.StorageLevel
-
-import scala.collection.JavaConverters._
+import org.apache.spark.rdd.RDD
 import scala.collection.JavaConversions._
 import scala.language.implicitConversions
 import scala.collection.mutable
 import scala.io.Source
 
+
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct, canonicalFlags: Int)
+
+class VCFInput(var s: String = null, var pos: Int = 0) {
+  def length: Int = s.length
+
+  def apply(i: Int): Char = s(i)
+
+  def set(newS: String): Unit = set(newS, 0)
+
+  def set(newS: String, newPos: Int) {
+    s = newS
+    pos = newPos
+  }
+
+  def nonEmpty: Boolean = pos < s.length
+
+  def head: Char = s(pos)
+
+  def next(): Char = {
+    val c = s(pos)
+    pos += 1
+    c
+  }
+}
+
+object FormatParser {
+  def formatArrayLength(in: String, start: Int, end: Int): Int = {
+    var length = 1
+    var p = start
+    while (p < end && (in(p) != '\t' && in(p) != ':')) {
+      if (in(p) == ',')
+        length += 1
+      p += 1
+    }
+    length
+  }
+
+  def formatAddCall(in: String, start: Int, end: Int, rvb: RegionValueBuilder) {
+    var k = start
+    if (start == end) {
+      rvb.setMissing()
+      return
+    } else if (in(k) == '.') {
+      rvb.setMissing()
+      return
+    }
+
+    var c = in(k)
+    if (c < '0' || c > '9')
+      fatal("parse error in call")
+    k += 1
+    var i = 0
+    do {
+      i = i * 10 + (c - '0')
+    } while (k < end && {
+      c = in(k)
+      k += 1
+      c >= '0' && c <= '9'
+    })
+
+    val gt =
+      if (c == '|' || c == '/') {
+        assert(k < end)
+        c = in(k)
+        k += 1
+        assert(c >= '0' && c <= '9')
+        var j = 0
+        do {
+          j = j * 10 + (c - '0')
+        } while (k < end && {
+          c = in(k)
+          k += 1
+          c >= '0' && c <= '9'
+        })
+
+        Genotype.gtIndexWithSwap(i, j)
+      } else {
+        if (k != end)
+          fatal("parse error in call")
+        Genotype.gtIndex(i, i)
+      }
+    rvb.addInt(gt)
+  }
+
+  def formatAddInt(in: String, start: Int, end: Int, rvb: RegionValueBuilder) {
+    assert(start != end)
+    if (in(start) == '.') {
+      rvb.setMissing()
+      return
+    }
+
+    var i = start
+    var x = 0
+    while (i < end) {
+      var c = in(i)
+      assert(c >= 0 && c <= '9')
+      x = x * 10 + (c - '0')
+      i += 1
+    }
+    rvb.addInt(x)
+  }
+
+  def formatAddArrayInt(in: String, start: Int, end: Int, rvb: RegionValueBuilder) {
+    if (start == end) {
+      rvb.startArray(0)
+      rvb.end()
+      return
+    } else if (in(start) == '.') {
+      rvb.setMissing()
+      return
+    }
+
+    val length = formatArrayLength(in, start, end)
+    rvb.startArray(length)
+
+    var i = start
+    var x = 0
+    do {
+      var c = in(i)
+      if (c == ',') {
+        rvb.addInt(x)
+        x = 0
+      } else
+        x = x * 10 + (c - '0')
+      i += 1
+    } while (i < end)
+    rvb.addInt(x)
+
+    rvb.endArray()
+  }
+}
+
+class FormatParser(nGenotypeFields: Int,
+  formatGenotypeIndex: Array[Int],
+  genotypeFieldTypes: Array[Type]) {
+  val nFormatFields: Int = formatGenotypeIndex.length
+
+  val fieldStart = new Array[Int](nGenotypeFields)
+  val fieldEnd = new Array[Int](nGenotypeFields)
+
+  def calculateFieldPositions(in: String, start: Int): Int = {
+    util.Arrays.fill(fieldStart, -1)
+
+    var p = start
+    var f = 0
+    var i = formatGenotypeIndex(f)
+    fieldStart(i) = p
+    while (p < in.length && in(p) != '\t') {
+      if (in(p) == ':') {
+        fieldEnd(i) = p
+        f += 1
+        i = formatGenotypeIndex(f)
+        fieldStart(i) = p + 1
+      }
+      p += 1
+    }
+    fieldEnd(i) = p
+    p
+  }
+
+  def parseFormat(in: String, start: Int, rvb: RegionValueBuilder): Int = {
+    val end = calculateFieldPositions(in, start)
+
+    rvb.startStruct()
+    var i = 0
+    while (i < nGenotypeFields) {
+      val start = fieldStart(i)
+      if (start == -1)
+        rvb.setMissing()
+      else {
+        val end = fieldEnd(i)
+        genotypeFieldTypes(i) match {
+          case TCall =>
+            FormatParser.formatAddCall(in, start, end, rvb)
+          case TInt32 =>
+            FormatParser.formatAddInt(in, start, end, rvb)
+          case TArray(TInt32) =>
+            FormatParser.formatAddArrayInt(in, start, end, rvb)
+          case TString =>
+            rvb.addString(in.substring(start, end))
+          case TFloat64 =>
+            rvb.addDouble(in.substring(start, end).toDouble)
+        }
+      }
+
+      i += 1
+    }
+    rvb.endStruct()
+
+    end
+  }
+}
+
+class Position {
+  var start: Int = _
+  var end: Int = _
+}
 
 object LoadVCF {
 
@@ -47,28 +245,47 @@ object LoadVCF {
     inputs
   }
 
-  def lineRef(s: String): String = {
-    var i = 0
-    var t = 0
-    while (t < 3
-      && i < s.length) {
-      if (s(i) == '\t')
-        t += 1
-      i += 1
+  def columnPositions(in: String,
+    columnStart: Array[Int],
+    columnEnd: Array[Int]): Int = {
+    val n = columnStart.length
+    var k = 0
+    columnStart(0) = 0
+    var c = 0
+    while (true) {
+      if (k == in.length || in(k) == '\t') {
+        columnEnd(c) = k
+        c += 1
+        if (k < in.length && c < n)
+          columnStart(c) = k + 1
+        else
+          return c
+      }
+      k += 1
     }
-    val start = i
-
-    while (i < s.length
-      && s(i) != '\t')
-      i += 1
-    val end = i
-
-    s.substring(start, end)
+    -1
   }
 
-  def lineVariant(s: String): Variant = {
-    val Array(contig, start, id, ref, alts, rest) = s.split("\t", 6)
-    Variant(contig, start.toInt, ref, alts.split(","))
+  def refIsGood(in: String, start: Int, end: Int): Boolean = {
+    var i = start
+    while (i < end) {
+      val c = in(i)
+      if (c != 'A' && c != 'C' && c != 'G' && c != 'T' && c == 'N')
+        return false
+      i += 1
+    }
+    true
+  }
+
+  def containsSymblicAllele(in: String, start: Int, end: Int): Boolean = {
+    var i = start
+    while (i < end) {
+      val c = in(i)
+      if (c == '<')
+        return true
+      i += 1
+    }
+    false
   }
 
   def headerNumberToString(line: VCFCompoundHeaderLine): String = line.getCountType match {
@@ -158,6 +375,68 @@ object LoadVCF {
     (TStruct(fb.result()), canonicalFlags)
   }
 
+  def parseInt(in: VCFInput): Int = {
+    var x = 0
+    do {
+      val c = in.next()
+      assert(c >= '0' && c <= '9')
+      x = x * 10 + (c - '0')
+    } while (in.nonEmpty && in.head != '\t')
+    x
+  }
+
+  def parseString(in: VCFInput, sb: StringBuilder): String = {
+    sb.clear()
+    while (in.nonEmpty && in.head != '\t') {
+      sb += in.next()
+    }
+    sb.result()
+  }
+
+  def parseAddString(in: VCFInput, sb: StringBuilder, rvb: RegionValueBuilder) {
+    rvb.addString(parseString(in, sb))
+  }
+
+  def parseArrayLength(in: VCFInput): Int = {
+    var length = 1
+    var p = in.pos
+    while (p < in.length && in(p) != '\t') {
+      if (in(p) == ',')
+        length += 1
+      p += 1
+    }
+    length
+  }
+
+  def parseAddAlt(ref: String, in: VCFInput, sb: StringBuilder, rvb: RegionValueBuilder) {
+    val length = parseArrayLength(in)
+    rvb.startArray(length)
+
+    sb.clear()
+    while (in.nonEmpty && in.head != '\t') {
+      val c = in.next()
+      if (c == ',') {
+        rvb.startStruct() // altAllele
+        rvb.addString(ref)
+        rvb.addString(sb.result())
+        rvb.endStruct()
+        sb.clear()
+      } else
+        sb += c
+    }
+    rvb.startStruct() // altAllele
+    rvb.addString(ref)
+    rvb.addString(sb.result())
+    rvb.endStruct()
+
+    rvb.endArray()
+  }
+
+  def skipField(in: VCFInput) {
+    while (in.nonEmpty && in.head != '\t')
+      in.next()
+  }
+
   def parseHeader(reader: HtsjdkRecordReader, lines: Array[String]): VCFHeaderInfo = {
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
@@ -212,7 +491,7 @@ object LoadVCF {
     gr: GenomeReference = GenomeReference.GRCh37): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
-    
+
     val headerLines1 = getHeaderLines(hConf, file1)
     val header1 = parseHeader(reader, headerLines1)
     val header1Bc = sc.broadcast(header1)
@@ -228,25 +507,33 @@ object LoadVCF {
         .zipWithIndex.dropWhile { case ((s1, s2), i) => s1 == s2 }.toArray.headOption match {
         case Some(((s1, s2), i)) => fatal(
           s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
-           |    ${ files(0) }: $s1
-           |    $file: $s2""".stripMargin)
+             |    ${ files(0) }: $s1
+             |    $file: $s2""".stripMargin)
         case None =>
       }
 
       if (hd1.genotypeSignature != hd.genotypeSignature)
-        fatal(s"""invalid genotype signature: expected signatures to be identical for all inputs.
-               |   ${ files(0) }: ${ hd1.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }
-               |   $file: ${ hd.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
+        fatal(
+          s"""invalid genotype signature: expected signatures to be identical for all inputs.
+             |   ${ files(0) }: ${ hd1.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }
+             |   $file: ${ hd.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
 
       if (hd1.vaSignature != hd.vaSignature)
-        fatal(s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
-               |   ${ files(0) }: ${ hd1.vaSignature.toPrettyString(compact = true, printAttrs = true) }
-               |   $file: ${ hd.vaSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
+        fatal(
+          s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
+             |   ${ files(0) }: ${ hd1.vaSignature.toPrettyString(compact = true, printAttrs = true) }
+             |   $file: ${ hd.vaSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
     }
 
     val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, canonicalFlags) = header1
 
-    val sampleIds: Array[String] = if (dropSamples) Array.empty else sampleIdsHeader
+    val sampleIds: Array[String] =
+      if (dropSamples)
+        Array.empty
+      else
+        sampleIdsHeader
+
+    val nSamples = sampleIds.length
 
     LoadVCF.warnDuplicates(sampleIds)
 
@@ -257,71 +544,199 @@ object LoadVCF {
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
-    val justVariants = lines
-      .filter(_.map { line =>
-        !line.isEmpty &&
-          line(0) != '#' &&
-          lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')
-        // FIXME this doesn't filter symbolic, but also avoids decoding the line.  Won't cause errors but might cause unnecessary shuffles
-      }.value)
-      .map(_.map(lineVariant).value)
-      .persist(StorageLevel.MEMORY_AND_DISK)
+    val fullKeyType = TStruct(
+      "pk" -> TLocus(gr),
+      "k" -> TVariant(gr))
 
-    val noMulti = justVariants.forall(_.nAlleles == 2)
+    val variants: RDD[RegionValue] = lines.mapPartitions { it =>
+      val codec = new htsjdk.variant.vcf.VCFCodec()
+      codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
+
+      val in = new VCFInput()
+      val sb = new StringBuilder()
+      val region = MemoryBuffer()
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+
+      val columnStart = new Array[Int](5)
+      val columnEnd = new Array[Int](5)
+
+      new Iterator[RegionValue] {
+        var present = false
+
+        def advance() {
+          while (!present && it.hasNext) {
+            it.next().foreach { line =>
+              if (line.nonEmpty && line(0) != '#') {
+                val nColumns = columnPositions(line, columnStart, columnEnd)
+                assert(nColumns == 5)
+
+                if (refIsGood(line, columnStart(3), columnEnd(3))
+                  || !containsSymblicAllele(line, columnStart(4), columnEnd(4))) {
+                  val vc = codec.decode(line)
+                  in.set(line)
+
+                  val contig = parseString(in, sb)
+                  in.next()
+                  val start = parseInt(in)
+                  in.next()
+                  skipField(in)
+                  in.next()
+                  val ref = parseString(in, sb)
+                  in.next()
+
+                  region.clear()
+                  rvb.start(fullKeyType)
+                  rvb.startStruct() // fk
+
+                  rvb.startStruct() // pk: Locus
+                  rvb.addString(contig)
+                  rvb.addInt(start)
+                  rvb.endStruct()
+
+                  rvb.startStruct() // k: Variant
+                  rvb.addString(contig)
+                  rvb.addInt(start)
+                  rvb.addString(ref)
+                  parseAddAlt(ref, in, sb, rvb) // alts
+                  rvb.endStruct()
+
+                  rvb.endStruct() // fk
+                  rv.setOffset(rvb.end())
+
+                  present = true
+                }
+              }
+            }
+          }
+        }
+
+        def hasNext: Boolean = {
+          if (!present)
+            advance()
+          present
+        }
+
+        def next(): RegionValue = {
+          hasNext
+          assert(present)
+          present = false
+          rv
+        }
+      }
+    }
+
+    // FIXME
+    val noMulti = false
+    // val noMulti = justVariants.forall(_.nAlleles == 2)
 
     if (noMulti)
       info("No multiallelics detected.")
     else
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
-    val gr = GenomeReference.GRCh37
-
     val rowType = TStruct(
+      "pk" -> TLocus(gr),
       "v" -> TVariant(gr),
-      "va" -> vaSignature,
+      "va" -> header1.vaSignature,
       "gs" -> TArray(genotypeSignature))
 
     val rowTypeTreeBc = BroadcastTypeTree(sc, rowType)
 
     val rdd = lines
-      .mapPartitions { lines =>
+      .mapPartitions { it =>
         val codec = new htsjdk.variant.vcf.VCFCodec()
         codec.readHeader(new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
 
+        val columnStart = new Array[Int](9)
+        val columnEnd = new Array[Int](9)
+
         val region = MemoryBuffer()
         val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region, 0)
 
-        lines.flatMap { l =>
-          l.map { line =>
-            if (line.isEmpty || line(0) == '#')
-              None
-            else if (!lineRef(line).forall(c => c == 'A' || c == 'C' || c == 'G' || c == 'T' || c == 'N')) {
-              None
-            } else {
-              val vc = codec.decode(line)
-              if (vc.isSymbolic) {
-                None
-              } else {
-                region.clear()
-                rvb.start(rowType.fundamentalType)
-                rvb.startStruct()
-                reader.readRecord(vc, rvb, infoSignatureBc.value, genotypeSignatureBc.value, canonicalFlags)
-                rvb.endStruct()
+        val formatParsers = mutable.Map[String, FormatParser]()
 
-                val ur = new UnsafeRow(rowTypeTreeBc, region.copy(), rvb.end())
+        def getFormatParser(format: String): FormatParser = {
+          if (formatParsers.contains(format))
+            formatParsers(format)
+          else {
+            val formatFields = format.split(':')
+            val parser = new FormatParser(genotypeSignature.size,
+              formatFields.map(genotypeSignature.fieldIdx),
+              genotypeSignature.fields.map(_.typ).toArray)
+            formatParsers += format -> parser
+            parser
+          }
+        }
 
-                val v = ur.getAs[Variant](0)
-                val va = ur.get(1)
-                val gs: Iterable[Annotation] = ur.getAs[IndexedSeq[Annotation]](2)
+        new Iterator[RegionValue] {
+          var present = false
 
-                Some((v, (va, gs)))
+          def advance() {
+            while (!present && it.hasNext) {
+              it.next().foreach { line =>
+                if (line.nonEmpty && line(0) != '#') {
+                  val nColumns = columnPositions(line, columnStart, columnEnd)
+                  assert(nColumns == 8 || nColumns == 9)
+
+                  if (refIsGood(line, columnStart(3), columnEnd(3))
+                    && !containsSymblicAllele(line, columnStart(4), columnEnd(4))) {
+                    val vc = codec.decode(line)
+                    assert(!vc.isSymbolic)
+
+                    val formatParser: FormatParser =
+                      if (nColumns == 9)
+                        getFormatParser(line.substring(columnStart(8), columnEnd(8)))
+                      else
+                        null
+
+                    region.clear()
+                    rvb.start(rowType)
+                    rvb.startStruct()
+
+                    reader.readVariantInfo(vc, rvb, infoSignature)
+
+                    rvb.startArray(nSamples) // gs
+
+                    if (nSamples > 0) {
+                      var k = columnEnd(8)
+                      while (k < line.length) {
+                        val c = line(k)
+                        assert(c == '\t')
+                        k += 1
+                        k = formatParser.parseFormat(line, k, rvb)
+                      }
+                    }
+
+                    rvb.endArray()
+                    rvb.endStruct() // row
+                    rv.setOffset(rvb.end())
+
+                    present = true
+                  }
+                }
               }
             }
-          }.value
-        }
-      }.toOrderedRDD(justVariants)
+          }
 
-    justVariants.unpersist()
+          def hasNext: Boolean = {
+            if (!present)
+              advance()
+            present
+          }
+
+          def next(): RegionValue = {
+            if (!present)
+              advance()
+            assert(present)
+            present = false
+            rv
+          }
+        }
+      }
+
+    val ordd = OrderedRDD2("pk", "v", rowType, rdd, Some(variants), None)
 
     new VariantSampleMatrix(hc, VSMMetadata(
       TString,
@@ -334,6 +749,6 @@ object LoadVCF {
       VSMLocalValue(Annotation.empty,
         sampleIds,
         Annotation.emptyIndexedSeq(sampleIds.length)),
-      rdd)
+      ordd)
   }
 }

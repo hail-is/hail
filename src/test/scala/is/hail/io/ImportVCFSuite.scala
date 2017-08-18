@@ -3,33 +3,14 @@ package is.hail.io
 import is.hail.check.Prop._
 import is.hail.SparkSuite
 import is.hail.io.vcf.{HtsjdkRecordReader, LoadVCF}
-import is.hail.variant.{Call, Genotype, VSMSubgen, Variant, VariantSampleMatrix}
+import is.hail.variant.{Call, Genotype, Variant, VariantSampleMatrix, VSMSubgen}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
 
 class ImportVCFSuite extends SparkSuite {
-
   @Test def testInfo() {
     assert(hc.importVCF("src/test/resources/infochar.vcf").countVariants() == 1)
-  }
-
-  @Test def lineRef() {
-    val line1 = "20\t10280082\t.\tA\tG\t844.69\tPASS\tAC=1;..."
-    assert(LoadVCF.lineRef(line1) == "A")
-
-    val line2 = "20\t13561632\t.\tTAA\tT\t89057.4\tPASS\tAC=2;..."
-    assert(LoadVCF.lineRef(line2) == "TAA")
-
-    assert(LoadVCF.lineRef("") == "")
-
-    assert(LoadVCF.lineRef("this\tis\ta") == "")
-
-    assert(LoadVCF.lineRef("20\t0\t.\t") == "")
-
-    assert(LoadVCF.lineRef("20\t0\t.\t\t") == "")
-
-    assert(LoadVCF.lineRef("\t\t\tabcd") == "abcd")
   }
 
   @Test def symbolicOrSV() {
@@ -63,13 +44,12 @@ class ImportVCFSuite extends SparkSuite {
   }
 
   @Test def testMalformed() {
-    // FIXME abstract
     val e = intercept[SparkException] {
       hc.importVCF("src/test/resources/malformed.vcf").countVariants()
     }
-    assert(e.getMessage.contains("caught htsjdk.tribble.TribbleException$InternalCodecException: "))
+    assert(e.getMessage.contains("parse error"))
   }
-  
+
   @Test def testHaploid() {
     val vds = hc.importVCF("src/test/resources/haploid.vcf")
     val r = vds
@@ -96,7 +76,7 @@ class ImportVCFSuite extends SparkSuite {
       Some(Array(0, 6)),
       Some(7),
       Some(70),
-      Some(Array(70, HtsjdkRecordReader.haploidNonsensePL, 0))
+      Some(Array(70, 0))
     ))
     assert(r(v2, s1) == Genotype(
       Some(5),
@@ -110,8 +90,7 @@ class ImportVCFSuite extends SparkSuite {
       Some(Array(0, 0, 9)),
       Some(9),
       Some(24),
-      Some(Array(24, HtsjdkRecordReader.haploidNonsensePL, 40, HtsjdkRecordReader.haploidNonsensePL,
-        HtsjdkRecordReader.haploidNonsensePL, 0))
+      Some(Array(24, 40, 0))
     ))
   }
 
@@ -188,13 +167,13 @@ class ImportVCFSuite extends SparkSuite {
     forAll(VariantSampleMatrix.gen(hc, VSMSubgen.random)) { vds =>
 
       val truth = {
-        val f = tmpDir.createTempFile(extension="vcf")
+        val f = tmpDir.createTempFile(extension = "vcf")
         vds.exportVCF(f)
         hc.importVCF(f)
       }
 
       val actual = {
-        val f = tmpDir.createTempFile(extension="vcf")
+        val f = tmpDir.createTempFile(extension = "vcf")
         truth.toVDS.exportVCF(f)
         hc.importVCF(f)
       }

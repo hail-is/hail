@@ -477,7 +477,7 @@ class AnnotateSuite extends SparkSuite {
 
     val vds = hc.importVCF("src/test/resources/sample2.vcf").cache()
 
-    val vkt = vds.variantsKT().select(Array("v"), Array("v"))
+    val vkt = vds.variantsKT().select("v")
       .filter("v.start != 16054957", keep = true)
       .repartition(6)
       .cache()
@@ -550,8 +550,7 @@ class AnnotateSuite extends SparkSuite {
           assert(va == IndexedSeq(Row(5, 10), Row(5, 10)))
       }
 
-    val lkt = vkt.annotate("l = v.locus").select(Array("l"), Array("l"))
-      .select(Array("l"), Array("l"))
+    val lkt = vkt.annotate("l = v.locus").select("l").keyBy("l")
 
     // locus key, 0 elements in value, product false
     val loc1 = vds.annotateVariantsTable(lkt, root = "va")
@@ -574,7 +573,7 @@ class AnnotateSuite extends SparkSuite {
     val loc6 = vds.annotateVariantsTable(lkt3.union(lkt3), root = "va", product = true)
 
     val ikt = vkt.annotate("i = Interval(Locus(v.contig, v.start), Locus(v.contig, v.start + 1))")
-      .select(Array("i"), Array("i"))
+      .select("i").keyBy("i")
 
     // interval key, 0 elements in value, product false
     val int1 = vds.annotateVariantsTable(ikt, root = "va")
@@ -645,7 +644,7 @@ class AnnotateSuite extends SparkSuite {
     assert(gen6.dropSamples().same(drop6))
 
 
-    val skt = vds.samplesKT().select(Array("s"), Array("s"))
+    val skt = vds.samplesKT().select(Array("s"))
       .filter("s != \"HG00112\"", keep = true)
       .repartition(6)
       .cache()

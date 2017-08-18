@@ -162,7 +162,7 @@ object LinearMixedRegression {
 
       val scalerLMMBc = sc.broadcast(scalerLMM)
 
-      vds2.mapAnnotations { case (v, va, gs) =>
+      vds2.mapAnnotations(newVAS, { case (v, va, gs) =>
         val x: Vector[Double] =
           if (!useDosages) {
             val x0 = RegressionUtils.hardCalls(gs, n, sampleMaskBc.value)
@@ -178,7 +178,7 @@ object LinearMixedRegression {
         val newAnnotation = inserter(va, lmmregAnnot)
         assert(newVAS.typeCheck(newAnnotation))
         newAnnotation
-      }.copy(vaSignature = newVAS)
+      })
     }
     else
       vds2

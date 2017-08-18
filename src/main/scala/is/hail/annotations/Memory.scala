@@ -9,6 +9,27 @@ object Memory {
     unsafeField.get(null).asInstanceOf[Unsafe]
   }
 
+  def storeByte(mem: Array[Byte], off: Long, b: Byte): Unit = unsafe.putByte(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, b)
+
+  def storeFloat(mem: Array[Byte], off: Long, f: Float): Unit = unsafe.putFloat(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, f)
+
+  def storeDouble(mem: Array[Byte], off: Long, d: Double): Unit = unsafe.putDouble(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off, d)
+
+  def loadByte(mem: Array[Byte], off: Long): Byte = unsafe.getByte(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off)
+
+  def loadFloat(mem: Array[Byte], off: Long): Float = unsafe.getFloat(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off)
+
+  def loadDouble(mem: Array[Byte], off: Long): Double = unsafe.getDouble(mem, Unsafe.ARRAY_BYTE_BASE_OFFSET + off)
+
+  def memcpy(dst: Array[Byte], dstOff: Long, src: Array[Byte], srcOff: Long, n: Long): Unit =
+    unsafe.copyMemory(src, Unsafe.ARRAY_BYTE_BASE_OFFSET + srcOff, dst, Unsafe.ARRAY_BYTE_BASE_OFFSET + dstOff, n)
+
+  def memcpy(dst: Long, src: Array[Byte], srcOff: Long, n: Long): Unit =
+    copyFromArray(dst, src, srcOff, n)
+
+  def memcpy(dst: Array[Byte], dstOff: Long, src: Long, n: Long): Unit =
+    copyToArray(dst, dstOff, src, n)
+
   def loadBoolean(addr: Long): Boolean = unsafe.getByte(addr) != 0
 
   def loadByte(addr: Long): Byte = unsafe.getByte(addr)
@@ -49,11 +70,11 @@ object Memory {
 
   def memcpy(dst: Long, src: Long, n: Long): Unit = unsafe.copyMemory(src, dst, n)
 
-  def copyToArray(dst: Array[Byte], src: Long, n: Long): Unit = {
-    unsafe.copyMemory(null, src, dst, Unsafe.ARRAY_BYTE_BASE_OFFSET, n)
+  def copyToArray(dst: Array[Byte], dstOff: Long, src: Long, n: Long): Unit = {
+    unsafe.copyMemory(null, src, dst, Unsafe.ARRAY_BYTE_BASE_OFFSET + dstOff, n)
   }
 
-  def copyFromArray(dst: Long, src: Array[Byte], n: Long): Unit = {
-    unsafe.copyMemory(src, Unsafe.ARRAY_BYTE_BASE_OFFSET, null, dst, n)
+  def copyFromArray(dst: Long, src: Array[Byte], srcOff: Long, n: Long): Unit = {
+    unsafe.copyMemory(src, Unsafe.ARRAY_BYTE_BASE_OFFSET + srcOff, null, dst, n)
   }
 }

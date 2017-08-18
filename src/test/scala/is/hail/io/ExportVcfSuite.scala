@@ -13,7 +13,7 @@ import org.testng.annotations.Test
 import scala.io.Source
 import scala.language.postfixOps
 
-class ExportVcfSuite extends SparkSuite {
+class ExportVCFSuite extends SparkSuite {
 
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
@@ -40,12 +40,13 @@ class ExportVcfSuite extends SparkSuite {
 
     assert(vdsOrig.same(vdsNew))
 
-    val infoSize = vdsNew.vaSignature.getAsOption[TStruct]("info").get.size
+    val infoType = vdsNew.vaSignature.getAsOption[TStruct]("info").get
+    val infoSize = infoType.size
     val toAdd = Annotation.fromSeq(Array.fill[Any](infoSize)(null))
-    val (_, inserter) = vdsNew.insertVA(null, "info")
+    val (newVASignature, inserter) = vdsNew.insertVA(infoType, "info")
 
-    val vdsNewMissingInfo = vdsNew.mapAnnotations((v, va, gs) => inserter(va, toAdd))
-
+    val vdsNewMissingInfo = vdsNew.mapAnnotations(newVASignature,
+      (v, va, gs) => inserter(va, toAdd))
 
     vdsNewMissingInfo.exportVCF(outFile2)
 

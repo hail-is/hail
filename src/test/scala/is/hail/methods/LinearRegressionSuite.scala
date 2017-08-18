@@ -35,6 +35,7 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .filterMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linreg(Array("sa.pheno"), Array("sa.cov.Cov1", "sa.cov.Cov2 + 1 - 1"))
@@ -214,6 +215,7 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .filterMulti()
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
       .linreg(Array("sa.pheno"), Array.empty[String])
 
@@ -260,6 +262,7 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .filterMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(KeyTable.importFam(hc, "src/test/resources/regressionLinear.fam"), root = "sa.fam")
       .linreg(Array("sa.fam.isCase"), Array("sa.cov.Cov1", "sa.cov.Cov2"))
@@ -310,6 +313,7 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .filterMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(KeyTable.importFam(hc, "src/test/resources/regressionLinear.fam", isQuantitative = true, missingValue = "0"), root = "sa.fam")
       .linreg(Array("sa.fam.qPheno"), Array("sa.cov.Cov1", "sa.cov.Cov2"))
@@ -378,6 +382,7 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
     val vds = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .filterMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
@@ -393,6 +398,7 @@ class LinearRegressionSuite extends SparkSuite {
       types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
     val inputVDS = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .filterMulti()
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
 
