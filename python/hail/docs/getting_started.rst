@@ -142,6 +142,7 @@ the same as above, except:
              --py-files build/distributions/hail-python.zip \
              --conf spark.sql.files.openCostInBytes=1099511627776 \
              --conf spark.sql.files.maxPartitionBytes=1099511627776 \
+             --conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator \
              --conf spark.hadoop.parquet.block.size=1099511627776
 
  - Cloudera's version of ``spark-submit`` is called ``spark2-submit``.
