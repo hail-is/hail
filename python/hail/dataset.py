@@ -1777,7 +1777,7 @@ class VariantDataset(object):
         **Downcode algorithm**
 
         The downcode algorithm (``subset=False``) recodes occurances of filtered alleles
-        to occurances of the reference allele (e.g. 1: 0 in our example). So the depths of filtered alleles in the AD field
+        to occurances of the reference allele (e.g. 1 -> 0 in our example). So the depths of filtered alleles in the AD field
         are added to the depth of the reference allele. Where downcodeing filtered alleles merges distinct genotypes, the minimum PL is used (since PL is on a log scale, this roughly corresponds to adding probabilities). The PLs
         are then re-normalized (shifted) so that the most likely genotype has a PL of 0, and GT is set to this genotype.
         If an allele is filtered, this algorithm acts similarly to :py:meth:`~hail.VariantDataset.split_multi`.
@@ -5238,10 +5238,10 @@ class VariantDataset(object):
                 chromosome: String,
                 refAllele: String,
                 position: Int,
-                altAlleles: Array(String),
+                altAlleles: Array[String],
                 cytogeneticBand: String,
-                filters: Array(String),
-                variants: Array(Struct{
+                filters: Array[String],
+                variants: Array[Struct{
                   altAllele: String,
                   refAllele: String,
                   chromosome: String,
@@ -5252,41 +5252,41 @@ class VariantDataset(object):
                   variantType: String,
                   vid: String,
                   isRecomposed: Boolean,
-                  regulatoryRegions: Array(Struct{
+                  regulatoryRegions: Array[Struct{
                     id: String,
                     consequence: Set(String),
                     type: String
-                  }},
-                  clinvar: Array(Struct{
+                  }],
+                  clinvar: Array[Struct{
                     id: String,
                     reviewStatus: String,
                     isAlleleSpecific: Boolean,
-                    alleleOrigins: Array(String),
+                    alleleOrigins: Array[String],
                     refAllele: String,
                     altAllele: String,
-                    phenotypes: Array(String),
-                    medGenIds: Array(String),
-                    omimIds: Array(String),
-                    orphanetIds: Array(String),
+                    phenotypes: Array[String],
+                    medGenIds: Array[String],
+                    omimIds: Array[String],
+                    orphanetIds: Array[String],
                     geneReviewsId: String,
                     significance: String,
                     lastUpdatedDate: String,
-                    pubMedIds: Array(String)
-                  }),
-                  cosmic: Array(Struct{
+                    pubMedIds: Array[String]
+                  }],
+                  cosmic: Array[Struct{
                     id: String,
                     isAlleleSpecific: Boolean,
                     refAllele: String,
                     altAllele: String,
                     gene: String,
                     sampleCount: Int,
-                    studies: Array(Struct{
+                    studies: Array[Struct{
                       id: Int,
                       histology: String,
                       primarySite: String
-                    })
-                  }),
-                  dbsnp: Struct{"ids: Array(String)},
+                    }]
+                  }],
+                  dbsnp: Struct{"ids: Array[String]},
                   evs: Struct{
                     coverage: Int,
                     sampleCount: Int,
@@ -5347,7 +5347,7 @@ class VariantDataset(object):
                     sasAn: Int
                   },
                   transcripts: Struct{
-                    refSeq: Array(Struct{
+                    refSeq: Array[Struct{
                       transcript: String,
                       bioType: String,
                       aminoAcids: String,
@@ -5358,7 +5358,7 @@ class VariantDataset(object):
                       introns: String,
                       geneId: String,
                       hgnc: String,
-                      consequence: Array(String),
+                      consequence: Array[String],
                       hgvsc: String,
                       hgvsp: String,
                       isCanonical: Boolean,
@@ -5368,8 +5368,8 @@ class VariantDataset(object):
                       proteinPos: String,
                       siftScore: Double,
                       siftPrediction: String
-                    }),
-                    ensembl: Array(Struct{
+                    }],
+                    ensembl: Array[Struct{
                       transcript: String,
                       bioType: String,
                       aminoAcids: String,
@@ -5380,7 +5380,7 @@ class VariantDataset(object):
                       introns: String,
                       geneId: String,
                       hgnc: String,
-                      consequence: Array(String),
+                      consequence: Array[String],
                       hgvsc: String,
                       hgvsp: String,
                       isCanonical: Boolean,
@@ -5390,24 +5390,24 @@ class VariantDataset(object):
                       proteinPos: String,
                       siftScore: Double,
                       siftPrediction: String
-                    })
+                    }]
                   },
-                  genes: Array(Struct{
+                  genes: Array[Struct{
                     name: String,
-                    omim: Array(Struct(
+                    omim: Array[Struct(
                       mimNumber: Int,
                       hgnc: String,
                       description: String,
-                      phenotypes: Array(Struct{
+                      phenotypes: Array[Struct{
                         mimNumber: Int,
                         phenotype: String,
                         mapping: String,
-                        inheritance: Array(String),
+                        inheritance: Array[String],
                         comments: String
-                      })
-                    ))
-                  })
-                ))
+                      }]
+                    )]
+                  }]
+                }]
             }
 
         :param str config: The path to the config file.
