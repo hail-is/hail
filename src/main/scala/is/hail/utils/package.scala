@@ -14,8 +14,10 @@ import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.log4j.Level
 import org.apache.spark.Partition
 import org.json4s.Extraction.decompose
+import org.json4s.JsonAST.JArray
 import org.json4s.jackson.Serialization
-import org.json4s.{Formats, JValue, NoTypeHints}
+import org.json4s.reflect.TypeInfo
+import org.json4s.{Extraction, Formats, JValue, NoTypeHints, Serializer}
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
@@ -403,7 +405,7 @@ package object utils extends Logging
     }
   }
 
-  implicit val jsonFormatsNoTypeHints: Formats = Serialization.formats(NoTypeHints)
+  implicit val jsonFormatsNoTypeHints: Formats = Serialization.formats(NoTypeHints) + GenericIndexedSeqSerializer
 
   def caseClassJSONReaderWriter[T](implicit mf: scala.reflect.Manifest[T]): JSONReaderWriter[T] = new JSONReaderWriter[T] {
     def toJSON(x: T): JValue = decompose(x)
@@ -491,5 +493,25 @@ package object utils extends Logging
       1
     else
       1 + digitsNeeded(i / 10)
+  }
+
+}
+
+// FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
+object GenericIndexedSeqSerializer extends Serializer[IndexedSeq[_]] {
+  val IndexedSeqClass = classOf[IndexedSeq[_]]
+
+  override def serialize(implicit format: Formats) = {
+    case seq: IndexedSeq[_] => JArray(seq.map(Extraction.decompose).toList)
+  }
+
+  override def deserialize(implicit format: Formats) = {
+    case (TypeInfo(IndexedSeqClass, parameterizedType), JArray(xs)) =>
+      val typeInfo = TypeInfo(parameterizedType
+        .map(_.getActualTypeArguments()(0))
+        .getOrElse(throw new RuntimeException("No type parameter info for type IndexedSeq"))
+        .asInstanceOf[Class[_]],
+        None)
+      xs.map(x => Extraction.extract(x, typeInfo)).toArray[Any]
   }
 }

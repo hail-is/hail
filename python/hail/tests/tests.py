@@ -5,7 +5,7 @@ from __future__ import print_function  # Python 2 and 3 print compatibility
 
 import unittest
 
-from hail import HailContext, KeyTable, VariantDataset
+from hail import HailContext, KeyTable, VariantDataset, LDMatrix
 from hail.representation import *
 
 from hail.expr import *
@@ -14,6 +14,8 @@ from hail.keytable import asc, desc
 from hail.utils import *
 import time
 from hail.keytable import desc
+import os
+import shutil
 
 hc = None
 
@@ -343,7 +345,14 @@ class ContextTests(unittest.TestCase):
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
 
         km = vds_kinship.rrm(False, False)
+
+        ld_matrix_path = '/tmp/ldmatrix'
         ldMatrix = vds_kinship.ld_matrix()
+        if os.path.isdir(ld_matrix_path):
+            shutil.rmtree(ld_matrix_path)
+        ldMatrix.write(ld_matrix_path)
+        LDMatrix.read(ld_matrix_path).to_local_matrix()
+
         vds_assoc = vds_assoc.lmmreg(km, 'sa.pheno.PhenoLMM', ['sa.cov.Cov1', 'sa.cov.Cov2'])
 
         vds_assoc.export_variants('/tmp/lmmreg.tsv', 'Variant = v, va.lmmreg.*')
