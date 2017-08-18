@@ -1276,7 +1276,7 @@ class VariantDataset(HistoryMixin):
 
         The model looks for de novo events in which both parents are homozygous
         reference and the proband is a heterozygous. The model makes the simplifying assumption that when this
-        configuation ``x = (AA, AA, AB)`` of calls occurs, exactly one of the following is true:
+        configuration ``x = (AA, AA, AB)`` of calls occurs, exactly one of the following is true:
         
             - ``d`` = a de novo mutation occurred in the proband and all calls are true
             - ``m`` = at least one parental allele is truly non-reference and the proband call is true
@@ -1288,6 +1288,8 @@ class VariantDataset(HistoryMixin):
             \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,\|\,x)}{\mathrm{P}(d\,\|\,x) + \mathrm{P}(m\,\|\,x)}
 
         Applying Bayes rule to the numerator and denominator yields
+
+        .. math::
 
             \\frac{\mathrm{P}(x\,\|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,\|\,d)\,\mathrm{P}(d) + \mathrm{P}(x\,\|\,m)\,\mathrm{P}(m)}
 
@@ -1308,17 +1310,19 @@ class VariantDataset(HistoryMixin):
 
         .. math::
 
-            \\mathrm{P}(x = (AA, AA, AB) \,\|\,d) =  
-            \\mathrm{P}(x_{\\mathrm{father}} = AA \,\|\, \\mathrm{father} = AA) \,
-            \\mathrm{P}(x_{\\mathrm{mother}} = AA \,\|\, \\mathrm{mother} = AA) \,
-            \\mathrm{P}(x_{\\mathrm{proband}} = AB \,\|\, \\mathrm{proband} = AB)
+            \\mathrm{P}(x = (AA, AA, AB) \,\|\,d) &=
+            \\mathrm{P}(x_{\\mathrm{father}} = AA \,\|\, \\mathrm{father} = AA) \\\\
+            \\cdot &\\mathrm{P}(x_{\\mathrm{mother}} = AA \,\|\, \\mathrm{mother} = AA) \\\\
+            \\cdot &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,\|\, \\mathrm{proband} = AB)
 
         .. math::
 
-            \\mathrm{P}(x = (AA, AA, AB) \,\|\,m) = 
-            \\mathrm{P}(x_{\\mathrm{father}} == AA \,\|\, \\mathrm{father} = AB) * \\mathrm{P}(x_{\\mathrm{mother}} == AA \,\|\, \\mathrm{mother} = AA) +
-            \\mathrm{P}(x_{\\mathrm{father}} == AA \,\|\, \\mathrm{father} = AA) * \\mathrm{P}(x_{\\mathrm{mother}} == AA \,\|\, \\mathrm{mother} = AB) \,
-            \\mathrm{P}(x_{\\mathrm{proband}} == AB \,\|\, \\mathrm{proband} = AB)
+            \\mathrm{P}(x = (AA, AA, AB) \,\|\,m) = \,
+            (&\\mathrm{P}(x_{\\mathrm{father}} = AA \,\|\, \\mathrm{father} = AB)
+            \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,\|\, \\mathrm{mother} = AA) \\\\
+            + \, &\\mathrm{P}(x_{\\mathrm{father}} = AA \,\|\, \\mathrm{father} = AA)
+            \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,\|\, \\mathrm{mother} = AB)) \\\\
+            \\cdot \, &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,\|\, \\mathrm{proband} = AB)
 
         (Technically, the second factorization assumes there is exactly (rather than at least) one alternate allele among the parents, which may be
         justified on the grounds that it is typically the most likely case by far.)
@@ -1328,16 +1332,14 @@ class VariantDataset(HistoryMixin):
         are not appropriately accounted for by the phred-scaled genotype likelihoods. To this end, a number
         of hard filters are applied in order to assign validation likelihood.
 
-        The minimum :math:`\\mathrm{P_{\\text{de novo}}}` for the 'LOW' validation likelihood category is 0.05,
-        but can be adjusted with the ``min_p`` argument.
-
         These filters are different for SNPs and insertions/deletions. In the below rules, the following
         variables are used:
 
          - ``DR`` refers to the ratio of the read depth in the proband to the combined read depth in the parents.
          - ``AB`` refers to the read allele balance of the proband (number of alternate reads divided by total reads).
-         - ``AC`` refers to the count of alternate alleles across all invididuals in the dataset at the site.
-         - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`
+         - ``AC`` refers to the count of alternate alleles across all individuals in the dataset at the site.
+         - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`.
+         - ``min_p`` refers to the ``min_p`` function parameter.
 
         HIGH-quality SNV:
 
@@ -1359,7 +1361,7 @@ class VariantDataset(HistoryMixin):
 
         .. code-block:: text
 
-            p > 0.05 && AB > 0.2
+            p > min_p && AB > 0.2
 
         HIGH-quality indel:
 
@@ -1381,7 +1383,7 @@ class VariantDataset(HistoryMixin):
 
         .. code-block:: text
 
-            p > 0.05 && AB > 0.2
+            p > min_p && AB > 0.2
 
         Additionally, de novo candidates are not considered if the proband GQ is smaller than the ``min_gq``
         parameter, if the proband allele balance is lower than the ``min_child_ab`` parameter, if the
