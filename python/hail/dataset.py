@@ -2836,7 +2836,7 @@ class VariantDataset(HistoryMixin):
         - **va.linreg.pval** (*Array[Double]*) -- array of :math:`p`-values
 
         :param ys: list of one or more response expressions.
-        :type covariates: list of str
+        :type ys: list of str
 
         :param covariates: list of covariate expressions.
         :type covariates: list of str
