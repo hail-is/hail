@@ -6,7 +6,7 @@ import is.hail.check.{Gen, _}
 import is.hail.sparkextras.OrderedKey
 import is.hail.utils
 import is.hail.utils.{Interval, StringEscapeUtils, _}
-import is.hail.variant.{AltAllele, Call, Contig, GRVariable, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, Call, Contig, GenomeReference, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataType
 import org.json4s._
