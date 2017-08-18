@@ -1177,8 +1177,9 @@ class KeyTable(object):
     @typecheck(path=strlike,
                quantitative=bool,
                delimiter=strlike,
-               missing=strlike)
-    def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
+               missing=strlike,
+               mangle_duplicates=bool)
+    def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA', mangle_duplicates=False):
         """Import PLINK .fam file into a key table.
 
         **Examples**
@@ -1196,6 +1197,13 @@ class KeyTable(object):
 
         >>> fam_kt = KeyTable.import_fam('data/myStudy.fam', quantitative=True)
 
+        .. warning::
+
+            No duplicate individual IDs are allowed. The ``mangle_duplicates`` option can be used to
+            mangle duplicate IDs, storing the original ID as an additional column (see below). If this
+            option is used, then sample IDs ``['NA12878', 'NA12878', 'NA12878']`` will be mangled to
+            ``['NA12878', 'NA12878_1', 'NA12878_2']``.
+
         **Columns**
 
         The column, types, and missing values are shown below.
@@ -1210,6 +1218,10 @@ class KeyTable(object):
     
             - **isCase** (*Boolean*) -- Case-control phenotype (missing = "0", "-9", non-numeric or the ``missing`` argument, if given.
             - **qPheno** (*Double*) -- Quantitative phenotype (missing = "NA" or the ``missing`` argument, if given.
+
+        If the ``mangle_duplicates`` argument is true, then the table will also have an additional column:
+
+          - **originalID** (*String*) -- original sample ID before mangling.
 
         :param str path: Path to .fam file.
 
@@ -1226,7 +1238,7 @@ class KeyTable(object):
         """
 
         hc = Env.hc()
-        jkt = Env.hail().keytable.KeyTable.importFam(hc._jhc, path, quantitative, delimiter, missing)
+        jkt = Env.hail().keytable.KeyTable.importFam(hc._jhc, path, quantitative, delimiter, missing, mangle_duplicates)
         return KeyTable(hc, jkt)
 
     @handle_py4j

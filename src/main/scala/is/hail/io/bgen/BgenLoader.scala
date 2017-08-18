@@ -8,6 +8,7 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 import scala.reflect.classTag
 import scala.io.Source
@@ -38,6 +39,11 @@ object BgenLoader {
     }
 
     val nSamples = sampleIds.length
+
+    val (sampleAnnotationSchema, sampleAnnotations) = if (mangleDuplicates)
+      (TStruct("originalID" -> TString), preIds.map(Row(_)): IndexedSeq[Annotation])
+    else
+      (TStruct.empty, Annotation.emptyIndexedSeq(nSamples))
 
     hc.hadoopConf.setDouble("tolerance", tolerance)
 
@@ -84,7 +90,7 @@ object BgenLoader {
 
     new GenericDataset(hc, VSMMetadata(
       TString,
-      saSignature = TStruct.empty,
+      sampleAnnotationSchema,
       TVariant,
       vaSignature = signature,
       genotypeSignature = TStruct("GT" -> TCall, "GP" -> TArray(TFloat64)),
@@ -92,7 +98,7 @@ object BgenLoader {
       wasSplit = true),
       VSMLocalValue(globalAnnotation = Annotation.empty,
         sampleIds = sampleIds,
-        sampleAnnotations = Array.fill(nSamples)(Annotation.empty)),
+        sampleAnnotations = sampleAnnotations),
       rdd)
   }
 

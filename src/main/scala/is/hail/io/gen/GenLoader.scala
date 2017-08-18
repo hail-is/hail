@@ -7,10 +7,13 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 
-case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))])
+case class GenResult(file: String, nSamples: Int, nVariants: Int,
+  sampleAnnotationSchema: TStruct, sampleAnnotations: IndexedSeq[Annotation],
+  rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))])
 
 object GenLoader {
   def apply(genFile: String, sampleFile: String, sc: SparkContext,
@@ -34,6 +37,12 @@ object GenLoader {
 
     val nSamples = sampleIds.length
 
+    val (sampleAnnotationSchema, sampleAnnotations) = if (mangleDuplicates)
+      (TStruct("originalID" -> TString), preIds.map(Row(_)): IndexedSeq[Annotation])
+    else
+      (TStruct.empty, Annotation.emptyIndexedSeq(nSamples))
+
+
     val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
       .map(_.map { l =>
         readGenLine(l, nSamples, tolerance, chromosome)
@@ -41,7 +50,7 @@ object GenLoader {
 
     val signatures = TStruct("rsid" -> TString, "varid" -> TString)
 
-    GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
+    GenResult(genFile, nSamples, rdd.count().toInt, sampleAnnotationSchema, sampleAnnotations, rdd)
   }
 
   def readGenLine(line: String, nSamples: Int,

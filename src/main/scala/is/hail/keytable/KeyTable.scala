@@ -109,10 +109,9 @@ object KeyTable {
   }
 
   def importFam(hc: HailContext, path: String, isQuantitative: Boolean = false,
-    delimiter: String = "\\t",
-    missingValue: String = "NA"): KeyTable = {
+    delimiter: String = "\\t", missingValue: String = "NA", mangleDuplicates: Boolean): KeyTable = {
 
-    val ffConfig = FamFileConfig(isQuantitative, delimiter, missingValue)
+    val ffConfig = FamFileConfig(isQuantitative, delimiter, missingValue, mangleDuplicates)
 
     val (data, typ) = PlinkLoader.parseFam(path, ffConfig, hc.hadoopConf)
 

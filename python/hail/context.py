@@ -193,13 +193,19 @@ class HailContext(object):
         Before importing, ensure that:
 
           - The sample file has the same number of samples as the BGEN file.
-          - No duplicate sample IDs are present.
+
+        .. warning::
+
+            No duplicate individual IDs are allowed. The ``mangle_duplicates`` option can be used to
+            mangle duplicate IDs, storing the original ID as a sample annotation (see below). If this
+            option is used, then sample IDs ``['NA12878', 'NA12878', 'NA12878']`` will be mangled to
+            ``['NA12878', 'NA12878_1', 'NA12878_2']``.
 
         To load multiple files at the same time, use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
         .. _gpfilters:
 
-        **Genotype probability (``gp``) representation**:
+        **Genotype probability (**``gp``**) representation**:
 
         The following modifications are made to genotype probabilities in BGEN v1.1 files:
 
@@ -211,9 +217,13 @@ class HailContext(object):
 
         :py:meth:`~hail.HailContext.import_bgen` adds the following variant annotations:
 
-         - **va.varid** (*String*) -- 2nd column of .gen file if chromosome present, otherwise 1st column.
+          - **va.varid** (*String*) -- Variant identifier.
+          - **va.rsid** (*String*) -- SNP rsID.
 
-         - **va.rsid** (*String*) -- 3rd column of .gen file if chromosome present, otherwise 2nd column.
+        If the ``mangle_duplicates`` argument is true, then the dataset will also have one sample annotation:
+
+          - **sa.originalID** (*String*) -- original sample ID before mangling.
+
 
         :param path: .bgen files to import.
         :type path: str or list of str
@@ -267,9 +277,14 @@ class HailContext(object):
 
         - If there are only 5 columns before the start of the genotype probability data (chromosome field is missing), you must specify the chromosome using the ``chromosome`` parameter
 
-        - No duplicate sample IDs are allowed
-
         The first column in the .sample file is used as the sample ID ``s``.
+
+        .. warning::
+
+            No duplicate individual IDs are allowed. The ``mangle_duplicates`` option can be used to
+            mangle duplicate IDs, storing the original ID as a sample annotation (see below). If this
+            option is used, then sample IDs ``['NA12878', 'NA12878', 'NA12878']`` will be mangled to
+            ``['NA12878', 'NA12878_1', 'NA12878_2']``.
 
         Also, see section in :py:meth:`~hail.HailContext.import_bgen` linked :ref:`here <gpfilters>` for information about Hail's genotype probability representation.
 
@@ -277,9 +292,12 @@ class HailContext(object):
 
         :py:meth:`~hail.HailContext.import_gen` adds the following variant annotations:
 
-         - **va.varid** (*String*) -- 2nd column of .gen file if chromosome present, otherwise 1st column.
+          - **va.varid** (*String*) -- 2nd column of .gen file if chromosome present, otherwise 1st column.
+          - **va.rsid** (*String*) -- 3rd column of .gen file if chromosome present, otherwise 2nd column.
 
-         - **va.rsid** (*String*) -- 3rd column of .gen file if chromosome present, otherwise 2nd column.
+        If the ``mangle_duplicates`` argument is true, then the dataset will also have one sample annotation:
+
+          - **sa.originalID** (*String*) -- original sample ID before mangling.
 
         :param path: .gen files to import.
         :type path: str or list of str
@@ -497,7 +515,10 @@ class HailContext(object):
 
         .. warning::
 
-            No duplicate individual IDs are allowed.
+            No duplicate individual IDs are allowed. The ``mangle_duplicates`` option can be used to
+            mangle duplicate IDs, storing the original ID as a sample annotation (see below). If this
+            option is used, then sample IDs ``['NA12878', 'NA12878', 'NA12878']`` will be mangled to
+            ``['NA12878', 'NA12878_1', 'NA12878_2']``.
 
         Chromosome names (Column 1) are automatically converted in the following cases:
 
@@ -521,6 +542,10 @@ class HailContext(object):
            Set to true if value equals "2". Set to false if value equals "1".
          - **sa.qPheno** (*String*) -- Column 6 in the FAM file. Only present if ``quantpheno`` equals True.
            Set to missing if value equals ``missing``.
+
+        If the ``mangle_duplicates`` argument is true, then the dataset will have an additional sample annotation:
+
+        - **sa.originalID** (*String*) -- original sample ID before mangling.
 
         :param str bed: PLINK BED file.
 
@@ -606,6 +631,13 @@ class HailContext(object):
         it to Hail using the ``force`` optional parameter. However, this is not recommended -- all parsing will have to take place on one node because
         gzip decompression is not parallelizable. In this case, import could take significantly longer.
 
+        .. warning::
+
+            No duplicate individual IDs are allowed. The ``mangle_duplicates`` option can be used to
+            mangle duplicate IDs, storing the original ID as a sample annotation (see below). If this
+            option is used, then sample IDs ``['NA12878', 'NA12878', 'NA12878']`` will be mangled to
+            ``['NA12878', 'NA12878_1', 'NA12878_2']``.
+
         If ``generic`` equals False (default), Hail makes certain assumptions about the genotype fields, see :class:`Representation <hail.representation.Genotype>`. On import, Hail filters
         (sets to no-call) any genotype that violates these assumptions. Hail interprets the format fields: GT, AD, OD, DP, GQ, PL; all others are
         silently dropped.
@@ -665,6 +697,8 @@ class HailContext(object):
 
         **Annotations**
 
+        The following variant annotations are included:
+
         - **va.filters** (*Set[String]*) -- Set containing all filters applied to a variant. 
         - **va.rsid** (*String*) -- rsID of the variant.
         - **va.qual** (*Double*) -- Floating-point number in the QUAL field.
@@ -673,13 +707,17 @@ class HailContext(object):
           specified in the VCF header, and if the declared ``Number`` is not
           1, the result will be stored as an array.
 
+        If the ``mangle_duplicates`` argument is true, then the dataset will also have one sample annotation:
+
+        - **sa.originalID** (*String*) -- original sample ID before mangling.
+
         :param path: VCF file(s) to read.
         :type path: str or list of str
 
         :param bool force: If True, load .gz files serially. This means that no downstream operations
             can be parallelized, so using this mode is strongly discouraged for VCFs larger than a few MB.
 
-        :param bool force_bgz: If True, load .gz files as blocked gzip files (BGZF)
+        :param bool force_bgz: If True, load .gz files as blocked gzip files (BGZF).
 
         :param header_file: File to load VCF header from.  If not specified, the first file in path is used.
         :type header_file: str or None

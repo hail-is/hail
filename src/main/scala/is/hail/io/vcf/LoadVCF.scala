@@ -7,6 +7,7 @@ import is.hail.expr.{TStruct, _}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConversions._
@@ -210,6 +211,11 @@ object LoadVCF {
           duplicates.map { case (id, _) => '"' + id + '"' }.truncatable())
     }
 
+    val (sampleAnnotationSchema, sampleAnnotations) = if (mangleDuplicates)
+      (TStruct("originalID" -> TString), preIds.map(Row(_)): IndexedSeq[Annotation])
+    else
+      (TStruct.empty, Annotation.emptyIndexedSeq(sampleIds.length))
+
     val infoSignatureBc = sc.broadcast(infoSignature)
     val genotypeSignatureBc = sc.broadcast(genotypeSignature)
 
@@ -283,7 +289,7 @@ object LoadVCF {
 
     new VariantSampleMatrix(hc, VSMMetadata(
       TString,
-      TStruct.empty,
+      sampleAnnotationSchema,
       TVariant,
       variantAnnotationSignatures,
       TStruct.empty,
@@ -291,7 +297,7 @@ object LoadVCF {
       wasSplit = noMulti),
       VSMLocalValue(Annotation.empty,
         sampleIds,
-        Annotation.emptyIndexedSeq(sampleIds.length)),
+        sampleAnnotations),
       rdd)
   }
 }

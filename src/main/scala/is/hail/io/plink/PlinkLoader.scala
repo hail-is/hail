@@ -9,6 +9,7 @@ import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 import scala.reflect.classTag
@@ -53,7 +54,11 @@ object PlinkLoader {
 
     val phenoSig = if (ffConfig.isQuantitative) ("qPheno", TFloat64) else ("isCase", TBoolean)
 
-    val signature = TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isFemale", TBoolean), phenoSig)
+    val signature = if (ffConfig.mangleDuplicates)
+      TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isFemale", TBoolean), phenoSig,
+        ("originalID", TString))
+    else
+      TStruct(("famID", TString), ("patID", TString), ("matID", TString), ("isFemale", TBoolean), phenoSig)
 
     val idBuilder = new ArrayBuilder[String]
     val structBuilder = new ArrayBuilder[Annotation]
@@ -98,11 +103,16 @@ object PlinkLoader {
               case _ => null
             }
         idBuilder += kid
-        structBuilder += Annotation(fam1, dad1, mom1, isFemale1, pheno1)
+        if (ffConfig.mangleDuplicates)
+          structBuilder += Annotation(fam1, dad1, mom1, isFemale1, pheno1, kid)
+        else
+          structBuilder += Annotation(fam1, dad1, mom1, isFemale1, pheno1)
       }
     }
 
-    val (sampleIds, duplicates) = mangle(idBuilder.result())
+    val preIds = idBuilder.result()
+
+    val (sampleIds, duplicates) = mangle(preIds)
     if (duplicates.nonEmpty) {
       if (ffConfig.mangleDuplicates)
         warn(s"Found ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. Mangled IDs follows:\n  @1",
@@ -113,6 +123,11 @@ object PlinkLoader {
           s"  Duplicate IDs: [ @1 ]",
           duplicates.map { case (id, _) => '"' + id + '"' }.truncatable())
     }
+
+    val (sampleAnnotationSchema, sampleAnnotations) = if (ffConfig.mangleDuplicates)
+      (TStruct("originalID" -> TString), preIds.map(Row(_)): IndexedSeq[Annotation])
+    else
+      (TStruct.empty, Annotation.emptyIndexedSeq(sampleIds.length))
 
     if (sampleIds.isEmpty)
       fatal("Empty .fam file")

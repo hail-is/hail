@@ -473,6 +473,9 @@ class ContextTests(unittest.TestCase):
         kt.annotate("newField = [0, 1, 2]").explode(["newField"])
 
         sample = hc.import_vcf(test_resources + '/sample.vcf')
+
+        self.assertEqual(hc.import_vcf(test_resources + '/sample.vcf', mangle_duplicates=True)\
+            .query_samples('samples.filter(s => sa.originalID != s).collect()'), [])
         sample_variants = (sample.variants_table()
                            .annotate('v = str(v), va.filters = va.filters.toArray()')
                            .flatten())
@@ -510,6 +513,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(bydescab, [(7, 'baz'), (5, 'quam'), (5, None), (-1, 'quam'), (None, 'foo')])
 
         KeyTable.import_fam(test_resources + '/sample.fam')._typecheck()
+        KeyTable.import_fam(test_resources + '/sample.fam', mangle_duplicates=True)._typecheck()
 
         self.assertEqual(kt.union(kt).count(), kt.count() * 2)
         self.assertEqual(kt.union(kt, kt).count(), kt.count() * 3)
