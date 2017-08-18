@@ -30,8 +30,10 @@ object Skat {
     yExpr: String,
     covExpr: Array[String],
     useDosages: Boolean,
-    useLargeN: Boolean = false): KeyTable = {
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    useLargeN: Boolean = false,
+    useLogistic: Boolean = false): KeyTable = {
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    var filteredVds = vds.filterSamplesList(completeSamples.toSet)
     val n = y.size
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
