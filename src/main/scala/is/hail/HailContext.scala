@@ -56,6 +56,7 @@ object HailContext {
         "org.apache.hadoop.io.compress.GzipCodec")
 
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    conf.set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
 
     conf.set("spark.sql.parquet.compression.codec", parquetCompression)
     conf.set("spark.sql.files.openCostInBytes", tera.toString)
@@ -111,6 +112,9 @@ object HailContext {
     val kryoSerializer = "org.apache.spark.serializer.KryoSerializer"
     if (serializer != kryoSerializer)
       problems += s"Invalid configuration property spark.serializer: required $kryoSerializer.  Found: $serializer."
+
+    if (conf.get("spark.kryo.registrator") != "is.hail.kryo.HailKryoRegistrator")
+      problems += s"Invalid config parameter: spark.kryo.registrator must be set to is.hail.kryo.HailKryoRegistrator"
 
     if (problems.nonEmpty)
       fatal(
