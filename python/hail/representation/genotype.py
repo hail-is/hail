@@ -1,7 +1,9 @@
 from hail.java import *
 from hail.typecheck import *
+from hail.history import *
 
-class Genotype(object):
+
+class Genotype(HistoryMixin):
     """
     An object that represents an individual's genotype at a genomic locus.
 
@@ -24,6 +26,7 @@ class Genotype(object):
     _genotype_jobject = None
 
     @handle_py4j
+    @record_init
     def __init__(self, gt, ad=None, dp=None, gq=None, pl=None):
         """Initialize a Genotype object."""
 
@@ -74,6 +77,7 @@ class Genotype(object):
         self._jrep = jrep
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         if not Genotype._genotype_jobject:
             Genotype._genotype_jobject = scala_object(Env.hail().variant, 'Genotype')
@@ -334,7 +338,7 @@ class Genotype(object):
         return from_option(self._jgenotype.fractionReadsRef(self._jrep))
 
 
-class Call(object):
+class Call(HistoryMixin):
     """
     An object that represents an individual's call at a genomic locus.
 
@@ -345,6 +349,7 @@ class Call(object):
     _call_jobject = None
 
     @handle_py4j
+    @record_init
     def __init__(self, call):
         """Initialize a Call object."""
 
@@ -371,6 +376,7 @@ class Call(object):
         self._jrep = jrep
 
     @classmethod
+    @record_classmethod
     def _from_java(cls, jrep):
         c = Call.__new__(cls)
         c._init_from_java(jrep)

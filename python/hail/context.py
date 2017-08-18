@@ -10,9 +10,10 @@ from hail.java import *
 from hail.keytable import KeyTable
 from hail.stats import UniformDist, TruncatedBetaDist, BetaDist
 from hail.utils import wrap_to_list
+from hail.history import *
 
 
-class HailContext(object):
+class HailContext(HistoryMixin):
     """The main entry point for Hail functionality.
 
     .. warning::
@@ -46,6 +47,7 @@ class HailContext(object):
     :vartype sc: :class:`.pyspark.SparkContext`
     """
 
+    @record_init
     @typecheck_method(sc=nullable(SparkContext),
                       app_name=strlike,
                       master=nullable(strlike),
@@ -88,6 +90,7 @@ class HailContext(object):
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jsql_context = self._jhc.sqlContext()
         self._sql_context = SQLContext(self.sc, self._jsql_context)
+        super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
@@ -109,6 +112,10 @@ class HailContext(object):
         if self.version.startswith('devel'):
             sys.stderr.write('WARNING: This is an unstable development build.')
 
+    def _set_history(self, history):
+        assert self._history is None, "Cannot set history for HailContext more than once."
+        self._history = history.set_varid("hc")
+        
     @staticmethod
     def get_running():
         """Return the running Hail context in this Python session.
@@ -169,6 +176,7 @@ class HailContext(object):
         self._jhc.grep(regex, jindexed_seq_args(path), max_count)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       tolerance=numeric,
                       sample_file=nullable(strlike),
@@ -236,6 +244,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       sample_file=nullable(strlike),
                       tolerance=numeric,
@@ -300,6 +309,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(paths=oneof(strlike, listof(strlike)),
                       key=oneof(strlike, listof(strlike)),
                       min_partitions=nullable(int),
@@ -464,6 +474,7 @@ class HailContext(object):
         return KeyTable(self, jkt)
 
     @handle_py4j
+    @record_method
     @typecheck_method(bed=strlike,
                       bim=strlike,
                       fam=strlike,
@@ -541,6 +552,7 @@ class HailContext(object):
         return VariantDataset(self, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       drop_samples=bool,
                       drop_variants=bool)
@@ -570,6 +582,7 @@ class HailContext(object):
             self._jhc.readAll(jindexed_seq_args(path), drop_samples, drop_variants))
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=oneof(strlike, listof(strlike)),
                       force=bool,
                       force_bgz=bool,
@@ -726,6 +739,7 @@ class HailContext(object):
         self._jhc.indexBgen(jindexed_seq_args(path))
 
     @handle_py4j
+    @record_method
     @typecheck_method(populations=integral,
                       samples=integral,
                       variants=integral,
@@ -886,6 +900,7 @@ class HailContext(object):
         Env._hc = None
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=strlike)
     def read_table(self, path):
         """Read a KT file as key table.

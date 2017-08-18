@@ -6,14 +6,17 @@ from hail.representation import Struct
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from pyspark.sql import DataFrame
+from hail.history import *
 
 
-class Ascending(object):
+class Ascending(HistoryMixin):
+    @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).asc(col)
 
 
-class Descending(object):
+class Descending(HistoryMixin):
+    @record_init
     def __init__(self, col):
         self._jrep = scala_package_object(Env.hail().keytable).desc(col)
 
@@ -33,7 +36,7 @@ def desc(col):
 kt_type = lazy()
 
 
-class KeyTable(object):
+class KeyTable(HistoryMixin):
     """Hail's version of a SQL table where columns can be designated as keys.
 
     Key tables may be imported from a text file or Spark DataFrame with :py:meth:`~hail.HailContext.import_table`
@@ -87,13 +90,14 @@ class KeyTable(object):
     def __repr__(self):
         return self._jkt.toString()
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(rows=oneof(listof(Struct), listof(dictof(strlike, anytype))),
-               schema=TStruct,
-               key=oneof(strlike, listof(strlike)),
-               num_partitions=nullable(integral))
-    def parallelize(rows, schema, key=[], num_partitions=None):
+    @record_classmethod
+    @typecheck_method(rows=oneof(listof(Struct), listof(dictof(strlike, anytype))),
+                      schema=TStruct,
+                      key=oneof(strlike, listof(strlike)),
+                      num_partitions=nullable(integral))
+    def parallelize(cls, rows, schema, key=[], num_partitions=None):
         """Construct a key table from a list of rows.
 
         **Examples**
@@ -133,6 +137,7 @@ class KeyTable(object):
         :return: Key table parallelized from the given rows.
         :rtype: :class:`.KeyTable`
         """
+
         return KeyTable(
             Env.hc(),
             Env.hail().keytable.KeyTable.parallelize(
@@ -238,6 +243,7 @@ class KeyTable(object):
         return self._jkt.same(other._jkt)
 
     @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       types_file=nullable(strlike),
                       header=bool,
@@ -252,6 +258,10 @@ class KeyTable(object):
         >>> (kt1.rename({'HT' : 'Height'})
         ...     .export("output/kt1_renamed.tsv"))
 
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file path.
 
         :param str types_file: Output path of types file.
@@ -264,6 +274,7 @@ class KeyTable(object):
         self._jkt.export(output, types_file, header, parallel)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       keep=bool)
     def filter(self, expr, keep=True):
@@ -300,6 +311,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.filter(expr, keep))
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate(self, expr):
         """Add new columns computed from existing columns.
@@ -331,6 +343,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.annotate(expr))
 
     @handle_py4j
+    @record_method
     @typecheck_method(right=kt_type,
                       how=strlike)
     def join(self, right, how='inner'):
@@ -370,6 +383,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.join(right._jkt, how))
 
     @handle_py4j
+    @record_method
     @typecheck_method(key_expr=oneof(strlike, listof(strlike)),
                       agg_expr=oneof(strlike, listof(strlike)))
     def aggregate_by_key(self, key_expr, agg_expr):
@@ -455,6 +469,7 @@ class KeyTable(object):
         return self._jkt.exists(expr)
 
     @handle_py4j
+    @record_method
     @typecheck_method(column_names=oneof(listof(strlike), dictof(strlike, strlike)))
     def rename(self, column_names):
         """Rename columns of key table.
@@ -483,6 +498,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.rename(column_names))
 
     @handle_py4j
+    @record_method
     def expand_types(self):
         """Expand types Locus, Interval, AltAllele, Variant, Genotype, Char,
         Set and Dict.  Char is converted to String.  Set is converted
@@ -503,6 +519,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.expandTypes())
 
     @handle_py4j
+    @record_method
     @typecheck_method(key=oneof(strlike, listof(strlike)))
     def key_by(self, key):
         """Change which columns are keys.
@@ -532,6 +549,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.keyBy(wrap_to_list(key)))
 
     @handle_py4j
+    @record_method
     def flatten(self):
         """Flatten nested Structs.  Column names will be concatenated with dot
         (.).
@@ -582,6 +600,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.flatten())
 
     @handle_py4j
+    @record_method
     @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def select(self, column_names):
         """Select a subset of columns.
@@ -615,6 +634,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.select(column_names, new_key))
 
     @handle_py4j
+    @record_method
     @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def drop(self, column_names):
         """Drop columns.
@@ -728,6 +748,7 @@ class KeyTable(object):
         self._jkt.exportCassandra(address, keyspace, table, block_size, rate)
 
     @handle_py4j
+    @record_method
     @typecheck_method(column_names=oneof(strlike, listof(strlike)))
     def explode(self, column_names):
         """Explode columns of this key table.
@@ -894,6 +915,7 @@ class KeyTable(object):
         self._jkt.typeCheck()
 
     @handle_py4j
+    @write_history('output', is_dir=True)
     @typecheck_method(output=strlike,
                       overwrite=bool)
     def write(self, output, overwrite=False):
@@ -903,7 +925,11 @@ class KeyTable(object):
 
         >>> kt1.write('output/kt1.kt')
 
-        .. note:: The write path must end in ".kt".       
+        .. note:: The write path must end in ".kt".
+
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>/history.txt``.
 
         :param str output: Path of KT file to write.
 
@@ -915,6 +941,7 @@ class KeyTable(object):
         self._jkt.write(output, overwrite)
 
     @handle_py4j
+    @record_method
     def cache(self):
         """Mark this key table to be cached in memory.
 
@@ -926,6 +953,7 @@ class KeyTable(object):
         return KeyTable(self.hc, self._jkt.cache())
 
     @handle_py4j
+    @record_method
     @typecheck_method(storage_level=strlike)
     def persist(self, storage_level="MEMORY_AND_DISK"):
         """Persist this key table to memory and/or disk.
@@ -972,6 +1000,7 @@ class KeyTable(object):
         self._jkt.unpersist()
 
     @handle_py4j
+    @record_method
     @typecheck_method(cols=tupleof(oneof(strlike, Ascending, Descending)))
     def order_by(self, *cols):
         """Sort by the specified columns.  Missing values are sorted after non-missing values.  Sort by the first column, then the second, etc.
@@ -995,10 +1024,11 @@ class KeyTable(object):
         """
         return self._jkt.nPartitions()
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(path=strlike)
-    def import_interval_list(path):
+    @record_classmethod
+    @typecheck_method(path=strlike)
+    def import_interval_list(cls, path):
         """Import an interval list file in the GATK standard format.
         
         >>> intervals = KeyTable.import_interval_list('data/capture_intervals.txt')
@@ -1046,10 +1076,11 @@ class KeyTable(object):
         jkt = Env.hail().keytable.KeyTable.importIntervalList(Env.hc()._jhc, path)
         return KeyTable(Env.hc(), jkt)
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(path=strlike)
-    def import_bed(path):
+    @record_classmethod
+    @typecheck_method(path=strlike)
+    def import_bed(cls, path):
         """Import a UCSC .bed file as a key table.
 
         **Examples**
@@ -1112,11 +1143,12 @@ class KeyTable(object):
         jkt = Env.hail().keytable.KeyTable.importBED(Env.hc()._jhc, path)
         return KeyTable(Env.hc(), jkt)
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(df=DataFrame,
-               key=oneof(strlike, listof(strlike)))
-    def from_dataframe(df, key=[]):
+    @record_classmethod
+    @typecheck_method(df=DataFrame,
+                      key=oneof(strlike, listof(strlike)))
+    def from_dataframe(cls, df, key=[]):
         """Convert Spark SQL DataFrame to key table.
 
         **Examples**
@@ -1154,6 +1186,7 @@ class KeyTable(object):
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.fromDF(Env.hc()._jhc, df._jdf, wrap_to_list(key)))
 
     @handle_py4j
+    @record_method
     @typecheck_method(n=integral,
                       shuffle=bool)
     def repartition(self, n, shuffle=True):
@@ -1172,13 +1205,14 @@ class KeyTable(object):
 
         return KeyTable(self.hc, self._jkt.repartition(n, shuffle))
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(path=strlike,
-               quantitative=bool,
-               delimiter=strlike,
-               missing=strlike)
-    def import_fam(path, quantitative=False, delimiter='\\\\s+', missing='NA'):
+    @record_classmethod
+    @typecheck_method(path=strlike,
+                      quantitative=bool,
+                      delimiter=strlike,
+                      missing=strlike)
+    def import_fam(cls, path, quantitative=False, delimiter='\\\\s+', missing='NA'):
         """Import PLINK .fam file into a key table.
 
         **Examples**
@@ -1230,6 +1264,7 @@ class KeyTable(object):
         return KeyTable(hc, jkt)
 
     @handle_py4j
+    @record_method
     @typecheck_method(kts=tupleof(kt_type))
     def union(self, *kts):
         """Union the rows of multiple tables.
@@ -1281,6 +1316,7 @@ class KeyTable(object):
         return [self.schema._convert_to_py(r) for r in self._jkt.take(n)]
 
     @handle_py4j
+    @record_method
     @typecheck_method(name=strlike)
     def indexed(self, name='index'):
         """Add the numerical index of each row as a new column.
@@ -1309,11 +1345,12 @@ class KeyTable(object):
 
         return KeyTable(self.hc, self._jkt.indexed(name))
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(n=integral,
-               num_partitions=nullable(integral))
-    def range(n, num_partitions=None):
+    @record_classmethod
+    @typecheck_method(n=integral,
+                      num_partitions=nullable(integral))
+    def range(cls, n, num_partitions=None):
         """Construct a table of ``n`` rows with values 0 to ``n - 1``.
 
         **Examples**

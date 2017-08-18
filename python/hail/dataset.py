@@ -12,12 +12,13 @@ from hail.representation import Interval, Pedigree, Variant
 from hail.utils import Summary, wrap_to_list, hadoop_read
 from hail.kinshipMatrix import KinshipMatrix
 from hail.ldMatrix import LDMatrix
+from hail.history import *
 
 warnings.filterwarnings(module=__name__, action='once')
 
 vds_type = lazy()
 
-class VariantDataset(object):
+class VariantDataset(HistoryMixin):
     """Hail's primary representation of genomic data, a matrix keyed by sample and variant.
 
     Variant datasets may be generated from other formats using the :py:class:`.HailContext` import methods,
@@ -49,11 +50,13 @@ class VariantDataset(object):
         self._num_samples = None
         self._jvdf_cache = None
         self._jvkdf_cache = None
+        super(VariantDataset, self).__init__()
 
-    @staticmethod
+    @classmethod
     @handle_py4j
-    @typecheck(table=KeyTable)
-    def from_table(table):
+    @record_classmethod
+    @typecheck_method(table=KeyTable)
+    def from_table(cls, table):
         """Construct a sites-only variant dataset from a key table.
 
         **Examples**
@@ -184,6 +187,7 @@ class VariantDataset(object):
         return self._jvds.fileVersion()
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)),
                propagate_gq=bool)
     def annotate_alleles_expr(self, expr, propagate_gq=False):
@@ -220,6 +224,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_genotypes_expr(self, expr):
         """Annotate genotypes with expression.
@@ -283,6 +288,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.annotateGenotypesExpr(expr))
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_global_expr(self, expr):
         """Annotate global with expression.
@@ -317,6 +323,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(path=strlike,
                       annotation=anytype,
                       annotation_type=Type)
@@ -356,6 +363,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, annotated)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_samples_expr(self, expr):
         """Annotate samples with expression.
@@ -405,6 +413,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(table=KeyTable,
                       root=nullable(strlike),
                       expr=nullable(strlike),
@@ -586,6 +595,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.annotateSamplesTable(table._jkt, vds_key, root, expr, product))
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=oneof(strlike, listof(strlike)))
     def annotate_variants_expr(self, expr):
         """Annotate variants with expression.
@@ -630,6 +640,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(table=KeyTable,
                       root=nullable(strlike),
                       expr=nullable(strlike),
@@ -790,6 +801,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(other=vds_type,
                       expr=nullable(strlike),
                       root=nullable(strlike))
@@ -1096,6 +1108,7 @@ class VariantDataset(object):
         return self
 
     @handle_py4j
+    @record_method
     def cache(self):
         """Mark this variant dataset to be cached in memory.
 
@@ -1107,6 +1120,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.cache())
 
     @handle_py4j
+    @record_method
     @typecheck_method(right=vds_type)
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
@@ -1216,6 +1230,7 @@ class VariantDataset(object):
         return r._1(), r._2()
 
     @handle_py4j
+    @record_method
     def deduplicate(self):
         """Remove duplicate variants.
 
@@ -1226,6 +1241,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deduplicate())
 
     @handle_py4j
+    @record_method
     @typecheck_method(fraction=numeric,
                       seed=integral)
     def sample_variants(self, fraction, seed=1):
@@ -1251,6 +1267,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.sampleVariants(fraction, seed))
 
     @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       precision=integral)
     def export_gen(self, output, precision=4):
@@ -1293,6 +1310,8 @@ class VariantDataset(object):
         - ID_1 and ID_2 are identical and set to the sample ID (``s``).
         - The third column ("missing") is set to 0 for all samples.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file base.  Will write GEN and SAMPLE files.
         :param int precision: Number of digits after the decimal point each probability is truncated to.
         """
@@ -1300,6 +1319,7 @@ class VariantDataset(object):
         self._jvdf.exportGen(output, precision)
 
     @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       expr=strlike,
                       types=bool,
@@ -1323,6 +1343,8 @@ class VariantDataset(object):
 
         The ``expr`` argument is a comma-separated list of fields or expressions, all of which must be of the form ``IDENTIFIER = <expression>``, or else of the form ``<expression>``.  If some fields have identifiers and some do not, Hail will throw an exception. The accessible namespace includes ``g``, ``s``, ``sa``, ``v``, ``va``, and ``global``.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output path.
 
         :param str expr: Export expression for values to export.
@@ -1335,6 +1357,7 @@ class VariantDataset(object):
         self._jvds.exportGenotypes(output, expr, types, parallel)
 
     @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       fam_expr=strlike)
     def export_plink(self, output, fam_expr='id = s'):
@@ -1390,6 +1413,8 @@ class VariantDataset(object):
           file may disagree.
         - PLINK uses the rsID for the BIM file ID.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file base.  Will write BED, BIM, and FAM files.
 
         :param str fam_expr: Expression for FAM file fields.
@@ -1398,6 +1423,7 @@ class VariantDataset(object):
         self._jvdf.exportPlink(output, fam_expr)
 
     @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       expr=strlike,
                       types=bool)
@@ -1427,6 +1453,8 @@ class VariantDataset(object):
         - ``global``: global annotations
         - ``gs`` (*Aggregable[Genotype]*): aggregable of :ref:`genotype` for sample ``s``
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Output file.
 
         :param str expr: Export expression for values to export.
@@ -1437,6 +1465,7 @@ class VariantDataset(object):
         self._jvds.exportSamples(output, expr, types)
 
     @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       expr=strlike,
                       types=bool,
@@ -1513,6 +1542,7 @@ class VariantDataset(object):
         comma-separated list of fields to print. These fields take the
         form ``IDENTIFIER = <expression>``.
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
 
         :param str output: Output file.
 
@@ -1526,6 +1556,7 @@ class VariantDataset(object):
         self._jvds.exportVariants(output, expr, types, parallel)
 
     @handle_py4j
+    @write_history('output')
     @typecheck_method(output=strlike,
                       append_to_header=nullable(strlike),
                       parallel=bool)
@@ -1574,6 +1605,8 @@ class VariantDataset(object):
             ...     .annotate_variants_expr('va.info.AC = va.qc.AC')
             ...     .export_vcf('output/example.vcf.bgz'))
 
+        A text file containing the python code to generate this output file is available at ``<output>.history.txt``.
+
         :param str output: Path of .vcf file to write.
 
         :param append_to_header: Path of file to append to VCF header.
@@ -1585,6 +1618,7 @@ class VariantDataset(object):
         self._jvkdf.exportVCF(output, joption(append_to_header), parallel)
 
     @handle_py4j
+    @write_history('output', is_dir=True)
     @typecheck_method(output=strlike,
                       overwrite=bool)
     def write(self, output, overwrite=False):
@@ -1596,6 +1630,10 @@ class VariantDataset(object):
 
         >>> vds.write("output/sample.vds")
 
+        **Notes**
+
+        A text file containing the python code to generate this output file is available at ``<output>/history.txt``.
+
         :param str output: Path of VDS file to write.
 
         :param bool overwrite: If true, overwrite any existing VDS file. Cannot be used to read from and write to the same path.
@@ -1605,6 +1643,7 @@ class VariantDataset(object):
         self._jvds.write(output, overwrite)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       annotation=strlike,
                       subset=bool,
@@ -1760,6 +1799,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       keep=bool)
     def filter_genotypes(self, expr, keep=True):
@@ -1801,6 +1841,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.filterGenotypes(expr, keep))
 
     @handle_py4j
+    @record_method
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
@@ -1819,6 +1860,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvkdf.filterMulti())
 
     @handle_py4j
+    @record_method
     def drop_samples(self):
         """Removes all samples from variant dataset.
 
@@ -1832,6 +1874,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.dropSamples())
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       keep=bool)
     def filter_samples_expr(self, expr, keep=True):
@@ -1881,6 +1924,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(samples=listof(strlike),
                       keep=bool)
     def filter_samples_list(self, samples, keep=True):
@@ -1908,6 +1952,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.filterSamplesList(samples, keep))
 
     @handle_py4j
+    @record_method
     @typecheck_method(table=KeyTable,
                       keep=bool)
     def filter_samples_table(self, table, keep=True):
@@ -1942,6 +1987,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.filterSamplesTable(table._jkt, keep))
 
     @handle_py4j
+    @record_method
     def drop_variants(self):
         """Discard all variants, variant annotations and genotypes.
 
@@ -1959,6 +2005,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.dropVariants())
 
     @handle_py4j
+    @record_method
     @typecheck_method(expr=strlike,
                       keep=bool)
     def filter_variants_expr(self, expr, keep=True):
@@ -2005,6 +2052,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(intervals=oneof(Interval, listof(Interval)),
                       keep=bool)
     def filter_intervals(self, intervals, keep=True):
@@ -2077,6 +2125,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(variants=listof(Variant),
                       keep=bool)
     def filter_variants_list(self, variants, keep=True):
@@ -2111,6 +2160,7 @@ class VariantDataset(object):
                 [TVariant()._convert_to_j(v) for v in variants], keep))
 
     @handle_py4j
+    @record_method
     @typecheck_method(table=KeyTable,
                       keep=bool)
     def filter_variants_table(self, table, keep=True):
@@ -2179,6 +2229,7 @@ class VariantDataset(object):
         return self._globals
 
     @handle_py4j
+    @record_method
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
@@ -2210,6 +2261,7 @@ class VariantDataset(object):
         return KinshipMatrix(jkm)
 
     @handle_py4j
+    @record_method
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
@@ -2228,6 +2280,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.hardCalls())
 
     @handle_py4j
+    @record_method
     @typecheck_method(maf=nullable(strlike),
                       bounded=bool,
                       min=nullable(numeric),
@@ -2301,6 +2354,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.ibd(joption(maf), bounded, joption(min), joption(max)))
 
     @handle_py4j
+    @record_method
     @typecheck_method(threshold=numeric,
                       tiebreaking_expr=nullable(strlike),
                       maf=nullable(strlike),
@@ -2358,6 +2412,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvdf.ibdPrune(threshold, joption(tiebreaking_expr), joption(maf), bounded))
 
     @handle_py4j
+    @record_method
     @typecheck_method(maf_threshold=numeric,
                       include_par=bool,
                       female_threshold=numeric,
@@ -2423,6 +2478,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(right=vds_type)
     def join(self, right):
         """Join two variant datasets.
@@ -2445,6 +2501,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.join(right._jvds))
 
     @handle_py4j
+    @record_method
     @typecheck_method(r2=numeric,
                       window=integral,
                       memory_per_core=integral,
@@ -2518,6 +2575,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(force_local=bool)
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
@@ -2556,6 +2614,7 @@ class VariantDataset(object):
         return LDMatrix(jldm)
 
     @handle_py4j
+    @record_method
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
@@ -2749,6 +2808,7 @@ class VariantDataset(object):
         return linreg_kt, sample_kt
 
     @handle_py4j
+    @record_method
     @typecheck_method(ys=listof(strlike),
                       covariates=listof(strlike),
                       root=strlike,
@@ -2797,6 +2857,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(kinshipMatrix=KinshipMatrix,
                       y=strlike,
                       covariates=listof(strlike),
@@ -3050,6 +3111,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(test=strlike,
                       y=strlike,
                       covariates=listof(strlike),
@@ -3187,6 +3249,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(key_name=strlike,
                       variant_keys=strlike,
                       single_key=bool,
@@ -3304,6 +3367,7 @@ class VariantDataset(object):
         return logreg_kt, sample_kt
 
     @handle_py4j
+    @record_method
     @typecheck_method(pedigree=Pedigree)
     def mendel_errors(self, pedigree):
         """Find Mendel errors; count per variant, individual and nuclear
@@ -3459,6 +3523,7 @@ class VariantDataset(object):
                KeyTable(self.hc, kts._3()), KeyTable(self.hc, kts._4())
 
     @handle_py4j
+    @record_method
     @typecheck_method(max_shift=integral)
     def min_rep(self, max_shift=100):
         """
@@ -3486,6 +3551,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(scores=strlike,
                       loadings=nullable(strlike),
                       eigenvalues=nullable(strlike),
@@ -3584,6 +3650,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(k=integral,
                       maf=numeric,
                       block_size=integral)
@@ -3780,6 +3847,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size))
 
     @handle_py4j
+    @record_method
     @typecheck_method(storage_level=strlike)
     def persist(self, storage_level="MEMORY_AND_DISK"):
         """Persist this variant dataset to memory and/or disk.
@@ -4217,6 +4285,7 @@ class VariantDataset(object):
         return r
 
     @handle_py4j
+    @record_method
     @typecheck_method(mapping=dictof(strlike, strlike))
     def rename_samples(self, mapping):
         """Rename samples.
@@ -4241,6 +4310,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(num_partitions=integral,
                       shuffle=bool)
     def repartition(self, num_partitions, shuffle=True):
@@ -4272,6 +4342,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(max_partitions=integral)
     def naive_coalesce(self, max_partitions):
         """Naively descrease the number of partitions.
@@ -4290,6 +4361,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
     
     @handle_py4j
+    @record_method
     @typecheck_method(force_block=bool,
                       force_gramian=bool)
     def rrm(self, force_block=False, force_gramian=False):
@@ -4358,6 +4430,7 @@ class VariantDataset(object):
         return self._jvds.same(other._jvds, tolerance)
 
     @handle_py4j
+    @record_method
     @typecheck_method(root=strlike,
                       keep_star=bool)
     def sample_qc(self, root='sa.qc', keep_star=False):
@@ -4476,6 +4549,7 @@ class VariantDataset(object):
         return Summary._from_java(js)
 
     @handle_py4j
+    @record_method
     @typecheck_method(ann_path=strlike,
                       attributes=dictof(strlike, strlike))
     def set_va_attributes(self, ann_path, attributes):
@@ -4565,6 +4639,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.setVaAttributes(ann_path, Env.jutils().javaMapToMap(attributes)))
 
     @handle_py4j
+    @record_method
     @typecheck_method(ann_path=strlike,
                       attribute=strlike)
     def delete_va_attribute(self, ann_path, attribute):
@@ -4606,6 +4681,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, self._jvds.deleteVaAttribute(ann_path, attribute))
 
     @handle_py4j
+    @record_method
     @typecheck_method(propagate_gq=bool,
                       keep_star_alleles=bool,
                       max_shift=integral)
@@ -4740,6 +4816,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(pedigree=Pedigree,
                       root=strlike)
     def tdt(self, pedigree, root='va.tdt'):
@@ -4851,6 +4928,7 @@ class VariantDataset(object):
         self._jvds.typecheck()
 
     @handle_py4j
+    @record_method
     @typecheck_method(root=strlike)
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
@@ -4923,6 +5001,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     @typecheck_method(config=strlike,
                       block_size=integral,
                       root=strlike,
@@ -5149,6 +5228,7 @@ class VariantDataset(object):
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j
+    @record_method
     def variants_table(self):
         """Convert variants and variant annotations to a KeyTable.
 
@@ -5170,6 +5250,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.variantsKT())
 
     @handle_py4j
+    @record_method
     def samples_table(self):
         """Convert samples and sample annotations to KeyTable.
 
@@ -5191,6 +5272,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.samplesKT())
 
     @handle_py4j
+    @record_method
     def genotypes_table(self):
         """Generate a fully expanded genotype table.
 
@@ -5223,6 +5305,7 @@ class VariantDataset(object):
         return KeyTable(self.hc, self._jvds.genotypeKT())
 
     @handle_py4j
+    @record_method
     @typecheck_method(variant_expr=oneof(strlike, listof(strlike)),
                       genotype_expr=oneof(strlike, listof(strlike)),
                       key=oneof(strlike, listof(strlike)),

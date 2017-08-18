@@ -120,6 +120,8 @@ class TInt32(Type):
         if annotation and not isinstance(annotation, int):
             raise TypeCheckError("TInt32 expected type 'int', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TInt32()"
 
 class TInt64(Type):
     """
@@ -148,6 +150,9 @@ class TInt64(Type):
     def _typecheck(self, annotation):
         if annotation and not (isinstance(annotation, long) or isinstance(annotation, int)):
             raise TypeCheckError("TInt64 expected type 'int' or 'long', but found type '%s'" % type(annotation))
+
+    def __repr__(self):
+        return "TInt64()"
 
 
 class TFloat32(Type):
@@ -181,6 +186,9 @@ class TFloat32(Type):
         if annotation and not isinstance(annotation, float):
             raise TypeCheckError("TFloat32 expected type 'float', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TFloat32()"
+
 
 class TFloat64(Type):
     """
@@ -210,6 +218,9 @@ class TFloat64(Type):
         if annotation and not isinstance(annotation, float):
             raise TypeCheckError("TFloat64 expected type 'float', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TFloat64()"
+
 
 class TString(Type):
     """
@@ -236,6 +247,9 @@ class TString(Type):
         if annotation and not (isinstance(annotation, str) or isinstance(annotation, unicode)):
             raise TypeCheckError("TString expected type 'str', but found type '%s'" % type(annotation))
 
+    def __repr__(self):
+        return "TString()"
+
 
 class TBoolean(Type):
     """
@@ -261,6 +275,9 @@ class TBoolean(Type):
     def _typecheck(self, annotation):
         if annotation and not isinstance(annotation, bool):
             raise TypeCheckError("TBoolean expected type 'bool', but found type '%s'" % type(annotation))
+
+    def __repr__(self):
+        return "TBoolean()"
 
 
 class TArray(Type):
@@ -316,6 +333,9 @@ class TArray(Type):
             for elt in annotation:
                 self.element_type._typecheck(elt)
 
+    def __repr__(self):
+        return "TArray({})".format(repr(self.element_type))
+
 
 class TSet(Type):
     """
@@ -369,6 +389,9 @@ class TSet(Type):
                 raise TypeCheckError("TSet expected type 'set', but found type '%s'" % type(annotation))
             for elt in annotation:
                 self.element_type._typecheck(elt)
+
+    def __repr__(self):
+        return "TSet({})".format(repr(self.element_type))
 
 
 class TDict(Type):
@@ -431,6 +454,8 @@ class TDict(Type):
                 self.key_type._typecheck(k)
                 self.value_type._typecheck(v)
 
+    def __repr__(self):
+        return "TDict({}, {})".format(repr(self.key_type), repr(self.value_type))
 
 class Field(object):
     """
@@ -523,6 +548,10 @@ class TStruct(Type):
                                          ([f.name for f in self.fields], annotation._attrs))
                 f.typ._typecheck((annotation[f.name]))
 
+    def __repr__(self):
+        names, types = zip(*[(fd.name, fd.typ) for fd in self.fields])
+        return "TStruct({}, {})".format(repr(list(names)), repr(list(types)))
+
 
 class TVariant(Type):
     """
@@ -555,6 +584,9 @@ class TVariant(Type):
         if annotation and not isinstance(annotation, Variant):
             raise TypeCheckError('TVariant expected type hail.representation.Variant, but found %s' %
                                  type(annotation))
+
+    def __repr__(self):
+        return "TVariant()"
 
 
 class TAltAllele(Type):
@@ -589,6 +621,9 @@ class TAltAllele(Type):
             raise TypeCheckError('TAltAllele expected type hail.representation.AltAllele, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TAltAllele()"
+
 
 class TGenotype(Type):
     """
@@ -621,6 +656,9 @@ class TGenotype(Type):
         if annotation and not isinstance(annotation, Genotype):
             raise TypeCheckError('TGenotype expected type hail.representation.Genotype, but found %s' %
                                  type(annotation))
+
+    def __repr__(self):
+        return "TGenotype()"
 
 
 class TCall(Type):
@@ -655,6 +693,9 @@ class TCall(Type):
             raise TypeCheckError('TCall expected type hail.representation.Call, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TCall()"
+
 
 class TLocus(Type):
     """
@@ -688,6 +729,9 @@ class TLocus(Type):
             raise TypeCheckError('TLocus expected type hail.representation.Locus, but found %s' %
                                  type(annotation))
 
+    def __repr__(self):
+        return "TLocus()"
+
 
 class TInterval(Type):
     """
@@ -720,6 +764,9 @@ class TInterval(Type):
         if annotation and not isinstance(annotation, Interval):
             raise TypeCheckError('TInterval expected type hail.representation.Interval, but found %s' %
                                  type(annotation))
+
+    def __repr__(self):
+        return "TInterval()"
 
 
 __singletons__ = {'is.hail.expr.TInt32$': TInt32,
