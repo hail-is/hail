@@ -14,6 +14,8 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     private static final int INPUT_BUFFER_CAPACITY = 2 * BGZF_MAX_BLOCK_SIZE;
     private static final int OUTPUT_BUFFER_CAPACITY = BGZF_MAX_BLOCK_SIZE;
 
+    private static final String ZIP_EXCEPTION_MESSAGE = "File does not conform to block gzip format.";
+    
     public static class BGzipHeader {
         /* `bsize' is the size of the current BGZF block.
            It is the `BSIZE' entry of the BGZF extra subfield + 1.  */
@@ -25,36 +27,36 @@ public class BGzipInputStream extends SplitCompressionInputStream {
 
         public BGzipHeader(byte[] buf, int off, int bufSize) throws ZipException {
             if (off + 26 > bufSize)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
 
             if ((buf[off] & 0xff) != 31
                     || (buf[off + 1] & 0xff) != 139
                     || (buf[off + 2] & 0xff) != 8)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
 
             // FEXTRA set
             int flg = (buf[off + 3] & 0xff);
             if ((flg & 4) != 4)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
 
             int xlen = (buf[off + 10] & 0xff) | ((buf[off + 11] & 0xff) << 8);
             if (xlen < 6
                 || off + 12 + xlen > bufSize)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
 
             boolean foundBGZFExtraField = false;
             int i = off + 12;
             for (; i < off + 12 + xlen;) {
                 if (i + 4 > bufSize)
-                    throw new ZipException();
+                    throw new ZipException(ZIP_EXCEPTION_MESSAGE);
 
                 int extraFieldLen = (buf[i + 2] & 0xff) | ((buf[i + 3] & 0xff) << 8);
                 if (i + 4 + extraFieldLen > bufSize)
-                    throw new ZipException();
+                    throw new ZipException(ZIP_EXCEPTION_MESSAGE);
 
                 if ((buf[i] & 0xff) == 66 && (buf[i + 1] & 0xff) == 67) {
                     if (extraFieldLen != 2)
-                        throw new ZipException();
+                        throw new ZipException(ZIP_EXCEPTION_MESSAGE);
                     foundBGZFExtraField = true;
                     bsize = ((buf[i + 4] & 0xff) | ((buf[i + 5] & 0xff) << 8)) + 1;
                 }
@@ -62,19 +64,19 @@ public class BGzipInputStream extends SplitCompressionInputStream {
                 i += 4 + extraFieldLen;
             }
             if (i != off + 12 + xlen)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
             if (!foundBGZFExtraField
                     || bsize > BGZF_MAX_BLOCK_SIZE)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
             if (off + bsize > bufSize)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
 
             isize = ((buf[off + bsize - 4] & 0xff)
                     | ((buf[off + bsize - 3] & 0xff) << 8)
                     | ((buf[off + bsize - 2] & 0xff) << 16)
                     | ((buf[off + bsize - 1] & 0xff) << 24));
             if (isize > BGZF_MAX_BLOCK_SIZE)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
         }
     }
 
@@ -159,7 +161,7 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         while (outputBufferSize < isize) {
             int result = decompIS.read(outputBuffer, outputBufferSize, isize - outputBufferSize);
             if (result < 0)
-                throw new ZipException();
+                throw new ZipException(ZIP_EXCEPTION_MESSAGE);
             outputBufferSize += result;
         }
 
