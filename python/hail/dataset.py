@@ -4312,7 +4312,7 @@ class VariantDataset(HistoryMixin):
         **Examples**
 
         >>> vds_result = vds.rename_duplicates()
-        >>> duplicate_sample_ids = vds.query_samples(
+        >>> duplicate_sample_ids = vds_result.query_samples(
         ...     'samples.filter(s => s != sa.originalID).map(s => sa.originalID).collectAsSet()')
 
         **Notes**
