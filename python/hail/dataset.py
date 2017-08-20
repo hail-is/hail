@@ -4264,12 +4264,8 @@ class VariantDataset(HistoryMixin):
         return r
 
     @handle_py4j
-<<<<<<< HEAD
     @record_method
-    @typecheck_method(mapping=dictof(strlike, strlike))
-=======
     @typecheck_method(mapping=oneof(dictof(strlike, strlike), listof(strlike)))
->>>>>>> Added name mangling to allow for duplicate IDs (VCF, GEN, BGEN, PLINK) or TSV columns (TextTableReader)
     def rename_samples(self, mapping):
         """Rename samples.
 

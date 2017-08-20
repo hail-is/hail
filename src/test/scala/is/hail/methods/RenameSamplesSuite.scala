@@ -14,20 +14,6 @@ class RenameSamplesSuite extends SparkSuite {
     hadoopConf.writeTable(file, m.map { case (k, v) => s"$k\t$v" })
   }
 
-  @Test def testCollision() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
-
-    val m = mutable.Map[Annotation, String](
-      vds.sampleIds(0) -> "a",
-      vds.sampleIds(1) -> "a"
-    )
-
-    // FIXME keyword
-    intercept[HailException] {
-      vds.renameSamples(m.toMap)
-    }
-  }
-
   @Test def test() {
     val vds = hc.importVCF("src/test/resources/sample.vcf")
 
