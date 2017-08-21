@@ -19,7 +19,7 @@ class LogisticRegressionSuite extends SparkSuite {
   }
 
   def assertConsistentWithConstant(converged: Annotation, pval: Annotation) {
-    assert(!converged.asInstanceOf[Boolean] || pval.asInstanceOf[Double].isNaN)
+    assert(!converged.asInstanceOf[Boolean] || pval.asInstanceOf[Double].isNaN || 1 - pval.asInstanceOf[Double] < 1e-4)
   }
 
   // x = (0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
@@ -48,7 +48,7 @@ class LogisticRegressionSuite extends SparkSuite {
     val vds = hc.importVCF("src/test/resources/regressionLogistic.vcf")
       .annotateSamplesTable(covariates, root = "sa.cov")
       .annotateSamplesTable(phenotypes, root = "sa.pheno")
-      .logreg("wald", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), "va.logreg")
+      .logreg("wald", "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"))
 
     val qBeta = vds.queryVA("va.logreg.beta")._2
     val qSe = vds.queryVA("va.logreg.se")._2
