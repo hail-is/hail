@@ -1249,7 +1249,7 @@ class VariantDataset(HistoryMixin):
         >>> pedigree = Pedigree.read('data/myStudy.fam')
         >>> priors = hc.import_table('data/gnomadFreq.tsv', impute=True).key_by('Variant')
         >>> denovo_kt = (vds.annotate_variants_table(priors, root='va.gnomAD')
-        ...                  .de_novo(pedigree, 'va.gnomAD'))
+        ...                 .de_novo(pedigree, 'va.gnomAD'))
         >>> denovo_kt.export('denovo_calls.tsv')
 
         **Notes**
@@ -1260,15 +1260,15 @@ class VariantDataset(HistoryMixin):
         This method produces a :py:class:`.KeyTable` with the following columns:
 
             - **variant** (*Variant*) -- Variant at which parents are homozygous reference and proband is heterozygous.
-            - **probandID** (*String*) -- Sample ID of proband.
-            - **fatherID** (*String*) -- Sample ID of father.
-            - **motherID** (*String*) -- Sample ID of mother.
+            - **proband** (*String*) -- Sample ID of proband.
+            - **father** (*String*) -- Sample ID of father.
+            - **mother** (*String*) -- Sample ID of mother.
             - **isFemale** (*Boolean*) -- Sex of proband, true if female.
-            - **confidence** (*String*) -- Validation likelihood of event. One of: 'HIGH', 'MEDIUM', 'LOW'
+            - **confidence** (*String*) -- Validation confidence. One of: 'HIGH', 'MEDIUM', 'LOW'
             - **probandGt** (*Genotype*) -- Genotype of the proband
             - **fatherGt** (*Genotype*) -- Genotype of the father
             - **motherGt** (*Genotype*) -- Genotype of the mother
-            - **pDeNovo** (*Float64*) -- Posterior probability that the event is a true de novo.
+            - **pDeNovo** (*Float64*) -- Unfiltered estimate of posterior probability that the event is a true de novo.
 
         The model was originally designed to run against VCFs produced by GATK from high-throughput sequencing
         experiments, and uses the GT, AD, DP, GQ, and PL fields. The absence of any of these fields will
@@ -1297,7 +1297,7 @@ class VariantDataset(HistoryMixin):
 
         .. math::
 
-            \\mathrm{P}(d) = \\frac{1}{30,000,000\, \\text{bases}}
+            \\mathrm{P}(d) = \\frac{1 \\text{mutation}}{30,000,000\, \\text{bases}}
 
         The prior used for at least one alternate allele between the parents depends on the alternate allele frequency:
 

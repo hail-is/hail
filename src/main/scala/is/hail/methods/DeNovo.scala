@@ -17,9 +17,9 @@ object DeNovo {
 
   def schema: TStruct = TStruct(
     "variant" -> TVariant,
-    "probandID" -> TString,
-    "fatherID" -> TString,
-    "motherID" -> TString,
+    "proband" -> TString,
+    "father" -> TString,
+    "mother" -> TString,
     "isFemale" -> TBoolean,
     "confidence" -> TString,
     "probandGt" -> TGenotype,
