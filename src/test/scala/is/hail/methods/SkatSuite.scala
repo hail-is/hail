@@ -12,7 +12,6 @@ import is.hail.methods.Skat.keyedRDDSkat
 
 import scala.sys.process._
 import breeze.linalg._
-import is.hail.keytable.KeyTable
 
 import scala.language.postfixOps
 import is.hail.stats.RegressionUtils
@@ -38,13 +37,15 @@ class SkatSuite extends SparkSuite {
 
   def largeMatrixToString(A: DenseMatrix[Double], separator: String): String = {
     var string: String = ""
+    val sb = new StringBuilder
     for (i <- 0 until A.rows) {
       for (j <- 0 until A.cols) {
-        string = string + separator + A(i, j).toString()
+        sb.append(separator)
+        sb.append(A(i, j))
       }
-      string = string + "\n"
+      sb += '\n'
     }
-    string
+    sb.result()
   }
 
   def resultOp(st: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
@@ -203,11 +204,11 @@ class SkatSuite extends SparkSuite {
 
     while (i < resultsArray.size) {
 
-      val qstat = rows(i).get(1).asInstanceOf[Double]
-      val pval = rows(i).get(2).asInstanceOf[Double]
+      val qstat = rows(i).getAs[Double](1)
+      val pval = rows(i).getAs[Double](2)
 
-      val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
+      val qstatR = resultsArray(i).getAs[Double](1)
+      val pvalR = resultsArray(i).getAs[Double](2)
       if (pval <= 1 && pval >= 0) {
 
         assert(D_==(qstat, qstatR, tol))
@@ -236,11 +237,11 @@ class SkatSuite extends SparkSuite {
     var i = 0
 
     while (i < resultsArray.size) {
-      val qstat = rows(i).get(1).asInstanceOf[Double]
-      val pval = rows(i).get(2).asInstanceOf[Double]
+      val qstat = rows(i).getAs[Double](1)
+      val pval = rows(i).getAs[Double](2)
 
-      val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
+      val qstatR = resultsArray(i).getAs[Double](1)
+      val pvalR = resultsArray(i).getAs[Double](2)
 
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
@@ -269,11 +270,11 @@ class SkatSuite extends SparkSuite {
     var i = 0
 
     while (i < resultsArray.size) {
-      val qstat = rows(i).get(1).asInstanceOf[Double]
-      val pval = rows(i).get(2).asInstanceOf[Double]
+      val qstat = rows(i).getAs[Double](1)
+      val pval = rows(i).getAs[Double](2)
 
-      val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
+      val qstatR = resultsArray(i).getAs[Double](1)
+      val pvalR = resultsArray(i).getAs[Double](2)
 
 
       if (pval <= 1 && pval >= 0) {
@@ -384,11 +385,11 @@ class SkatSuite extends SparkSuite {
 
     while (i < resultsArray.size) {
 
-      val qstat = rows(i).get(1).asInstanceOf[Double]
-      val pval = rows(i).get(2).asInstanceOf[Double]
+      val qstat = rows(i).getAs[Double](1)
+      val pval = rows(i).getAs[Double](2)
 
-      val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
+      val qstatR = resultsArray(i).getAs[Double](1)
+      val pvalR = resultsArray(i).getAs[Double](2)
 
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
@@ -416,11 +417,11 @@ class SkatSuite extends SparkSuite {
     val tol = 1e-5
 
     while (i < resultsArray.size) {
-      val qstat = rows(i).get(1).asInstanceOf[Double]
-      val pval = rows(i).get(2).asInstanceOf[Double]
+      val qstat = rows(i).getAs[Double](1)
+      val pval = rows(i).getAs[Double](2)
 
-      val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
+      val qstatR = resultsArray(i).getAs[Double](1)
+      val pvalR = resultsArray(i).getAs[Double](2)
 
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
@@ -434,10 +435,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = true
     val useLargeN = true
 
-    val covariates = new Array[String](2)
-    for (i <- 1 to 2) {
-      covariates(i - 1) = "sa.cov.Cov%d".format(i)
-    }
+    val covariates = Array("sa.cov.Cov1", "sa.cov.Cov2")
 
     val dosages = (gs: Iterable[Genotype], n: Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
 
@@ -453,11 +451,11 @@ class SkatSuite extends SparkSuite {
     val tol = 1e-5
 
     while (i < resultsArray.size) {
-      val qstat = rows(i).get(1).asInstanceOf[Double]
-      val pval = rows(i).get(2).asInstanceOf[Double]
+      val qstat = rows(i).getAs[Double](1)
+      val pval = rows(i).getAs[Double](2)
 
-      val qstatR = resultsArray(i)(1).asInstanceOf[Double]
-      val pvalR = resultsArray(i)(2).asInstanceOf[Double]
+      val qstatR = resultsArray(i).getAs[Double](1)
+      val pvalR = resultsArray(i).getAs[Double](2)
 
       if (pval <= 1 && pval >= 0) {
         assert(D_==(qstat, qstatR, tol))
