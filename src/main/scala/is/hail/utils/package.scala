@@ -519,7 +519,7 @@ package object utils extends Logging
   }
 }
 
-// FIXME: probably resolved in 3.6 `https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
+// FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
 object GenericIndexedSeqSerializer extends Serializer[IndexedSeq[_]] {
   val IndexedSeqClass = classOf[IndexedSeq[_]]
 

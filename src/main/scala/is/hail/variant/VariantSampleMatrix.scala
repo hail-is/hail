@@ -304,7 +304,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val dups = sampleIds.counter().filter(_._2 > 1).toArray
     if (dups.nonEmpty)
       fatal(s"Method '$method' does not support duplicate sample IDs. Duplicates:" +
-        s"  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
+        s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
   def aggregateBySamplePerVariantKey(keyName: String, variantKeysVA: String, aggExpr: String, singleKey: Boolean = false): KeyTable = {
