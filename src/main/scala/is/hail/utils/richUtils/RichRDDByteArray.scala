@@ -16,7 +16,7 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     val tmpFileName = hConf.getTemporaryFile(tmpDir)
 
     header.foreach { str =>
-      hConf.writeDataFile(tmpFileName + "/header") { s =>
+      hConf.writeDataFile(tmpFileName + ".header") { s =>
         s.write(str)
       }
     }
