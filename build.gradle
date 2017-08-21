@@ -21,6 +21,9 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 repositories {
     mavenCentral()
     jcenter()
+    maven {
+        url "https://repository.cloudera.com/artifactory/cloudera-repos/"
+    }
 }
 
 buildScan {
