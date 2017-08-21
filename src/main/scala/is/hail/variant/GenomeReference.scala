@@ -9,33 +9,33 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 abstract class GRBase extends Serializable {
-  def isValidContig(contig: String): Boolean = ???
+  def isValidContig(contig: String): Boolean
 
-  def inX(contigIdx: Int): Boolean = ???
+  def inX(contigIdx: Int): Boolean
 
-  def inX(contig: String): Boolean = ???
+  def inX(contig: String): Boolean
 
-  def inY(contigIdx: Int): Boolean = ???
+  def inY(contigIdx: Int): Boolean
 
-  def inY(contig: String): Boolean = ???
+  def inY(contig: String): Boolean
 
-  def isMitochondrial(contigIdx: Int): Boolean = ???
+  def isMitochondrial(contigIdx: Int): Boolean
 
-  def isMitochondrial(contig: String): Boolean = ???
+  def isMitochondrial(contig: String): Boolean
 
-  def inXPar(locus: Locus): Boolean = ???
+  def inXPar(locus: Locus): Boolean
 
-  def inYPar(locus: Locus): Boolean = ???
+  def inYPar(locus: Locus): Boolean
 
-  def toJSON: JValue = ???
+  def toJSON: JValue
 
-  def unify(concrete: GenomeReference): Boolean = ???
+  def unify(concrete: GenomeReference): Boolean
 
-  def isBound: Boolean = ???
+  def isBound: Boolean
 
-  def clear(): Unit = ???
+  def clear(): Unit
 
-  def subst(): GenomeReference = ???
+  def subst(): GenomeReference
 }
 
 case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
@@ -71,25 +71,25 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
   val yContigIndices = yContigs.map(contigIndex)
   val mtContigIndices = mtContigs.map(contigIndex)
 
-  override def isValidContig(contig: String): Boolean = contigNames.contains(contig)
+  def isValidContig(contig: String): Boolean = contigNames.contains(contig)
 
-  override def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
+  def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
 
-  override def inX(contig: String): Boolean = xContigs.contains(contig)
+  def inX(contig: String): Boolean = xContigs.contains(contig)
 
-  override def inY(contigIdx: Int): Boolean = yContigIndices.contains(contigIdx)
+  def inY(contigIdx: Int): Boolean = yContigIndices.contains(contigIdx)
 
-  override def inY(contig: String): Boolean = yContigs.contains(contig)
+  def inY(contig: String): Boolean = yContigs.contains(contig)
 
-  override def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
+  def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
 
-  override def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
+  def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
 
-  override def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
+  def inXPar(locus: Locus): Boolean = inX(locus.contig) && par.exists(_.contains(locus))
 
-  override def inYPar(locus: Locus): Boolean = inY(locus.contig) && par.exists(_.contains(locus))
+  def inYPar(locus: Locus): Boolean = inY(locus.contig) && par.exists(_.contains(locus))
 
-  override def toJSON: JValue = JObject(
+  def toJSON: JValue = JObject(
     ("name", JString(name)),
     ("contigs", JArray(contigs.map(_.toJSON).toList)),
     ("xContigs", JArray(xContigs.map(JString(_)).toList)),
@@ -111,13 +111,13 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
     }
   }
 
-  override def unify(concrete: GenomeReference): Boolean = this == concrete
+  def unify(concrete: GenomeReference): Boolean = this == concrete
 
-  override def isBound: Boolean = true
+  def isBound: Boolean = true
 
-  override def clear() {}
+  def clear() {}
 
-  override def subst(): GenomeReference = this
+  def subst(): GenomeReference = this
 }
 
 object GenomeReference {
@@ -149,7 +149,7 @@ case class GRVariable(var gr: GenomeReference = null) extends GRBase {
 
   override def toString = "GenomeReference"
 
-  override def unify(concrete: GenomeReference): Boolean = {
+  def unify(concrete: GenomeReference): Boolean = {
     if (gr == null) {
       gr = concrete
       true
@@ -157,15 +157,35 @@ case class GRVariable(var gr: GenomeReference = null) extends GRBase {
       gr == concrete
   }
 
-  override def isBound: Boolean = gr != null
+  def isBound: Boolean = gr != null
 
-  override def clear() {
+  def clear() {
     gr = null
   }
 
-  override def subst(): GenomeReference = {
+  def subst(): GenomeReference = {
     assert(gr != null)
     gr
   }
+
+  def isValidContig(contig: String): Boolean = ???
+
+  def inX(contigIdx: Int): Boolean = ???
+
+  def inX(contig: String): Boolean = ???
+
+  def inY(contigIdx: Int): Boolean = ???
+
+  def inY(contig: String): Boolean = ???
+
+  def isMitochondrial(contigIdx: Int): Boolean = ???
+
+  def isMitochondrial(contig: String): Boolean = ???
+
+  def inXPar(locus: Locus): Boolean = ???
+
+  def inYPar(locus: Locus): Boolean = ???
+
+  def toJSON: JValue = ???
 }
 
