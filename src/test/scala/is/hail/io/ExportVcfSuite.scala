@@ -157,4 +157,21 @@ class ExportVcfSuite extends SparkSuite {
         .exportVCF(out)
     }
   }
+
+  @Test def testInfoFieldSemicolons() {
+    val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)
+      .annotateVariantsExpr("va.info = {foo: 5, bar: NA: Int}")
+
+    val out = tmpDir.createLocalTempFile("foo", "vcf")
+    //    val out = "/tmp/out.vcf"
+    vds.exportVCF(out)
+    hadoopConf.readLines(out) { lines =>
+      lines.foreach { l =>
+        if (!l.value.startsWith("#")) {
+          assert(l.value.contains("foo=5"))
+          assert(!l.value.contains("foo=5;"))
+        }
+      }
+    }
+  }
 }
