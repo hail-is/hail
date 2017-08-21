@@ -41,7 +41,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
         hConf.getTemporaryFile(tmpDir)
 
     val rWithHeader = header.map { h =>
-      if (r.partitions.length == 0)
+      if (r.getNumPartitions == 0)
         r.sparkContext.parallelize(List(h), numSlices = 1)
       else if (parallelWrite)
         r.mapPartitions { it => Iterator(h) ++ it }
@@ -63,7 +63,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     if (!parallelWrite) {
-      hConf.copyMerge(parallelOutputPath, filename, true, false)
+      hConf.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, true, false)
     }
   }
 

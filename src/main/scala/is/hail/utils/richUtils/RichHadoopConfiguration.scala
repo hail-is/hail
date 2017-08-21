@@ -130,18 +130,26 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       false, hConf)
   }
 
-  def copyMerge(sourceFolder: String, destinationFile: String, deleteSource: Boolean = true, hasHeader: Boolean = true) {
+  def copyMerge(sourceFolder: String, destinationFile: String, numPartFilesExpected: Int, deleteSource: Boolean = true, hasHeader: Boolean = true) {
     if (!exists(sourceFolder + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
     delete(destinationFile, recursive = true) // overwriting by default
 
+    val headerFileStatus = glob(sourceFolder + ".header")
+    
+    if (hasHeader && headerFileStatus.isEmpty)
+      fatal(s"Missing header file")
+    else if (!hasHeader && headerFileStatus.nonEmpty)
+      fatal(s"Found unexpected header file")
+
     val partFileStatuses = glob(sourceFolder + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
 
-    val filesToMerge =
-      if (hasHeader) glob(sourceFolder + ".header") ++ partFileStatuses
-      else partFileStatuses
-
+    if (partFileStatuses.length != numPartFilesExpected)
+      fatal(s"Expected $numPartFilesExpected part files but found ${partFileStatuses.length}")
+        
+    val filesToMerge = headerFileStatus ++ partFileStatuses
+    
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
     }

@@ -32,6 +32,6 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
       .saveAsHadoopFile[ByteArrayOutputFormat](tmpFileName)
 
-    hConf.copyMerge(tmpFileName, filename, deleteTmpFiles, header.isDefined)
+    hConf.copyMerge(tmpFileName, filename, r.getNumPartitions, deleteTmpFiles, header.isDefined)
   }
 }
