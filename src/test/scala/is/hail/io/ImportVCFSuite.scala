@@ -211,7 +211,6 @@ class ImportVCFSuite extends SparkSuite {
     val sampleIds = vds.sampleIds
     vds.filterSamplesList(Set(sampleIds(0))).exportVCF(tmp1)
     vds.filterSamplesList(Set(sampleIds(1))).exportVCF(tmp2)
-
-    intercept[HailException] (hc.importVCFs(Array(tmp1, tmp2)))
+    intercept[SparkException] (hc.importVCFs(Array(tmp1, tmp2)))
   }
 }
