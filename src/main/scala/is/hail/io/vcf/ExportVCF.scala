@@ -57,16 +57,18 @@ object ExportVCF {
     }
   }
 
-  def emitInfo(f: Field, sb: StringBuilder, value: Annotation): Boolean = {
+  def emitInfo(f: Field, sb: StringBuilder, value: Annotation, wroteLast: Boolean): Boolean = {
     if (value == null)
-      false
+      wroteLast
     else
       f.typ match {
         case it: TIterable =>
           val arr = value.asInstanceOf[Iterable[_]]
           if (arr.isEmpty) {
-            false // missing and empty iterables treated the same
+            wroteLast
           } else {
+            if (wroteLast)
+              sb += ';'
             sb.append(f.name)
             sb += '='
             arr.foreachBetween(a => strVCF(sb, it.elementType, a))(sb += ',')
@@ -74,12 +76,16 @@ object ExportVCF {
           }
         case TBoolean => value match {
           case true =>
+            if (wroteLast)
+              sb += ';'
             sb.append(f.name)
             true
           case _ =>
-            false
+            wroteLast
         }
         case t =>
+          if (wroteLast)
+            sb += ';'
           sb.append(f.name)
           sb += '='
           strVCF(sb, t, value)
@@ -414,10 +420,10 @@ object ExportVCF {
         assert(r.length == fields.length, "annotation/type mismatch")
 
         var wrote: Boolean = false
-        fields.indices.foreachBetween { i =>
-          wrote = emitInfo(fields(i), sb, r.get(i))
+        fields.indices.foreach { i =>
+          wrote = emitInfo(fields(i), sb, r.get(i), wrote)
           wroteAnyInfo = wroteAnyInfo || wrote
-        }(if (wrote) sb += ';')
+        }
       }
       if (!wroteAnyInfo)
         sb += '.'
