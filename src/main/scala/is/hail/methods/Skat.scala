@@ -11,7 +11,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 object SkatStat {
-  val schema = TStruct(
+  def schema(keyType: Type) = TStruct(
+    ("key", keyType),
     ("q", TFloat64),
     ("pval", TFloat64),
     ("fault", TInt32))
@@ -31,7 +32,6 @@ object Skat {
     covExpr: Array[String],
     useDosages: Boolean,
     useLargeN: Boolean = false): KeyTable = {
-
     val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     var filteredVds = vds.filterSamplesList(completeSamples.toSet)
     val n = y.size
@@ -74,23 +74,25 @@ object Skat {
           Row(k, skatStat.q, skatStat.pval, skatStat.fault)
         }
 
-      val (skatSignature, _) = TStruct(keyName -> keyType.asInstanceOf[Type]).merge(SkatStat.schema)
+      val (skatSignature, _) = SkatStat.schema(keyType.asInstanceOf[Type])
 
       new KeyTable(vds.hc, skatRDD, skatSignature, key = Array(keyName))
     }
 
-
     val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
 
     val getGenotypesFunction = (gs: Iterable[Genotype], n: Int) =>
-      if (!useDosages) { RegressionUtils.hardCalls(gs, n)
-      } else { RegressionUtils.dosages(gs, completeSamplesBc.value)}
+      if (!useDosages) {
+        RegressionUtils.hardCalls(gs, n)
+      } else {
+        RegressionUtils.dosages(gs, completeSamplesBc.value)
+      }
 
     val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypesFunction)
 
     computeSkat(keyedRdd, keysType, y, cov, keyName, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
-
   }
+
   def keyedRDDSkat(vds: VariantDataset,
     variantKeys: String,
     singleKey: Boolean,
@@ -135,11 +137,9 @@ object Skat {
         case _ => Iterator.empty
       }
     }.groupByKey(), keysType)
-
   }
 
   def computeSKATperGene(st: Array[SkatTuple], sigmaSq: Double): SkatStat = {
-
     val m = st.length
     val n = st(0).xw.size
     val k = st(0).qtxw.size
