@@ -130,7 +130,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       false, hConf)
   }
 
-  def copyMerge(sourceFolder: String, destinationFile: String, deleteSource: Boolean = true, hasHeader: Boolean = true) {
+  def copyMerge(sourceFolder: String, destinationFile: String, nExpectedPartFiles: Int, deleteSource: Boolean = true, hasHeader: Boolean = true) {
     if (!exists(sourceFolder + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
@@ -138,10 +138,13 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
     val partFileStatuses = glob(sourceFolder + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
 
+    if (partFileStatuses.length != nExpectedPartFiles)
+      fatal(s"Expected $nExpectedPartFiles part files but found ${partFileStatuses.length}")
+    
     val filesToMerge =
       if (hasHeader) glob(sourceFolder + ".header") ++ partFileStatuses
       else partFileStatuses
-
+    
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
     }
