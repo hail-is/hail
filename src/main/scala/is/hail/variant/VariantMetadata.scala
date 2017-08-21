@@ -31,7 +31,7 @@ object VSMFileMetadata {
     globalAnnotation: Annotation = Annotation.empty,
     sSignature: Type = TString,
     saSignature: Type = TStruct.empty,
-    vSignature: Type = TVariant,
+    vSignature: Type = TVariant(GenomeReference.GRCh37),
     vaSignature: Type = TStruct.empty,
     globalSignature: Type = TStruct.empty,
     genotypeSignature: Type = TGenotype,
@@ -53,7 +53,7 @@ case class VSMFileMetadata(
 case class VSMMetadata(
   sSignature: Type = TString,
   saSignature: Type = TStruct.empty,
-  vSignature: Type = TVariant,
+  vSignature: Type = TVariant(GenomeReference.GRCh37),
   vaSignature: Type = TStruct.empty,
   globalSignature: Type = TStruct.empty,
   genotypeSignature: Type = TGenotype,

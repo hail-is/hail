@@ -190,7 +190,7 @@ object VSMSubgen {
   val random = VSMSubgen[Locus, Variant, Genotype](
     sSigGen = Gen.const(TString),
     saSigGen = Type.genArb,
-    vSigGen = Gen.const(TVariant),
+    vSigGen = Gen.const(TVariant(GenomeReference.GRCh37)),
     vaSigGen = Type.genArb,
     globalSigGen = Type.genArb,
     tSigGen = Gen.const(TGenotype),
@@ -716,7 +716,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
 
           annotateLoci(ord, finalType, inserter, product = product)
 
-        case Array(TInterval) if vSignature == TVariant =>
+        case Array(TInterval(_)) if vSignature == TVariant(GenomeReference.GRCh37) =>
           val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
           val partitionKeyedIntervals = keyedRDD
             .flatMap { case (k, v) =>
@@ -1145,7 +1145,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
           .map { case (_, ((v, vags), _)) => (v, vags) },
           rdd.orderedPartitioner)
 
-      case Array(TInterval) if vSignature == TVariant =>
+      case Array(TInterval(_)) if vSignature == TVariant(GenomeReference.GRCh37) =>
         val partBc = sparkContext.broadcast(rdd.orderedPartitioner)
         val intRDD = kt.keyedRDD()
           .map { case (k, _) => k.getAs[Interval[Locus]](0) }
@@ -1982,8 +1982,10 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   def makeVariantConcrete(): VariantSampleMatrix[Locus, Variant, T] = {
-    if (vSignature != TVariant)
-      fatal(s"variant signature `Variant' required, found: ${ vSignature.toPrettyString() }")
+    vSignature match {
+      case TVariant(_) =>
+      case _ => fatal(s"variant signature `Variant' required, found: ${ vSignature.toPrettyString() }")
+    }
 
     if (kOk == Variant.orderedKey)
       this.asInstanceOf[VariantSampleMatrix[Locus, Variant, T]]

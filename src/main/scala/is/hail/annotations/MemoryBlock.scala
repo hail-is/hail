@@ -575,7 +575,7 @@ class RegionValueBuilder(region: MemoryBuffer) {
           }
           endArray()
 
-        case TVariant =>
+        case t: TVariant =>
           val v = a.asInstanceOf[Variant]
           startStruct()
           addString(v.contig)
@@ -652,18 +652,18 @@ class RegionValueBuilder(region: MemoryBuffer) {
           addBoolean(g._isLinearScale)
           endStruct()
 
-        case TLocus =>
+        case t: TLocus =>
           val l = a.asInstanceOf[Locus]
           startStruct()
           addString(l.contig)
           addInt(l.position)
           endStruct()
 
-        case TInterval =>
+        case t: TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
           startStruct()
-          addAnnotation(TLocus, i.start)
-          addAnnotation(TLocus, i.end)
+          addAnnotation(TLocus(t.gr), i.start)
+          addAnnotation(TLocus(t.gr), i.end)
           endStruct()
       }
   }

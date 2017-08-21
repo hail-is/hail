@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.check.{Gen, Parameters, Prop}
+import is.hail.check.{Gen, Prop}
 import is.hail.expr._
 import is.hail.keytable.KeyTable
 import is.hail.utils._

@@ -8,8 +8,38 @@ import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
+abstract class GRBase extends Serializable {
+  def isValidContig(contig: String): Boolean
+
+  def inX(contigIdx: Int): Boolean
+
+  def inX(contig: String): Boolean
+
+  def inY(contigIdx: Int): Boolean
+
+  def inY(contig: String): Boolean
+
+  def isMitochondrial(contigIdx: Int): Boolean
+
+  def isMitochondrial(contig: String): Boolean
+
+  def inXPar(locus: Locus): Boolean
+
+  def inYPar(locus: Locus): Boolean
+
+  def toJSON: JValue
+
+  def unify(concrete: GenomeReference): Boolean
+
+  def isBound: Boolean
+
+  def clear(): Unit
+
+  def subst(): GenomeReference
+}
+
 case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[String],
-  yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends Serializable {
+  yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends GRBase {
 
   require(contigs.length > 0, "Must have at least one contig in the genome reference.")
 
@@ -68,21 +98,33 @@ case class GenomeReference(name: String, contigs: Array[Contig], xContigs: Set[S
     ("par", JArray(par.map(_.toJSON(_.toJSON)).toList))
   )
 
-  def same(other: GenomeReference): Boolean = {
-    name == other.name &&
-      contigs.sameElements(other.contigs) &&
-      xContigs == other.xContigs &&
-      yContigs == other.yContigs &&
-      mtContigs == other.mtContigs &&
-      par.sameElements(other.par)
+  override def equals(other: Any): Boolean = {
+    other match {
+      case x: GenomeReference =>
+        name == x.name &&
+          contigs.sameElements(x.contigs) &&
+          xContigs == x.xContigs &&
+          yContigs == x.yContigs &&
+          mtContigs == x.mtContigs &&
+          par.sameElements(x.par)
+      case _ => false
+    }
   }
+
+  def unify(concrete: GenomeReference): Boolean = this == concrete
+
+  def isBound: Boolean = true
+
+  def clear() {}
+
+  def subst(): GenomeReference = this
 }
 
 object GenomeReference {
 
-  def GRCh37 = fromResource("reference/grch37.json")
+  def GRCh37: GenomeReference = fromResource("reference/grch37.json")
 
-  def GRCh38 = fromResource("reference/grch38.json")
+  def GRCh38: GenomeReference = fromResource("reference/grch38.json")
 
   def fromJSON(json: JValue): GenomeReference = json.extract[JSONExtractGenomeReference].toGenomeReference
 
@@ -101,5 +143,49 @@ object GenomeReference {
     parX <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(xContig))))
     parY <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(yContig))))
   } yield GenomeReference(name, contigs, Set(xContig), Set(yContig), Set(mtContig), parX ++ parY)
+}
+
+case class GRVariable(var gr: GenomeReference = null) extends GRBase {
+
+  override def toString = "GenomeReference"
+
+  def unify(concrete: GenomeReference): Boolean = {
+    if (gr == null) {
+      gr = concrete
+      true
+    } else
+      gr == concrete
+  }
+
+  def isBound: Boolean = gr != null
+
+  def clear() {
+    gr = null
+  }
+
+  def subst(): GenomeReference = {
+    assert(gr != null)
+    gr
+  }
+
+  def isValidContig(contig: String): Boolean = ???
+
+  def inX(contigIdx: Int): Boolean = ???
+
+  def inX(contig: String): Boolean = ???
+
+  def inY(contigIdx: Int): Boolean = ???
+
+  def inY(contig: String): Boolean = ???
+
+  def isMitochondrial(contigIdx: Int): Boolean = ???
+
+  def isMitochondrial(contig: String): Boolean = ???
+
+  def inXPar(locus: Locus): Boolean = ???
+
+  def inYPar(locus: Locus): Boolean = ???
+
+  def toJSON: JValue = ???
 }
 
