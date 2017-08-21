@@ -15,8 +15,8 @@ object DeNovo {
     Genotype.unboxedGT(g) >= 0 && Genotype.unboxedAD(g) != null && Genotype.unboxedDP(g) >= 0 && Genotype.unboxedGQ(g) >= 0 && Genotype.unboxedPL(g) != null
   }
 
-  def schema: TStruct = TStruct(
-    "variant" -> TVariant,
+  def schema(variantType: Type): TStruct = TStruct(
+    "variant" -> variantType,
     "proband" -> TString,
     "father" -> TString,
     "mother" -> TString,
@@ -287,6 +287,6 @@ object DeNovo {
       }
     }.persist()
 
-    KeyTable(vds.hc, rdd, schema, Array.empty)
+    KeyTable(vds.hc, rdd, schema(vds.vSignature), Array.empty)
   }
 }
