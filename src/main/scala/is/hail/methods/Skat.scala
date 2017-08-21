@@ -66,7 +66,7 @@ object Skat {
       val skatRDD = keyedRdd
         .map { case (k, vs) =>
           val vArray = vs.toArray.map { case (gs, w) => preProcessGenotypes(gs, w) }
-          val skatStat = if (vArray.length * n < Int.MaxValue) {
+          val skatStat = if (vArray.length.toLong * n < Int.MaxValue) {
             resultOp(vArray, sigmaSq)
           } else {
             largeNComputeSKATperGene(vArray, sigmaSq)
@@ -74,9 +74,9 @@ object Skat {
           Row(k, skatStat.q, skatStat.pval, skatStat.fault)
         }
 
-      val (skatSignature, _) = SkatStat.schema(keyType.asInstanceOf[Type])
+      val skatSignature = SkatStat.schema(keyType)
 
-      new KeyTable(vds.hc, skatRDD, skatSignature, key = Array(keyName))
+      new KeyTable(vds.hc, skatRDD, skatSignature, Array("key"))
     }
 
     val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
