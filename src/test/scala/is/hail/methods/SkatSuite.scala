@@ -8,20 +8,19 @@ import is.hail.expr._
 import is.hail.SparkSuite
 import is.hail.io.annotators.IntervalList
 import is.hail.variant.{Genotype, VariantDataset}
-import is.hail.methods.Skat
+import is.hail.methods.Skat.keyedRDDSkat
 
 import scala.sys.process._
 import breeze.linalg._
 import is.hail.keytable.KeyTable
 
 import scala.language.postfixOps
-import is.hail.methods.Skat.keyedRDDSkat
 import is.hail.stats.RegressionUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-case class SkatAggForR[T <: Vector[Double]](xs: ArrayBuilder[T], weights: ArrayBuilder[Double])
+case class SkatAggForR(xs: ArrayBuilder[Vector[Double]], weights: ArrayBuilder[Double])
 
 class SkatSuite extends SparkSuite {
 
@@ -48,7 +47,7 @@ class SkatSuite extends SparkSuite {
     string
   }
 
-  def sparseResultOp(st: Array[(SparseVector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
+  def resultOp(st: Array[(Vector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
     val m = st.length
     val xArray = Array.ofDim[Double](m * n)
     val wArray = Array.ofDim[Double](m)
@@ -57,38 +56,26 @@ class SkatSuite extends SparkSuite {
     while (i < m) {
       val (xw, w) = st(i)
       wArray(i) = w
-
-      val index = xw.index
-      val data = xw.data
-      var j = 0
-      while (j < index.length) {
-        xArray(i * n + index(j)) = data(j)
-        j += 1
+      xw match {
+        case xw: SparseVector[Double] =>
+          val index = xw.index
+          val data = xw.data
+          var j = 0
+          while (j < index.length) {
+            xArray(i * n + index(j)) = data(j)
+            j += 1
+          }
+        case xw: DenseVector[Double] =>
+          val data = xw.data
+          var j = 0
+          while (j < n) {
+            xArray(i * n + j) = data(j)
+            j += 1
+          }
+        case _ => fatal("Skat tests are only supported for sparse and dense vector datatypes.")
       }
       i += 1
-    }
 
-    (new DenseMatrix(n, m, xArray), new DenseVector(wArray))
-
-  }
-
-  def denseResultOp(st: Array[(DenseVector[Double], Double)], n: Int): (DenseMatrix[Double], DenseVector[Double]) = {
-    val m = st.length
-    val xArray = Array.ofDim[Double](m * n)
-    val wArray = Array.ofDim[Double](m)
-
-    var i = 0
-    while (i < m) {
-      val (xw, w) = st(i)
-      wArray(i) = w
-
-      val data = xw.data
-      var j = 0
-      while (j < n) {
-        xArray(i * n + j) = data(j)
-        j += 1
-      }
-      i += 1
     }
 
     (new DenseMatrix(n, m, xArray), new DenseVector(wArray))
@@ -103,10 +90,20 @@ class SkatSuite extends SparkSuite {
     covExpr: Array[String],
     useDosages: Boolean): Array[Row] = {
 
+    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    var filteredVds = vds.filterSamplesList(completeSamples.toSet)
+    val n = y.size
 
-    def skatTestInR[T <: Vector[Double]](keyedRdd:  RDD[(Any, Iterable[(T, Double)])], keyType: Type,
+    val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
+
+    val getGenotypesFunction = (gs: Iterable[Genotype], n: Int) =>
+      if (!useDosages) { RegressionUtils.hardCalls(gs, n)
+      } else { RegressionUtils.dosages(gs, completeSamplesBc.value)}
+
+
+    def skatTestInR(keyedRdd:  RDD[(Any, Iterable[(Vector[Double], Double)])], keyType: Type,
       y: DenseVector[Double], cov: DenseMatrix[Double], keyName: String,
-      resultOp: (Array[(T, Double)], Int) => (DenseMatrix[Double], DenseVector[Double])): Array[Row] = {
+      resultOp: (Array[(Vector[Double], Double)], Int) => (DenseMatrix[Double], DenseVector[Double])): Array[Row] = {
 
       val n = y.size
       val k = cov.cols
@@ -161,17 +158,13 @@ class SkatSuite extends SparkSuite {
       skatRDD
     }
 
-    if (!useDosages) {
-      val (keyedRdd, keysType, y, cov) =
-        keyedRDDSkat(vds, variantKeys, singleKey, weightExpr, yExpr, covExpr, RegressionUtils.hardCalls(_, _))
-       skatTestInR(keyedRdd, keysType, y, cov, keyName, sparseResultOp _)
-    }
-    else {
-      val dosages = (gs: Iterable[Genotype], n: Int) => RegressionUtils.dosages(gs, (0 until n).toArray)
-      val (keyedRdd, keysType, y, cov) =
-        keyedRDDSkat(vds, variantKeys, singleKey, weightExpr, yExpr, covExpr, dosages)
-      skatTestInR(keyedRdd, keysType, y, cov, keyName, denseResultOp _)
-    }
+    val getGenotypeFunction =  (gs: Iterable[Genotype], n: Int) =>
+      if (!useDosages) {RegressionUtils.hardCalls(gs, n)
+    } else {RegressionUtils.dosages(gs, completeSamplesBc.value) }
+
+    val (keyedRdd, keysType) =
+      keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypeFunction)
+    skatTestInR(keyedRdd, keysType, y, cov, keyName, resultOp _)
   }
 
 
@@ -188,7 +181,6 @@ class SkatSuite extends SparkSuite {
     .annotateVariantsTable(intervals, root = "va.genes", product = true)
     .annotateSamplesTable(phenotypes, root = "sa.pheno")
     .annotateSamplesTable(covariates, root = "sa.cov")
-    //  .annotateVariantsExpr("va.weight = v.start.toDouble")
     .annotateSamplesExpr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
     .filterSamplesExpr("sa.pheno.isDefined() && sa.cov.Cov1.isDefined() && sa.cov.Cov2.isDefined()")
     .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
@@ -356,8 +348,6 @@ class SkatSuite extends SparkSuite {
     fileObject.close()
   }
 
-  //Dataset for big Test
-
   def covariatesSkat = hc.importTable("src/test/resources/skat.cov",
     impute = true).keyBy("Sample")
 
@@ -380,10 +370,7 @@ class SkatSuite extends SparkSuite {
   @Test def hardcallsBigTest() {
 
     val useDosages = false
-    val covariates = new Array[String](2)
-    for (i <- 1 to 2) {
-      covariates(i - 1) = "sa.cov.Cov%d".format(i)
-    }
+    val covariates = Array("sa.cov.Cov1", "sa.cov.Cov2")
 
     val kt = vdsSkat.splitMulti().skat("gene", "va.genes", singleKey = false, Option("va.weight"),
       "sa.pheno0", covariates, useDosages)

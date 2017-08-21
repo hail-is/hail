@@ -5,8 +5,6 @@ import is.hail.methods.SkatStat
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
 
-import scala.math.pow
-import net.sourceforge.jdistlib.NonCentralChiSquare
 
 /** SkatModel
   *    A class which has all the algorithms for computing the p value of the
@@ -46,11 +44,11 @@ class SkatModel(skatStat: Double) {
 
   /** computePVal
     *      The function which computes the p value of the Skat stat passed. This
-    *    method computes the eigenvalues of a grammian matrix which are the
+    *    method computes the eigenvalues of a Gramian matrix which are the
     *    coefficients of the chi-square distribution describing the null-distribution
     *    for the Skat stat.
     * Input:
-    *   Grammian: (m x m) DenseMatrix
+    *   Gramian: (m x m) DenseMatrix
     *     the matrix with the same eigenvalues of P0^{1/2}KP0^{1/2} from the original
     *     paper.
     * Returns:
@@ -59,8 +57,8 @@ class SkatModel(skatStat: Double) {
     *     of the SkatStat class. With the statistics a integer indicating any issues
     *     running Davies Algorithm is also returned.
     */
-  def computePVal(Grammian: DenseMatrix[Double]): SkatStat = {
-    val allEvals = eigSymD.justEigenvalues(Grammian).toArray
+  def computePVal(Gramian: DenseMatrix[Double]): SkatStat = {
+    val allEvals = eigSymD.justEigenvalues(Gramian).toArray
 
     //compute threshold for eigenvalues
     var allEvalsSum = 0.0
@@ -92,20 +90,20 @@ class SkatModel(skatStat: Double) {
     *   Computes the p value of the variance-component score statistic as
     *   defined by SKAT.
     * Input:
-    *   GwGrammian              (m x m) DenseMatrix
+    *   GwGramian              (m x m) DenseMatrix
     *     The Gram matrix of the genotype matrix for n samples and m genetic
     *     variants with each column scaled by the corresponding variant weight.
-    *   QtGwGrammian            (m x m) DenseMatrix
+    *   QtGwGramian            (m x m) DenseMatrix
     *     The Gram matrix of the projection of the weighted genotype matrix Gw
     *     by Q.t, where Q comes from the reduced QR decomposition of the
     *     covariate data.
     * Returns:
     *   SkatStat (see computePVal)
     */
-  def computeLinearSkatStats(GwGrammian: DenseMatrix[Double], QtGwGrammian: DenseMatrix[Double]): SkatStat = {
+  def computeLinearSkatStats(GwGramian: DenseMatrix[Double], QtGwGramian: DenseMatrix[Double]): SkatStat = {
 
-    val variantGrammian = 0.5 * (GwGrammian - QtGwGrammian)
-    computePVal(variantGrammian)
+    val variantGramian = 0.5 * (GwGramian - QtGwGramian)
+    computePVal(variantGramian)
   }
 
   /** LogisticSKATModel
@@ -115,7 +113,7 @@ class SkatModel(skatStat: Double) {
     *   X        (n x k) DenseMatrix
     *     The covariates matrix associated with the regression for n samples and
     *     k covariates.
-    *   (TODO) mu (n x 1) DenseVector
+    *   mu       (n x 1) DenseVector
     *     The expectation computed from the regression model.
     *   Gw       (n x m) DenseMatrix
     *     The weighted genotype matrix corresponding to the variants in a
@@ -124,14 +122,13 @@ class SkatModel(skatStat: Double) {
     *   SkatStat (see computePVal)
     */
   def computeLogisticSkatStat(X: DenseMatrix[Double], mu: DenseVector[Double],
-    Gw: DenseMatrix[Double]): Unit = {
-    /**
-      *val V = diag(mu.map((x) => x * (1 - x)))
-      *val weightedX = V * X
-      *val P = V - weightedX * ((X.t * weightedX) \ weightedX.t)
-      *computePVal(Gw.t * P * Gw)
-      */
+    Gw: DenseMatrix[Double]): SkatStat = {
+      val V = diag(mu.map((x) => x * (1 - x)))
+      val weightedX = V * X
+      val P = V - weightedX * ((X.t * weightedX) \ weightedX.t)
+      computePVal(Gw.t * P * Gw)
 
+    /**
     val W = diag(mu.map((x) => math.sqrt(x * (1 - x))))
     val WX = W * X
     val WGw = W * Gw
@@ -203,8 +200,7 @@ class SkatModel(skatStat: Double) {
     val QNorm = ((skatStat - muQ) / math.sqrt(varQ)) * (math.sqrt(2) * df) + df
 
     val pval = NonCentralChiSquare.cumulative(QNorm, df, 0, false, false)
-    println(pval)
-
+*/
   }
 
 }
