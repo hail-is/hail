@@ -20,7 +20,8 @@ object LinearRegressionBurden {
     yExpr: String,
     covExpr: Array[String]): (KeyTable, KeyTable) = {
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val (y, cov, completeSamplesIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val completeSamples = completeSamplesIndex.map(vds.sampleIds)
 
     val n = y.size
     val k = cov.cols

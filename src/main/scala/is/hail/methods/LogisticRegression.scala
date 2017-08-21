@@ -22,12 +22,10 @@ object LogisticRegression {
     val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
       fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val completeSamples = completeSampleIndex.map(vds.sampleIds)
     val completeSamplesSet = completeSamples.toSet
     val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
-    val completeSampleIndex = (0 until vds.nSamples)
-      .filter(i => completeSamplesSet(vds.sampleIds(i)))
-      .toArray
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
       fatal(s"For logistic regression, phenotype must be Boolean or numeric with all present values equal to 0 or 1")

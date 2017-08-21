@@ -1,0 +1,19 @@
+##fileformat=VCFv4.1
+##FILTER=<ID=PASS,Description="All filters passed">
+##ALT=<ID=NON_REF,Description="Represents any possible alternative allele at this location">
+##FILTER=<ID=LowQual,Description="Low quality">
+##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=MIN_DP,Number=1,Type=Integer,Description="Minimum DP observed within the GVCF block">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">
+##FORMAT=<ID=SB,Number=4,Type=Integer,Description="Per-sample component statistics which comprise the Fisher's Exact Test to detect strand bias.">
+##GVCFBlock=minGQ=0(inclusive),maxGQ=5(exclusive)
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes, for each ALT allele, in the same order as listed">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency, for each ALT allele, in the same order as listed">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##reference=file:///seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	1	2	3	4	5	5	7	5	5	10	11	12	10	16	17	18
+1	246714629	.	C	A	234	PASS	AC=6;AF=0.5;AN=22	GT	0/1	0/0	0/0	0/1	0/0	./.	./.	./.	./.	./.	0/0	0/1	0/1	0/0	0/1	0/1
+2	167262169	rs35344714	T	C	875	PASS	AC=2;AF=0.0714285;AN=28	GT	./.	./.	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0

@@ -170,6 +170,8 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
   def apply(vds: VariantDataset, pcs: DenseMatrix): Result[M] = {
+    vds.requireUniqueSamples("pc_relate")
+
     val g = vdsToMeanImputedMatrix(vds)
 
     val mu = this.mu(g, pcs)

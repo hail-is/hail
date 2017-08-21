@@ -2,7 +2,7 @@ package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.{RichRDDUnsafeRow, UnsafeRow}
-import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable}
+import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
@@ -48,6 +48,8 @@ trait Implicits {
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
   implicit def toRichIterable[T](a: Array[T]): RichIterable[T] = new RichIterable(a)
+
+  implicit def toRichContextIterator[T](it: Iterator[WithContext[T]]): RichContextIterator[T] = new RichContextIterator[T](it)
 
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 

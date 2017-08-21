@@ -22,13 +22,10 @@ object LinearRegression {
   def apply(vds: VariantDataset, ysExpr: Array[String], covExpr: Array[String], root: String, useDosages: Boolean, variantBlockSize: Int): VariantDataset = {
     require(vds.wasSplit)
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenosCovCompleteSamples(vds, ysExpr, covExpr)
-    val completeSamplesSet = completeSamples.toSet
-    val sampleMask = vds.sampleIds.map(completeSamplesSet).toArray
-    val completeSampleIndex = (0 until vds.nSamples)
-      .filter(i => completeSamplesSet(vds.sampleIds(i)))
-      .toArray
-    
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenosCovCompleteSamples(vds, ysExpr, covExpr)
+
+    val completeSampleSet = completeSampleIndex.toSet
+    val sampleMask = (0 until vds.nSamples).map(completeSampleSet).toArray
     val n = y.rows // nCompleteSamples
     val k = cov.cols // nCovariates
     val d = n - k - 1

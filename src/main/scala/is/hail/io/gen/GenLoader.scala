@@ -3,6 +3,7 @@ package is.hail.io.gen
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.io.bgen.BgenLoader
+import is.hail.io.vcf.LoadVCF
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
@@ -20,8 +21,7 @@ object GenLoader {
     val hConf = sc.hadoopConfiguration
     val sampleIds = BgenLoader.readSampleFile(hConf, sampleFile)
 
-    if (sampleIds.length != sampleIds.toSet.size)
-      fatal(s"Duplicate sample IDs exist in $sampleFile")
+    LoadVCF.warnDuplicates(sampleIds)
 
     val nSamples = sampleIds.length
 

@@ -21,7 +21,8 @@ object LogisticRegressionBurden {
     val logRegTest = LogisticRegressionTest.tests.getOrElse(test,
       fatal(s"Supported tests are ${ LogisticRegressionTest.tests.keys.mkString(", ") }, got: $test"))
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val completeSamples = completeSampleIndex.map(vds.sampleIds)
     val completeSamplesSet = completeSamples.toSet
     if (completeSamplesSet(keyName))
       fatal(s"Key name '$keyName' clashes with a sample name")
