@@ -136,7 +136,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
     delete(destinationFile, recursive = true) // overwriting by default
 
-    val headerFileStatus = glob(sourceFolder + ".header")
+    val headerFileStatus = glob(sourceFolder + "/header")
     
     if (hasHeader && headerFileStatus.isEmpty)
       fatal(s"Missing header file")

@@ -15,12 +15,6 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
 
     val tmpFileName = hConf.getTemporaryFile(tmpDir)
 
-    header.foreach { str =>
-      hConf.writeDataFile(tmpFileName + ".header") { s =>
-        s.write(str)
-      }
-    }
-
     val rMapped = r.mapPartitions { iter =>
       val bw = new BytesOnlyWritable()
       iter.map { bb =>
@@ -32,6 +26,12 @@ class RichRDDByteArray(val r: RDD[Array[Byte]]) extends AnyVal {
     RDD.rddToPairRDDFunctions(rMapped)(nullWritableClassTag, bytesClassTag, null)
       .saveAsHadoopFile[ByteArrayOutputFormat](tmpFileName)
 
+    header.foreach { str =>
+      hConf.writeDataFile(tmpFileName + "/header") { s =>
+        s.write(str)
+      }
+    }
+    
     hConf.copyMerge(tmpFileName, filename, r.getNumPartitions, deleteTmpFiles, header.isDefined)
   }
 }
