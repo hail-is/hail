@@ -39,8 +39,8 @@ object Skat {
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
 
-    def computeSkat(keyedRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
-      y: DenseVector[Double], cov: DenseMatrix[Double],
+    def computeSkatLinear(keyedRdd: RDD[(Any, Iterable[(Vector[Double], Double)])], keyType: Type,
+      y: DenseVector[Double], cov: DenseMatrix[Double], keyName: String,
       resultOp: (Array[SkatTuple], Double) => SkatStat): KeyTable = {
       val n = y.size
       val k = cov.cols
@@ -82,6 +82,51 @@ object Skat {
       new KeyTable(vds.hc, skatRDD, skatSignature, Array("key"))
     }
 
+    def computeSkatLogistic(keyedRdd: RDD[(Any, Iterable[(Vector[Double], Double)])], keyType: Type,
+      y: DenseVector[Double], cov: DenseMatrix[Double], keyName: String,
+      resultOp: (Array[LogisticSkatTuple], DenseMatrix[Double], DenseVector[Double]) => SkatStat): KeyTable = {
+      val n = y.size
+      val k = cov.cols
+      val d = n - k
+
+      if (d < 1)
+        fatal(s"$n samples and $k ${ plural(k, "covariate") } including intercept implies $d degrees of freedom.")
+
+      val logRegM = new LogisticRegressionModel(cov, y).fit()
+      if (!logRegM.converged)
+        fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
+          if (logRegM.exploded)
+            s"exploded at Newton iteration ${ logRegM.nIter }"
+          else
+            "Newton iteration failed to converge"))
+
+      val mu = (cov * logRegM.b).map((x) => sigmoid(x))
+      val res = y - mu
+
+      val sc = keyedRdd.sparkContext
+      val muBc = sc.broadcast(mu)
+      val resBc = sc.broadcast(res)
+      val covBc = sc.broadcast(cov)
+
+      def variantPreProcess(gs: Vector[Double], w: Double): LogisticSkatTuple = {
+        val sqrtw = math.sqrt(w)
+        val wx = gs * w
+        val sj = resBc.value dot wx
+        LogisticSkatTuple(sj * sj, wx)
+      }
+
+      val skatRDD = keyedRdd
+        .map { case (k, vs) =>
+          val vArray = vs.toArray.map { case (gs, w) => variantPreProcess(gs, w) }
+          val skatStat = resultOp(vArray, covBc.value, muBc.value)
+          Row(k, skatStat.q, skatStat.pval, skatStat.fault)
+        }
+
+      val (skatSignature, _) = SkatStat.schema(keyType.asInstanceOf[Type])
+
+      new KeyTable(vds.hc, skatRDD, skatSignature, key = Array(keyName))
+    }
+
     val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
 
     val getGenotypesFunction = (gs: Iterable[Genotype], n: Int) =>
@@ -93,7 +138,8 @@ object Skat {
 
     val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, n, getGenotypesFunction)
 
-    computeSkat(keyedRdd, keysType, y, cov, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
+    if (!useLogistic) computeSkatLinear(keyedRdd, keysType, y, cov, keyName, if (!useLargeN) computeLinearSKATperGene else largeNComputeSKATperGene)
+    else computeSkatLogistic(keyedRdd, keysType, y, cov, keyName, computeLogisticSKATperGene _)
   }
 
   def keyedRDDSkat(vds: VariantDataset,
@@ -142,7 +188,7 @@ object Skat {
     }.groupByKey(), keysType)
   }
 
-  def computeSKATperGene(st: Array[SkatTuple], sigmaSq: Double): SkatStat = {
+  def computeLinearSKATperGene(st: Array[SkatTuple], sigmaSq: Double): SkatStat = {
     val m = st.length
     val n = st(0).xw.size
     val k = st(0).qtxw.size

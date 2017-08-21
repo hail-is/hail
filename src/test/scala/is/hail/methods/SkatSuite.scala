@@ -87,7 +87,7 @@ class SkatSuite extends SparkSuite {
     }
   }
 
- def permutationTest() = {
+  def permutationTest() = {
     val permutationTests = 100
     val pvalFileLocation = "/Users/charlesc/Documents/Software/SkatExperiments/pvalResults/constantPvals.txt"
     val fileLocation = "/Users/charlesc/Documents/Software/SkatExperiments/constantDemo.vds"
@@ -292,10 +292,6 @@ class SkatSuite extends SparkSuite {
         }
       skatRDD
     }
-
-    val getGenotypeFunction =  (gs: Iterable[Genotype], n: Int) =>
-      if (!useDosages) {RegressionUtils.hardCalls(gs, n)
-    } else {RegressionUtils.dosages(gs, completeSamplesBc.value) }
 
     val (keyedRdd, keysType) =
       keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, n, getGenotypeFunction)
