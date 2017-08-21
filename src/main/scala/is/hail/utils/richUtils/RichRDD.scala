@@ -63,7 +63,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       fatal("write failed: no success indicator found")
 
     if (!parallelWrite) {
-      hConf.copyMerge(parallelOutputPath, filename, r.getNumPartitions, true, false)
+      hConf.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, true, false)
     }
   }
 
