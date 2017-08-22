@@ -177,7 +177,7 @@ object LoadVCF {
       Field("filters", TSet(TString), 2, filters),
       Field("info", infoSignature, 3)))
 
-    val sampleIds = header.getSampleNamesInOrder.asScala.toArray
+    val sampleIds = header.getGenotypeSamples.asScala.toArray
 
     VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature, canonicalFlags)
   }
