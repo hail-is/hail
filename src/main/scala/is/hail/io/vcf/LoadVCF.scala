@@ -150,10 +150,10 @@ object LoadVCF {
     (TStruct(fb.result()), canonicalFlags)
   }
 
-  def parseHeader(reader: HtsjdkRecordReader, lines: Iterator[String]): VCFHeaderInfo = {
+  def parseHeader(reader: HtsjdkRecordReader, lines: Array[String]): VCFHeaderInfo = {
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
-    val header = codec.readHeader(new BufferedLineIterator(lines.buffered))
+    val header = codec.readHeader(new BufferedLineIterator(lines.iterator.buffered))
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
@@ -177,15 +177,22 @@ object LoadVCF {
       Field("filters", TSet(TString), 2, filters),
       Field("info", infoSignature, 3)))
 
-    val sampleIds = header.getGenotypeSamples.asScala.toArray
+    val headerLine = lines.last
+    if (!(headerLine(0) == '#' && headerLine(1) != '#'))
+      fatal(
+        s"""corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'
+           |  found: @1""".stripMargin, headerLine)
+
+    val sampleIds: Array[String] = headerLine.split("\t").drop(9)
 
     VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature, canonicalFlags)
   }
 
-  def getHeaderLines[T](hConf: Configuration, file: String)(f: Iterator[String] => T): T = hConf.readFile(file) { s =>
-    f(Source.fromInputStream(s)
+  def getHeaderLines[T](hConf: Configuration, file: String): Array[String] = hConf.readFile(file) { s =>
+    Source.fromInputStream(s)
       .getLines()
-      .takeWhile { line => line(0) == '#' })
+      .takeWhile { line => line(0) == '#' }
+      .toArray
   }
 
   def apply(hc: HailContext,
@@ -198,15 +205,15 @@ object LoadVCF {
     val sc = hc.sc
     val hConf = hc.hadoopConf
     
-    val headerLines1 = getHeaderLines(hConf, file1)(_.toArray)
-    val header1 = parseHeader(reader, headerLines1.iterator)
+    val headerLines1 = getHeaderLines(hConf, file1)
+    val header1 = parseHeader(reader, headerLines1)
     val header1Bc = sc.broadcast(header1)
 
     val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
     sc.parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
       val hConf = confBc.value.value
-      val hd = getHeaderLines(hConf, file)(parseHeader(reader, _))
+      val hd = parseHeader(reader, getHeaderLines(hConf, file))
       val hd1 = header1Bc.value
 
       hd1.sampleIds.iterator.zip(hd.sampleIds.iterator)
