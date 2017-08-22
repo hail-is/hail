@@ -7,14 +7,16 @@ import is.hail.expr.{TStruct, _}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.storage.StorageLevel
 
+import scala.collection.JavaConverters._
 import scala.collection.JavaConversions._
+import scala.language.implicitConversions
 import scala.collection.mutable
 import scala.io.Source
 
-case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
-  canonicalFlags: Int, headerLines: Array[String])
+case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct, canonicalFlags: Int)
 
 object LoadVCF {
 
@@ -156,18 +158,10 @@ object LoadVCF {
     (TStruct(fb.result()), canonicalFlags)
   }
 
-  def parseHeader(hc: HailContext, reader: HtsjdkRecordReader, file: String): VCFHeaderInfo = {
-    val hConf = hc.hadoopConf
-
-    val headerLines = hConf.readFile(file) { s =>
-      Source.fromInputStream(s)
-        .getLines()
-        .takeWhile { line => line(0) == '#' }
-        .toArray
-    }
+  def parseHeader(reader: HtsjdkRecordReader, lines: Array[String]): VCFHeaderInfo = {
 
     val codec = new htsjdk.variant.vcf.VCFCodec()
-    val header = codec.readHeader(new BufferedLineIterator(headerLines.iterator.buffered))
+    val header = codec.readHeader(new BufferedLineIterator(lines.iterator.buffered))
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
 
@@ -191,7 +185,7 @@ object LoadVCF {
       Field("filters", TSet(TString), 2, filters),
       Field("info", infoSignature, 3)))
 
-    val headerLine = headerLines.last
+    val headerLine = lines.last
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
       fatal(
         s"""corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'
@@ -199,7 +193,14 @@ object LoadVCF {
 
     val sampleIds: Array[String] = headerLine.split("\t").drop(9)
 
-    VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature, canonicalFlags, headerLines)
+    VCFHeaderInfo(sampleIds, infoSignature, vaSignature, gSignature, canonicalFlags)
+  }
+
+  def getHeaderLines[T](hConf: Configuration, file: String): Array[String] = hConf.readFile(file) { s =>
+    Source.fromInputStream(s)
+      .getLines()
+      .takeWhile { line => line(0) == '#' }
+      .toArray
   }
 
   def apply(hc: HailContext,
@@ -210,13 +211,20 @@ object LoadVCF {
     dropSamples: Boolean = false,
     gr: GenomeReference = GenomeReference.GRCh37): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
+    val hConf = hc.hadoopConf
+    
+    val headerLines1 = getHeaderLines(hConf, file1)
+    val header1 = parseHeader(reader, headerLines1)
+    val header1Bc = sc.broadcast(header1)
 
-    val vcfHeaders: Array[VCFHeaderInfo] = files.map(parseHeader(hc, reader, _))
-    val header1 = vcfHeaders.head
+    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
-    files.zip(vcfHeaders).foreach { case (file, hd) =>
+    sc.parallelize(files.tail, math.max(1, files.length - 1)).foreach { file =>
+      val hConf = confBc.value.value
+      val hd = parseHeader(reader, getHeaderLines(hConf, file))
+      val hd1 = header1Bc.value
 
-      header1.sampleIds.iterator.zip(hd.sampleIds.iterator)
+      hd1.sampleIds.iterator.zip(hd.sampleIds.iterator)
         .zipWithIndex.dropWhile { case ((s1, s2), i) => s1 == s2 }.toArray.headOption match {
         case Some(((s1, s2), i)) => fatal(
           s"""invalid sample ids: expected sample ids to be identical for all inputs. Found different sample ids at position $i.
@@ -225,18 +233,18 @@ object LoadVCF {
         case None =>
       }
 
-      if (header1.genotypeSignature != hd.genotypeSignature)
+      if (hd1.genotypeSignature != hd.genotypeSignature)
         fatal(s"""invalid genotype signature: expected signatures to be identical for all inputs.
-               |   ${ files(0) }: ${ header1.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }
+               |   ${ files(0) }: ${ hd1.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }
                |   $file: ${ hd.genotypeSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
 
-      if (header1.vaSignature != hd.vaSignature)
+      if (hd1.vaSignature != hd.vaSignature)
         fatal(s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
-               |   ${ files(0) }: ${ header1.vaSignature.toPrettyString(compact = true, printAttrs = true) }
+               |   ${ files(0) }: ${ hd1.vaSignature.toPrettyString(compact = true, printAttrs = true) }
                |   $file: ${ hd.vaSignature.toPrettyString(compact = true, printAttrs = true) }""".stripMargin)
     }
 
-    val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, canonicalFlags, headerLines) = header1
+    val VCFHeaderInfo(sampleIdsHeader, infoSignature, vaSignature, genotypeSignature, canonicalFlags) = header1
 
     val sampleIds: Array[String] = if (dropSamples) Array.empty else sampleIdsHeader
 
@@ -245,7 +253,7 @@ object LoadVCF {
     val infoSignatureBc = sc.broadcast(infoSignature)
     val genotypeSignatureBc = sc.broadcast(genotypeSignature)
 
-    val headerLinesBc = sc.broadcast(headerLines)
+    val headerLinesBc = sc.broadcast(headerLines1)
 
     val lines = sc.textFilesLines(files, nPartitions.getOrElse(sc.defaultMinPartitions))
 
