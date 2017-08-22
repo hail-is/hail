@@ -264,7 +264,13 @@ object HtsjdkRecordReader {
       case (s: String, TInt32) =>
         rvb.addInt(s.toInt)
       case (s: String, TFloat64) =>
-        rvb.addDouble(if (s == "nan") Double.NaN else s.toDouble)
+        val d = s match {
+          case "nan" => Double.NaN
+          case "inf" => Double.PositiveInfinity
+          case "-inf" => Double.NegativeInfinity
+          case _ => s.toDouble
+        }
+        rvb.addDouble(d)
       case (i: Int, TInt32) =>
         rvb.addInt(i)
       case (d: Double, TInt32) =>
