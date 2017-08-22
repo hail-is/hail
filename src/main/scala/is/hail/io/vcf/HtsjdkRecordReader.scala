@@ -355,8 +355,13 @@ object HtsjdkRecordReader {
       case (b: Boolean, TBoolean) => b
       case (s: String, TString) => s
       case (s: String, TInt) => s.toInt
-      case (s: String, TDouble) => if (s == "nan") Double.NaN else s.toDouble
-
+      case (s: String, TDouble) =>
+        s match {
+          case "nan" => Double.NaN
+          case "inf" => Double.PositiveInfinity
+          case "-inf" => Double.NegativeInfinity
+          case _ => s.toDouble
+        }
       case (i: Int, TInt) => i
       case (d: Double, TInt) => d.toInt
 
