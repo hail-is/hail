@@ -163,7 +163,6 @@ class ExportVcfSuite extends SparkSuite {
       .annotateVariantsExpr("va.info = {foo: 5, bar: NA: Int}")
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
-    //    val out = "/tmp/out.vcf"
     vds.exportVCF(out)
     hadoopConf.readLines(out) { lines =>
       lines.foreach { l =>
