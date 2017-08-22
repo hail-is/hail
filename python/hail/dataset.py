@@ -4487,6 +4487,38 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @typecheck_method(mapping=listof(strlike))
+    def reorder_samples(self, mapping):
+        """Reorder samples.
+
+        **Examples**
+
+        Randomly shuffle order of samples:
+
+        >>> import random
+        >>> new_sample_order = random.sample(vds.sample_ids, vds.num_samples)
+        >>> vds_reordered = vds.reorder_samples(new_sample_order)
+
+
+        **Notes**
+
+        This method requires unique sample ids. ``mapping`` must contain the same ids
+        as :py:meth:`~hail.VariantDataset.sample_ids`. The order of the ids in ``mapping``
+        determines the sample id order in the output dataset.
+
+
+        :param mapping: New ordering of sample ids.
+        :type mapping: list of str
+
+        :return: Dataset with samples reordered.
+        :rtype: :class:`.VariantDataset`
+        """
+
+        jvds = self._jvds.reorderSamples(mapping)
+        return VariantDataset(self.hc, jvds)
+
+    @handle_py4j
+    @record_method
     def rename_duplicates(self):
         """Rename duplicate samples.
 

@@ -1615,6 +1615,32 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     (t, f2)
   }
 
+  def reorderSamples(newIds: java.util.ArrayList[Annotation]): VariantSampleMatrix[RPK, RK, T] =
+    reorderSamples(newIds.asScala.toArray)
+
+  def reorderSamples(newIds: Array[Annotation]): VariantSampleMatrix[RPK, RK, T] = {
+    requireUniqueSamples("reorder_samples")
+
+    val oldOrder = sampleIds.zipWithIndex.toMap
+    val newOrder = newIds.zipWithIndex.toMap
+
+    val mapping = oldOrder.outerJoin(newOrder).map { case (s, (oldIdx, newIdx)) =>
+      (oldIdx, newIdx) match {
+        case (Some(i), Some(j)) => (i, j)
+        case (None, Some(j)) => fatal(s"sample id in new id list not present in dataset: `$s'.")
+        case (Some(i), None) => fatal(s"dataset sample id `$s' not found in new id list.")
+      }
+    }
+
+    val newAnnotations = new Array[Annotation](nSamples)
+
+    sampleAnnotations.zipWithIndex.foreach { case (sa, idx) =>
+      newAnnotations(mapping(idx)) = sa
+    }
+
+    copy(sampleIds = newIds, sampleAnnotations = newAnnotations)
+  }
+
   def renameSamples(newIds: java.util.ArrayList[Annotation]): VariantSampleMatrix[RPK, RK, T] =
     renameSamples(newIds.asScala.toArray)
 
