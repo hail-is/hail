@@ -59,24 +59,39 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) extends P
     next += 1
   }
 
-  def max(): T =
+  private def maxWithPriority(): RankedT =
     if (next > 0)
-      a(0).v
+      a(0)
     else
       throw new RuntimeException("heap is empty")
+
+  def max(): T =
+    maxWithPriority().v
+
+  def maxPriority(): Long =
+    maxWithPriority().rank
 
   def extractMax(): T = {
     val max = a(0).v
     next -= 1
+    m.remove(max)
     put(0, a(next))
     maybeShrink()
     bubbleDown(0)
     max
   }
 
+  def getPriority(t: T): Long =
+    a(m(t)).rank
+
   def setPriority(t: T, r: Long) {
+    changePriority(t, _ => r)
+  }
+
+  def changePriority(t: T, f: (Long) => Long) {
     val i = m(t)
     val oldR = a(i).rank
+    val r = f(oldR)
     if (r > oldR) {
       a(i) = new RankedT(t,r)
       bubbleUp(i)
@@ -85,6 +100,9 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) extends P
       bubbleDown(i)
     }
   }
+
+  def contains(t: T): Boolean =
+    m.contains(t)
 
   private def bubbleUp(i: Int) {
     var current = i
@@ -116,6 +134,16 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) extends P
       } else
         continue = false
     } while (continue);
+  }
+
+  def toArray: Array[T] = {
+    val trimmed = new Array(size)
+    var i = 0
+    while (i < size) {
+      trimmed(i) = a(i).v
+      i += 1
+    }
+    trimmed
   }
 
 }
