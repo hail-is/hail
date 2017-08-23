@@ -13,8 +13,11 @@ class BinaryHeapSuite {
     assert(bh.size === 1)
     assert(bh.max() === 1)
     assert(bh.size === 1)
+    assert(bh.contains(1) === true)
     assert(bh.extractMax() === 1)
+    assert(bh.contains(1) === false)
     assert(bh.size === 0)
+
     intercept[Exception](bh.max())
     intercept[Exception](bh.extractMax())
   }
@@ -23,18 +26,22 @@ class BinaryHeapSuite {
   def twoElements() {
     val bh = new BinaryHeap[Int]()
     bh.insert(1, 5)
+    assert(bh.contains(1) == true)
     bh.insert(2, 10)
+    assert(bh.contains(2) == true)
     assert(bh.max() === 2)
     assert(bh.size === 2)
     assert(bh.max() === 2)
     assert(bh.size === 2)
     assert(bh.extractMax() === 2)
+    assert(bh.contains(2) == false)
     assert(bh.size === 1)
     assert(bh.max() === 1)
     assert(bh.size === 1)
     assert(bh.max() === 1)
     assert(bh.size === 1)
     assert(bh.extractMax() === 1)
+    assert(bh.contains(1) == false)
     assert(bh.size === 0)
   }
 
@@ -42,8 +49,11 @@ class BinaryHeapSuite {
   def threeElements() {
     val bh = new BinaryHeap[Int]()
     bh.insert(1, -10)
+    assert(bh.contains(1) == true)
     bh.insert(2, -5)
+    assert(bh.contains(2) == true)
     bh.insert(3, -7)
+    assert(bh.contains(3) == true)
     assert(bh.max() === 2)
     assert(bh.size === 3)
     assert(bh.max() === 2)
@@ -64,6 +74,10 @@ class BinaryHeapSuite {
     assert(bh.size === 1)
     assert(bh.extractMax() === 1)
     assert(bh.size === 0)
+
+    assert(bh.contains(1) == false)
+    assert(bh.contains(2) == false)
+    assert(bh.contains(3) == false)
   }
 
   @Test
@@ -74,7 +88,7 @@ class BinaryHeapSuite {
     bh.insert(2, 100)
     bh.insert(3, 10)
 
-    bh.setPriority(2, -10)
+    bh.decreasePriorityTo(2, -10)
     assert(bh.max() === 3)
     assert(bh.extractMax() === 3)
     assert(bh.extractMax() === 1)
@@ -89,7 +103,7 @@ class BinaryHeapSuite {
     bh.insert(2, 100)
     bh.insert(3, 10)
 
-    bh.setPriority(1, -10)
+    bh.decreasePriorityTo(1, -10)
     assert(bh.max() === 2)
     assert(bh.extractMax() === 2)
     assert(bh.extractMax() === 3)
@@ -104,7 +118,7 @@ class BinaryHeapSuite {
     bh.insert(2, 100)
     bh.insert(3, 10)
 
-    bh.setPriority(3, 1)
+    bh.decreasePriorityTo(3, 1)
     assert(bh.max() === 2)
     assert(bh.extractMax() === 2)
     assert(bh.extractMax() === 3)
@@ -119,7 +133,7 @@ class BinaryHeapSuite {
     bh.insert(2, 100)
     bh.insert(3, 10)
 
-    bh.setPriority(3, 200)
+    bh.increasePriorityTo(3, 200)
     assert(bh.max() === 3)
     assert(bh.extractMax() === 3)
     assert(bh.extractMax() === 2)
@@ -134,9 +148,9 @@ class BinaryHeapSuite {
     bh.insert(2, 100)
     bh.insert(3, 10)
 
-    bh.setPriority(3, 200)
-    bh.setPriority(2, 300)
-    bh.setPriority(1, 250)
+    bh.increasePriorityTo(3, 200)
+    bh.increasePriorityTo(2, 300)
+    bh.increasePriorityTo(1, 250)
 
     assert(bh.max() === 2)
     assert(bh.extractMax() === 2)
