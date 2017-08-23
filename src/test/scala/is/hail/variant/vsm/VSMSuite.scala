@@ -12,6 +12,7 @@ import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -419,11 +420,27 @@ class VSMSuite extends SparkSuite {
   }
 
   @Test def testReorderSamples() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz").dropVariants()
+    val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
     val origOrder = Array[Annotation]("C1046::HG02024", "C1046::HG02025", "C1046::HG02026", "C1047::HG00731", "C1047::HG00732")
     val newOrder = Array[Annotation]("C1046::HG02026", "C1046::HG02024", "C1047::HG00732", "C1046::HG02025", "C1047::HG00731")
 
-    assert(vds.filterSamplesList(origOrder.toSet).reorderSamples(newOrder).sampleIds sameElements newOrder)
+    val filteredVds = vds.filterSamplesList(origOrder.toSet)
+    val reorderedVds = filteredVds.reorderSamples(newOrder)
+
+    def getGenotypes(vds: VariantDataset): RDD[((Variant, Annotation), Genotype)] = {
+      val sampleIds = vds.sampleIds
+      vds.rdd.flatMap { case (v, (_, gs)) =>
+        gs.zip(sampleIds).map { case (g, s) =>
+          ((v, s), g)
+        }
+      }
+    }
+
+    assert(getGenotypes(filteredVds).fullOuterJoin(getGenotypes(reorderedVds)).forall { case ((v, s), (g1, g2)) =>
+        g1 == g2
+    })
+
+    assert(reorderedVds.sampleIds sameElements newOrder)
 
     intercept[HailException](vds.reorderSamples(newOrder))
     intercept[HailException](vds.reorderSamples(Array[Annotation]("foo", "bar")))

@@ -1627,18 +1627,33 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val mapping = oldOrder.outerJoin(newOrder).map { case (s, (oldIdx, newIdx)) =>
       (oldIdx, newIdx) match {
         case (Some(i), Some(j)) => (i, j)
-        case (None, Some(j)) => fatal(s"sample id in new id list not present in dataset: `$s'.")
+        case (None, Some(j)) => fatal(s"`$s' is not in dataset.")
         case (Some(i), None) => fatal(s"dataset sample id `$s' not found in new id list.")
+        case (None, None) => fatal(s"This case should never happen!")
       }
     }
 
-    val newAnnotations = new Array[Annotation](nSamples)
+    val newIndices = sampleIds.indices.map(mapping)
 
+    val newAnnotations = new Array[Annotation](nSamples)
     sampleAnnotations.zipWithIndex.foreach { case (sa, idx) =>
-      newAnnotations(mapping(idx)) = sa
+      newAnnotations(newIndices(idx)) = sa
     }
 
-    copy(sampleIds = newIds, sampleAnnotations = newAnnotations)
+    val nSamplesLocal = nSamples
+    val localtct = tct
+
+    val reorderedRdd = rdd.mapPartitions ({ it =>
+        it.map { case (v, (va, gs)) =>
+          val reorderedGs = Array.fill[T](nSamplesLocal)(null)(localtct)
+          gs.zipWithIndex.foreach { case (g, i) =>
+            reorderedGs(newIndices(i)) = g
+          }
+          (v, (va, reorderedGs.toIterable))
+        }
+    }, preservesPartitioning = true).asOrderedRDD
+
+    copy(rdd = reorderedRdd, sampleIds = newIds, sampleAnnotations = newAnnotations)
   }
 
   def renameSamples(newIds: java.util.ArrayList[Annotation]): VariantSampleMatrix[RPK, RK, T] =
