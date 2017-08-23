@@ -124,9 +124,9 @@ class SkatModel(skatStat: Double) {
   def computeLogisticSkatStat(X: DenseMatrix[Double], mu: DenseVector[Double],
     Gw: DenseMatrix[Double]): SkatStat = {
       val V = diag(mu.map((x) => x * (1 - x)))
-      val weightedX = V * X
-      val P = V - weightedX * ((X.t * weightedX) \ weightedX.t)
-      computePVal(Gw.t * P * Gw)
+      val GwtV = Gw.t * V
+      val GwtVX = GwtV * X
+      computePVal(GwtV * Gw - GwtVX * (((X.t * V) * X) \ GwtVX.t))
   }
 
 }
