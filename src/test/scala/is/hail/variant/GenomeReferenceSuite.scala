@@ -1,7 +1,7 @@
 package is.hail.variant
 
 import is.hail.SparkSuite
-import is.hail.utils.Interval
+import is.hail.utils.{HailException, Interval}
 import org.testng.annotations.Test
 
 class GenomeReferenceSuite extends SparkSuite {
@@ -36,15 +36,19 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testAssertions() {
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Array(5, 5, 5),
+    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set("X"), Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Array(5, 5, 5),
-      Set.empty[String], Set("Y"), Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Array(5, 5, 5),
-      Set.empty[String], Set.empty[String], Set("MT"), Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array.empty[String], Array.empty[Int],
+    intercept[HailException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5),
       Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Array(5, 5, 5),
+    intercept[HailException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
+    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set("Y"), Set.empty[String], Array.empty[Interval[Locus]]))
+    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set.empty[String], Set("MT"), Array.empty[Interval[Locus]]))
+    intercept[IllegalArgumentException](GenomeReference("test", Array.empty[String], Map.empty[String, Int],
+      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
+    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set.empty[String], Set.empty[String], Set("MT"), Array(Interval(Locus("X", 1), Locus("X", 5)))))
   }
 

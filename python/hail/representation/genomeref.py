@@ -1,57 +1,59 @@
-from hail.java import Env, handle_py4j, jiterable_to_list
+from hail.java import handle_py4j, jiterable_to_list
 from hail.typecheck import *
 from hail.representation.interval import Interval
-from hail.representation.variant import Contig
 from hail.utils import wrap_to_list
+from hail.history import *
 
 
-class GenomeReference(object):
+class GenomeReference(HistoryMixin):
     """An object that represents a genome reference.
 
     :param str name: Name of reference
 
-    :param contigs: List of contig names
+    :param contigs: Contig names
     :type contigs: list of str
 
-    :param contigs: List of contig names
-    :type contigs: list of str
+    :param lengths: Dict of contig names to contig lengths
+    :type lengths: dict of str to int
 
-    :param x_contigs: Names of contigs to be treated as X chromosomes
+    :param x_contigs: Contigs to be treated as X chromosomes
     :type x_contigs: str or list of str
 
-    :param y_contigs: Names of contigs to be treated as Y chromosomes
+    :param y_contigs: Contigs to be treated as Y chromosomes
     :type y_contigs: str or list of str
 
-    :param mt_contigs: Names of contigs to be treated as Mitochondrial chromosomes
+    :param mt_contigs: Contigs to be treated as mitochondrial chromosomes
     :type mt_contigs: str or list of str
 
     :param par: List of intervals representing pseudoautosomal regions
     :type par: list of :class:`.Interval`
 
-    >>> contigs = [Contig(1, 249250621), Contig("X", 155270560),
-    ...            Contig("Y", 59373566), Contig("MT", 16569)]
+    >>> contigs = ["1", "X", "Y", "MT"]
+    >>> lengths = {"1": 249250621, "X": 155270560, "Y": 59373566, "MT": 16569}
     >>> par = [Interval.parse("X:60001-2699521")]
-    >>> my_gr = GenomeReference("my_gr", contigs, "X", "Y", "MT", par)
+    >>> my_gr = GenomeReference("my_gr", contigs, lengths, "X", "Y", "MT", par)
     """
 
     @handle_py4j
+    @record_init
     @typecheck_method(name=strlike,
                       contigs=listof(strlike),
-                      lengths=listof(integral),
+                      lengths=dictof(strlike, integral),
                       x_contigs=oneof(strlike, listof(strlike)),
                       y_contigs=oneof(strlike, listof(strlike)),
                       mt_contigs=oneof(strlike, listof(strlike)),
                       par=listof(Interval))
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
-        contigs_jrep = [c._jrep for c in contigs]
-        par_jrep = [interval._jrep for interval in par]
+        contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
         y_contigs = wrap_to_list(y_contigs)
         mt_contigs = wrap_to_list(mt_contigs)
+        par_jrep = [interval._jrep for interval in par]
 
         jrep = (Env.hail().variant.GenomeReference
                 .apply(name,
-                       contigs_jrep,
+                       contigs,
+                       lengths,
                        x_contigs,
                        y_contigs,
                        mt_contigs,
@@ -66,12 +68,15 @@ class GenomeReference(object):
         self._mt_contigs = mt_contigs
         self._par = par
 
+        super(GenomeReference, self).__init__()
+
     @handle_py4j
     def __str__(self):
         return self._jrep.toString()
 
     def __repr__(self):
-        return 'GenomeReference(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self.par)
+        return 'GenomeReference(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
+               (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self.par)
 
     @handle_py4j
     def __eq__(self, other):
@@ -91,7 +96,7 @@ class GenomeReference(object):
 
     @property
     def contigs(self):
-        """Contigs
+        """Contig names
 
         :rtype: list of str
         """
@@ -99,11 +104,11 @@ class GenomeReference(object):
 
     @property
     def lengths(self):
-        """Contig lengths
+        """Map of contig name to contig length
 
-        :rtype: list of str
+        :rtype: dict of str to int
         """
-        return self._contigs
+        return self._lengths
 
     @property
     def x_contigs(self):
@@ -137,9 +142,21 @@ class GenomeReference(object):
         """
         return self._par
 
-    @staticmethod
+    @typecheck_method(contig=strlike)
+    def contig_length(self, contig):
+        """Contig length
+
+        :param contig: Contig to get length of
+        :type contig: str
+
+        :rtype: int
+        """
+        return self._jrep.contigLength(contig)
+
+    @classmethod
+    @record_classmethod
     @handle_py4j
-    def GRCh37():
+    def GRCh37(cls):
         """Genome reference for GRCh37
 
         Data from `<ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`_
@@ -150,9 +167,10 @@ class GenomeReference(object):
         """
         return GenomeReference._from_java(Env.hail().variant.GenomeReference.GRCh37())
 
-    @staticmethod
+    @classmethod
+    @record_classmethod
     @handle_py4j
-    def GRCh38():
+    def GRCh38(cls):
         """Genome reference for GRCh38
 
         Data from `<ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict>`_
@@ -172,7 +190,8 @@ class GenomeReference(object):
         gr = GenomeReference.__new__(cls)
         gr._init_from_java(jrep)
         gr._name = jrep.name()
-        gr._contigs = [Contig._from_java(x) for x in jrep.contigs()]
+        gr._contigs = [str(x) for x in jrep.contigs()]
+        gr._lengths = {str(x._1()): int(x._2()) for x in jiterable_to_list(jrep.lengths())}
         gr._x_contigs = [str(x) for x in jiterable_to_list(jrep.xContigs())]
         gr._y_contigs = [str(x) for x in jiterable_to_list(jrep.yContigs())]
         gr._mt_contigs = [str(x) for x in jiterable_to_list(jrep.mtContigs())]

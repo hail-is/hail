@@ -220,7 +220,8 @@ case class JSONExtractContig(name: String, length: Int)
 case class JSONExtractGenomeReference(name: String, contigs: Array[JSONExtractContig], xContigs: Set[String],
   yContigs: Set[String], mtContigs: Set[String], par: Array[JSONExtractInterval]) {
 
-  def toGenomeReference: GenomeReference = GenomeReference(name, contigs.map(_.name), contigs.map(_.length), xContigs, yContigs, mtContigs, par.map(_.toInterval))
+  def toGenomeReference: GenomeReference = GenomeReference(name, contigs.map(_.name),
+    contigs.map(c => (c.name, c.length)).toMap, xContigs, yContigs, mtContigs, par.map(_.toInterval))
 }
 
 object JSONAnnotationImpex extends AnnotationImpex[Type, JValue] {

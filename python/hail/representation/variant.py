@@ -426,7 +426,6 @@ class AltAllele(HistoryMixin):
         return self._jrep.altAlleleType()
 
 
-
 class Locus(HistoryMixin):
     """
     An object that represents a location in the genome.

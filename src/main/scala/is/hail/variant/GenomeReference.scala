@@ -45,12 +45,22 @@ abstract class GRBase extends Serializable {
   def subst(): GenomeReference
 }
 
-case class GenomeReference(name: String, contigs: Array[String], lengths: Array[Int], xContigs: Set[String],
+case class GenomeReference(name: String, contigs: Array[String], lengths: Map[String, Int], xContigs: Set[String],
   yContigs: Set[String], mtContigs: Set[String], par: Array[Interval[Locus]]) extends GRBase {
 
-  require(contigs.length > 0, "Must have at least one contig in the genome reference.")
-  require(contigs.length == lengths.length, "Input arrays for contig names and lengths must be the same size.")
+  val nContigs = contigs.length
+
+  require(nContigs > 0, "Must have at least one contig in the genome reference.")
   require(contigs.areDistinct(), "Repeated contig names are not allowed.")
+
+  val missingLengths = contigs.toSet.diff(lengths.keySet)
+  val extraLengths = lengths.keySet.diff(contigs.toSet)
+
+  if (missingLengths.nonEmpty)
+    fatal(s"No lengths given for the following contigs: ${ missingLengths.mkString(", ")}")
+
+  if (extraLengths.nonEmpty)
+    fatal(s"Extra contigs found in `lengths' that are not present in `contigs': ${ extraLengths.mkString(", ")}")
 
   require(xContigs.intersect(yContigs).isEmpty,
     s"Found the contigs `${ xContigs.intersect(yContigs).mkString(", ") }' in both xContigs and yContigs.")
@@ -65,34 +75,38 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Array[
       s"The contig name for PAR interval `$i' was not found in xContigs `$xContigs' or in yContigs `$yContigs'.")
   }
 
-  val contigIndex: Map[String, Int] = contigs.zipWithIndex.toMap
-  val contigNames: Set[String] = contigs.toSet
+  val contigsIndex: Map[String, Int] = contigs.zipWithIndex.toMap
+  val contigsSet: Set[String] = contigs.toSet
+  val lengthsByIndex: Array[Int] = contigs.map(lengths)
 
-  val contigLengths: Map[String, Int] = contigs.zip(lengths).toMap
-  contigLengths.foreach { case (n, l) =>
+  lengths.foreach { case (n, l) =>
     if (l <= 0)
       fatal(s"Contig length must be greater than 0. Contig `$n' has length equal to $l.")
   }
 
-  val contigIndexLengths: Map[Int, Int] = lengths.zipWithIndex.map { case (l, i) => (i, l)}.toMap
-
-  val xNotInRef = xContigs.diff(contigNames)
-  val yNotInRef = yContigs.diff(contigNames)
-  val mtNotInRef = mtContigs.diff(contigNames)
+  val xNotInRef = xContigs.diff(contigsSet)
+  val yNotInRef = yContigs.diff(contigsSet)
+  val mtNotInRef = mtContigs.diff(contigsSet)
 
   require(xNotInRef.isEmpty, s"The following X contig names were not found in the reference: `${ xNotInRef.mkString(", ") }'.")
   require(yNotInRef.isEmpty, s"The following Y contig names were not found in the reference: `${ yNotInRef.mkString(", ") }'.")
-  require(mtNotInRef.isEmpty, s"The following MT contig names were not found in the reference: `${ mtNotInRef.mkString(", ") }'.")
+  require(mtNotInRef.isEmpty, s"The following mitochondrial contig names were not found in the reference: `${ mtNotInRef.mkString(", ") }'.")
 
-  val xContigIndices = xContigs.map(contigIndex)
-  val yContigIndices = yContigs.map(contigIndex)
-  val mtContigIndices = mtContigs.map(contigIndex)
+  val xContigIndices = xContigs.map(contigsIndex)
+  val yContigIndices = yContigs.map(contigsIndex)
+  val mtContigIndices = mtContigs.map(contigsIndex)
 
-  def contigLength(contig: String): Int = contigLengths(contig)
+  def contigLength(contig: String): Int = lengths.get(contig) match {
+    case Some(l) => l
+    case None => fatal(s"Invalid contig name: `$contig'.")
+  }
 
-  def contigLength(contigIdx: Int): Int = contigIndexLengths(contigIdx)
+  def contigLength(contigIdx: Int): Int = {
+    require(contigIdx >= 0 && contigIdx < nContigs)
+    lengthsByIndex(contigIdx)
+  }
 
-  def isValidContig(contig: String): Boolean = contigNames.contains(contig)
+  def isValidContig(contig: String): Boolean = contigsSet.contains(contig)
 
   def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
 
@@ -112,8 +126,7 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Array[
 
   def toJSON: JValue = JObject(
     ("name", JString(name)),
-    ("contigs", JArray(contigs.map(JString(_)).toList)),
-    ("lengths", JArray(lengths.map(JInt(_)).toList)),
+    ("contigs", JArray(contigs.map(c => JObject(("name", JString(c)), ("length", JInt(lengths(c))))).toList)),
     ("xContigs", JArray(xContigs.map(JString(_)).toList)),
     ("yContigs", JArray(yContigs.map(JString(_)).toList)),
     ("mtContigs", JArray(mtContigs.map(JString(_)).toList)),
@@ -125,7 +138,7 @@ case class GenomeReference(name: String, contigs: Array[String], lengths: Array[
       case gr: GenomeReference =>
         name == gr.name &&
           contigs.sameElements(gr.contigs) &&
-          lengths.sameElements(gr.lengths)
+          lengths == gr.lengths &&
           xContigs == gr.xContigs &&
           yContigs == gr.yContigs &&
           mtContigs == gr.mtContigs &&
@@ -159,19 +172,18 @@ object GenomeReference {
     name <- Gen.identifier
     nContigs <- Gen.choose(3, 50)
     contigs <- Gen.distinctBuildableOfN[Array, String](nContigs, Gen.identifier)
-    contigNames = contigs.toSet
     lengths <- Gen.distinctBuildableOfN[Array, Int](nContigs, Gen.choose(1000000, 500000000))
-    xContig <- Gen.oneOfSeq(contigNames.toSeq)
-    yContig <- Gen.oneOfSeq((contigNames - xContig).toSeq)
-    mtContig <- Gen.oneOfSeq((contigNames - xContig - yContig).toSeq)
+    xContig <- Gen.oneOfSeq(contigs)
+    yContig <- Gen.oneOfSeq((contigs.toSet - xContig).toSeq)
+    mtContig <- Gen.oneOfSeq((contigs.toSet - xContig - yContig).toSeq)
     parX <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(xContig))))
     parY <- Gen.distinctBuildableOfN[Array, Interval[Locus]](2, Interval.gen(Locus.gen(Seq(yContig))))
-  } yield GenomeReference(name, contigs, lengths, Set(xContig), Set(yContig), Set(mtContig), parX ++ parY)
+  } yield GenomeReference(name, contigs, contigs.zip(lengths).toMap, Set(xContig), Set(yContig), Set(mtContig), parX ++ parY)
 
-  def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.ArrayList[Int],
+  def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
     xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
     mtContigs: java.util.ArrayList[String], par: java.util.ArrayList[Interval[Locus]]): GenomeReference =
-    GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toArray, xContigs.asScala.toSet, yContigs.asScala.toSet, mtContigs.asScala.toSet,
+    GenomeReference(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toSet, yContigs.asScala.toSet, mtContigs.asScala.toSet,
       par.asScala.toArray)
 }
 

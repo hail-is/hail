@@ -471,6 +471,10 @@ class Field(object):
     :param typ: type of field
     :type typ: :class:`.Type`
     :param dict attributes: key/value attributes of field
+
+    :ivar str name: name of field
+    :ivar typ: type of field
+    :vartype typ: :class:`.Type`
     """
 
     def __init__(self, name, typ, attributes={}):

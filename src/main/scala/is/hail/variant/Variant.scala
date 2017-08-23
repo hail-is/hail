@@ -27,10 +27,9 @@ object Contig {
     }
   }
 
-  def gen(gr: GenomeReference): Gen[(String, Int)] = Gen.oneOfSeq(gr.contigLengths.toSeq)
+  def gen(gr: GenomeReference): Gen[(String, Int)] = Gen.oneOfSeq(gr.lengths.toSeq)
 
-  def gen(nameGen: Gen[String] = Gen.identifier,
-    lengthGen: Gen[Int] = Gen.choose(1000000, 500000000)): Gen[(String, Int)] = for {
+  def gen(nameGen: Gen[String] = Gen.identifier, lengthGen: Gen[Int] = Gen.choose(1000000, 500000000)): Gen[(String, Int)] = for {
     name <- nameGen
     length <- lengthGen
   } yield (name, length)
@@ -229,11 +228,11 @@ object Variant {
 
 object VariantSubgen {
   val random = VariantSubgen(
-      contigGen = Contig.gen(),
-      nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
-      refGen = genDNAString,
-      altGen = Gen.frequency((10, genDNAString),
-        (1, Gen.const("*"))))
+    contigGen = Contig.gen(),
+    nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
+    refGen = genDNAString,
+    altGen = Gen.frequency((10, genDNAString),
+      (1, Gen.const("*"))))
 
   val plinkCompatible = random.copy(contigGen = Contig.gen(nameGen = Gen.choose(1, 22).map(_.toString)))
 
@@ -250,8 +249,8 @@ case class VariantSubgen(
   altGen: Gen[String]) {
 
   def gen: Gen[Variant] =
-    for ((contig, contigLength) <- contigGen;
-      start <- Gen.choose(1, contigLength);
+    for ((contig, length) <- contigGen;
+      start <- Gen.choose(1, length);
       nAlleles <- nAllelesGen;
       ref <- refGen;
       altAlleles <- Gen.distinctBuildableOfN[Array, String](
