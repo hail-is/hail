@@ -4808,6 +4808,7 @@ class VariantDataset(HistoryMixin):
                                     jarray(Env.jvm().java.lang.String, covariates), use_dosages))
 
     @handle_py4j
+    @record_method
     @typecheck_method(propagate_gq=bool,
                       keep_star_alleles=bool,
                       max_shift=integral)
