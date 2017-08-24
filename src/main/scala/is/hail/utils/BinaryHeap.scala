@@ -10,6 +10,7 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
   private var next: Int = 0
 
   def size: Int = next
+  def isEmpty: Boolean = next == 0
 
   def insert(t: T, r: Long) {
     if (m.contains(t))
