@@ -14,7 +14,8 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
   def insert(t: T, r: Long) {
     if (m.contains(t))
       throw new RuntimeException(s"key $t already exists with priority ${m(t)}, cannot add it again with priority $r")
-    putNext(new RankedT(t,r))
+    maybeGrow()
+    put(next, new RankedT(t,r))
     bubbleUp(next)
     next += 1
   }
@@ -33,9 +34,7 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
   def extractMax(): T = {
     val max = maxRanked().v
     next -= 1
-    println(m)
     m -= max
-    println(m)
     if (next > 0) {
       put(0, a(next))
       bubbleDown(0)
@@ -96,7 +95,7 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
     m(a(i).v) = i
   }
 
-  private def putNext(rt: RankedT) {
+  private def maybeGrow() {
     if (next > a.length) {
       val a2 = new Array[RankedT](a.length << 1)
       var j = 0
@@ -106,7 +105,6 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
       }
       a = a2
     }
-    put(next, rt)
   }
 
   private def maybeShrink() {
