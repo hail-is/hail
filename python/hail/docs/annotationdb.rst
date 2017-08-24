@@ -10,7 +10,7 @@ Currently, the :py:meth:`~.VariantDataset.annotate_variants_db` VDS method assoc
 Google Cloud Platform. 
 
 To incorporate these annotations in your own Hail analysis pipeline, select which annotations you would like to query from the 
-options below and then copy-and-paste the Hail code generated into your own analysis script.
+documentation_ below and then copy-and-paste the Hail code generated into your own analysis script.
 
 For example, a simple Hail script to load a VCF into a VDS, annotate the VDS with CADD raw and PHRED scores using this database, 
 and inspect the schema could look something like this:
@@ -27,8 +27,7 @@ and inspect the schema could look something like this:
       .import_vcf('gs://annotationdb/test/sample.vcf')
       .split_multi()
       .annotate_variants_db([
-          'va.cadd.RawScore', 
-          'va.cadd.PHRED'
+          'va.cadd'
       ])
   )
 
@@ -51,54 +50,40 @@ This code would return the following schema:
       }
   }
 
--------------
+--------------
 
-Query Builder
--------------
+Database Query
+--------------
+
+Select annotations by clicking on the checkboxes in the documentation_, and the appropriate Hail command will be generated
+in the panel below. 
+
+Use the "Copy to clipboard" button to copy the generated Hail code, and paste the command into your
+own Hail script.
       
 .. raw:: html      
 
-      <div class="container">
-
-        <div class="row">
-
-          <div id="panel-annotations" class="panel panel-default">
-            <div class="panel-heading query clearfix">
-               <a class="pull-left" role="button" data-toggle="collapse" href="#annotations">
-                  <span class="text-expand">Annotations</span>
-               </a>
-               <div class="btn-group pull-right">
-                  <a class="btn btn-default btn-sm" id="annotations-clear">Clear selections</a>
-               </div>
-            </div>
-            <div class="panel-collapse collapse in" id="annotations">
-               <div class="panel-body annotations">
-                  <div id="tree"></div>
-               </div>
-            </div>
+      <div id="database-query" class="container">
+        <div id="panel-query" class="panel panel-default">
+          <div class="panel-heading query">
+             <a role="button" data-toggle="collapse" href="#hail-code">
+                <span class="text-expand">Database Query</span>
+             </a>
+             <button type="button" class="btn btn-default" id="hail-copy-btn" data-clipboard-target="#hail-query">
+                <span>Copy to clipboard</span>
+             </button>
           </div>
-
-          <div id="panel-query" class="panel panel-default col-4">
-            <div class="panel-heading query clearfix">
-               <a class="pull-left" role="button" data-toggle="collapse" href="#hail-code">
-                  <span class="text-expand">Database Query</span>
-               </a>
-               <div class="btn-group pull-right">
-                  <a class="btn btn-default btn-sm" data-clipboard-target="#hail-copy" id="hail-copy-btn">Copy to clipboard</a>
-               </div>
-            </div>
-            <div class="panel-collapse collapse in" id="hail-code">
-               <div class="panel-body hail-code">
-                  <span id="template-query-before"><pre>vds = (<br>    hc<br>    .read('my.vds')<br>    .split_multi()<br></pre></span>
-                  <span class="hail-code query" id="hail-copy"><pre class="import-function">    .annotate_variants_db([<br>        ...<br>    ])</pre></span>
-                  <span id="template-query-after"><pre>)</pre></span>
-               </div>
-            </div>
+          <div class="panel-collapse collapse in" id="hail-code">
+             <div class="panel-body hail-code">
+                <span id="template-query-before"><pre>vds = (<br>    hc<br>    .read('my.vds')<br>    .split_multi()<br></pre></span>
+                <span id="hail-query"><pre class="import-function">    .annotate_variants_db([<br>        ...<br>    ])</pre></span>
+                <span id="template-query-after"><pre>)</pre></span>
+             </div>
           </div>
-
         </div>
-
       </div>
+
+.. _documentation:
 
 -------------
 
@@ -242,3 +227,10 @@ This code would return:
           }
       }
   }
+
+--------------------------
+
+Suggest additions or edits
+--------------------------
+
+Please contact Andrea Ganna (aganna@broadinstitute.org) or Liam Abbott (labbott@broadinstitute.org) with any questions.

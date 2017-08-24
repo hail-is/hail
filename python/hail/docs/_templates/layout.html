@@ -11,8 +11,8 @@
 {%- set css_files = css_files + ['navbar.css', '_static/rtd_modifications.css'] %}
 
 {% if pagename == "annotationdb" %}
-{%- set css_files = css_files + ['_static/annotationdb/bootstrap-treeview.min.css', '_static/annotationdb/annotationdb.css'] %}
-{%- set script_files = script_files + ['_static/annotationdb/bootstrap-treeview.min.js', '_static/annotationdb/clipboard.min.js', '_static/annotationdb/annotationdb.js'] %}
+{%- set script_files = script_files + ['_static/annotationdb/clipboard.min.js', '_static/annotationdb/annotationdb.js'] %}
+{%- set css_files = css_files + ['_static/annotationdb/annotationdb.css'] %}
 {% endif %}
 
 <!DOCTYPE html>
@@ -84,11 +84,6 @@
 
   {# Keep modernizr in head - http://modernizr.com/docs/#installing #}
   <script src="{{ pathto('_static/js/modernizr.min.js', 1) }}"></script>
-
-  {% if pagename == "annotationdb" %}
-    <link rel="stylesheet" href="../../annotationdb/bootstrap-treeview.min.css">
-    <link rel="stylesheet" href="../../annotationdb/annotationdb.css">
-  {% endif %}
 
 </head>
 

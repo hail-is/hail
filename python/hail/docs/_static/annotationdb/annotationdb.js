@@ -1,49 +1,31 @@
 
-function generate_query(selected_nodes) {
+function generate_query(annotations) {
 
-	// for each selected node, get Hail path of annotation
-	var selected_hail = $.map(selected_nodes, function(value, index) {
-		return value['annotation'];
-	});
+	$('#hail-query').empty();
 
-	// empty DOM element
-	$('span.hail-code.query').empty();
+	if (annotations.length) {
 
-	// if at least 1 annotation is selected, generate query to display
-	if (selected_hail.length) {
-
-		// split each annotation Hail path into its components
-		var split_paths = $.map(selected_hail.sort(), function(element, index){
+		var split_paths = $.map(annotations.sort(), function(element, index){
 			return [element.split('.')];
 		});
-
-		// array of annotations to display, initialize with first annotation
 		var display = [split_paths[0]];
 
-		// picking only minimum annotations necessary to display
 		$.each(split_paths.slice(1), function(index, value){
 
-			// last annotation currently displayed
 			var last = display.slice(-1)[0];
-
-			// if current path has same beginning as last currently displayed, skip
 			if (last.toString() != value.slice(0, last.length).toString()){
 				display.push(value);
 			} 
-
 		});
 
-		// rejoin display annotation paths, combine into parameter string
 		display = "'" + $.map(display, function(element, index){
 			return element.join('.');
-		}).join("',<br>        '") + "'";
-				
+		}).join("',<br>        '") + "'";	
+
 	} else {
-		// if no annotations selected, clear query panel
 		var display = '...';
 	}
 
-	// query string
 	var query =
 		'<pre>' +
 		'    .annotate_variants_db([' +
@@ -53,133 +35,28 @@ function generate_query(selected_nodes) {
 		'    ])' +
 		'</pre>';
 
-	// insert query into DOM
-	$('span.hail-code.query').html(query);
+	$('#hail-query').html(query);
 }
 
-function select_nodes(node, selections){
-
-	var current_selections = selections;
-	if (node.hasOwnProperty('nodes')){
-		$.each(node['nodes'], function(index, child){
-			if ($.inArray(child, current_selections) == -1) {
-				current_selections.push(child);
-			}
-			current_selections = select_nodes(child, current_selections);
-		});
-	}
-
-	return current_selections;
-}
-
-function build_tree(data){
-
-	// use data dictionary to build query tree using bootstrap-tree.js library
-	$('#tree').treeview({
-		data: data,
-		multiSelect: true,
-		levels: 1,
-		expandIcon: 'glyphicon-plus',
-		collapseIcon: 'glyphicon-minus',
-		allowReselect: false,
-		preventUnselect: false,
-		onNodeSelected: function(event, node){
-			var children = select_nodes(node, [node]);
-			$(this).treeview('unselectNode', [children, {silent: true}]);
-			$(this).treeview('selectNode', [children, {silent: true}]);
-			generate_query($(this).treeview('getSelected'));
-		},
-		onNodeUnselected: function(event, node){
-			var children = select_nodes(node, [node]);
-			$(this).treeview('selectNode', [children, {silent: true}]);
-			$(this).treeview('unselectNode', [children, {silent: true}]);
-			generate_query($(this).treeview('getSelected'));
-		}
-	});
-}
-
-function build_table(node, id) {
-
-	var table_id = id + '-table';
-
-	$('#' + id + '>.panel-body').append(
-		'<table id="' + table_id + '" class="table table-hover" data-detail-view="true">' +
-			'<thead>' + 
-				'<th class="col0 detail"></th>' +
-				'<th class="col1">Variable</th>' +
-				'<th class="col2">Type</th>' +
-				'<th class="col3">Description</th>' +
-			'</thead>' +
-			'<tbody>' +
-			'</tbody>' +
-		'</table>'
-	);
-
-	$.each(node['nodes'], function(_, child_node) {
-
-		var col0 = '';
-		var col1 = child_node['annotation'];
-		var col2 = child_node['type'];
-		var col3 = child_node['description'];
-		var has_elements = (child_node.hasOwnProperty('elements') ? true : false);
-
-		if (has_elements) {
-			var sub_table_id = 'sub-' + table_id + '-' + child_node['annotation'].split('.').slice(-1)[0];
-			col0 = '<a data-toggle="collapse" href="#row-' + sub_table_id + '" aria-expanded="false" aria-controls="row-' + sub_table_id + '">' +
-				       '<i class="sub-table-icon glyphicon glyphicon-plus icon-plus"><i>' +
-				   '</a>';
-		}
-
-		$('#' + table_id + '>tbody').append(
-			'<tr>' +
-				'<td class="col0">' + col0 + '</td>' +
-				'<td class="col1"><span class="hail-code">' + col1 + '</span></td>' +
-				'<td class="col2"><span class="hail-code">' + col2 + '</span></td>' +
-				'<td class="col3"><span>' + col3 + '</span></td>' +
-			'</tr>'
-		);
-
-		if (has_elements) {
-
-			$('#' + table_id + '>tbody').append(
-				'<tr id="row-' + sub_table_id + '" class="collapse">' +
-					'<td colspan="4" class="sub-table">' +
-						'<table id="' + sub_table_id + '" class="table table-hover sub-table">' + 
-							'<thead>' +
-								'<th>Struct Element</th>' +
-								'<th>Type</th>' +
-							'</thead>' +
-							'<tbody>' +
-							'</tbody>' +
-						'</table>' +								
-					'</td>' +
-				'</tr>'
-			);
-
-			$.each(child_node['elements'], function(_, element){
-				$('#' + sub_table_id + '>tbody').append(
-					'<tr>' +
-						'<td class="sub-col0"><span class="hail-code">' + element['name'] + '</span></td>' +
-						'<td class="sub-col1"><span class="hail-code">' + element['type'] + '</span></td>' +
-					'</tr>'
-				);
-			});
-		}
-	});	
-}
-
-function build_docs(nodes, parent_id, parent_level) {
+function build_docs(nodes, parent_id, parent_level, parent_class) {
 
 	var level = parent_level + 1;
 	var current_parent = parent_id;
+	var current_parent_class = parent_class;
 
-	$.each(nodes, function(_, node) {
+	$.each(nodes, function(index, node) {
 
-		var node_id = current_parent + '-' + node['annotation'].split('.').slice(-1)[0];
+		var node_name = node['annotation'].split('.').slice(-1)[0];
+		var node_id = current_parent + '-' + node_name;
+		var node_class = current_parent_class + ' ' + node_name;
 
 		$('#' + current_parent).append(
-			'<div class="panel panel-default level' + String(level) + '">' +
-		    	'<div class="panel-heading" id="heading-' + node_id + '">' +
+			
+			'<div class="panel panel-default docs level' + String(level) + '">' +
+		    	'<div class="panel-heading docs" id="heading-' + node_id + '">' +
+	    			'<button type="button" annotation="' + node['annotation'] + '" class="btn btn-default ' + node_class + '">' +
+	    				'<i class="glyphicon glyphicon-ok"></i>' +
+	    			'</button>' +
 		          	'<a role="button" data-toggle="collapse" href="#' + node_id + '">' +
 				       	'<span class="text-expand">' + node['text'] + '</span>' +
 				   	'</a>' +
@@ -192,11 +69,14 @@ function build_docs(nodes, parent_id, parent_level) {
 		);
 
 		if (node['free_text']) {
+
 			var paragraphs = node['free_text'].split("\n\n");
 			var insert = '<div class="panel-text">';
+
 			$.each(paragraphs, function(_, paragraph) {
 				insert += '<p>' + paragraph.replace('\n', '<br>') + '</p>'
 			});
+
 			$('#' + node_id + '>.panel-body').append(insert + '</div>');
 		}
 
@@ -216,13 +96,20 @@ function build_docs(nodes, parent_id, parent_level) {
 			);
 		}
 
-		if (!node.hasOwnProperty('nodes')) {
+		var more_levels = node.hasOwnProperty('nodes') ? node['nodes'][0].hasOwnProperty('nodes') : false;
 
-			var table_id = node_id + '-table';
+		if (more_levels) {
+
+			build_docs(nodes = node['nodes'], parent_id = node_id, parent_level = level, parent_class = node_class);
+
+		} else {
+
+			var table_id = 'table-' + node_id;
+
 			$('#' + node_id + '>.panel-body').append(
 				'<table id="' + table_id + '" class="table table-hover" data-detail-view="true">' +
 					'<thead>' + 
-						'<th class="col0 detail"></th>' +
+						'<th class="col0"></th>' +
 						'<th class="col1">Variable</th>' +
 						'<th class="col2">Type</th>' +
 						'<th class="col3">Description</th>' +
@@ -232,31 +119,80 @@ function build_docs(nodes, parent_id, parent_level) {
 				'</table>'
 			);
 
-			var col0 = '';
-			var col1 = node['annotation'];
-			var col2 = node['type'];
-			var col3 = node['description']
+			if (!node.hasOwnProperty('nodes')) {
 
-			$('#' + table_id + '>tbody').append(
-				'<tr>' +
-					'<td class="col0">' + col0 + '</td>' +
-					'<td class="col1"><span class="hail-code">' + col1 + '</span></td>' +
-					'<td class="col2"><span class="hail-code">' + col2 + '</span></td>' +
-					'<td class="col3"><span>' + col3 + '</span></td>' +
-				'</tr>'
-			);
+				$('#' + table_id + '>tbody').append(
+					'<tr>' +
+						'<td class="col0">' + 
+							'<button type="button" annotation="' + node['annotation'] + '" class="btn btn-default ' + node_class + '">' +
+			    				'<i class="glyphicon glyphicon-ok"></i>' +
+			    			'</button>' +
+						'</td>' +
+						'<td class="col1"><span class="hail-code">' + node['annotation'] + '</span></td>' +
+						'<td class="col2"><span class="hail-code">' + node['type'] + '</span></td>' +
+						'<td class="col3"><span>' + node['description'] + '</span></td>' +
+					'</tr>'
+				);
 
-		} else {
-			if (!node['nodes'][0].hasOwnProperty('nodes')) {
-				build_table(node = node, id = node_id);
 			} else {
-				build_docs(nodes = node['nodes'], parent_id = node_id, parent_level = level);
+
+				$.each(node['nodes'], function(_, child) {
+
+					var child_class = node_class + ' ' + child['annotation'].split('.').slice(-1)[0];
+
+					$('#' + table_id + '>tbody').append(
+						'<tr>' +
+							'<td class="col0">' +
+								'<button type="button" annotation="' + child['annotation'] + '" class="btn btn-default ' + child_class + '">' +
+				    				'<i class="glyphicon glyphicon-ok"></i>' +
+				    			'</button>' +
+				    		'</td>' +
+							'<td class="col1"><span class="hail-code">' + child['annotation'] + '</span></td>' +
+							'<td class="col2"><span class="hail-code">' + child['type'] + '</span></td>' +
+							'<td class="col3"><span>' + child['description'] + '</span></td>' +
+						'</tr>'
+					);
+
+					if (child.hasOwnProperty('elements')) {
+
+						var sub_table_class = 'sub-table-' + child['annotation'].replace(/\./g, '-');
+
+						$('#' + table_id + '>tbody').append(
+							'<tr class="sub-table header">' +
+								'<td class="col0">' +
+								'</td>' +
+								'<td class="col1">' + 
+									'<button type="button" class="btn btn-default accordion-toggle sub-table-icon" data-toggle="collapse" data-target="tr.sub-table[annotation=&quot;' + child['annotation'] + '&quot;]">' +
+										'<i class="glyphicon glyphicon-plus"></i>' +
+									'</button>' +
+									'<span class="hail-code">Struct Elements:</span>' +
+								'</td>' +
+								'<td class="col2"></td>' +
+								'<td class="col3"></td>' +
+							'</tr>'
+						);
+
+						$.each(child['elements'], function(index, element){
+							$('#' + table_id + '>tbody').append(
+								'<tr class="sub-table hide" annotation="' + child['annotation'] + '">' +
+									'<td class="col0"></td>' +
+									'<td class="col1"><div class="collapse" annotation="' + child['annotation'] + '"><span class="hail-code">' + element['name'] + '</span></div></td>' +
+									'<td class="col2"><div class="collapse" annotation="' + child['annotation'] + '"><span class="hail-code">' + element['type'] + '</span></div></td>' +
+									'<td class="col3"><div class="collapse" annotation="' + child['annotation'] + '"><span>' + element['description'] + '</span></div></td>' +
+								'</tr>'
+							);
+						});
+					}
+				
+				});	
+
 			}
+
 		}
+
 	});
 }
 
-// get data dictionary in JSON format from PHP script
 $.ajax({
 	url: 'https://storage.googleapis.com/annotationdb/ADMIN/tree.json',
 	method: 'GET',
@@ -267,34 +203,106 @@ $.ajax({
  		request.setRequestHeader('access-control-allow-origin', '*');
  	},
 	success: function(data) {
-
-		// use data dictionary to build query tree
-		build_tree(data);
-
-		// use data dictionary to build documentation
-		build_docs(nodes = data, parent_id='panel-docs', parent_level=-1);
+		build_docs(nodes = data, parent_id='panel-docs', parent_level=-1, parent_class='');
 	},
 	error: function() {
 		console.log('Error fetching tree file.');
 	}
 });
 
-$(document).ready(function() {
+function select_parents(annotation) {
 
-	// expand Array[Struct] elements in documentation tables
-	$(document).on('click', 'i.sub-table-icon', function(e) {
-		$(this).toggleClass('glyphicon-plus icon-plus');
-		$(this).toggleClass('glyphicon-minus icon-minus');
+	var target = $('#panel-docs button[annotation="' + annotation + '"]');
+	$('#panel-docs').find(target).addClass('active');
+
+	var split = annotation.split('.');
+	var parent = split.slice(0, split.length - 1);
+
+	if (parent.length > 1) {
+
+		var siblings = $('#panel-docs button[annotation^="' + parent.join('.') + '"]');
+		console.log(siblings);
+
+		var n_siblings = $('#panel-docs button[annotation^="' + parent.join('.') + '"]').filter(function() {
+			return ($(this).attr('annotation').split('.').length === split.length);
+		}).length - 1;
+
+		var n_siblings_selected = $('#panel-docs button[annotation^="' + parent.join('.') + '"].active').filter(function() {
+			return ($(this).attr('annotation').split('.').length === split.length);
+		}).length - 1;
+
+		if (n_siblings === n_siblings_selected) {
+			select_parents(parent.join('.'));
+		}
+	}
+
+}
+
+function unselect_parents(annotation) {
+
+	var target = $('#panel-docs button[annotation="' + annotation + '"]');
+	$('#panel-docs').find(target).removeClass('active');
+
+	var split = annotation.split('.');
+	var parent = split.slice(0, split.length - 1);
+
+	if (parent.length > 1) {
+		unselect_parents(parent.join('.'));
+	}
+
+}
+
+$(document).ready(function() {
+	$(document).on('click', '#panel-docs button[annotation]', function() {
+		
+		var annotation = $(this).attr('annotation');
+		
+		if ($(this).hasClass('active')) {
+
+			var targets = $('#panel-docs button[annotation^="' + annotation + '"]');
+			$('#panel-docs').find(targets).removeClass('active');
+			unselect_parents(annotation);
+
+		} else {
+
+			var targets = $('#panel-docs button[annotation^="' + annotation + '"]');
+			$('#panel-docs').find(targets).addClass('active');
+			select_parents(annotation);
+
+		}
+
+		var selections = $('#panel-docs button.active[annotation]').map(function() {
+			return $(this).attr('annotation');
+		}).get();
+		generate_query(selections);
 	});
 
-	// functionality to clear selection when button is clicked
-	$('#annotations-clear').on('click', function() {
-		var tree = $('#tree').treeview(true);
-		tree.unselectNode(tree.getNodes());
+});
+
+$(document).ready(function() {
+	setTimeout(function() {
+		$('#panel-docs div.panel:first-child div.panel-heading>button[annotation]').trigger('click');
+		$('#panel-docs div.panel:first-child div.panel-heading>a').trigger('click');
+	}, 500);
+});
+
+$(document).ready(function() {
+	$(document).on('click', 'tr.sub-table button', function() {
+		var target = $(this).attr('data-target');
+		$('#panel-docs').find(target).toggleClass('hide');
+		$('#panel-docs').find(target).find('td div').toggleClass('in');
+		$(this).find('i').toggleClass('glyphicon-plus');
+		$(this).find('i').toggleClass('glyphicon-minus');
+	});
+});
+
+$(document).ready(function() {
+	$(document).on('click', '#annotations-clear', function() {
 		generate_query([]);
 	});
+});
 
-	// copy query to clipboard when button is clicked
+$(document).ready(function() {
 	var hail_copy_btn = document.getElementById('hail-copy-btn');
 	var clipboard = new Clipboard(hail_copy_btn);
 	clipboard.on('success', function(e) {});
