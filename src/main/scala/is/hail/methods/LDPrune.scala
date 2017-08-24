@@ -349,7 +349,7 @@ object LDPrune {
     (maxQueueSize, nPartitions)
   }
 
-  def apply(vds: VariantDataset, r2Threshold: Double, windowSize: Int, nCores: Int, memoryPerCore: Long = 268435456): VariantDataset = {
+  def apply(vds: VariantDataset, nCores: Int, r2Threshold: Double, windowSize: Int, memoryPerCore: Long): VariantDataset = {
     if (nCores <= 0)
       fatal(s"Number of cores must be positive.")
 
