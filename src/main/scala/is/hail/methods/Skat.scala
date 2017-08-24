@@ -24,7 +24,6 @@ case class SkatTuple(q: Double, xw: Vector[Double], qtxw: DenseVector[Double])
 
 object Skat {
   def apply(vds: VariantDataset,
-    keyName: String,
     variantKeys: String,
     singleKey: Boolean,
     weightExpr: Option[String],
@@ -36,8 +35,8 @@ object Skat {
     var filteredVds = vds.filterSamplesList(completeSamples.toSet)
     val n = y.size
 
-    def computeSkat(keyedRdd: RDD[(Any, Iterable[(Vector[Double], Double)])], keyType: Type,
-      y: DenseVector[Double], cov: DenseMatrix[Double], keyName: String,
+    def computeSkat(keyedRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
+      y: DenseVector[Double], cov: DenseMatrix[Double],
       resultOp: (Array[SkatTuple], Double) => SkatStat): KeyTable = {
       val n = y.size
       val k = cov.cols
@@ -90,7 +89,7 @@ object Skat {
 
     val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypesFunction)
 
-    computeSkat(keyedRdd, keysType, y, cov, keyName, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
+    computeSkat(keyedRdd, keysType, y, cov, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
   }
 
   def keyedRDDSkat(vds: VariantDataset,
@@ -98,19 +97,19 @@ object Skat {
     singleKey: Boolean,
     weightExpr: Option[String],
     getGenotypes: (Iterable[Genotype], Int) => Vector[Double]):
-  (RDD[(Any, Iterable[(Vector[Double], Double)])], Type) = {
+  (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
     var mutableVds = vds
     val n = mutableVds.nSamples
 
     weightExpr match {
       case None => mutableVds = mutableVds.annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
-        .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
+        .annotateVariantsExpr("va.__weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
       case _ =>
     }
 
     val (keysType, keysQuerier) = mutableVds.queryVA(variantKeys)
     val (weightType, weightQuerier) = weightExpr match {
-      case None => mutableVds.queryVA("va.weight")
+      case None => mutableVds.queryVA("va.__weight")
       case Some(expr) => mutableVds.queryVA(expr)
     }
 
@@ -120,13 +119,13 @@ object Skat {
     }
 
     val (keyType, keyIterator): (Type, Annotation => Iterator[Annotation]) = if (singleKey) {
-      (keysType, (key: Any) => Iterator.single(key))
+      (keysType, (key: Annotation) => Iterator.single(key))
     } else {
       val keyType = keysType match {
         case t: TIterable => t.elementType
         case _ => fatal(s"With single_key=False, variant keys must be of type Set[T] or Array[T], got $keysType")
       }
-      (keyType, (keys: Any) => keys.asInstanceOf[Iterable[Any]].iterator)
+      (keyType, (keys: Annotation) => keys.asInstanceOf[Iterable[Annotation]].iterator)
     }
 
     (mutableVds.rdd.flatMap { case (v, (va, gs)) =>
@@ -154,7 +153,7 @@ object Skat {
     while (i < m) {
       j = 0
       val xwsi = st(i).xw
-      xwsi match {
+      (xwsi: @unchecked) match {
         case dv: DenseVector[Double] =>
           while (j < n) {
             xwArray(i * n + j) = dv(j)
@@ -169,7 +168,6 @@ object Skat {
             j += 1
           }
           i += 1
-        case _ => fatal("SKAT is implemented for sparse or dense breeze vector datatypes.")
       }
     }
 
@@ -199,8 +197,8 @@ object Skat {
     val zGramian = weightedGenotypes.t * weightedGenotypes
     val qtzGramian = qtWeightedGenotypes.t * qtWeightedGenotypes
 
-    val SPG = new SkatModel(skatStat / (2 * sigmaSq))
-    SPG.computeLinearSkatStats(zGramian, qtzGramian)
+    val model = new SkatModel(skatStat / (2 * sigmaSq))
+    model.computeLinearSkatStats(zGramian, qtzGramian)
   }
 
   def largeNComputeSKATperGene(st: Array[SkatTuple], sigmaSq: Double): SkatStat = {
@@ -250,7 +248,7 @@ object Skat {
     val zGramian = new DenseMatrix[Double](m, m, zGramianArray)
     val qtzGramian = new DenseMatrix[Double](m, m, qtzGramianArray)
 
-    val SPG = new SkatModel(skatStat / (2 * sigmaSq))
-    SPG.computeLinearSkatStats(zGramian, qtzGramian)
+    val model = new SkatModel(skatStat / (2 * sigmaSq))
+    model.computeLinearSkatStats(zGramian, qtzGramian)
   }
 }

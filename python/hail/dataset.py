@@ -4706,15 +4706,13 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @requireTGenotype
-    @typecheck_method(key_name=strlike,
-                      variant_keys=strlike,
+    @typecheck_method(variant_keys=strlike,
                       single_key=bool,
                       weight_expr=nullable(strlike),
                       y=strlike,
                       covariates=listof(strlike),
                       use_dosages=bool)
-    def skat(self, key_name, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False):
+    def skat(self, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False):
         """Test each keyed group of variants for association by linear SKAT test.
 
         **Examples**
@@ -4722,7 +4720,7 @@ class VariantDataset(HistoryMixin):
         Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
         is a variant annotation of type Set[String] giving the set of genes containing the variant:
 
-        >>> skat_kt = (hc.read('data/example_burden.vds').skat(key_name='gene',
+        >>> skat_kt = (hc.read('data/example_burden.vds').skat(
         ...           variant_keys='va.genes',
         ...           single_key=False,
         ...           y='sa.burden.pheno',
@@ -4785,8 +4783,6 @@ class VariantDataset(HistoryMixin):
         |      5      |               out of memory             |
         +------+------+-----------------------------------------+
 
-        :param str key_name: Name to assign to key column of returned key tables.
-
         :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
 
         :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
@@ -4808,7 +4804,7 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(key_name, variant_keys, single_key, joption(weight_expr), y,
+        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, joption(weight_expr), y,
                                     jarray(Env.jvm().java.lang.String, covariates), use_dosages))
 
     @handle_py4j
