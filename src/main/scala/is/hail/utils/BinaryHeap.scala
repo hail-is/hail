@@ -109,7 +109,7 @@ class BinaryHeap[@specialized T : ClassTag](private val minimumCapacity: Int = 3
   }
 
   private def maybeShrink() {
-    if (next > minimumCapacity && next < (a.length >>> 2)) {
+    if (next >= minimumCapacity && next < (a.length >>> 2)) {
       val ts2 = new Array[T](ts.length >>> 2)
       val ranks2 = new Array[Long](ts.length >>> 2)
       Array.copy(ts, 0, ts2, 0, ts2.length)

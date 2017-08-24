@@ -192,4 +192,20 @@ class BinaryHeapSuite {
     assert(true)
   }
 
+  @Test
+  def shrinkCapacity() {
+    val bh = new BinaryHeap[Int](8)
+    for (i <- 0 until 64) {
+      bh.insert(i, i)
+    }
+    assert(bh.size() === 64)
+    assert(bh.max() === 63)
+    // shrinking happens when size is <1/4 of capacity
+    for (i <- 0 until (32+16+1)) {
+      assert(bh.extractMax() === (64-i-1))
+    }
+    assert(bh.size() === 16)
+    assert(bh.max() === 15)
+  }
+
 }
