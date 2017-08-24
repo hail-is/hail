@@ -4,7 +4,7 @@ import breeze.linalg.Matrix
 import is.hail.annotations.Annotation
 import is.hail.utils._
 import is.hail.variant.{Genotype, VSMFileMetadata, Variant, VariantDataset}
-import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson}
+import net.sourceforge.jdistlib.{ChiSquare, Normal, Poisson, Beta}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 
 package object stats {
@@ -280,6 +280,8 @@ package object stats {
 
   // Returns the x for which p = Prob(Z^2 > x) with Z^2 a chi-squared RV with df degrees of freedom
   def inverseChiSquaredTail(df: Double, p: Double): Double = ChiSquare.quantile(p, df, false, false)
+
+  def dbeta(x: Double, a: Double, b: Double): Double = Beta.density(x, a, b, false)
 
   def rpois(lambda: Double): Double = new Poisson(lambda).random()
 
