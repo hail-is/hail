@@ -4748,11 +4748,11 @@ class VariantDataset(HistoryMixin):
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
         The resulting key table provides the variant component score and the p-value for each group, with the latter
-        given by right tail of a weighted sum of :math:`\\chi^2(1)` distributions. For the example above with
-        `key_name='gene'`, the table has the form:
+        given by right tail of a weighted sum of :math:`\\chi^2(1)` distributions. For the example above the table has
+        the form:
 
         +------+-------+------+-------+
-        | gene | qstat | pval | fault |
+        |  key | qstat | pval | fault |
         +======+=======+======+=======+
         | geneA| 4.136 | 0.205|   0   |
         +------+-------+------+-------+
@@ -4783,7 +4783,7 @@ class VariantDataset(HistoryMixin):
         |      5      |               out of memory             |
         +------+------+-----------------------------------------+
 
-        :param str variant_keys: Variant annotation path for the TArray or TSet of keys associated to each variant.
+        :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
         :param bool single_key: If true, ``variant_keys`` is interpreted as a single (or missing) key per variant,
                                 rather than as a collection of keys.
