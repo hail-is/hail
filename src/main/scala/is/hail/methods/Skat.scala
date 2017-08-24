@@ -40,7 +40,7 @@ object Skat {
     val filteredVds = vds.filterSamplesMask(sampleMask)
 
     def computeSkatLinear(keyedRdd: RDD[(Any, Iterable[(Vector[Double], Double)])], keyType: Type,
-      y: DenseVector[Double], cov: DenseMatrix[Double], keyName: String,
+      y: DenseVector[Double], cov: DenseMatrix[Double],
       resultOp: (Array[SkatTuple], Double) => SkatStat): KeyTable = {
       val n = y.size
       val k = cov.cols
@@ -60,6 +60,7 @@ object Skat {
       val qtBc = sc.broadcast(q.t)
 
       def preProcessGenotypes(gs: Vector[Double], w: Double): SkatTuple = {
+        println(gs)
         val sqrtw = math.sqrt(w)
         val wx = gs * sqrtw
         val sj = resBc.value dot wx
@@ -83,7 +84,7 @@ object Skat {
     }
 
     def computeSkatLogistic(keyedRdd: RDD[(Any, Iterable[(Vector[Double], Double)])], keyType: Type,
-      y: DenseVector[Double], cov: DenseMatrix[Double], keyName: String,
+      y: DenseVector[Double], cov: DenseMatrix[Double],
       resultOp: (Array[SkatTuple], Double) => SkatStat): KeyTable = {
       val n = y.size
       val k = cov.cols
@@ -141,8 +142,8 @@ object Skat {
 
     val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, n, getGenotypesFunction)
 
-    if (!useLogistic) computeSkatLinear(keyedRdd, keysType, y, cov, keyName, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
-    else computeSkatLogistic(keyedRdd, keysType, y, cov, keyName, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
+    if (!useLogistic) computeSkatLinear(keyedRdd, keysType, y, cov, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
+    else computeSkatLogistic(keyedRdd, keysType, y, cov, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
   }
 
   def keyedRDDSkat(vds: VariantDataset,
@@ -191,69 +192,6 @@ object Skat {
     }.groupByKey(), keysType)
   }
 
-  def computeSKATperGeneOld(st: Array[SkatTuple], sigmaSq: Double): SkatStat = {
-    val m = st.length
-    val n = st(0).xw.size
-    val k = st(0).qtxw.size
-
-    var xwArray = new Array[Double](m * n)
-    var qtxwArray = new Array[Double](m * k)
-    var j = 0
-    var i = 0
-
-    //copy in non-zeros to weighted genotype matrix array
-    i = 0
-    while (i < m) {
-      j = 0
-      val xwsi = st(i).xw
-      (xwsi: @unchecked) match {
-        case dv: DenseVector[Double] =>
-          while (j < n) {
-            xwArray(i * n + j) = dv(j)
-            j += 1
-          }
-          i += 1
-        case sv: SparseVector[Double] =>
-          val nnz = sv.used
-          while (j < nnz) {
-            val index = sv.index(j)
-            xwArray(i * n + index) = sv.data(j)
-            j += 1
-          }
-          i += 1
-      }
-    }
-
-
-    //add in non-zeros to QtGW array
-    i = 0
-    while (i < m) {
-      j = 0
-      val qtxwsi = st(i).qtxw
-      while (j < k) {
-        qtxwArray(i * k + j) = qtxwsi.data(j)
-        j += 1
-      }
-      i += 1
-    }
-
-    //compute the variance component score
-    var skatStat = 0.0
-    i = 0
-    while (i < m) {
-      skatStat += st(i).q
-      i += 1
-    }
-
-    val weightedGenotypes = new DenseMatrix[Double](n, m, xwArray)
-    val qtWeightedGenotypes = new DenseMatrix[Double](k, m, qtxwArray)
-    val zGramian = weightedGenotypes.t * weightedGenotypes
-    val qtzGramian = qtWeightedGenotypes.t * qtWeightedGenotypes
-
-    val model = new SkatModel(skatStat / (2 * sigmaSq))
-    model.computeLinearSkatStats(zGramian, qtzGramian)
-  }
-
   def computeSKATperGene(st: Array[SkatTuple], skatStatScaling: Double): SkatStat = {
 
     val m = st.length
@@ -281,7 +219,7 @@ object Skat {
     while (i < m) {
       val xwsi = st(i).xw
       j = 0
-      xwsi match {
+      (xwsi: @unchecked) match {
         case dv: DenseVector[Double] =>
           while (j < n) {
             AArray(i * n + j) = xwsi(j)
@@ -294,7 +232,6 @@ object Skat {
             AArray(i * n + index) = sv.data(j)
             j += 1
           }
-        case _ => fatal("SKAT is implemented for sparse or dense breeze vector datatypes.")
       }
       i += 1
     }
