@@ -32,12 +32,12 @@ object IntervalList {
         }.value
     }
 
-    val gr = GenomeReference.GRCh37
+    val rg = ReferenceGenome.GRCh37
 
     val schema = if (hasValue)
-      TStruct("interval" -> TInterval(gr), "target" -> TString)
+      TStruct("interval" -> TInterval(rg), "target" -> TString)
     else
-      TStruct("interval" -> TInterval(gr))
+      TStruct("interval" -> TInterval(rg))
 
     val rdd = hc.sc.textFileLines(filename)
       .filter(l => !l.value.isEmpty && l.value(0) != '@')

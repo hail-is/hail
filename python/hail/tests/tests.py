@@ -730,14 +730,14 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(c_nocall.is_het_non_ref())
         self.assertFalse(c_nocall.is_het_ref())
 
-        gr = GenomeReference.GRCh37()
-        self.assertEqual(gr.name, "GRCh37")
-        self.assertEqual(gr.contigs[0], "1")
-        self.assertListEqual(gr.x_contigs, ["X"])
-        self.assertListEqual(gr.y_contigs, ["Y"])
-        self.assertListEqual(gr.mt_contigs, ["MT"])
-        self.assertEqual(gr.par[0], Interval.parse("X:60001-2699521"))
-        self.assertEqual(gr.contig_length("1"), 249250621)
+        rg = ReferenceGenome.GRCh37()
+        self.assertEqual(rg.name, "GRCh37")
+        self.assertEqual(rg.contigs[0], "1")
+        self.assertListEqual(rg.x_contigs, ["X"])
+        self.assertListEqual(rg.y_contigs, ["Y"])
+        self.assertListEqual(rg.mt_contigs, ["MT"])
+        self.assertEqual(rg.par[0], Interval.parse("X:60001-2699521"))
+        self.assertEqual(rg.contig_length("1"), 249250621)
 
         name = "test"
         contigs = ["1", "X", "Y", "MT"]
@@ -747,15 +747,15 @@ class ContextTests(unittest.TestCase):
         mt_contigs = ["MT"]
         par = [Interval(Locus("X", 5), Locus("X", 1000))]
 
-        gr2 = GenomeReference(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
-        self.assertEqual(gr2.name, name)
-        self.assertListEqual(gr2.contigs, contigs)
-        self.assertListEqual(gr2.x_contigs, x_contigs)
-        self.assertListEqual(gr2.y_contigs, y_contigs)
-        self.assertListEqual(gr2.mt_contigs, mt_contigs)
-        self.assertEqual(gr2.par, par)
-        self.assertEqual(gr2.contig_length("1"), 10000)
-        self.assertDictEqual(gr2.lengths, lengths)
+        rg2 = ReferenceGenome(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
+        self.assertEqual(rg2.name, name)
+        self.assertListEqual(rg2.contigs, contigs)
+        self.assertListEqual(rg2.x_contigs, x_contigs)
+        self.assertListEqual(rg2.y_contigs, y_contigs)
+        self.assertListEqual(rg2.mt_contigs, mt_contigs)
+        self.assertEqual(rg2.par, par)
+        self.assertEqual(rg2.contig_length("1"), 10000)
+        self.assertDictEqual(rg2.lengths, lengths)
 
     def test_types(self):
         self.assertEqual(TInt32(), TInt32())

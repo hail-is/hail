@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TArray, TFloat64, TInt32, TString, TStruct, TVariant}
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset}
+import is.hail.variant.{ReferenceGenome, Genotype, VSMLocalValue, VSMMetadata, Variant, VariantDataset}
 import org.apache.commons.math3.random.JDKRandomGenerator
 
 object BaldingNicholsModel {
@@ -138,7 +138,7 @@ object BaldingNicholsModel {
       "ancestralAFDist" -> ancestralAFAnnotationSignature,
       "seed" -> TInt32)
     new VariantDataset(hc,
-      VSMMetadata(TString, saSignature, TVariant(GenomeReference.GRCh37), vaSignature, globalSignature, wasSplit = true),
+      VSMMetadata(TString, saSignature, TVariant(ReferenceGenome.GRCh37), vaSignature, globalSignature, wasSplit = true),
       VSMLocalValue(globalAnnotation, sampleIds, sampleAnnotations), rdd)
   }
 }

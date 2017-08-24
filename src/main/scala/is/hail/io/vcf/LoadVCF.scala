@@ -208,8 +208,7 @@ object LoadVCF {
     file1: String,
     files: Array[String],
     nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    gr: GenomeReference = GenomeReference.GRCh37): VariantSampleMatrix[Locus, Variant, Annotation] = {
+    dropSamples: Boolean = false): VariantSampleMatrix[Locus, Variant, Annotation] = {
     val sc = hc.sc
     val hConf = hc.hadoopConf
     
@@ -274,10 +273,10 @@ object LoadVCF {
     else
       info("Multiallelic variants detected. Some methods require splitting or filtering multiallelics first.")
 
-    val gr = GenomeReference.GRCh37
+    val rg = ReferenceGenome.GRCh37
 
     val rowType = TStruct(
-      "v" -> TVariant(gr),
+      "v" -> TVariant(rg),
       "va" -> vaSignature,
       "gs" -> TArray(genotypeSignature))
 
@@ -326,7 +325,7 @@ object LoadVCF {
     new VariantSampleMatrix(hc, VSMMetadata(
       TString,
       TStruct.empty,
-      TVariant(gr),
+      TVariant(rg),
       vaSignature,
       TStruct.empty,
       genotypeSignature,

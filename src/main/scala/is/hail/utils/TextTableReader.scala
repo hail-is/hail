@@ -5,7 +5,7 @@ import java.util.regex.Pattern
 import is.hail.annotations.Annotation
 import is.hail.expr._
 import is.hail.utils.StringEscapeUtils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -81,8 +81,8 @@ object TextTableReader {
     val nFields = header.length
     val regexes = Array(booleanRegex, variantRegex, locusRegex, intRegex, doubleRegex).map(Pattern.compile)
 
-    val gr = GenomeReference.GRCh37
-    val regexTypes: Array[Type] = Array(TBoolean, TVariant(gr), TLocus(gr), TInt32, TFloat64)
+    val rg = ReferenceGenome.GRCh37
+    val regexTypes: Array[Type] = Array(TBoolean, TVariant(rg), TLocus(rg), TInt32, TFloat64)
     val nRegex = regexes.length
 
     val imputation = values.treeAggregate(MultiArray2.fill[Boolean](nFields, nRegex + 1)(true))({ case (ma, line) =>

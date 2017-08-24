@@ -53,14 +53,14 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     val aggregationST = Map(
       "global" -> (0, vds.globalSignature),
-      "v" -> (1, TVariant(GenomeReference.GRCh37)),
+      "v" -> (1, TVariant(ReferenceGenome.GRCh37)),
       "va" -> (2, vas3),
       "g" -> (3, TGenotype),
       "s" -> (4, TString),
       "sa" -> (5, vds.saSignature))
     val ec = EvalContext(Map(
       "global" -> (0, vds.globalSignature),
-      "v" -> (1, TVariant(GenomeReference.GRCh37)),
+      "v" -> (1, TVariant(ReferenceGenome.GRCh37)),
       "va" -> (2, vas3),
       "gs" -> (3, TAggregable(TGenotype, aggregationST))))
 
@@ -328,7 +328,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
     val sas = vds.saSignature
 
     val symTab = Map(
-      "v" -> (0, TVariant(GenomeReference.GRCh37)),
+      "v" -> (0, TVariant(ReferenceGenome.GRCh37)),
       "va" -> (1, vas),
       "s" -> (2, TString),
       "sa" -> (3, sas),

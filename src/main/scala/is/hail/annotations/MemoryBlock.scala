@@ -662,8 +662,8 @@ class RegionValueBuilder(region: MemoryBuffer) {
         case t: TInterval =>
           val i = a.asInstanceOf[Interval[Locus]]
           startStruct()
-          addAnnotation(TLocus(t.gr), i.start)
-          addAnnotation(TLocus(t.gr), i.end)
+          addAnnotation(TLocus(t.rg), i.start)
+          addAnnotation(TLocus(t.rg), i.end)
           endStruct()
       }
   }

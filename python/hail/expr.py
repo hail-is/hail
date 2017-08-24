@@ -571,7 +571,7 @@ class TVariant(Type):
     """
 
     def __init__(self):
-        jtype = scala_object(Env.hail().expr, 'TVariant').apply(Env.hail().variant.GenomeReference.GRCh37())
+        jtype = scala_object(Env.hail().expr, 'TVariant').apply(Env.hail().variant.ReferenceGenome.GRCh37())
         super(TVariant, self).__init__(jtype)
 
     @classmethod
@@ -721,7 +721,7 @@ class TLocus(Type):
     """
 
     def __init__(self):
-        jtype = scala_object(Env.hail().expr, 'TLocus').apply(Env.hail().variant.GenomeReference.GRCh37())
+        jtype = scala_object(Env.hail().expr, 'TLocus').apply(Env.hail().variant.ReferenceGenome.GRCh37())
         super(TLocus, self).__init__(jtype)
 
     @classmethod
@@ -763,7 +763,7 @@ class TInterval(Type):
     """
 
     def __init__(self):
-        jtype = scala_object(Env.hail().expr, 'TInterval').apply(Env.hail().variant.GenomeReference.GRCh37())
+        jtype = scala_object(Env.hail().expr, 'TInterval').apply(Env.hail().variant.ReferenceGenome.GRCh37())
         super(TInterval, self).__init__(jtype)
 
     @classmethod

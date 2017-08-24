@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{TStruct, _}
 import is.hail.utils._
-import is.hail.variant.{GenomeReference, Locus, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
+import is.hail.variant.{ReferenceGenome, Locus, VSMLocalValue, VSMMetadata, Variant, VariantSampleMatrix}
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
@@ -115,7 +115,7 @@ object LoadGDB {
       }
 
     val rowType = TStruct(
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "v" -> TVariant(ReferenceGenome.GRCh37),
       "va" -> variantAnnotationSignatures,
       "gs" -> TArray(genotypeSignature))
 
@@ -162,7 +162,7 @@ object LoadGDB {
     new VariantSampleMatrix(hc, VSMMetadata(
       TString,
       TStruct.empty,
-      TVariant(GenomeReference.GRCh37),
+      TVariant(ReferenceGenome.GRCh37),
       variantAnnotationSignatures,
       TStruct.empty,
       genotypeSignature,

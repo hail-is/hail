@@ -11,7 +11,7 @@ import is.hail.io.vcf._
 import is.hail.keytable.KeyTable
 import is.hail.stats.{BaldingNicholsModel, Distribution, UniformDist}
 import is.hail.utils.{log, _}
-import is.hail.variant.{GenericDataset, GenomeReference, Genotype, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
+import is.hail.variant.{GenericDataset, ReferenceGenome, Genotype, Locus, VSMFileMetadata, VSMSubgen, Variant, VariantDataset, VariantSampleMatrix}
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -296,7 +296,7 @@ class HailContext private(val sc: SparkContext,
 
     val signature = TStruct("rsid" -> TString, "varid" -> TString)
 
-    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(GenomeReference.GRCh37).orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    val rdd = sc.union(results.map(_.rdd)).toOrderedRDD(TVariant(ReferenceGenome.GRCh37).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
     new GenericDataset(this,
       VSMFileMetadata(samples,
@@ -575,7 +575,7 @@ class HailContext private(val sc: SparkContext,
 
   def eval(expr: String): (Annotation, Type) = {
     val ec = EvalContext(
-      "v" -> TVariant(GenomeReference.GRCh37),
+      "v" -> TVariant(ReferenceGenome.GRCh37),
       "s" -> TString,
       "g" -> TGenotype,
       "sa" -> TStruct(

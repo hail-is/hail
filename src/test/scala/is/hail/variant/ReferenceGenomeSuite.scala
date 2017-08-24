@@ -4,9 +4,9 @@ import is.hail.SparkSuite
 import is.hail.utils.{HailException, Interval}
 import org.testng.annotations.Test
 
-class GenomeReferenceSuite extends SparkSuite {
+class ReferenceGenomeSuite extends SparkSuite {
   @Test def testGRCh37() {
-    val grch37 = GenomeReference.GRCh37
+    val grch37 = ReferenceGenome.GRCh37
 
     assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))
     assert(grch37.contigLength("1") == 249250621)
@@ -21,7 +21,7 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testGRCh38() {
-    val grch38 = GenomeReference.GRCh38
+    val grch38 = ReferenceGenome.GRCh38
 
     assert(grch38.inX("chrX") && grch38.inY("chrY") && grch38.isMitochondrial("chrM"))
     assert(grch38.contigLength("chr1") == 248956422)
@@ -36,24 +36,24 @@ class GenomeReferenceSuite extends SparkSuite {
   }
 
   @Test def testAssertions() {
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+    intercept[HailException](ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set("X"), Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[HailException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5),
-      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[HailException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100),
-      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+    intercept[HailException](ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set.empty[String], Set("Y"), Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+    intercept[HailException](ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
       Set.empty[String], Set.empty[String], Set("MT"), Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array.empty[String], Map.empty[String, Int],
+    intercept[HailException](ReferenceGenome("test", Array.empty[String], Map.empty[String, Int],
       Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
-    intercept[IllegalArgumentException](GenomeReference("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
-      Set.empty[String], Set.empty[String], Set("MT"), Array(Interval(Locus("X", 1), Locus("X", 5)))))
+    intercept[HailException](ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array(Interval(Locus("X", 1), Locus("X", 5)))))
+    intercept[HailException](ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
+    intercept[HailException](ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100),
+      Set.empty[String], Set.empty[String], Set.empty[String], Array.empty[Interval[Locus]]))
   }
 
   @Test def testVariant() {
-    val gr = GenomeReference.GRCh37
+    val rg = ReferenceGenome.GRCh37
 
     val v1 = Variant("1", 50000, "A", "T")
     val v2 = Variant("X", 2499520, "T", "G")
@@ -63,13 +63,13 @@ class GenomeReferenceSuite extends SparkSuite {
     val v6 = Variant("Y", 5000, "C", "T")
 
     for (v <- Array(v1, v2, v3, v4, v5, v6)) {
-      assert(v.isAutosomal == v.isAutosomal(gr))
-      assert(v.isAutosomalOrPseudoAutosomal == v.isAutosomalOrPseudoAutosomal(gr))
-      assert(v.isMitochondrial == v.isMitochondrial(gr))
-      assert(v.inXPar == v.inXPar(gr))
-      assert(v.inYPar == v.inYPar(gr))
-      assert(v.inXNonPar == v.inXNonPar(gr))
-      assert(v.inYNonPar == v.inYNonPar(gr))
+      assert(v.isAutosomal == v.isAutosomal(rg))
+      assert(v.isAutosomalOrPseudoAutosomal == v.isAutosomalOrPseudoAutosomal(rg))
+      assert(v.isMitochondrial == v.isMitochondrial(rg))
+      assert(v.inXPar == v.inXPar(rg))
+      assert(v.inYPar == v.inYPar(rg))
+      assert(v.inXNonPar == v.inXNonPar(rg))
+      assert(v.inYNonPar == v.inYNonPar(rg))
     }
   }
 }

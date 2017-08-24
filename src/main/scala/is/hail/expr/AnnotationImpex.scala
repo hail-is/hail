@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.annotations.Annotation
 import is.hail.utils.{Interval, _}
-import is.hail.variant.{AltAllele, GenomeReference, Genotype, Locus, Variant}
+import is.hail.variant.{AltAllele, ReferenceGenome, Genotype, Locus, Variant}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.json4s._
@@ -97,7 +97,7 @@ object SparkAnnotationImpex extends AnnotationImpex[DataType, Any] {
           Locus(r.getAs[String](0), r.getAs[Int](1))
         case x: TInterval =>
           val r = a.asInstanceOf[Row]
-          Interval(importAnnotation(r.get(0), TLocus(x.gr)).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus(x.gr)).asInstanceOf[Locus])
+          Interval(importAnnotation(r.get(0), TLocus(x.rg)).asInstanceOf[Locus], importAnnotation(r.get(1), TLocus(x.rg)).asInstanceOf[Locus])
         case TStruct(fields) =>
           if (fields.isEmpty)
             if (a.asInstanceOf[Boolean]) Annotation.empty else null
@@ -217,10 +217,10 @@ case class JSONExtractInterval(start: Locus, end: Locus) {
 
 case class JSONExtractContig(name: String, length: Int)
 
-case class JSONExtractGenomeReference(name: String, contigs: Array[JSONExtractContig], xContigs: Set[String],
+case class JSONExtractReferenceGenome(name: String, contigs: Array[JSONExtractContig], xContigs: Set[String],
   yContigs: Set[String], mtContigs: Set[String], par: Array[JSONExtractInterval]) {
 
-  def toGenomeReference: GenomeReference = GenomeReference(name, contigs.map(_.name),
+  def toReferenceGenome: ReferenceGenome = ReferenceGenome(name, contigs.map(_.name),
     contigs.map(c => (c.name, c.length)).toMap, xContigs, yContigs, mtContigs, par.map(_.toInterval))
 }
 

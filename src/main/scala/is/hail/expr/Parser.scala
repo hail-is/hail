@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
-import is.hail.variant.GenomeReference
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -535,7 +535,7 @@ object Parser extends JavaTokenParsers {
 
   def type_expr: Parser[Type] =
     "Empty" ^^ { _ => TStruct.empty } |
-      "Interval" ^^ { _ => TInterval(GenomeReference.GRCh37) } |
+      "Interval" ^^ { _ => TInterval(ReferenceGenome.GRCh37) } |
       "Boolean" ^^ { _ => TBoolean } |
       "Int32" ^^ { _ => TInt32 } |
       "Int64" ^^ { _ => TInt64 } |
@@ -545,8 +545,8 @@ object Parser extends JavaTokenParsers {
       "Float" ^^ { _ => TFloat64 } |
       "String" ^^ { _ => TString } |
       "AltAllele" ^^ { _ => TAltAllele } |
-      "Variant" ^^ { _ => TVariant(GenomeReference.GRCh37) } |
-      "Locus" ^^ { _ => TLocus(GenomeReference.GRCh37) } |
+      "Variant" ^^ { _ => TVariant(ReferenceGenome.GRCh37) } |
+      "Locus" ^^ { _ => TLocus(ReferenceGenome.GRCh37) } |
       "Genotype" ^^ { _ => TGenotype } |
       "Call" ^^ { _ => TCall } |
       ("Array" ~ "[") ~> type_expr <~ "]" ^^ { elementType => TArray(elementType) } |

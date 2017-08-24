@@ -37,12 +37,12 @@ object BedAnnotator {
 
     val expectedLength = if (hasTarget) 4 else 3
 
-    val gr = GenomeReference.GRCh37
+    val rg = ReferenceGenome.GRCh37
 
     val schema = if (hasTarget)
-      TStruct("interval" -> TInterval(gr), "target" -> TString)
+      TStruct("interval" -> TInterval(rg), "target" -> TString)
     else
-      TStruct("interval" -> TInterval(gr))
+      TStruct("interval" -> TInterval(rg))
 
     val rdd = hc.sc.textFileLines(filename)
       .filter(line =>

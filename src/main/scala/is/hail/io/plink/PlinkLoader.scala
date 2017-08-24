@@ -124,7 +124,7 @@ object PlinkLoader {
     val variantsBc = sc.broadcast(variants)
     sc.hadoopConfiguration.setInt("nSamples", nSamples)
 
-    val gr = GenomeReference.GRCh37
+    val rg = ReferenceGenome.GRCh37
 
     val rdd = sc.hadoopFile(bedPath, classOf[PlinkInputFormat], classOf[LongWritable], classOf[PlinkRecord],
       nPartitions.getOrElse(sc.defaultMinPartitions))
@@ -134,12 +134,12 @@ object PlinkLoader {
       case (_, vr) =>
         val (v, rsId) = variantsBc.value(vr.getKey)
         (v: Annotation, (Annotation(rsId), vr.getValue: Iterable[Annotation]))
-    }.toOrderedRDD(fastKeys)(TVariant(gr).orderedKey, classTag[(Annotation, Iterable[Annotation])])
+    }.toOrderedRDD(fastKeys)(TVariant(rg).orderedKey, classTag[(Annotation, Iterable[Annotation])])
 
     new GenericDataset(hc, VSMMetadata(
       saSignature = sampleAnnotationSignature,
       vaSignature = plinkSchema,
-      vSignature = TVariant(gr),
+      vSignature = TVariant(rg),
       globalSignature = TStruct.empty,
       genotypeSignature = TStruct("GT" -> TCall),
       wasSplit = true),
