@@ -10,7 +10,7 @@ Currently, the :py:meth:`~.VariantDataset.annotate_variants_db` VDS method assoc
 Google Cloud Platform. 
 
 To incorporate these annotations in your own Hail analysis pipeline, select which annotations you would like to query from the 
-documentation below and then copy-and-paste the Hail code generated into your own analysis script.
+documentation_ below and then copy-and-paste the Hail code generated into your own analysis script.
 
 For example, a simple Hail script to load a VCF into a VDS, annotate the VDS with CADD raw and PHRED scores using this database, 
 and inspect the schema could look something like this:
@@ -54,6 +54,12 @@ This code would return the following schema:
 
 Database Query
 --------------
+
+Select annotations by clicking on the checkboxes in the documentation_, and the appropriate Hail command will be generated
+in the panel below. 
+
+Use the "Copy to clipboard" button to copy the generated Hail code, and paste the command into your
+own Hail script.
       
 .. raw:: html      
 
@@ -76,6 +82,8 @@ Database Query
           </div>
         </div>
       </div>
+
+.. _documentation:
 
 -------------
 
