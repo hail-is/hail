@@ -96,7 +96,7 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
   }
 
   private def maybeGrow() {
-    if (next > a.length) {
+    if (next >= a.length) {
       val a2 = new Array[RankedT](a.length << 1)
       var j = 0
       while (j < a.length) {
