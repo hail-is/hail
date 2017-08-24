@@ -269,10 +269,10 @@ case class VariantSubgen(
       nAlleles <- nAllelesGen;
       ref <- refGen;
       altAlleles <- Gen.distinctBuildableOfN[Array, String](
-        nAlleles,
+        nAlleles - 1,
         altGen)
         .filter(!_.contains(ref))) yield
-      Variant(contig.name, start, ref, altAlleles.tail.map(alt => AltAllele(ref, alt)))
+      Variant(contig.name, start, ref, altAlleles.map(alt => AltAllele(ref, alt)))
 }
 
 case class Variant(contig: String,
