@@ -4736,11 +4736,6 @@ class VariantDataset(HistoryMixin):
           variant annotation whose value is itself the key of interest. In both cases, variants with missing keys are
           ignored.
 
-        .. caution::
-          If a p-value of 0.0 is returned, then the true p-value falls in the range between 0.0 and
-          :math:`2^{-52} \\approx  2.22 \\cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
-          left-hand area, which we then subtract from 1 to get the p-value.
-
         **Notes**
 
         This method provides a scalable implementation of the score-based variance-component test originally described
@@ -4762,7 +4757,7 @@ class VariantDataset(HistoryMixin):
         +------+-------+------+-------+
 
         Note that the variant component score qstat is related to :math:`Q` in the paper by
-        :math:`\\frac{1}{2\\hat{\\sigma}^2}Q` where :math:`\\hat{\\sigma}^2` is the unbiased estimator of residual variance.
+        :math:`\\frac{1}{2\\sigma^2}Q` where :math:`\\sigma^2` is the unbiased estimator of residual variance.
 
         The key table also includes the fault flag returned by Davies' algorithm, an integer indicating any issues
         with the computation. These are described in the following table from Davies' original code.
@@ -4782,6 +4777,12 @@ class VariantDataset(HistoryMixin):
         +------+------+-----------------------------------------+
         |      5      |               out of memory             |
         +------+------+-----------------------------------------+
+
+        .. caution::
+
+            If a p-value of 0.0 is returned, then the true p-value falls in the range between 0.0 and
+            :math:`2^{-52} \\approx  2.22 \\cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
+            left-hand area, which we then subtract from 1 to get the p-value.
 
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
