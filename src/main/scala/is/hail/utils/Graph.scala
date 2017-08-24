@@ -25,7 +25,6 @@ object Graph {
   def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T]): Array[T] = {
     val biggestFirst = new BinaryHeap[T]()
 
-    println(g)
     g.foreach { x: (T, mutable.Set[T]) =>
       biggestFirst.insert(x._1, x._2.size)
     }
@@ -35,7 +34,7 @@ object Graph {
       val neighbors = g(current)
       neighbors.foreach { x =>
         if (biggestFirst.contains(x))
-          biggestFirst.changePriority(x, _ - 1)
+          biggestFirst.decreasePriority(x, _ - 1)
       }
     }
 

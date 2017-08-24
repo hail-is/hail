@@ -65,11 +65,29 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
     bubbleDown(i)
   }
 
+  def decreasePriority(t: T, f: (Long) => Long) {
+    val i = m(t)
+    val rt = a(i)
+    val r = f(rt.rank)
+    assert(rt.rank > r)
+    rt.rank = r
+    bubbleDown(i)
+  }
+
   def increasePriorityTo(t: T, r: Long) {
     val i = m(t)
     assert(ranks(i) < r)
     ranks(i) = r
     bubbleUp(i)
+  }
+
+  def increasePriority(t: T, f: (Long) => Long) {
+    val i = m(t)
+    val rt = a(i)
+    val r = f(rt.rank)
+    assert(rt.rank < r)
+    rt.rank = r
+    bubbleDown(i)
   }
 
   def contains(t: T): Boolean =
