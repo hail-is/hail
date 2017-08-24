@@ -3,9 +3,9 @@ package is.hail.utils
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
-  private class RankedT(val v: T, var rank: Long) {}
-  private var a: Array[RankedT] = new Array[RankedT](initialCapacity)
+class BinaryHeap[@specialized T : ClassTag](private val initialCapacity: Int = 32) {
+  private var ts: Array[T] = new Array[T](initialCapacity)
+  private var ranks: Array[Long] = new Array[Long](initialCapacity)
   private val m: mutable.Map[T, Int] = new mutable.HashMap()
   private var next: Int = 0
 
@@ -16,28 +16,35 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
     if (m.contains(t))
       throw new RuntimeException(s"key $t already exists with priority ${m(t)}, cannot add it again with priority $r")
     maybeGrow()
-    put(next, new RankedT(t,r))
+    put(next, t, r)
     bubbleUp(next)
     next += 1
   }
 
-  def maxWithPriority(): (T, Long) = {
-    val rt = maxRanked()
-    (rt.v, rt.rank)
-  }
+  private def emptyHeap() = new RuntimeException("heap is empty")
 
   def max(): T =
-    maxRanked().v
+    if (next > 0)
+      ts(0)
+    else
+      throw emptyHeap()
 
   def maxPriority(): Long =
-    maxRanked().rank
+    if (next > 0)
+      ranks(0)
+    else
+      throw emptyHeap()
 
   def extractMax(): T = {
-    val max = maxRanked().v
+    val max = if (next > 0)
+      ts(0)
+    else
+      throw emptyHeap()
+
     next -= 1
     m -= max
     if (next > 0) {
-      put(0, a(next))
+      put(0, ts(next), ranks(next))
       bubbleDown(0)
       maybeShrink()
     }
@@ -45,19 +52,19 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
   }
 
   def getPriority(t: T): Long =
-    a(m(t)).rank
+    ranks(m(t))
 
   def decreasePriorityTo(t: T, r: Long) {
     val i = m(t)
-    assert(a(i).rank > r)
-    a(i).rank = r
+    assert(ranks(i) > r)
+    ranks(i) = r
     bubbleDown(i)
   }
 
   def increasePriorityTo(t: T, r: Long) {
     val i = m(t)
-    assert(a(i).rank < r)
-    a(i).rank = r
+    assert(ranks(i) < r)
+    ranks(i) = r
     bubbleUp(i)
   }
 
@@ -66,64 +73,56 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
 
   def toArray: Array[T] = {
     val trimmed = new Array(size)
-    var i = 0
-    while (i < size) {
-      trimmed(i) = a(i).v
-      i += 1
-    }
+    Array.copy(ts, 0, trimmed, 0, next)
     trimmed
   }
-
-  private def maxRanked(): RankedT =
-    if (next > 0)
-      a(0)
-    else
-      throw new RuntimeException("heap is empty")
 
   private def parent(i: Int) =
     if (i == 0) 0 else (i - 1) >>> 1
 
-  private def put(to: Int, rt: RankedT) {
-    a(to) = rt
-    m(rt.v) = to
+  private def put(to: Int, t: T, rank: Long) {
+    ts(to) = t
+    ranks(to) = rank
+    m(t) = to
   }
 
   private def swap(i: Int, j: Int) {
-    val temp = a(i)
-    a(i) = a(j)
-    a(j) = temp
-    m(a(j).v) = j
-    m(a(i).v) = i
+    val tempt = ts(i)
+    ts(i) = ts(j)
+    ts(j) = tempt
+    val temprank = ranks(i)
+    ranks(i) = ranks(j)
+    ranks(j) = temprank
+    m(ts(j)) = j
+    m(ts(i)) = i
   }
 
   private def maybeGrow() {
     if (next >= a.length) {
-      val a2 = new Array[RankedT](a.length << 1)
-      var j = 0
-      while (j < a.length) {
-        a2(j) = a(j)
-        j += 1
-      }
-      a = a2
+      val ts2 = new Array[T](ts.length << 1)
+      val ranks2 = new Array[Long](ts.length << 1)
+      Array.copy(ts, 0, ts2, 0, ts.length)
+      Array.copy(ranks, 0, ranks2, 0, ts.length)
+      ts = ts2
+      ranks = ranks2
     }
   }
 
   private def maybeShrink() {
-    if (next < (a.length >>> 2)) {
-      val a2 = new Array[RankedT](a.length >>> 2)
-      var j = 0
-      while (j < a2.length) {
-        a2(j) = a(j)
-        j += 1
-      }
-      a = a2
+    if (next > initialCapacity && next < (a.length >>> 2)) {
+      val ts2 = new Array[T](ts.length >>> 2)
+      val ranks2 = new Array[Long](ts.length >>> 2)
+      Array.copy(ts, 0, ts2, 0, ts2.length)
+      Array.copy(ranks, 0, ranks2, 0, ts2.length)
+      ts = ts2
+      ranks = ranks2
     }
   }
 
   private def bubbleUp(i: Int) {
     var current = i
     var p = parent(current)
-    while (a(current).rank > a(p).rank) {
+    while (ranks(current) > ranks(p)) {
       swap(current, p)
       current = p
       p = parent(current)
@@ -138,9 +137,9 @@ class BinaryHeap[@specialized T : ClassTag](initialCapacity: Int = 32) {
       val leftChild = (current << 1) + 1
       val rightChild = (current << 1) + 2
 
-      if (leftChild < next && a(leftChild).rank > a(largest).rank)
+      if (leftChild < next && ranks(leftChild) > ranks(largest))
         largest = leftChild
-      if (rightChild < next && a(rightChild).rank > a(largest).rank)
+      if (rightChild < next && ranks(rightChild) > ranks(largest))
         largest = rightChild
 
       if (largest != current) {
