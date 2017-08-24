@@ -110,7 +110,7 @@ class HailContext(HistoryMixin):
             '  /_/ /_/\_,_/_/_/   version {}\n'.format(self.version))
 
         if self.version.startswith('devel'):
-            sys.stderr.write('WARNING: This is an unstable development build.')
+            sys.stderr.write('WARNING: This is an unstable development build.\n')
 
     def _set_history(self, history):
         assert self._history is None, "Cannot set history for HailContext more than once."
