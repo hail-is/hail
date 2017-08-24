@@ -3,7 +3,7 @@ package is.hail.utils
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class BinaryHeap[@specialized T : ClassTag](private val minimumCapacity: Int = 32) {
+class BinaryHeap[@specialized T : ClassTag](minimumCapacity: Int = 32) {
   private var ts: Array[T] = new Array[T](minimumCapacity)
   private var ranks: Array[Long] = new Array[Long](minimumCapacity)
   private val m: mutable.Map[T, Int] = new mutable.HashMap()
@@ -98,7 +98,7 @@ class BinaryHeap[@specialized T : ClassTag](private val minimumCapacity: Int = 3
   }
 
   private def maybeGrow() {
-    if (next >= a.length) {
+    if (next >= ts.length) {
       val ts2 = new Array[T](ts.length << 1)
       val ranks2 = new Array[Long](ts.length << 1)
       Array.copy(ts, 0, ts2, 0, ts.length)
@@ -109,7 +109,7 @@ class BinaryHeap[@specialized T : ClassTag](private val minimumCapacity: Int = 3
   }
 
   private def maybeShrink() {
-    if (next >= minimumCapacity && next < (a.length >>> 2)) {
+    if (next >= minimumCapacity && next < (ts.length >>> 2)) {
       val ts2 = new Array[T](ts.length >>> 2)
       val ranks2 = new Array[Long](ts.length >>> 2)
       Array.copy(ts, 0, ts2, 0, ts2.length)
