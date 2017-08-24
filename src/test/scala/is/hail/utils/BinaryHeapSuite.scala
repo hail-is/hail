@@ -172,5 +172,24 @@ class BinaryHeapSuite {
     (bh.extractMax(), bh.extractMax()) should (equal (1, 3) or equal (3, 1))
   }
 
+  @Test
+  def growPastCapacity4() {
+    val bh = new BinaryHeap[Int](4)
+    bh.insert(1, 0)
+    bh.insert(2, 0)
+    bh.insert(3, 0)
+    bh.insert(4, 0)
+    bh.insert(5, 0)
+    assert(true)
+  }
+
+  @Test
+  def growPastCapacity32() {
+    val bh = new BinaryHeap[Int](32)
+    for (i <- 0 to 32) {
+      bh.insert(i, 0)
+    }
+    assert(true)
+  }
 
 }
