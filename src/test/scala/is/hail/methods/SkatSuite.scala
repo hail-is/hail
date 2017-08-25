@@ -90,16 +90,12 @@ class SkatSuite extends SparkSuite {
     covExpr: Array[String],
     useDosages: Boolean): Array[Row] = {
 
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    var filteredVds = vds.filterSamplesList(completeSamples.toSet)
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val completeSampleSet = completeSampleIndex.toSet.map(vds.sampleIds)
+    val filteredVds = vds.filterSamplesList(completeSampleSet)
     val n = y.size
 
     val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
-
-    val getGenotypesFunction = (gs: Iterable[Genotype], n: Int) =>
-      if (!useDosages) { RegressionUtils.hardCalls(gs, n)
-      } else { RegressionUtils.dosages(gs, completeSamplesBc.value)}
-
 
     def skatTestInR(keyedRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
       y: DenseVector[Double], cov: DenseMatrix[Double],
@@ -163,8 +159,8 @@ class SkatSuite extends SparkSuite {
     } else {RegressionUtils.dosages(gs, completeSamplesBc.value) }
 
     val (keyedRdd, keysType) =
-      keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypeFunction)
-    skatTestInR(keyedRdd, keysType, y, cov, resultOp _)
+      keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, n, getGenotypeFunction)
+    skatTestInR(keyedRdd, keysType, y, cov, resultOp)
   }
 
 

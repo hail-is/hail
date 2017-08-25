@@ -31,8 +31,9 @@ object Skat {
     covExpr: Array[String],
     useDosages: Boolean,
     useLargeN: Boolean = false): KeyTable = {
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    var filteredVds = vds.filterSamplesList(completeSamples.toSet)
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val completeSampleSet = completeSampleIndex.toSet.map(vds.sampleIds)
+    val filteredVds = vds.filterSamplesList(completeSampleSet)
     val n = y.size
 
     def computeSkat(keyedRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
@@ -87,7 +88,7 @@ object Skat {
         RegressionUtils.dosages(gs, completeSamplesBc.value)
       }
 
-    val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypesFunction)
+    val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, n, getGenotypesFunction)
 
     computeSkat(keyedRdd, keysType, y, cov, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
   }
@@ -96,21 +97,21 @@ object Skat {
     variantKeys: String,
     singleKey: Boolean,
     weightExpr: Option[String],
+    n: Int,
     getGenotypes: (Iterable[Genotype], Int) => Vector[Double]):
   (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
-    var mutableVds = vds
-    val n = mutableVds.nSamples
 
-    weightExpr match {
-      case None => mutableVds = mutableVds.annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
-        .annotateVariantsExpr("va.__weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
-      case _ =>
-    }
+    val vdsWithWeight =
+      if (weightExpr.isEmpty)
+        vds.annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
+          .annotateVariantsExpr("va.__weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
+      else
+        vds
 
-    val (keysType, keysQuerier) = mutableVds.queryVA(variantKeys)
+    val (keysType, keysQuerier) = vdsWithWeight.queryVA(variantKeys)
     val (weightType, weightQuerier) = weightExpr match {
-      case None => mutableVds.queryVA("va.__weight")
-      case Some(expr) => mutableVds.queryVA(expr)
+      case None => vdsWithWeight.queryVA("va.__weight")
+      case Some(expr) => vdsWithWeight.queryVA(expr)
     }
 
     val typedWeightQuerier = weightType match {
@@ -128,7 +129,7 @@ object Skat {
       (keyType, (keys: Annotation) => keys.asInstanceOf[Iterable[Annotation]].iterator)
     }
 
-    (mutableVds.rdd.flatMap { case (v, (va, gs)) =>
+    (vdsWithWeight.rdd.flatMap { case (v, (va, gs)) =>
       (Option(keysQuerier(va)), Option(typedWeightQuerier(va))) match {
         case (Some(key), Some(w)) =>
           val gVector = getGenotypes(gs, n)
