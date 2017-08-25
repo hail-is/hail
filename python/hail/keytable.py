@@ -1379,5 +1379,35 @@ class KeyTable(HistoryMixin):
 
         return KeyTable(Env.hc(), Env.hail().keytable.KeyTable.range(Env.hc()._jhc, n, joption(num_partitions)))
 
+    @handle_py4j
+    @record_method
+    @typecheck_method(i=strlike,j=strlike)
+    def maximal_independent_set(self, i, j):
+        """Compute a maximal independent set of an undirected graph whose edges are given by this KeyTable
+
+        **Examples**
+
+        Remove relationships from a dataset based on the results of a PC-Relate
+        measure of kinship.
+
+        >>> high_kin = hc.read("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
+        >>> high_kin_samples = high_kin.query('i.flatMap(i => [i,j]).collectAsSet()')
+        >>> independent_set_list = high_kin.maximal_independent_set("i", "j")
+        >>> samples_to_remove = high_kin_samples - set(independent_set_list)
+        >>> vds.filter_samples_list(list(samples_to_remove))
+
+        **Notes**
+
+        The expressions for ``i`` and ``j`` must have the same type.
+
+        :param str i: an expression to compute one endpoint
+        :param str j: an expression to comptue another endpoint
+
+        :return: a list of keys in a maximal independent set
+        :rtype: list of keys
+
+        """
+
+        return jarray_to_list(self._jkt.maximalIndependentSet(i, j))
 
 kt_type.set(KeyTable)
