@@ -362,8 +362,7 @@ class ContextTests(unittest.TestCase):
          .annotate_samples_table(phenotypesSkat, root="sa.pheno")
          .annotate_samples_table(covariatesSkat, root="sa.cov")
          .annotate_samples_expr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
-         .skat(key_name='gene',
-               variant_keys='va.genes',
+         .skat(variant_keys='va.genes',
                single_key=False,
                weight_expr='va.weight',
                y='sa.pheno',

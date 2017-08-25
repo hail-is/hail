@@ -33,7 +33,7 @@ object Skat {
     useLargeN: Boolean = false): KeyTable = {
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val n = y.size
-    val sampleMask = Array.ofDim[Boolean](vds.nSamples)
+    val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
 

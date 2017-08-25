@@ -10,8 +10,6 @@ CXXFLAGS += -O3 -march=native -g -std=c++11 -Ilibsimdpp-2.0-rc2 -Wall -Werror
 CXXFLAGS += -fPIC -ggdb
 LIBFLAGS += -fvisibility=hidden
 
-SOURCES = ibs.cpp davies.cpp
-
 UNAME_S := $(shell uname -s)
 UNAME_P := $(shell uname -p)
 ifeq ($(UNAME_S),Linux)
