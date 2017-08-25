@@ -247,6 +247,7 @@ class SkatSuite extends SparkSuite {
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr) 
     val n = y.size
+
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
