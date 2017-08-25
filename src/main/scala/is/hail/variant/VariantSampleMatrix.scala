@@ -1022,9 +1022,8 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   def filterVariants(p: (RK, Annotation, Iterable[T]) => Boolean): VariantSampleMatrix[RPK, RK, T] =
     copy(rdd = rdd.filter { case (v, (va, gs)) => p(v, va, gs) })
 
-  // FIXME see if we can remove broadcasts elsewhere in the code
-  def filterSamples(p: (Annotation, Annotation) => Boolean): VariantSampleMatrix[RPK, RK, T] = {
-    val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }
+  def filterSamplesMask(mask: Array[Boolean]): VariantSampleMatrix[RPK, RK, T] = {
+    require(mask.length == nSamples)
     val maskBc = sparkContext.broadcast(mask)
     val localtct = tct
     copy(sampleIds = sampleIds.zipWithIndex
@@ -1037,6 +1036,13 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         (va, gs.lazyFilterWith(maskBc.value, (g: T, m: Boolean) => m))
       })
   }
+
+  // FIXME see if we can remove broadcasts elsewhere in the code
+  def filterSamples(p: (Annotation, Annotation) => Boolean): VariantSampleMatrix[RPK,RK, T] = {
+    val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }.toArray
+    filterSamplesMask(mask)
+  }
+
 
   /**
     * Filter samples using the Hail expression language.

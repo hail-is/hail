@@ -19,18 +19,16 @@ import shutil
 
 hc = None
 
-
 def setUpModule():
     global hc
     hc = HailContext()  # master = 'local[2]')
-
 
 def tearDownModule():
     global hc
     hc.stop()
     hc = None
 
-def float_eq(x, y, tol=10**-6):
+def float_eq(x, y, tol=10 ** -6):
     return abs(x - y) < tol
 
 class ContextTests(unittest.TestCase):
@@ -163,7 +161,7 @@ class ContextTests(unittest.TestCase):
 
             dataset_dedup = (hc.import_vcf([test_resources + '/sample2.vcf',
                                             test_resources + '/sample2.vcf'])
-                         .deduplicate())
+                             .deduplicate())
             self.assertEqual(dataset_dedup.count()[1], 735)
 
             (dataset.filter_samples_expr('pcoin(0.5)')
@@ -172,22 +170,24 @@ class ContextTests(unittest.TestCase):
             (dataset.filter_variants_expr('pcoin(0.5)')
              .export_variants('/tmp/sample2.variant_list', 'v'))
 
-            (dataset.filter_variants_table(KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
+            (dataset.filter_variants_table(
+                KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
              .count())
 
             dataset.filter_intervals(Interval.parse('1:100-end')).count()
             dataset.filter_intervals(map(Interval.parse, ['1:100-end', '3-22'])).count()
 
-            (dataset.filter_variants_table(KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
+            (dataset.filter_variants_table(
+                KeyTable.import_interval_list(test_resources + '/annotinterall.interval_list'))
              .count())
 
             self.assertEqual(dataset2.filter_variants_table(
                 hc.import_table(test_resources + '/sample2_variants.tsv',
-                                   key='f0', impute=True, no_header=True))
+                                key='f0', impute=True, no_header=True))
                              .count()[1], 21)
 
             m2 = {r.f0: r.f1 for r in hc.import_table(test_resources + '/sample2_rename.tsv',
-                                                         no_header=True).collect()}
+                                                      no_header=True).collect()}
             self.assertEqual(dataset2.join(dataset2.rename_samples(m2))
                              .count()[0], 200)
 
@@ -312,7 +312,7 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(isinstance(sample2.genotype_schema, TGenotype))
 
         m2 = {r.f0: r.f1 for r in hc.import_table(test_resources + '/sample2_rename.tsv', no_header=True,
-                                                     impute=True)
+                                                  impute=True)
             .collect()}
         self.assertEqual(sample2.join(sample2.rename_samples(m2))
                          .count()[0], 200)
@@ -323,7 +323,7 @@ class ContextTests(unittest.TestCase):
         phen1 = hc.import_table(test_resources + '/regressionLinear.pheno', missing='0',
                                 types={'Pheno': TFloat64()}).key_by('Sample')
         phen2 = hc.import_table(test_resources + '/regressionLogisticBoolean.pheno', missing='0',
-                                   types={'isCase': TBoolean()}).key_by('Sample')
+                                types={'isCase': TBoolean()}).key_by('Sample')
 
         regression = (hc.import_vcf(test_resources + '/regressionLinear.vcf')
                       .split_multi()
@@ -341,6 +341,29 @@ class ContextTests(unittest.TestCase):
                      .annotate_samples_expr(
             'sa.culprit = gs.filter(g => v == Variant("1", 1, "C", "T")).map(g => g.gt).collect()[0]')
                      .annotate_samples_expr('sa.pheno.PhenoLMM = (1 + 0.1 * sa.cov.Cov1 * sa.cov.Cov2) * sa.culprit'))
+
+        covariatesSkat = hc.import_table("src/test/resources/skat.cov", impute=True).key_by("Sample")
+
+        phenotypesSkat = hc.import_table("src/test/resources/skat.pheno", types={"Pheno": TFloat64()},
+                                         missing="0").key_by("Sample")
+
+        intervalsSkat = KeyTable.import_interval_list("src/test/resources/skat.interval_list")
+
+        weightsSkat = hc.import_table("src/test/resources/skat.weights", types={"locus": TLocus(),
+                                                                                "weight": TFloat64()}).key_by("locus")
+
+        (vds2.split_multi()
+         .annotate_variants_table(intervalsSkat, root="va.genes", product=True)
+         .annotate_variants_table(weightsSkat, root="va.weight")
+         .annotate_samples_table(phenotypesSkat, root="sa.pheno")
+         .annotate_samples_table(covariatesSkat, root="sa.cov")
+         .annotate_samples_expr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
+         .skat(variant_keys='va.genes',
+               single_key=False,
+               weight_expr='va.weight',
+               y='sa.pheno',
+               covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
+               use_dosages=True)).count()
 
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
 
@@ -625,12 +648,12 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(g2.gq, None)
         self.assertEqual(g2.pl, None)
 
-        gpNorm = 1 / (10**-4 + 1 + 10**-9.9)
-        self.assertTrue(float_eq(g.gp[0], 10**-4 * gpNorm))
+        gpNorm = 1 / (10 ** -4 + 1 + 10 ** -9.9)
+        self.assertTrue(float_eq(g.gp[0], 10 ** -4 * gpNorm))
         self.assertTrue(float_eq(g.gp[1], gpNorm))
-        self.assertTrue(float_eq(g.gp[2], 10**-9.9 * gpNorm))
+        self.assertTrue(float_eq(g.gp[2], 10 ** -9.9 * gpNorm))
         self.assertEqual(g2.gp, None)
-        self.assertTrue(float_eq(g.dosage(), (1 + 2 * 10**-9.9) * gpNorm))
+        self.assertTrue(float_eq(g.dosage(), (1 + 2 * 10 ** -9.9) * gpNorm))
         self.assertEqual(g2.dosage(), None)
         self.assertEqual(g.od(), 3)
         self.assertFalse(g.is_hom_ref())
@@ -917,7 +940,6 @@ class ContextTests(unittest.TestCase):
 
         self.assertEqual(data, data4)
 
-
         with hadoop_read('src/test/resources/randomBytes', buffer_size=100) as f:
             with hadoop_write('/tmp/randomBytesOut', buffer_size=150) as out:
                 b = f.read()
@@ -936,7 +958,6 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(ped, ped2)
         print(ped.trios[:5])
         print(ped.complete_trios)
-
 
         t1 = Trio('kid1', father='dad1', is_female=True)
         t2 = Trio('kid1', father='dad1', is_female=True)
