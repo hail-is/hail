@@ -70,7 +70,7 @@ object Skat {
         .map { case (k, vs) =>
           val vArray = vs.toArray.map { case (gs, w) => preProcessGenotypes(gs, w) }
           val skatStat = if (vArray.length.toLong * n < Int.MaxValue) {
-            resultOp(vArray, sigmaSq)
+            resultOp(vArray, 2 * sigmaSq)
           } else {
             largeNComputeSKATperGene(vArray, 2 * sigmaSq)
           }

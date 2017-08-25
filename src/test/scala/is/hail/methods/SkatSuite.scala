@@ -452,7 +452,7 @@ class SkatSuite extends SparkSuite {
 
   //Full Testing Suite
 
-  def Test(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean, displayValues: Boolean = false) = {
+  def Test(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean, displayValues: Boolean = true) = {
     val(kt, resultsArray) = if (useLogistic) {
       val kt = inputVds.skat("\'bestgeneever\'", singleKey = true, None, //Some("va.weight"),
         "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages, useLargeN, useLogistic)

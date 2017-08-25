@@ -5,7 +5,6 @@ import is.hail.methods.SkatStat
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
 
-
 /** SkatModel
   *    A class which has all the algorithms for computing the p value of the
   *    Variance-component score statistic thats passed into the class.
@@ -14,10 +13,6 @@ import com.sun.jna.ptr.IntByReference
   *      Variance-component score statistic at which to evaluate the cumulative
   *      distribution.
   *  Methods:
-  *    computeLinearSkatStats
-  *      computes the Skat stat for the linear case.
-  *    computeLogisiticSkatStats
-  *      computes the Skat stat for the logistic case.
   *    qfWrapper
   *      a function which interfaces with Davies' original C code for computing
   *      the p value.
@@ -85,49 +80,5 @@ class SkatModel(skatStat: Double) {
     SkatStat(skatStat, 1 - x, fault.getValue)
 
   }
-
-  /** computeLinearSkatStats
-    *   Computes the p value of the variance-component score statistic as
-    *   defined by SKAT.
-    * Input:
-    *   GwGramian              (m x m) DenseMatrix
-    *     The Gram matrix of the genotype matrix for n samples and m genetic
-    *     variants with each column scaled by the corresponding variant weight.
-    *   QtGwGramian            (m x m) DenseMatrix
-    *     The Gram matrix of the projection of the weighted genotype matrix Gw
-    *     by Q.t, where Q comes from the reduced QR decomposition of the
-    *     covariate data.
-    * Returns:
-    *   SkatStat (see computePVal)
-    */
-  def computeLinearSkatStats(GwGramian: DenseMatrix[Double], QtGwGramian: DenseMatrix[Double]): SkatStat = {
-
-    val variantGramian = 0.5 * (GwGramian - QtGwGramian)
-    computePVal(variantGramian)
-  }
-
-  /** LogisticSKATModel
-    *   Computes the p value of the variance-component score statistic as
-    *   defined by SKAT from a logistic fit.
-    * Input:
-    *   X        (n x k) DenseMatrix
-    *     The covariates matrix associated with the regression for n samples and
-    *     k covariates.
-    *   mu       (n x 1) DenseVector
-    *     The expectation computed from the regression model.
-    *   Gw       (n x m) DenseMatrix
-    *     The weighted genotype matrix corresponding to the variants in a
-    *     particular gene.
-    * Returns:
-    *   SkatStat (see computePVal)
-    */
-  def computeLogisticSkatStat(X: DenseMatrix[Double], mu: DenseVector[Double],
-    Gw: DenseMatrix[Double]): SkatStat = {
-      val V = diag(mu.map((x) => x * (1 - x)))
-      val GwtV = Gw.t * V
-      val GwtVX = GwtV * X
-      computePVal(GwtV * Gw - GwtVX * (((X.t * V) * X) \ GwtVX.t))
-  }
-
 }
 
