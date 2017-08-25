@@ -32,8 +32,9 @@ object Skat {
     useDosages: Boolean,
     useLargeN: Boolean = false,
     useLogistic: Boolean = false): KeyTable = {
-    val (y, cov, completeSamples) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    var filteredVds = vds.filterSamplesList(completeSamples.toSet)
+    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
+    val completeSampleSet = completeSampleIndex.toSet.map(vds.sampleIds)
+    val filteredVds = vds.filterSamplesList(completeSampleSet)
     val n = y.size
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
@@ -60,7 +61,6 @@ object Skat {
       val qtBc = sc.broadcast(q.t)
 
       def preProcessGenotypes(gs: Vector[Double], w: Double): SkatTuple = {
-        println(gs)
         val sqrtw = math.sqrt(w)
         val wx = gs * sqrtw
         val sj = resBc.value dot wx
