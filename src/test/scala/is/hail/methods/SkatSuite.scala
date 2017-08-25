@@ -373,13 +373,13 @@ class SkatSuite extends SparkSuite {
   val samples = 3000
   val variants = 50
 
-  /*def vdsBN: VariantDataset =
+  def vdsBN: VariantDataset =
   hc.baldingNicholsModel(1, samples, variants, seed = bnSeed)
       .annotateSamplesExpr("sa.cov.Cov1 = rnorm(0,1), sa.cov.Cov2 = rnorm(0,1)")
     .annotateSamplesExpr("sa.pheno = pcoin(1/(1 + exp(-(gs.map(g => g.gt - .85).sum()))))")
-*/
+
   //vdsBN.write("/Users/charlesc/Documents/Software/data/BNLogisticDebugging.vds")
-  def vdsBN = hc.readVDS("/Users/charlesc/Documents/Software/data/BNLogisticDebugging.vds")
+  //def vdsBN = hc.readVDS("/Users/charlesc/Documents/Software/data/BNLogisticDebugging.vds")
 
   //Functions for generating random data
   def buildWeightValues(filepath: String): Unit = {
@@ -454,7 +454,6 @@ class SkatSuite extends SparkSuite {
     val(kt, resultsArray) = if (useLogistic) {
       val kt = inputVds.skat("\'bestgeneever\'", singleKey = true, None, //Some("va.weight"),
         "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages, useLargeN, useLogistic)
-      println("made it")
       val resultsArray = testInR(inputVds, "\'bestgeneever\'", singleKey = true,
         None, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages, useLogistic)
       (kt, resultsArray)
@@ -469,7 +468,7 @@ class SkatSuite extends SparkSuite {
 
     val rows = kt.rdd.collect()
 
-    val tol = .1
+    val tol = 1e-5
     var i = 0
 
     while (i < resultsArray.length) {
@@ -488,7 +487,7 @@ class SkatSuite extends SparkSuite {
       }
 
       if (pval <= 1 && pval >= 0) {
-        assert(math.abs(qstat - qstatR) < tol)
+        assert(D_==(qstat, qstatR, tol))
         assert(math.abs(pval - pvalR) < tol)
       }
 
@@ -500,7 +499,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = false
     val useLogistic = false
-    Test(vds, useDosages, useLargeN, useLogistic, true)
+    Test(vds, useDosages, useLargeN, useLogistic)
   }
 
   @Test def dosagesSmallTest() {
