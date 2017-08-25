@@ -4713,7 +4713,7 @@ class VariantDataset(HistoryMixin):
                       covariates=listof(strlike),
                       use_logistic=bool,
                       use_dosages=bool)
-    def skat(self, key_name, variant_keys, single_key, y, weight_expr=None, covariates=[], use_logistic=False, use_dosages=False):
+    def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, use_logistic=False, use_dosages=False):
         """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         **Examples**
@@ -4721,12 +4721,12 @@ class VariantDataset(HistoryMixin):
         Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
         is a variant annotation of type Set[String] giving the set of genes containing the variant:
 
-        >>> skat_kt = (hc.read('data/example_burden.vds').skat(
-        ...           variant_keys='va.genes',
-        ...           single_key=False,
-        ...           y='sa.burden.pheno',
-        ...           weight_expr='va.weight',
-        ...           covariates=['sa.burden.cov1', 'sa.burden.cov2']))
+        >>> skat_kt = (hc.read('data/example_burden.vds')
+        ...              .skat(variant_keys='va.genes',
+        ...                    single_key=False,
+        ...                    y='sa.burden.pheno',
+        ...                    covariates=['sa.burden.cov1', 'sa.burden.cov2'],
+        ...                    weight_expr='va.weight'))
 
         .. caution::
 
@@ -4814,8 +4814,8 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(key_name, variant_keys, single_key, joption(weight_expr), y,
-                                    jarray(Env.jvm().java.lang.String, covariates), use_logistic, use_dosages))
+        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, joption(weight_expr), y,
+                                    jarray(Env.jvm().java.lang.String, covariates), use_logistic, use_dosages, False))
 
     @handle_py4j
     @record_method
