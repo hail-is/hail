@@ -12,6 +12,9 @@ class BinaryHeap[@specialized T : ClassTag](minimumCapacity: Int = 32) {
   def size: Int = next
   def isEmpty: Boolean = next == 0
 
+  override def toString(): String =
+    s"values: ${ts.slice(0,next): IndexedSeq[T]}; ranks: ${ranks.slice(0,next): IndexedSeq[Long]}"
+
   def insert(t: T, r: Long) {
     if (m.contains(t))
       throw new RuntimeException(s"key $t already exists with priority ${m(t)}, cannot add it again with priority $r")
@@ -144,11 +147,30 @@ class BinaryHeap[@specialized T : ClassTag](minimumCapacity: Int = 32) {
 
       if (largest != current) {
         swap(largest, current)
-        largest = current
+        current = largest
         continue = true
       } else
         continue = false
     } while (continue);
+  }
+
+  def checkHeapProperty() {
+    checkHeapProperty(0)
+  }
+
+  private def checkHeapProperty(current: Int) {
+    val leftChild = (current << 1) + 1
+    val rightChild = (current << 1) + 2
+    if (leftChild < next)
+      assert(ranks(leftChild) <= ranks(current),
+        s"heap property violated at $current left child: ${ts(current)}:${ranks(current)} < ${ts(leftChild)}:${ranks(leftChild)}")
+    if (rightChild < next)
+      assert(ranks(rightChild) <= ranks(current),
+        s"heap property violated at $current right child: ${ts(current)}:${ranks(current)} < ${ts(rightChild)}:${ranks(rightChild)}")
+    if (leftChild < next)
+      checkHeapProperty(leftChild)
+    if (rightChild < next)
+      checkHeapProperty(rightChild)
   }
 
 }
