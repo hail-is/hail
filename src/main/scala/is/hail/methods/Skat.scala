@@ -4,9 +4,10 @@ import is.hail.utils._
 import is.hail.variant._
 import is.hail.expr._
 import is.hail.keytable.KeyTable
-import is.hail.stats.{RegressionUtils, SkatModel}
+import is.hail.stats.{LogisticRegressionModel, RegressionUtils, SkatModel}
 import is.hail.annotations.Annotation
 import breeze.linalg._
+import breeze.numerics._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -139,7 +140,7 @@ object Skat {
         RegressionUtils.dosages(gs, completeSamplesBc.value)
       }
 
-    val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, n, getGenotypesFunction)
+    val (keyedRdd, keysType) = keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypesFunction)
 
     if (!useLogistic) computeSkatLinear(keyedRdd, keysType, y, cov, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
     else computeSkatLogistic(keyedRdd, keysType, y, cov, if (!useLargeN) computeSKATperGene else largeNComputeSKATperGene)
@@ -149,9 +150,9 @@ object Skat {
     variantKeys: String,
     singleKey: Boolean,
     weightExpr: Option[String],
-    n: Int,
     getGenotypes: (Iterable[Genotype], Int) => Vector[Double]):
   (RDD[(Annotation, Iterable[(Vector[Double], Double)])], Type) = {
+    val n = vds.nSamples
 
     val vdsWithWeight =
       if (weightExpr.isEmpty)

@@ -15,7 +15,7 @@ import scala.sys.process._
 import breeze.linalg._
 
 import scala.language.postfixOps
-import is.hail.stats.RegressionUtils
+import is.hail.stats.RegressionUtils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -243,9 +243,10 @@ class SkatSuite extends SparkSuite {
     weightExpr: Option[String],
     yExpr: String,
     covExpr: Array[String],
-    useDosages: Boolean): Array[Row] = {
+    useDosages: Boolean,
+    useLogistic: Boolean): Array[Row] = {
 
-    val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr) 
+    val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val n = y.size
 
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
@@ -256,9 +257,9 @@ class SkatSuite extends SparkSuite {
 
     val getGenotypesFunction = (gs: Iterable[Genotype], n: Int) =>
       if (!useDosages) {
-        RegressionUtils.hardCalls(gs, n)
+        hardCalls(gs, n)
       } else {
-        RegressionUtils.dosages(gs, completeSamplesBc.value)
+        dosages(gs, completeSamplesBc.value)
       }
 
     def skatTestInR(keyedRdd:  RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
@@ -305,10 +306,12 @@ class SkatSuite extends SparkSuite {
 
           val resultsFile = tmpDir.createLocalTempFile("results", ".txt")
 
+          val datatype = if (useLogistic) "D" else "C"
+
           val rScript = s"Rscript src/test/resources/skatTest.R " +
             s"${ uriPath(inputFileG) } ${ uriPath(inputFileCov) } " +
             s"${ uriPath(inputFilePheno) } ${ uriPath(inputFileW) } " +
-            s"${ uriPath(resultsFile) } " + "C"
+            s"${ uriPath(resultsFile) } " + datatype
 
           rScript !
           val results = readResults(resultsFile)
@@ -347,6 +350,9 @@ class SkatSuite extends SparkSuite {
     impute = true).keyBy("Sample")
 
   def phenotypesSkat = hc.importTable("src/test/resources/skat.pheno",
+    types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
+
+  def phenotypesD = hc.importTable("src/test/resources/skat.phenoD",
     types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   def intervalsSkat = IntervalList.read(hc, "src/test/resources/skat.interval_list")
@@ -445,11 +451,6 @@ class SkatSuite extends SparkSuite {
   }
 
   //Full Testing Suite
-
-  val rg = GenomeReference.GRCh37
-
-  def weightsSkat = hc.importTable("src/test/resources/skat.weights",
-    types = Map("locus" -> TLocus(rg), "weight" -> TFloat64)).keyBy("locus")
 
   def Test(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean, displayValues: Boolean = false) = {
     val(kt, resultsArray) = if (useLogistic) {
