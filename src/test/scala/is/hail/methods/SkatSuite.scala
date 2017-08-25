@@ -91,9 +91,11 @@ class SkatSuite extends SparkSuite {
     useDosages: Boolean): Array[Row] = {
 
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    val completeSampleSet = completeSampleIndex.toSet.map(vds.sampleIds)
-    val filteredVds = vds.filterSamplesList(completeSampleSet)
     val n = y.size
+    val sampleMask = Array.ofDim[Boolean](vds.nSamples)
+    completeSampleIndex.foreach(i => sampleMask(i) = true)
+    val filteredVds = vds.filterSamplesMask(sampleMask)
+
 
     val completeSamplesBc = filteredVds.sparkContext.broadcast((0 until n).toArray)
 

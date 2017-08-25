@@ -32,9 +32,10 @@ object Skat {
     useDosages: Boolean,
     useLargeN: Boolean = false): KeyTable = {
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
-    val completeSampleSet = completeSampleIndex.toSet.map(vds.sampleIds)
-    val filteredVds = vds.filterSamplesList(completeSampleSet)
     val n = y.size
+    val sampleMask = Array.ofDim[Boolean](vds.nSamples)
+    completeSampleIndex.foreach(i => sampleMask(i) = true)
+    val filteredVds = vds.filterSamplesMask(sampleMask)
 
     def computeSkat(keyedRdd: RDD[(Annotation, Iterable[(Vector[Double], Double)])], keyType: Type,
       y: DenseVector[Double], cov: DenseMatrix[Double],
