@@ -4711,10 +4711,10 @@ class VariantDataset(HistoryMixin):
                       weight_expr=nullable(strlike),
                       y=strlike,
                       covariates=listof(strlike),
-                      use_dosages=bool,
-                      use_logistic=bool)
-    def skat(self, key_name, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False, use_logistic=False):
-        """Test each keyed group of variants for association by linear SKAT test.
+                      use_logistic=bool,
+                      use_dosages=bool)
+    def skat(self, key_name, variant_keys, single_key, y, weight_expr=None, covariates=[], use_logistic=False, use_dosages=False):
+        """Test each keyed group of variants for association by linear or logistic SKAT test.
 
         **Examples**
 
@@ -4743,6 +4743,13 @@ class VariantDataset(HistoryMixin):
         in `Rare-Variant Association Testing for Sequencing Data with the Sequence Kernel Association Test
         <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3135811/>`__.
 
+        As in the paper, if ``weight_expr`` is unspecified,
+        default variant weights are given by evaluating the Beta(1, 25) density at the minor allele frequency. Variant
+        weights must be non-negative.
+
+        In the logistic case, the phenotype must either be numeric (with all present values 0 or 1) or Boolean, in
+        which case true and false are coded as 1 and 0, respectively.
+
         The resulting key table provides the variant component score and the p-value for each group, with the latter
         given by right tail of a weighted sum of :math:`\\chi^2(1)` distributions. For the example above the table has
         the form:
@@ -4757,8 +4764,9 @@ class VariantDataset(HistoryMixin):
         | geneC| 4.122 | 0.192|   0   |
         +------+-------+------+-------+
 
-        Note that the variant component score qstat is related to :math:`Q` in the paper by
+        Note that the variant component score qstat is related to :math:`Q` in the paper by a factor of
         :math:`\\frac{1}{2\\sigma^2}Q` where :math:`\\sigma^2` is the unbiased estimator of residual variance.
+        In the logistic case the scaling is by a factor of 0.5 .
 
         The key table also includes the fault flag returned by Davies' algorithm, an integer indicating any issues
         with the computation. These are described in the following table from Davies' original code.
@@ -4792,24 +4800,22 @@ class VariantDataset(HistoryMixin):
 
         :param str y: Response expression.
 
-        :param str weight_expr: Variant expression of numeric type for positive SKAT weights. When no weight is provided, weights are
-                           generated to from a beta distribution (alpha = 1, beta = 25) evalulated at the minor allele
-                           frequency of each variant.
+        :param weight_expr: Variant expression of numeric type for SKAT weights.
+        :type weight_expr: str or None
 
         :param covariates: List of covariate expressions.
         :type covariates: List of str
 
+        :param bool use_logistic: If true, runs logistic SKAT rather than linear SKAT.
+
         :param bool use_dosages: If true, use dosage genotypes rather than hard call genotypes.
 
-        :param bool use_logistic: If true, uses logistic regression rather than linear.
-
         :return: Key table of SKAT results.
-
         :rtype: :py:class:`.KeyTable`
         """
 
         return KeyTable(self.hc, self._jvdf.skat(key_name, variant_keys, single_key, joption(weight_expr), y,
-                                    jarray(Env.jvm().java.lang.String, covariates), use_dosages, use_logistic))
+                                    jarray(Env.jvm().java.lang.String, covariates), use_logistic, use_dosages))
 
     @handle_py4j
     @record_method

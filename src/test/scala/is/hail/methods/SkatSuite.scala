@@ -66,9 +66,9 @@ class SkatSuite extends SparkSuite {
         vds = vds.annotateSamples(vds.sampleIds.zip(yIS).toMap, TFloat64, "sa.pheno")
           .annotateSamplesExpr(expr)
 
-        val row = Skat(vds, "\'bestgeneever\'", singleKey = true, Some("va.weight"), "sa.pheno",
+        val row = Skat(vds, "\'geneA\'", singleKey = true, Some("va.weight"), "sa.pheno",
           Array("sa.cov1", "sa.cov2"), useDosages, useLargeN, useLogistic).rdd.collect()
-        val resultsArray = testInR(vds, "\'bestgeneever\'", singleKey = true,
+        val resultsArray = testInR(vds, "\'geneA\'", singleKey = true,
           Some("va.weight"), "sa.pheno", Array("sa.cov1", "sa.cov2"), useDosages, useLogistic)
 
         pvalAve += row(0)(2).asInstanceOf[Double]
@@ -115,12 +115,12 @@ class SkatSuite extends SparkSuite {
     val ec = EvalContext(symTab)
     val yIS = getSampleAnnotation(vds, "sa.pheno", ec).map(_.get)
 
-    var row = Skat(vds, "\'bestgeneever\'", singleKey = true, Some("va.weight"), "sa.pheno",
-      Array("sa.cov1", "sa.cov2"), useDosages, useLargeN, useLogistic).rdd.collect()
+    var row = Skat(vds, "\'geneA\'", singleKey = true, Some("va.weight"), "sa.pheno",
+      Array("sa.cov1", "sa.cov2"), useLogistic, useDosages, useLargeN).rdd.collect()
     qvals(0) = row(0).getAs[Double](1)
     pvals(0) = row(0).getAs[Double](2)
-    var resultsArray = testInR(vds, "\'bestgeneever\'", singleKey = true,
-      Some("va.weight"), "sa.pheno", Array("sa.cov1", "sa.cov2"), useDosages, useLogistic)
+    var resultsArray = testInR(vds, "\'geneA\'", singleKey = true,
+      Some("va.weight"), "sa.pheno", Array("sa.cov1", "sa.cov2"), useLogistic, useDosages)
     qvalsR(0) = resultsArray(0).getAs[Double](1)
     pvalsR(0) = resultsArray(0).getAs[Double](2)
 
@@ -129,14 +129,14 @@ class SkatSuite extends SparkSuite {
 
     while (i < permutationTests) {
       vds = vds.annotateSamples(vds.sampleIds.zip(shuffle(yIS)).toMap, TFloat64, "sa.pheno")
-      row = Skat(vds, "\'bestgeneever\'", singleKey = true, Some("va.weight"), "sa.pheno",
-        Array("sa.cov1", "sa.cov2"), useDosages, useLargeN, useLogistic).rdd.collect()
+      row = Skat(vds, "\'geneA\'", singleKey = true, Some("va.weight"), "sa.pheno",
+        Array("sa.cov1", "sa.cov2"), useLogistic, useDosages, useLargeN).rdd.collect()
       qvals(i + 1) = row(0).getAs[Double](1)
       pvals(i + 1) = row(0).getAs[Double](2)
 
 
-      resultsArray = testInR(vds, "\'bestgeneever\'", singleKey = true,
-        Some("va.weight"), "sa.pheno", Array("sa.cov1", "sa.cov2"), useDosages, useLogistic)
+      resultsArray = testInR(vds, "\'geneA\'", singleKey = true,
+        Some("va.weight"), "sa.pheno", Array("sa.cov1", "sa.cov2"), useLogistic, useDosages)
       qvalsR(i + 1) = resultsArray(0).getAs[Double](1)
       pvalsR(i + 1) = resultsArray(0).getAs[Double](2)
       println(pvals(i + 1), pvalsR(i + 1))
@@ -243,8 +243,8 @@ class SkatSuite extends SparkSuite {
     weightExpr: Option[String],
     yExpr: String,
     covExpr: Array[String],
-    useDosages: Boolean,
-    useLogistic: Boolean): Array[Row] = {
+    useLogistic: Boolean,
+    useDosages: Boolean): Array[Row] = {
 
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val n = y.size
@@ -327,10 +327,10 @@ class SkatSuite extends SparkSuite {
 
   //Build Datasets
 
-  def covariates = hc.importTable("src/test/resources/regressionLinear.cov",
+  def cov = hc.importTable("src/test/resources/regressionLinear.cov",
     types = Map("Cov1" -> TFloat64, "Cov2" -> TFloat64)).keyBy("Sample")
 
-  def phenotypes = hc.importTable("src/" +
+  def pheno = hc.importTable("src/" +
     "test/resources/regressionLinear.pheno",
     types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
@@ -338,20 +338,20 @@ class SkatSuite extends SparkSuite {
 
   def vds: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
     .annotateVariantsTable(intervals, root = "va.genes", product = true)
-    .annotateSamplesTable(phenotypes, root = "sa.pheno")
-    .annotateSamplesTable(covariates, root = "sa.cov")
+    .annotateSamplesTable(pheno, root = "sa.pheno")
+    .annotateSamplesTable(cov, root = "sa.cov")
     .annotateSamplesExpr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean")
     .filterSamplesExpr("sa.pheno.isDefined() && sa.cov.Cov1.isDefined() && sa.cov.Cov2.isDefined()")
     .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
     .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
 
-  def covariatesSkat = hc.importTable("src/test/resources/skat.cov",
+  def covSkat = hc.importTable("src/test/resources/skat.cov",
     impute = true).keyBy("Sample")
 
-  def phenotypesSkat = hc.importTable("src/test/resources/skat.pheno",
+  def phenoSkat = hc.importTable("src/test/resources/skat.pheno",
     types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
-  def phenotypesD = hc.importTable("src/test/resources/skat.phenoD",
+  def phenoSkatBinary = hc.importTable("src/test/resources/skat.phenoD",
     types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   def intervalsSkat = IntervalList.read(hc, "src/test/resources/skat.interval_list")
@@ -364,14 +364,14 @@ class SkatSuite extends SparkSuite {
   def vdsSkat: VariantDataset = hc.importVCF("src/test/resources/sample2.vcf")
     .annotateVariantsTable(intervalsSkat, root = "va.genes", product = true)
     .annotateVariantsTable(weightsSkat, root = "va.weight")
-    .annotateSamplesTable(phenotypesSkat, root = "sa.pheno0")
-    .annotateSamplesTable(covariatesSkat, root = "sa.cov")
+    .annotateSamplesTable(phenoSkat, root = "sa.pheno0")
+    .annotateSamplesTable(covSkat, root = "sa.cov")
     .annotateSamplesExpr("sa.pheno = if (sa.pheno0 == 1.0) false else if (sa.pheno0 == 2.0) true else NA: Boolean")
 
   def vdsLogistic: VariantDataset = hc.importVCF("/src/test/resources/sample2.vcf").splitMulti()
     .annotateVariantsTable(intervalsSkat, root = "va.genes", product = true)
-    .annotateSamplesTable(phenotypesD, root = "sa.pheno")
-    .annotateSamplesTable(covariatesSkat, root = "sa.cov")
+    .annotateSamplesTable(phenoSkatBinary, root = "sa.pheno")
+    .annotateSamplesTable(covSkat, root = "sa.cov")
     .annotateVariantsExpr("va.AF = gs.callStats(g=> v).AF")
     .annotateVariantsExpr("va.weight = let af = if (va.AF[0] <= va.AF[1]) va.AF[0] else va.AF[1] in dbeta(af,1.0,25.0)**2")
 
@@ -452,19 +452,19 @@ class SkatSuite extends SparkSuite {
 
   //Full Testing Suite
 
-  def Test(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean, displayValues: Boolean = true) = {
+  def Test(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean, displayValues: Boolean = false) = {
     val(kt, resultsArray) = if (useLogistic) {
-      val kt = inputVds.skat("\'bestgeneever\'", singleKey = true, None, //Some("va.weight"),
-        "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages, useLargeN, useLogistic)
-      val resultsArray = testInR(inputVds, "\'bestgeneever\'", singleKey = true,
-        None, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages, useLogistic)
+      val kt = inputVds.skat("\'geneA\'", singleKey = true, None, //Some("va.weight"),
+        "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useLogistic, useDosages, useLargeN)
+      val resultsArray = testInR(inputVds, "\'geneA\'", singleKey = true,
+        None, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useLogistic, useDosages)
       (kt, resultsArray)
     } else {
       val kt = inputVds.skat( "va.genes", singleKey = false, Option("va.weight"),
-        "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages, useLargeN, useLogistic)
+        "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useLogistic, useDosages, useLargeN)
 
       val resultsArray = testInR(inputVds, "va.genes", singleKey = false,
-        Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useDosages, useLogistic)
+        Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useLogistic, useDosages)
       (kt, resultsArray)
     }
 
