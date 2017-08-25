@@ -248,7 +248,6 @@ class SkatSuite extends SparkSuite {
 
     val (y, cov, completeSampleIndex) = getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val n = y.size
-
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
@@ -389,6 +388,7 @@ class SkatSuite extends SparkSuite {
   //def vdsBN = hc.readVDS("/Users/charlesc/Documents/Software/data/BNLogisticDebugging.vds")
 
   //Functions for generating random data
+
   def buildWeightValues(filepath: String): Unit = {
 
     //read in chrom:pos values
@@ -474,7 +474,6 @@ class SkatSuite extends SparkSuite {
     var i = 0
 
     while (i < resultsArray.length) {
-
       val qstat = rows(i).getAs[Double](1)
       val pval = rows(i).getAs[Double](2)
 
@@ -492,7 +491,6 @@ class SkatSuite extends SparkSuite {
         assert(D_==(qstat, qstatR, tol))
         assert(math.abs(pval - pvalR) < tol)
       }
-
       i += 1
     }
   }

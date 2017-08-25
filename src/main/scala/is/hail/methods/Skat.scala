@@ -35,7 +35,6 @@ object Skat {
     useLogistic: Boolean = false): KeyTable = {
     val (y, cov, completeSampleIndex) = RegressionUtils.getPhenoCovCompleteSamples(vds, yExpr, covExpr)
     val n = y.size
-
     val sampleMask = Array.fill[Boolean](vds.nSamples)(false)
     completeSampleIndex.foreach(i => sampleMask(i) = true)
     val filteredVds = vds.filterSamplesMask(sampleMask)
@@ -64,7 +63,7 @@ object Skat {
         val sqrtw = math.sqrt(w)
         val wx = gs * sqrtw
         val sj = resBc.value dot wx
-        SkatTuple(.5 * sj * sj, wx, qtBc.value * wx)
+        SkatTuple(sj * sj, wx, qtBc.value * wx)
       }
 
       val skatRDD = keyedRdd
@@ -193,7 +192,6 @@ object Skat {
   }
 
   def computeSKATperGene(st: Array[SkatTuple], skatStatScaling: Double): SkatStat = {
-
     val m = st.length
     val n = st(0).xw.size
     val k = st(0).qtxw.size
