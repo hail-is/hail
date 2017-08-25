@@ -1390,7 +1390,7 @@ class KeyTable(HistoryMixin):
         Remove relationships from a dataset based on the results of a PC-Relate
         measure of kinship.
 
-        >>> high_kin = hc.read("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
+        >>> high_kin = hc.import_vcf("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
         >>> high_kin_samples = high_kin.query('i.flatMap(i => [i,j]).collectAsSet()')
         >>> independent_set_list = high_kin.maximal_independent_set("i", "j")
         >>> samples_to_remove = high_kin_samples - set(independent_set_list)
