@@ -4708,9 +4708,9 @@ class VariantDataset(HistoryMixin):
     @record_method
     @typecheck_method(variant_keys=strlike,
                       single_key=bool,
-                      weight_expr=nullable(strlike),
                       y=strlike,
                       covariates=listof(strlike),
+                      weight_expr=nullable(strlike),
                       use_logistic=bool,
                       use_dosages=bool)
     def skat(self, variant_keys, single_key, y, covariates=[], weight_expr=None, use_logistic=False, use_dosages=False):
@@ -4814,8 +4814,9 @@ class VariantDataset(HistoryMixin):
         :rtype: :py:class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, joption(weight_expr), y,
-                                    jarray(Env.jvm().java.lang.String, covariates), use_logistic, use_dosages, False))
+        return KeyTable(self.hc, self._jvdf.skat(variant_keys, single_key, y,
+                                                 jarray(Env.jvm().java.lang.String, covariates),
+                                                 joption(weight_expr), use_logistic, use_dosages, False))
 
     @handle_py4j
     @record_method

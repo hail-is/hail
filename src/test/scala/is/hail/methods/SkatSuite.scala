@@ -23,9 +23,7 @@ import org.testng.annotations.Test
 case class SkatAggForR(xs: ArrayBuilder[Vector[Double]], weights: ArrayBuilder[Double])
 
 class SkatSuite extends SparkSuite {
-  //independent verifiers
-
-  def noiseTest() = {
+  def noiseTest() {
     val noiseTests = 10
     val averageOver = 1
     val noiseIncrement = .5
@@ -50,7 +48,7 @@ class SkatSuite extends SparkSuite {
     val ec = EvalContext(symTab)
     val yIS = getSampleAnnotation(vds, "sa.pheno", ec).map(_.get)
     val yMean = sum(yIS) / yIS.length
-    val yStd = math.sqrt(sum(yIS.map((x) => math.pow((x - yMean), 2))) / yIS.length)
+    val yStd = math.sqrt(sum(yIS.map((x) => math.pow(x - yMean, 2))) / yIS.length)
 
     vds = vds.annotateGlobalExpr(f"global.mean = $yMean")
       .annotateGlobalExpr(f"global.std = $yStd ")
@@ -61,15 +59,15 @@ class SkatSuite extends SparkSuite {
     while (i < noiseTests) {
 
       while (j < averageOver) {
-        val expr = f"sa.pheno = pcoin((1/(1 + exp(-(sa.pheno + $i%f * $noiseIncrement%f * rnorm(0,1))))))"
-        //val expr = f"sa.pheno = sa.pheno + $i%f * $noiseIncrement%f * rnorm(0,1)"
+        val expr = s"sa.pheno = pcoin((1/(1 + exp(-(sa.pheno + $i * $noiseIncrement * rnorm(0,1))))))"
+        //val expr = s"sa.pheno = sa.pheno + $i * $noiseIncrement * rnorm(0,1)"
         vds = vds.annotateSamples(vds.sampleIds.zip(yIS).toMap, TFloat64, "sa.pheno")
           .annotateSamplesExpr(expr)
 
-        val row = Skat(vds, "\'geneA\'", singleKey = true, Some("va.weight"), "sa.pheno",
-          Array("sa.cov1", "sa.cov2"), useDosages, useLargeN, useLogistic).rdd.collect()
-        val resultsArray = testInR(vds, "\'geneA\'", singleKey = true,
-          Some("va.weight"), "sa.pheno", Array("sa.cov1", "sa.cov2"), useDosages, useLogistic)
+        val row = Skat(vds, "\'geneA\'", singleKey = true, "sa.pheno",
+          Array("sa.cov1", "sa.cov2"), Some("va.weight"), useDosages, useLargeN, useLogistic).rdd.collect()
+        val resultsArray = testInR(vds, "\'geneA\'", singleKey = true, "sa.pheno", Array("sa.cov1", "sa.cov2"),
+          Some("va.weight"), useDosages, useLogistic)
 
         pvalAve += row(0)(2).asInstanceOf[Double]
         pvalRAve += resultsArray(0)(2).asInstanceOf[Double]
@@ -88,7 +86,7 @@ class SkatSuite extends SparkSuite {
     }
   }
 
-  def permutationTest() = {
+  def permutationTest() {
     val permutationTests = 10
     val pvalFileLocation = "/Users/charlesc/Documents/Software/SkatExperiments/pvalResults/constantPvals.txt"
     val qvalFileLocation = "/Users/charlesc/Documents/Software/SkatExperiments/pvalResults/constantQvals.txt"
@@ -115,28 +113,27 @@ class SkatSuite extends SparkSuite {
     val ec = EvalContext(symTab)
     val yIS = getSampleAnnotation(vds, "sa.pheno", ec).map(_.get)
 
-    var row = Skat(vds, "\'geneA\'", singleKey = true, Some("va.weight"), "sa.pheno",
-      Array("sa.cov1", "sa.cov2"), useLogistic, useDosages, useLargeN).rdd.collect()
+    var row = Skat(vds, "\'geneA\'", singleKey = true, "sa.pheno",
+      Array("sa.cov1", "sa.cov2"), Some("va.weight"), useLogistic, useDosages, useLargeN).rdd.collect()
     qvals(0) = row(0).getAs[Double](1)
     pvals(0) = row(0).getAs[Double](2)
-    var resultsArray = testInR(vds, "\'geneA\'", singleKey = true,
-      Some("va.weight"), "sa.pheno", Array("sa.cov1", "sa.cov2"), useLogistic, useDosages)
+    var resultsArray = testInR(vds, "\'geneA\'", singleKey = true, "sa.pheno", Array("sa.cov1", "sa.cov2"),
+      Some("va.weight"), useLogistic, useDosages)
     qvalsR(0) = resultsArray(0).getAs[Double](1)
     pvalsR(0) = resultsArray(0).getAs[Double](2)
-
 
     println(row(0)(1).asInstanceOf[Double], resultsArray(0)(2).asInstanceOf[Double])
 
     while (i < permutationTests) {
-      vds = vds.annotateSamples(vds.sampleIds.zip(shuffle(yIS)).toMap, TFloat64, "sa.pheno")
-      row = Skat(vds, "\'geneA\'", singleKey = true, Some("va.weight"), "sa.pheno",
-        Array("sa.cov1", "sa.cov2"), useLogistic, useDosages, useLargeN).rdd.collect()
+      vds = vds.annotateSamples(vds.sampleIds.zip(shuffle(yIS.toArray)).toMap, TFloat64, "sa.pheno")
+      row = Skat(vds, "\'geneA\'", singleKey = true, "sa.pheno",
+        Array("sa.cov1", "sa.cov2"), Some("va.weight"), useLogistic, useDosages, useLargeN).rdd.collect()
       qvals(i + 1) = row(0).getAs[Double](1)
       pvals(i + 1) = row(0).getAs[Double](2)
 
 
-      resultsArray = testInR(vds, "\'geneA\'", singleKey = true,
-        Some("va.weight"), "sa.pheno", Array("sa.cov1", "sa.cov2"), useLogistic, useDosages)
+      resultsArray = testInR(vds, "\'geneA\'", singleKey = true, "sa.pheno", Array("sa.cov1", "sa.cov2"),
+        Some("va.weight"), useLogistic, useDosages)
       qvalsR(i + 1) = resultsArray(0).getAs[Double](1)
       pvalsR(i + 1) = resultsArray(0).getAs[Double](2)
       println(pvals(i + 1), pvalsR(i + 1))
@@ -176,7 +173,6 @@ class SkatSuite extends SparkSuite {
   }
 
   //Routines for running programs in R for comparison
-
   def readResults(file: String) = {
     hadoopConf.readLines(file) {
       _.map {
@@ -240,9 +236,9 @@ class SkatSuite extends SparkSuite {
   def testInR(vds: VariantDataset,
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: Option[String],
     yExpr: String,
     covExpr: Array[String],
+    weightExpr: Option[String],
     useLogistic: Boolean,
     useDosages: Boolean): Array[Row] = {
 
@@ -322,7 +318,7 @@ class SkatSuite extends SparkSuite {
 
     val (keyedRdd, keysType) =
       keyedRDDSkat(filteredVds, variantKeys, singleKey, weightExpr, getGenotypesFunction)
-    skatTestInR(keyedRdd, keysType, y, cov, resultOp _)
+    skatTestInR(keyedRdd, keysType, y, cov, resultOp)
   }
 
   //Build Datasets
@@ -452,19 +448,20 @@ class SkatSuite extends SparkSuite {
 
   //Full Testing Suite
 
-  def Test(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean, displayValues: Boolean = false) = {
+  // FIXME: review None vs "va.weight" here, and which tests are on
+  def testAgainstR(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean, displayValues: Boolean = false) {
     val(kt, resultsArray) = if (useLogistic) {
-      val kt = inputVds.skat("\'geneA\'", singleKey = true, None, //Some("va.weight"),
-        "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useLogistic, useDosages, useLargeN)
+      val kt = inputVds.skat("\'geneA\'", singleKey = true, "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"),
+        None, useLogistic, useDosages, useLargeN)
       val resultsArray = testInR(inputVds, "\'geneA\'", singleKey = true,
-        None, "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useLogistic, useDosages)
+        "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), None, useLogistic, useDosages)
       (kt, resultsArray)
     } else {
-      val kt = inputVds.skat( "va.genes", singleKey = false, Option("va.weight"),
-        "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), useLogistic, useDosages, useLargeN)
+      val kt = inputVds.skat("va.genes", singleKey = false, "sa.pheno",
+        covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"), Some("va.weight"), useLogistic, useDosages, useLargeN)
 
-      val resultsArray = testInR(inputVds, "va.genes", singleKey = false,
-        Some("va.weight"), "sa.pheno", Array("sa.cov.Cov1", "sa.cov.Cov2"), useLogistic, useDosages)
+      val resultsArray = testInR(inputVds, "va.genes", singleKey = false, "sa.pheno",
+        Array("sa.cov.Cov1", "sa.cov.Cov2"), Some("va.weight"), useLogistic, useDosages)
       (kt, resultsArray)
     }
 
@@ -499,71 +496,69 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = false
     val useLogistic = false
-    Test(vds, useDosages, useLargeN, useLogistic)
+    testAgainstR(vds, useDosages, useLargeN, useLogistic)
   }
 
   @Test def dosagesSmallTest() {
     val useDosages = true
     val useLargeN = false
     val useLogistic = false
-    Test(vds, useDosages, useLargeN, useLogistic)
+    testAgainstR(vds, useDosages, useLargeN, useLogistic)
   }
 
   @Test def largeNHardCallsSmallTest() {
     val useDosages = false
     val useLargeN = true
     val useLogistic = false
-    Test(vds, useDosages, useLargeN, useLogistic)
+    testAgainstR(vds, useDosages, useLargeN, useLogistic)
   }
 
   @Test def largeNDosagesSmallTest() {
     val useDosages = false
     val useLargeN = true
     val useLogistic = false
-    Test(vds, useDosages, useLargeN, useLogistic)
+    testAgainstR(vds, useDosages, useLargeN, useLogistic)
   }
 
   def hardcallsBigTest() {
     val useDosages = false
     val useLargeN = false
     val useLogistic = false
-    Test(vdsSkat, useDosages, useLargeN, useLogistic)
+    testAgainstR(vdsSkat, useDosages, useLargeN, useLogistic)
   }
 
   def dosagesBigTest() {
     val useDosages = true
     val useLargeN = false
     val useLogistic = false
-    Test(vdsSkat, useDosages, useLargeN, useLogistic)
+    testAgainstR(vdsSkat, useDosages, useLargeN, useLogistic)
   }
 
   def largeNHardCallsBigTest() {
     val useDosages = false
     val useLargeN = true
     val useLogistic = false
-    Test(vdsSkat, useDosages, useLargeN, useLogistic)
+    testAgainstR(vdsSkat, useDosages, useLargeN, useLogistic)
   }
 
   def largeNDosagesBigTest() {
     val useDosages = true
     val useLargeN = true
     val useLogistic = false
-    Test(vdsSkat, useDosages, useLargeN, useLogistic)
+    testAgainstR(vdsSkat, useDosages, useLargeN, useLogistic)
   }
 
   @Test def logisticHardCalls() {
     val useDosages = false
     val useLargeN = false
     val useLogistic = true
-    Test(vdsBN, useDosages, useLargeN, useLogistic)
+    testAgainstR(vdsBN, useDosages, useLargeN, useLogistic)
   }
 
   @Test def logisticLargeNHardCalls() {
     val useDosages = false
     val useLargeN = true
     val useLogistic = true
-    Test(vdsBN, useDosages, useLargeN, useLogistic)
+    testAgainstR(vdsBN, useDosages, useLargeN, useLogistic)
   }
 }
-
-
