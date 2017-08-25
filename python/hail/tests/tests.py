@@ -19,21 +19,17 @@ import shutil
 
 hc = None
 
-
 def setUpModule():
     global hc
     hc = HailContext()  # master = 'local[2]')
-
 
 def tearDownModule():
     global hc
     hc.stop()
     hc = None
 
-
 def float_eq(x, y, tol=10 ** -6):
     return abs(x - y) < tol
-
 
 class ContextTests(unittest.TestCase):
     def test_context(self):
@@ -367,7 +363,7 @@ class ContextTests(unittest.TestCase):
                weight_expr='va.weight',
                y='sa.pheno',
                covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
-               use_dosages=True))
+               use_dosages=True)).count()
 
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
 
