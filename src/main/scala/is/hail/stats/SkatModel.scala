@@ -37,7 +37,7 @@ class SkatModel(q: Double) {
     val fault = new IntByReference()
     val s = 0.0
     val accuracy = 1e-8
-    val iterations = 10000
+    val iterations = 100000
     val x = qfWrapper(evals, noncentrality, dof, terms, s, q, iterations, accuracy, trace0, fault)
     val p = 1 - x
     
