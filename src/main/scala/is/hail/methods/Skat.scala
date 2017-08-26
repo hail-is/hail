@@ -27,9 +27,9 @@ object Skat {
   def apply(vds: VariantDataset,
     variantKeys: String,
     singleKey: Boolean,
-    weightExpr: Option[String],
     yExpr: String,
     covExpr: Array[String],
+    weightExpr: Option[String],
     useLogistic: Boolean = false,
     useDosages: Boolean,
     useLargeN: Boolean = false): KeyTable = {
@@ -109,7 +109,9 @@ object Skat {
       val mu = sigmoid(cov * logRegM.b)
       val V = mu.map(x => x * (1 - x))
       val VX = cov(::, *) :* V
-      val Cinv = inv(cholesky(cov.t * VX))
+      val XVX = cov.t * VX // symmetric but numerical precision can throw breeze.linalg.MatrixNotSymmetricException
+      val XVXsym = 0.5 * (XVX + XVX.t) // symmetrizing further fixes the issue
+      val Cinv = inv(cholesky(XVXsym)) //
       val res = y - mu
 
       val sc = keyedRdd.sparkContext
@@ -204,10 +206,10 @@ object Skat {
 
     var AArray = new Array[Double](m * n)
     var BArray = new Array[Double](k * m)
-    var j = 0
-    var i = 0
 
     //copy in non-zeros to XtVZ matrix array
+    var i = 0
+    var j = 0
     while (i < m) {
       j = 0
       val CinvXtVZi = st(i).qtxw
@@ -223,7 +225,7 @@ object Skat {
     while (i < m) {
       val xwsi = st(i).xw
       j = 0
-      (xwsi: @unchecked) match {
+      xwsi match {
         case dv: DenseVector[Double] =>
           while (j < n) {
             AArray(i * n + j) = xwsi(j)
@@ -248,8 +250,8 @@ object Skat {
       i += 1
     }
 
-    // We compute the eigenvalues of (G * sqrt(W)).t * P_0 * G * sqrt(W)
-    // We express this as A.t * A - B.t * B where
+    // Davies needs the eigenvalues of 0.5 * (G * sqrt(W)).t * P_0 * G * sqrt(W)
+    // We express this as 0.5 * (A.t * A - B.t * B) where
     // linear:   A = G * sqrt(W),           B = Q.t * G * sqrt(W)
     // logistic: A = sqrt(V) * G * sqrt(W), B = inv(L) * X.t * V * G * sqrt(W)
     // Here X = Q * R and L * L.t = X.t * V * X
@@ -258,7 +260,7 @@ object Skat {
     val BGramian = new DenseMatrix[Double](k, m, BArray)
 
     val model = new SkatModel(skatStat / skatStatScaling)
-    model.computePVal(.5 * (AGramian.t * AGramian - BGramian.t * BGramian))
+    model.computePVal(0.5 * (AGramian.t * AGramian - BGramian.t * BGramian))
   }
 
   def computeSKATperKeyLargeN(st: Array[SkatTuple], skatStatScaling: Double): SkatStat = {
@@ -266,21 +268,25 @@ object Skat {
     val n = st(0).xw.size
     val k = st(0).qtxw.size
 
-    var AGramianArray = new Array[Double](m * m)
-    var BGramianArray = new Array[Double](m * m)
-    var j = 0
-    var i = 0
+    val AGramianArray = new Array[Double](m * m)
+    val BGramianArray = new Array[Double](m * m)
 
+    var i = 0
+    var j = 0
     while (i < m) {
-      AGramianArray(i * m + i) = st(i).xw dot st(i).xw
-      BGramianArray(i * m + i) = st(i).qtxw dot st(i).qtxw
+      val xwsi = st(i).xw
+      AGramianArray(i * m + i) = xwsi dot xwsi
+      
+      val qtxwsi = st(i).qtxw
+      BGramianArray(i * m + i) = qtxwsi dot qtxwsi
+      
       j = 0
       while (j < i) {
-        val ijdotprodA = st(i).xw dot st(j).xw
+        val ijdotprodA = xwsi dot st(j).xw
         AGramianArray(i * m + j) = ijdotprodA
         AGramianArray(j * m + i) = ijdotprodA
 
-        val ijdotprodB = st(i).qtxw dot st(j).qtxw
+        val ijdotprodB = qtxwsi dot st(j).qtxw
         BGramianArray(i * m + j) = ijdotprodB
         BGramianArray(j * m + i) = ijdotprodB
         j += 1
@@ -300,7 +306,7 @@ object Skat {
     val BGramian = new DenseMatrix[Double](m, m, BGramianArray)
 
     val model = new SkatModel(skatStat / skatStatScaling)
-    model.computePVal(.5 * (AGramian - BGramian))
+    model.computePVal(0.5 * (AGramian - BGramian))
   }
 }
 
