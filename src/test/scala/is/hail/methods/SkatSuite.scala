@@ -207,7 +207,7 @@ class SkatSuite extends SparkSuite {
   }
   
   def hailVsRTest(useBN: Boolean, useDosages: Boolean, useLogistic: Boolean, useLargeN: Boolean,
-    tol: Double = 1e-5, displayValues: Boolean = false) {
+    displayValues: Boolean = false, tol: Double = 1e-5) {
    
     require(useBN || !useLogistic)
     require(!(useBN && useDosages))
@@ -229,18 +229,17 @@ class SkatSuite extends SparkSuite {
 
       val qstatR = resultsR(i).getAs[Double](1)
       val pvalR = resultsR(i).getAs[Double](2)
-
+      val fault = resultHail(i).getAs[Int](3)
+      
       if (displayValues) {
-        val fault = resultHail(i).getAs[Int](3)
         println(f"Davies\' Fault: $fault%d")
         println(f"HAIL SkatStat: $qstat%2.9f  HAIL pVal: $pval")
         println(f"   R SkatStat: $qstatR     R pVal: $pvalR")
       }
 
-      assert(pval <= 1 && pval >= 0)
       assert(D_==(qstat, qstatR, tol))
       assert(math.abs(pval - pvalR) < tol)
-
+      
       i += 1
     }
   }
@@ -282,7 +281,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = false
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN, true)
   }
 
   @Test def linearLargeNHardcallsBN() {
@@ -290,7 +289,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = true
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN, true)
   }
   
   @Test def logisticHardCallsBN() {
@@ -298,7 +297,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = false
     val useLogistic = true
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN, true)
   }
 
   @Test def logisticLargeNHardCalls() {
@@ -306,6 +305,6 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = true
     val useLogistic = true
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN, true)
   }
 }
