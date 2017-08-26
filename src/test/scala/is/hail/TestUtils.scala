@@ -77,4 +77,20 @@ object TestUtils {
       val s = r.asInstanceOf[Row].toSeq
       s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toIndexedSeq
     }.toMap
+  
+  def matrixToString(A: DenseMatrix[Double], separator: String): String = {
+    val sb = new StringBuilder
+    for (i <- 0 until A.rows) {
+      for (j <- 0 until A.cols) {
+        if (j == (A.cols - 1))
+          sb.append(A(i, j))
+        else {
+          sb.append(A(i, j))
+          sb.append(separator)
+        }
+      }
+      sb += '\n'
+    }
+    sb.result()
+  }
 }
