@@ -282,7 +282,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = false
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN, true)
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
   }
 
   @Test def linearLargeNHardcallsBN() {
@@ -290,7 +290,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = true
     val useLogistic = false
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN, true)
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
   }
   
   @Test def logisticHardCallsBN() {
@@ -298,7 +298,7 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = false
     val useLogistic = true
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN, true)
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
   }
 
   @Test def logisticLargeNHardCalls() {
@@ -306,6 +306,6 @@ class SkatSuite extends SparkSuite {
     val useDosages = false
     val useLargeN = true
     val useLogistic = true
-    hailVsRTest(useBN, useDosages, useLogistic, useLargeN, true)
+    hailVsRTest(useBN, useDosages, useLogistic, useLargeN)
   }
 }

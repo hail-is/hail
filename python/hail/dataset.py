@@ -4776,7 +4776,7 @@ class VariantDataset(HistoryMixin):
         +=============+=========================================+
         |      0      |                no issues                |
         +------+------+-----------------------------------------+
-        |      1      |       accuracy 1e-6 NOT achieved        |
+        |      1      |       accuracy 1e-8 NOT achieved        |
         +------+------+-----------------------------------------+
         |      2      |   round-off error possibly significant  |
         +------+------+-----------------------------------------+
@@ -4789,9 +4789,8 @@ class VariantDataset(HistoryMixin):
 
         .. caution::
 
-            If a p-value of 0.0 is returned, then the true p-value falls in the range between 0.0 and
-            :math:`2^{-52} \\approx  2.22 \\cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
-            left-hand area, which we then subtract from 1 to get the p-value.
+          Davies algorithm iterates up to 100k times until an accuracy of 1e-8 is achieved. Hence a reported p-value of
+          zero with no issues may truly be as large as 1e-8.
 
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
