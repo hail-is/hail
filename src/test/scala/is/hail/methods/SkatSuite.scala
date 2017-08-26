@@ -449,7 +449,9 @@ class SkatSuite extends SparkSuite {
   //Full Testing Suite
 
   // FIXME: review None vs "va.weight" here, and which tests are on
-  def testAgainstR(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean, displayValues: Boolean = false) {
+  def testAgainstR(inputVds: VariantDataset, useDosages: Boolean, useLargeN: Boolean, useLogistic: Boolean,
+    displayValues: Boolean = false) {
+    
     val(kt, resultsArray) = if (useLogistic) {
       val kt = inputVds.skat("\'geneA\'", singleKey = true, "sa.pheno", covariates = Array("sa.cov.Cov1", "sa.cov.Cov2"),
         None, useLogistic, useDosages, useLargeN)
