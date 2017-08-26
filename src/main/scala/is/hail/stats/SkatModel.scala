@@ -24,11 +24,11 @@ class SkatModel(q: Double) {
   // gramian is the m x m matrix (G * sqrt(W)).t * P_0 * (G * sqrt(W)) which has the same non-zero eigenvalues
   // as the n x n matrix in the paper P_0^{1/2} * (G * W * G.t) * P_0^{1/2}
   def computePVal(gramian: DenseMatrix[Double]): SkatStat = {
-    val allEvals = eigSymD.justEigenvalues(gramian).toArray
+    val allEvals = eigSymD.justEigenvalues(gramian)
 
     // filter out those eigenvalues below the mean / 100k
-    val threshold = 1e-5 * trace(gramian) / gramian.cols
-    val evals = allEvals.dropWhile(_ < threshold) // evals are increasing
+    val threshold = 1e-5 * sum(allEvals) / allEvals.length
+    val evals = allEvals.toArray.dropWhile(_ < threshold) // evals are increasing
 
     val terms = evals.length
     val noncentrality = Array.fill[Double](terms)(0.0)
@@ -36,7 +36,7 @@ class SkatModel(q: Double) {
     val trace0 = Array.fill[Double](7)(0.0)
     val fault = new IntByReference()
     val s = 0.0
-    val accuracy = 1e-6
+    val accuracy = 1e-8
     val iterations = 10000
     val x = qfWrapper(evals, noncentrality, dof, terms, s, q, iterations, accuracy, trace0, fault)
     val p = 1 - x

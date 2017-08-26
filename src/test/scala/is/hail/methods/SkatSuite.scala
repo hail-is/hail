@@ -237,8 +237,9 @@ class SkatSuite extends SparkSuite {
         println(f"   R SkatStat: $qstatR     R pVal: $pvalR")
       }
 
+      assert(fault == 0)
       assert(D_==(qstat, qstatR, tol))
-      assert(math.abs(pval - pvalR) < tol)
+      assert(math.abs(pval - pvalR) < 2e-6) // R Davies accuracy is only up to 1e-6
       
       i += 1
     }
