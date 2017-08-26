@@ -4789,9 +4789,7 @@ class VariantDataset(HistoryMixin):
 
         .. caution::
 
-            If a p-value of 0.0 is returned, then the true p-value falls in the range between 0.0 and
-            :math:`2^{-52} \\approx  2.22 \\cdot 10^{-16}` (machine epsilon).  This is because Davies method calculates the
-            left-hand area, which we then subtract from 1 to get the p-value.
+          Davies algorithm is set to an accuracy of within 1e-8 of the true p-value.
 
         :param str variant_keys: Variant annotation path for the Array or Set of keys associated to each variant.
 
