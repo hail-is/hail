@@ -7,9 +7,9 @@ import com.sun.jna.ptr.IntByReference
 
 /** SkatModel
   *    A class which has all the algorithms for computing the p value of the
-  *    Variance-component score statistic thats passed into the class.
+  *    Variance-component score statistic that's passed into the class.
   *  Input:
-  *    qstat                   Double
+  *    qstat: Double
   *      Variance-component score statistic at which to evaluate the cumulative
   *      distribution.
   *  Methods:
@@ -18,8 +18,8 @@ import com.sun.jna.ptr.IntByReference
   *      the p value.
   *    computePVal
   *      computes the eigendecomposition and plugs the eigenvalues in as the
-  *      coefficients for the chi-square distribution to be numerically
-  *      integrated to get the p value.
+  *      coefficients of the mixture of chi-square distribution to be numerically
+  *      integrated to get the p-value.
   */
 class SkatModel(skatStat: Double) {
 
@@ -38,24 +38,23 @@ class SkatModel(skatStat: Double) {
   Native.register("hail")
 
   /** computePVal
-    *      The function which computes the p value of the Skat stat passed. This
-    *    method computes the eigenvalues of a Gramian matrix which are the
-    *    coefficients of the chi-square distribution describing the null-distribution
-    *    for the Skat stat.
+    *    Function which computes the p-value of the SKAT statistic. This
+    *      method computes the eigenvalues of a Gramian matrix which are the
+    *      coefficients of the chi-square distribution describing the null-distribution
+    *      for the SKAT statistic.
     * Input:
-    *   Gramian: (m x m) DenseMatrix
-    *     the matrix with the same eigenvalues of P0^{1/2}KP0^{1/2} from the original
-    *     paper.
+    *   gramian: (m x m) DenseMatrix
+    *     Matrix (G * sqrt(W)).t * P_0 * G * sqrt(W) with the same non-zero eigenvalues as
+    *     P_0^{1/2} * K * P_0^{1/2} from the original paper, where K = G * W * G.t
     * Returns:
-    *   ((qstat, pval), fault)      SkatStat
-    *     SKAT statistic and p-value computed by Davies Algorithm returned as a instance
-    *     of the SkatStat class. With the statistics a integer indicating any issues
-    *     running Davies Algorithm is also returned.
+    *   SkatStat:
+    *     SKAT statistic, p-value computed by Davies Algorithm, and an integer indicating
+    *     any return status of the Davies Algorithm.
     */
-  def computePVal(Gramian: DenseMatrix[Double]): SkatStat = {
-    val allEvals = eigSymD.justEigenvalues(Gramian).toArray
+  def computePVal(gramian: DenseMatrix[Double]): SkatStat = {
+    val allEvals = eigSymD.justEigenvalues(gramian).toArray
 
-    //compute threshold for eigenvalues
+    //truncate eigenvalues at 1e-5 * mean
     var allEvalsSum = 0.0
     var i = 0
     while (i < allEvals.length) {
@@ -78,7 +77,6 @@ class SkatModel(skatStat: Double) {
     val x = qfWrapper(evals, noncentrality, dof, terms, s, skatStat, iterations, accuracy, trace, fault)
 
     SkatStat(skatStat, 1 - x, fault.getValue)
-
   }
 }
 

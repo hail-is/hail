@@ -353,27 +353,27 @@ class ContextTests(unittest.TestCase):
                                                                                 "weight": TFloat64()}).key_by("locus")
 
         skatVds = (vds2.split_multi()
-         .annotate_variants_table(intervalsSkat, root="va.genes", product=True)
-         .annotate_variants_table(weightsSkat, root="va.weight")
-         .annotate_samples_table(phenotypesSkat, root="sa.pheno")
-         .annotate_samples_table(covariatesSkat, root="sa.cov")
-         .annotate_samples_expr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean"))
+            .annotate_variants_table(intervalsSkat, root="va.genes", product=True)
+            .annotate_variants_table(weightsSkat, root="va.weight")
+            .annotate_samples_table(phenotypesSkat, root="sa.pheno")
+            .annotate_samples_table(covariatesSkat, root="sa.cov")
+            .annotate_samples_expr("sa.pheno = if (sa.pheno == 1.0) false else if (sa.pheno == 2.0) true else NA: Boolean"))
 
-         (skatVds.skat(variant_keys='va.genes',
-               single_key=False,
-               y='sa.pheno',
-               covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
-               weight_expr='va.weight',
-               use_logistic=False,
-               use_dosages=True).count())
+        (skatVds.skat(variant_keys='va.genes',
+                      single_key=False,
+                      y='sa.pheno',
+                      covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
+                      weight_expr='va.weight',
+                      use_logistic=False,
+                      use_dosages=False).count())
 
-         (skatVds.skat(variant_keys='va.genes',
-               single_key=False,
-               y='sa.pheno',
-               covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
-               weight_expr='va.weight',
-               use_logistic=True,
-               use_dosages=True).count())
+        (skatVds.skat(variant_keys='va.genes',
+                      single_key=False,
+                      y='sa.pheno',
+                      covariates=['sa.cov.Cov1', 'sa.cov.Cov2'],
+                      weight_expr='va.weight',
+                      use_logistic=True,
+                      use_dosages=True).count())
 
         vds_kinship = vds_assoc.filter_variants_expr('v.start < 4')
 
