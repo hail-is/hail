@@ -1210,6 +1210,187 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
+    @typecheck_method(pedigree=Pedigree,
+                      pop_frequency_prior=strlike,
+                      min_gq=integral,
+                      min_p=numeric,
+                      max_parent_ab=numeric,
+                      min_child_ab=numeric,
+                      min_depth_ratio=numeric)
+    def de_novo(self, pedigree, pop_frequency_prior, min_gq=20, min_p=0.05,
+                max_parent_ab=0.05, min_child_ab=0.20, min_depth_ratio=0.10):
+        """Call de novo variation from trio data.
+
+        **Examples**
+
+        Call de novo events and export them to a file:
+
+        >>> pedigree = Pedigree.read('data/myStudy.fam')
+        >>> priors = hc.import_table('data/gnomadFreq.tsv', impute=True).key_by('Variant')
+        >>> denovo_kt = (vds.annotate_variants_table(priors, root='va.gnomAD')
+        ...                 .de_novo(pedigree, 'va.gnomAD'))
+        >>> denovo_kt.export('denovo_calls.tsv')
+
+        **Notes**
+
+        This method replicates the functionality of `Kaitlin Samocha's de novo caller <https://github.com/ksamocha/de_novo_scripts>`__.
+        The version corresponding to git commit ``bde3e40`` is implemented in Hail with her permission and assistance.
+
+        This method produces a :py:class:`.KeyTable` with the following columns:
+
+            - **variant** (*Variant*) -- Variant at which parents are homozygous reference and proband is heterozygous.
+            - **proband** (*String*) -- Sample ID of proband.
+            - **father** (*String*) -- Sample ID of father.
+            - **mother** (*String*) -- Sample ID of mother.
+            - **isFemale** (*Boolean*) -- Sex of proband, true if female.
+            - **confidence** (*String*) -- Validation confidence. One of: 'HIGH', 'MEDIUM', 'LOW'
+            - **probandGt** (*Genotype*) -- Genotype of the proband
+            - **fatherGt** (*Genotype*) -- Genotype of the father
+            - **motherGt** (*Genotype*) -- Genotype of the mother
+            - **pDeNovo** (*Float64*) -- Unfiltered estimate of posterior probability that the event is a true de novo.
+
+        The model was originally designed to run against VCFs produced by GATK from high-throughput sequencing
+        experiments, and uses the GT, AD, DP, GQ, and PL fields. The absence of any of these fields will
+        result in an empty table of results (no called de novo mutations).
+
+        The model looks for de novo events in which both parents are homozygous
+        reference and the proband is a heterozygous. The model makes the simplifying assumption that when this
+        configuration ``x = (AA, AA, AB)`` of calls occurs, exactly one of the following is true:
+        
+            - ``d`` = a de novo mutation occurred in the proband and all calls are true
+            - ``m`` = at least one parental allele is truly non-reference and the proband call is true
+         
+        We can then estimate the posterior probability of a de novo mutation as:
+
+        .. math::
+
+            \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
+
+        Applying Bayes rule to the numerator and denominator yields
+
+        .. math::
+
+            \\frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) + \mathrm{P}(x\,|\,m)\,\mathrm{P}(m)}
+
+        The prior on de novo mutation is estimated from the rate in the literature:
+
+        .. math::
+
+            \\mathrm{P}(d) = \\frac{1 \\text{mutation}}{30,000,000\, \\text{bases}}
+
+        The prior used for at least one alternate allele between the parents depends on the alternate allele frequency:
+
+        .. math::
+
+            \\mathrm{P}(m) = 1 - (1 - AF)^4
+
+        The likelihoods :math:`\mathrm{P}(x\,|\,d)` and :math:`\mathrm{P}(x\,|\,m)` are computed from the
+        PL (genotype likelihood) fields using these factorizations:
+
+        .. math::
+
+            \\mathrm{P}(x = (AA, AA, AB) \,|\,d) = \\Big(
+            &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA) \\\\
+            \\cdot &\\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AA) \\\\
+            \\cdot &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB) \\Big)
+
+        .. math::
+
+            \\mathrm{P}(x = (AA, AA, AB) \,|\,m) = \\Big( & \\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AB) \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AA) \\\\
+            + \, &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA)
+            \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} = AB) \\Big) \\\\
+            \\cdot \, &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB)
+
+        (Technically, the second factorization assumes there is exactly (rather than at least) one alternate allele among the parents, which may be
+        justified on the grounds that it is typically the most likely case by far.)
+
+        While this posterior probability is a good metric for grouping putative de novo
+        mutations by validation likelihood, there exist error modes in high-throughput sequencing data that
+        are not appropriately accounted for by the phred-scaled genotype likelihoods. To this end, a number
+        of hard filters are applied in order to assign validation likelihood.
+
+        These filters are different for SNPs and insertions/deletions. In the below rules, the following
+        variables are used:
+
+         - ``DR`` refers to the ratio of the read depth in the proband to the combined read depth in the parents.
+         - ``AB`` refers to the read allele balance of the proband (number of alternate reads divided by total reads).
+         - ``AC`` refers to the count of alternate alleles across all individuals in the dataset at the site.
+         - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`.
+         - ``min_p`` refers to the ``min_p`` function parameter.
+
+        HIGH-quality SNV:
+
+        .. code-block:: text
+
+            p > 0.99 && AB > 0.3 && DR > 0.2
+                or
+            p > 0.99 && AB > 0.3 && AC == 1
+
+        MEDIUM-quality SNV:
+
+        .. code-block:: text
+
+            p > 0.5 && AB > 0.3
+                or
+            p > 0.5 && AB > 0.2 && AC == 1
+
+        LOW-quality SNV:
+
+        .. code-block:: text
+
+            p > min_p && AB > 0.2
+
+        HIGH-quality indel:
+
+        .. code-block:: text
+
+            p > 0.99 && AB > 0.3 && DR > 0.2
+                or
+            p > 0.99 && AB > 0.3 && AC == 1
+
+        MEDIUM-quality indel:
+
+        .. code-block:: text
+
+            p > 0.5 && AB > 0.3
+                or
+            p > 0.5 && AB > 0.2 and AC == 1
+
+        LOW-quality indel:
+
+        .. code-block:: text
+
+            p > min_p && AB > 0.2
+
+        Additionally, de novo candidates are not considered if the proband GQ is smaller than the ``min_gq``
+        parameter, if the proband allele balance is lower than the ``min_child_ab`` parameter, if the
+        depth ratio between the proband and parents is smaller than the ``min_depth_ratio`` parameter, or
+        if the allele balance in a parent is above the ``max_parent_ab`` parameter.
+
+        :param pedigree: Pedigree object.
+        :type pedigree: :class:`.Pedigree`
+
+        :param str pop_frequency_prior: Expression for the reference allele frequency annotation.
+
+        :param int min_gq: Minimum GQ for de novo consideration.
+
+        :param float min_p: Minimum probability for "LOW" bin.
+
+        :param float max_parent_ab: Maximum allele balance for homozygous parent.
+
+        :param float min_child_ab: Minimum allele balance for heterozygous proband.
+
+        :param float min_depth_ratio: Minimum ratio of proband depth to parent depth.
+
+        :rtype: :class:`.KeyTable`
+        """
+
+        jkt = self._jvdf.deNovo(pedigree._jrep, pop_frequency_prior, min_gq, min_p,
+                                max_parent_ab, min_child_ab, min_depth_ratio)
+        return KeyTable(self.hc, jkt)
+
+    @handle_py4j
+    @record_method
     def deduplicate(self):
         """Remove duplicate variants.
 
