@@ -392,20 +392,8 @@ object VEP {
 
     val newRDD = vsm.rdd
       .zipPartitions(annotations, preservesPartitioning = true) { case (left, right) =>
-        new Iterator[(Variant, (Annotation, Iterable[T]))] {
-          def hasNext: Boolean = {
-            val r = left.hasNext
-            assert(r == right.hasNext)
-            r
-          }
-
-          def next(): (Variant, (Annotation, Iterable[T])) = {
-            val (lv, (va, gs)) = left.next()
-            val (rv, vaVep) = right.next()
-            assert(lv == rv)
-            (lv, (insertVEP(va, vaVep), gs))
-          }
-        }
+        left.sortedLeftJoinDistinct(right)
+          .map { case (v, ((va, gs), a)) => (v, (insertVEP(va, a.orNull), gs)) }
       }.asOrderedRDD
 
     (csq, newVASignature) match {
