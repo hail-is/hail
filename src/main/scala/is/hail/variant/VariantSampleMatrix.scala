@@ -1635,8 +1635,11 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   def renameDuplicates(): VariantSampleMatrix[RPK, RK, T] = {
     requireSampleTString("rename duplicates")
     val (newIds, duplicates) = mangle(stringSampleIds.toArray)
-    info(s"Renamed ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
-      s"Mangled IDs as follows:\n  @1", duplicates.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
+    if (duplicates.nonEmpty)
+      info(s"Renamed ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
+        s"Mangled IDs as follows:\n  @1", duplicates.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
+    else
+      info(s"No duplicate sample IDs found.")
     val (newSchema, ins) = insertSA(TString, "originalID")
     val newAnnotations = sampleIdsAndAnnotations.map { case (s, sa) => ins(sa, s) }
     copy(sampleIds = newIds, saSignature = newSchema, sampleAnnotations = newAnnotations)
