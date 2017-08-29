@@ -1,7 +1,7 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.{DenseMatrix => SparkDenseMatrix, Matrix => SparkMatrix}
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, BlockMatrix, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 
 import is.hail.utils._
@@ -34,7 +34,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     val numColBlocks = (n / colsPerBlock + (if (n % colsPerBlock == 0) 0 else 1)).toInt
 
 
-    val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap{ ir =>
+    val blocks: RDD[((Int, Int), SparkMatrix)] = indexedRowMatrix.rows.flatMap{ ir =>
       val blockRow = ir.index / rowsPerBlock
       val rowInBlock = ir.index % rowsPerBlock
 
@@ -58,10 +58,26 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
             i += 1
           }
         }
-        new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
+        new SparkDenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
     }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, m, n)
   }
+  
+  // Not optimized for sparse rows, since it looks at every element.
+  def toLocalMatrix(): SparkDenseMatrix = {
+    val m = indexedRowMatrix.numRows().toInt
+    val n = indexedRowMatrix.numCols().toInt
+    val rows = indexedRowMatrix.rows.collect().par
+    
+    val values = new Array[Double](m * n)
+    rows.foreach{case IndexedRow(rowNum, rowElements) =>
+        var i = 0
+        while (i < rowElements.length) {
+          values(i * m + rowNum.toInt) = rowElements(i)
+          i += 1
+        }
+    }
+
+    new SparkDenseMatrix(m, n, values)
+  }
 }
-
-

@@ -1,5 +1,6 @@
 package is.hail.distributedmatrix
 
+import is.hail.HailContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.linalg._
 import org.apache.spark.mllib.linalg.distributed._
@@ -9,6 +10,9 @@ import scala.reflect.ClassTag
 trait DistributedMatrix[M] {
   def cache(m: M): M
 
+  def read(hc: HailContext, uri: String): M
+  def write(m: M, uri: String)
+  
   def from(irm: IndexedRowMatrix, dense: Boolean = true): M
   def from(bm: BlockMatrix): M
 

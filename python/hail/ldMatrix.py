@@ -1,5 +1,7 @@
 from hail.java import *
 from hail.representation import Variant
+from hail.eigen import Eigen
+from hail.typecheck import *
 
 class LDMatrix:
     """
@@ -35,7 +37,8 @@ class LDMatrix:
         
         .. caution::
         
-            Only call this method when the LD matrix is small enough to fit in local memory on the driver. 
+            Only call this method when the LD matrix is small enough to fit in local memory on the driver.
+            The product of the dimensions can be at most :math:`2^31 - 1` (about 2 billion). 
         
         :return: Matrix of Pearson correlation values.
         :rtype: `Matrix <https://spark.apache.org/docs/2.1.0/api/python/pyspark.mllib.html#pyspark.mllib.linalg.Matrix>`__
@@ -62,6 +65,7 @@ class LDMatrix:
         self._jldm.write(path)
 
     @staticmethod
+    @typecheck(path=strlike)
     def read(path):
         """
         Reads the LD matrix from a file.
@@ -78,3 +82,19 @@ class LDMatrix:
 
         jldm = Env.hail().methods.LDMatrix.read(Env.hc()._jhc, path)
         return LDMatrix(jldm)
+    
+    def eigen(self):
+        """
+        Compute an eigendecomposition of the LD matrix. The number of eigenvectors returned is the minimum of
+        the number of samples used to form the LD matrix and the number of variants.
+        
+        .. caution::
+        
+            This method collects the LD matrix to a local matrix on the driver in order to compute the full
+            eigendecomposition using LAPACK. Only call this method when the LD matrix is small enough to fit in
+            local memory; the absolute limit on the number of variants is 32k.
+        
+        :return: Eigendecomposition of the LD matrix.
+        :rtype: :py:class:`.Eigen`
+        """
+        return Eigen(self._jldm.eigen())
