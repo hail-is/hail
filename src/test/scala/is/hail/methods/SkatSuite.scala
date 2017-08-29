@@ -7,7 +7,7 @@ import scala.io.Source
 import is.hail.expr._
 import is.hail.SparkSuite
 import is.hail.io.annotators.IntervalList
-import is.hail.variant.{GenomeReference, Genotype, VariantDataset}
+import is.hail.variant.{ReferenceGenome, Genotype, VariantDataset}
 import is.hail.methods.Skat.keyedRDDSkat
 import is.hail.annotations.Annotation
 
@@ -354,7 +354,7 @@ class SkatSuite extends SparkSuite {
 
   def intervalsSkat = IntervalList.read(hc, "src/test/resources/skat.interval_list")
 
-  val rg = GenomeReference.GRCh37
+  val rg = ReferenceGenome.GRCh37
 
   def weightsSkat = hc.importTable("src/test/resources/skat.weights",
     types = Map("locus" -> TLocus(rg), "weight" -> TFloat64)).keyBy("locus")
