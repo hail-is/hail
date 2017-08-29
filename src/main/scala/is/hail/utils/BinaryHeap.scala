@@ -3,21 +3,22 @@ package is.hail.utils
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class BinaryHeap[@specialized T : ClassTag](minimumCapacity: Int = 32) {
+class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
   private var ts: Array[T] = new Array[T](minimumCapacity)
   private var ranks: Array[Long] = new Array[Long](minimumCapacity)
   private val m: mutable.Map[T, Int] = new mutable.HashMap()
   private var next: Int = 0
 
   def size: Int = next
+
   def isEmpty: Boolean = next == 0
 
   override def toString(): String =
-    s"values: ${ts.slice(0,next): IndexedSeq[T]}; ranks: ${ranks.slice(0,next): IndexedSeq[Long]}"
+    s"values: ${ ts.slice(0, next): IndexedSeq[T] }; ranks: ${ ranks.slice(0, next): IndexedSeq[Long] }"
 
   def insert(t: T, r: Long) {
     if (m.contains(t))
-      throw new RuntimeException(s"key $t already exists with priority ${m(t)}, cannot add it again with priority $r")
+      throw new RuntimeException(s"key $t already exists with priority ${ m(t) }, cannot add it again with priority $r")
     maybeGrow()
     put(next, t, r)
     bubbleUp(next)
@@ -178,7 +179,7 @@ class BinaryHeap[@specialized T : ClassTag](minimumCapacity: Int = 32) {
 
   private def assertHeapProperty(child: Int, parent: Int) {
     assert(ranks(leftChild) <= ranks(current),
-      s"heap property violated at parent $parent, child $child: ${ts(current)}:${ranks(current)} < ${ts(child)}:${ranks(child)}")
+      s"heap property violated at parent $parent, child $child: ${ ts(current) }:${ ranks(current) } < ${ ts(child) }:${ ranks(child) }")
   }
 
 }
