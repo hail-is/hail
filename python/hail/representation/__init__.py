@@ -3,7 +3,7 @@ from hail.representation.interval import Interval
 from hail.representation.genotype import Genotype, Call
 from hail.representation.annotations import Struct
 from hail.representation.pedigree import Trio, Pedigree
-from hail.representation.genomeref import ReferenceGenome
+from hail.representation.refgenome import ReferenceGenome
 
 __all__ = ['Variant',
            'Locus',
