@@ -1106,6 +1106,8 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Example**
         
         >>> comparison_vds = hc.read('data/example2.vds')
@@ -1220,6 +1222,10 @@ class VariantDataset(HistoryMixin):
     def de_novo(self, pedigree, pop_frequency_prior, min_gq=20, min_p=0.05,
                 max_parent_ab=0.05, min_child_ab=0.20, min_depth_ratio=0.10):
         """Call de novo variation from trio data.
+
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -1435,6 +1441,8 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
 
         Import genotype probability data, filter variants based on INFO score, and export data to a GEN and SAMPLE file:
@@ -1524,6 +1532,8 @@ class VariantDataset(HistoryMixin):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -2395,6 +2405,8 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
         
         >>> km = vds.grm()
@@ -2449,6 +2461,8 @@ class VariantDataset(HistoryMixin):
         """Compute matrix of identity-by-descent estimations.
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -2525,6 +2539,8 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
         
         Prune samples so that no two have a PI_HAT value greater than or equal to 0.6.
@@ -2583,6 +2599,8 @@ class VariantDataset(HistoryMixin):
         X chromosome.
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -2671,7 +2689,7 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
-        Requires :py:class:`~hail.VariantDataset.was_split` equals True.
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -2740,6 +2758,10 @@ class VariantDataset(HistoryMixin):
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
 
         >>> ld_mat = vds.ld_matrix()
@@ -2786,6 +2808,8 @@ class VariantDataset(HistoryMixin):
         linear regression model.
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -2977,6 +3001,10 @@ class VariantDataset(HistoryMixin):
     def linreg(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
         r"""Test each variant for association with multiple phenotypes using linear regression.
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         .. warning::
 
             :py:meth:`.linreg` uses the same set of samples for each phenotype,
@@ -3036,6 +3064,8 @@ class VariantDataset(HistoryMixin):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -3282,6 +3312,8 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
 
         Run the logistic regression Wald test per variant using a Boolean phenotype and two covariates stored
@@ -3423,6 +3455,8 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
 
         Run a gene burden test using the logistic Wald test on the maximum genotype per gene. Here ``va.genes`` is
@@ -3534,6 +3568,8 @@ class VariantDataset(HistoryMixin):
         family.
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -3722,6 +3758,8 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
 
         Compute the top 5 principal component scores, stored as sample annotations ``sa.scores.PC1``, ..., ``sa.scores.PC5`` of type Double:
@@ -3819,6 +3857,10 @@ class VariantDataset(HistoryMixin):
         PC-Relate method.
 
         .. include:: experimental.rst
+
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -4572,6 +4614,10 @@ class VariantDataset(HistoryMixin):
     def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
 
         >>> kinship_matrix = vds.rrm()
@@ -4722,7 +4768,6 @@ class VariantDataset(HistoryMixin):
         """Returns a summary of useful information about the dataset.
         
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
-
         
         **Examples**
         
@@ -4895,6 +4940,10 @@ class VariantDataset(HistoryMixin):
                       use_dosages=bool)
     def skat(self, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False):
         """Test each keyed group of variants for association by linear SKAT test.
+
+        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
@@ -5134,6 +5183,8 @@ class VariantDataset(HistoryMixin):
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
 
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
+
         **Examples**
 
         Compute TDT association results:
@@ -5243,6 +5294,8 @@ class VariantDataset(HistoryMixin):
         """Compute common variant statistics (quality control metrics).
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+
+        Requires :py:class:`~hail.VariantDataset.was_split` equals True. Use :py:meth:`~hail.VariantDataset.split_multi` to convert to a biallelic dataset.
 
         **Examples**
 
