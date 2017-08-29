@@ -163,15 +163,15 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
     val leftChild = (current << 1) + 1
     val rightChild = (current << 1) + 2
     if (leftChild < next) {
-      assertHeapProperty(leftChild, parent)
+      assertHeapProperty(leftChild, current)
       if (rightChild < next) {
-        assertHeapProperty(rightChild, parent)
+        assertHeapProperty(rightChild, current)
         checkHeapProperty(rightChild)
       }
       checkHeapProperty(leftChild)
     } else {
       if (rightChild < next) {
-        assertHeapProperty(rightChild, parent)
+        assertHeapProperty(rightChild, current)
         checkHeapProperty(rightChild)
       }
     }
