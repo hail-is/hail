@@ -630,6 +630,10 @@ class VariantDatasetFunctions(private val vds: VariantSampleMatrix[Genotype]) ex
     (men.mendelKT(), men.fMendelKT(), men.iMendelKT(), men.lMendelKT())
   }
 
+  def nirvana(config: String, blockSize: Int = 1000, root: String): VariantDataset = {
+    Nirvana.annotate(vds, config, blockSize, root)
+  }
+
   /**
     *
     * @param scoresRoot   Sample annotation path for scores (period-delimited path starting in 'sa')
