@@ -1,5 +1,6 @@
 package is.hail.expr
 
+import is.hail.asm4s._
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, _}
@@ -630,6 +631,9 @@ abstract class TContainer extends Type {
   def elementsOffset(length: Int): Long =
     UnsafeUtils.roundUpAlignment(4 + (length + 7) / 8, elementType.alignment)
 
+  def elementsOffsetCode(length: Int): Code[Long] =
+    UnsafeUtils.roundUpAlignment(4 + (length + 7) / 8, elementType.alignment)
+
   def elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
   def contentsByteSize(length: Int): Long =
@@ -637,6 +641,9 @@ abstract class TContainer extends Type {
 
   def loadLength(region: MemoryBuffer, aoff: Long): Int =
     region.loadInt(aoff)
+
+  def loadLengthCode(region: Code[MemoryBuffer], aoff: Code[Long]): Code[Int] =
+    region.invoke[Long, Int]("loadInt", aoff)
 
   def isElementDefined(region: MemoryBuffer, aoff: Long, i: Int): Boolean =
     !region.loadBit(aoff + 4, i)
@@ -1697,6 +1704,10 @@ final case class TStruct(fields: IndexedSeq[Field]) extends Type {
     region.align(alignment)
     region.allocate(byteSize)
   }
+
+  def allocateCode(cb: CodeBlock, region: Code[MemoryBuffer]): Code[Long] =
+    Code(region.invoke[Long, Unit]("align", alignment),
+      region.invoke[Long, Long]("allocate", byteSize))
 
   def isFieldDefined(region: MemoryBuffer, offset: Long, fieldIdx: Int): Boolean =
     !region.loadBit(offset, fieldIdx)

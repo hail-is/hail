@@ -1,5 +1,7 @@
 package is.hail.annotations
 
+import is.hail.asm4s._
+import CodeM._
 import is.hail.expr._
 import is.hail.utils._
 import is.hail.variant.{AltAllele, Genotype, Locus, Variant}
@@ -376,6 +378,457 @@ final class PrettyVisitor extends ValueVisitor {
 
 case class RegionValue(region: MemoryBuffer, offset: Long) {
   def pretty(t: Type): String = region.pretty(t, offset)
+}
+
+class StagedRegionValueBuilder(fb: FunctionBuilder[_], region: Code[MemoryBuffer]) {
+  var start: Code[Long] = _
+  var root: TStruct = _
+
+  val typestk = new mutable.Stack[Type]()
+  val indexstk = new mutable.Stack[Int]()
+  val offsetstk = new mutable.Stack[Code[Long]]()
+  val elementsOffsetstk = new mutable.Stack[Code[Long]]()
+
+  def current(): (Type, Code[Long]) = {
+    if (typestk.isEmpty)
+      (root, start)
+    else {
+      val i = indexstk.head
+      typestk.head match {
+        case t: TStruct =>
+          (t.fields(i).typ, offsetstk.head + t.byteOffsets(i))
+
+        case t: TArray =>
+          (t.elementType, elementsOffsetstk.head + i * UnsafeUtils.arrayElementSize(t.elementType))
+      }
+    }
+  }
+
+  def start(newRoot: TStruct) {
+    assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
+
+    root = newRoot.fundamentalType
+    start = fb.newLocal[Long](root.allocateCode(region)).load()
+  }
+
+  def end(): Code[Long] = {
+    assert(typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty)
+
+    start
+  }
+
+  def advance() {
+    if (indexstk.nonEmpty)
+      indexstk.push(indexstk.pop + 1)
+  }
+
+  def startStruct(init: Boolean = true) {
+    current() match {
+      case (t: TStruct, off) =>
+        typestk.push(t)
+        offsetstk.push(off)
+        indexstk.push(0)
+
+        if (init) {
+          val nMissingBytes = (t.size + 7) / 8
+          var i = 0
+          while (i < nMissingBytes) {
+            fb.emit(region.invoke[Long, Byte, Unit]("storeByte", off + i, 0.toByte))
+            i += 1
+          }
+        }
+    }
+  }
+
+  def endStruct() {
+    typestk.head match {
+      case t: TStruct =>
+        typestk.pop()
+        offsetstk.pop()
+        val last = indexstk.pop()
+        assert(last == t.size)
+
+        advance()
+    }
+  }
+
+  def startArray(length: Int, init: Boolean = true) {
+    current() match {
+      case (t: TArray, off) =>
+        val aoff = fb.newLocal[Long]
+
+        fb.emit(Code(
+          region.invoke[Long, Unit]("align", t.contentsAlignment),
+          aoff.store(region.invoke[Long, Long]("allocate", t.contentsByteSize(length))),
+          region.invoke[Long, Long, Unit]("storeAddress", off, aoff)
+        ))
+
+        typestk.push(t)
+        indexstk.push(0)
+        elementsOffsetstk.push(aoff + t.elementsOffsetCode(length))
+        offsetstk.push(aoff)
+
+        if (init) {
+          fb.emit(region.invoke[Long, Long, Unit]("storeInt", aoff, length))
+
+          val nMissingBytes = (length + 7) / 8
+          var i = 0
+          while (i < nMissingBytes) {
+            fb.emit(region.invoke[Long, Long, Unit]("storeByte", aoff + 4 + i, 0))
+            i += 1
+          }
+        }
+    }
+  }
+
+  def endArray() {
+    typestk.head match {
+      case t: TArray =>
+        // FIXME: I should probably store the array lengths in a stack and
+        // verify they're right
+
+        // val aoff = offsetstk.top
+        // val length = t.loadLengthCode(region, aoff)
+        // assert(length == indexstk.top)
+
+        typestk.pop()
+        offsetstk.pop()
+        elementsOffsetstk.pop()
+        indexstk.pop()
+
+        advance()
+    }
+  }
+
+  def setMissing() {
+    val i = indexstk.head
+    typestk.head match {
+      case t: TStruct =>
+        // FIXME: shouldn't I return this value?
+        fb.emit(region.invoke[Long, Int, Unit]("setBit", offsetstk.head, i))
+      case t: TArray =>
+        fb.emit(region.invoke[Long, Int, Unit]("setBit", offsetstk.head + 4, i))
+    }
+
+    advance()
+  }
+
+  def addBoolean(b: Code[Boolean]) {
+    current() match {
+      case (TBoolean, off) =>
+        // FIXME: what to do about boolean
+        fb.emit(region.invoke[Long, Byte, Unit]("storeByte", off, b.toByte))
+        advance()
+    }
+  }
+
+  def addInt(i: Code[Int]) {
+    current() match {
+      case (TInt32, off) =>
+        fb.emit(region.invoke[Long, Int, Unit]("storeInt", off, i))
+        advance()
+    }
+  }
+
+  def addLong(l: Code[Long]) {
+    current() match {
+      case (TInt64, off) =>
+        fb.emit(region.invoke[Long, Long, Unit]("storeLong", off, l))
+        advance()
+    }
+  }
+
+  def addFloat(f: Code[Float]) {
+    current() match {
+      case (TFloat32, off) =>
+        fb.emit(region.invoke[Long, Float, Unit]("storeFloat", off, f))
+        advance()
+    }
+  }
+
+  def addDouble(d: Code[Double]) {
+    current() match {
+      case (TFloat64, off) =>
+        fb.emit(region.invoke[Long, Double, Unit]("storeDouble", off, d))
+        advance()
+    }
+  }
+
+  def addBinary(bytes: Code[Array[Byte]]) {
+    current() match {
+      case (TBinary, off) =>
+        fb.emit(Code(
+          region.invoke[Long, Unit]("align", 4),
+          region.invoke[Long, Long, Unit]("storeAddress", off, region.invoke[Long]("offset")),
+          region.invoke[Int, Unit]("appendInt", bytes.length),
+          region.invoke[Array[Byte], Unit]("appendBytes", bytes)
+        ))
+        advance()
+    }
+  }
+
+  def addString(s: Code[String]) {
+    addBinary(s.invoke[Array[Byte]]("getBytes"))
+  }
+
+  def addRow(t: TStruct, r: Row) {
+    assert(r != null)
+
+    startStruct()
+    var i = 0
+    while (i < t.size) {
+      addAnnotation(t.fields(i).typ, r.get(i))
+      i += 1
+    }
+    endStruct()
+  }
+
+  def fixupBinary(fromRegion: MemoryBuffer, fromBOff: Long): Long = {
+    val length = TBinary.loadLength(fromRegion, fromBOff)
+    val toBOff = TBinary.allocate(region, length)
+    region.copyFrom(fromRegion, fromBOff, toBOff, TBinary.contentByteSize(length))
+    toBOff
+  }
+
+  def requiresFixup(t: Type): Boolean = {
+    t match {
+      case t: TStruct => t.fields.exists(f => requiresFixup(f.typ))
+      case _: TArray | TBinary => true
+      case _ => false
+    }
+  }
+
+  def fixupArray(t: TArray, fromRegion: MemoryBuffer, fromAOff: Long): Long = {
+    val length = t.loadLength(fromRegion, fromAOff)
+    val toAOff = t.allocate(region, length)
+
+    region.copyFrom(fromRegion, fromAOff, toAOff, t.contentsByteSize(length))
+
+    if (requiresFixup(t.elementType)) {
+      var i = 0
+      while (i < length) {
+        if (t.isElementDefined(fromRegion, fromAOff, i)) {
+          t.elementType match {
+            case t2: TStruct =>
+              fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
+
+            case t2: TArray =>
+              val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
+              region.storeAddress(t.elementOffset(toAOff, length, i), toAOff2)
+
+            case TBinary =>
+              val toBOff = fixupBinary(fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
+              region.storeAddress(t.elementOffset(toAOff, length, i), toBOff)
+
+            case _ =>
+          }
+        }
+        i += 1
+      }
+    }
+
+    toAOff
+  }
+
+  def fixupStruct(t: TStruct, toOff: Long, fromRegion: MemoryBuffer, fromOff: Long) {
+    var i = 0
+    while (i < t.size) {
+      if (t.isFieldDefined(fromRegion, fromOff, i)) {
+        t.fields(i).typ match {
+          case t2: TStruct =>
+            fixupStruct(t2, t.fieldOffset(toOff, i), fromRegion, t.fieldOffset(fromOff, i))
+
+          case TBinary =>
+            val toBOff = fixupBinary(fromRegion, t.loadField(fromRegion, fromOff, i))
+            region.storeAddress(t.fieldOffset(toOff, i), toBOff)
+
+          case t2: TArray =>
+            val toAOff = fixupArray(t2, fromRegion, t.loadField(fromRegion, fromOff, i))
+            region.storeAddress(t.fieldOffset(toOff, i), toAOff)
+
+          case _ =>
+        }
+      }
+      i += 1
+    }
+  }
+
+  def addRegionValue(t: TStruct, fromRegion: MemoryBuffer, fromOff: Long) {
+    val (toT, toOff) = current()
+    assert(toT == t.fundamentalType)
+
+    region.copyFrom(fromRegion, fromOff, toOff, t.byteSize)
+
+    fixupStruct(t.fundamentalType, toOff, fromRegion, fromOff)
+    advance()
+  }
+
+  def addUnsafeRow(t: TStruct, ur: UnsafeRow) {
+    addRegionValue(t, ur.region, ur.offset)
+  }
+
+  def addUnsafeArray(t: TArray, uis: UnsafeIndexedSeqAnnotation) {
+    val (toT, toOff) = current()
+    assert(toT == t.fundamentalType)
+
+    val toBOff = fixupArray(t.fundamentalType, uis.region, uis.aoff)
+    region.storeAddress(toOff, toBOff)
+
+    advance()
+  }
+
+  def addAnnotation(t: Type, a: Annotation) {
+    if (a == null)
+      setMissing()
+    else
+      t match {
+        case TBoolean => addBoolean(a.asInstanceOf[Boolean])
+        case TInt32 => addInt(a.asInstanceOf[Int])
+        case TInt64 => addLong(a.asInstanceOf[Long])
+        case TFloat32 => addFloat(a.asInstanceOf[Float])
+        case TFloat64 => addDouble(a.asInstanceOf[Double])
+        case TString => addString(a.asInstanceOf[String])
+        case TBinary => addBinary(a.asInstanceOf[Array[Byte]])
+
+        case t: TArray =>
+          a match {
+            case uis: UnsafeIndexedSeqAnnotation =>
+              addUnsafeArray(t, uis)
+
+            case is: IndexedSeq[Annotation] =>
+              startArray(is.length)
+              var i = 0
+              while (i < is.length) {
+                addAnnotation(t.elementType, is(i))
+                i += 1
+              }
+              endArray()
+          }
+
+        case t: TStruct =>
+          a match {
+            case ur: UnsafeRow =>
+              addUnsafeRow(t, ur)
+            case r: Row =>
+              addRow(t, r)
+          }
+
+        case TSet(elementType) =>
+          val s = a.asInstanceOf[Set[Annotation]]
+            .toArray
+            .sorted(elementType.ordering(true))
+          startArray(s.length)
+          s.foreach { x => addAnnotation(elementType, x) }
+          endArray()
+
+        case td: TDict =>
+          val m = a.asInstanceOf[Map[Annotation, Annotation]]
+            .map { case (k, v) => Row(k, v) }
+            .toArray
+            .sorted(td.elementType.ordering(true))
+          startArray(m.size)
+          m.foreach { case Row(k, v) =>
+            startStruct()
+            addAnnotation(td.keyType, k)
+            addAnnotation(td.valueType, v)
+            endStruct()
+          }
+          endArray()
+
+        case t: TVariant =>
+          val v = a.asInstanceOf[Variant]
+          startStruct()
+          addString(v.contig)
+          addInt(v.start)
+          addString(v.ref)
+          startArray(v.altAlleles.length)
+          var i = 0
+          while (i < v.altAlleles.length) {
+            addAnnotation(TAltAllele, v.altAlleles(i))
+            i += 1
+          }
+          endArray()
+          endStruct()
+
+        case TAltAllele =>
+          val aa = a.asInstanceOf[AltAllele]
+          startStruct()
+          addString(aa.ref)
+          addString(aa.alt)
+          endStruct()
+
+        case TCall =>
+          addInt(a.asInstanceOf[Int])
+
+        case TGenotype =>
+          val g = a.asInstanceOf[Genotype]
+          startStruct()
+
+          val unboxedGT = g._unboxedGT
+          if (unboxedGT >= 0)
+            addInt(unboxedGT)
+          else
+            setMissing()
+
+          val unboxedAD = g._unboxedAD
+          if (unboxedAD == null)
+            setMissing()
+          else {
+            startArray(unboxedAD.length)
+            var i = 0
+            while (i < unboxedAD.length) {
+              addInt(unboxedAD(i))
+              i += 1
+            }
+            endArray()
+          }
+
+          val unboxedDP = g._unboxedDP
+          if (unboxedDP >= 0)
+            addInt(unboxedDP)
+          else
+            setMissing()
+
+          val unboxedGQ = g._unboxedGQ
+          if (unboxedGQ >= 0)
+            addInt(unboxedGQ)
+          else
+            setMissing()
+
+          val unboxedPX = g._unboxedPX
+          if (unboxedPX == null)
+            setMissing()
+          else {
+            startArray(unboxedPX.length)
+            var i = 0
+            while (i < unboxedPX.length) {
+              addInt(unboxedPX(i))
+              i += 1
+            }
+            endArray()
+          }
+
+          addBoolean(g._fakeRef)
+          addBoolean(g._isLinearScale)
+          endStruct()
+
+        case t: TLocus =>
+          val l = a.asInstanceOf[Locus]
+          startStruct()
+          addString(l.contig)
+          addInt(l.position)
+          endStruct()
+
+        case t: TInterval =>
+          val i = a.asInstanceOf[Interval[Locus]]
+          startStruct()
+          addAnnotation(TLocus(t.gr), i.start)
+          addAnnotation(TLocus(t.gr), i.end)
+          endStruct()
+      }
+  }
+
+  def result(): RegionValue = RegionValue(region, start)
 }
 
 class RegionValueBuilder(region: MemoryBuffer) {

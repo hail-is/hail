@@ -7,19 +7,19 @@ import is.hail.asm4s.ucode.UCodeM._
 import is.hail.asm4s.ucode.UCode
 import is.hail.asm4s.ucode.ULocalRef
 import is.hail.expr.Type
-
+import is.hail.expr.TStruct
 import is.hail.annotations._
 
 object Compile {
   def apply(x: IR): UCodeM[Unit] = for {
-    rvb <- newVar(Code.newInstance[RegionValueBuilder, MemoryBuffer](
-      Code.newInstance[MemoryBuffer]()))
-    _ <- terminal(x, rvb.load(), Map())
+    mb <- newVar(Code.newInstance[MemoryBuffer]())
+    srvb = new StagedRegionValueBuilder(mb)
+    _ <- terminal(x, srvb, Map())
   } yield ()
 
-  private[ir] def nonTerminal(x: IR, rvb: Code[RegionValueBuilder], env: Map[String, ULocalRef]): UCode = {
-    def nonTerminal(x: IR) = this.nonTerminal(x, rvb, env)
-    def terminal(x: IR) = this.terminal(x, rvb, env)
+  private[ir] def nonTerminal(x: IR, srvb: StagedRegionValueBuilder, env: Map[String, ULocalRef]): UCode = {
+    def nonTerminal(x: IR) = this.nonTerminal(x, srvb, env)
+    def terminal(x: IR) = this.terminal(x, srvb, env)
     x match {
       case I32(x) =>
         ucode.I32(x)
@@ -42,11 +42,13 @@ object Compile {
       case Ref(name) =>
         env(name).load()
       case MakeArray(args, typ) =>
-        ucode.NewInitializedArray(args map nonTerminal, typ)
-      case ArrayRef(a, i, typ) =>
-        ucode.ArrayRef(nonTerminal(a), nonTerminal(i), typ)
-      case MakeStruct(fields) =>
         ???
+        // ucode.NewInitializedArray(args map nonTerminal, typ)
+      case ArrayRef(a, i, typ) =>
+        ???
+        // ucode.ArrayRef(nonTerminal(a), nonTerminal(i), typ)
+      case MakeStruct(fields) =>
+        srvb.start(TStruct(fields.map(x => (x._1, x._2)):_*))
       case GetField(o, name) =>
         ???
       case In(i) =>
@@ -56,14 +58,14 @@ object Compile {
     }
   }
 
-  private[ir] def terminal(x: IR, rvb: Code[RegionValueBuilder], env: Map[String, ULocalRef]): UCodeM[Unit] = {
-    def nonTerminal(x: IR) = this.nonTerminal(x, rvb, env)
-    def terminal(x: IR) = this.terminal(x, rvb, env)
+  private[ir] def terminal(x: IR, srvb: StagedRegionValueBuilder, env: Map[String, ULocalRef]): UCodeM[Unit] = {
+    def nonTerminal(x: IR) = this.nonTerminal(x, srvb, env)
+    def terminal(x: IR) = this.terminal(x, srvb, env)
     x match {
       case _If(cond, cnsq, altr) =>
         UCodeM.mux(nonTerminal(cond), terminal(cnsq), terminal(altr))
       case Let(name, value, typ, body) =>
-        newVar(nonTerminal(value), typ) flatMap (x => this.terminal(body, rvb, env + (name -> x)))
+        newVar(nonTerminal(value), typ) flatMap (x => this.terminal(body, srvb, env + (name -> x)))
       case MapNull(name, value, body) =>
         ???
       case Out(values) =>

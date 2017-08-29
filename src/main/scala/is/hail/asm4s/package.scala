@@ -311,6 +311,8 @@ package object asm4s {
 
   implicit def const(i: Int): Code[Int] = Code(new LdcInsnNode(i))
 
+  implicit def const(b: Byte): Code[Byte] = Code(new LdcInsnNode(b))
+
   implicit def const(l: Long): Code[Long] = Code(new LdcInsnNode(l))
 
   implicit def const(f: Float): Code[Float] = Code(new LdcInsnNode(f))

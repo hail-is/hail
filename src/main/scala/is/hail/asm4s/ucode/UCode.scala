@@ -74,10 +74,8 @@ case class _If(cond: UCode, cnsq: UCode, altr: UCode) extends UCode {
     il += lafter
   }
 }
-case class NewInitializedArray(initializer: Array[UCode], rvb: Code[RegionValueBuilder], tti: Type) extends UCode {
+case class NewInitializedArray(initializer: Array[UCode], rvb: Code[RegionValueBuilder], typ: Type) extends UCode {
   def emit(il: Growable[AbstractInsnNode]) {
-    rvb.invoke(
-    initializer.length.emit(il)
     il += tti.newArray()
     initializer.zipWithIndex.foreach { case (x, i) =>
       il += new InsnNode(DUP)

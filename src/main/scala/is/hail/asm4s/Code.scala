@@ -255,6 +255,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
   def ||(rhs: Code[Boolean]): Code[Boolean] =
     Code(lhs, rhs, new InsnNode(IOR))
+
+  def toByte: Code[Byte] = Code(lhs, new InsnNode(I2B))
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {

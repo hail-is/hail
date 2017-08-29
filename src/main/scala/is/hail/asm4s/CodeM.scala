@@ -25,9 +25,12 @@ case class CodeM[T](action: (FunctionBuilder[_]) => T) {
     delayedRun(fb)(ev)()
 
   def delayedRun[F >: Null](fb: FunctionBuilder[F])(implicit ev: T =:= Unit): () => F = {
-    action(fb)
+    emit(fb)
     fb.result()
   }
+
+  def emit(fb: FunctionBuilder[_]): T =
+    action(fb)
 
 }
 

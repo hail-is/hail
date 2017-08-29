@@ -51,6 +51,13 @@ object FunctionBuilder {
   }
 }
 
+// trait CodeBlock {
+//   def allocLocal[T](): Int
+//   def newLocal[T](): LocalRef[T]
+//   def emit(c: Code[_]): Unit
+//   def emit(c: ucode.UCode): Unit
+// }
+
 class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated")(implicit interfaceTi: TypeInfo[F]) {
 
@@ -119,6 +126,12 @@ class FunctionBuilder[F >: Null](parameterTypeInfo: Array[MaybeGenericTypeInfo[_
 
   def newLocal[T]()(implicit tti: TypeInfo[T]): LocalRef[T] =
     new LocalRef[T](allocLocal[T]())
+
+  def newLocal[T](c: Code[T])(implicit tti: TypeInfo[T]): LocalRef[T] = {
+    val l = new LocalRef[T](allocLocal[T]())
+    emit(l.store(c))
+    l
+  }
 
   def getStatic[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): Code[S] = {
     val f = FieldRef[T, S](field)
