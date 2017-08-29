@@ -178,8 +178,8 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
   }
 
   private def assertHeapProperty(child: Int, parent: Int) {
-    assert(ranks(leftChild) <= ranks(current),
-      s"heap property violated at parent $parent, child $child: ${ ts(current) }:${ ranks(current) } < ${ ts(child) }:${ ranks(child) }")
+    assert(ranks(child) <= ranks(parent),
+      s"heap property violated at parent $parent, child $child: ${ ts(parent) }:${ ranks(parent) } < ${ ts(child) }:${ ranks(child) }")
   }
 
 }
