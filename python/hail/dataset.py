@@ -2662,11 +2662,11 @@ class VariantDataset(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(r2=numeric,
+    @typecheck_method(num_cores=integral,
+                      r2=numeric,
                       window=integral,
-                      memory_per_core=integral,
-                      num_cores=integral)
-    def ld_prune(self, r2=0.2, window=1000000, memory_per_core=256, num_cores=1):
+                      memory_per_core=integral)
+    def ld_prune(self, num_cores, r2=0.2, window=1000000, memory_per_core=256):
         """Prune variants in linkage disequilibrium (LD).
 
         Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
@@ -2679,7 +2679,7 @@ class VariantDataset(HistoryMixin):
 
         >>> vds_result = (vds.variant_qc()
         ...                  .filter_variants_expr("va.qc.AF >= 0.05 && va.qc.AF <= 0.95")
-        ...                  .ld_prune()
+        ...                  .ld_prune(8)
         ...                  .export_variants("output/ldpruned.variants", "v"))
 
         **Notes**
@@ -2718,6 +2718,7 @@ class VariantDataset(HistoryMixin):
             The variants in the pruned set are not guaranteed to be identical each time :py:meth:`.ld_prune` is run. We recommend running :py:meth:`.ld_prune` once and exporting the list of LD pruned variants using
             :py:meth:`.export_variants` for future use.
 
+        :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
 
         :param float r2: Maximum :math:`R^2` threshold between two variants in the pruned set within a given window.
 
@@ -2725,13 +2726,11 @@ class VariantDataset(HistoryMixin):
 
         :param int memory_per_core: Total amount of memory available for each core in MB. If unsure, use the default value.
 
-        :param int num_cores: The number of cores available. Equivalent to the total number of workers times the number of cores per worker.
-
         :return: Variant dataset filtered to those variants which remain after LD pruning.
         :rtype: :py:class:`.VariantDataset`
         """
 
-        jvds = self._jvdf.ldPrune(r2, window, num_cores, memory_per_core)
+        jvds = self._jvdf.ldPrune(num_cores, r2, window, memory_per_core)
         return VariantDataset(self.hc, jvds)
 
     @handle_py4j

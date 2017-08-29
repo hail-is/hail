@@ -435,7 +435,7 @@ class ContextTests(unittest.TestCase):
 
         gds.annotate_genotypes_expr('g = g.GT.toGenotype()').split_multi()
 
-        sample_split.ld_prune().export_variants("/tmp/testLDPrune.tsv", "v")
+        sample_split.ld_prune(8).export_variants("/tmp/testLDPrune.tsv", "v")
         kt = (sample2.variants_table()
               .annotate("v2 = v")
               .key_by(["v", "v2"]))
