@@ -442,6 +442,8 @@ class VSMSuite extends SparkSuite {
 
     assert(reorderedVds.sampleIds sameElements newOrder)
 
+    assert(vds.reorderSamples(vds.sampleIds.toArray).same(vds))
+
     intercept[HailException](vds.reorderSamples(newOrder))
     intercept[HailException](vds.reorderSamples(Array[Annotation]("foo", "bar")))
   }

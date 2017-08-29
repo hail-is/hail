@@ -1038,7 +1038,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   // FIXME see if we can remove broadcasts elsewhere in the code
-  def filterSamples(p: (Annotation, Annotation) => Boolean): VariantSampleMatrix[RPK,RK, T] = {
+  def filterSamples(p: (Annotation, Annotation) => Boolean): VariantSampleMatrix[RPK, RK, T] = {
     val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }.toArray
     filterSamplesMask(mask)
   }
@@ -1232,7 +1232,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (RK, Annotation, Iterable[T]) => TraversableOnce[(RK, (Annotation, Iterable[T]))]): VariantSampleMatrix[RPK, RK, T] =
-    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
@@ -1643,14 +1643,19 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val nSamplesLocal = nSamples
     val localtct = tct
 
-    val reorderedRdd = rdd.mapPartitions ({ it =>
-        it.map { case (v, (va, gs)) =>
-          val reorderedGs = Array.fill[T](nSamplesLocal)(null)(localtct)
-          gs.zipWithIndex.foreach { case (g, i) =>
-            reorderedGs(newIndices(i)) = g
-          }
-          (v, (va, reorderedGs.toIterable))
+    val reorderedRdd = rdd.mapPartitions({ it =>
+      it.map { case (v, (va, gs)) =>
+        val reorderedGs = localtct.newArray(nSamplesLocal)
+        val gsIt = gs.iterator
+
+        var i = 0
+        while (gsIt.hasNext) {
+          reorderedGs(newIndices(i)) = gsIt.next
+          i += 1
         }
+
+        (v, (va, reorderedGs.toIterable))
+      }
     }, preservesPartitioning = true).asOrderedRDD
 
     copy(rdd = reorderedRdd, sampleIds = newIds, sampleAnnotations = newAnnotations)
