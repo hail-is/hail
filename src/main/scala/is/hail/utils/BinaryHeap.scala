@@ -161,16 +161,24 @@ class BinaryHeap[@specialized T : ClassTag](minimumCapacity: Int = 32) {
   private def checkHeapProperty(current: Int) {
     val leftChild = (current << 1) + 1
     val rightChild = (current << 1) + 2
-    if (leftChild < next)
-      assert(ranks(leftChild) <= ranks(current),
-        s"heap property violated at $current left child: ${ts(current)}:${ranks(current)} < ${ts(leftChild)}:${ranks(leftChild)}")
-    if (rightChild < next)
-      assert(ranks(rightChild) <= ranks(current),
-        s"heap property violated at $current right child: ${ts(current)}:${ranks(current)} < ${ts(rightChild)}:${ranks(rightChild)}")
-    if (leftChild < next)
+    if (leftChild < next) {
+      assertHeapProperty(leftChild, parent)
+      if (rightChild < next) {
+        assertHeapProperty(rightChild, parent)
+        checkHeapProperty(rightChild)
+      }
       checkHeapProperty(leftChild)
-    if (rightChild < next)
-      checkHeapProperty(rightChild)
+    } else {
+      if (rightChild < next) {
+        assertHeapProperty(rightChild, parent)
+        checkHeapProperty(rightChild)
+      }
+    }
+  }
+
+  private def assertHeapProperty(child: Int, parent: Int) {
+    assert(ranks(leftChild) <= ranks(current),
+      s"heap property violated at parent $parent, child $child: ${ts(current)}:${ranks(current)} < ${ts(child)}:${ranks(child)}")
   }
 
 }
