@@ -151,7 +151,7 @@ class BinaryHeap[@specialized T : ClassTag](minimumCapacity: Int = 32) {
         continue = true
       } else
         continue = false
-    } while (continue);
+    } while (continue)
   }
 
   def checkHeapProperty() {
