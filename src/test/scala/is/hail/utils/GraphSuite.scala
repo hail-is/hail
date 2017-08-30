@@ -68,7 +68,7 @@ class GraphSuite {
   }
 
   @Test def disconnected() {
-    val g = mkGraph(for (i <- 0 until 10) yield (i, i+10))
+    val g = mkGraph(for (i <- 0 until 10) yield (i, i + 10))
 
     val actual = maximalIndependentSet(g)
 
