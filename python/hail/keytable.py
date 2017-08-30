@@ -1385,7 +1385,7 @@ class KeyTable(HistoryMixin):
     def maximal_independent_set(self, i, j):
         """Compute a `maximal independent set
         <https://en.wikipedia.org/wiki/Maximal_independent_set>__` of vertices
-        in an undirected graph whose edges are given by this KeyTable
+        in an undirected graph whose edges are given by this key table.
 
         **Examples**
 
@@ -1394,29 +1394,31 @@ class KeyTable(HistoryMixin):
         kinship.
 
         >>> related_pairs = hc.import_vcf("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
-        >>> related_samples = high_kin.query('i.flatMap(i => [i,j]).collectAsSet()')
-        >>> related_samples_to_keep = high_kin.maximal_independent_set("i", "j")
-        >>> related_samples_to_remove = high_kin_samples - set(independent_set_list)
-        >>> vds.filter_samples_list(list(samples_to_remove))
+        >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
+        >>> related_samples_to_keep = related_pairs.maximal_independent_set("i", "j")
+        >>> related_samples_to_remove = related_samples - set(related_samples_to_keep)
+        >>> vds.filter_samples_list(list(related_samples_to_remove))
 
         **Notes**
 
-        Each row of the :class:`.KeyTable` corresponds to an undirected edge
-        between the nodes given by ``i`` and ``j``. An undirected edge may
-        appear multiple times in the :class:`.KeyTable`. It will not affect the
-        output. The node set of the graph is implicitly all the possible values
-        of ``i`` and ``j`` in this :class:`.KeyTable`.
+        Each row of the key table corresponds to an undirected edge between the
+        vertices given by evaluating ``i`` and ``j`` on that row. An undirected
+        edge may appear multiple times in the key table and will not affect the
+        output. The vertex set of the graph is implicitly all the possible
+        values realized by ``i`` and ``j`` on the rows of this key
+        table. Vertices with self-edges are necessarily removed as they cannot
+        be a member of an independent set.
 
         The expressions for ``i`` and ``j`` must have the same type.
 
         This method implements a greedy algorithm which iteratively removes the
-        node of highest degree until the graph contains no edges.
+        vertex of highest degree until the graph contains no edges.
 
-        :param str i: an expression to compute one endpoint
-        :param str j: an expression to compute another endpoint
+        :param str i: expression to compute one endpoint
+        :param str j: expression to compute another endpoint
 
-        :return: a list of nodes in a maximal independent set
-        :rtype: list of nodes
+        :return: a list of vertices in a maximal independent set
+        :rtype: list of elements with the same type as ``i`` and ``j``
 
         """
 
