@@ -18,7 +18,7 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
 
   def insert(t: T, r: Long) {
     if (m.contains(t))
-      throw new RuntimeException(s"key $t already exists with priority ${ m(t) }, cannot add it again with priority $r")
+      throw new RuntimeException(s"key $t already exists with priority ${ ranks(m(t)) }, cannot add it again with priority $r")
     maybeGrow()
     put(next, t, r)
     bubbleUp(next)
