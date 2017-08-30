@@ -1624,16 +1624,25 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     val oldOrder = sampleIds.zipWithIndex.toMap
     val newOrder = newIds.zipWithIndex.toMap
 
-    val mapping = oldOrder.outerJoin(newOrder).map { case (s, (oldIdx, newIdx)) =>
-      (oldIdx, newIdx) match {
-        case (Some(i), Some(j)) => (i, j)
-        case (None, Some(j)) => fatal(s"`$s' is not in dataset.")
-        case (Some(i), None) => fatal(s"dataset sample id `$s' not found in new id list.")
-        case (None, None) => fatal(s"This case should never happen!")
+    val newIndices = new Array[Int](nSamples)
+    val missingSamples = mutable.Set[Annotation]()
+    val notInDataset = mutable.Set[Annotation]()
+
+    oldOrder.outerJoin(newOrder).foreach { case (s, (oldIdx, newIdx)) =>
+      (oldIdx: @unchecked, newIdx: @unchecked) match {
+        case (Some(i), Some(j)) => newIndices(i) = j
+        case (Some(i), None) => missingSamples += s
+        case (None, Some(j)) => notInDataset += s
       }
     }
+    
+    if (missingSamples.nonEmpty)
+      fatal(s"Found ${ missingSamples.size } ${ plural(missingSamples.size, "sample ID") } in dataset that are not in new ordering:\n  " +
+        s"@1", missingSamples.truncatable("\n  "))
 
-    val newIndices = sampleIds.indices.map(mapping)
+    if (notInDataset.nonEmpty)
+      fatal(s"Found ${ notInDataset.size } ${ plural(notInDataset.size, "sample ID") } in new ordering that are not in dataset:\n  " +
+        s"@1", notInDataset.truncatable("\n  "))
 
     val newAnnotations = new Array[Annotation](nSamples)
     sampleAnnotations.zipWithIndex.foreach { case (sa, idx) =>

@@ -4496,7 +4496,8 @@ class VariantDataset(HistoryMixin):
         Randomly shuffle order of samples:
 
         >>> import random
-        >>> new_sample_order = random.sample(vds.sample_ids, vds.num_samples)
+        >>> new_sample_order = vds.sample_ids[:]
+        >>> random.shuffle(new_sample_order)
         >>> vds_reordered = vds.reorder_samples(new_sample_order)
 
 
