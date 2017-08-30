@@ -82,7 +82,7 @@ class Eigen:
         The total variance is the sum of all eigenvalues.
         
         For example, if the eigenvalues are [0.0, 1.0, 2.0, 97.0] then the proportions 0.0, 0.01, 0.02, and 0.03 will
-        drop 1, 2, 2, and 3 eigenvectors, respectively.
+        drop the bottom 1, 2, 2, and 3 eigenvectors, respectively.
 
         :param float proportion: Proportion in the interval [0,1)
 
@@ -98,8 +98,8 @@ class Eigen:
         
         **Notes**
         
-        For example, if the eigenvalues are [0.0, 1.0, 2.0, 97.0] then the thresholds 0.0, 0.01, 0.02, and 0.03 will
-        drop 1, 2, 3, and 3 eigenvectors, respectively.
+        For example, if the eigenvalues are [0.0, 1.0, 2.0, 97.0] then the thresholds 0.0, 1.0, 2.0, and 3.0 will
+        drop the bottom 1, 2, 3, and 3 eigenvectors, respectively.
 
         :param float threshold: Non-negative threshold 
 

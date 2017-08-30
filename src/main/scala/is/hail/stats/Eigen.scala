@@ -8,7 +8,7 @@ import is.hail.distributedmatrix.DistributedMatrix.implicits._
 import is.hail.expr.{JSONAnnotationImpex, Parser, TString, Type}
 import is.hail.utils._
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg
+import org.apache.spark.mllib.linalg.{DenseMatrix => SparkDenseMatrix}
 import org.apache.spark.mllib.linalg.distributed.BlockMatrix
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{JArray, JInt, JObject, JString, JValue}
@@ -164,10 +164,10 @@ case class Eigen(rowSignature: Type, rowIds: Array[Annotation], evects: DenseMat
 
     val threshold = proportion * sum(evals)
     var acc = 0.0
-    var i = 0
+    var i = -1
     while (acc <= threshold) {
-      acc += evals(i)
       i += 1
+      acc += evals(i)
     }
     
     info(s"Dropping $i eigenvectors, leaving ${nEvects - i} of the original $nEvects")
@@ -187,7 +187,7 @@ case class Eigen(rowSignature: Type, rowIds: Array[Annotation], evects: DenseMat
     Eigen(rowSignature, rowIds, evects(::, (nEvects - k) until nEvects).copy, newEvals)
   }
   
-  def evectsSpark(): linalg.DenseMatrix = new linalg.DenseMatrix(evects.rows, evects.cols, evects.data, evects.isTranspose)
+  def evectsSpark(): SparkDenseMatrix = evects.asSpark()
   
   def evalsArray(): Array[Double] = evals.toArray
   
