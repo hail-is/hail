@@ -66,6 +66,6 @@ EOF
 TEST_EXIT_CODE=$?
 set -e
 
-gcloud--project broad-ctsa compute scp --zone ${ZONE} --recurse $MASTER:test-output test-output
+gcloud --project broad-ctsa compute scp --zone ${ZONE} --recurse $MASTER:test-output test-output
 
 exit ${TEST_EXIT_CODE}
