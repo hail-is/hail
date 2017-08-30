@@ -1389,9 +1389,8 @@ class KeyTable(HistoryMixin):
 
         **Examples**
 
-        Prune a minimal number of individuals from a dataset to remove all
-        relationships that are close with respect to a PC-Relate measure of
-        kinship.
+        Prune individuals from a dataset until no close relationships remain
+        with respect to a PC-Relate measure of kinship.
 
         >>> related_pairs = hc.import_vcf("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
         >>> related_samples = related_pairs.query('i.flatMap(i => [i,j]).collectAsSet()')
@@ -1401,17 +1400,17 @@ class KeyTable(HistoryMixin):
 
         **Notes**
 
-        Each row of the key table corresponds to an undirected edge between the
-        vertices given by evaluating ``i`` and ``j`` on that row. An undirected
-        edge may appear multiple times in the key table and will not affect the
-        output. The vertex set of the graph is implicitly all the possible
-        values realized by ``i`` and ``j`` on the rows of this key
-        table. Vertices with self-edges are necessarily removed as they cannot
-        be a member of an independent set.
+        The vertex set of the graph is implicitly all the values realized by
+        ``i`` and ``j`` on the rows of this key table. Each row of the key table
+        corresponds to an undirected edge between the vertices given by
+        evaluating ``i`` and ``j`` on that row. An undirected edge may appear
+        multiple times in the key table and will not affect the output. Vertices
+        with self-edges are removed as they cannot be a members of an
+        independent set.
 
         The expressions for ``i`` and ``j`` must have the same type.
 
-        This method implements a greedy algorithm which iteratively removes the
+        This method implements a greedy algorithm which iteratively removes a
         vertex of highest degree until the graph contains no edges.
 
         :param str i: expression to compute one endpoint
