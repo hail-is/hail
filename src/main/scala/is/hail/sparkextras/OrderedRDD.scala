@@ -537,6 +537,15 @@ class OrderedRDD[PK, K, V] private(rdd: RDD[(K, V)], val orderedPartitioner: Ord
 
     OrderedRDD(rdd.subsetPartitions(keep), newPartitioner)
   }
+    
+  def orderedPartitionerInt(): OrderedPartitioner[Int, Int] = {
+    val partitionSizes = rdd.mapPartitions( it => Iterator(it.length), preservesPartitioning = true).collect()
+    val numPartitions = partitionSizes.length
+    val rangeBoundsAndEnds = partitionSizes.scanLeft(-1)(_ + _)
+    val rangeBounds = rangeBoundsAndEnds.slice(1, numPartitions)
+ 
+    new OrderedPartitioner[Int, Int](rangeBounds, numPartitions)(OrderedKeyIntImplicits.orderedKey)
+  }
 }
 
 trait OrderedKey[PK, K] extends Serializable {
@@ -552,6 +561,20 @@ trait OrderedKey[PK, K] extends Serializable {
   implicit def kct: ClassTag[K]
 
   implicit def pkct: ClassTag[PK]
+}
+
+object OrderedKeyIntImplicits {
+  implicit val orderedKey = new OrderedKey[Int, Int] {
+    def project(key: Int): Int = key
+    
+    def kOrd: Ordering[Int] = Ordering.Int
+    
+    def pkOrd: Ordering[Int] = Ordering.Int
+    
+    def kct: ClassTag[Int] = implicitly[ClassTag[Int]]
+    
+    override def pkct: ClassTag[Int] = implicitly[ClassTag[Int]]
+  }
 }
 
 
