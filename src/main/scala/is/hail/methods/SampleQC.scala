@@ -77,7 +77,7 @@ class SampleQCCombiner extends Serializable {
         def mergeAllele(idx: Int) {
           if (idx > 0) {
             val aType = aTypes(idx - 1)
-            if (aType > 0) // if the type is one we are tracking
+            if (aType >= 0) // if the type is one we are tracking
               aCounts(aType) += 1
             if (acs(idx) == 1)
               nSingleton += 1
@@ -111,7 +111,7 @@ class SampleQCCombiner extends Serializable {
     nHomVar += that.nHomVar
 
     var i = 0
-    while (i < SampleQCCombiner.star) {
+    while (i <= SampleQCCombiner.star) {
       aCounts(i) += that.aCounts(i)
       i += 1
     }
