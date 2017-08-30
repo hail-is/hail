@@ -17,16 +17,28 @@ class ArrayBuilderSuite extends SparkSuite {
     ab ++= Array.fill[Int](5)(2)
     val a = ab.result()
     assert(a.length == 5)
-    assert(a.indices.forall(a(_) == 2))
+    assert(a.forall(_ == 2))
 
     val ab2 = new ArrayBuilder[Int](0)
     ab2 ++= (Array.fill[Int](4)(3), 2)
     val a2 = ab2.result()
     assert(a2.length == 2)
-    assert(a2.indices.forall(a2(_) == 3))
+    assert(a2.forall(_ == 3))
 
     ab2(0) = 5
     val ab2Update = ab2.result()
-    ab2Update.zipWithIndex.forall { case (v, i) => if (i != 0) v == 3 else v == 5 }
+    assert(ab2Update sameElements Array(5, 3))
+
+    val ab3 = new ArrayBuilder[Int]
+    ab3 += 1
+    ab3 += 5
+    ab3 ++= Array.fill[Int](2)(3)
+    ab3 += 4
+    ab3 += 6
+
+    assert(ab3.result() sameElements Array(1, 5, 3, 3, 4, 6))
+
+    ab3(2) = 20
+    assert(ab3.result() sameElements Array(1, 5, 20, 3, 4, 6))
   }
 }
