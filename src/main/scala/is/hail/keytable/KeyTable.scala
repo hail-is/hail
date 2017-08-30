@@ -408,7 +408,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
            |  Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
 
     val preNames = fieldNames ++ other.valueSignature.fields.map(_.name)
-    val (joinNames, remapped) = mangle(preNames)
+    val (finalColumnNames, remapped) = mangle(preNames)
     if (remapped.nonEmpty) {
       warn(s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } from right-hand table:\n  @1",
         remapped.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
@@ -417,7 +417,7 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     val newSignature = TStruct((keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields)
       .zipWithIndex
-      .map { case (fd, i) => (joinNames(i), fd.typ) }: _*)
+      .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
     val localNKeys = nKeys
     val size1 = valueSignature.size
     val size2 = other.valueSignature.size

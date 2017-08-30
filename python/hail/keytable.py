@@ -365,8 +365,6 @@ class KeyTable(HistoryMixin):
          - **left** -- Key present in ``kt1``. For keys only in ``kt1``, the value of non-key columns from ``kt2`` is set to missing.
          - **right** -- Key present in ``kt2``. For keys only in ``kt2``, the value of non-key columns from ``kt1`` is set to missing.
 
-        The non-key fields in ``kt2`` must have non-overlapping column names with ``kt1``.
-
         Both key tables must have the same number of keys and the corresponding types of each key must be the same (order matters), but the key names can be different.
         For example, if ``kt1`` has the key schema ``Struct{("a", Int), ("b", String)}``, ``kt1`` can be merged with a key table that has a key schema equal to
         ``Struct{("b", Int), ("c", String)}`` but cannot be merged to a key table with key schema ``Struct{("b", "String"), ("a", Int)}``. ``kt_joined`` will have the same key names and schema as ``kt1``.
