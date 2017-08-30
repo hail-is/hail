@@ -25,8 +25,8 @@ object Graph {
   def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T]): Array[T] = {
     val verticesByDegree = new BinaryHeap[T]()
 
-    g.foreach { x: (T, mutable.Set[T]) =>
-      verticesByDegree.insert(x._1, x._2.size)
+    g.foreach { case (v, neighbors) =>
+      verticesByDegree.insert(v, neighbors.size)
     }
 
     while (verticesByDegree.maxPriority() > 0) {
