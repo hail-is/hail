@@ -25,7 +25,7 @@ function cleanup {
 trap cleanup EXIT SIGINT
 
 gcloud --project broad-ctsa dataproc clusters create $CLUSTER \
-    --zone us-central1-f \
+    --zone us-central1-b \
     --master-machine-type n1-standard-2 \
     --master-boot-disk-size 100 \
     --num-workers 2 \
