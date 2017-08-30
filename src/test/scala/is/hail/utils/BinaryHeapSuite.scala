@@ -279,8 +279,8 @@ class BinaryHeapSuite {
     import Gen._
 
     val ops = for {
-      maxOrExtract <- buildableOfN(1024, oneOfGen(const(Max()), const(ExtractMax())))
-      ranks <- distinctBuildableOfN(1024, arbitrary[Long])
+      maxOrExtract <- buildableOfN(64, oneOfGen(const(Max()), const(ExtractMax())))
+      ranks <- distinctBuildableOfN(64, arbitrary[Long])
       inserts = ranks.map(r => Insert(r, r))
       ret <- Gen.shuffle(inserts ++ maxOrExtract)
     } yield ret
