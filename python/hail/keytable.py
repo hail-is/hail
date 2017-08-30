@@ -1383,28 +1383,40 @@ class KeyTable(HistoryMixin):
     @record_method
     @typecheck_method(i=strlike,j=strlike)
     def maximal_independent_set(self, i, j):
-        """Compute a maximal independent set of an undirected graph whose edges are given by this KeyTable
+        """Compute a `maximal independent set
+        <https://en.wikipedia.org/wiki/Maximal_independent_set>__` of vertices
+        in an undirected graph whose edges are given by this KeyTable
 
         **Examples**
 
-        Remove relationships from a dataset based on the results of a PC-Relate
-        measure of kinship.
+        Prune a minimal number of individuals from a dataset to remove all
+        relationships that are close with respect to a PC-Relate measure of
+        kinship.
 
-        >>> high_kin = hc.import_vcf("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
-        >>> high_kin_samples = high_kin.query('i.flatMap(i => [i,j]).collectAsSet()')
-        >>> independent_set_list = high_kin.maximal_independent_set("i", "j")
-        >>> samples_to_remove = high_kin_samples - set(independent_set_list)
+        >>> related_pairs = hc.import_vcf("data/sample.vcf.bgz").pc_relate(2, 0.001).filter("kin > 0.125")
+        >>> related_samples = high_kin.query('i.flatMap(i => [i,j]).collectAsSet()')
+        >>> related_samples_to_keep = high_kin.maximal_independent_set("i", "j")
+        >>> related_samples_to_remove = high_kin_samples - set(independent_set_list)
         >>> vds.filter_samples_list(list(samples_to_remove))
 
         **Notes**
 
+        Each row of the :class:`.KeyTable` corresponds to an undirected edge
+        between the nodes given by ``i`` and ``j``. An undirected edge may
+        appear multiple times in the :class:`.KeyTable`. It will not affect the
+        output. The node set of the graph is implicitly all the possible values
+        of ``i`` and ``j`` in this :class:`.KeyTable`.
+
         The expressions for ``i`` and ``j`` must have the same type.
 
-        :param str i: an expression to compute one endpoint
-        :param str j: an expression to comptue another endpoint
+        This method implements a greedy algorithm which iteratively removes the
+        node of highest degree until the graph contains no edges.
 
-        :return: a list of keys in a maximal independent set
-        :rtype: list of keys
+        :param str i: an expression to compute one endpoint
+        :param str j: an expression to compute another endpoint
+
+        :return: a list of nodes in a maximal independent set
+        :rtype: list of nodes
 
         """
 
