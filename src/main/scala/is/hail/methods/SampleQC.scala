@@ -7,26 +7,6 @@ import is.hail.variant.{AltAlleleType, GenericDataset, Genotype, HTSGenotypeView
 import org.apache.spark.util.StatCounter
 
 object SampleQCCombiner {
-  val header = "callRate\t" +
-    "nCalled\t" +
-    "nNotCalled\t" +
-    "nHomRef\t" +
-    "nHet\t" +
-    "nHomVar\t" +
-    "nSNP\t" +
-    "nInsertion\t" +
-    "nDeletion\t" +
-    "nSingleton\t" +
-    "nTransition\t" +
-    "nTransversion\t" +
-    "nStar\t" +
-    "dpMean\tdpStDev\t" +
-    "gqMean\tgqStDev\t" +
-    "nNonRef\t" +
-    "rTiTv\t" +
-    "rHetHomVar\t" +
-    "rInsertionDeletion"
-
   val signature = TStruct("callRate" -> TFloat64,
     "nCalled" -> TInt32,
     "nNotCalled" -> TInt32,
@@ -61,6 +41,7 @@ object SampleQCCombiner {
         case AltAlleleType.SNP => if (a.isTransition) ti else tv
         case AltAlleleType.Insertion => ins
         case AltAlleleType.Deletion => del
+        case AltAlleleType.Star => star
         case _ => -1
       }
     }.toArray
@@ -96,7 +77,8 @@ class SampleQCCombiner extends Serializable {
         def mergeAllele(idx: Int) {
           if (idx > 0) {
             val aType = aTypes(idx - 1)
-            aCounts(aType) += 1
+            if (aType > 0) // if the type is one we are tracking
+              aCounts(aType) += 1
             if (acs(idx) == 1)
               nSingleton += 1
           }
@@ -128,11 +110,11 @@ class SampleQCCombiner extends Serializable {
     nHet += that.nHet
     nHomVar += that.nHomVar
 
-    aCounts(0) += that.aCounts(0)
-    aCounts(1) += that.aCounts(1)
-    aCounts(2) += that.aCounts(2)
-    aCounts(3) += that.aCounts(3)
-    aCounts(4) += that.aCounts(4)
+    var i = 0
+    while (i < SampleQCCombiner.star) {
+      aCounts(i) += that.aCounts(i)
+      i += 1
+    }
 
     nSingleton += that.nSingleton
 
