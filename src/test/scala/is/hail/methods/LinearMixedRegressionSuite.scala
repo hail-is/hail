@@ -211,7 +211,7 @@ class LinearMixedRegressionSuite extends SparkSuite {
     }
 
     val rrm = (W * W.t) / mW.toDouble // RRM
-    val delta = scala.util.Random.nextGaussian()
+    val delta = math.exp(10 * scala.util.Random.nextDouble() - 5)
 
     // Now testing global model
     // First solve directly with Cholesky
