@@ -4,10 +4,6 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object Graph {
-  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): Array[T] = {
-    maximalIndependentSet(mkGraph(edges))
-  }
-
   def mkGraph[T](edges: (T, T)*): mutable.MultiMap[T, T] =
     mkGraph(edges.toArray)
 
@@ -22,23 +18,27 @@ object Graph {
     m
   }
 
+  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): Array[T] = {
+    maximalIndependentSet(mkGraph(edges))
+  }
+
   def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T]): Array[T] = {
-    val biggestFirst = new BinaryHeap[T]()
+    val verticesByDegree = new BinaryHeap[T]()
 
     g.foreach { x: (T, mutable.Set[T]) =>
-      biggestFirst.insert(x._1, x._2.size)
+      verticesByDegree.insert(x._1, x._2.size)
     }
 
-    while (biggestFirst.maxPriority() > 0) {
-      val current = biggestFirst.extractMax()
+    while (verticesByDegree.maxPriority() > 0) {
+      val current = verticesByDegree.extractMax()
       val neighbors = g(current)
       neighbors.foreach { x =>
-        if (biggestFirst.contains(x))
-          biggestFirst.decreasePriority(x, _ - 1)
+        if (verticesByDegree.contains(x))
+          verticesByDegree.decreasePriority(x, _ - 1)
       }
     }
 
-    biggestFirst.toArray
+    verticesByDegree.toArray
   }
 
 }
