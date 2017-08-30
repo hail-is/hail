@@ -21,7 +21,7 @@ ZONE=us-central1-b
 PATH=$PATH:/usr/local/google-cloud-sdk/bin
 
 function cleanup {
-  gcloud --zone $ZONE --project broad-ctsa -q dataproc clusters delete --async $CLUSTER
+  gcloud --project broad-ctsa -q dataproc clusters delete --async $CLUSTER
 }
 trap cleanup EXIT SIGINT
 
@@ -42,14 +42,14 @@ gcloud --project broad-ctsa compute scp \
        ./testng.xml \
        $MASTER:~
 
-gcloud --zone $ZONE --project broad-ctsa compute ssh $MASTER -- 'mkdir -p src/test'
+gcloud --project broad-ctsa compute ssh $MASTER -- 'mkdir -p src/test'
 gcloud --project broad-ctsa compute scp --recurse \
        --zone ${ZONE} \
        ./src/test/resources \
        $MASTER:~/src/test
 
 set +e
-cat <<'EOF' | gcloud --zone $ZONE --project broad-ctsa compute ssh $MASTER -- bash
+cat <<'EOF' | gcloud --project broad-ctsa compute ssh $MASTER -- bash
 set -ex
 
 hdfs dfs -mkdir -p src/test
