@@ -436,7 +436,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def linreg(ys: Array[String], covariates: Array[String] = Array.empty[String], root: String = "va.linreg", useDosages: Boolean = false, variantBlockSize: Int = 16): VariantDataset = {
-    requireSplit("linear regression 3")
+    requireSplit("linear regression")
     LinearRegression(vds, ys, covariates, root, useDosages, variantBlockSize)
   }
 
@@ -469,8 +469,8 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def logregBurden(keyName: String, variantKeys: String, singleKey: Boolean, aggExpr: String, test: String, y: String, covariates: Array[String] = Array.empty[String]): (KeyTable, KeyTable) = {
-    requireSplit("linear burden regression")
-    vds.requireSampleTString("linear burden regression")
+    requireSplit("logistic burden regression")
+    vds.requireSampleTString("logistic burden regression")
     LogisticRegressionBurden(vds, keyName, variantKeys, singleKey, aggExpr, test, y, covariates)
   }
 

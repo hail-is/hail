@@ -172,7 +172,7 @@ class VariantDataset(HistoryMixin):
     def annotate_alleles_expr(self, expr, propagate_gq=False):
         """Annotate alleles with expression.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -1104,7 +1104,9 @@ class VariantDataset(HistoryMixin):
     def concordance(self, right):
         """Calculate call concordance with another variant dataset.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Example**
         
@@ -1220,6 +1222,10 @@ class VariantDataset(HistoryMixin):
     def de_novo(self, pedigree, pop_frequency_prior, min_gq=20, min_p=0.05,
                 max_parent_ab=0.05, min_child_ab=0.20, min_depth_ratio=0.10):
         """Call de novo variation from trio data.
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -1433,7 +1439,9 @@ class VariantDataset(HistoryMixin):
     def export_gen(self, output, precision=4):
         """Export variant dataset as GEN and SAMPLE file.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -1523,7 +1531,9 @@ class VariantDataset(HistoryMixin):
     def export_plink(self, output, fam_expr='id = s'):
         """Export variant dataset as `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__ BED, BIM and FAM.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -1723,7 +1733,7 @@ class VariantDataset(HistoryMixin):
     def export_vcf(self, output, append_to_header=None, parallel=False):
         """Export variant dataset as a .vcf or .vcf.bgz file.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -1819,7 +1829,7 @@ class VariantDataset(HistoryMixin):
         evaluated for each alternate allele, but not for
         the reference allele (i.e. ``aIndex`` will never be zero).
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -2005,7 +2015,7 @@ class VariantDataset(HistoryMixin):
     def filter_multi(self):
         """Filter out multi-allelic sites.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         This method is much less computationally expensive than
         :py:meth:`.split_multi`, and can also be used to produce
@@ -2218,7 +2228,7 @@ class VariantDataset(HistoryMixin):
     def filter_intervals(self, intervals, keep=True):
         """Filter variants with an interval or list of intervals.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -2393,7 +2403,9 @@ class VariantDataset(HistoryMixin):
     def grm(self):
         """Compute the Genetic Relatedness Matrix (GRM).
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
         
@@ -2425,7 +2437,7 @@ class VariantDataset(HistoryMixin):
     def hardcalls(self):
         """Drop all genotype fields except the GT field.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         A hard-called variant dataset is about two orders of magnitude
         smaller than a standard sequencing dataset. Use this
@@ -2448,7 +2460,9 @@ class VariantDataset(HistoryMixin):
     def ibd(self, maf=None, bounded=True, min=None, max=None):
         """Compute matrix of identity-by-descent estimations.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2523,7 +2537,9 @@ class VariantDataset(HistoryMixin):
         """
         Prune samples from the :py:class:`.VariantDataset` based on :py:meth:`~hail.VariantDataset.ibd` PI_HAT measures of relatedness.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
         
@@ -2582,7 +2598,9 @@ class VariantDataset(HistoryMixin):
         """Impute sex of samples by calculating inbreeding coefficient on the
         X chromosome.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2669,9 +2687,9 @@ class VariantDataset(HistoryMixin):
     def ld_prune(self, num_cores, r2=0.2, window=1000000, memory_per_core=256):
         """Prune variants in linkage disequilibrium (LD).
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
-        Requires :py:class:`~hail.VariantDataset.was_split` equals True.
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2739,6 +2757,10 @@ class VariantDataset(HistoryMixin):
     def ld_matrix(self, force_local=False):
         """Computes the linkage disequilibrium (correlation) matrix for the variants in this VDS.
 
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
         **Examples**
 
         >>> ld_mat = vds.ld_matrix()
@@ -2784,7 +2806,9 @@ class VariantDataset(HistoryMixin):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         linear regression model.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -2976,6 +3000,10 @@ class VariantDataset(HistoryMixin):
     def linreg(self, ys, covariates=[], root='va.linreg', use_dosages=False, variant_block_size=16):
         r"""Test each variant for association with multiple phenotypes using linear regression.
 
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
         .. warning::
 
             :py:meth:`.linreg` uses the same set of samples for each phenotype,
@@ -3034,7 +3062,9 @@ class VariantDataset(HistoryMixin):
                n_eigs=None, dropped_variance_fraction=None):
         """Use a kinship-based linear mixed model to estimate the genetic component of phenotypic variance (narrow-sense heritability) and optionally test each variant for association.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3279,7 +3309,9 @@ class VariantDataset(HistoryMixin):
     def logreg(self, test, y, covariates=[], root='va.logreg', use_dosages=False):
         """Test each variant for association using logistic regression.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3420,7 +3452,9 @@ class VariantDataset(HistoryMixin):
         r"""Test each keyed group of variants for association by aggregating (collapsing) genotypes and applying the
         logistic regression model.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3532,7 +3566,9 @@ class VariantDataset(HistoryMixin):
         """Find Mendel errors; count per variant, individual and nuclear
         family.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3688,7 +3724,7 @@ class VariantDataset(HistoryMixin):
         """
         Gives minimal, left-aligned representation of alleles. Note that this can change the variant position.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+        .. include:: _templates/req_tvariant.rst
 
         **Examples**
 
@@ -3719,7 +3755,9 @@ class VariantDataset(HistoryMixin):
     def pca(self, scores, loadings=None, eigenvalues=None, k=10, as_array=False):
         """Run Principal Component Analysis (PCA) on the matrix of genotypes.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -3817,7 +3855,11 @@ class VariantDataset(HistoryMixin):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
-        .. include:: experimental.rst
+        .. include:: _templates/experimental.rst
+
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -4571,6 +4613,10 @@ class VariantDataset(HistoryMixin):
     def rrm(self, force_block=False, force_gramian=False):
         """Computes the Realized Relationship Matrix (RRM).
 
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
         **Examples**
 
         >>> kinship_matrix = vds.rrm()
@@ -4640,7 +4686,7 @@ class VariantDataset(HistoryMixin):
     def sample_qc(self, root='sa.qc', keep_star=False):
         """Compute per-sample QC metrics.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Annotations**
 
@@ -4720,8 +4766,7 @@ class VariantDataset(HistoryMixin):
     def summarize(self):
         """Returns a summary of useful information about the dataset.
         
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
-
+        .. include:: _templates/req_tvariant_tgenotype.rst
         
         **Examples**
         
@@ -4895,6 +4940,10 @@ class VariantDataset(HistoryMixin):
     def skat(self, variant_keys, single_key, y, weight_expr=None, covariates=[], use_dosages=False):
         """Test each keyed group of variants for association by linear SKAT test.
 
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
+
         **Examples**
 
         Run a gene test using the linear Sequence Kernel Association Test. Here ``va.genes``
@@ -4996,7 +5045,7 @@ class VariantDataset(HistoryMixin):
     def split_multi(self, propagate_gq=False, keep_star_alleles=False, max_shift=100):
         """Split multiallelic variants.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
 
         **Examples**
 
@@ -5131,7 +5180,9 @@ class VariantDataset(HistoryMixin):
         """Find transmitted and untransmitted variants; count per variant and
         nuclear family.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -5241,7 +5292,9 @@ class VariantDataset(HistoryMixin):
     def variant_qc(self, root='va.qc'):
         """Compute common variant statistics (quality control metrics).
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant` and the genotype schema is :py:class:`~hail.expr.TGenotype`.
+        .. include:: _templates/req_tvariant_tgenotype.rst
+
+        .. include:: _templates/req_biallelic.rst
 
         **Examples**
 
@@ -5317,7 +5370,7 @@ class VariantDataset(HistoryMixin):
     def vep(self, config, block_size=1000, root='va.vep', csq=False):
         """Annotate variants with VEP.
 
-        Requires the row key (variant) schema is :py:class:`~hail.expr.TVariant`.
+        .. include:: _templates/req_tvariant.rst
 
         :py:meth:`~hail.VariantDataset.vep` runs `Variant Effect Predictor <http://www.ensembl.org/info/docs/tools/vep/index.html>`__ with
         the `LOFTEE plugin <https://github.com/konradjk/loftee>`__
