@@ -18,6 +18,15 @@ object Graph {
     m
   }
 
+  def mkGraph[T](edges: TraversableOnce[(T, T)]): mutable.MultiMap[T, T] = {
+    val m = new mutable.HashMap[T, mutable.Set[T]]() with mutable.MultiMap[T, T]
+    edges.foreach { case (i, j) =>
+      m.addBinding(i, j)
+      m.addBinding(j, i)
+    }
+    m
+  }
+
   def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): Array[T] = {
     maximalIndependentSet(mkGraph(edges))
   }
@@ -29,7 +38,7 @@ object Graph {
       verticesByDegree.insert(v, neighbors.size)
     }
 
-    while (verticesByDegree.maxPriority() > 0) {
+    while (verticesByDegree.nonEmpty && verticesByDegree.maxPriority() > 0) {
       val current = verticesByDegree.extractMax()
       val neighbors = g(current)
       neighbors.foreach { x =>

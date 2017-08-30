@@ -12,6 +12,7 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
   def size: Int = next
 
   def isEmpty: Boolean = next == 0
+  def nonEmpty: Boolean = next != 0
 
   override def toString(): String =
     s"values: ${ ts.slice(0, next): IndexedSeq[T] }; ranks: ${ ranks.slice(0, next): IndexedSeq[Long] }"

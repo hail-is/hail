@@ -34,7 +34,6 @@ class GraphSuite {
     {
       val g = mkGraph(0 -> 1, 0 -> 2, 3 -> 1, 3 -> 2, 3 -> 4)
       val actual = maximalIndependentSet(g)
-      println(actual: IndexedSeq[Int])
       assert(isIndependentSet(actual, g))
     }
   }
@@ -44,7 +43,7 @@ class GraphSuite {
     val actual = maximalIndependentSet(g)
 
     assert(isIndependentSet(actual, g))
-    assert(actual.length > 1)
+    assert(actual.length == 3)
   }
 
   @Test def twoPopularNodes() {
@@ -53,5 +52,44 @@ class GraphSuite {
 
     assert(isIndependentSet(actual, g))
     assert(actual.length == 5)
+  }
+
+  @Test def totallyDisconnected() {
+    val expected = 0 until 10
+
+    val m = new mutable.HashMap[Int, mutable.Set[Int]]() with mutable.MultiMap[Int, Int]
+    for (i <- expected) {
+      m.put(i, mutable.Set())
+    }
+
+    val actual = maximalIndependentSet(m)
+
+    actual should contain theSameElementsAs expected
+  }
+
+  @Test def disconnected() {
+    val g = mkGraph(for (i <- 0 until 10) yield (i, i+10))
+
+    val actual = maximalIndependentSet(g)
+
+    assert(isIndependentSet(actual, g))
+    assert(actual.length == 10)
+  }
+
+  @Test def selfEdge() {
+    val g = mkGraph(0 -> 0, 1 -> 2, 1 -> 3)
+
+    val actual = maximalIndependentSet(g)
+
+    assert(isIndependentSet(actual, g))
+    actual should contain theSameElementsAs Array(2,3)
+  }
+
+  @Test def emptyGraph() {
+    val g = mkGraph[Int]()
+
+    val actual = maximalIndependentSet(g)
+
+    assert(actual === Array[Int]())
   }
 }
