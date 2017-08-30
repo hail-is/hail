@@ -1,8 +1,9 @@
 package is.hail.utils
 
-import breeze.linalg.Matrix
-import is.hail.SparkSuite
-import org.apache.spark.mllib.linalg.Vectors
+import is.hail.{SparkSuite}
+import breeze.linalg.{DenseMatrix, Matrix}
+import is.hail.distributedmatrix.BlockMatrixIsDistributedMatrix._
+import org.apache.spark.mllib.linalg.{Vectors}
 import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
@@ -47,5 +48,11 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
     intercept[IllegalArgumentException] {
       idxRowMat.toBlockMatrix(2, 0)
     }
+  }
+  
+  @Test def testToLocalMatrix() {
+    val m = new DenseMatrix[Double](8, 10, (0.0 until 80.0 by 1.0).toArray)
+    val irm = from(sc, m.asSpark(), 3, 3).toIndexedRowMatrix()
+    assert(m == irm.toLocalMatrix())
   }
 }

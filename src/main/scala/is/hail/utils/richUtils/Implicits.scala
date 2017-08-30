@@ -6,6 +6,7 @@ import is.hail.variant.Variant
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.{Matrix => SparkMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.storage.StorageLevel
@@ -28,6 +29,8 @@ trait Implicits {
 
   implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble = new RichDenseMatrixDouble(m)
 
+  implicit def toRichSparkMatrix(m: SparkMatrix): RichSparkMatrix = new RichSparkMatrix(m)
+  
   implicit def toRichDouble(d: Double): RichDouble = new RichDouble(d)
 
   implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] = new RichEnumeration(e)

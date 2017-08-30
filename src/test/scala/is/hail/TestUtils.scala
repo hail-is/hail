@@ -24,6 +24,13 @@ object TestUtils {
     assert(A.size == B.size)
     assert((0 until A.size).forall(i => D_==(A(i), B(i), tolerance)))
   }
+  
+  def assertVectorEqualityUpToSignDouble(A: Vector[Double], B: Vector[Double], tolerance: Double = utils.defaultTolerance) {
+    assert(A.size == B.size)
+    assert(
+      (0 until A.size).forall(i => A(i) - B(i) < tolerance) || 
+        (0 until A.size).forall(i => A(i) + B(i) < tolerance))
+  }
 
   def assertMatrixEqualityDouble(A: Matrix[Double], B: Matrix[Double], tolerance: Double = utils.defaultTolerance) {
     assert(A.rows == B.rows)

@@ -21,7 +21,8 @@ on the Python programming interface.
     hail.KeyTable
     hail.KinshipMatrix
     hail.LDMatrix
-
+    hail.Eigen
+    hail.EigenDistributed
 
 .. rubric:: Modules
 

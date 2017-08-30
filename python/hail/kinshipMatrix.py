@@ -4,6 +4,7 @@ from hail.typecheck import *
 
 from hail.java import *
 from hail.expr import Type, TString
+from hail.eigen import Eigen
 
 class KinshipMatrix:
     """
@@ -33,7 +34,6 @@ class KinshipMatrix:
         Gets the list of samples. The (i, j) entry of the matrix encodes the relatedness of the ith and jth samples.
 
         :return: List of samples.
-        :rtype: list of str
         """
         return [self.key_schema._convert_to_py(s) for s in self._jkm.sampleIds()]
 
@@ -96,3 +96,19 @@ class KinshipMatrix:
         :param str output: File path for output.
         """
         self._jkm.exportIdFile(output)
+        
+    def eigen(self):
+        """
+        Compute an eigendecomposition of the kinship matrix. The number of eigenvectors returned is the minimum of
+        the number of variants used to form the kinship matrix and the number of samples.
+        
+        .. caution::
+        
+            This method collects the kinship matrix to a local matrix on the driver in order to compute the full
+            eigendecomposition using LAPACK. Only call this method when the kinship matrix is small enough to fit in
+            local memory; the absolute limit on the number of samples is 32k.
+        
+        :return: Eigendecomposition of the kinship matrix.
+        :rtype: :py:class:`.Eigen`
+        """
+        return Eigen(self._jkm.eigen())

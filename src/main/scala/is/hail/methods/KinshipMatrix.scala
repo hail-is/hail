@@ -2,10 +2,11 @@ package is.hail.methods
 
 import java.io.DataOutputStream
 
-import breeze.linalg.SparseVector
+import breeze.linalg.{DenseMatrix, SparseVector}
 import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.expr.{TString, Type}
+import is.hail.stats.Eigen
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -13,16 +14,21 @@ import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import scala.collection.Searching._
 
 /**
-  * Represents a KinshipMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples in sampleIds.
+  *
+  * @param hc HailContext
+  * @param sampleSignature Type of each sample ID
+  * @param matrix Spark IndexedRowMatrix. Entry (i, j) encodes the relatedness of the ith and jth samples.
+  * @param sampleIds Array of samples indexing the rows and columns of the matrix.
+  * @param nVariants Number of variants used to compute this matrix.
   */
-case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], numVariantsUsed: Long) {
+case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: IndexedRowMatrix, sampleIds: Array[Annotation], nVariants: Long) {
   assert(matrix.numCols().toInt == matrix.numRows().toInt && matrix.numCols().toInt == sampleIds.length)
 
   def requireSampleTString(method: String) {
     if (sampleSignature != TString)
       fatal(s"in $method: key (sample) schema must be String, but found: $sampleSignature")
   }
-
+  
   /**
     * Filters list of samples based on predicate, and removes corresponding rows and columns from the matrix.
     * @param pred The predicate that decides whether a sample is kept.
@@ -44,7 +50,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
       IndexedRow(index, Vectors.dense(filteredArray))
     })
 
-    KinshipMatrix(hc, sampleSignature, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds, numVariantsUsed)
+    KinshipMatrix(hc, sampleSignature, new IndexedRowMatrix(filteredRowsAndCols), filteredSamplesIds, nVariants)
   }
 
   /**
@@ -79,7 +85,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
   }
 
   def exportGctaGrm(output: String) {
-    val nVars = numVariantsUsed //required to avoid serialization error.
+    val nVars = nVariants //required to avoid serialization error.
     prepareMatrixForExport(matrix).rows
     .mapPartitions{ (itr: Iterator[IndexedRow]) =>
       val sb = new StringBuilder
@@ -121,7 +127,7 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
     nFile.foreach { f =>
       hc.sc.hadoopConfiguration.writeDataFile(f) { s =>
         for (_ <- 0 until sampleIds.length * (sampleIds.length + 1) / 2)
-          writeFloatLittleEndian(s, numVariantsUsed.toFloat)
+          writeFloatLittleEndian(s, nVariants.toFloat)
       }
     }
   }
@@ -164,4 +170,6 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
         case (idx, (None, _)) => IndexedRow(idx, zeroVector)
       }.sortBy(_.index))
   }
+  
+  def eigen(): Eigen = Eigen(sampleSignature, sampleIds, matrix.toLocalMatrix(), Some(nVariants.toInt))
 }
