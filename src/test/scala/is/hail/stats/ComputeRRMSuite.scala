@@ -39,7 +39,7 @@ class ComputeRRMSuite extends SparkSuite {
     val KwithBlock = ComputeRRM(vds, forceBlock = true)._1
 
     def convertToBreeze(sparkMatrix: IndexedRowMatrix): Matrix[Double] =
-      sparkMatrix.toLocalMatrix().asBreeze()
+      sparkMatrix.toLocalMatrix()
 
     TestUtils.assertMatrixEqualityDouble(Klocal, convertToBreeze(KwithoutBlock))
     TestUtils.assertMatrixEqualityDouble(convertToBreeze(KwithBlock), convertToBreeze(KwithoutBlock))

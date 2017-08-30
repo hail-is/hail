@@ -1,9 +1,9 @@
 package is.hail.utils
 
-import is.hail.{SparkSuite, TestUtils}
-import breeze.linalg.{*, DenseMatrix, Matrix, all}
+import is.hail.{SparkSuite}
+import breeze.linalg.{DenseMatrix, Matrix}
 import is.hail.distributedmatrix.BlockMatrixIsDistributedMatrix._
-import org.apache.spark.mllib.linalg.{Vectors, DenseMatrix => SparkDenseMatrix}
+import org.apache.spark.mllib.linalg.{Vectors}
 import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
@@ -51,9 +51,8 @@ class RichIndexedRowMatrixSuite extends SparkSuite {
   }
   
   @Test def testToLocalMatrix() {
-    val mat = new SparkDenseMatrix(10, 10, (0.0 until 100.0 by 1.0).toArray)
-    val breezeMat = mat.asBreeze().asInstanceOf[DenseMatrix[Double]]
-    val localFromIRM = from(sc, mat, 10, 10).toIndexedRowMatrix().toLocalMatrix().asBreeze().toDenseMatrix
-    all(breezeMat :== localFromIRM)
+    val m = new DenseMatrix[Double](8, 10, (0.0 until 80.0 by 1.0).toArray)
+    val irm = from(sc, m.asSpark(), 3, 3).toIndexedRowMatrix()
+    assert(m == irm.toLocalMatrix())
   }
 }

@@ -171,10 +171,5 @@ case class KinshipMatrix(hc: HailContext, sampleSignature: Type, matrix: Indexed
       }.sortBy(_.index))
   }
   
-  def eigen(): Eigen = {
-    require(nVariants < Int.MaxValue)
-    val K = matrix.toLocalMatrix().asBreeze().asInstanceOf[DenseMatrix[Double]]
-    
-    Eigen(sampleSignature, sampleIds, K, Some(nVariants.toInt))
-  }
+  def eigen(): Eigen = Eigen(sampleSignature, sampleIds, matrix.toLocalMatrix(), Some(nVariants.toInt))
 }

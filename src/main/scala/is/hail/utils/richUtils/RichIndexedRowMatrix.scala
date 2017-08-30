@@ -1,9 +1,9 @@
 package is.hail.utils.richUtils
 
+import breeze.linalg.DenseMatrix
 import org.apache.spark.mllib.linalg.{DenseMatrix => SparkDenseMatrix, Matrix => SparkMatrix}
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, BlockMatrix, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-
 import is.hail.utils._
 
 /**
@@ -63,21 +63,30 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, m, n)
   }
   
-  // Not optimized for sparse rows, since it looks at every element.
-  def toLocalMatrix(): SparkDenseMatrix = {
-    val m = indexedRowMatrix.numRows().toInt
-    val n = indexedRowMatrix.numCols().toInt
-    val rows = indexedRowMatrix.rows.collect().par
+  // Optimized for dense rows
+  def toLocalMatrix(): DenseMatrix[Double] = {
+    val nLong = indexedRowMatrix.numRows()
+    val mLong = indexedRowMatrix.numCols()
+    val nElements = nLong * mLong
+    if (nElements == 0)
+      fatal("Indexed row matrix has no elements, cannot create local matrix.")
+    if (nElements > Int.MaxValue)
+      fatal(s"Indexed row matrix has $nElements, greater than MaxInt, cannot create local matrix.")
     
-    val values = new Array[Double](m * n)
-    rows.foreach{case IndexedRow(rowNum, rowElements) =>
+    val n = nLong.toInt
+    val m = mLong.toInt
+    val data = new Array[Double](nElements.toInt)
+    
+    indexedRowMatrix.rows.collect().par
+      .foreach { case IndexedRow(index, vector) =>
+        val offset = index.toInt * m
         var i = 0
-        while (i < rowElements.length) {
-          values(i * m + rowNum.toInt) = rowElements(i)
+        while (i < m) {
+          data(offset + i) = vector(i)
           i += 1
         }
-    }
+      }
 
-    new SparkDenseMatrix(m, n, values)
+    new DenseMatrix[Double](n, m, data, offset = 0, majorStride = m, isTranspose = true)
   }
 }

@@ -99,11 +99,7 @@ case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples
     matrix.toBlockMatrixDense().toLocalMatrix()
   }
   
-  def eigen(): Eigen = {
-    val L = matrix.toLocalMatrix().asBreeze().asInstanceOf[DenseMatrix[Double]]
-    
-    Eigen(TVariant, variants.map(_.asInstanceOf[Annotation]), L, Some(nSamples))
-  }
+  def eigen() = Eigen(TVariant, variants.map(_.asInstanceOf[Annotation]), matrix.toLocalMatrix(), Some(nSamples))
   
   def write(uri: String) {
     val hadoop = matrix.rows.sparkContext.hadoopConfiguration
