@@ -1038,7 +1038,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
   }
 
   // FIXME see if we can remove broadcasts elsewhere in the code
-  def filterSamples(p: (Annotation, Annotation) => Boolean): VariantSampleMatrix[RPK,RK, T] = {
+  def filterSamples(p: (Annotation, Annotation) => Boolean): VariantSampleMatrix[RPK, RK, T] = {
     val mask = sampleIdsAndAnnotations.map { case (s, sa) => p(s, sa) }.toArray
     filterSamplesMask(mask)
   }
@@ -1232,7 +1232,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     * The function {@code f} must be monotonic with respect to the ordering on {@code Locus}
     */
   def flatMapVariants(f: (RK, Annotation, Iterable[T]) => TraversableOnce[(RK, (Annotation, Iterable[T]))]): VariantSampleMatrix[RPK, RK, T] =
-    copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
+  copy(rdd = rdd.flatMapMonotonic[(Annotation, Iterable[T])] { case (v, (va, gs)) => f(v, va, gs) })
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
@@ -1613,6 +1613,61 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
     }
 
     (t, f2)
+  }
+
+  def reorderSamples(newIds: java.util.ArrayList[Annotation]): VariantSampleMatrix[RPK, RK, T] =
+    reorderSamples(newIds.asScala.toArray)
+
+  def reorderSamples(newIds: Array[Annotation]): VariantSampleMatrix[RPK, RK, T] = {
+    requireUniqueSamples("reorder_samples")
+
+    val oldOrder = sampleIds.zipWithIndex.toMap
+    val newOrder = newIds.zipWithIndex.toMap
+
+    val newIndices = new Array[Int](nSamples)
+    val missingSamples = mutable.Set[Annotation]()
+    val notInDataset = mutable.Set[Annotation]()
+
+    oldOrder.outerJoin(newOrder).foreach { case (s, (oldIdx, newIdx)) =>
+      (oldIdx: @unchecked, newIdx: @unchecked) match {
+        case (Some(i), Some(j)) => newIndices(i) = j
+        case (Some(i), None) => missingSamples += s
+        case (None, Some(j)) => notInDataset += s
+      }
+    }
+    
+    if (missingSamples.nonEmpty)
+      fatal(s"Found ${ missingSamples.size } ${ plural(missingSamples.size, "sample ID") } in dataset that are not in new ordering:\n  " +
+        s"@1", missingSamples.truncatable("\n  "))
+
+    if (notInDataset.nonEmpty)
+      fatal(s"Found ${ notInDataset.size } ${ plural(notInDataset.size, "sample ID") } in new ordering that are not in dataset:\n  " +
+        s"@1", notInDataset.truncatable("\n  "))
+
+    val newAnnotations = new Array[Annotation](nSamples)
+    sampleAnnotations.zipWithIndex.foreach { case (sa, idx) =>
+      newAnnotations(newIndices(idx)) = sa
+    }
+
+    val nSamplesLocal = nSamples
+    val localtct = tct
+
+    val reorderedRdd = rdd.mapPartitions({ it =>
+      it.map { case (v, (va, gs)) =>
+        val reorderedGs = localtct.newArray(nSamplesLocal)
+        val gsIt = gs.iterator
+
+        var i = 0
+        while (gsIt.hasNext) {
+          reorderedGs(newIndices(i)) = gsIt.next
+          i += 1
+        }
+
+        (v, (va, reorderedGs.toIterable))
+      }
+    }, preservesPartitioning = true).asOrderedRDD
+
+    copy(rdd = reorderedRdd, sampleIds = newIds, sampleAnnotations = newAnnotations)
   }
 
   def renameSamples(newIds: java.util.ArrayList[Annotation]): VariantSampleMatrix[RPK, RK, T] =

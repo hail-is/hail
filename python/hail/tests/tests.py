@@ -13,6 +13,7 @@ from hail.java import *
 from hail.keytable import asc, desc
 from hail.utils import *
 import time
+import random
 from hail.keytable import desc
 import os
 import shutil
@@ -272,6 +273,10 @@ class ContextTests(unittest.TestCase):
 
             dataset.unpersist()
             dataset2.unpersist()
+
+            new_sample_order = dataset.sample_ids[:]
+            random.shuffle(new_sample_order)
+            self.assertEqual(vds.reorder_samples(new_sample_order).sample_ids, new_sample_order)
 
         sample = hc.import_vcf(test_resources + '/sample.vcf')
         sample.cache()
