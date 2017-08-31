@@ -740,4 +740,25 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
 
     copy(signature = newSignature.asInstanceOf[TStruct], rdd = newRDD)
   }
+
+  def maximalIndependentSet(iExpr: String, jExpr: String): Array[Any] = {
+    val ec = EvalContext(fields.map(fd => (fd.name, fd.typ)): _*)
+
+    val (iType, iThunk) = Parser.parseExpr(iExpr, ec)
+    val (jType, jThunk) = Parser.parseExpr(jExpr, ec)
+
+    if (iType != jType)
+      fatal(s"the node expressions must have the same type: type of `i' is $iType, but type of `j' is $jType")
+
+    val edgeRdd = mapAnnotations { r =>
+      ec.setAllFromRow(r)
+      (iThunk(), jThunk())
+    }
+
+    if (edgeRdd.count() > 400000)
+      warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
+
+    Graph.maximalIndependentSet(edgeRdd.collect())
+  }
+
 }

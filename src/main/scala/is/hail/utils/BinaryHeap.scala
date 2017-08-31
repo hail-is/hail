@@ -12,6 +12,7 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
   def size: Int = next
 
   def isEmpty: Boolean = next == 0
+  def nonEmpty: Boolean = next != 0
 
   override def toString(): String =
     s"values: ${ ts.slice(0, next): IndexedSeq[T] }; ranks: ${ ranks.slice(0, next): IndexedSeq[Long] }"
@@ -65,11 +66,27 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32) {
     bubbleDown(i)
   }
 
+  def decreasePriority(t: T, f: (Long) => Long) {
+    val i = m(t)
+    val r = f(ranks(i))
+    assert(ranks(i) > r)
+    ranks(i) = r
+    bubbleDown(i)
+  }
+
   def increasePriorityTo(t: T, r: Long) {
     val i = m(t)
     assert(ranks(i) < r)
     ranks(i) = r
     bubbleUp(i)
+  }
+
+  def increasePriority(t: T, f: (Long) => Long) {
+    val i = m(t)
+    val r = f(ranks(i))
+    assert(ranks(i) < r)
+    ranks(i) = r
+    bubbleDown(i)
   }
 
   def contains(t: T): Boolean =
