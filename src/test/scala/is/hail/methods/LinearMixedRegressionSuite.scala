@@ -217,6 +217,8 @@ class LinearMixedRegressionSuite extends SparkSuite {
     // First solve directly with Cholesky
     val V = rrm + DenseMatrix.eye[Double](n) * delta
 
+    V.forceSymmetry()
+
     val invChol = inv(cholesky(V))
     val yc = invChol * y
     val Cc = invChol * C
