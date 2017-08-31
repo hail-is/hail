@@ -18,6 +18,8 @@ class eigSymDSuite extends SparkSuite {
     val W = DenseMatrix.fill[Double](n, m)(rand.nextGaussian())
     val K = W * W.t
 
+    K.forceSymmetry()
+
     val svdW = svd(W)
     val svdK = svd(K)
     val eigSymK = eigSym(K)
