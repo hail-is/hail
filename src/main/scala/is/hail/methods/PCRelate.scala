@@ -25,45 +25,7 @@ object PCRelate {
     def map[N](f: M => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
   }
 
-  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): RDD[((Annotation, Annotation), (Double, Double, Double, Double))] = {
-    val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
-    def upperTriangularEntires(bm: BlockMatrix): RDD[((Annotation, Annotation), Double)] = {
-      val rowsPerBlock = bm.rowsPerBlock
-      val colsPerBlock = bm.colsPerBlock
-
-      bm.blocks.filter { case ((blocki, blockj), m) =>
-        blocki < blockj || {
-          val i = blocki * rowsPerBlock
-          val j = blockj * colsPerBlock
-          val i2 = i + rowsPerBlock
-          val j2 = i + colsPerBlock
-          i <= j && j < i2 ||
-          i < j2 && j2 < i2 ||
-          j <= i && i < j2 ||
-          j < i2 && i2 < j2
-        }
-      }.flatMap { case ((blocki, blockj), m) =>
-          val ioffset = blocki * rowsPerBlock
-          val joffset = blockj * colsPerBlock
-          for {
-            i <- 0 until m.numRows
-            // FIXME: only works with square blocks
-            jstart = if (blocki < blockj) 0 else i+1
-            j <- jstart until m.numCols
-          } yield ((indexToId(i + ioffset), indexToId(j + joffset)), m(i, j))
-      }
-    }
-
-    val result = apply(vds, pcs, maf, blockSize)
-
-    val a = upperTriangularEntires(result.phiHat)
-    val b = upperTriangularEntires(result.k0)
-    val c = upperTriangularEntires(result.k1)
-    val d = upperTriangularEntires(result.k2)
-
-    (a join b join c join d)
-        .mapValues { case (((kin, k0), k1), k2) => (kin, k0, k1, k2) }
-  }
+  val defaultMinKinship = Double.NegativeInfinity
 
   def apply(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): Result[M] =
     new PCRelate(maf, blockSize)(vds, pcs)
@@ -72,11 +34,53 @@ object PCRelate {
     TStruct(("i", TString), ("j", TString), ("kin", TDouble), ("k0", TDouble), ("k1", TDouble), ("k2", TDouble))
   private val keys = Array("i", "j")
 
-  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int): KeyTable =
-    KeyTable(vds.hc,
-      toPairRdd(vds, pcs, maf, blockSize).map { case ((i, j), (kin, k0, k1, k2)) => Annotation(i, j, kin, k0, k1, k2).asInstanceOf[Row] },
-      signature,
-      keys)
+  private def toRowRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double): RDD[Row] = {
+    val indexToId: Map[Int, Annotation] = vds.sampleIds.zipWithIndex.map { case (id, index) => (index, id) }.toMap
+    val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize)
+
+    (phi.blocks join k0.blocks join k1.blocks join k2.blocks).flatMap { case ((blocki, blockj), (((m1, m2), m3), m4)) =>
+      val i = blocki * phi.rowsPerBlock
+      val j = blockj * phi.colsPerBlock
+      val i2 = i + phi.rowsPerBlock
+      val j2 = i + phi.colsPerBlock
+
+      if (blocki < blockj ||
+        i <= j && j < i2 ||
+        i < j2 && j2 < i2 ||
+        j <= i && i < j2 ||
+        j < i2 && i2 < j2) {
+        val size = m1.numRows * m1.numCols
+        val ab = new ArrayBuilder[Row]()
+        var jj = 1
+        while (jj < m1.numCols) {
+          // fixme: broken for non-square blocks
+          var ii = 0
+          val rowsAboveDiagonal = if (blocki < blockj) m1.numRows else jj
+          while (ii < rowsAboveDiagonal) {
+            val kin = m1(ii, jj)
+            if (kin >= minKinship) {
+              val k0 = m2(ii, jj)
+              val k1 = m3(ii, jj)
+              val k2 = m4(ii, jj)
+              ab += Annotation(indexToId(i + ii), indexToId(j + jj), kin, k0, k1, k2).asInstanceOf[Row]
+            }
+            ii += 1
+          }
+          jj += 1
+        }
+        ab.result()
+      } else
+        new Array[Row](0)
+    }
+  }
+
+  def toKeyTable(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship): KeyTable =
+    KeyTable(vds.hc, toRowRdd(vds, pcs, maf, blockSize, minKinship), signature, keys)
+
+  def toPairRdd(vds: VariantDataset, pcs: DenseMatrix, maf: Double, blockSize: Int, minKinship: Double = defaultMinKinship)
+      : RDD[((Annotation, Annotation), (Double, Double, Double, Double))] =
+     toRowRdd(vds, pcs, maf, blockSize, minKinship)
+       .map(r => ((r(0), r(1)), (r(2).asInstanceOf[Double], r(3).asInstanceOf[Double], r(4).asInstanceOf[Double], r(5).asInstanceOf[Double])))
 
   private val k0cutoff = math.pow(2.0, (-5.0 / 2.0))
 

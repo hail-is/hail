@@ -3844,8 +3844,9 @@ class VariantDataset(object):
     @handle_py4j
     @typecheck_method(k=integral,
                       maf=numeric,
-                      block_size=integral)
-    def pc_relate(self, k, maf, block_size=512):
+                      block_size=integral,
+                      min_kinship=numeric)
+    def pc_relate(self, k, maf, block_size=512, min_kinship=-float("inf")):
         """Compute relatedness estimates between individuals using a variant of the
         PC-Relate method.
 
@@ -3865,7 +3866,13 @@ class VariantDataset(object):
 
         >>> rel = vds.pc_relate(5, 0.01, 1024)
 
-        **Method**
+        Calculate values as above, excluding sample-pairs with kinship lower
+        than 0.1. This is more efficient than producing the full key table and
+        filtering using :py:meth:`~hail.KeyTable.filter`.
+
+        >>> rel = vds.pc_relate(5, 0.01, min_kinship=0.1)
+
+        **Method*
 
         The traditional estimator for kinship between a pair of individuals
         :math:`i` and :math:`j`, sharing the set :math:`S_{ij}` of
@@ -4035,7 +4042,7 @@ class VariantDataset(object):
 
         """
 
-        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size))
+        return KeyTable(self.hc, self._jvdf.pcRelate(k, maf, block_size, min_kinship))
 
     @handle_py4j
     @typecheck_method(storage_level=strlike)
