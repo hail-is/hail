@@ -1,12 +1,13 @@
 package is.hail.stats
 
-import breeze.linalg.{DenseMatrix, DenseVector, sum}
+import breeze.linalg.{*, DenseMatrix, DenseVector, sum}
 import is.hail.HailContext
 import is.hail.annotations.Annotation
 import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
 import is.hail.distributedmatrix.DistributedMatrix.implicits._
-import is.hail.expr.{JSONAnnotationImpex, Parser, TString, Type}
+import is.hail.expr.{JSONAnnotationImpex, Parser, TString, TVariant, Type}
 import is.hail.utils._
+import is.hail.variant.{Variant, VariantDataset}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.{DenseMatrix => SparkDenseMatrix}
 import org.apache.spark.mllib.linalg.distributed.BlockMatrix
@@ -194,6 +195,54 @@ case class Eigen(rowSignature: Type, rowIds: Array[Annotation], evects: DenseMat
   def distribute(sc: SparkContext): EigenDistributed = {
     val U = BlockMatrixIsDistributedMatrix.from(sc, evects.asSpark(), 1024, 1024)
     EigenDistributed(rowSignature, rowIds, U, evals)
+  }
+  
+  def toEigenDistributedRRM(vds: VariantDataset, nSamplesInLDMatrix: Option[Int]): EigenDistributed = {
+    val dm = DistributedMatrix[BlockMatrix]
+    import dm.ops._
+
+    // G = (n x m) matrix, consisting of rows of n=nUsedToNormalize x m matrix with columns of mean 0 and variance 1
+    // G = U * sqrt(S) * V.t is SVD
+    // L = 1 / n0 * G.t * G = V * S_L * V.t, S_L = S / n
+    // K = 1 / m * G * G.t = U * S_K * U.t, S_K = S / m
+    // U = G * V * inv(sqrt(S_L * n))
+    // S_K = S_L * n / m
+    // Here G0 is an (n0 x m) matrix consisting of a subset of rows of G and U0 consists of the corresponding subset of rows of U.
+    // If G0 has fewer rows than G, then set nUsedToNormalize to Some(n).
+    def normalizedRightEigenToLeftEigen(G0: BlockMatrix, V: DenseMatrix[Double], S_L: DenseVector[Double], nUsedToNormalize: Option[Int] = None): (BlockMatrix, DenseVector[Double]) = { 
+      val n0 = nUsedToNormalize.getOrElse(G0.numRows().toInt)
+      val m = V.rows
+      val sqrtSInv = S_L.map(e => 1 / math.sqrt(e * n0))
+      
+      val U0 = G0 * (V(* , ::) :* sqrtSInv).asSpark()
+      val S_K = S_L :* n0.toDouble / m
+
+      (U0, S_K)
+    }
+
+    if (rowSignature != TVariant)
+      fatal(s"Rows must have type TVariant, got $rowSignature")
+
+   // if (evals(0) < 1e-6)
+   //   fatal(s"Use drop_threshold() to drop eigenvectors with eigenvalues below 1e-6, found eigenvalue ${evals(0)}")
+
+    val variants = rowIds.map(_.asInstanceOf[Variant])    
+    val variantSet = variants.toSet
+    val nEigs = evals.length
+    
+    info(s"Transforming $nEigs variant eigenvectors to sample eigenvectors...")
+        
+    var filteredVDS = vds.filterVariants((v, _, _) => variantSet(v))
+    filteredVDS = filteredVDS.persist()
+    require(filteredVDS.variants.count() == variantSet.size, "Some variants in LD matrix eigendecomposition are missing from VDS")
+    
+    val G = ToNormalizedIndexedRowMatrix(filteredVDS).toBlockMatrixDense().t
+    
+    val (evects_K, evals_K) = normalizedRightEigenToLeftEigen(G, evects, evals, nSamplesInLDMatrix)
+
+    filteredVDS.unpersist()
+
+    EigenDistributed(vds.sSignature, vds.sampleIds.toArray, evects_K, evals_K)
   }
   
   import Eigen._
