@@ -12,7 +12,6 @@ import scala.collection.mutable
 
 case class SubsetRDDPartition(index: Int, parentPartition: Partition) extends Partition
 
-
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def countByValueRDD()(implicit tct: ClassTag[T]): RDD[(T, Int)] = r.map((_, 1)).reduceByKey(_ + _)
 
@@ -77,14 +76,13 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
   def collectAsSet(): collection.Set[T] = {
     r.aggregate(mutable.Set.empty[T])(
-      { case (s, elem) => s += elem },
-      { case (s1, s2) => s1 ++ s2 }
+      { case (s, elem) => s += elem }, { case (s1, s2) => s1 ++ s2 }
     )
   }
 
   def subsetPartitions(keep: Array[Int])(implicit ct: ClassTag[T]): RDD[T] = {
     require(keep.length <= r.partitions.length, "tried to subset to more partitions than exist")
-    require(keep.isSorted && keep.forall{i => i >= 0 && i < r.partitions.length},
+    require(keep.isSorted && keep.forall { i => i >= 0 && i < r.partitions.length },
       "values not sorted or not in range [0, number of partitions)")
     val parentPartitions = r.partitions
 
@@ -98,5 +96,41 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       def compute(split: Partition, context: TaskContext): Iterator[T] =
         r.compute(split.asInstanceOf[SubsetRDDPartition].parentPartition, context)
     }
+  }
+
+  def headPerPartition(n: Int)(implicit ct: ClassTag[T]): RDD[T] = {
+    require(n >= 0)
+    r.mapPartitions({ it => it.take(n) }, preservesPartitioning = true)
+  }
+
+  def head(n: Long)(implicit ct: ClassTag[T]): RDD[T] = {
+    require(n >= 0)
+
+    val sc = r.sparkContext
+    val parallelism = sc.defaultParallelism
+    val nPartitions = r.partitions.length
+
+    val counts = new Array[Long](nPartitions)
+    var nScanned = 0
+    var nSeen = 0L
+
+    while (nSeen < n && nScanned < nPartitions) {
+      val scanPartitions = nScanned until (nScanned + parallelism): Seq[Int]
+      sc.runJob(r, getIteratorSize _, scanPartitions)
+        .zipWithIndex.foreach { case (c, i) =>
+        counts(nScanned + i) = c
+        nSeen += c
+      }
+      nScanned += parallelism
+    }
+
+    var nRemaining = n
+    val elementsPerPartition = counts.map { c =>
+      val nTake = if (c <= nRemaining) c else nRemaining
+      nRemaining -= nTake
+      nTake.toInt
+    }
+
+    r.mapPartitionsWithIndex({ case (i, it) => it.take(elementsPerPartition(i)) }, preservesPartitioning = true)
   }
 }
