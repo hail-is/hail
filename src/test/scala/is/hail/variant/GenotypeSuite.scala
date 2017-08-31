@@ -10,9 +10,12 @@ import scala.collection.mutable
 
 object GenotypeSuite {
   def readWriteEqual(nAlleles: Int, g: Genotype): Boolean = {
-
-    val isLinearScale = g._isLinearScale
-    val gb = new GenotypeBuilder(nAlleles, isLinearScale)
+    
+    val gb = if (g == null) {
+      new GenotypeBuilder(nAlleles, false)
+    } else {
+      new GenotypeBuilder(nAlleles, g._isLinearScale)
+    }
 
     gb.set(g)
     val g2 = gb.result()
