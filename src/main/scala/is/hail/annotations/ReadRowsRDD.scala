@@ -449,7 +449,14 @@ class ReadRowsRDD(sc: SparkContext,
 
         if (comp == null || comp.length < compLen)
           comp = new Array[Byte](compLen)
-        in.read(comp, 0, compLen)
+
+        // FIXME abstract
+        var readSoFar = 0
+        while (readSoFar < compLen) {
+          val n = in.read(comp, readSoFar, compLen - readSoFar)
+          assert(n > 0)
+          readSoFar += n
+        }
 
         if (decomp == null || decomp.length < decompLen)
           decomp = new Array[Byte](decompLen)
