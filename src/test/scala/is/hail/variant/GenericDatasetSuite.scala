@@ -12,6 +12,7 @@ class GenericDatasetSuite extends SparkSuite {
     val path = tmpDir.createTempFile(extension = "vds")
 
     val p = forAll(VariantSampleMatrix.genGeneric(hc)) { gds =>
+
       val f = tmpDir.createTempFile(extension = "vds")
       gds.write(f)
       hc.readGDS(f).same(gds)

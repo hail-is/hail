@@ -152,16 +152,14 @@ class AnnotationsSuite extends SparkSuite {
 
     // clear everything
     val (emptyS, d1) = vds.deleteVA()
-    vds = vds.mapAnnotations((v, va, gs) => d1(va))
-      .copy(vaSignature = emptyS)
+    vds = vds.mapAnnotations(emptyS, (v, va, gs) => d1(va))
     assert(emptyS == TStruct.empty)
 
     // add to the first layer
     val toAdd = 5
     val toAddSig = TInt32
     val (s1, i1) = vds.vaSignature.insert(toAddSig, "I1")
-    vds = vds.mapAnnotations((v, va, gs) => i1(va, toAdd))
-      .copy(vaSignature = s1)
+    vds = vds.mapAnnotations(s1, (v, va, gs) => i1(va, toAdd))
     assert(vds.vaSignature.schema ==
       StructType(Array(StructField("I1", IntegerType))))
 
@@ -174,8 +172,7 @@ class AnnotationsSuite extends SparkSuite {
     val toAdd2 = "test"
     val toAdd2Sig = TString
     val (s2, i2) = vds.vaSignature.insert(toAdd2Sig, "S1")
-    vds = vds.mapAnnotations((v, va, gs) => i2(va, toAdd2))
-      .copy(vaSignature = s2)
+    vds = vds.mapAnnotations(s2, (v, va, gs) => i2(va, toAdd2))
     assert(vds.vaSignature.schema ==
       StructType(Array(
         StructField("I1", IntegerType),
@@ -191,8 +188,7 @@ class AnnotationsSuite extends SparkSuite {
     val toAdd3Sig = TStruct("I2" -> TInt32,
       "I3" -> TInt32)
     val (s3, i3) = vds.vaSignature.insert(toAdd3Sig, "I1")
-    vds = vds.mapAnnotations((v, va, gs) => i3(va, toAdd3))
-      .copy(vaSignature = s3)
+    vds = vds.mapAnnotations(s3, (v, va, gs) => i3(va, toAdd3))
     assert(vds.vaSignature.schema ==
       StructType(Array(
         StructField("I1", StructType(Array(
@@ -216,8 +212,7 @@ class AnnotationsSuite extends SparkSuite {
     val toAdd4 = "dummy"
     val toAdd4Sig = TString
     val (s4, i4) = vds.insertVA(toAdd4Sig, "a", "b", "c", "d", "e")
-    vds = vds.mapAnnotations((v, va, gs) => i4(va, toAdd4))
-      .copy(vaSignature = s4)
+    vds = vds.mapAnnotations(s4, (v, va, gs) => i4(va, toAdd4))
     assert(vds.vaSignature.schema ==
       StructType(Array(
         StructField("I1", toAdd3Sig.schema),
@@ -237,8 +232,7 @@ class AnnotationsSuite extends SparkSuite {
     val toAdd5 = "dummy2"
     val toAdd5Sig = TString
     val (s5, i5) = vds.insertVA(toAdd5Sig, "a", "b", "c", "f")
-    vds = vds.mapAnnotations((v, va, gs) => i5(va, toAdd5))
-      .copy(vaSignature = s5)
+    vds = vds.mapAnnotations(s5, (v, va, gs) => i5(va, toAdd5))
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
@@ -259,8 +253,7 @@ class AnnotationsSuite extends SparkSuite {
     val toAdd6 = "dummy3"
     val toAdd6Sig = TString
     val (s6, i6) = vds.insertVA(toAdd6Sig, "a", "b", "c", "d")
-    vds = vds.mapAnnotations((v, va, gs) => i6(va, toAdd6))
-      .copy(vaSignature = s6)
+    vds = vds.mapAnnotations(s6, (v, va, gs) => i6(va, toAdd6))
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
@@ -280,8 +273,7 @@ class AnnotationsSuite extends SparkSuite {
     val toAdd7 = "dummy4"
     val toAdd7Sig = TString
     val (s7, i7) = vds.insertVA(toAdd7Sig, "a", "c")
-    vds = vds.mapAnnotations((v, va, gs) => i7(va, toAdd7))
-      .copy(vaSignature = s7)
+    vds = vds.mapAnnotations(s7, (v, va, gs) => i7(va, toAdd7))
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
@@ -300,8 +292,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // delete a.b.c and ensure that b is deleted and a.c gets shifted over
     val (s8, d2) = vds.deleteVA("a", "b", "c")
-    vds = vds.mapAnnotations((v, va, gs) => d2(va))
-      .copy(vaSignature = s8)
+    vds = vds.mapAnnotations(s8, (v, va, gs) => d2(va))
     assert(vds.vaSignature.schema ==
       StructType(Array(
         StructField("I1", toAdd3Sig.schema),
@@ -315,8 +306,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // delete that part of the tree
     val (s9, d3) = vds.deleteVA("a")
-    vds = vds.mapAnnotations((v, va, gs) => d3(va))
-      .copy(vaSignature = s9)
+    vds = vds.mapAnnotations(s9, (v, va, gs) => d3(va))
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
@@ -329,8 +319,7 @@ class AnnotationsSuite extends SparkSuite {
 
     // delete the first thing in the row and make sure things are shifted over correctly
     val (s10, d4) = vds.deleteVA("I1")
-    vds = vds.mapAnnotations((v, va, gs) => d4(va))
-      .copy(vaSignature = s10)
+    vds = vds.mapAnnotations(s10, (v, va, gs) => d4(va))
 
     assert(vds.vaSignature.schema ==
       StructType(Array(
@@ -343,8 +332,7 @@ class AnnotationsSuite extends SparkSuite {
     val toAdd8 = "dummy"
     val toAdd8Sig = TString
     val (s11, i8) = vds.insertVA(toAdd8Sig, List[String]())
-    vds = vds.mapAnnotations((v, va, gs) => i8(va, toAdd8))
-      .copy(vaSignature = s11)
+    vds = vds.mapAnnotations(s11, (v, va, gs) => i8(va, toAdd8))
 
     assert(vds.vaSignature.schema == toAdd8Sig.schema)
     assert(vds.variantsAndAnnotations.collect()
@@ -399,8 +387,7 @@ class AnnotationsSuite extends SparkSuite {
 
     val f = tmpDir.createTempFile("testwrite", extension = ".vds")
     val (newS, ins) = vds.insertVA(TInt32, "ThisName(won'twork)=====")
-    vds = vds.mapAnnotations((v, va, gs) => ins(va, 5))
-      .copy(vaSignature = newS)
+    vds = vds.mapAnnotations(newS, (v, va, gs) => ins(va, 5))
     vds.write(f)
 
     assert(hc.readVDS(f).same(vds))

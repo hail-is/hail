@@ -57,23 +57,19 @@ class VSMSuite extends SparkSuite {
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
       Annotation.empty,
-      TStruct(
+      sSignature = TStruct(
         "inner" -> TStruct(
           "thing1" -> TString),
-        "thing2" -> TString),
-      TStruct.empty,
-      TStruct.empty)
+        "thing2" -> TString))
     val mdata4 = VSMFileMetadata(
       Array("S1", "S2"),
       Annotation.emptyIndexedSeq(2),
       Annotation.empty,
-      TStruct(
+      sSignature = TStruct(
         "inner" -> TStruct(
           "thing1" -> TString),
         "thing2" -> TString,
-        "dummy" -> TString),
-      TStruct.empty,
-      TStruct.empty)
+        "dummy" -> TString))
 
     assert(mdata1 != mdata2)
     assert(mdata1 != mdata3)

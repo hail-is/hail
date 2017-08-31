@@ -11,6 +11,7 @@ class HWESuite extends SparkSuite {
 
   @Test def test() {
     val a = hc.importVCF("src/test/resources/HWE_test.vcf")
+      .filterMulti()
       .variantQC()
       .variantsKT()
       .query(Array("v.map(v => v.start).collect()",

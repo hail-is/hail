@@ -82,7 +82,7 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     val aggregateOption = Aggregators.buildVariantAggregations(vds, ec)
 
-    vds.mapAnnotations { case (v, va, gs) =>
+    vds.mapAnnotations(finalType, { case (v, va, gs) =>
 
       val annotations = SplitMulti.split(v, va, gs,
         propagateGQ = propagateGQ,
@@ -91,19 +91,19 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
           insertSplit(insertIndex(va, index), wasSplit)
         },
         f = _ => true)
-        .map({
+        .map {
           case (v, (va, gs)) =>
             ec.setAll(localGlobalAnnotation, v, va)
-            aggregateOption.foreach(f => f(v, va, gs))
+            aggregateOption.foreach(f => f(v, va, gs.toArray[Genotype]: IndexedSeq[Genotype]))
             f()
-        }).toArray
+        }.toArray
 
       inserters.zipWithIndex.foldLeft(va) {
         case (va, (inserter, i)) =>
           inserter(va, annotations.map(_ (i)).toArray[Any]: IndexedSeq[Any])
       }
 
-    }.copy(vaSignature = finalType)
+    })
   }
 
   def concordance(other: VariantDataset): (IndexedSeq[IndexedSeq[Long]], KeyTable, KeyTable) = {
@@ -347,8 +347,8 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
 
     val noCall = Genotype()
     val localKeep = keep
-    vds.mapValuesWithAll(
-      (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Genotype) => {
+    vds.mapValuesWithAll(vds.genotypeSignature,
+      { (v: Variant, va: Annotation, s: Annotation, sa: Annotation, g: Genotype) =>
         ec.setAll(v, va, s, sa, g)
 
         if (Filter.boxedKeepThis(f(), localKeep))
@@ -365,12 +365,12 @@ class VariantDatasetFunctions(private val vds: VariantDataset) extends AnyVal {
   }
 
   def hardCalls(): VariantDataset = {
-    vds.mapValues { g =>
+    vds.mapValues(vds.genotypeSignature, { g =>
       if (g == null)
-        g
+        null
       else
         Genotype(g._unboxedGT, g._fakeRef)
-    }
+    })
   }
 
   /**

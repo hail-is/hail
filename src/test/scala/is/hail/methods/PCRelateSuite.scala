@@ -58,7 +58,7 @@ class PCRelateSuite extends SparkSuite {
       hadoopConf.copy(tmpfile + suffix, localTmpfile + suffix)
     }
 
-    s"Rscript $rFile ${uriPath(localTmpfile)} ${maf}" !
+    s"Rscript $rFile ${ uriPath(localTmpfile) } ${ maf }" !
 
     val columns = Map(
       ("ID1", TString),
@@ -72,20 +72,20 @@ class PCRelateSuite extends SparkSuite {
 
     hadoopConf.copy(localTmpfile + ".out", tmpfile + ".out")
 
-    val (_, rdd) = TextTableReader.read(sc)(Array(tmpfile + ".out"), columns, separator=separator)
+    val (_, rdd) = TextTableReader.read(sc)(Array(tmpfile + ".out"), columns, separator = separator)
     rdd.collect()
       .map(_.value)
       .map { ann =>
-      val row = ann.asInstanceOf[Row]
-      val id1 = toS(row(0))
-      val id2 = toS(row(1))
-      val nsnp = toD(row(2)).toInt
-      val kin = toD(row(3))
-      val k0 = toD(row(4))
-      val k1 = toD(row(5))
-      val k2 = toD(row(6))
-      ((id1, id2), (kin, k0, k1, k2))
-    }
+        val row = ann.asInstanceOf[Row]
+        val id1 = toS(row(0))
+        val id2 = toS(row(1))
+        val nsnp = toD(row(2)).toInt
+        val kin = toD(row(3))
+        val k0 = toD(row(4))
+        val k1 = toD(row(5))
+        val k2 = toD(row(6))
+        ((id1, id2), (kin, k0, k1, k2))
+      }
       .toMap
   }
 
@@ -94,23 +94,23 @@ class PCRelateSuite extends SparkSuite {
 
   @Test
   def trivialReference() {
-    val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
-    val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
-    val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
-    val pcs = new DenseMatrix(4,2,pcsArray)
-    val us = runPcRelateHail(vds, pcs, maf=0.0)
-    val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.0)._1
+    val genotypeMatrix = new BDM(4, 8, Array(0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1)) // column-major, columns == variants
+    val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1", "s2", "s3", "s4")))
+    val pcsArray = Array(0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
+    val pcs = new DenseMatrix(4, 2, pcsArray)
+    val us = runPcRelateHail(vds, pcs, maf = 0.0)
+    val truth = PCRelateReferenceImplementation(vds, pcs, maf = 0.0)._1
     assert(mapSameElements(us, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
   @Test(enabled = false)
   def trivialReferenceMatchesR() {
-    val genotypeMatrix = new BDM(4,8,Array(0,0,0,0, 0,0,1,0, 0,1,0,1, 0,1,1,1, 1,0,0,0, 1,0,1,0, 1,1,0,1, 1,1,1,1)) // column-major, columns == variants
-    val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1","s2","s3","s4")))
-    val pcsArray = Array(0.0, 1.0, 1.0, 0.0,  1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
-    val pcs = new DenseMatrix(4,2,pcsArray)
-    val usRef = PCRelateReferenceImplementation(vds, pcs, maf=0.0)._1
-    val truth = runPcRelateR(vds, maf=0.0, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
+    val genotypeMatrix = new BDM(4, 8, Array(0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1)) // column-major, columns == variants
+    val vds = vdsFromGtMatrix(hc)(genotypeMatrix, Some(Array("s1", "s2", "s3", "s4")))
+    val pcsArray = Array(0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0) // NB: this **MUST** be the same as the PCs used by the R script
+    val pcs = new DenseMatrix(4, 2, pcsArray)
+    val usRef = PCRelateReferenceImplementation(vds, pcs, maf = 0.0)._1
+    val truth = runPcRelateR(vds, maf = 0.0, "src/test/resources/is/hail/methods/runPcRelateOnTrivialExample.R")
     assert(mapSameElements(usRef, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
 
@@ -121,10 +121,10 @@ class PCRelateSuite extends SparkSuite {
       seed <- Seq(0, 1)
       nVariants <- Seq(1000, 10000)
     } {
-      val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
+      val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1, 0.9)).splitMulti()
       val pcs = SamplePCA.justScores(vds, 2)
-      val truth = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
-      val actual = runPcRelateHail(vds, pcs, maf=0.01)
+      val truth = PCRelateReferenceImplementation(vds, pcs, maf = 0.01)._1
+      val actual = runPcRelateHail(vds, pcs, maf = 0.01)
 
       assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
     }
@@ -137,12 +137,12 @@ class PCRelateSuite extends SparkSuite {
       seed <- Seq(0, 1)
       nVariants <- Seq(1000, 10000)
     } {
-      val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1,0.9)).splitMulti()
+      val vds: VariantDataset = BaldingNicholsModel(hc, 3, n, nVariants, None, None, seed, None, UniformDist(0.1, 0.9)).splitMulti()
       val pcs = SamplePCA.justScores(vds, 2)
-      val truth = runPcRelateR(vds, maf=0.01)
-      val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
+      val truth = runPcRelateR(vds, maf = 0.01)
+      val actual = PCRelateReferenceImplementation(vds, pcs, maf = 0.01)._1
 
-      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance=1e-2))))
+      assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => D_==(x, y, tolerance = 1e-2))))
     }
   }
 
@@ -169,13 +169,14 @@ class PCRelateSuite extends SparkSuite {
   @Test
   def sampleVcfMatchesReference() {
     val vds = hc.importVCF("src/test/resources/sample.vcf.bgz")
+      .filterMulti()
 
     val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 
     val dm = BlockMatrixIsDistributedMatrix
     import dm.ops._
 
-    val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf=0.01)
+    val (truth, truth_g, truth_ibs0, truth_mu) = PCRelateReferenceImplementation(vds, pcs, maf = 0.01)
 
     val pcr = new PCRelate(0.01, blockSize)
     val g = PCRelate.vdsToMeanImputedMatrix(vds)
@@ -187,9 +188,9 @@ class PCRelateSuite extends SparkSuite {
     val actual_ibs0 = blockMatrixToBDM(pcr.ibs0(blockedG, dmu, blockSize))
     val actual_mean = blockMatrixToBDM(dmu)
 
-    compareBDMs(actual_mean, truth_mu, tolerance=1e-14)
-    compareBDMs(actual_ibs0, truth_ibs0, tolerance=1e-14)
-    compareBDMs(actual_g, truth_g, tolerance=1e-14)
+    compareBDMs(actual_mean, truth_mu, tolerance = 1e-14)
+    compareBDMs(actual_ibs0, truth_ibs0, tolerance = 1e-14)
+    compareBDMs(actual_g, truth_g, tolerance = 1e-14)
 
     assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-14)))
   }
@@ -200,8 +201,8 @@ class PCRelateSuite extends SparkSuite {
 
     val pcs = SamplePCA.justScores(vds.coalesce(10), 2)
 
-    val truth = runPcRelateR(vds, maf=0.01)
-    val actual = PCRelateReferenceImplementation(vds, pcs, maf=0.01)._1
+    val truth = runPcRelateR(vds, maf = 0.01)
+    val actual = PCRelateReferenceImplementation(vds, pcs, maf = 0.01)._1
 
     assert(mapSameElements(actual, truth, compareDoubleQuartuplets((x, y) => math.abs(x - y) < 1e-2)))
   }

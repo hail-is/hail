@@ -26,6 +26,7 @@ class LogisticRegressionBurdenSuite extends SparkSuite {
     types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   def vdsBurden: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
+    .splitMulti()
     .annotateVariantsTable(intervals, root="va.genes", product=true)
     .annotateVariantsExpr("va.weight = v.start.toFloat64()")
     .annotateSamplesTable(phenotypes, root="sa.pheno0")
@@ -42,8 +43,8 @@ class LogisticRegressionBurdenSuite extends SparkSuite {
 
     val sampleMap = keyTableBoxedDoubleToMap[String](sampleKT)
 
-    val logregWaldMap = keyTableBoxedDoubleToMap[String](logregWaldKT.select(logregWaldKT.fieldNames.dropRight(1), logregWaldKT.key))
-    val logregLRTMap = keyTableBoxedDoubleToMap[String](logregLRTKT.select(logregLRTKT.fieldNames.dropRight(1), logregLRTKT.key))
+    val logregWaldMap = keyTableBoxedDoubleToMap[String](logregWaldKT.select(logregWaldKT.columns.dropRight(1)))
+    val logregLRTMap = keyTableBoxedDoubleToMap[String](logregLRTKT.select(logregLRTKT.columns.dropRight(1)))
     val logregScoreMap = keyTableBoxedDoubleToMap[String](logregScoreKT)
 
     /*

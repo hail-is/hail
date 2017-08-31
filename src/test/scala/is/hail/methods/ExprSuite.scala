@@ -225,7 +225,7 @@ class ExprSuite extends SparkSuite {
     assert(eval[Double]("1.0 / -0.0").contains(Double.NegativeInfinity))
     assert(eval[Double]("0/0 * 1/0").forall(_.isNaN))
     assert(eval[Double]("0.0/0.0 * 1.0/0.0").forall(_.isNaN))
-    for { x <- Array("-1.0/0.0", "-1.0", "0.0", "1.0", "1.0/0.0") } {
+    for {x <- Array("-1.0/0.0", "-1.0", "0.0", "1.0", "1.0/0.0")} {
       assert(eval[Boolean](s"0.0/0.0 < $x").contains(false))
       assert(eval[Boolean](s"0.0/0.0 <= $x").contains(false))
       assert(eval[Boolean](s"0.0/0.0 > $x").contains(false))
@@ -1074,9 +1074,10 @@ class ExprSuite extends SparkSuite {
       b <- t.genValue) yield (t, a, b)
 
     val p = forAll(g) { case (t, a, b) =>
-        val ord = t.ordering(missingGreatest = true)
-        ord.compare(a, b) == - ord.compare(b, a)
+      val ord = t.ordering(missingGreatest = true)
+      ord.compare(a, b) == -ord.compare(b, a)
     }
+    p.check()
   }
 
   @Test def testContext() {
@@ -1084,5 +1085,26 @@ class ExprSuite extends SparkSuite {
       val (a, t) = hc.eval(sym)
       assert(t.typeCheck(a), s"problematic symbol: '$sym'")
     }
+  }
+
+  @Test def testSizeAlignment() {
+    val lengths = (0 to 20) ++ Array(30, 31, 32, 33, 34) ++ Array(63, 64, 65) ++
+      Array(137, 427, 1099, 3529)
+    val p = forAll(Type.genArb) { t =>
+      assert(t.byteSize == t.fundamentalType.byteSize)
+      assert(t.alignment == t.fundamentalType.alignment)
+      t match {
+        case t: TContainer =>
+          val f = t.fundamentalType.asInstanceOf[TArray]
+          assert(t.contentsAlignment == f.contentsAlignment)
+          lengths.foreach { length =>
+            assert(t.contentsByteSize(length) == f.contentsByteSize(length))
+          }
+        case _ =>
+      }
+
+      true
+    }
+    p.check()
   }
 }

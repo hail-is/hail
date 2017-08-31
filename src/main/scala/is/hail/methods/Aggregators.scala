@@ -3,7 +3,7 @@ package is.hail.methods
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import is.hail.HailContext
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, UnsafeRow}
 import is.hail.expr._
 import is.hail.stats._
 import is.hail.utils._
@@ -17,33 +17,33 @@ import scala.reflect.ClassTag
 
 object Aggregators {
 
-  def buildVariantAggregations[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], ec: EvalContext): Option[(RK, Annotation, Iterable[T]) => Unit] =
+  def buildVariantAggregations[RPK, RK, T >: Null](vsm: VariantSampleMatrix[RPK, RK, T], ec: EvalContext): Option[(Annotation, Annotation, Iterable[Annotation]) => Unit] =
     buildVariantAggregations(vsm.sparkContext, vsm.value.localValue, ec)
 
-  def buildVariantAggregations[RPK, RK, T >: Null](sc: SparkContext,
+  def buildVariantAggregations(sc: SparkContext,
     localValue: VSMLocalValue,
-    ec: EvalContext): Option[(RK, Annotation, Iterable[T]) => Unit] = {
+    ec: EvalContext): Option[(Annotation, Annotation, Iterable[Annotation]) => Unit] = {
 
     val aggregations = ec.aggregations
     if (aggregations.isEmpty)
       return None
 
     val localA = ec.a
+    val localNSamples = localValue.nSamples
     val localSamplesBc = sc.broadcast(localValue.sampleIds)
     val localAnnotationsBc = sc.broadcast(localValue.sampleAnnotations)
     val localGlobalAnnotations = localValue.globalAnnotation
 
-    Some({ (v: RK, va: Annotation, gs: Iterable[T]) =>
+    Some({ (v: Annotation, va: Annotation, gs: Iterable[Annotation]) =>
       val aggs = aggregations.map { case (_, _, agg0) => agg0.copy() }
       localA(0) = localGlobalAnnotations
       localA(1) = v
       localA(2) = va
 
-      val gsIt = gs.iterator
       var i = 0
-      // gsIt assume hasNext is always called before next
-      while (gsIt.hasNext) {
-        localA(3) = gsIt.next
+      val git = gs.iterator
+      while (i < localNSamples) {
+        localA(3) = git.next()
         localA(4) = localSamplesBc.value(i)
         localA(5) = localAnnotationsBc.value(i)
 
@@ -64,7 +64,7 @@ object Aggregators {
     })
   }
 
-  def buildSampleAggregations[RPK, RK, T >: Null](hc: HailContext, value: MatrixValue[RPK, RK, T], ec: EvalContext): Option[(Annotation) => Unit] = {
+  def buildSampleAggregations(hc: HailContext, value: MatrixValue, ec: EvalContext): Option[(Annotation) => Unit] = {
 
     val aggregations = ec.aggregations
 
@@ -86,17 +86,17 @@ object Aggregators {
       baseArray.update(i, j, aggregations(j)._3.copy())
     }
 
-    val result = value.rdd.treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
+    val result = value.rdd[Annotation, Annotation, Annotation].treeAggregate(baseArray)({ case (arr, (v, (va, gs))) =>
       localA(0) = localGlobalAnnotations
       localA(4) = v
       localA(5) = va
 
-      val gsIt = gs.iterator
+      var git = gs.iterator
       var i = 0
       while (i < localNSamples) {
         localA(1) = localSamplesBc.value(i)
         localA(2) = localSampleAnnotationsBc.value(i)
-        localA(3) = gsIt.next
+        localA(3) = git.next()
 
         var j = 0
         while (j < nAggregations) {

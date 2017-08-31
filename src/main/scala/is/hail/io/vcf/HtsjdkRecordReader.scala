@@ -26,10 +26,14 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
   import HtsjdkRecordReader._
 
   def readVariantInfo(vc: VariantContext, rvb: RegionValueBuilder, infoType: TStruct) {
-    // variant
     val ref = vc.getReference.getBaseString
 
-    rvb.startStruct()
+    rvb.startStruct() // pk
+    rvb.addString(vc.getContig)
+    rvb.addInt(vc.getStart)
+    rvb.endStruct()
+
+    rvb.startStruct() // v
     rvb.addString(vc.getContig)
     rvb.addInt(vc.getStart)
     rvb.addString(ref)

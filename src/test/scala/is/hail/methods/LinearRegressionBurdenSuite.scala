@@ -34,6 +34,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
     types = Map("Pheno" -> TFloat64), missing = "0").keyBy("Sample")
 
   lazy val vdsBurden: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
+    .filterMulti()
     .annotateVariantsTable(intervals, root="va.genes", product=true)
     .annotateVariantsExpr("va.weight = v.start.toFloat64()")
     .annotateSamplesTable(covariates, root = "sa.cov")
@@ -154,6 +155,7 @@ class LinearRegressionBurdenSuite extends SparkSuite {
     */
 
     val vdsBurdenNoOverlap: VariantDataset = hc.importVCF("src/test/resources/regressionLinear.vcf")
+      .filterMulti()
       .annotateVariantsTable(IntervalList.read(hc, "src/test/resources/regressionLinearNoOverlap.interval_list"), root="va.gene")
       .annotateVariantsExpr("va.weight = v.start.toFloat64()")
       .annotateVariantsExpr("""va.genes2 = if (isDefined(va.gene)) [va.gene] else range(0).map(x => "")""")

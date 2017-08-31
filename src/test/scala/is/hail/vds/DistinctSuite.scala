@@ -10,3 +10,4 @@ class DistinctSuite extends SparkSuite {
       .deduplicate().countVariants() == 346)
   }
 }
+
