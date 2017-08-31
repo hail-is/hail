@@ -21,7 +21,7 @@ ZONE=us-central1-b
 PATH=$PATH:/usr/local/google-cloud-sdk/bin
 
 function cleanup {
-  gcloud --project broad-ctsa -q dataproc clusters delete --async $CLUSTER --zone ${ZONE}
+  gcloud --project broad-ctsa -q dataproc clusters delete --async $CLUSTER
 }
 trap cleanup EXIT SIGINT
 
