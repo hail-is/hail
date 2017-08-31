@@ -469,7 +469,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
         }
     }
 
-    copy(
+    copy2(
       sampleAnnotations = newAnnotations,
       saSignature = finalType
     )

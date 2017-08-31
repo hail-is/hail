@@ -208,6 +208,8 @@ case class MatrixValue(
   rdd2: OrderedRDD2) {
 
   def rdd[RPK, RK, T]: OrderedRDD[RPK, RK, (Any, Iterable[T])] = {
+    warn("converting OrderedRDD2 => OrderedRDD")
+
     implicit val tct: ClassTag[T] = typ.genotypeType.scalaClassTag.asInstanceOf[ClassTag[T]]
     implicit val kOk: OrderedKey[RPK, RK] = typ.vType.typedOrderedKey[RPK, RK]
 
