@@ -38,14 +38,8 @@ class ComputeRRMSuite extends SparkSuite {
     val KwithoutBlock = ComputeRRM(vds)._1
     val KwithBlock = ComputeRRM(vds, forceBlock = true)._1
 
-
-    //RRM originally returned Breeze matrices, now it returns IndexedRowMatrices, but until the interface is locked in
-    //I am just using reflection to convert to breeze matrices for testing purposes so I don't rewrite assertMatrixEqualityDouble.
-    def convertToBreeze(sparkMatrix: IndexedRowMatrix): Matrix[Double] = {
-      val sparkLocalMatrix = sparkMatrix.toBlockMatrix().toLocalMatrix()
-      val breezeConverter = sparkLocalMatrix.getClass.getMethod("asBreeze")
-      breezeConverter.invoke(sparkLocalMatrix).asInstanceOf[Matrix[Double]]
-    }
+    def convertToBreeze(sparkMatrix: IndexedRowMatrix): Matrix[Double] =
+      sparkMatrix.toLocalMatrix()
 
     TestUtils.assertMatrixEqualityDouble(Klocal, convertToBreeze(KwithoutBlock))
     TestUtils.assertMatrixEqualityDouble(convertToBreeze(KwithBlock), convertToBreeze(KwithoutBlock))

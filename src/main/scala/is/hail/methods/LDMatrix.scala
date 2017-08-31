@@ -1,13 +1,16 @@
 package is.hail.methods
 
+import breeze.linalg.DenseMatrix
 import is.hail.HailContext
+import is.hail.annotations.Annotation
 import is.hail.distributedmatrix.{BlockMatrixIsDistributedMatrix, DistributedMatrix}
-import is.hail.stats.RegressionUtils
+import is.hail.expr.TVariant
+import is.hail.stats.{Eigen, RegressionUtils}
 import is.hail.utils._
 import is.hail.variant.{Variant, VariantDataset}
 import org.apache.hadoop.io._
 import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
-import org.apache.spark.mllib.linalg.{DenseMatrix, DenseVector, Matrix, Vectors}
+import org.apache.spark.mllib.linalg.{Vectors, DenseMatrix => SparkDenseMatrix, DenseVector => SparkDenseVector, Matrix => SparkMatrix}
 import org.json4s._
 
 object LDMatrix {
@@ -21,7 +24,7 @@ object LDMatrix {
     val nVariants = vds.countVariants()
 
     val filteredNormalizedHardCalls = vds.rdd.flatMap { 
-      case (v, (va, gs)) => RegressionUtils.normalizedHardCalls(gs, nSamples).map(x => (v, x))
+      case (v, (_, gs)) => RegressionUtils.normalizedHardCalls(gs, nSamples).map(x => (v, x))
     }
     
     val variantsKept = filteredNormalizedHardCalls.map(_._1).collect()
@@ -45,7 +48,7 @@ object LDMatrix {
     var indexedRowMatrix: IndexedRowMatrix = null
 
     if (computeLocally) {
-      val localMat: DenseMatrix = normalizedBlockMatrix.toLocalMatrix().asInstanceOf[DenseMatrix]
+      val localMat: SparkDenseMatrix = normalizedBlockMatrix.toLocalMatrix().asInstanceOf[SparkDenseMatrix]
       val product = localMat multiply localMat.transpose
       indexedRowMatrix =
         BlockMatrixIsDistributedMatrix.from(vds.sparkContext, product, normalizedBlockMatrix.rowsPerBlock,
@@ -71,11 +74,11 @@ object LDMatrix {
     hadoop.mkDir(uri)
 
     val rdd = hc.sc.sequenceFile[LongWritable, ArrayPrimitiveWritable](uri+matrixRelativePath).map { case (lw, apw) =>
-      new IndexedRow(lw.get(), new DenseVector(apw.get().asInstanceOf[Array[Double]]))
+      IndexedRow(lw.get(), new SparkDenseVector(apw.get().asInstanceOf[Array[Double]]))
     }
 
     val LDMatrixMetadata(variants, nSamples) =
-      hc.hadoopConf.readTextFile(uri+metadataRelativePath) { isr =>
+      hadoop.readTextFile(uri+metadataRelativePath) { isr =>
         jackson.Serialization.read[LDMatrixMetadata](isr)
       }
 
@@ -92,10 +95,12 @@ object LDMatrix {
 case class LDMatrix(matrix: IndexedRowMatrix, variants: Array[Variant], nSamples: Int) {
   import LDMatrix._
 
-  def toLocalMatrix: Matrix = {
+  def toLocalMatrix: SparkMatrix = {
     matrix.toBlockMatrixDense().toLocalMatrix()
   }
-
+  
+  def eigen() = Eigen(TVariant, variants.map(_.asInstanceOf[Annotation]), matrix.toLocalMatrix(), Some(nSamples))
+  
   def write(uri: String) {
     val hadoop = matrix.rows.sparkContext.hadoopConfiguration
     hadoop.mkDir(uri)

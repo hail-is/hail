@@ -2,6 +2,7 @@ package is.hail.utils.richUtils
 
 import breeze.linalg.DenseMatrix
 import is.hail.utils.ArrayBuilder
+import org.apache.spark.mllib.linalg.{DenseMatrix => SparkDenseMatrix}
 
 object RichDenseMatrixDouble {
   def horzcat(oms: Option[DenseMatrix[Double]]*): Option[DenseMatrix[Double]] = {
@@ -50,4 +51,19 @@ class RichDenseMatrixDouble(val m: DenseMatrix[Double]) extends AnyVal {
     else
       None
   }
+  
+  def toArrayShallow: Array[Double] =
+    if (m.offset == 0 && m.majorStride == m.rows && !m.isTranspose)
+      m.data
+    else
+      m.toArray
+  
+  def asSpark(): SparkDenseMatrix =
+    if (m.offset == 0 && m.majorStride == m.rows)
+      if (m.isTranspose)
+        new SparkDenseMatrix(m.rows, m.cols, m.data, true)
+      else
+        new SparkDenseMatrix(m.rows, m.cols, m.data, false)
+    else
+      new SparkDenseMatrix(m.rows, m.cols, m.toArray, false)
 }

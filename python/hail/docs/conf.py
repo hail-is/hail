@@ -75,7 +75,11 @@ hc = HailContext(log="output/hail.log", quiet=True)
 
 vds = hc.read('data/example.vds')
 
-vds.split_multi().ld_matrix().write("data/ld_matrix")
+vds.filter_multi().ld_matrix().write("data/ld_matrix")
+
+__eig = vds.filter_multi().rrm().eigen()
+__eig.write("data/example.eig")
+__eig.distribute().write("data/example.eigd")
 
 """
 
@@ -86,7 +90,7 @@ hc.stop()
 if os.path.isdir("output/"):
     shutil.rmtree("output/")
 
-files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds", "data/ld_matrix"]
+files = ["sample.vds", "sample.qc.vds", "sample.filtered.vds", "data/ld_matrix", "data/example.eig", "data/example.eigd"]
 for f in files:
     if os.path.isdir(f):
         shutil.rmtree(f)

@@ -1,9 +1,9 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark.mllib.linalg.{DenseMatrix, Matrix}
-import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRowMatrix}
+import breeze.linalg.DenseMatrix
+import org.apache.spark.mllib.linalg.{DenseMatrix => SparkDenseMatrix, Matrix => SparkMatrix}
+import org.apache.spark.mllib.linalg.distributed.{BlockMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-
 import is.hail.utils._
 
 /**
@@ -34,7 +34,7 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     val numColBlocks = (n / colsPerBlock + (if (n % colsPerBlock == 0) 0 else 1)).toInt
 
 
-    val blocks: RDD[((Int, Int), Matrix)] = indexedRowMatrix.rows.flatMap{ ir =>
+    val blocks: RDD[((Int, Int), SparkMatrix)] = indexedRowMatrix.rows.flatMap{ ir =>
       val blockRow = ir.index / rowsPerBlock
       val rowInBlock = ir.index % rowsPerBlock
 
@@ -58,10 +58,35 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
             i += 1
           }
         }
-        new DenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
+        new SparkDenseMatrix(actualNumRows, actualNumColumns, matrixAsArray)
     }
     new BlockMatrix(blocks, rowsPerBlock, colsPerBlock, m, n)
   }
+  
+  // Optimized for dense rows
+  def toLocalMatrix(): DenseMatrix[Double] = {
+    val nLong = indexedRowMatrix.numRows()
+    val mLong = indexedRowMatrix.numCols()
+    val nElements = nLong * mLong
+    if (nElements == 0)
+      fatal("Indexed row matrix has no elements, cannot create local matrix.")
+    if (nElements > Int.MaxValue)
+      fatal(s"Indexed row matrix has $nElements, greater than MaxInt, cannot create local matrix.")
+    
+    val n = nLong.toInt
+    val m = mLong.toInt
+    val data = new Array[Double](nElements.toInt)
+    
+    indexedRowMatrix.rows.collect().par
+      .foreach { case IndexedRow(index, vector) =>
+        val offset = index.toInt * m
+        var i = 0
+        while (i < m) {
+          data(offset + i) = vector(i)
+          i += 1
+        }
+      }
+
+    new DenseMatrix[Double](n, m, data, offset = 0, majorStride = m, isTranspose = true)
+  }
 }
-
-
