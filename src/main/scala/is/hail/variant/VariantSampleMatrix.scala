@@ -576,7 +576,7 @@ class VariantSampleMatrix[RPK, RK, T >: Null](val hc: HailContext, val metadata:
       newAnnotation
     }
 
-    copy(sampleAnnotations = newAnnotations, saSignature = newSignature)
+    copy2(sampleAnnotations = newAnnotations, saSignature = newSignature)
   }
 
   def annotateVariants(otherRDD: OrderedRDD[RPK, RK, Annotation], signature: Type,
