@@ -407,15 +407,17 @@ case class KeyTable(hc: HailContext, rdd: RDD[Row],
            |  Left signature: ${ TStruct(keyFields).toPrettyString(compact = true) }
            |  Right signature: ${ TStruct(other.keyFields).toPrettyString(compact = true) }""".stripMargin)
 
-    val overlappingFields = fieldNames.toSet.intersect(other.fieldNames.toSet) -- key -- other.key
-    if (overlappingFields.nonEmpty)
-      fatal(
-        s"""Columns that are not keys cannot be present in both key tables.
-           |  Overlapping fields: ${ overlappingFields.mkString(", ") }""".stripMargin)
+    val preNames = fieldNames ++ other.valueSignature.fields.map(_.name)
+    val (finalColumnNames, remapped) = mangle(preNames)
+    if (remapped.nonEmpty) {
+      warn(s"Remapped ${ remapped.length } ${ plural(remapped.length, "column") } from right-hand table:\n  @1",
+        remapped.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
+    }
 
 
     val newSignature = TStruct((keySignature.fields ++ valueSignature.fields ++ other.valueSignature.fields)
-      .map(fd => (fd.name, fd.typ)): _*)
+      .zipWithIndex
+      .map { case (fd, i) => (finalColumnNames(i), fd.typ) }: _*)
     val localNKeys = nKeys
     val size1 = valueSignature.size
     val size2 = other.valueSignature.size
