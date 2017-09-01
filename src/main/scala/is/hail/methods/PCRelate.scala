@@ -1,5 +1,7 @@
 package is.hail.methods
 
+import org.apache.spark.mllib.linalg.DenseMatrix
+import org.apache.spark.mllib.linalg.distributed.{IndexedRowMatrix, IndexedRow}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import is.hail.annotations.Annotation
@@ -7,18 +9,18 @@ import is.hail.expr.{TStruct, TString, TDouble}
 import is.hail.utils._
 import is.hail.keytable.KeyTable
 import is.hail.variant.{Variant, VariantDataset}
-import is.hail.distributedmatrix.BlockMatrixIsDistributedMatrix
+import is.hail.distributedmatrix.HailBlockMatrixIsDistributedMatrix
+import breeze.linalg.{DenseMatrix => BDM, _}
+import breeze.numerics._
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
-import org.apache.spark.mllib.linalg._
-import org.apache.spark.mllib.linalg.distributed._
 
 import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
 import scala.language.implicitConversions
 
 object PCRelate {
-  type M = BlockMatrixIsDistributedMatrix.M
-  val dm = BlockMatrixIsDistributedMatrix
+  type M = HailBlockMatrixIsDistributedMatrix.M
+  val dm = HailBlockMatrixIsDistributedMatrix
   import dm.ops._
 
   type Desire = Int
@@ -46,10 +48,10 @@ object PCRelate {
     val Result(phi, k0, k1, k2) = apply(vds, pcs, maf, blockSize, desire)
 
     def fuseBlocks(blocki: Int, blockj: Int, mk1: Matrix, mk2: Matrix, mk3: Matrix, mk4: Matrix) = {
-      val i = blocki * phi.rowsPerBlock
-      val j = blockj * phi.colsPerBlock
-      val i2 = i + phi.rowsPerBlock
-      val j2 = j + phi.colsPerBlock
+      val i = blocki * phi.blockSize
+      val j = blockj * phi.blockSize
+      val i2 = i + phi.blockSize
+      val j2 = j + phi.blockSize
 
       if (blocki < blockj ||
         i <= j && j < i2 ||
@@ -170,7 +172,7 @@ object PCRelate {
       val a = ols.estimateRegressionParameters()
       IndexedRow(i, new DenseVector(a))
     }
-    dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize, blockSize)
+    dm.from(new IndexedRowMatrix(rdd, g.numRows(), pcs.numCols + 1), blockSize)
   }
 
   def k1(k2: M, k0: M): M = {
@@ -195,7 +197,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
     val g = vdsToMeanImputedMatrix(vds)
 
     val mu = this.mu(g, pcs)
-    val blockedG = dm.from(g, blockSize, blockSize)
+    val blockedG = dm.from(g, blockSize)
 
     val variance = dm.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
@@ -231,7 +233,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
     val pcsWithIntercept = prependConstantColumn(1.0, pcs)
 
-    ((beta * pcsWithIntercept.transpose) / 2.0)
+    (beta * new BDM[Double](pcsWithIntercept.numRows, pcsWithIntercept.numCols, pcsWithIntercept.values).t) / 2.0
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
@@ -258,7 +260,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = dm.diagonal(phi).map(2.0 * _)
-    val normalizedGD = dm.map2WithIndex { (_, i, g, mu) =>
+    val normalizedGD = g.map2WithIndex(mu, { (_, i, g, mu) =>
         if (badmu(mu) || badgt(g))
           0.0  // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
         else {
@@ -268,7 +270,7 @@ class PCRelate(maf: Double, blockSize: Int) extends Serializable {
 
           gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
         }
-    } (g, mu)
+    })
 
     (normalizedGD.t * normalizedGD) :/ (variance.t * variance)
   }
