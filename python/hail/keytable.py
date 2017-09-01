@@ -1472,8 +1472,9 @@ class KeyTable(HistoryMixin):
 
     @handle_py4j
     @record_method
-    @typecheck_method(columns=oneof(strlike, listof(strlike)))
-    def ungroup(self, columns):
+    @typecheck_method(column=strlike,
+                      mangle=bool)
+    def ungroup(self, column, mangle=False):
         """Lifts fields of struct columns as distinct top-level columns.
 
         **Examples**
@@ -1481,7 +1482,7 @@ class KeyTable(HistoryMixin):
         ``kt4`` is a :py:class:`.KeyTable` with five columns: A, B, C, D and E.
 
         >>> kt4 = hc.import_table('data/kt_example4.tsv', impute=True,
-        ...                       types={'B': TStruct(['C0', 'C1'], [TBoolean(), TString()]),
+        ...                       types={'B': TStruct(['B0', 'B1'], [TBoolean(), TString()]),
         ...                              'D': TStruct(['cat', 'dog'], [TInt32(), TInt32()]),
         ...                              'E': TStruct(['A', 'B'], [TInt32(), TInt32()])})
 
@@ -1490,7 +1491,7 @@ class KeyTable(HistoryMixin):
         +----+--------------------------+-------+-------------------+--------------+
         | A  |   B                      |   C   | D                 | E            |
         +====+==========================+=======+===================+==============+
-        | 32 | {"C0":true,"C1":"hello"} | false | {"cat":5,"dog":7} | {"A":5,"B":7}|
+        | 15 | {"B0":true,"B1":"hello"} | false | {"cat":5,"dog":7} | {"A":5,"B":7}|
         +----+--------------------------+-------+-------------------+--------------+
 
         Both B and D can be ungrouped. However, E cannot be ungrouped because the names of its
@@ -1500,42 +1501,43 @@ class KeyTable(HistoryMixin):
 
         >>> kt4.ungroup('B')
 
-        +----+-------+--------+-------+-------------------+--------------+
-        | A  |   C0  | C1     |   C   | D                 | E            |
-        +====+=======+========+=======+===================+==============+
-        | 32 | true  | "hello"| false | {"cat":5,"dog":7} | {"A":5,"B":7}|
-        +----+-------+--------+-------+-------------------+--------------+
+        +----+-------+-------------------+--------------+-------+--------+
+        | A  |  C    | D                 | E            |   B0  | B1     |
+        +====+=======+===================+==============+=======+========+
+        | 15 | false | {"cat":5,"dog":7} | {"A":5,"B":7}| true  | "hello"|
+        +----+-------+----------------------------------+-------+--------+
 
-        Ungroup B and D:
+        Ungroup E using `mangle=True` to avoid name conflicts:
 
-        >>> kt4.ungroup(['B', 'D'])
+        >>> kt4.ungroup('E', mangle=True)
 
-        +----+-------+--------+-------+-----+------+--------------+
-        | A  |   C0  | C1     |   C   | cat | dog  | E            |
-        +====+=======+========+=======+=====+======+==============+
-        | 32 | true  | "hello"| false | 5   |  7   | {"A":5,"B":7}|
-        +----+-------+--------+-------+-----+------+--------------+
+        +----+--------------------------+-------+-------------------+--------------+
+        | A  |   B                      |   C   | D                 | E.A   |  E.B |
+        +====+==========================+=======+===================+==============+
+        | 15 | {"B0":true,"B1":"hello"} | false | {"cat":5,"dog":7} | 5     |  7   |
+        +----+--------------------------+-------+-------------------+--------------+
 
         **Notes**
 
-        Multiple columns can be ungrouped at the same time. However, the names of their fields
-        cannot conflict. The new columns are inserted in the same position in the schema as the
-        original struct column.
+        The ungrouped columns are always appended to the end of the table.
 
-        :param columns: Names of struct columns to ungroup.
-        :type columns: str or list of str
+        :param column: Names of struct column to ungroup.
+        :type column: str
 
-        :return: A table with specified columns ungrouped.
+        :param mangle: Rename ungrouped columns as ``column.subcolumn``
+        :type mangle: bool
+
+        :return: A table with specified column ungrouped.
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jkt.ungroup(wrap_to_list(columns)))
+        return KeyTable(self.hc, self._jkt.ungroup(column, mangle))
 
     @handle_py4j
     @record_method
     @typecheck_method(dest=strlike,
-                      columns=oneof(strlike, listof(strlike)))
-    def group(self, dest, columns):
+                      columns=tupleof(strlike))
+    def group(self, dest, *columns):
         """Combines columns into a single struct column.
 
         **Examples**
@@ -1549,17 +1551,17 @@ class KeyTable(HistoryMixin):
         +----+------+-------+
         | A  |   B  |   C   |
         +====+======+=======+
-        | 32 | true | "sun" |
+        | 24 | true | "sun" |
         +----+------+-------+
 
         Group A and C into a new column X:
 
-        >>> kt5.group('X', ['A', 'C'])
+        >>> kt5.group('X', 'A', 'C')
 
         +----+-------------------+
         | B  |   X               |
         +====+===================+
-        |true|{"A":32,"C":"sun"} |
+        |true|{"A":24,"C":"sun"} |
         +----+-------------------+
 
         **Notes**

@@ -297,16 +297,17 @@ object FunctionDocumentation {
       """),
     DocumentationEntry("ungroup", "function", None, TStruct(),
       Array(Argument("s", "Struct", "Struct to ungroup fields from."),
-        Argument("identifiers", "String", "Field names to ungroup from ``s``. The field type must be a Struct. Multiple arguments allowed.")),
+        Argument("identifier", "String", "Field name to ungroup from ``s``. The field type must be a Struct."),
+        Argument("mangle", "Boolean", "Rename ungrouped field names as ``identifier.child``.")),
       """
-      Return a new ``Struct`` where the subfields of the fields given by ``identifiers`` are lifted as fields in ``s``.
+      Return a new ``Struct`` where the subfields of the field given by ``identifier`` are lifted as fields in ``s``.
 
       .. code-block:: text
           :emphasize-lines: 2
 
-          let s = {gene: "ACBD", info: {A: 5, B: 3}, function: "LOF"} in ungroup(s, info)
-          result: {gene: "ACBD", A: 5, B: 3, function: "LOF"}
-      """, varArgs = true),
+          let s = {gene: "ACBD", info: {A: 5, B: 3}, function: "LOF"} in ungroup(s, info, true)
+          result: {gene: "ACBD", function: "LOF", info.A: 5, info.B: 3}
+      """, varArgs = false),
     DocumentationEntry("group", "function", None, TStruct(),
       Array(Argument("s", "Struct", "Struct to group fields from."),
         Argument("dest", "String", "Location to place new struct field in ``s``."),

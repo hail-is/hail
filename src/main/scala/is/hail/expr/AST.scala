@@ -13,13 +13,14 @@ import scala.reflect.ClassTag
 import scala.util.parsing.input.{Position, Positional}
 
 case class RefBox(var v: Any)
+
 case class EvalContext(st: SymbolTable,
   a: ArrayBuffer[Any],
   aggregations: ArrayBuffer[(RefBox, CPS[Any], Aggregator)]) {
   st.foreach {
     case (name, (i, t: TAggregable)) =>
       require(t.symTab.exists { case (_, (j, t2)) => j == i && t2 == t.elementType },
-        s"did not find binding for type ${t.elementType} at index $i in agg symbol table for `$name'")
+        s"did not find binding for type ${ t.elementType } at index $i in agg symbol table for `$name'")
     case _ =>
   }
 
@@ -60,14 +61,14 @@ case class EvalContext(st: SymbolTable,
     a(2) = arg3
   }
 
-  def setAll(arg1: Any, arg2: Any, arg3: Any, arg4:Any) {
+  def setAll(arg1: Any, arg2: Any, arg3: Any, arg4: Any) {
     a(0) = arg1
     a(1) = arg2
     a(2) = arg3
     a(3) = arg4
   }
 
-  def setAll(arg1: Any, arg2: Any, arg3: Any, arg4:Any, arg5:Any) {
+  def setAll(arg1: Any, arg2: Any, arg3: Any, arg4: Any, arg5: Any) {
     a(0) = arg1
     a(1) = arg2
     a(2) = arg3
@@ -75,7 +76,7 @@ case class EvalContext(st: SymbolTable,
     a(4) = arg5
   }
 
-  def setAll(arg1: Any, arg2: Any, arg3: Any, arg4:Any, arg5:Any, args: Any*) {
+  def setAll(arg1: Any, arg2: Any, arg3: Any, arg4: Any, arg5: Any, args: Any*) {
     a(0) = arg1
     a(1) = arg2
     a(2) = arg3
@@ -122,6 +123,7 @@ object EvalContext {
 
 sealed trait NumericConversion[T, U <: ToBoxed[T]] extends Serializable {
   def to(numeric: Any): T
+
   def to(c: Code[java.lang.Number]): CM[Code[U#T]]
 }
 
@@ -129,6 +131,7 @@ object IntNumericConversion extends NumericConversion[Int, BoxedInt] {
   def to(numeric: Any): Int = numeric match {
     case i: Int => i
   }
+
   def to(c: Code[java.lang.Number]) =
     c.mapNull((x: Code[java.lang.Number]) => Code.boxInt(Code.intValue(x)))
 }
@@ -138,6 +141,7 @@ object LongNumericConversion extends NumericConversion[Long, BoxedLong] {
     case i: Int => i
     case l: Long => l
   }
+
   def to(c: Code[java.lang.Number]) =
     c.mapNull((x: Code[java.lang.Number]) => Code.boxLong(Code.longValue(x)))
 }
@@ -148,6 +152,7 @@ object FloatNumericConversion extends NumericConversion[Float, BoxedFloat] {
     case l: Long => l
     case f: Float => f
   }
+
   def to(c: Code[java.lang.Number]) =
     c.mapNull((x: Code[java.lang.Number]) => Code.boxFloat(Code.floatValue(x)))
 }
@@ -159,6 +164,7 @@ object DoubleNumericConversion extends NumericConversion[Double, BoxedDouble] {
     case f: Float => f
     case d: Double => d
   }
+
   def to(c: Code[java.lang.Number]) =
     c.mapNull((x: Code[java.lang.Number]) => Code.boxDouble(Code.doubleValue(x)))
 }
@@ -167,11 +173,13 @@ object AST extends Positional {
 
   def evalComposeCode[T](subexpr: AST)(g: Code[T] => Code[AnyRef]): CM[Code[AnyRef]] =
     subexpr.compile().flatMap(_.mapNull((x: Code[AnyRef]) => g(x.asInstanceOf[Code[T]])))
+
   def evalComposeCodeM[T](subexpr: AST)(g: Code[T] => CM[Code[AnyRef]]): CM[Code[AnyRef]] = for (
     (stc, c) <- CM.memoize(subexpr.compile());
     gc <- g(c.asInstanceOf[Code[T]])
   ) yield
     Code(stc, c.ifNull(Code._null, gc))
+
   def evalComposeCodeM[T, U](a: AST, b: AST)(g: (Code[T], Code[U]) => CM[Code[AnyRef]]): CM[Code[AnyRef]] = for (
     (sta, ac) <- CM.memoize(a.compile());
     (stb, bc) <- CM.memoize(b.compile());
@@ -179,15 +187,17 @@ object AST extends Positional {
   ) yield
     Code(sta, ac.ifNull(Code._null,
       Code(stb, bc.ifNull(Code._null, gc))))
+
   def evalComposeCodeM[T, U, V](a: AST, b: AST, c: AST)(g: (Code[T], Code[U], Code[V]) => CM[Code[AnyRef]]): CM[Code[AnyRef]] = for (
     (sta, ac) <- CM.memoize(a.compile());
     (stb, bc) <- CM.memoize(b.compile());
     (stc, cc) <- CM.memoize(c.compile());
     gc <- g(ac.asInstanceOf[Code[T]], bc.asInstanceOf[Code[U]], cc.asInstanceOf[Code[V]]))
-  yield
-    Code(sta, ac.ifNull(Code._null,
-      Code(stb, bc.ifNull(Code._null,
-        Code(stc, cc.ifNull(Code._null, gc))))))
+    yield
+      Code(sta, ac.ifNull(Code._null,
+        Code(stb, bc.ifNull(Code._null,
+          Code(stc, cc.ifNull(Code._null, gc))))))
+
   def evalComposeCodeM[T, U, V, W](a: AST, b: AST, c: AST, d: AST)(g: (Code[T], Code[U], Code[V], Code[W]) => CM[Code[AnyRef]]): CM[Code[AnyRef]] = for (
     (sta, ac) <- CM.memoize(a.compile());
     (stb, bc) <- CM.memoize(b.compile());
@@ -199,7 +209,8 @@ object AST extends Positional {
       Code(stb, bc.ifNull(Code._null,
         Code(stc, cc.ifNull(Code._null,
           Code(std, dc.ifNull(Code._null, gc))))))))
-  def evalComposeCodeM[T, U, V, W, X](a: AST, b: AST, c: AST, d: AST, e:AST)(g: (Code[T], Code[U], Code[V], Code[W], Code[X]) => CM[Code[AnyRef]]): CM[Code[AnyRef]] = for (
+
+  def evalComposeCodeM[T, U, V, W, X](a: AST, b: AST, c: AST, d: AST, e: AST)(g: (Code[T], Code[U], Code[V], Code[W], Code[X]) => CM[Code[AnyRef]]): CM[Code[AnyRef]] = for (
     (sta, ac) <- CM.memoize(a.compile());
     (stb, bc) <- CM.memoize(b.compile());
     (stc, cc) <- CM.memoize(c.compile());
@@ -211,8 +222,8 @@ object AST extends Positional {
       Code(stb, bc.ifNull(Code._null,
         Code(stc, cc.ifNull(Code._null,
           Code(std, dc.ifNull(Code._null,
-            Code(ste, ec.ifNull(Code._null,gc)
-        )))))))))
+            Code(ste, ec.ifNull(Code._null, gc)
+            )))))))))
 }
 
 case class Positioned[T](x: T) extends Positional
@@ -228,7 +239,7 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
 
   def typecheckThis(ec: EvalContext): Type = typecheckThis()
 
-  def typecheckThis(): Type = parseError(s"Found out-of-place expression of type ${this.getClass.getSimpleName}")
+  def typecheckThis(): Type = parseError(s"Found out-of-place expression of type ${ this.getClass.getSimpleName }")
 
   def typecheck(ec: EvalContext) {
     subexprs.foreach(_.typecheck(ec))
@@ -262,9 +273,9 @@ sealed abstract class AST(pos: Position, subexprs: Array[AST] = Array.empty) {
     val f = (this.compileAggregator() { (me: Code[AnyRef]) => for (
       vs <- CM.initialValueArray();
       k = Code.checkcast[AnyRef => Unit](vs.invoke[Int, AnyRef]("apply", idx))
-      // This method returns `Void` which is only inhabited by `null`, we treat
-      // these calls as non-stack-modifying functions so we must include a pop
-      // to reset the stack.
+    // This method returns `Void` which is only inhabited by `null`, we treat
+    // these calls as non-stack-modifying functions so we must include a pop
+    // to reset the stack.
     ) yield Code(k.invoke[AnyRef, AnyRef]("apply", me), Code._pop[Unit])
     }).map(x => Code(x, Code._null[AnyRef])).runWithDelayedValues(typedNames, ec)
 
@@ -283,7 +294,7 @@ case class Const(posn: Position, value: Any, t: Type) extends AST(posn) {
     case l: Long => Code.newInstance[java.lang.Long, Long](l)
     // case f: Float => (FloatInfo, f)
     case d: Double => Code.newInstance[java.lang.Double, Double](d)
-    case s: String => (s : Code[String]).asInstanceOf[Code[AnyRef]]
+    case s: String => (s: Code[String]).asInstanceOf[Code[AnyRef]]
     case z: Boolean => Code.newInstance[java.lang.Boolean, Boolean](z)
     // case c: Char => (CharInfo, c)
     case null => Code._null
@@ -303,7 +314,7 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
           case None => parseError(
             s"""Struct has no field `$rhs'
                |  Available fields:
-               |    ${ t.fields.map(x => s"${prettyIdentifier(x.name)}: ${x.typ}").mkString("\n    ") }""".stripMargin)
+               |    ${ t.fields.map(x => s"${ prettyIdentifier(x.name) }: ${ x.typ }").mkString("\n    ") }""".stripMargin)
         }
 
       case (t, name) => FunctionRegistry.lookupFieldReturnType(t, Seq(), name)
@@ -328,14 +339,14 @@ case class Select(posn: Position, lhs: AST, rhs: String) extends AST(posn, lhs) 
       val localPos = posn
 
       FunctionRegistry.lookupField(t, Seq(), rhs)(lhs, Seq())
-      .valueOr {
-        case FunctionRegistry.NotFound(name, typ) =>
-          ParserUtils.error(localPos,
-            s"""`$t' has neither a field nor a method named `$name'
+        .valueOr {
+          case FunctionRegistry.NotFound(name, typ) =>
+            ParserUtils.error(localPos,
+              s"""`$t' has neither a field nor a method named `$name'
                |  Hint: sum, min, max, etc. have no parentheses when called on an Array:
                |    counts.sum""".stripMargin)
-        case otherwise => fatal(otherwise.message)
-      }
+          case otherwise => fatal(otherwise.message)
+        }
   }
 }
 
@@ -346,9 +357,9 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
     elements.foreach(_.typecheck(ec))
     val types: Set[Type] = elements.map(_.`type`)
       .map {
-      case t: Type => t
-      case bt => parseError(s"invalid array element found: `$bt'")
-    }
+        case t: Type => t
+        case bt => parseError(s"invalid array element found: `$bt'")
+      }
       .toSet
     if (types.size == 1)
       TArray(types.head)
@@ -365,8 +376,8 @@ case class ArrayConstructor(posn: Position, elements: Array[AST]) extends AST(po
   def compile() = for (
     celements <- CM.sequence(elements.map(_.compile()));
     convertedArray <- CompilationHelp.arrayOfWithConversion(`type`.asInstanceOf[TArray].elementType, celements))
-  yield
-    CompilationHelp.arrayToWrappedArray(convertedArray)
+    yield
+      CompilationHelp.arrayToWrappedArray(convertedArray)
 }
 
 case class StructConstructor(posn: Position, names: Array[String], elements: Array[AST]) extends AST(posn, elements) {
@@ -478,8 +489,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                |  Struct did not contain the designated key `${ prettyIdentifier(key) }'""".stripMargin)
         }
 
-      case "select" | "drop" | "ungroup" =>
-        val usage = s"""Usage: `$fn'(Struct, identifiers...)"""
+      case "select" | "drop" =>
         if (args.length < 2)
           parseError(
             s"""too few arguments for method `$fn'
@@ -508,10 +518,48 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
                |  Duplicate ${ plural(duplicates.size, "identifier") } found: [ ${ duplicates.map(prettyIdentifier).mkString(", ") } ]""".stripMargin)
 
         val (tNew, _) = try {
-          fn match {
-            case "select" | "drop" => struct.filter(identifiers.toSet, include = fn == "select")
-            case "ungroup" => struct.ungroup(identifiers)
-          }
+          struct.filter(identifiers.toSet, include = fn == "select")
+        } catch {
+          case e: Throwable => parseError(
+            s"""invalid arguments for method `$fn'
+               |  $e""".stripMargin)
+        }
+
+        `type` = tNew
+
+      case "ungroup" =>
+        if (args.length != 3)
+          parseError(
+            s"""invalid arguments for method `$fn'
+               |  Usage: $fn(Struct, identifier, mangle)
+               |  Found ${ args.length } ${ plural(args.length, "argument") }""".stripMargin)
+
+        val Array(s, id, m) = args
+        s.typecheck(ec)
+        val struct = s.`type` match {
+          case t: TStruct => t
+          case other => parseError(
+            s"""method `$fn' expects a Struct argument in the first position
+               |  Expected: $fn(Struct, ...)
+               |  Found: $fn($other, ...)""".stripMargin)
+        }
+        val identifier = id match {
+          case SymRef(_, n) => n
+          case other =>
+            parseError(
+              s"""invalid arguments for method `$fn'
+                 |  Expected struct field identifier in the second position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
+        }
+        val mangle = m match {
+              case Const(_, v, TBoolean) => v.asInstanceOf[Boolean]
+              case other =>
+                parseError(
+                  s"""invalid arguments for method `$fn'
+                 |  Expected boolean argument in the third position, but found a `${ other.getClass.getSimpleName }' expression""".stripMargin)
+        }
+
+        val (tNew, _) = try {
+          struct.ungroup(identifier, mangle)
         } catch {
           case e: Throwable => parseError(
             s"""invalid arguments for method `$fn'
@@ -521,7 +569,6 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
         `type` = tNew
 
       case "group" =>
-        val usage = s"""Usage: `$fn'(Struct, dest, identifiers...)"""
         if (args.length < 3)
           parseError(
             s"""too few arguments for method `$fn'
@@ -589,7 +636,7 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
       result <- CM.invokePrimitive2(merger)(f1, f2)
     ) yield result.asInstanceOf[Code[AnyRef]] // totally could be a problem
 
-    case ("select" | "drop" | "ungroup" | "group", Array(head, tail @ _*)) =>
+    case ("select" | "drop" | "group", Array(head, tail@_*)) =>
       val struct = head.`type`.asInstanceOf[TStruct]
       val identifiers = tail.map { ast =>
         (ast: @unchecked) match {
@@ -599,11 +646,26 @@ case class Apply(posn: Position, fn: String, args: Array[AST]) extends AST(posn,
 
       val f = fn match {
         case "select" | "drop" => struct.filter(identifiers.toSet, include = fn == "select")._2
-        case "ungroup" => struct.ungroup(identifiers.toArray)._2
         case "group" => struct.group(identifiers.head, identifiers.tail.toArray)._2
       }
 
       AST.evalComposeCodeM[AnyRef](head)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
+
+    case ("ungroup", Array(s, id, m)) =>
+      val struct = s.`type`.asInstanceOf[TStruct]
+      val (identifier, mangle) = (id: @unchecked, m: @unchecked) match {
+        case (SymRef(_, n), Const(_, v, _)) => (n, v.asInstanceOf[Boolean])
+      }
+      val f = struct.ungroup(identifier, mangle)._2
+      AST.evalComposeCodeM[AnyRef](s)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
+
+    case ("ungroup", Array(s, id)) =>
+      val struct = s.`type`.asInstanceOf[TStruct]
+      val identifier = (id: @unchecked) match {
+        case SymRef(_, n) => n
+      }
+      val f = struct.ungroup(identifier)._2
+      AST.evalComposeCodeM[AnyRef](s)(CM.invokePrimitive1(f.asInstanceOf[(AnyRef) => AnyRef]))
 
     case ("index", Array(structArray, k)) =>
       val key = (k: @unchecked) match {
