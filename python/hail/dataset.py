@@ -4036,6 +4036,9 @@ class VariantDataset(object):
                                memory (in addition to all other objects
                                necessary for Spark and Hail)
 
+        :param float min_kinship: Pairs of samples with kinship lower than
+                                  ``min_kinship`` are excluded from the results
+
         :return: A :py:class:`.KeyTable` mapping pairs of samples to estimations
                  of their kinship and identity-by-descent zero, one, and two
         :rtype: :py:class:`.KeyTable`
