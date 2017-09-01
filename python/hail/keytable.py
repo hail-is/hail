@@ -1578,6 +1578,6 @@ class KeyTable(HistoryMixin):
         :rtype: :class:`.KeyTable`
         """
 
-        return KeyTable(self.hc, self._jkt.group(dest, wrap_to_list(columns)))
+        return KeyTable(self.hc, self._jkt.group(dest, list(columns)))
 
 kt_type.set(KeyTable)
