@@ -27,7 +27,7 @@ def record_init(func, obj, *args, **kwargs):
     parsed_args = parse_args(func, args, kwargs)
     h = History.from_init(type(obj).__name__, parsed_args)
     func(obj, *args, **kwargs)
-    obj._history = h
+    obj._set_history(h)
 
 
 @decorator
@@ -36,7 +36,7 @@ def record_method(func, obj, *args, **kwargs):
 
     def set_history(item, index=None, key_name=None):
         if isinstance(item, HistoryMixin):
-            item._history = (obj._history.add_method(func.__name__, parsed_args, index=index, key_name=key_name))
+            item._set_history(obj._history.add_method(func.__name__, parsed_args, index=index, key_name=key_name))
 
     result = func(obj, *args, **kwargs)
     if isinstance(result, dict):
@@ -54,7 +54,7 @@ def record_method(func, obj, *args, **kwargs):
 def record_classmethod(func, cls, *args, **kwargs):
     parsed_args = parse_args(func, args, kwargs)
     result = func(cls, *args, **kwargs)
-    result._history = History.from_classmethod(cls.__name__, func.__name__, parsed_args)
+    result._set_history(History.from_classmethod(cls.__name__, func.__name__, parsed_args))
     return result
 
 
@@ -192,3 +192,6 @@ class HistoryMixin(object):
 
         self._history = self._history.set_varid(id)
         return self
+
+    def _set_history(self, h):
+        self._history = h
